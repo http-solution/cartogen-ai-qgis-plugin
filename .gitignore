@@ -195,3 +195,13 @@ cython_debug/
 /build_cartogen_ai.py
 /QGIS_AI_Agent_Feature_List.md
 /QGIS_AI_Agent_PRD.md
+
+# Leftover "MOVED" stub files from the namespace-package restructure (see
+# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md) -- the real code now lives at
+# src/cartogen_ai/core/agent/ and src/cartogen_ai/core/ui/. These root-level
+# directories can't be deleted from this sandbox (FUSE mount restriction, see
+# docs/BUG_TRACKER.md); each file's own docstring says the same. Untracking
+# them here so they stop shipping in commits and (via plugin_upload.py's
+# EXCLUDE_ROOT_ONLY_DIRS) stop shipping in release zips.
+/agent/
+/ui/

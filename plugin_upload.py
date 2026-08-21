@@ -26,6 +26,15 @@ EXCLUDE_DIRS = {
     # whole build -- confirmed live, this exclusion is what fixed it.
     "service",
 }
+# Directory names excluded ONLY at the plugin root, not wherever they occur --
+# unlike EXCLUDE_DIRS above, these bare names ("agent", "ui") also legitimately
+# exist deeper in the tree now (src/cartogen_ai/core/agent/, .../ui/, the real
+# code after the namespace-package restructure -- see
+# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md). A plain EXCLUDE_DIRS entry would
+# match by bare name at every depth and silently drop the real code from the
+# release zip. These two are leftover "MOVED" stub directories at the plugin
+# root only (can't be deleted -- see their own file contents for why).
+EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui"}
 EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
 # plugin and shouldn't ship in the release package.
@@ -77,6 +86,8 @@ def package_plugin():
     with zipfile.ZipFile(versioned_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(script_dir):
             dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            if root == script_dir:
+                dirs[:] = [d for d in dirs if d not in EXCLUDE_ROOT_ONLY_DIRS]
 
             for file in files:
                 if (
