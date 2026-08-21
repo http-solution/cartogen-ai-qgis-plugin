@@ -1,7 +1,9 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-08-21, against v1.2.33 (131 tools, 691 tests — see `docs/BUG_TRACKER.md`
-for the known-baseline breakdown).
+**Last updated:** 2026-08-21, against v1.4.1 (131 tools, 691 tests — see `docs/BUG_TRACKER.md`
+for the known-baseline breakdown). Previously stamped v1.2.33, which predated the whole
+namespace-package restructure ([1.4.0]) and BUG-2026-08-21-6/-7 — re-synced here, since a
+tracker that lags the code defeats its own stated purpose.
 
 This is the one place to look for "what's actually still open right now." Every review, audit,
 and spec doc in `docs/` up to this point is a **dated, frozen snapshot** — per `CONTRIBUTING.md`
@@ -70,6 +72,13 @@ gateway, tier gating mechanism, closed-source packaging) is blocked on this bein
 toward until it's resolved — starting the engineering work first would mean building against
 an unknown target.
 
+**Narrowed 2026-08-21** by `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §4. This item blocks
+*Enterprise* (RBAC/SSO/M365, closed-source packaging, license-key validation) and it blocks the
+restrictive tier model in `TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`. It does **not** block the
+Professional tier under the already-decided open-core model: a hosted gateway sells access to a
+service, distributes no code, and needs no license key (the virtual key authenticates
+server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise still cannot.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
@@ -82,6 +91,20 @@ an unknown target.
   (never, in this sandbox).
 - **`generate_html_dashboard` connectivity requirement** — carried forward unchanged from prior
   review rounds; no new information available from this sandbox.
+- **No git remote on this repo.** `main` has 5 local commits and no remote configured — nothing
+  is on GitHub yet. Blocks the sync workflow, public Releases, plugins.qgis.org submission, and
+  anything that references a public repo URL. External action, not a code change.
+- **Test baseline is 2 failures, not the documented 1.** A full run on 2026-08-21 gives 691 tests,
+  **2 failures + 6 errors + 13 skipped**. The extra one is
+  `tests/test_export_tools.py::TestGenerateHtmlDashboardConnectivityNote` — it fails when `folium`
+  (an optional dependency) is absent, because the test patches `QGIS_AVAILABLE` but has no
+  corresponding optional-dependency guard, so it fails where the rest of the suite skips.
+  Environmental, not a code defect — the tool returned its documented graceful-degradation error
+  correctly. Recommended fix and the reasoning for flagging rather than applying it:
+  `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1.
+- **`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories** beside this repo
+  at `C:\Cartogen-AI-Core\`. Harmless, but they read as "the private repo exists." Remove them or
+  add a placeholder README pointing at `docs/OPEN_CORE_REPO_STRATEGY.md`.
 - **Repo rename / GitHub collaborator items** — external GitHub actions, not verifiable or
   actionable from this sandbox. Source: `docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
 
@@ -118,6 +141,11 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
 - Session token/cost usage visibility added to the chat UI (v1.2.30).
 - `ui/attachments.py` extracted from `dock_widget.py` (the file-parsing half of the split plan
   — see §1.2 above for what's still open).
+- **Full MultiTier namespace-package restructure** (v1.4.0/v1.4.1) — code moved to
+  `src/cartogen_ai/core/` under a PEP 420 namespace root; `cartogen_ai.py` renamed to
+  `plugin_main.py` (BUG-2026-08-21-6); 15 stale `agent`/`ui` imports and the missing `-t .` in the
+  documented test command fixed (BUG-2026-08-21-7). 691/691 baseline restored. Note the `sys.path`
+  bootstrap half of this is still unverified inside a real QGIS session — see §2 above.
 - `docs/route_optimization_prototype.py` smoke-tested for the first time against real installed
   dependencies + synthetic data; 2 real bugs found and fixed (v1.2.33) — see `BUG_TRACKER.md`.
 
@@ -135,6 +163,7 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
 | `ROUTE_OPTIMIZATION_STRATEGY.md` | Frozen strategy doc; its own §4 was updated 2026-08-21 with real smoke-test results (not re-frozen, since that update was factual correction, not new proposal content). |
 | `JIAF_MULTISECTOR_COMPOSITE_SPEC.md` | Frozen spec, deliberately unbuilt — see §3 above. |
 | `SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` | Frozen review — repo-rename item still open, §2 above. |
+| `PRO_TIER_BUILD_PLAN_2026-08-21.md` | Frozen plan, 2026-08-21. Phased Professional-tier build plan; §4 narrows §1.3 above, §9 records findings folded into §2. |
 | `RELEASE_SMOKE_TEST.md` | **Living checklist**, not frozen — update when tools/categories change. |
 | `BUG_TRACKER.md` | **Living tracker**, not frozen — update as bugs are found/fixed. |
 | `CHANGELOG.md` | **Living log**, not frozen — the authoritative fix/feature history. |
