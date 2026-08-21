@@ -30,8 +30,8 @@ EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
 # plugin and shouldn't ship in the release package.
 EXCLUDE_FILES = {
-    "IMPLEMENTATION_TASK_LIST.md", "LICENSE_AUDIT.md", "QGIS_AI_Agent_PRD.md",
-    "QGIS_AI_Agent_Feature_List.md", "pytest.ini", "plugin_upload.py",
+    "IMPLEMENTATION_TASK_LIST.md", "LICENSE_AUDIT.md", "CARTOGEN_AI_PRD.md",
+    "CARTOGEN_AI_FEATURE_LIST.md", "pytest.ini", "plugin_upload.py",
     "API open router.txt", "CLAUDE.md",
     # Leftover stub from consolidating this repo out of the old dual-tree
     # setup -- see the file's own docstring. Not git-tracked; safe to delete

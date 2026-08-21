@@ -1,7 +1,7 @@
 # Cartogen AI — Editions & Business Model
 
-**Status:** Product/business positioning document. Distinct from `QGIS_AI_Agent_PRD.md` (engineering
-requirements) and `QGIS_AI_Agent_Feature_List.md` (implementation reality matrix) — this document
+**Status:** Product/business positioning document. Distinct from `CARTOGEN_AI_PRD.md` (engineering
+requirements) and `CARTOGEN_AI_FEATURE_LIST.md` (implementation reality matrix) — this document
 exists to keep the *business* framing (pricing tiers, target clients, verticals) equally honest about
 what's actually shipped versus what's planned, since those two things drift apart easily otherwise.
 
@@ -25,8 +25,15 @@ shipped under GPL v2, with no backend service, no billing system, no accounts, a
 gating anywhere in the code. Professional and Enterprise below describe target packaging for
 capabilities that would need to be built; none of their headline features (a hosted gateway, RBAC,
 SSO, SharePoint/Power BI push) exist in the repository as of this writing. Where a described capability
-overlaps with something already planned in `QGIS_AI_Agent_PRD.md`'s roadmap, that's cross-referenced
+overlaps with something already planned in `CARTOGEN_AI_PRD.md`'s roadmap, that's cross-referenced
 below.
+
+**Where the code for Professional/Enterprise will actually live:** this repo stays the single,
+public, GPL v2 Community codebase — it does not become a multi-edition codebase with tier-gating
+logic inside it. Professional and Enterprise are planned to be built in a *separate, private* repo
+that consumes this one as an upstream core, not forked from or merged into it. See
+`docs/OPEN_CORE_REPO_STRATEGY.md` for the decided (not yet built) repo/sync/distribution plan —
+that document also resolves the licensing tension flagged just below.
 
 > **2026-08-20 — proposal under consideration, not yet decided or merged:**
 > `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` sketches a different split — **Community** (77 of
@@ -95,7 +102,7 @@ would need to pay $20/month — the actual paid value would have to come entirel
 API key/billing relationship for you," which means the Cloud Connect Gateway is not an enhancement to
 the plugin but a prerequisite for this tier having any paid value proposition at all.
 
-**Where this connects to the existing PRD roadmap:** `QGIS_AI_Agent_PRD.md` §5.1 already flags "live,
+**Where this connects to the existing PRD roadmap:** `CARTOGEN_AI_PRD.md` §5.1 already flags "live,
 synced data connections" (PostgreSQL, Google Sheets, CSV) as a portable idea from the Atlas competitive
 review, scoped for Phase 2. A hosted gateway is a related but distinct piece of infrastructure (model
 access, not data access) and isn't currently represented in that roadmap — worth adding explicitly if
@@ -124,7 +131,7 @@ Enterprise differentiator. Everything that *would* need to be Enterprise-exclusi
 enclaves, M365 push) requires backend infrastructure that doesn't exist. This tier is the largest gap
 between the business framing and the current codebase of the three.
 
-**Where this connects to the existing PRD roadmap:** `QGIS_AI_Agent_PRD.md` §6 Phase 4 already lists
+**Where this connects to the existing PRD roadmap:** `CARTOGEN_AI_PRD.md` §6 Phase 4 already lists
 "Team GeoPackage memory synchronization" (explicitly flagged as needing a concurrency/conflict-resolution
 model before implementation) and "Headless QGIS Server AI agent integration" — both are Enterprise-shaped
 capabilities in spirit (multi-user, server-side) but neither was previously connected to a concrete

@@ -1,6 +1,6 @@
-# QGIS AI Agent — PRD Implementation Task List
+# Cartogen AI — PRD Implementation Task List
 
-**Target PRD Document:** [QGIS_AI_Agent_PRD.md](file:///c:/qgis_ai_assistant/QGIS_AI_Agent_PRD.md)
+**Target PRD Document:** [CARTOGEN_AI_PRD.md](CARTOGEN_AI_PRD.md)
 **Status:** Verified against actual code on 2026-08-09, re-verified and extended 2026-08-10 to cover
 the Task Manager revamp and related fixes built since. Checkboxes below reflect what's actually
 implemented, not what was originally planned — several items that were previously checked `[x]`
@@ -26,7 +26,7 @@ turned out to be stale, overstated, or describing functionality that was deliber
   - [x] All optional packages (`pypdf`, `python-docx`, `openpyxl`, `pandas`, `duckduckgo-search`) are imported lazily inside `try/except` at point of use, never at module/`__init__.py` load time, so a missing package can never crash plugin load.
 - [~] **1.5 Plugin Packaging & Release Engineering**
   - [ ] ~~`resources.qrc` + automated `pyrcc5` compilation pipeline~~ — **not real**. `resources.qrc` and the `resources/` directory (duplicate icon files) exist but are dead weight: nothing in the codebase imports or compiles them. `metadata.txt`'s `icon=icon.png` points at the root icon instead. Both are now excluded from the packaged zip.
-  - [~] `plugin_upload.py` — **local packaging only, not "automated publishing"**. It zips the plugin (excluding dev files/dirs) into `dist/qgis_ai_assistant_v{version}.zip`. It does **not** upload anywhere — there's no HTTP call, no QGIS Plugin Repository API integration, no credentials. Uploading to the repository still requires a manual step via the repository's website. **Needed if true automation is wanted:** the QGIS Plugin Repository has no official upload API for this — manual upload via https://plugins.qgis.org is the standard path even for most published plugins, so this may not be worth automating further.
+  - [~] `plugin_upload.py` — **local packaging only, not "automated publishing"**. It zips the plugin (excluding dev files/dirs) into `dist/cartogen_ai_v{version}.zip`. It does **not** upload anywhere — there's no HTTP call, no QGIS Plugin Repository API integration, no credentials. Uploading to the repository still requires a manual step via the repository's website. **Needed if true automation is wanted:** the QGIS Plugin Repository has no official upload API for this — manual upload via https://plugins.qgis.org is the standard path even for most published plugins, so this may not be worth automating further.
   - [x] GPL-v2 license compliance audit performed (`LICENSE_AUDIT.md`) — covers the optional Python packages (`pypdf`, `python-docx`, `openpyxl`, `pandas`, `duckduckgo-search`, `requests`) and external REST APIs used. Note: doesn't need updating for the newer AI providers (Groq/Cerebras/DeepSeek/OpenAI/Claude) since those are HTTP endpoints, not vendored Python packages.
 
 ---
@@ -43,7 +43,7 @@ turned out to be stale, overstated, or describing functionality that was deliber
   - [x] Task list rows are now color-coded cards (status-tinted background, tool-name badge, relative timestamp) instead of plain text, and a progress bar shows `X/N steps complete` for the active plan — also from the 2026-08-10 revamp.
 - [x] **2.3 Metadata & Lineage Tracking Engine**
   - [x] `tag_layer_lineage(layer, tool_name, params, source_layers)` (`agent/lineage.py`).
-  - [x] Lineage written to `customProperty("qgis_ai_agent/lineage")` on the created/modified layer, called automatically from `_real_execute_tool`'s success path (and mirrored for the two-phase tools via `_log_tool_success`).
+  - [x] Lineage written to `customProperty("cartogen_ai/lineage")` on the created/modified layer, called automatically from `_real_execute_tool`'s success path (and mirrored for the two-phase tools via `_log_tool_success`).
 - [x] **2.4 Action Rationale & Explainability**
   - [x] `rationale` field attached to preview tasks during planning.
   - [x] Rendered in the dock's rationale label / Task Inspector panel.
@@ -134,4 +134,4 @@ Still open:
 4. Building-footprint/road feature extraction from imagery. Deferred.
 5. Full geometry before/after diff preview on canvas (only an affected-layer highlight exists now, see WP2.1).
 6. **Open bug, not yet reproduced with a trace:** the model's final chat response has been observed (once, by the user) claiming a "backend/tool issue" and offering a manual script even though the relevant tool call had actually succeeded. Mitigations are in place (system prompt rule 15, tool-result `message` fields, and permanent `[Agent]` tool-call console logging), but the root cause isn't confirmed. See project memory `pending-tool-result-narrative-mismatch` for full detail and what to check next time it happens.
-7. **GitHub repository visibility.** `metadata.txt`'s `repository=`/`homepage=`/`tracker=` fields are correct (`https://github.com/baron-dev07/qgis_ai_assistant`), and git is now set up locally (via GitHub Desktop) and pushed to `origin/main`. The one remaining blocker: that repo is **private**, which conflicts with the QGIS Plugin Repository submission checklist's requirement that metadata links be publicly accessible. Needs the repo made public (or metadata pointed at a public mirror) before submission.
+7. **GitHub repository visibility.** `metadata.txt`'s `repository=`/`homepage=`/`tracker=` fields are correct (`https://github.com/baron-dev07/cartogen_ai`), and git is now set up locally (via GitHub Desktop) and pushed to `origin/main`. The one remaining blocker: that repo is **private**, which conflicts with the QGIS Plugin Repository submission checklist's requirement that metadata links be publicly accessible. Needs the repo made public (or metadata pointed at a public mirror) before submission.

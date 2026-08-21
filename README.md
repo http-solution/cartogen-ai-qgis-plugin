@@ -4,7 +4,7 @@ A QGIS plugin: spatial AI that plans, executes, and shows its work. Type what yo
 to do in plain language — the agent plans it, calls the right tools, and executes real
 spatial operations against your open project.
 
-**Version:** 1.4.0 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) ·
+**Version:** 1.4.1 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) ·
 **QGIS:** 3.0 – 4.99
 
 > This repo is the single, consolidated successor to an earlier dual-tree setup
@@ -99,6 +99,7 @@ OSGeo4W Shell), then reopen QGIS.
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
 | [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
+| [docs/OPEN_CORE_REPO_STRATEGY.md](docs/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
 | [docs/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
 | [docs/ROUTE_OPTIMIZATION_STRATEGY.md](docs/ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
 | [docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |

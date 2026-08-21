@@ -55,7 +55,7 @@ This is the same shape of gap `population_access_gap` closed for accessibility: 
 
 ### C. Still open from Revision 1, correctly not attempted
 
-Scheduled/recurring monitoring workflows (re-running severity/presence analysis periodically and diffing) were a PRD-level gap (Phase 2, not specific to this review) — **shipped 2026-08-16** as `run_monitoring_workflow`/`schedule_recurring_workflow` (in-session `QTimer` scope only; see `CHANGELOG.md` and `QGIS_AI_Agent_PRD.md` §6 Phase 2). Building-footprint-based **damage** classification (as opposed to baseline footprints, which are now covered) remains appropriately deferred — `fetch_building_footprints` is explicit that it's a periodic baseline dataset, not live post-event extraction, and `calculate_raster_change_detection` is the closest existing tool for change/damage signal. Neither is misrepresented in current docs.
+Scheduled/recurring monitoring workflows (re-running severity/presence analysis periodically and diffing) were a PRD-level gap (Phase 2, not specific to this review) — **shipped 2026-08-16** as `run_monitoring_workflow`/`schedule_recurring_workflow` (in-session `QTimer` scope only; see `CHANGELOG.md` and `CARTOGEN_AI_PRD.md` §6 Phase 2). Building-footprint-based **damage** classification (as opposed to baseline footprints, which are now covered) remains appropriately deferred — `fetch_building_footprints` is explicit that it's a periodic baseline dataset, not live post-event extraction, and `calculate_raster_change_detection` is the closest existing tool for change/damage signal. Neither is misrepresented in current docs.
 
 ---
 

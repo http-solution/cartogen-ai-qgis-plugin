@@ -190,6 +190,8 @@ cython_debug/
 # settings.json (if one is ever added) is fine to track.
 .claude/settings.local.json
 
-# Leftover, untracked stub from this repo's consolidation out of the old
-# dual-tree setup -- see the file's own docstring. Safe to delete by hand.
+# Leftover, untracked stubs from this repo's consolidation out of the old
+# dual-tree setup -- see each file's own content. Safe to delete by hand.
 /build_cartogen_ai.py
+/QGIS_AI_Agent_Feature_List.md
+/QGIS_AI_Agent_PRD.md

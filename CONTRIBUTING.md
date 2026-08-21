@@ -80,18 +80,19 @@ If you're not sure which category something falls into, treat it as the second o
   add a similarly "the interpreter won't warn you" class of footgun, consider whether a structural
   test like this one is warranted, not just a behavioral one.
 
-## 5. Single tree, three planned editions
+## 5. Single tree, one public codebase
 
 This repo is a single source tree — there's no second copy to keep in sync (an earlier version of
-this project maintained a dual-tree setup; see `CHANGELOG.md`'s `[1.4.0]` entry). Community, Pro,
-and Enterprise (see `docs/PRODUCT_TIERS.md`) are planned editions of this *one* codebase, not
-separate trees or branches. Nothing in this repo is tier-gated today — when tier-gating logic is
-actually built, follow rule 2 above: state plainly in the code (and keep `docs/PRODUCT_TIERS.md`
-current) which tier a feature requires, don't let the doc drift from what's actually enforced.
+this project maintained a dual-tree setup; see `CHANGELOG.md`'s `[1.4.0]` entry). It is also, by
+design, the *only* codebase for the Community edition. Pro and Enterprise (see
+`docs/PRODUCT_TIERS.md`) are not built as tiers inside this repo — they're planned for a separate
+private repo that syncs from this one (`docs/OPEN_CORE_REPO_STRATEGY.md`). **Do not add
+tier-check or license-gating logic here** — that's out of scope for this repo by design, not
+just unbuilt yet.
 
 ## 6. Frozen historical docs
 
-`QGIS_AI_Agent_Feature_List.md`, `QGIS_AI_Agent_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`,
+`CARTOGEN_AI_FEATURE_LIST.md`, `CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`,
 `CHANGELOG.md`'s past entries, and dated review/audit/spec docs (filenames ending in a date, e.g.
 `docs/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — they're a
 historical record, not living documentation. If something in one of them is now wrong or

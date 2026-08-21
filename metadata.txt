@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.4.0
+version=1.4.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -26,7 +26,30 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.4.0 (2026-08-21):
+changelog=v1.4.1 (2026-08-21):
+    Follow-up fixes after the v1.4.0 consolidation, from direct feedback: two living reference
+    docs were still named/linked like leftovers from the old repo -- QGIS_AI_Agent_Feature_List.md
+    and QGIS_AI_Agent_PRD.md renamed to CARTOGEN_AI_FEATURE_LIST.md/CARTOGEN_AI_PRD.md and fully
+    rebranded (these are living docs, not historical logs, so unlike CHANGELOG.md's past entries
+    this wasn't a rewrite-history concern). 44 broken file:// links hardcoded to the old machine's
+    path (file:///c:/qgis_ai_assistant/...) converted to relative links. Updated every live
+    reference to the renamed files across agent/scheduler.py, agent/tools/monitoring_tools.py,
+    CLAUDE.md, CONTRIBUTING.md, plugin_upload.py's EXCLUDE_FILES, and docs/PRODUCT_TIERS.md,
+    docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md, docs/SAM_IMAGERY_EXTRACTION_SPEC.md. Left the
+    genuinely dated/historical docs (CHANGELOG.md itself, STATUS_REVIEW_2026-08-20.md,
+    SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md) untouched, per this project's own frozen-doc
+    convention -- they describe real past states, not leftover branding.
+
+    Also added docs/OPEN_CORE_REPO_STRATEGY.md: this repo stays the single public Community
+    codebase; Professional and Enterprise are decided (not yet built) to live in a separate
+    private repo that one-way-syncs from this one via GitHub Actions, distributed from the
+    project website with license-key gating. This resolves the licensing tension
+    docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md flagged but didn't settle -- Community stays
+    genuinely GPL v2/open in this repo; only the unbuilt Pro/Enterprise-only code would be
+    proprietary, in the other repo. Added .github/workflows/sync-to-private.yml as an inactive
+    scaffold for the sync mechanism (needs a real target repo before it can run).
+
+    v1.4.0 (2026-08-21):
     Consolidated the dual-tree architecture into this single repo. Previously,
     C:\qgis_ai_assistant maintained two parallel plugin trees -- a root source
     tree (CartogenAiCore/cartogen_ai_core, renamed in v1.3.0) and a separately

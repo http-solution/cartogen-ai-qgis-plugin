@@ -16,7 +16,7 @@ convention `PROMPT_REFINEMENT_LAYER_SPEC.md` established for a shipped spec.
 
 ## 1. Problem
 
-`QGIS_AI_Agent_PRD.md` Phase 3 lists "semi-automated feature extraction from imagery" as **not
+`CARTOGEN_AI_PRD.md` Phase 3 lists "semi-automated feature extraction from imagery" as **not
 started**. `docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` §B.2 found a real competitor filling
 exactly this gap today: the **GeoAI** QGIS plugin does tree segmentation (DeepForest), water
 segmentation, and Segment Anything (SAM 1/2/3)-based semantic/instance segmentation directly on
@@ -233,7 +233,7 @@ text alone, left as a real open item, not claimed as done here.
 
 ## 11. Relationship to other roadmap docs
 
-- `QGIS_AI_Agent_PRD.md` Phase 3: this spec is the concrete design for the "semi-automated feature
+- `CARTOGEN_AI_PRD.md` Phase 3: this spec is the concrete design for the "semi-automated feature
   extraction from imagery" line item, marked not-started there.
 - `CHANGELOG.md`'s v1.2.0 entry: explicitly preserves that entry's rejection of the vision-LLM
   coordinate-guessing approach — this spec is the alternative it pointed toward, not a reversal of

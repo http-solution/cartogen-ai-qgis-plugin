@@ -43,8 +43,8 @@ most for an AI agent working here:
    doc.** If something can't be verified in this sandbox (most things touching live QGIS or a
    real LLM API response), say so explicitly rather than implying it works.
 
-Also: **frozen historical docs are never edited after the fact.** `QGIS_AI_Agent_Feature_List.md`,
-`QGIS_AI_Agent_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s past entries, and any
+Also: **frozen historical docs are never edited after the fact.** `CARTOGEN_AI_FEATURE_LIST.md`,
+`CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s past entries, and any
 dated review/spec doc are accurate to when they were written — including old identifier names
 after a rebrand. If something in one is now wrong, add a new entry/doc that supersedes it; don't
 rewrite history.
@@ -68,11 +68,14 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 
 ## Editions
 
-Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are planned editions of this one
-codebase — not separate branches or trees. **Nothing in this repo is tier-gated today.** Don't
-add licensing/tier-check logic speculatively; when a tier boundary is actually built, it needs an
-explicit product decision first (see `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` for the open
-proposal), and the code should state plainly which tier it requires once it exists.
+Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are three editions, but **not** three
+variants of this one codebase — this repo is, and stays, the single public Community codebase.
+Pro/Enterprise are planned to be built in a *separate private repo* that consumes this one as an
+upstream core (one-way sync, decided but not yet built — see `docs/OPEN_CORE_REPO_STRATEGY.md`).
+**Don't add tier-check/licensing-gate logic to this repo** — that kind of logic belongs in the
+private repo once it exists, not here. If you're ever asked to add tier-gating directly to this
+codebase, that's a sign the request conflicts with the decided architecture — flag it rather than
+implementing it.
 
 ## When you're not sure whether to just fix something
 

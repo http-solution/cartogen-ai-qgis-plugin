@@ -1,0 +1,43 @@
+name: sync-to-private (INACTIVE)
+
+# One-way mirror of this public Community-edition repo into a private
+# Pro/Enterprise repo's upstream branch. See docs/OPEN_CORE_REPO_STRATEGY.md
+# for the full plan this implements.
+#
+# STATUS: scaffold only. The private repo doesn't exist yet -- this workflow
+# is disabled (see the `if: false` guard below) until PRIVATE_REPO and the
+# deploy-key secret are configured. Do not remove the guard just to make this
+# "green" in CI; it should stay off until there's a real target to sync to.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  # Placeholder -- replace with the real private repo, e.g. "your-org/cartogen-ai-pro"
+  PRIVATE_REPO: "REPLACE-ME/cartogen-ai-pro"
+  PRIVATE_REPO_BRANCH: "sync/public-core"
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # Remove this guard once PRIVATE_REPO is real and
+    # secrets.PRIVATE_REPO_DEPLOY_KEY is configured in this repo's settings.
+    if: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to private repo's sync branch
+        env:
+          DEPLOY_KEY: ${{ secrets.PRIVATE_REPO_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          git remote add private "git@github.com:${PRIVATE_REPO}.git"
+          git push private "HEAD:refs/heads/${PRIVATE_REPO_BRANCH}"

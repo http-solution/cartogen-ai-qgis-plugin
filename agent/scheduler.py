@@ -5,7 +5,7 @@ In-session recurring workflow scheduler for Cartogen AI.
 Session-scoped only: a schedule lives for as long as QGIS stays open with
 this plugin loaded, driven by QTimer on the main Qt thread. Nothing here
 runs while QGIS is closed, and nothing here touches the OS scheduler (cron /
-Windows Task Scheduler) -- see QGIS_AI_Agent_PRD.md 5.1/5.3 for why a true
+Windows Task Scheduler) -- see CARTOGEN_AI_PRD.md 5.1/5.3 for why a true
 headless trigger was scoped out of this pass.
 """
 

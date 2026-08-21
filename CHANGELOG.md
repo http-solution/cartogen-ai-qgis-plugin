@@ -9,6 +9,34 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/).
 > commit history back to v0.2.0 remains available in the old repo
 > (`C:\qgis_ai_assistant`) if ever needed.
 
+## [1.4.1] — 2026-08-21
+
+Follow-up fixes after the `[1.4.0]` consolidation, from direct feedback that two problems slipped
+through:
+
+- **Living docs still named/linked like leftovers.** `QGIS_AI_Agent_Feature_List.md` and
+  `QGIS_AI_Agent_PRD.md` renamed to `CARTOGEN_AI_FEATURE_LIST.md`/`CARTOGEN_AI_PRD.md` and fully
+  rebranded. Unlike `CHANGELOG.md`'s past entries, these are living reference docs, not
+  historical logs — renaming/translating them isn't a rewrite-history concern.
+- **44 broken links.** Every `file:///c:/qgis_ai_assistant/...` absolute link (hardcoded to the
+  old machine's path) converted to a relative link.
+- Updated every live reference to the renamed files: `agent/scheduler.py`,
+  `agent/tools/monitoring_tools.py`, `CLAUDE.md`, `CONTRIBUTING.md`, `plugin_upload.py`'s
+  `EXCLUDE_FILES`, `docs/PRODUCT_TIERS.md`, `docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md`,
+  `docs/SAM_IMAGERY_EXTRACTION_SPEC.md`.
+- Left the genuinely dated/historical docs untouched (this file's own past entries,
+  `docs/STATUS_REVIEW_2026-08-20.md`, `docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`) — they
+  describe real past states, not leftover branding, per this project's frozen-doc convention.
+
+**Added [docs/OPEN_CORE_REPO_STRATEGY.md](docs/OPEN_CORE_REPO_STRATEGY.md):** this repo stays the
+single public Community codebase. Professional and Enterprise are decided (not yet built) to live
+in a separate private repo that one-way-syncs from this one via GitHub Actions, distributed from
+the project website with license-key gating. This resolves the licensing tension
+`docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` flagged but didn't settle — Community stays
+genuinely GPL v2/open in this repo; only the unbuilt Pro/Enterprise-only code would be
+proprietary, in the other repo. Added `.github/workflows/sync-to-private.yml` as an inactive
+scaffold (needs a real target repo before it can run).
+
 ## [1.4.0] — 2026-08-21
 
 **Consolidated the dual-tree architecture into this single repo.** Previously,

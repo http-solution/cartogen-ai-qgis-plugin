@@ -8,7 +8,7 @@ QGIS stays open, and diffs each run's per-unit results against the previous
 run so a change ("3 units moved into severity class 5 since last check") can
 be surfaced without an extra API call every tick. Closes the "scheduled/
 recurring monitoring" gap flagged in docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md
-and QGIS_AI_Agent_PRD.md 5.1/5.3.
+and CARTOGEN_AI_PRD.md 5.1/5.3.
 """
 
 import datetime
