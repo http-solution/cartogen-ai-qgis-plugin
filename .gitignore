@@ -196,12 +196,34 @@ cython_debug/
 /QGIS_AI_Agent_Feature_List.md
 /QGIS_AI_Agent_PRD.md
 
-# Leftover "MOVED" stub files from the namespace-package restructure (see
-# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md) -- the real code now lives at
-# src/cartogen_ai/core/agent/ and src/cartogen_ai/core/ui/. These root-level
-# directories can't be deleted from this sandbox (FUSE mount restriction, see
-# docs/BUG_TRACKER.md); each file's own docstring says the same. Untracking
-# them here so they stop shipping in commits and (via plugin_upload.py's
-# EXCLUDE_ROOT_ONLY_DIRS) stop shipping in release zips.
+# Test-run artifacts written to the repo root by tests/test_reporting_tools.py
+# (cleaned up via os.remove() in each test's own teardown -- which fails on
+# this sandbox's mount, see docs/BUG_TRACKER.md's "Known non-bugs" entry, so
+# they linger locally). Found tracked in git during the 2026-08-21 namespace-
+# package restructure's verification pass -- they shouldn't have been; each
+# test run regenerates them with a new timestamp/content, which was showing
+# up as a spurious binary diff on every commit. Untracked via `git rm
+# --cached`, same pattern as build_cartogen_ai.py above.
+/scratch_test_*
+
+# Old root-level agent/, ui/, and cartogen_ai.py were fully superseded by
+# the namespace-package restructure (real code now at
+# src/cartogen_ai/core/agent/, src/cartogen_ai/core/ui/, and plugin_main.py
+# -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md). They no longer exist at
+# these paths at all -- turns out a same-filesystem `mv`/rename works in this
+# sandbox even though `rm`/unlink does not (only discovered while fixing
+# BUG-2026-08-21-6; see docs/BUG_TRACKER.md), so unlike the QGIS_AI_Agent_*.md
+# leftovers below they were actually moved, not left behind as stubs. Rename
+# targets landed in /_legacy_stubs/ (also gitignored, below) purely because a
+# true rename requires staying on the same filesystem as the repo -- moving
+# them further out to a different mount silently falls back to copy+delete,
+# and the delete half fails the same way `rm` does. These entries are kept
+# defensively in case either path ever reappears (e.g. a zip re-extracted on
+# top of this tree).
 /agent/
 /ui/
+/cartogen_ai.py
+
+# Holds the actual moved-away content of the above (see comment there) --
+# not part of the published package, not meant to be read by anything.
+/_legacy_stubs/

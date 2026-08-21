@@ -2,14 +2,14 @@
 import json
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.providers import OpenAIClient, ClaudeClient
-from agent.providers.claude import to_anthropic_request, from_anthropic_response
-from agent.providers import openrouter as openrouter_mod
-from agent.providers import gemini as gemini_mod
-from agent.providers import ollama as ollama_mod
-from agent.providers import openai as openai_mod
-from agent.providers import claude as claude_mod
-from agent.providers import cartogen as cartogen_mod
+from cartogen_ai.core.agent.providers import OpenAIClient, ClaudeClient
+from cartogen_ai.core.agent.providers.claude import to_anthropic_request, from_anthropic_response
+from cartogen_ai.core.agent.providers import openrouter as openrouter_mod
+from cartogen_ai.core.agent.providers import gemini as gemini_mod
+from cartogen_ai.core.agent.providers import ollama as ollama_mod
+from cartogen_ai.core.agent.providers import openai as openai_mod
+from cartogen_ai.core.agent.providers import claude as claude_mod
+from cartogen_ai.core.agent.providers import cartogen as cartogen_mod
 
 
 def _mock_get_response(json_body):
@@ -142,7 +142,7 @@ class TestListModels(unittest.TestCase):
     """Each list_models() is tested against a mocked response matching that
     provider's real, WebFetch-verified schema -- no live network calls."""
 
-    @patch("agent.providers.openrouter.requests.get")
+    @patch("cartogen_ai.core.agent.providers.openrouter.requests.get")
     def test_openrouter_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "data": [{"id": "openrouter/free"}, {"id": "openai/gpt-oss-20b:free"}]
@@ -151,7 +151,7 @@ class TestListModels(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertIn("openrouter/free", result["models"])
 
-    @patch("agent.providers.openai.requests.get")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.get")
     def test_openai_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({"data": [{"id": "gpt-5.6-sol"}, {"id": "text-embedding-3-large"}]})
         result = openai_mod.list_models("dummy")
@@ -159,7 +159,7 @@ class TestListModels(unittest.TestCase):
         self.assertIn("gpt-5.6-sol", result["models"])
         self.assertNotIn("text-embedding-3-large", result["models"])
 
-    @patch("agent.providers.claude.requests.get")
+    @patch("cartogen_ai.core.agent.providers.claude.requests.get")
     def test_claude_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "data": [{"type": "model", "id": "claude-opus-5"}, {"type": "model", "id": "claude-haiku-4-5"}]
@@ -168,7 +168,7 @@ class TestListModels(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertIn("claude-opus-5", result["models"])
 
-    @patch("agent.providers.gemini.requests.get")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.get")
     def test_gemini_list_models_strips_prefix_and_filters(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "models": [
@@ -182,7 +182,7 @@ class TestListModels(unittest.TestCase):
         self.assertNotIn("models/gemini-flash-latest", result["models"])
         self.assertNotIn("embedding-001", result["models"])
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_grounded_search_extracts_text_and_sources(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -200,7 +200,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["text"], "It rained yesterday.")
         self.assertEqual(result["sources"], [{"title": "Example", "url": "https://example.com"}])
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_grounded_search_handles_empty_candidates(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -209,7 +209,7 @@ class TestListModels(unittest.TestCase):
         result = gemini_mod.grounded_search("dummy-key", "query")
         self.assertIn("error", result)
 
-    @patch("agent.providers.gemini.requests.get")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.get")
     def test_gemini_list_models_uses_header_auth_not_query_param(self, mock_get):
         # docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS2.3: query-string
         # credentials are more likely to end up in server/proxy access logs than
@@ -221,7 +221,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(kwargs.get("headers", {}).get("x-goog-api-key"), "dummy-key")
         self.assertNotIn("params", kwargs)
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_grounded_search_uses_header_auth_not_query_param(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -240,7 +240,7 @@ class TestListModels(unittest.TestCase):
         client2 = gemini_mod.GeminiClient(api_key="dummy", model=gemini_mod.FALLBACK_MODELS[0])
         self.assertEqual(client2.models.count(gemini_mod.FALLBACK_MODELS[0]), 1)
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_client_falls_back_on_404(self, mock_post):
         dead_model_resp = MagicMock()
         dead_model_resp.status_code = 404
@@ -255,7 +255,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["message"]["content"], "hi")
         self.assertEqual(result["model"], client.models[1])
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_client_returns_clear_error_when_all_models_404(self, mock_post):
         dead_resp = MagicMock()
         dead_resp.status_code = 404
@@ -274,7 +274,7 @@ class TestListModels(unittest.TestCase):
         client2 = openai_mod.OpenAIClient(api_key="dummy", model=openai_mod.FALLBACK_MODELS[0])
         self.assertEqual(client2.models.count(openai_mod.FALLBACK_MODELS[0]), 1)
 
-    @patch("agent.providers.openai.requests.post")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.post")
     def test_openai_client_falls_back_on_404(self, mock_post):
         dead_model_resp = MagicMock()
         dead_model_resp.status_code = 404
@@ -289,7 +289,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["message"]["content"], "hi")
         self.assertEqual(result["model"], client.models[1])
 
-    @patch("agent.providers.openai.requests.post")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.post")
     def test_openai_client_returns_clear_error_when_all_models_404(self, mock_post):
         dead_resp = MagicMock()
         dead_resp.status_code = 404
@@ -300,7 +300,7 @@ class TestListModels(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("404", result["error"])
 
-    @patch("agent.providers.openai.requests.post")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.post")
     def test_openai_grounded_search_extracts_text_and_sources(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -321,7 +321,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["text"], "It rained yesterday.")
         self.assertEqual(result["sources"], [{"title": "Example", "url": "https://example.com"}])
 
-    @patch("agent.providers.openai.requests.post")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.post")
     def test_openai_grounded_search_handles_empty_choices(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -331,14 +331,14 @@ class TestListModels(unittest.TestCase):
         result = openai_mod.grounded_search("dummy-key", "query")
         self.assertIn("error", result)
 
-    @patch("agent.providers.ollama.requests.get")
+    @patch("cartogen_ai.core.agent.providers.ollama.requests.get")
     def test_ollama_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({"models": [{"name": "llama3.1:latest"}]})
         result = ollama_mod.list_models("http://localhost:11434/v1/chat/completions")
         self.assertTrue(result["success"])
         self.assertIn("llama3.1:latest", result["models"])
 
-    @patch("agent.providers.openai.requests.get")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.get")
     def test_list_models_http_error_returns_error_dict(self, mock_get):
         import requests
         http_error = requests.exceptions.HTTPError()
@@ -355,10 +355,10 @@ class TestRetryWithBackoff(unittest.TestCase):
     raw-requests provider client now goes through -- a single transient
     429/5xx used to kill the whole agent turn with no retry at all."""
 
-    @patch("agent.providers.base.time.sleep")
-    @patch("agent.providers.base.requests.post")
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
     def test_retries_on_503_then_succeeds(self, mock_post, mock_sleep):
-        from agent.providers.base import post_with_retry
+        from cartogen_ai.core.agent.providers.base import post_with_retry
         bad_resp = MagicMock(status_code=503)
         good_resp = MagicMock(status_code=200)
         mock_post.side_effect = [bad_resp, good_resp]
@@ -369,10 +369,10 @@ class TestRetryWithBackoff(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         mock_sleep.assert_called_once()
 
-    @patch("agent.providers.base.time.sleep")
-    @patch("agent.providers.base.requests.post")
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
     def test_gives_up_after_max_retries_on_persistent_failure(self, mock_post, mock_sleep):
-        from agent.providers.base import post_with_retry
+        from cartogen_ai.core.agent.providers.base import post_with_retry
         bad_resp = MagicMock(status_code=503)
         mock_post.return_value = bad_resp
 
@@ -384,10 +384,10 @@ class TestRetryWithBackoff(unittest.TestCase):
         self.assertIs(result, bad_resp)
         self.assertEqual(mock_post.call_count, 3)  # 1 initial + 2 retries
 
-    @patch("agent.providers.base.time.sleep")
-    @patch("agent.providers.base.requests.post")
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
     def test_does_not_retry_on_permanent_client_error(self, mock_post, mock_sleep):
-        from agent.providers.base import post_with_retry
+        from cartogen_ai.core.agent.providers.base import post_with_retry
         auth_error_resp = MagicMock(status_code=401)
         mock_post.return_value = auth_error_resp
 
@@ -408,8 +408,8 @@ class TestOllamaRetryAndErrorHandling(unittest.TestCase):
     KeyError as "connection failed" (§2.2) -- both fixed together since
     they're in the same method."""
 
-    @patch("agent.providers.base.time.sleep")
-    @patch("agent.providers.base.requests.post")
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
     def test_ollama_retries_on_transient_5xx_then_succeeds(self, mock_post, mock_sleep):
         bad_resp = MagicMock(status_code=503)
         good_resp = MagicMock(status_code=200)
@@ -424,7 +424,7 @@ class TestOllamaRetryAndErrorHandling(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         mock_sleep.assert_called_once()
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_malformed_response_reports_unexpected_format_not_connection_failure(self, mock_post):
         resp = MagicMock(status_code=200)
         resp.raise_for_status.return_value = None
@@ -438,7 +438,7 @@ class TestOllamaRetryAndErrorHandling(unittest.TestCase):
         self.assertIn("Unexpected response format", result["error"])
         self.assertNotIn("connection failed", result["error"].lower())
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_real_connection_failure_still_reports_connection_failed(self, mock_post):
         import requests
         mock_post.side_effect = requests.exceptions.ConnectionError("refused")
@@ -480,7 +480,7 @@ class TestProviderReturnContract(unittest.TestCase):
             f"or exactly {self.ERROR_KEYS} on failure.",
         )
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -489,7 +489,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = openrouter_mod.OpenRouterClient(api_key="dummy")
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_error_shape(self, mock_post):
         # 404 on every model in the fallback chain exhausts it without ever
         # reaching raise_for_status() -- matches this client's own real
@@ -500,7 +500,7 @@ class TestProviderReturnContract(unittest.TestCase):
         self._assert_contract_shape(result)
         self.assertIn("error", result)
 
-    @patch("agent.providers.gemini.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
     def test_gemini_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -509,7 +509,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = gemini_mod.GeminiClient(api_key="dummy")
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -518,7 +518,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = openai_mod.OpenAIClient(api_key="dummy")
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.claude.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
     def test_claude_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -527,7 +527,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = claude_mod.ClaudeClient(api_key="dummy")
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -536,7 +536,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = ollama_mod.OllamaClient()
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_error_shape(self, mock_post):
         import requests
         mock_post.side_effect = requests.exceptions.ConnectionError("refused")
@@ -545,7 +545,7 @@ class TestProviderReturnContract(unittest.TestCase):
         self._assert_contract_shape(result)
         self.assertIn("error", result)
 
-    @patch("agent.providers.cartogen.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.cartogen.post_with_retry")
     def test_cartogen_stub_success_shape(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -554,7 +554,7 @@ class TestProviderReturnContract(unittest.TestCase):
         client = cartogen_mod.CartogenClient(api_key="dummy")
         self._assert_contract_shape(client.complete([{"role": "user", "content": "hi"}]))
 
-    @patch("agent.providers.cartogen.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.cartogen.post_with_retry")
     def test_cartogen_stub_error_shape(self, mock_post):
         mock_post.return_value = MagicMock(status_code=404)
         client = cartogen_mod.CartogenClient(api_key="dummy")
@@ -575,7 +575,7 @@ class TestUsageExtraction(unittest.TestCase):
     use mock responses with no 'usage' key at all and assert the strict
     {'message', 'model'} shape still holds with nothing extra added."""
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -588,7 +588,7 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 120, "output_tokens": 30})
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -601,7 +601,7 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 200, "output_tokens": 50})
 
-    @patch("agent.providers.gemini.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
     def test_gemini_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -614,7 +614,7 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 80, "output_tokens": 20})
 
-    @patch("agent.providers.claude.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
     def test_claude_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -628,7 +628,7 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 300, "output_tokens": 75})
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -642,7 +642,7 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 40, "output_tokens": 10})
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_omits_usage_key_entirely_when_not_reported(self, mock_post):
         # The critical honesty check: no 'usage' key at all, not a fabricated
         # {'input_tokens': 0, 'output_tokens': 0} -- a model/provider that
@@ -663,7 +663,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
     the cache is a module-level singleton shared across the whole test run,
     so a reused query would silently hit an earlier test's cached result."""
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_second_identical_call_is_served_from_cache(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -678,7 +678,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
         self.assertTrue(second.get("cached"))
         self.assertEqual(second["text"], "answer")
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_cache_key_is_case_and_whitespace_insensitive(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -690,7 +690,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
 
         self.assertEqual(mock_post.call_count, 1)
 
-    @patch("agent.providers.gemini.requests.post")
+    @patch("cartogen_ai.core.agent.providers.gemini.requests.post")
     def test_gemini_error_response_is_not_cached(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -702,7 +702,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
 
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_second_identical_call_is_served_from_cache(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -717,7 +717,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
         self.assertNotIn("cached", first)
         self.assertTrue(second.get("cached"))
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_error_response_is_not_cached(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -767,7 +767,7 @@ class TestOpenRouterAnthropicCacheControl(unittest.TestCase):
         result = openrouter_mod._apply_anthropic_cache_control(messages, "anthropic/claude-opus-5")
         self.assertEqual(result, messages)
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_post_applies_cache_control_for_anthropic_model_id(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
         client = openrouter_mod.OpenRouterClient(api_key="dummy", model="anthropic/claude-opus-5")
@@ -785,36 +785,36 @@ class TestMaxTokensCap(unittest.TestCase):
     3: rarely an issue in practice, but a real, if uncommon, runaway-output
     cost risk with nothing standardizing it across the other 4 clients."""
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_sends_max_tokens(self, mock_post):
-        from agent.providers.base import DEFAULT_MAX_TOKENS
+        from cartogen_ai.core.agent.providers.base import DEFAULT_MAX_TOKENS
         mock_post.return_value = MagicMock(status_code=200)
         client = openai_mod.OpenAIClient(api_key="dummy")
         client._post([{"role": "user", "content": "hi"}], None, client.model)
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], DEFAULT_MAX_TOKENS)
 
-    @patch("agent.providers.gemini.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
     def test_gemini_sends_max_tokens(self, mock_post):
-        from agent.providers.base import DEFAULT_MAX_TOKENS
+        from cartogen_ai.core.agent.providers.base import DEFAULT_MAX_TOKENS
         mock_post.return_value = MagicMock(status_code=200)
         client = gemini_mod.GeminiClient(api_key="dummy")
         client._post([{"role": "user", "content": "hi"}], None, client.model)
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], DEFAULT_MAX_TOKENS)
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_sends_max_tokens(self, mock_post):
-        from agent.providers.base import DEFAULT_MAX_TOKENS
+        from cartogen_ai.core.agent.providers.base import DEFAULT_MAX_TOKENS
         mock_post.return_value = MagicMock(status_code=200)
         client = openrouter_mod.OpenRouterClient(api_key="dummy")
         client._post([{"role": "user", "content": "hi"}], None, client.model)
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], DEFAULT_MAX_TOKENS)
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_sends_max_tokens(self, mock_post):
-        from agent.providers.base import DEFAULT_MAX_TOKENS
+        from cartogen_ai.core.agent.providers.base import DEFAULT_MAX_TOKENS
         resp = MagicMock()
         resp.raise_for_status.return_value = None
         resp.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
@@ -830,7 +830,7 @@ class TestMaxTokensCap(unittest.TestCase):
     # DEFAULT_MAX_TOKENS=8096. Each test picks a value distinct from the
     # default so a regression to "always DEFAULT_MAX_TOKENS" would fail loudly.
 
-    @patch("agent.providers.claude.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
     def test_claude_honors_max_tokens_override(self, mock_post):
         mock_post.return_value = MagicMock(
             status_code=200,
@@ -841,7 +841,7 @@ class TestMaxTokensCap(unittest.TestCase):
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], 400)
 
-    @patch("agent.providers.openai.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openai.post_with_retry")
     def test_openai_honors_max_tokens_override(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
         client = openai_mod.OpenAIClient(api_key="dummy")
@@ -849,7 +849,7 @@ class TestMaxTokensCap(unittest.TestCase):
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], 400)
 
-    @patch("agent.providers.gemini.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
     def test_gemini_honors_max_tokens_override(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
         client = gemini_mod.GeminiClient(api_key="dummy")
@@ -857,7 +857,7 @@ class TestMaxTokensCap(unittest.TestCase):
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], 400)
 
-    @patch("agent.providers.openrouter.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
     def test_openrouter_honors_max_tokens_override(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
         client = openrouter_mod.OpenRouterClient(api_key="dummy")
@@ -865,7 +865,7 @@ class TestMaxTokensCap(unittest.TestCase):
         sent_payload = json.loads(mock_post.call_args[0][2])
         self.assertEqual(sent_payload["max_tokens"], 400)
 
-    @patch("agent.providers.ollama.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_honors_max_tokens_override(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -878,7 +878,7 @@ class TestMaxTokensCap(unittest.TestCase):
 
 
 class TestClaudePromptCaching(unittest.TestCase):
-    @patch("agent.providers.claude.post_with_retry")
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
     def test_system_and_last_tool_marked_as_cache_breakpoints(self, mock_post):
         mock_post.return_value = _mock_get_response({"content": [{"type": "text", "text": "hi"}], "model": "claude-opus-5"})
         client = ClaudeClient(api_key="dummy")

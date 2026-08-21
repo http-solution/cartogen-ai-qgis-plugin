@@ -6,7 +6,7 @@ timestamp) in generated reports, instead of leaving it invisible to a report's
 actual audience (often not QGIS users, e.g. a fund-allocation committee)."""
 import os
 import unittest
-from agent.tools.export_tools import (
+from cartogen_ai.core.agent.tools.export_tools import (
     generate_report, generate_spatial_report, _layer_provenance_entries, _format_lineage_entry,
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
 )
@@ -305,7 +305,7 @@ class TestGenerateHtmlDashboardConnectivityNote(unittest.TestCase):
 
     def test_result_includes_connectivity_note(self):
         from unittest.mock import patch, MagicMock
-        import agent.tools.export_tools as export_tools_mod
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
 
         def fake_write(layer, output_path):
             with open(output_path, "w", encoding="utf-8") as f:

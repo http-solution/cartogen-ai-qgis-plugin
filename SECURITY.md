@@ -203,7 +203,7 @@ statements inside scripts (`__build_class__`/`__name__` weren't available) — f
 during this same testing pass and restored, since defining a plain class carries no
 security risk beyond what `type()` (already permitted) already allows.
 
-Run `python -m unittest discover -s tests -p "test_*.py" -v` to see all of the above
+Run `python -m unittest discover -s tests -t . -p "test_*.py" -v` to see all of the above
 as passing, permanent regression tests (search for `# Confirmed live` / `# A1:` / `# A2:`
 / `# A3:` / `# A4:` comments in `tests/test_new_tools.py`, `tests/test_auth_and_deps.py`).
 

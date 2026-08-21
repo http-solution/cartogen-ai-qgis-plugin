@@ -3,9 +3,9 @@ import ast
 import inspect
 import unittest
 from unittest.mock import patch
-from agent.tool_router import ToolRouter
-from agent.tools import TOOLS_SCHEMA
-import agent.tool_router as tool_router_module
+from cartogen_ai.core.agent.tool_router import ToolRouter
+from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
+import cartogen_ai.core.agent.tool_router as tool_router_module
 
 
 class TestToolAliasesNoDuplicateKeys(unittest.TestCase):
@@ -172,7 +172,7 @@ class TestToolRouterRecallRegression(unittest.TestCase):
 
 
 class TestToolRouterTieBreak(unittest.TestCase):
-    @patch("agent.tool_router.random.shuffle")
+    @patch("cartogen_ai.core.agent.tool_router.random.shuffle")
     def test_shuffles_candidates_before_scoring_to_avoid_fixed_tie_break_order(self, mock_shuffle):
         router = ToolRouter(TOOLS_SCHEMA)
         router.filter_relevant_tools("some query with no strong matches", top_k=40)

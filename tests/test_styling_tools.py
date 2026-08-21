@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.styling_tools import (
+from cartogen_ai.core.agent.tools.styling_tools import (
     _classify_values, apply_graduated_style, apply_graduated_symbol_style,
     apply_categorized_style, _geometry_sort_key, _apply_opacity,
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
@@ -101,9 +101,9 @@ class TestStylingToolsDegradeOutsideQgis(unittest.TestCase):
 
 
 class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
-    @patch("agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_rejects_non_point_layers(self, mock_find, mock_wkb):
         mock_wkb.PointGeometry = "point-geometry-sentinel"
         fake_field = MagicMock()
@@ -118,7 +118,7 @@ class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("point layers", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_rejects_invalid_size_range(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = apply_graduated_symbol_style("layer", "field", min_size=10, max_size=5)
@@ -161,12 +161,12 @@ class TestApplyOpacity(unittest.TestCase):
 
 
 class TestDefaultOpacityForGeometry(unittest.TestCase):
-    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     def test_polygons_default_semi_transparent(self, mock_wkb):
         mock_wkb.PolygonGeometry = "polygon-sentinel"
         self.assertEqual(_default_opacity_for_geometry("polygon-sentinel"), 75)
 
-    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     def test_points_and_lines_stay_fully_opaque(self, mock_wkb):
         mock_wkb.PolygonGeometry = "polygon-sentinel"
         self.assertEqual(_default_opacity_for_geometry("point-sentinel"), 100)
@@ -190,27 +190,27 @@ class TestLayerOrderingToolsDegradeOutsideQgis(unittest.TestCase):
 
 
 class TestLayerOrderingToolsValidation(unittest.TestCase):
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_set_layer_transparency_rejects_out_of_range(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = set_layer_transparency("layer", 150)
         self.assertIn("error", res)
         self.assertIn("opacity_percent", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_set_layer_order_rejects_empty_list(self):
         res = set_layer_order([])
         self.assertIn("error", res)
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_set_layer_order_reports_missing_layers(self, mock_find):
         mock_find.return_value = None
         res = set_layer_order(["ghost_layer"])
         self.assertIn("error", res)
         self.assertIn("ghost_layer", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_change_layer_color_rejects_out_of_range_opacity(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = change_layer_color("layer", "#ff0000", opacity=150)
@@ -226,23 +226,23 @@ class TestHotspotAnalysisDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestHotspotAnalysisValidation(unittest.TestCase):
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_rejects_non_positive_radius(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = hotspot_analysis("incidents", 0)
         self.assertIn("error", res)
         self.assertIn("radius", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_reports_missing_layer(self, mock_find):
         mock_find.return_value = None
         res = hotspot_analysis("ghost_layer", 500)
         self.assertIn("error", res)
         self.assertIn("ghost_layer", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_rejects_unknown_weight_field(self, mock_find):
         fake_field = MagicMock()
         fake_field.name.return_value = "severity"
@@ -255,11 +255,11 @@ class TestHotspotAnalysisValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("nonexistent", res["error"])
 
-    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.styling_tools.QgsRasterLayer", create=True)
-    @patch("agent.tools.styling_tools.processing", create=True)
-    @patch("agent.tools.styling_tools.QgsProject", create=True)
-    @patch("agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRasterLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_defaults_pixel_size_to_one_tenth_radius(self, mock_find, mock_project, mock_processing, mock_raster_cls):
         fake_layer = MagicMock()
         fake_layer.fields.return_value = []

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Manual prompt-rule eval set for agent/prompts.py's BASE_SYSTEM_PROMPT.
+Manual prompt-rule eval set for src/cartogen_ai/core/agent/prompts.py's BASE_SYSTEM_PROMPT.
 
 NOT part of the automated suite -- deliberately named so `python -m
-unittest discover -s tests -p "test_*.py"` never picks it up (it doesn't
+unittest discover -s tests -t . -p "test_*.py"` never picks it up (it doesn't
 start with "test_"). Every rule in BASE_SYSTEM_PROMPT so far was discovered
 by a live user hitting the bug first (rules 31/32 from a real Yemen
 monitoring session are the most recent example); this file exists so a
@@ -22,7 +22,7 @@ Usage (from a real QGIS session, or any environment with a configured
 provider client available):
 
     from tests.manual_prompt_rule_evals import EVAL_CASES, run_case
-    from agent.providers.claude import ClaudeClient   # or whichever provider
+    from cartogen_ai.core.agent.providers.claude import ClaudeClient   # or whichever provider
     client = ClaudeClient(api_key="...")
     for case in EVAL_CASES:
         run_case(case, client)   # prints the response and the checklist
@@ -169,7 +169,7 @@ def run_case(case, client, profile="general"):
     model SAYS it will do / how it frames results, not live QGIS execution.
     For rules that only matter once a tool actually runs (31, 15), treat a
     clean pass here as necessary, not sufficient -- still verify live."""
-    from agent.prompts import BASE_SYSTEM_PROMPT
+    from cartogen_ai.core.agent.prompts import BASE_SYSTEM_PROMPT
 
     messages = [
         {"role": "system", "content": BASE_SYSTEM_PROMPT},

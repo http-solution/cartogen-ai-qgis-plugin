@@ -22,14 +22,42 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
+import os
+import sys
+
+# Make the cartogen_ai.core namespace package (src/cartogen_ai/core/, containing
+# the actual agent/ui code -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md)
+# importable. Must run before anything below imports from it -- classFactory()
+# triggers `from .plugin_main import CartogenAi`, and plugin_main.py itself
+# does `from cartogen_ai.core.agent...` at call time, so this needs to be on
+# sys.path first. UNVERIFIED IN LIVE QGIS: QGIS's own plugin loader is known
+# to add a plugin's own root directory to sys.path (that's why the pre-
+# restructure code could do bare `from agent.x import y`), but whether it
+# also needs anything extra for a src/ subdirectory to resolve hasn't been
+# tested in a real QGIS session -- run docs/RELEASE_SMOKE_TEST.md before the
+# next release to confirm this actually works, don't assume it from reasoning
+# alone.
+_SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
 
 
 def classFactory(iface):
-    """Load CartogenAi class from file CartogenAi.
+    """Load CartogenAi class from file plugin_main.py.
+
+    The plugin's main class used to live in a file named cartogen_ai.py --
+    renamed to plugin_main.py because that name collided with the
+    cartogen_ai.core namespace package above: once this repo's own root
+    directory is on sys.path, a regular module named cartogen_ai.py there
+    always wins over the src/cartogen_ai/ namespace portion when Python
+    resolves `import cartogen_ai`, which broke every `from
+    cartogen_ai.core.agent... import X` call throughout the codebase.
+    Confirmed live via the test suite (31 import failures) before this
+    rename -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md #3 and
+    docs/BUG_TRACKER.md.
 
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    #
-    from .cartogen_ai import CartogenAi
+    from .plugin_main import CartogenAi
     return CartogenAi(iface)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from agent.tools import get_tool_registry, get_tools_schema
+from cartogen_ai.core.agent.tools import get_tool_registry, get_tools_schema
 
 
 class TestToolRegistry(unittest.TestCase):

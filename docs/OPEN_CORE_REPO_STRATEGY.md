@@ -53,15 +53,25 @@ it needs a real target repo URL and a deploy-key secret before it can run.
 
 ## Distribution
 
-- **Community** — same as today: a release zip built by `plugin_upload.py` from this repo,
-  installable via `Plugins → Install from ZIP` in QGIS, or eventually the public QGIS plugin
-  repository. No account, no key.
-- **Pro/Enterprise** — built from the private repo, distributed as a downloadable installer/zip
-  from the project website, gated by license-key validation. The validation mechanism itself
-  (what a license key is checked against, offline vs. online validation, what happens on
+- **Community** — a release zip built by `plugin_upload.py` from this repo, installable via
+  `Plugins → Install from ZIP` in QGIS, or eventually the public QGIS plugin repository (this
+  part is real and working today). Additionally planned: publishing the same
+  `cartogen_ai.core` package (see `pyproject.toml`) to public PyPI and/or public GitHub Releases
+  — the package definition exists but there is no publish workflow yet, so nothing has shipped
+  through either channel. No account, no key, for any of the above.
+- **Pro/Enterprise** — built from the private repo, distributed as gated downloads from the
+  project website: precompiled wheels, or standalone executables built with PyInstaller or
+  Nuitka (tool choice not yet made). Gated by license-key validation. Before any build leaves
+  the private repo's pipeline, sensitive license-verification modules must be stripped from the
+  distributed source or compiled rather than shipped as plain `.py`. The validation mechanism
+  itself (what a license key is checked against, offline vs. online validation, what happens on
   expiry) is not designed yet — it depends on the still-unbuilt Cloud Connect Gateway backend
   described in `docs/PRODUCT_TIERS.md` §2, since license validation and the gateway's own
   per-user auth are likely the same underlying system, not two separate things to build.
+
+See `docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md` §6 for the full per-channel implementation-status
+table (what's real vs. planned) and §2–4 for the namespace-package/sys.path mechanics behind the
+`src/cartogen_ai.core` layout referenced above.
 
 ## What this doc does not decide
 

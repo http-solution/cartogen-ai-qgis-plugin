@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [ ] `python -m unittest discover -s tests -p "test_*.py"` passes locally
+- [ ] `python -m unittest discover -s tests -t . -p "test_*.py"` passes locally
 - [ ] New/changed behavior has test coverage, or an explanation of why it can't be tested here
 - [ ] Docs updated in the same change if this makes a previously-documented "not yet built" or
       "roadmap" item shipped (CONTRIBUTING.md #2) — don't let the docs go stale

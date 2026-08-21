@@ -9,7 +9,7 @@ real API before writing this tool; see the humanitarian-ops session notes."""
 import json
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.humanitarian_tools import fetch_fts_funding_data, _LOOKUP_CACHE
+from cartogen_ai.core.agent.tools.humanitarian_tools import fetch_fts_funding_data, _LOOKUP_CACHE
 
 
 def _mock_response(payload):
@@ -57,7 +57,7 @@ class TestFetchFtsFundingDataAutoSelect(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_auto_selects_latest_year_and_computes_gap(self, mock_urlopen):
         mock_urlopen.side_effect = [_mock_response(_ONE_PLAN_2026), _mock_response(_FLOW_2026)]
 
@@ -72,7 +72,7 @@ class TestFetchFtsFundingDataAutoSelect(unittest.TestCase):
         self.assertEqual(res["gap_usd"], 2162563336 - 434734581)
         self.assertAlmostEqual(res["coverage_percent"], 20.1, places=1)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_result_is_cached_on_repeated_call(self, mock_urlopen):
         mock_urlopen.side_effect = [_mock_response(_ONE_PLAN_2026), _mock_response(_FLOW_2026)]
 
@@ -88,7 +88,7 @@ class TestFetchFtsFundingDataMultiplePlans(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_returns_plan_suggestion_instead_of_guessing(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(_MULTI_PLAN_2020)
 
@@ -98,7 +98,7 @@ class TestFetchFtsFundingDataMultiplePlans(unittest.TestCase):
         self.assertEqual(len(res["plans"]), 2)
         self.assertEqual({p["plan_id"] for p in res["plans"]}, {831, 952})
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_no_plans_for_year_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": []})
 
@@ -111,7 +111,7 @@ class TestFetchFtsFundingDataExplicitPlanId(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_uses_plan_id_directly_without_listing_plans(self, mock_urlopen):
         plan_payload = {
             "data": {
@@ -130,7 +130,7 @@ class TestFetchFtsFundingDataExplicitPlanId(unittest.TestCase):
         self.assertEqual(res["plan_id"], 1116)
         self.assertEqual(res["gap_usd"], 4344155316 - 1778292357)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_unknown_plan_id_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": {}})
 
@@ -143,13 +143,13 @@ class TestFetchFtsFundingDataRobustness(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_handles_network_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_fts_funding_data("YEM")
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_handles_missing_funding_total_gracefully(self, mock_urlopen):
         # Regression guard: confirmed live that a brand-new plan's response can
         # lack the funding total entirely under some API response shapes --
@@ -158,7 +158,7 @@ class TestFetchFtsFundingDataRobustness(unittest.TestCase):
         res = fetch_fts_funding_data("YEM")
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_handles_missing_requirements_gracefully(self, mock_urlopen):
         no_reqs = {"data": [{"id": 1, "planVersion": {"name": "x"}, "years": [{"year": "2026"}]}]}
         mock_urlopen.return_value = _mock_response(no_reqs)

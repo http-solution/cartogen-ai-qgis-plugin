@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cartogen-ai-core"
+# Kept in sync with metadata.txt's version= by hand for now -- see
+# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md for why there isn't a single
+# source of truth between the two yet (metadata.txt is QGIS's own plugin
+# manifest format and can't easily read from pyproject.toml at plugin-load
+# time; a `python docs/generate_tools_reference.py`-style sync script would
+# be the next step if this drifts in practice).
+version = "1.4.1"
+description = "Cartogen AI Community edition -- spatial AI agent for QGIS"
+readme = "README.md"
+license = { text = "GPL-2.0-or-later" }
+requires-python = ">=3.9"
+authors = [{ name = "Alaa Alshoubaki", email = "alaa.alshoubaki@gmail.com" }]
+
+# Deliberately no [project.dependencies] -- this package is normally run
+# inside a QGIS Python environment that already provides qgis.core/qgis.PyQt,
+# which aren't installable from PyPI. See requirements.txt for the *optional*
+# document-parsing/web-search/imagery dependencies, installed separately.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# PEP 420 implicit namespace packages: src/cartogen_ai/ has no __init__.py,
+# so this repo's build only claims cartogen_ai.core (and its subpackages) --
+# it does NOT own the bare `cartogen_ai` namespace itself. A future private
+# Pro/Enterprise repo's own pyproject.toml would do the same thing for its
+# own cartogen_ai.pro / cartogen_ai.enterprise packages, and pip merges both
+# installs into one working `cartogen_ai` namespace with no file conflicts --
+# see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md for the full design.
+include = ["cartogen_ai.core", "cartogen_ai.core.*"]
+
+[tool.setuptools.package-data]
+"cartogen_ai.core" = ["*.md"]

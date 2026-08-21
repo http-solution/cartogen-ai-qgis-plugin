@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from contextlib import contextmanager
-from agent.chat_persistence import save_chat_history, load_chat_history
+from cartogen_ai.core.agent.chat_persistence import save_chat_history, load_chat_history
 
 
 @contextmanager
@@ -10,7 +10,7 @@ def _simulate_qgis_with_persist_setting(value):
     real `qgis.core` import succeeds -- there's no qgis.core in this test
     environment, so both are set directly on the module object to exercise
     the opt-in gating logic without a real QGIS install."""
-    import agent.chat_persistence as cp
+    import cartogen_ai.core.agent.chat_persistence as cp
 
     class _FakeSettings:
         def value(self, key, default, type=None):

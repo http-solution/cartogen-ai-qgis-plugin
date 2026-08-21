@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.auth import CredentialManager
-from agent.deps import verify_dependencies, get_dependency_warning_message
+from cartogen_ai.core.agent.auth import CredentialManager
+from cartogen_ai.core.agent.deps import verify_dependencies, get_dependency_warning_message
 
 
 class TestAuthAndDeps(unittest.TestCase):
@@ -22,9 +22,9 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_settings = MagicMock()
         fake_settings.value.return_value = ""
 
-        with patch("agent.auth.QGIS_AVAILABLE", True), \
-             patch("agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("agent.auth.QgsSettings", return_value=fake_settings, create=True):
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             result = CredentialManager.save_credential("test_flagged_provider", "sk-fake-value")
 
@@ -40,10 +40,10 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_settings = MagicMock()
         fake_settings.value.return_value = ""
 
-        with patch("agent.auth.QGIS_AVAILABLE", True), \
-             patch("agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("agent.auth.QgsSettings", return_value=fake_settings, create=True), \
-             patch("agent.auth.QgsAuthMethodConfig", create=True):
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
+             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             CredentialManager._plaintext_fallback_providers.add("test_clear_provider")
             result = CredentialManager.save_credential("test_clear_provider", "sk-fake-value")

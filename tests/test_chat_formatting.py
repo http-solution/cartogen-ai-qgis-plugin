@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from ui.chat_formatting import (
+from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
     build_dock_stylesheet,

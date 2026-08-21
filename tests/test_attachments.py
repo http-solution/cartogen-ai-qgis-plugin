@@ -17,7 +17,7 @@ import shutil
 import tempfile
 import unittest
 
-from ui.attachments import read_attached_file
+from cartogen_ai.core.ui.attachments import read_attached_file
 
 
 def _skip_if_missing(test_case, module_name):

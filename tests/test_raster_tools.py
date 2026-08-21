@@ -6,7 +6,7 @@ pass. Follows the QGIS_AVAILABLE=False degrade-path convention used
 throughout the rest of the test suite."""
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.raster_tools import (
+from cartogen_ai.core.agent.tools.raster_tools import (
     weighted_overlay_analysis, _compute_normalized_weights, interpolate_surface,
     elevation_profile, georeference_image, estimate_population_exposure,
     calculate_ndvi, calculate_ndwi, calculate_ndre,
@@ -70,14 +70,14 @@ class TestWeightedOverlayAnalysisDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestWeightedOverlayAnalysisValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_fewer_than_two_rasters(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = weighted_overlay_analysis(["a"], [1.0])
         self.assertIn("error", res)
         self.assertIn("at least 2", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_too_many_rasters(self):
         names = [f"r{i}" for i in range(7)]
         weights = [1.0] * 7
@@ -85,19 +85,19 @@ class TestWeightedOverlayAnalysisValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("at most", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_mismatched_weights_length(self):
         res = weighted_overlay_analysis(["a", "b"], [1.0])
         self.assertIn("error", res)
         self.assertIn("weights", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_all_zero_weights(self):
         res = weighted_overlay_analysis(["a", "b"], [0, 0])
         self.assertIn("error", res)
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_rejects_mismatched_crs(self, mock_find):
         layer_a = MagicMock()
         layer_a.crs.return_value.authid.return_value = "EPSG:4326"
@@ -134,14 +134,14 @@ class TestNewToolsDegradeOutsideQgis(unittest.TestCase):
 
 
 class TestInterpolateSurfaceValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_unknown_method(self):
         res = interpolate_surface("points", "field", method="kriging")
         self.assertIn("error", res)
         self.assertIn("method", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_rejects_unknown_field(self, mock_find):
         fake_field = MagicMock()
         fake_field.name.return_value = "value"
@@ -156,14 +156,14 @@ class TestInterpolateSurfaceValidation(unittest.TestCase):
 
 
 class TestElevationProfileValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_too_few_samples(self):
         res = elevation_profile("line", "dem", num_samples=1)
         self.assertIn("error", res)
         self.assertIn("num_samples", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_samples_along_line_using_mocked_geometry_and_provider(self, mock_find):
         line_layer = MagicMock()
         line_geom = MagicMock()
@@ -188,8 +188,8 @@ class TestElevationProfileValidation(unittest.TestCase):
         self.assertEqual(res["valid_sample_count"], 5)
         self.assertEqual(res["elevations"], [123.4] * 5)
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_reports_error_when_no_valid_samples(self, mock_find):
         line_layer = MagicMock()
         line_geom = MagicMock()
@@ -213,13 +213,13 @@ class TestElevationProfileValidation(unittest.TestCase):
 
 
 class TestGeoreferenceImageValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_missing_file(self):
         res = georeference_image("/definitely/not/a/real/file.png", [{"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0}] * 3, "/out.tif")
         self.assertIn("error", res)
         self.assertIn("not found", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_fewer_than_three_control_points(self):
         import tempfile, os
         fd, path = tempfile.mkstemp(suffix=".png")
@@ -233,17 +233,17 @@ class TestGeoreferenceImageValidation(unittest.TestCase):
 
 
 class TestEstimatePopulationExposureValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_reports_missing_raster_layer(self, mock_find):
         mock_find.return_value = None
         res = estimate_population_exposure("ghost_pop", "districts")
         self.assertIn("error", res)
         self.assertIn("ghost_pop", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools.QgsWkbTypes", create=True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_rejects_non_polygon_area_layer(self, mock_find, mock_wkb):
         mock_wkb.PolygonGeometry = "polygon-sentinel"
         raster = MagicMock()
@@ -297,34 +297,34 @@ class TestApplyRasterStretchDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestApplyRasterStretchValidation(unittest.TestCase):
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_invalid_mode(self):
         res = apply_raster_stretch("NDVI", mode="bogus")
         self.assertIn("error", res)
         self.assertIn("mode", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_non_positive_band(self):
         res = apply_raster_stretch("NDVI", band=0)
         self.assertIn("error", res)
         self.assertIn("band", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_min_greater_or_equal_max(self):
         res = apply_raster_stretch("NDVI", min_value=5, max_value=5)
         self.assertIn("error", res)
         self.assertIn("min_value", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_reports_missing_layer(self, mock_find):
         mock_find.return_value = None
         res = apply_raster_stretch("ghost_raster")
         self.assertIn("error", res)
         self.assertIn("ghost_raster", res["error"])
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_rejects_band_beyond_band_count(self, mock_find):
         layer = MagicMock()
         layer.bandCount.return_value = 1
@@ -333,8 +333,8 @@ class TestApplyRasterStretchValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("band", res["error"].lower())
 
-    @patch("agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_explicit_min_max_skips_band_statistics_call(self, mock_find):
         layer = MagicMock()
         layer.bandCount.return_value = 1

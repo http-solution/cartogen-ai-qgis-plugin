@@ -11,7 +11,7 @@ before writing this tool; see the session notes."""
 import json
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.humanitarian_tools import (
+from cartogen_ai.core.agent.tools.humanitarian_tools import (
     fetch_worldpop_population_network_phase, add_worldpop_population_layer_main_thread_phase,
     fetch_worldpop_population, _LOOKUP_CACHE,
 )
@@ -47,7 +47,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_auto_selects_most_recent_year(self, mock_urlopen):
         mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
 
@@ -61,7 +61,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertTrue(os.path.exists(res["local_path"]))
         os.remove(res["local_path"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_selects_requested_year(self, mock_urlopen):
         mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
 
@@ -72,7 +72,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         import os
         os.remove(res["local_path"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_unavailable_year_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
 
@@ -81,7 +81,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("1999", res["error"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_no_datasets_found_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": []})
 
@@ -89,7 +89,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
 
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_result_is_cached_on_repeated_call(self, mock_urlopen):
         mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
 
@@ -102,7 +102,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         import os
         os.remove(first["local_path"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_handles_network_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_worldpop_population_network_phase("YEM")
@@ -128,7 +128,7 @@ class TestFetchWorldpopPopulationCombined(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_leaves_downloaded_file_on_disk_after_loading(self, mock_urlopen):
         # Regression guard for the correctness issue found while designing this
         # tool: a raster layer reads its backing file lazily, so (unlike

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from agent.model_selector import classify_complexity, pick_model_for_complexity, filter_chat_model_ids
+from cartogen_ai.core.agent.model_selector import classify_complexity, pick_model_for_complexity, filter_chat_model_ids
 
 
 class TestClassifyComplexity(unittest.TestCase):

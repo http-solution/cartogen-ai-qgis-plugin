@@ -6,7 +6,7 @@ Follows the same QGIS_AVAILABLE=False degrade-path convention used
 throughout tests/test_new_tools.py and tests/test_styling_tools.py."""
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.vector_tools import (
+from cartogen_ai.core.agent.tools.vector_tools import (
     difference_layers, convex_hull, voronoi_polygons, delaunay_triangulation,
     find_nearest_features, convert_to_singlepart, simplify_geometry,
     field_statistics, select_by_location, invert_selection,
@@ -93,34 +93,34 @@ class TestVectorToolsDegradeOutsideQgis(unittest.TestCase):
 
 
 class TestVectorToolsValidation(unittest.TestCase):
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     def test_simplify_geometry_rejects_non_positive_tolerance(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = simplify_geometry("layer", 0)
         self.assertIn("error", res)
         self.assertIn("tolerance", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     def test_find_nearest_features_rejects_zero_neighbors(self):
         res = find_nearest_features("a", "b", neighbors=0)
         self.assertIn("error", res)
         self.assertIn("neighbors", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     def test_select_by_location_rejects_unknown_predicate(self):
         res = select_by_location("a", "b", predicate="nonsense")
         self.assertIn("error", res)
         self.assertIn("predicate", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     def test_select_by_location_rejects_unknown_method(self):
         res = select_by_location("a", "b", method="nonsense")
         self.assertIn("error", res)
         self.assertIn("method", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsWkbTypes", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_voronoi_polygons_rejects_non_point_layers(self, mock_find, mock_wkb):
         mock_wkb.PointGeometry = "point-sentinel"
         fake_layer = MagicMock()
@@ -132,9 +132,9 @@ class TestVectorToolsValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("point layers", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsWkbTypes", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_delaunay_triangulation_rejects_non_point_layers(self, mock_find, mock_wkb):
         mock_wkb.PointGeometry = "point-sentinel"
         fake_layer = MagicMock()
@@ -182,8 +182,8 @@ class TestExtentToCanvasCrs(unittest.TestCase):
 
         self.assertIs(result, extent)
 
-    @patch("agent.tools.vector_tools.QgsProject", create=True)
-    @patch("agent.tools.vector_tools.QgsCoordinateTransform", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateTransform", create=True)
     def test_different_valid_crs_transforms_the_extent(self, mock_transform_cls, mock_project):
         source_crs = MagicMock()
         source_crs.isValid.return_value = True
@@ -199,8 +199,8 @@ class TestExtentToCanvasCrs(unittest.TestCase):
         mock_transform_cls.return_value.transformBoundingBox.assert_called_once_with(extent)
         self.assertIs(result, transformed)
 
-    @patch("agent.tools.vector_tools.QgsProject", create=True)
-    @patch("agent.tools.vector_tools.QgsCoordinateTransform", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateTransform", create=True)
     def test_transform_failure_falls_back_to_original_extent(self, mock_transform_cls, mock_project):
         source_crs = MagicMock()
         source_crs.isValid.return_value = True
@@ -230,10 +230,10 @@ class TestZoomToLayerUsesCanvasCrsTransform(unittest.TestCase):
     through _extent_to_canvas_crs rather than passing the layer's raw extent
     straight to canvas.setExtent() -- the exact bug this fix addresses."""
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._extent_to_canvas_crs")
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._extent_to_canvas_crs")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_zoom_to_layer_transforms_extent_before_setting_it(self, mock_iface, mock_find, mock_transform_fn):
         fake_layer = MagicMock()
         fake_extent = MagicMock()
@@ -250,10 +250,10 @@ class TestZoomToLayerUsesCanvasCrsTransform(unittest.TestCase):
         mock_transform_fn.assert_called_once_with(mock_canvas, fake_extent, fake_layer.crs.return_value)
         mock_canvas.setExtent.assert_called_once_with(transformed_extent)
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._extent_to_canvas_crs")
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._extent_to_canvas_crs")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_zoom_to_feature_transforms_extent_before_setting_it(self, mock_iface, mock_find, mock_transform_fn):
         fake_layer = MagicMock()
         fake_feature = MagicMock()
@@ -284,28 +284,28 @@ class TestZoomToFeatureByExpression(unittest.TestCase):
     confirmed live) whenever the model only had an attribute value like a
     governorate name. The expression parameter closes that gap."""
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_rejects_neither_feature_id_nor_expression(self, mock_iface, mock_find):
         mock_find.return_value = MagicMock()
         res = zoom_to_feature("layer")
         self.assertIn("error", res)
         self.assertIn("feature_id or expression", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_rejects_both_feature_id_and_expression(self, mock_iface, mock_find):
         mock_find.return_value = MagicMock()
         res = zoom_to_feature("layer", feature_id=1, expression="name = 'X'")
         self.assertIn("error", res)
         self.assertIn("only one of", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_rejects_invalid_expression(self, mock_iface, mock_find, mock_expr_cls):
         mock_find.return_value = MagicMock()
         mock_expr_cls.return_value.hasParserError.return_value = True
@@ -316,11 +316,11 @@ class TestZoomToFeatureByExpression(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("syntax error", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsFeatureRequest", create=True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_expression_matching_no_features_is_rejected(self, mock_iface, mock_find, mock_expr_cls, mock_request_cls):
         mock_expr_cls.return_value.hasParserError.return_value = False
         fake_layer = MagicMock()
@@ -332,11 +332,11 @@ class TestZoomToFeatureByExpression(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("No feature", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsFeatureRequest", create=True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_expression_matching_multiple_features_is_rejected(self, mock_iface, mock_find, mock_expr_cls, mock_request_cls):
         mock_expr_cls.return_value.hasParserError.return_value = False
         fake_layer = MagicMock()
@@ -348,12 +348,12 @@ class TestZoomToFeatureByExpression(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("expected exactly one", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._extent_to_canvas_crs")
-    @patch("agent.tools.vector_tools.QgsFeatureRequest", create=True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools.iface")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._extent_to_canvas_crs")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface")
     def test_expression_matching_one_feature_zooms_and_selects(self, mock_iface, mock_find, mock_expr_cls, mock_request_cls, mock_transform_fn):
         mock_expr_cls.return_value.hasParserError.return_value = False
         fake_feature = MagicMock()
@@ -382,27 +382,27 @@ class TestApplyLabels(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_rejects_neither_target_field_nor_expression(self, mock_find):
         mock_find.return_value = MagicMock()
         res = apply_labels("layer")
         self.assertIn("error", res)
         self.assertIn("target_field or expression", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_rejects_both_target_field_and_expression(self, mock_find):
         mock_find.return_value = MagicMock()
         res = apply_labels("layer", target_field="name", expression="1+1")
         self.assertIn("error", res)
         self.assertIn("only one of", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsPalLayerSettings", create=True)
-    @patch("agent.tools.vector_tools.QgsTextFormat", create=True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_rejects_invalid_expression(self, mock_find, mock_expr_cls, mock_fmt_cls, mock_settings_cls):
         mock_find.return_value = MagicMock()
         mock_expr_cls.return_value.hasParserError.return_value = True
@@ -413,12 +413,12 @@ class TestApplyLabels(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("syntax error", res["error"])
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsPalLayerSettings", create=True)
-    @patch("agent.tools.vector_tools.QgsTextFormat", create=True)
-    @patch("agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
-    @patch("agent.tools.vector_tools.QgsExpression", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_valid_expression_sets_is_expression_true(self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls):
         fake_layer = MagicMock()
         mock_find.return_value = fake_layer
@@ -432,10 +432,10 @@ class TestApplyLabels(unittest.TestCase):
         self.assertTrue(settings_instance.isExpression)
         fake_layer.setLabelsEnabled.assert_called_once_with(True)
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools.QgsPalLayerSettings", create=True)
-    @patch("agent.tools.vector_tools.QgsTextFormat", create=True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_target_field_not_on_layer_is_rejected(self, mock_find, mock_fmt_cls, mock_settings_cls):
         fake_field = MagicMock()
         fake_field.name.return_value = "other"

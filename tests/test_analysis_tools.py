@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 import datetime
-from agent.tools.analysis_tools import (
+from cartogen_ai.core.agent.tools.analysis_tools import (
     _parse_date, _linear_regression, _forecast_series, forecast_trend,
     _normalize_minmax, _severity_class, _compute_severity_index, calculate_severity_index,
     calculate_presence_gap, calculate_population_in_need, calculate_damage_exposure_severity,

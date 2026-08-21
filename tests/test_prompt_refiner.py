@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock
-from agent.prompt_refiner import (
+from cartogen_ai.core.agent.prompt_refiner import (
     should_refine, build_refinement_messages, parse_refinement_response, refine,
     PROFILE_LABELS, DEFAULT_PROFILE,
 )

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock, patch
-from agent.prompts import build_system_prompt
-from agent.memory import SpatialMemoryManager
-from agent.task_manager import AgentTaskManager
-import agent.agent as agent_mod
+from cartogen_ai.core.agent.prompts import build_system_prompt
+from cartogen_ai.core.agent.memory import SpatialMemoryManager
+from cartogen_ai.core.agent.task_manager import AgentTaskManager
+import cartogen_ai.core.agent.agent as agent_mod
 
 
 class TestAgentRunner(unittest.TestCase):
@@ -62,8 +62,8 @@ class TestToolStepCallback(unittest.TestCase):
 
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: tool_result), \
-             patch("agent.agent.build_system_prompt", return_value="sys"), \
-             patch("agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers", tool_step_callback=lambda n, s, e: steps.append((n, s, e)))
         return final_text, steps
 
@@ -85,8 +85,8 @@ class TestToolStepCallback(unittest.TestCase):
         agent = _make_bare_agent(client)
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
-             patch("agent.agent.build_system_prompt", return_value="sys"), \
-             patch("agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers")
         self.assertEqual(final_text, "All done.")
 
@@ -101,8 +101,8 @@ class TestToolStepCallback(unittest.TestCase):
 
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
-             patch("agent.agent.build_system_prompt", return_value="sys"), \
-             patch("agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers", tool_step_callback=broken_callback)
         self.assertEqual(final_text, "All done.")
 

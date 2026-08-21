@@ -5,7 +5,7 @@ PREVIEW_REQUIRED destructive-confirmation pattern as vector_tools.remove_layer
 since it replaces the entire open project."""
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.project_tools import save_project, load_project
+from cartogen_ai.core.agent.tools.project_tools import save_project, load_project
 
 
 class TestSaveProjectDegradesOutsideQgis(unittest.TestCase):
@@ -16,8 +16,8 @@ class TestSaveProjectDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestSaveProjectBehavior(unittest.TestCase):
-    @patch("agent.tools.project_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.project_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QgsProject", create=True)
     def test_rejects_unsaved_project_without_output_path(self, mock_project_cls):
         instance = MagicMock()
         instance.fileName.return_value = ""
@@ -28,8 +28,8 @@ class TestSaveProjectBehavior(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("output_path", res["error"])
 
-    @patch("agent.tools.project_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.project_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QgsProject", create=True)
     def test_saves_to_given_path(self, mock_project_cls):
         instance = MagicMock()
         instance.write.return_value = True
@@ -42,8 +42,8 @@ class TestSaveProjectBehavior(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(res["file_path"], "/tmp/out.qgz")
 
-    @patch("agent.tools.project_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.project_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QgsProject", create=True)
     def test_reports_write_failure(self, mock_project_cls):
         instance = MagicMock()
         instance.write.return_value = False
@@ -67,7 +67,7 @@ class TestLoadProjectRequiresConfirmation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
 
-    @patch("agent.tools.project_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
     def test_confirmed_call_rejects_missing_file(self):
         res = load_project("/definitely/not/a/real/project.qgz", confirmed=True)
         self.assertIn("error", res)

@@ -7,7 +7,7 @@ suite."""
 import math
 import unittest
 from unittest.mock import patch, MagicMock
-from agent.tools.logistics_tools import (
+from cartogen_ai.core.agent.tools.logistics_tools import (
     _rank_hub_candidates, optimal_hub_siting, calculate_service_area, travel_time_matrix,
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
@@ -60,29 +60,29 @@ class TestLogisticsToolsDegradeOutsideQgis(unittest.TestCase):
 
 
 class TestLogisticsToolsValidation(unittest.TestCase):
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_calculate_service_area_rejects_non_positive_travel_cost(self):
         # Validated before any layer lookup, so this doesn't need QGIS mocks.
         res = calculate_service_area("facilities", "roads", 0)
         self.assertIn("error", res)
         self.assertIn("travel_cost", res["error"])
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_calculate_service_area_rejects_unknown_strategy(self):
         res = calculate_service_area("facilities", "roads", 1000, strategy="teleport")
         self.assertIn("error", res)
         self.assertIn("strategy", res["error"])
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_optimal_hub_siting_reports_missing_candidate_layer(self, mock_find):
         mock_find.return_value = None
         res = optimal_hub_siting("ghost_candidates", "demand")
         self.assertIn("error", res)
         self.assertIn("ghost_candidates", res["error"])
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_optimal_hub_siting_reports_missing_demand_layer(self, mock_find):
         def side_effect(name):
             return MagicMock() if name == "candidates" else None
@@ -97,8 +97,8 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
     fake feature/geometry objects, confirming the glue code (distance calls,
     attribute reads) is wired correctly end to end."""
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_ranks_candidates_by_mocked_geometry_distances(self, mock_find):
         # Two candidates, three demand points -- candidate at (0,0) is closer
         # on average than the one at (100,100).
@@ -193,14 +193,14 @@ class TestLocationAllocationDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestLocationAllocationValidation(unittest.TestCase):
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_rejects_non_positive_num_facilities(self):
         res = location_allocation("candidates", "demand", 0)
         self.assertIn("error", res)
         self.assertIn("num_facilities", res["error"])
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_rejects_num_facilities_exceeding_candidates(self, mock_find):
         candidates_layer = MagicMock()
         cand_feat = MagicMock()
@@ -277,8 +277,8 @@ class TestOptimizeDeliveryRouteDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestOptimizeDeliveryRouteValidation(unittest.TestCase):
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_rejects_fewer_than_two_stops(self, mock_find):
         layer = MagicMock()
         feat = MagicMock()
@@ -293,8 +293,8 @@ class TestOptimizeDeliveryRouteValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("at least 2", res["error"])
 
-    @patch("agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_rejects_unknown_start_stop_name(self, mock_find):
         layer = MagicMock()
         feats = []

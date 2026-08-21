@@ -6,8 +6,8 @@ QGIS_AVAILABLE=False degrade-path convention used throughout the suite --
 the QTimer/QgsSettings-backed paths can't be exercised outside real QGIS,
 same as every other QGIS-facing module here."""
 import unittest
-from agent.scheduler import get_scheduler, WorkflowScheduler
-from agent.tools.monitoring_tools import (
+from cartogen_ai.core.agent.scheduler import get_scheduler, WorkflowScheduler
+from cartogen_ai.core.agent.tools.monitoring_tools import (
     _find_unit_list, _diff_unit_results, _summarize_diffs,
     run_monitoring_workflow, schedule_recurring_workflow, stop_recurring_workflow,
     list_scheduled_workflows, _ALLOWED_WORKFLOW_TOOLS,

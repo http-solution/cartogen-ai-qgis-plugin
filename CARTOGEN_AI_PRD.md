@@ -26,7 +26,7 @@ This version consolidates the original architecture and roadmap with two rounds 
 |---|---|
 | `__init__.py` | Exposes `classFactory(iface)`, returning the `CartogenAi` plugin instance when loaded by QGIS. |
 | `metadata.txt` | Mandatory plugin metadata: `qgisMinimumVersion=3.0`, `qgisMaximumVersion=4.99`, `name`, `version`, `author`, `experimental`. |
-| `cartogen_ai.py` | Core lifecycle: `initGui()` adds toolbar icons and menu entries via `iface.addToolBarIcon()` / `iface.addPluginToMenu()`; `unload()` removes action listeners and tears down the dock widget on unload. |
+| `plugin_main.py` | Core lifecycle: `initGui()` adds toolbar icons and menu entries via `iface.addToolBarIcon()` / `iface.addPluginToMenu()`; `unload()` removes action listeners and tears down the dock widget on unload. (Renamed from `cartogen_ai.py` -- that name collided with the `cartogen_ai.core` namespace package under `src/`; see `docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md` §3.) |
 
 ### 2.2 PyQGIS & Processing integration
 

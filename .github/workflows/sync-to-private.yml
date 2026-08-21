@@ -40,4 +40,15 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
           git remote add private "git@github.com:${PRIVATE_REPO}.git"
+          # Deliberately a plain push, never --force / a +refs/... force-push
+          # refspec. This is the "protect private commit history" requirement
+          # from docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md #5: this workflow
+          # only ever writes to its own dedicated PRIVATE_REPO_BRANCH, and
+          # only ever fast-forwards it. It must never be able to overwrite or
+          # rewrite any branch containing the private repo's own proprietary
+          # commits -- if this push ever needs --force to succeed, that means
+          # PRIVATE_REPO_BRANCH was committed to directly on the private-repo
+          # side (it shouldn't be -- treat it as read-only, upstream-mirror
+          # territory from that repo's perspective) and the fix is on that
+          # side, not by adding force here.
           git push private "HEAD:refs/heads/${PRIVATE_REPO_BRANCH}"

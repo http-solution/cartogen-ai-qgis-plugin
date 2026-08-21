@@ -52,8 +52,11 @@ rewrite history.
 ## Running things
 
 ```bash
-# Full test suite -- no QGIS needed
-python -m unittest discover -s tests -p "test_*.py" -v
+# Full test suite -- no QGIS needed. -t . matters: without it, discover()
+# treats tests/ as its own top-level dir and never runs tests/__init__.py's
+# src/-on-sys.path bootstrap, so every cartogen_ai.core.* import fails --
+# see docs/BUG_TRACKER.md BUG-2026-08-21-7.
+python -m unittest discover -s tests -t . -p "test_*.py" -v
 
 # Regenerate docs/TOOLS_REFERENCE.md after adding/changing a tool
 python docs/generate_tools_reference.py

@@ -69,11 +69,13 @@ If you're not sure which category something falls into, treat it as the second o
 
 - Every module that touches `qgis.core`/PyQGIS degrades gracefully outside a real QGIS process via
   its own `QGIS_AVAILABLE` guard, so the test suite runs without a QGIS installation
-  (`python -m unittest discover -s tests -p "test_*.py"`). New tool modules should follow the same
-  pattern — see any file in `agent/tools/` for the shape.
+  (`python -m unittest discover -s tests -t . -p "test_*.py"` — the `-t .` matters, see
+  `CLAUDE.md`'s "Running things" section). New tool modules should follow the same pattern — see
+  any file in `src/cartogen_ai/core/agent/tools/` for the shape.
 - Pure-Python logic (chat formatting, color derivation, tool routing) is deliberately kept free of
-  Qt/QGIS imports specifically so it's directly unit-testable — see `ui/chat_formatting.py`'s own
-  docstring for why it's structured that way relative to `ui/dock_widget.py`.
+  Qt/QGIS imports specifically so it's directly unit-testable — see
+  `src/cartogen_ai/core/ui/chat_formatting.py`'s own docstring for why it's structured that way
+  relative to `src/cartogen_ai/core/ui/dock_widget.py`.
 - A structural bug this project actually shipped and caught (a duplicate dict key silently
   discarding `ToolRouter` aliases, with no error at parse or runtime) is now guarded against by an
   `ast`-based static test (`tests/test_tool_router.py`'s `TestToolAliasesNoDuplicateKeys`). If you

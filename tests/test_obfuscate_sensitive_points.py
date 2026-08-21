@@ -11,7 +11,7 @@ import random
 import statistics
 import unittest
 
-from agent.tools.vector_tools import (
+from cartogen_ai.core.agent.tools.vector_tools import (
     _uniform_disk_offset, _grid_snap, obfuscate_sensitive_points,
 )
 

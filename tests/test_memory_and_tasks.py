@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
-from agent.memory import SpatialMemoryManager
-from agent.task_manager import AgentTaskManager
+from cartogen_ai.core.agent.memory import SpatialMemoryManager
+from cartogen_ai.core.agent.task_manager import AgentTaskManager
 
 
 class TestMemoryAndTasks(unittest.TestCase):

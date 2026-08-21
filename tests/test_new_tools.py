@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-import agent.agent as agent_mod
-from agent.agent import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
-from agent.tools.db_and_workflow_tools import execute_read_only_sql, save_workflow_preset, _enforce_db_read_only
-from agent.tools.vector_tools import (
+import cartogen_ai.core.agent.agent as agent_mod
+from cartogen_ai.core.agent.agent import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
+from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, save_workflow_preset, _enforce_db_read_only
+from cartogen_ai.core.agent.tools.vector_tools import (
     diagnose_topology, verify_crs_compatibility, spatial_join, remove_layer, field_calculator,
     calculate_area, calculate_length,
     _prefetch_url_to_temp, join_by_attribute, _is_safe_url, load_tabular_data_as_layer,
     _detect_geometry_fields, _sniff_csv_header, _sniff_excel_header, _validate_wgs84_coordinates,
     _sample_xy_values, _qvariant_type_for_dtype,
 )
-from agent.tools.system_tools import execute_pyqgis_script, _validate_script_safety
-from agent.tools.humanitarian_tools import (
+from cartogen_ai.core.agent.tools.system_tools import execute_pyqgis_script, _validate_script_safety
+from cartogen_ai.core.agent.tools.humanitarian_tools import (
     fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase, add_incident_point,
     add_point_layer, search_hdx_datasets, fetch_osm_features,
     fetch_hdx_admin_boundaries_network_phase, add_hdx_admin_boundaries_layer_main_thread_phase,
@@ -20,7 +20,7 @@ from agent.tools.humanitarian_tools import (
     _lonlat_to_tile_xy, _tile_xy_to_quadkey, _quadkeys_for_bbox,
     _match_building_footprints_location, _feature_centroid,
 )
-from agent.tools.system_tools import (
+from cartogen_ai.core.agent.tools.system_tools import (
     resolve_gemini_search_config, gemini_grounded_search, geocode_batch, _GEOCODE_CACHE,
     resolve_openai_search_config, openai_grounded_search, geocode_and_enrich,
 )
@@ -97,7 +97,7 @@ class TestNewTools(unittest.TestCase):
         fake_registry = MagicMock()
         fake_registry.instance.return_value.providerMetadata.return_value = fake_md
 
-        with patch("agent.tools.db_and_workflow_tools.QgsProviderRegistry", fake_registry, create=True):
+        with patch("cartogen_ai.core.agent.tools.db_and_workflow_tools.QgsProviderRegistry", fake_registry, create=True):
             res = _enforce_db_read_only("dummy_uri", "SELECT 1")
 
         self.assertIsInstance(res, dict)
@@ -149,8 +149,8 @@ class TestNewTools(unittest.TestCase):
         res = join_by_attribute("layer_a", "layer_b")
         self.assertIn("error", res)
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_join_by_attribute_suggests_fuzzy_field_matches(self, mock_find):
         target = _FakeLayer(["city_name", "population"])
         join_layer = _FakeLayer(["City_Name", "country"])
@@ -160,9 +160,9 @@ class TestNewTools(unittest.TestCase):
         self.assertEqual(res.get("status"), "FIELD_SUGGESTION")
         self.assertTrue(any(s["target_field"] == "city_name" for s in res["suggestions"]))
 
-    @patch("agent.tools.vector_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.vector_tools._find_layer_by_name")
-    @patch("agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
     def test_join_by_attribute_warns_on_non_unique_join_field(self, mock_run, mock_find):
         target = _FakeLayer(["id", "name"])
         join_layer = _FakeLayer(["ref_id"], feature_count=10, unique_counts={"ref_id": 3})
@@ -200,7 +200,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
     def test_load_tabular_data_as_layer_rejects_missing_file(self):
-        with patch("agent.tools.vector_tools.QGIS_AVAILABLE", True):
+        with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
             res = load_tabular_data_as_layer("/definitely/not/a/real/file.csv")
         self.assertIn("error", res)
         self.assertIn("not found", res["error"])
@@ -210,7 +210,7 @@ class TestNewTools(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".shp")
         os.close(fd)
         try:
-            with patch("agent.tools.vector_tools.QGIS_AVAILABLE", True):
+            with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
                 res = load_tabular_data_as_layer(path)
             self.assertIn("error", res)
             self.assertIn("Unsupported file type", res["error"])
@@ -223,7 +223,7 @@ class TestNewTools(unittest.TestCase):
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write("id,name,value\n1,a,10\n")
-            with patch("agent.tools.vector_tools.QGIS_AVAILABLE", True):
+            with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
                 res = load_tabular_data_as_layer(path)
             self.assertEqual(res.get("status"), "FIELD_SUGGESTION")
             self.assertEqual(res["columns"], ["id", "name", "value"])
@@ -298,14 +298,14 @@ class TestNewTools(unittest.TestCase):
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write("id,x,y\n1,712345.6,1698234.5\n2,698234.1,1701234.0\n")
-            with patch("agent.tools.vector_tools.QGIS_AVAILABLE", True):
+            with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
                 res = load_tabular_data_as_layer(path, x_field="x", y_field="y")
             self.assertIn("error", res)
             self.assertIn("WGS84", res["error"])
         finally:
             os.remove(path)
 
-    @patch("agent.tools.vector_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QVariant", create=True)
     def test_qvariant_type_for_dtype_maps_common_pandas_dtypes(self, mock_qvariant):
         pd = pytest_importorskip_pandas(self)
         mock_qvariant.LongLong, mock_qvariant.Double = "LongLong", "Double"
@@ -606,7 +606,7 @@ class TestNewTools(unittest.TestCase):
         import os
         import threading
         from http.server import BaseHTTPRequestHandler, HTTPServer
-        import agent.tools.vector_tools as vt
+        import cartogen_ai.core.agent.tools.vector_tools as vt
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
@@ -651,7 +651,7 @@ class TestNewTools(unittest.TestCase):
         import os
         import threading
         from http.server import BaseHTTPRequestHandler, HTTPServer
-        import agent.tools.vector_tools as vt
+        import cartogen_ai.core.agent.tools.vector_tools as vt
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
@@ -687,8 +687,8 @@ class TestNewTools(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_add_layer_from_path_rejects_unsafe_url_cleanly(self):
-        from agent.tools.vector_tools import add_layer_from_path
-        with patch("agent.tools.vector_tools.QGIS_AVAILABLE", True):
+        from cartogen_ai.core.agent.tools.vector_tools import add_layer_from_path
+        with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
             res = add_layer_from_path("http://169.254.169.254/latest/meta-data/")
         self.assertIn("error", res)
         self.assertIn("Download failed", res["error"])
@@ -698,7 +698,7 @@ class TestNewTools(unittest.TestCase):
         res = add_geoboundaries_layer_main_thread_phase({"error": "geoBoundaries API request failed: boom"})
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_geoboundaries_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_geoboundaries_network_phase("JOR", "ADM1")
@@ -716,13 +716,13 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("digit", res["error"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_hdx_admin_boundaries_network_phase("SDN", "ADM1")
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_reports_404_as_no_coverage(self, mock_urlopen):
         import io
         import urllib.error
@@ -732,7 +732,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("coverage isn't universal", res["error"])
         self.assertIn("fetch_geoboundaries", res["error"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_errors_when_no_geojson_resource(self, mock_urlopen):
         import json as _json
         package_show_body = _json.dumps({
@@ -746,7 +746,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("no GeoJSON boundaries resource", res["error"])
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_happy_path_extracts_pcode_field(self, mock_urlopen):
         # End-to-end through the real (non-mocked) JSON/zip/pcode-detection
         # logic -- only the two urlopen() network calls are mocked. Confirms
@@ -875,13 +875,13 @@ class TestNewTools(unittest.TestCase):
         res = fetch_building_footprints_network_phase("Yemen", [12.9, 45.1, 12.7, 44.9])
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_building_footprints_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_building_footprints_network_phase("Yemen", [12.7, 44.9, 12.9, 45.1])
         self.assertIn("error", res)
 
-    @patch("agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_building_footprints_network_phase_happy_path(self, mock_urlopen):
         # End-to-end through the real (non-mocked) CSV-index parsing, quadkey
         # filtering, gzip decompression, and bbox-crop logic -- only the two
@@ -890,7 +890,7 @@ class TestNewTools(unittest.TestCase):
         import gzip
         import json as _json
 
-        from agent.tools.humanitarian_tools import _quadkeys_for_bbox
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _quadkeys_for_bbox
         bbox = [12.77, 45.00, 12.80, 45.04]
         south, west, north, east = bbox
         quadkeys = list(_quadkeys_for_bbox(south, west, north, east))
@@ -1265,7 +1265,7 @@ class TestNewTools(unittest.TestCase):
         # sets one explicitly; this and the three tests below close the same gap for
         # the plain urllib.request.urlopen() calls in agent/tools/.
         # system_tools.py imports urllib locally inside the function (not at
-        # module level), so there's no "agent.tools.system_tools.urllib"
+        # module level), so there's no "cartogen_ai.core.agent.tools.system_tools.urllib"
         # attribute to patch through -- patch the real shared module instead.
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value = self._mock_urlopen_response(
@@ -1275,7 +1275,7 @@ class TestNewTools(unittest.TestCase):
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
 
     def test_search_hdx_datasets_sets_a_request_timeout(self):
-        with patch("agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value = self._mock_urlopen_response(b'{"result": {"results": []}}')
             search_hdx_datasets("floods")
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
@@ -1284,7 +1284,7 @@ class TestNewTools(unittest.TestCase):
         # The Overpass QL itself requests [timeout:25] server-side -- the client
         # timeout must be >= that, or a legitimate slow-but-still-running query gets
         # aborted client-side before the server's own deadline is even reached.
-        with patch("agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value = self._mock_urlopen_response(b'{"elements": []}')
             fetch_osm_features("amenity", "hospital", [1, 2, 3, 4])
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 30)

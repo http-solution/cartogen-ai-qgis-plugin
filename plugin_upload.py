@@ -25,6 +25,11 @@ EXCLUDE_DIRS = {
     # zipfile.write() can fail to os.stat() (WinError 1920), aborting the
     # whole build -- confirmed live, this exclusion is what fixed it.
     "service",
+    # Scratch holding area for content moved out of the old root-level
+    # agent/ui/cartogen_ai.py locations during the namespace-package
+    # restructure (see docs/BUG_TRACKER.md BUG-2026-08-21-6). Not part of
+    # the published package.
+    "_legacy_stubs",
 }
 # Directory names excluded ONLY at the plugin root, not wherever they occur --
 # unlike EXCLUDE_DIRS above, these bare names ("agent", "ui") also legitimately
@@ -46,6 +51,11 @@ EXCLUDE_FILES = {
     # setup -- see the file's own docstring. Not git-tracked; safe to delete
     # by hand, kept excluded here defensively in case it's still present.
     "build_cartogen_ai.py",
+    # Leftover stub from the namespace-package restructure -- this filename
+    # collided with the cartogen_ai.core namespace package (see
+    # docs/BUG_TRACKER.md BUG-2026-08-21-6). Real content now at
+    # plugin_main.py, which is NOT excluded and ships normally.
+    "cartogen_ai.py",
 }
 # Name PATTERNS (fnmatch, not exact match) for stray files that land at the repo
 # root and must never ship, even when the dev environment couldn't clean them up

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from ui.canvas_highlight import find_mentioned_layers
+from cartogen_ai.core.ui.canvas_highlight import find_mentioned_layers
 
 
 class _FakeLayer:

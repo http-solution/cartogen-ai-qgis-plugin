@@ -42,20 +42,33 @@ new regressions — both are stable, understood, environment-specific artifacts,
   live, not assumed). Not a code defect — new tests should use `tempfile.mkdtemp()` /
   `shutil.rmtree()` instead of the `scratch_test_*` naming convention (see
   `tests/test_attachments.py` for the pattern that avoids this).
-- **Some newly-written files on this FUSE-mounted tree cannot be deleted by any method**
-  (`rm`, `mv`, Python `os.remove`, waiting ~15s and retrying — all fail with
-  `Operation not permitted`, confirmed live), though the same files can be freely
-  overwritten/truncated. `df -T`/`stat -f` confirm this working tree is mounted via `fuse`/
-  `fuseblk` (a Windows-host bridge), which is almost certainly the actual cause — this is a
-  mount-layer quirk, not anything in this repo's code. Same root cause as the
-  `scratch_test_*` entry above, but on 2026-08-21 it also hit git's own internals: a `git
-  commit` failed partway through (unable to unlink its own temp object files) and left an
-  orphaned, empty `.git/HEAD.lock`, which then blocked every subsequent commit attempt for
-  the rest of that session since the lock file itself couldn't be removed either. If this
-  happens again: don't fight it by hand-editing git internals — leave the pending change
-  uncommitted in the working tree (git's own object store integrity is unaffected; `git
-  fsck` still comes back clean) and let a future session or the other environment sharing
-  this tree pick up the commit once the lock clears.
+- **Files on this FUSE-mounted tree cannot be `rm`/`os.remove`'d** (confirmed live, repeatedly,
+  `Operation not permitted`), though they can be freely overwritten/truncated. `df -T`/`stat -f`
+  confirm this working tree is mounted via `fuse`/`fuseblk` (a Windows-host bridge), which is
+  almost certainly the actual cause — a mount-layer quirk, not anything in this repo's code. Same
+  root cause as the `scratch_test_*` entry above, but on 2026-08-21 it also hit git's own
+  internals: a `git commit` failed partway through (unable to unlink its own temp object files)
+  and left an orphaned, empty `.git/HEAD.lock`, which then blocked every subsequent commit attempt
+  for the rest of that session since the lock file itself couldn't be removed either. If this
+  happens again: don't fight it by hand-editing git internals directly against the real
+  `.git/index` — use a scratch copy of the index (`GIT_INDEX_FILE=/tmp/scratch_index git add -A`
+  etc., then `write-tree`/`commit-tree`/update the ref by hand, then copy the scratch index back
+  over the real one) — see the commits from 2026-08-21 in this repo's history for the exact
+  sequence used.
+  **Correction, same day, later:** the above was true as originally investigated, but incomplete
+  — it was written after only testing `rm` and a *cross-filesystem* `mv` (moving a file to a
+  different mounted folder), both of which do fail. A **same-filesystem** `mv`/rename (moving a
+  file to a new path still inside this same mounted tree) was not tested until fixing
+  BUG-2026-08-21-6, and it **works**: `mv agent _legacy_stubs/agent_dir_test` succeeded outright.
+  The actual restriction is on unlink (removing a path with nothing replacing it), not on rename —
+  cross-filesystem `mv` fails for the same reason `rm` does, since without a hard-link-style
+  rename available it has to fall back to copy-then-delete-source, and the delete half is exactly
+  the unlink this mount blocks. Earlier work in this repo's history (`agent`/`ui`/
+  `QGIS_AI_Agent_*.md` handling from before this correction) used the more conservative
+  "overwrite content with a stub, `.gitignore` it, `git rm --cached` it" pattern instead of a true
+  move, because that's what the incomplete finding above supported at the time — that work is not
+  wrong, just more conservative than it needed to be. See `docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md`
+  §3 for where this correction mattered in practice.
 
 Current baseline: **691 tests, 1 known failure + 6 known errors, 0 real defects.** If a full
 suite run ever shows a *different* failure/error count or a *different* failing test name,
@@ -70,6 +83,9 @@ that's real signal — investigate it, don't assume it's this same known baselin
 | BUG-2026-08-21-3 | 2026-08-21 | v1.2.29 | medium | `agent/tools/vector_tools.py`: `calculate_area`/`calculate_length` mutated the live layer's attribute table in place via the same `_add_calculated_field` primitive as `field_calculator`, but weren't gated behind the `confirmed=True` preview/confirm flow `field_calculator` already required for that same class of operation — a real inconsistency in the destructive-action safety gate, not just a missing feature. Both now follow `field_calculator`'s exact `PREVIEW_REQUIRED` pattern (verified still present in current code: `agent/tools/vector_tools.py` lines 1375/1403, `confirmed: bool = False` + the `PREVIEW_REQUIRED` branch). |
 | BUG-2026-08-21-4 | 2026-08-21 | v1.2.28 | medium | `agent/providers/gemini.py`: `grounded_search()`/`list_models()` sent the API key as a `params={"key": ...}` query param instead of the `x-goog-api-key` header. |
 | BUG-2026-08-21-5 | 2026-08-21 | v1.2.34 | medium | `plugin_upload.py` (both trees): the v1.2.34 release zip silently shipped 7 stray repo-root files it should never have included (6 `scratch_test_*` test artifacts + a leftover `.git_commit_msg.txt`), because `EXCLUDE_FILES` only did exact-name matching and neither file was expected to exist at build time. Added `EXCLUDE_FILE_PATTERNS` (fnmatch-based) covering `scratch_test_*`/`.git_commit_msg*`; both v1.2.34 zips rebuilt and re-verified clean (86 entries each, contamination check passed). |
+| BUG-2026-08-21-6 | 2026-08-21 | v1.4.1 | high | `cartogen_ai.py` (repo root, this repo only — introduced by the same-day namespace-package restructure, not present before it): its filename collided with the new `cartogen_ai.core` namespace package under `src/`. Since both the repo root and `src/` end up on `sys.path`, and a regular module anywhere on `sys.path` always wins over a namespace-package portion regardless of path order, every `from cartogen_ai.core.agent... import X` resolved to this file instead — confirmed via `python -m unittest discover`, which failed 31 tests with `ModuleNotFoundError: No module named 'qgis'` (this file's own unconditional `qgis.PyQt` import executing where the namespace package was expected). Fixed by renaming the file to `plugin_main.py` (pure rename, no behavior change) and updating `__init__.py`'s `classFactory()` to import from it; see `docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md` §3.1 for the full writeup. Re-verified: full `py_compile` and `python -m unittest discover` both clean after the fix (see that run's output for the exact pass count). |
+
+| BUG-2026-08-21-7 | 2026-08-21 | v1.4.1 | high | Two compounding issues found while re-verifying the suite after BUG-2026-08-21-6's fix, both specific to this repo's namespace-package restructure: (1) 15 `from agent...`/`import agent...`/`import ui...` statements survived the earlier bulk import-rewrite across `tests/test_providers.py`, `test_new_tools.py`, `test_export_tools.py`, `test_chat_persistence.py`, and `tests/manual_prompt_rule_evals.py` — all *function-local* imports (inside a test body or context manager), which the original rewrite pass (scoped to module-top-level import lines) didn't reach; each failed with `ModuleNotFoundError: No module named 'agent'`. Rewritten to `cartogen_ai.core.agent...`/`cartogen_ai.core.ui...`, matching the top-level rewrite already done elsewhere. (2) Separately, and more subtly: `python -m unittest discover -s tests -p "test_*.py"` — the exact command documented in `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `.github/workflows/tests.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, and `SECURITY.md` before this fix — silently never executes `tests/__init__.py`'s `src/`-on-`sys.path` bootstrap, because without an explicit `-t`/`--top-level-directory`, `discover()` treats `-s tests` as *also* the top-level directory and imports each `test_*.py` as a bare top-level module rather than as a member of the `tests` package, so `tests/__init__.py` never runs as a package initializer. The fix is `-t .` (repository root as the true top-level directory): `python -m unittest discover -s tests -t . -p "test_*.py"`. Without it, every test importing `cartogen_ai.core.*` fails with `ModuleNotFoundError: No module named 'cartogen_ai'` even though the exact same import works fine outside unittest (e.g. via plain `python3 -c "..."`) — confirmed by direct comparison. All 6 documentation/CI locations updated to the `-t .` form. Re-verified after both fixes: `691 tests, 1 known failure + 6 known errors` — back to the pre-restructure baseline exactly. |
 
 Full history before this file existed: see `CHANGELOG.md`, every version from v1.0.0 forward.
 

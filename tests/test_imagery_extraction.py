@@ -7,7 +7,7 @@ timing, and memory behavior need a live QGIS session with a downloaded
 model checkpoint, explicitly out of scope for this suite (see the spec's
 section 9)."""
 import unittest
-from agent.tools.imagery_extraction import (
+from cartogen_ai.core.agent.tools.imagery_extraction import (
     _pixel_to_map, _mask_pixel_count, extract_features_from_imagery,
 )
 

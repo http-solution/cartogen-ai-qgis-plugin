@@ -1,4 +1,19 @@
 # -*- coding: utf-8 -*-
+"""
+Renamed from cartogen_ai.py (see that file's own MOVED stub for why): a file
+literally named cartogen_ai.py at the plugin root collided with the
+cartogen_ai.core namespace package under src/. Both the repo root and src/
+end up on sys.path (see __init__.py's bootstrap comment), and when Python
+resolves the top-level name "cartogen_ai" it finds this regular module before
+it finishes collecting src/cartogen_ai/ as a namespace portion -- a regular
+module/package anywhere on sys.path always wins over a namespace portion,
+regardless of sys.path order. Confirmed live: `python -m unittest discover`
+failed 31 tests importing `cartogen_ai.core.agent.*` because "cartogen_ai"
+resolved to this file (then its qgis.PyQt import failed, since qgis isn't
+installed outside a real QGIS session) instead of the namespace package.
+Renaming this file is what fixes it -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md
+§3 for the full writeup, and docs/BUG_TRACKER.md for the incident entry.
+"""
 import os.path
 import traceback
 
@@ -90,7 +105,7 @@ class CartogenAi:
             pass
 
         try:
-            from .agent.scheduler import get_scheduler
+            from cartogen_ai.core.agent.scheduler import get_scheduler
             get_scheduler().stop_all()
         except Exception as e:
             print(f"[CartogenAi] scheduler stop_all failed: {e}")
@@ -109,7 +124,7 @@ class CartogenAi:
         self.actions = []
 
     def _get_agent(self):
-        from .agent.auth import CredentialManager
+        from cartogen_ai.core.agent.auth import CredentialManager
         settings = QgsSettings()
         provider = settings.value("cartogen_ai/provider", "openrouter")
         key = CredentialManager.get_credential(provider)
@@ -117,7 +132,7 @@ class CartogenAi:
 
         if self._agent is None or getattr(self, "_agent_key", None) != agent_hash:
             try:
-                from .agent.agent import CartogenAi as AgentCore
+                from cartogen_ai.core.agent.agent import CartogenAi as AgentCore
                 self._agent = AgentCore()
                 self._agent_key = agent_hash
             except Exception as e:
@@ -138,7 +153,7 @@ class CartogenAi:
         if self.dock_widget is not None:
             return True, False
         try:
-            from .ui.dock_widget import CartogenAiDockWidget
+            from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
             print("[CartogenAi] creating dock widget...")
             self.dock_widget = CartogenAiDockWidget(
                 agent_provider=self._get_agent,

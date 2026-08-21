@@ -21,7 +21,7 @@ travel_time_matrix, _write_scores_to_layer). The zoom_to_layer extent-routing
 logic sits before that heavy construction, so it's tested directly."""
 import unittest
 from unittest.mock import MagicMock, patch
-from agent.tools.layout_tools import create_print_layout
+from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
 
 
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
@@ -44,8 +44,8 @@ class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
 
 
 class TestZoomToLayerParam(unittest.TestCase):
-    @patch("agent.tools.layout_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
     def test_missing_layer_returns_error_before_touching_project(self, mock_find):
         mock_find.return_value = None
 
@@ -55,23 +55,23 @@ class TestZoomToLayerParam(unittest.TestCase):
         self.assertIn("NotALayer", res["error"])
         self.assertIn("not found", res["error"])
 
-    @patch("agent.tools.layout_tools.QGIS_AVAILABLE", True)
-    @patch("agent.tools.layout_tools.QgsPageSize", create=True)
-    @patch("agent.tools.layout_tools.QgsUnitTypes", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutPoint", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutSize", create=True)
-    @patch("agent.tools.layout_tools.QgsApplication", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutExporter", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutItemPicture", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutItemLabel", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutItemScaleBar", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutItemLegend", create=True)
-    @patch("agent.tools.layout_tools.QgsLayoutItemMap", create=True)
-    @patch("agent.tools.layout_tools.QgsPrintLayout", create=True)
-    @patch("agent.tools.layout_tools._extent_to_canvas_crs")
-    @patch("agent.tools.layout_tools._find_layer_by_name")
-    @patch("agent.tools.layout_tools.QgsProject", create=True)
-    @patch("agent.tools.layout_tools.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsPageSize", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutPoint", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutSize", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsApplication", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutExporter", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutItemPicture", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutItemLabel", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutItemScaleBar", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutItemLegend", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutItemMap", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsPrintLayout", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._extent_to_canvas_crs")
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.iface", create=True)
     def test_found_layer_routes_extent_through_crs_transform(
         self, mock_iface, mock_project, mock_find, mock_transform_fn,
         mock_layout_cls, mock_map_item_cls, mock_legend_cls, mock_scalebar_cls,

@@ -100,6 +100,7 @@ OSGeo4W Shell), then reopen QGIS.
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
 | [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
 | [docs/OPEN_CORE_REPO_STRATEGY.md](docs/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
+| [docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the above: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
 | [docs/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
 | [docs/ROUTE_OPTIMIZATION_STRATEGY.md](docs/ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
 | [docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |
@@ -123,8 +124,9 @@ OSGeo4W Shell), then reopen QGIS.
 
 ```bash
 # Run the full test suite (no QGIS installation required -- every module
-# degrades gracefully outside QGIS via its own QGIS_AVAILABLE guard)
-python -m unittest discover -s tests -p "test_*.py" -v
+# degrades gracefully outside QGIS via its own QGIS_AVAILABLE guard).
+# -t . is required -- see CLAUDE.md's "Running things" section for why.
+python -m unittest discover -s tests -t . -p "test_*.py" -v
 
 # Regenerate docs/TOOLS_REFERENCE.md after adding/changing a tool
 python docs/generate_tools_reference.py

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from agent.qgis_compat import get_project_custom_property, set_project_custom_property
+from cartogen_ai.core.agent.qgis_compat import get_project_custom_property, set_project_custom_property
 
 
 class _FakeProjectOldApi:

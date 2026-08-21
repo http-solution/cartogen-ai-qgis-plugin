@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
-from agent.map_context import get_map_context_summary
-from agent.prompts import build_system_prompt, _format_map_context
+from cartogen_ai.core.agent.map_context import get_map_context_summary
+from cartogen_ai.core.agent.prompts import build_system_prompt, _format_map_context
 
 
 class TestMapContext(unittest.TestCase):
