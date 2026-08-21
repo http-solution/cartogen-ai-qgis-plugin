@@ -1,0 +1,103 @@
+# -*- coding: utf-8 -*-
+"""
+Automated packaging and release script for Cartogen AI.
+Zips plugin assets for deployment and upload to QGIS Plugin Repository.
+"""
+
+import fnmatch
+import os
+import re
+import shutil
+import sys
+import zipfile
+
+PLUGIN_NAME = "cartogen_ai"
+EXCLUDE_DIRS = {
+    ".git", ".github", "__pycache__", ".pytest_cache", "tests", ".idea", ".vscode", ".claude",
+    "dist", "brain", "scratch",
+    # Brand assets (guidelines HTML, SVG lockups) have no function inside an
+    # installed plugin.
+    "branding",
+    # service/ is the standalone hosted-gateway/monetization prototype (see
+    # docs/PRODUCT_TIERS.md's Professional tier) -- not part of the QGIS
+    # plugin. Also matters for correctness, not just scope: it contains
+    # node_modules/, whose .bin/ entries are Windows reparse points that
+    # zipfile.write() can fail to os.stat() (WinError 1920), aborting the
+    # whole build -- confirmed live, this exclusion is what fixed it.
+    "service",
+}
+EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
+# Internal dev docs/scripts/config that have no purpose inside an installed QGIS
+# plugin and shouldn't ship in the release package.
+EXCLUDE_FILES = {
+    "IMPLEMENTATION_TASK_LIST.md", "LICENSE_AUDIT.md", "QGIS_AI_Agent_PRD.md",
+    "QGIS_AI_Agent_Feature_List.md", "pytest.ini", "plugin_upload.py",
+    "API open router.txt", "CLAUDE.md",
+    # Leftover stub from consolidating this repo out of the old dual-tree
+    # setup -- see the file's own docstring. Not git-tracked; safe to delete
+    # by hand, kept excluded here defensively in case it's still present.
+    "build_cartogen_ai.py",
+}
+# Name PATTERNS (fnmatch, not exact match) for stray files that land at the repo
+# root and must never ship, even when the dev environment couldn't clean them up
+# before packaging -- confirmed live on 2026-08-21: a sandbox whose file-deletion
+# was blocked left 6 scratch_test_*.csv/.docx/.pdf files (written by
+# tests/test_reporting_tools.py's cleanup-on-teardown, which normally os.remove()s
+# them) and a leftover .git_commit_msg.txt (a git -F scratch file) sitting in the
+# repo root, and the v1.2.34 zip built that day silently included all 7 of them
+# because EXCLUDE_FILES only does exact matches and neither of these was ever
+# expected to exist at build time. The packaging step must defend against this
+# itself -- it can't assume the working tree is always clean when it runs.
+EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*")
+
+
+def get_plugin_version(script_dir):
+    metadata_path = os.path.join(script_dir, "metadata.txt")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            for line in f:
+                match = re.match(r"^version\s*=\s*(.+)$", line.strip())
+                if match:
+                    return match.group(1).strip()
+    return "0.1.0"
+
+
+def package_plugin():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    version = get_plugin_version(script_dir)
+
+    dist_dir = os.path.join(script_dir, "dist")
+    os.makedirs(dist_dir, exist_ok=True)
+
+    versioned_filename = os.path.join(dist_dir, f"{PLUGIN_NAME}_v{version}.zip")
+    root_filename = os.path.join(script_dir, f"{PLUGIN_NAME}.zip")
+
+    print(f"[Release] Packaging '{PLUGIN_NAME}' v{version} into {versioned_filename}...")
+
+    with zipfile.ZipFile(versioned_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(script_dir):
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+
+            for file in files:
+                if (
+                    file in EXCLUDE_FILES
+                    or any(file.endswith(ext) for ext in EXCLUDE_EXTS)
+                    or any(fnmatch.fnmatch(file, pat) for pat in EXCLUDE_FILE_PATTERNS)
+                ):
+                    continue
+
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, os.path.dirname(script_dir))
+                zipf.write(abs_path, rel_path)
+                print(f"  + Added: {rel_path}")
+
+    shutil.copyfile(versioned_filename, root_filename)
+
+    print(f"\n[Release] Success!")
+    print(f"  Versioned archive: {versioned_filename}")
+    print(f"  Latest bundle:     {root_filename}")
+    return versioned_filename
+
+
+if __name__ == "__main__":
+    package_plugin()

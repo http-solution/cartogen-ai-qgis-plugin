@@ -1,0 +1,279 @@
+# -*- coding: utf-8 -*-
+import unittest
+from unittest.mock import patch, MagicMock
+from agent.tools.styling_tools import (
+    _classify_values, apply_graduated_style, apply_graduated_symbol_style,
+    apply_categorized_style, _geometry_sort_key, _apply_opacity,
+    _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
+    set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
+)
+
+
+class TestClassifyValues(unittest.TestCase):
+    def test_low_cardinality_uses_equal_interval(self):
+        result = _classify_values([1, 1, 2, 2, 3, 3, 1, 2, 3, 1])
+        self.assertEqual(result["method"], "equal_interval")
+
+    def test_highly_skewed_uses_jenks(self):
+        result = _classify_values([1, 1, 1, 1, 1, 1, 1, 1, 1, 1000])
+        self.assertEqual(result["method"], "jenks")
+        self.assertIn("Skew", result["method_label"])
+
+    def test_uniform_high_cardinality_uses_quantile(self):
+        result = _classify_values(list(range(1, 21)))
+        self.assertEqual(result["method"], "quantile")
+
+    def test_explicit_mode_overrides_auto_detection(self):
+        self.assertEqual(_classify_values([1, 2, 3, 4, 5, 6, 7, 8], mode="equal")["method"], "equal_interval")
+        self.assertEqual(_classify_values([1, 2, 3, 4, 5, 6, 7, 8], mode="quantile")["method"], "quantile")
+
+    def test_ramp_choice_tracks_skewness(self):
+        low_skew = _classify_values(list(range(1, 21)))
+        high_skew = _classify_values([1, 1, 1, 1, 1, 1, 1, 1, 1, 1000])
+        self.assertEqual(low_skew["ramp"], "Viridis")
+        self.assertEqual(high_skew["ramp"], "Cividis")
+
+    def test_few_values_skips_skewness_analysis_without_crashing(self):
+        result = _classify_values([1, 2])
+        self.assertIn("method", result)
+
+
+class TestMatchClusterColor(unittest.TestCase):
+    """Pure Python, no QGIS needed -- the IASC cluster name/alias lookup
+    powering apply_categorized_style's palette='humanitarian_cluster' and
+    apply_graduated_style's cluster= parameters."""
+
+    def test_exact_cluster_names_case_and_whitespace_insensitive(self):
+        self.assertEqual(_match_cluster_color("Health"), "#DC2626")
+        self.assertEqual(_match_cluster_color("  wash  "), "#38BDF8")
+        self.assertEqual(_match_cluster_color("WASH"), "#38BDF8")
+        self.assertEqual(_match_cluster_color("Food Security"), "#F59E0B")
+
+    def test_common_aliases_resolve_to_the_same_color_as_the_canonical_name(self):
+        self.assertEqual(_match_cluster_color("FSL"), _match_cluster_color("Food Security"))
+        self.assertEqual(_match_cluster_color("Shelter"), _match_cluster_color("Emergency Shelter"))
+        self.assertEqual(_match_cluster_color("CCCM"), _match_cluster_color("Camp Coordination and Camp Management"))
+        self.assertEqual(_match_cluster_color("Water, Sanitation and Hygiene"), _match_cluster_color("WASH"))
+
+    def test_unknown_value_returns_none(self):
+        self.assertIsNone(_match_cluster_color("District"))
+        self.assertIsNone(_match_cluster_color("Aden"))
+
+    def test_non_string_input_returns_none_without_crashing(self):
+        self.assertIsNone(_match_cluster_color(None))
+        self.assertIsNone(_match_cluster_color(42))
+
+    def test_all_eleven_iasc_clusters_are_covered(self):
+        # The 11 IASC global clusters -- confirms none were dropped/typoed.
+        for name in [
+            "Camp Coordination and Camp Management", "Early Recovery", "Education",
+            "Emergency Shelter", "Emergency Telecommunications", "Food Security",
+            "Health", "Logistics", "Nutrition", "Protection", "WASH",
+        ]:
+            self.assertIsNotNone(_match_cluster_color(name), name)
+
+
+class TestStylingToolsDegradeOutsideQgis(unittest.TestCase):
+    def test_apply_graduated_style_degrades(self):
+        res = apply_graduated_style("layer", "field")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_apply_graduated_style_degrades_with_cluster_param(self):
+        res = apply_graduated_style("layer", "field", cluster="WASH")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_apply_graduated_symbol_style_degrades(self):
+        res = apply_graduated_symbol_style("layer", "field")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_apply_categorized_style_degrades(self):
+        res = apply_categorized_style("layer", "field")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_apply_categorized_style_degrades_with_palette_param(self):
+        res = apply_categorized_style("layer", "field", palette="humanitarian_cluster")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+
+class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("agent.tools.styling_tools._find_layer_by_name")
+    def test_rejects_non_point_layers(self, mock_find, mock_wkb):
+        mock_wkb.PointGeometry = "point-geometry-sentinel"
+        fake_field = MagicMock()
+        fake_field.name.return_value = "field"
+        fake_layer = MagicMock()
+        fake_layer.fields.return_value = [fake_field]
+        fake_layer.geometryType.return_value = "not-a-point"
+        mock_find.return_value = fake_layer
+
+        res = apply_graduated_symbol_style("layer", "field")
+
+        self.assertIn("error", res)
+        self.assertIn("point layers", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_rejects_invalid_size_range(self):
+        # Validated before any layer lookup, so this doesn't need QGIS mocks.
+        res = apply_graduated_symbol_style("layer", "field", min_size=10, max_size=5)
+        self.assertIn("error", res)
+        self.assertIn("min_size", res["error"])
+
+
+class TestGeometrySortKey(unittest.TestCase):
+    """Pure Python, no QGIS import needed -- see styling_tools.py for why this
+    ordering exists: points/lines must sort ahead of polygons/rasters so a
+    solid-fill area layer added later doesn't bury small point markers."""
+
+    def test_draw_order_points_first_rasters_last(self):
+        order = sorted(
+            ["raster", "polygon", "point", "line"],
+            key=_geometry_sort_key,
+        )
+        self.assertEqual(order, ["point", "line", "polygon", "raster"])
+
+    def test_unknown_kind_sorts_last(self):
+        order = sorted(["polygon", "unknown", "point"], key=_geometry_sort_key)
+        self.assertEqual(order[-1], "unknown")
+
+
+class TestApplyOpacity(unittest.TestCase):
+    def test_sets_layer_opacity_as_fraction(self):
+        layer = MagicMock()
+        resolved = _apply_opacity(layer, 75)
+        layer.setOpacity.assert_called_once_with(0.75)
+        self.assertEqual(resolved, 75)
+
+    def test_clamps_out_of_range_values(self):
+        layer = MagicMock()
+        self.assertEqual(_apply_opacity(layer, 150), 100)
+        layer.setOpacity.assert_called_with(1.0)
+
+        layer2 = MagicMock()
+        self.assertEqual(_apply_opacity(layer2, -10), 0)
+        layer2.setOpacity.assert_called_with(0.0)
+
+
+class TestDefaultOpacityForGeometry(unittest.TestCase):
+    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
+    def test_polygons_default_semi_transparent(self, mock_wkb):
+        mock_wkb.PolygonGeometry = "polygon-sentinel"
+        self.assertEqual(_default_opacity_for_geometry("polygon-sentinel"), 75)
+
+    @patch("agent.tools.styling_tools.QgsWkbTypes", create=True)
+    def test_points_and_lines_stay_fully_opaque(self, mock_wkb):
+        mock_wkb.PolygonGeometry = "polygon-sentinel"
+        self.assertEqual(_default_opacity_for_geometry("point-sentinel"), 100)
+
+
+class TestLayerOrderingToolsDegradeOutsideQgis(unittest.TestCase):
+    def test_set_layer_transparency_degrades(self):
+        res = set_layer_transparency("layer", 50)
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_auto_arrange_layer_order_degrades(self):
+        res = auto_arrange_layer_order()
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_set_layer_order_degrades(self):
+        res = set_layer_order(["a", "b"])
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+
+class TestLayerOrderingToolsValidation(unittest.TestCase):
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_set_layer_transparency_rejects_out_of_range(self):
+        # Validated before any layer lookup, so this doesn't need QGIS mocks.
+        res = set_layer_transparency("layer", 150)
+        self.assertIn("error", res)
+        self.assertIn("opacity_percent", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_set_layer_order_rejects_empty_list(self):
+        res = set_layer_order([])
+        self.assertIn("error", res)
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("agent.tools.styling_tools._find_layer_by_name")
+    def test_set_layer_order_reports_missing_layers(self, mock_find):
+        mock_find.return_value = None
+        res = set_layer_order(["ghost_layer"])
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_change_layer_color_rejects_out_of_range_opacity(self):
+        # Validated before any layer lookup, so this doesn't need QGIS mocks.
+        res = change_layer_color("layer", "#ff0000", opacity=150)
+        self.assertIn("error", res)
+        self.assertIn("opacity", res["error"])
+
+
+class TestHotspotAnalysisDegradesOutsideQgis(unittest.TestCase):
+    def test_degrades(self):
+        res = hotspot_analysis("incidents", 500)
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+
+class TestHotspotAnalysisValidation(unittest.TestCase):
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_rejects_non_positive_radius(self):
+        # Validated before any layer lookup, so this doesn't need QGIS mocks.
+        res = hotspot_analysis("incidents", 0)
+        self.assertIn("error", res)
+        self.assertIn("radius", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_layer(self, mock_find):
+        mock_find.return_value = None
+        res = hotspot_analysis("ghost_layer", 500)
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("agent.tools.styling_tools._find_layer_by_name")
+    def test_rejects_unknown_weight_field(self, mock_find):
+        fake_field = MagicMock()
+        fake_field.name.return_value = "severity"
+        fake_layer = MagicMock()
+        fake_layer.fields.return_value = [fake_field]
+        mock_find.return_value = fake_layer
+
+        res = hotspot_analysis("incidents", 500, weight_field="nonexistent")
+
+        self.assertIn("error", res)
+        self.assertIn("nonexistent", res["error"])
+
+    @patch("agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("agent.tools.styling_tools.QgsRasterLayer", create=True)
+    @patch("agent.tools.styling_tools.processing", create=True)
+    @patch("agent.tools.styling_tools.QgsProject", create=True)
+    @patch("agent.tools.styling_tools._find_layer_by_name")
+    def test_defaults_pixel_size_to_one_tenth_radius(self, mock_find, mock_project, mock_processing, mock_raster_cls):
+        fake_layer = MagicMock()
+        fake_layer.fields.return_value = []
+        mock_find.return_value = fake_layer
+        mock_processing.run.return_value = {"OUTPUT": "/tmp/density.tif"}
+        mock_raster_cls.return_value.isValid.return_value = True
+
+        res = hotspot_analysis("incidents", 100)
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["pixel_size"], 10.0)
+        called_params = mock_processing.run.call_args[0][1]
+        self.assertEqual(called_params["PIXEL_SIZE"], 10.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

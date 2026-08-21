@@ -1,0 +1,476 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.
+# Mandatory items:
+
+[general]
+name=Cartogen AI
+qgisMinimumVersion=3.0
+qgisMaximumVersion=4.99
+description=Spatial AI that plans, executes, and shows its work inside QGIS.
+version=1.4.0
+author=Alaa Alshoubaki
+email=alaa.alshoubaki@gmail.com
+
+about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
+
+# PLACEHOLDER -- this repo has no GitHub remote configured yet (it was built
+# by consolidating C:\qgis_ai_assistant into this new C:\cartogen-ai folder).
+# Update both URLs once a real repository exists.
+tracker=https://github.com/REPLACE-ME/cartogen-ai/issues
+repository=https://github.com/REPLACE-ME/cartogen-ai
+license=GNU GPL v2
+
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+changelog=v1.4.0 (2026-08-21):
+    Consolidated the dual-tree architecture into this single repo. Previously,
+    C:\qgis_ai_assistant maintained two parallel plugin trees -- a root source
+    tree (CartogenAiCore/cartogen_ai_core, renamed in v1.3.0) and a separately
+    distributed "Cartogen AI/cartogen_ai/" copy (CartogenAi/cartogen_ai) kept
+    in sync by build_cartogen_ai.py, so two QGIS plugin listings could exist
+    side by side. This repo (C:\cartogen-ai) is the single, consolidated
+    result: internal identifiers dropped the now-unnecessary "_core" suffix
+    (CartogenAiCore -> CartogenAi, cartogen_ai_core -> cartogen_ai) since
+    there is no longer a second tree to disambiguate from -- another QSettings
+    key prefix change (cartogen_ai_core/... -> cartogen_ai/...), same
+    breaking-change caveat as v1.3.0. build_cartogen_ai.py was retired (no
+    sync target left). The 3 planned editions (Community/Pro/Enterprise, see
+    docs/PRODUCT_TIERS.md) are reflected in documentation only -- nothing in
+    this codebase is tier-gated yet, matching the project's existing honest-
+    status convention. Added Claude Code / GitHub scaffolding: CLAUDE.md,
+    .github/workflows/tests.yml, issue/PR templates. Full prior history
+    (every version back to v0.2.0) remains in the old repo at
+    C:\qgis_ai_assistant -- not carried over here, since this was a
+    from-scratch copy/restructure rather than a git history migration.
+
+    v1.3.0 (2026-08-21):
+    Full internal rebrand of this root source tree from "QGIS AI Assistant"/QgisAiAgent/
+    qgis_ai_agent to "Cartogen AI"/CartogenAiCore/cartogen_ai_core -- the second, separately
+    distributed Cartogen AI/cartogen_ai/ copy tree already carried this branding and keeps its
+    own identity unchanged. Deliberately a breaking change for existing installs: the QSettings
+    key prefix moved from qgis_ai_agent/... to cartogen_ai_core/..., so anyone upgrading in
+    place loses their saved API keys/provider selection and has to re-enter them once --
+    confirmed with the project owner and accepted, not an oversight. Renamed: the plugin entry
+    class (QgisAiAgent -> CartogenAiCore, plus QgisAiAgentDockWidget/
+    QgisAiAgentSettingsDialog), the plugin module file (qgis_ai_agent.py -> cartogen_ai_core.py),
+    the packaging PLUGIN_NAME (qgis_ai_assistant -> cartogen_ai_core), and every internal
+    identifier across agent/, ui/, tests/, and the doc set (42 files). Left untouched, per
+    CONTRIBUTING.md's existing "frozen historical doc" convention: QGIS_AI_Agent_Feature_List.md,
+    QGIS_AI_Agent_PRD.md, IMPLEMENTATION_TASK_LIST.md, CHANGELOG.md's own past entries, and the
+    dated STATUS_REVIEW/SECURITY_AND_COMPETITIVE_REVIEW/DOCK_WIDGET_SPLIT_PLAN/
+    PROMPT_REFINEMENT_LAYER_SPEC docs. A post-hoc audit of the mechanical find-and-replace also
+    caught and fixed: this changelog's own past entries and BUG_TRACKER.md's version-numbering
+    note both had a real, currently-shipped filename accidentally rewritten by the same string
+    pattern (restored by hand to match what's actually in dist/); and build_cartogen_ai.py's own
+    PY_ONLY_RULES translation table had its search-pattern strings rewritten into no-ops by the
+    same blind replace (fixed; also hardened build_cartogen_ai.py with the scratch-file exclude
+    guard plugin_upload.py already had, and added CHANGELOG.md/BUG_TRACKER.md to its
+    UNTRANSLATED_DOCS so neither can be retroactively mistranslated by a future sync run). 691
+    tests, same known baseline, verified in both trees. The copy tree was not regenerated from
+    source this round and keeps its existing branding/identity, per an explicit product decision;
+    3 dated docs (DOCK_WIDGET_SPLIT_PLAN, PROMPT_REFINEMENT_LAYER_SPEC, STATUS_REVIEW) will stop
+    getting their identifiers auto-translated into copy-tree branding on the next real sync run,
+    since the translation table no longer recognizes the old identifier scheme they still use --
+    flagged as an open question, not resolved here.
+
+    v1.2.31 (2026-08-21):
+    Round 2 of the ENGINEERING_PRODUCT_UX_REVIEW findings, final item: the dock_widget.py-split
+    recommendation (REVIEW SS3.2), partially done and the rest deliberately deferred with a
+    written plan -- see docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md for the full reasoning. Done:
+    extracted _read_attached_file() (PDF/DOCX/CSV/XLSX/image/plain-text attachment parsing) into
+    a new ui/attachments.py -- this function had zero Qt/QGIS dependencies despite living inside
+    dock_widget.py, which imports qgis.PyQt/qgis.core unconditionally with no QGIS_AVAILABLE
+    fallback and so cannot be imported or tested outside a real QGIS process at all. Moving it out
+    gives it real test coverage for the first time (10 new tests in tests/test_attachments.py,
+    including a real generated PDF and DOCX). NOT done: splitting QgisAiAgentDockWidget itself
+    into ChatTabWidget/TasksTabWidget classes -- this sandbox cannot import, run, or visually
+    verify a refactor of a live stateful Qt widget with cross-tab signal wiring and no existing
+    tests, so a blind split risks shipping a broken dock panel behind a fully green (but
+    non-representative) test suite. Documented the real coupling points found while reading the
+    current structure (three tabs not two, shared statusSignal/usageSignal/receiveMessageSignal/
+    toolStepSignal, one shared agent/task_manager reference) and a concrete plan for doing this in
+    a real QGIS session instead. 691 tests total (was 681), same pre-known sandbox baseline as
+    always. This closes out all four tasks from the ENGINEERING_PRODUCT_UX_REVIEW round-2
+    follow-up work.
+
+    v1.2.30 (2026-08-21):
+    Round 2 of the ENGINEERING_PRODUCT_UX_REVIEW findings, continued: added session token-usage
+    visibility to the chat UI (REVIEW SS3.2 -- "no cost/usage visibility in the UI despite real,
+    documented cost-engineering work"). Every provider client's complete() now extracts a
+    normalized {input_tokens, output_tokens} 'usage' dict from the raw API response when the
+    provider actually reported one -- OpenRouter/OpenAI/Gemini/the Cartogen gateway stub share
+    base.py's new extract_openai_style_usage() helper (all four go through an OpenAI-Chat-
+    Completions-shaped endpoint); Claude's native input_tokens/output_tokens field names already
+    match and are pulled through directly; Ollama reports under its own eval_count/
+    prompt_eval_count field names, extracted separately. Never fabricated as zero when a
+    provider/model omits usage -- the 'usage' key is simply absent from complete()'s return in
+    that case, and QgisAiAgent.get_session_usage_text() returns None (not '0 tokens') until at
+    least one real call has reported it, caveating the total explicitly when some calls did and
+    others didn't. New QgisAiAgent.session_usage/_accumulate_usage()/get_session_usage_text()
+    track a running session total (agent.run()'s tool-calling loop and the image-attachment
+    direct-complete() path both feed it). ui/dock_widget.py gets a new usage_label below the
+    existing status line, updated via a new thread-safe usageSignal after every turn (success or
+    error) and after file/image attachment analysis. Deliberately no dollar-cost estimate --
+    accurate per-model pricing across 5 providers needs a table that's guaranteed to go stale and
+    mislead; token counts alone were the review's own suggested minimum bar. TestProviderReturnContract's
+    strict shape check extended to allow the new optional 'usage' key without loosening what
+    counts as a valid response shape otherwise. 10 new tests (usage extraction per provider, the
+    honesty-preserving "omitted not zero" case, and agent-level accumulation/caveating). 681
+    tests total (was 671), same pre-known sandbox baseline as always.
+
+    v1.2.29 (2026-08-21):
+    Round 2 of the ENGINEERING_PRODUCT_UX_REVIEW findings, continued: audited every destructive
+    tool for preview/confirm safety-gate coverage (REVIEW SS3.2), per
+    docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md. Found and fixed a real inconsistency:
+    calculate_area/calculate_length (vector_tools.py) called the exact same _add_calculated_field
+    primitive as field_calculator -- an in-place edit of the live layer's attribute table -- but
+    were not gated behind the confirmed=True flow field_calculator already requires. Both now
+    follow field_calculator's exact PREVIEW_REQUIRED pattern. Also found load_project was already
+    gated but SECURITY.md SS5's prose only named 2 of the then-3 gated tools -- corrected.
+    Flagged, deliberately NOT fixed pending a product decision: 4 core humanitarian analysis
+    tools (calculate_severity_index, calculate_presence_gap, calculate_population_in_need,
+    calculate_damage_exposure_severity) perform the identical class of in-place mutation via a
+    parallel _write_*_to_layer helper family in analysis_tools.py, but gating them trades
+    consistency against inserting a confirmation click into the app's primary analytical
+    workflow -- see the audit doc SS3 for the three options and why none was applied unilaterally.
+    Reviewed and confirmed NOT gaps: execute_pyqgis_script (protected by its AST sandbox, a
+    different and already-disclosed mitigation, not a silent omission), save_project (normal
+    save semantics), save_workflow_preset (low-stakes settings overwrite), and the ~120 other
+    tools that create new output layers rather than mutating existing ones. prompts.py rule 9
+    and SECURITY.md SS5 updated to name all 5 now-gated tools. Also regenerated
+    docs/TOOLS_REFERENCE.md, which turned out to be stale since before v1.2.25 -- it still listed
+    4 tools removed in that release (export_attribute_table, generate_csv, generate_map_image,
+    filter_features) and was missing the AI Imagery Feature Extraction and Monitoring &
+    Scheduling sections entirely; both trees now regenerate identically (131 tools, confirmed via
+    diff). 2 new tests (test_destructive_calculate_area_gate,
+    test_destructive_calculate_length_gate). 671 tests total (was 669), same pre-known sandbox
+    baseline as always.
+
+    v1.2.28 (2026-08-21):
+    Round 2 of implementing the ENGINEERING_PRODUCT_UX_REVIEW findings, per explicit user
+    authorization to proceed with the remaining items (REVIEW §2.3, §3.2 x2, §4). This entry
+    covers the first: gemini.py's auth-header inconsistency, now fixed rather than deferred.
+    Fixed gemini.py's auth-header inconsistency (REVIEW §2.3): list_models() and
+    grounded_search() both sent the API key via a '?key=' query parameter; GeminiClient.complete()'s
+    main chat path already used the x-goog-api-key header. Query-string credentials are more likely
+    to end up in server access logs, proxy logs, or browser history than a header. Before changing
+    behavior, confirmed via WebSearch against Google's own current API docs (ai.google.dev/api) that
+    x-goog-api-key is a real, documented, supported header for both the ListModels and
+    generateContent REST endpoints this file calls -- not assumed. Both functions now use the header
+    consistently. Added 2 new tests (test_gemini_list_models_uses_header_auth_not_query_param,
+    test_gemini_grounded_search_uses_header_auth_not_query_param) asserting the header is sent and
+    the query param is not, so a regression back to query-param auth would be caught. This sandbox
+    still has no live network access to confirm the real API accepts it end-to-end -- still worth
+    exercising via docs/RELEASE_SMOKE_TEST.md's Gemini provider row before the next release. 669
+    tests total (was 667), same pre-known sandbox artifacts as always (1 DNS-lookup failure +
+    6 scratch-file-permission errors, neither a real code defect).
+
+    v1.2.25 (2026-08-20):
+    Actioned 2 of the 3 open items from docs/STATUS_REVIEW_2026-08-20.md/docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md's
+    engineering-gap list, plus one scaffold-only item. (1) Built apply_raster_stretch
+    (agent/tools/raster_tools.py) -- closes the "no dedicated raster styling tool" gap: every
+    raster-producing tool landed on the canvas with QGIS's raw unstretched default rendering.
+    Auto-picks a diverging color ramp (QgsSingleBandPseudoColorRenderer) for NDVI/NDWI/NDRE-named
+    layers, a grayscale min/max contrast stretch (QgsSingleBandGrayRenderer) otherwise. New
+    ToolRouter alias, prompts.py rule 39, 16 new tests, calculate_ndvi/ndwi/ndre docstrings updated.
+    (2) BREAKING CHANGE: removed 4 redundant duplicate tool registrations flagged but left
+    unresolved in v1.2.20 -- generate_csv/export_attribute_table (pass-throughs to export_to_csv),
+    generate_map_image (pass-through to print_map), filter_features (pass-through to run_query). Any
+    saved workflow preset or script calling these 4 names by name will now fail -- no compatibility
+    alias was kept. Updated the one internal reference (prompts.py rule 37 and
+    docs/CVA_MARKET_ACCESS_RECIPE.md, both used filter_features by name) to run_query instead, same
+    underlying behavior. Tool count: 134 -> 135 (item 1) -> 131 (item 2). Updated README.md,
+    docs/PRODUCT_TIERS.md, docs/STATUS_REVIEW_2026-08-20.md's stale "134 tools" restatements. (3)
+    Scaffolded agent/providers/cartogen.py -- a stub BaseAiProvider client for the not-yet-deployed
+    Cartogen API gateway (service/gateway/'s LiteLLM proxy), modeled on openai.py's shape. Not
+    imported by agent/providers/__init__.py or ui/settings_dialog.py -- confirmed via grep -- since
+    the gateway backend doesn't exist yet either. Explicitly out of scope this round (unresolved GPL
+    v2 licensing decision): no LICENSE/licensing-statement changes, no closed-source packaging, no
+    tier/license gating in the plugin or settings UI, no service/website or service/gateway
+    billing/budget changes. 655 tests total (was 639), same pre-known sandbox artifacts as always.
+
+    v1.2.21 (2026-08-20):
+    Full-codebase status review requested by the user. Found and fixed 3 small, real doc gaps
+    while establishing the baseline: docs/TOOLS_REFERENCE.md's category grouping fell back to raw
+    module names ("imagery_extraction", "monitoring_tools") for 2 of 16 categories instead of a
+    readable label -- generate_tools_reference.py's label map was just missing those two entries,
+    now "AI Imagery Feature Extraction"/"Monitoring & Scheduling". docs/PRODUCT_TIERS.md still said
+    "all 125 tools" against the real, current 134. SECURITY.md's "Known limitations" section never
+    mentioned that extract_features_from_imagery's FastSAM weights download is unpinned/unverified
+    (delegated entirely to the ultralytics package's own download logic) -- added as an honest,
+    accepted-risk bullet matching the section's existing disclosure pattern. See
+    docs/STATUS_REVIEW_2026-08-20.md for the full architecture/tools/security/docs review and
+    forward-looking plan.
+
+    v1.2.20 (2026-08-20):
+    Follow-up self-audit of v1.2.19's own changes, requested explicitly to find what wasn't caught
+    the first pass. Found and fixed: rule 38 incorrectly told the model to apply_graduated_style on
+    calculate_presence_gap's categorical field (needs apply_categorized_style) and omitted
+    calculate_population_in_need entirely; calculate_ndvi/ndwi/ndre and
+    calculate_raster_change_detection had near-zero router recall on realistic phrasing (thin
+    original descriptions, now expanded, plus new aliases); a duplicate "load_3w_data" dict key
+    introduced while fixing the above silently discarded its original aliases (caught by a full
+    test run, not by inspection -- added an ast-based test so this class of bug can't ship silently
+    again); calculate_ndvi/ndwi/ndre/raster_change_detection had zero test coverage, not even the
+    baseline degrade-outside-QGIS check every other tool has. Also flagging, not yet fixed pending
+    input: generate_csv/export_attribute_table are literal pass-through duplicates of export_to_csv,
+    and generate_map_image/filter_features duplicate print_map/run_query the same way -- 4 fully
+    redundant tool registrations adding router/token noise with no functional difference. 639 tests
+    total, same pre-known sandbox artifacts as always.
+
+    v1.2.19 (2026-08-20):
+    Closed a real rendering gap and two routing/prompt gaps found while auditing the v1.2.17 tools:
+    score_route_incident_risk's buffer layer is now auto-styled (translucent orange risk corridor,
+    no border) instead of QGIS's default random single-symbol color; ToolRouter got alias entries
+    for analyze_incident_trend/score_route_incident_risk (both previously had near-zero vocabulary
+    overlap with realistic paraphrases like "is this area getting more dangerous", risking a miss
+    from the top-40 candidate set); new prompt rule 38 tells the model to follow severity-scoring
+    tools (calculate_severity_index/calculate_presence_gap/calculate_damage_exposure_severity) with
+    apply_graduated_style so a computed score doesn't sit unstyled in the attribute table while the
+    map is presented as done. docs/TOOLS_REFERENCE.md regenerated (134 tools, unchanged count).
+    1 new regression test method plus 1 new table row added to tests/test_tool_router.py. 629
+    tests total.
+
+    v1.2.18 (2026-08-20):
+    Wrote a JIAF multi-sector composite spec (grounded in JIAF 2.0's real Mosaic Method, researched
+    before writing) plus two zero-code recipes: auto-reporting (corrects an earlier claim -- report
+    tools aren't in the scheduler's allowlist) and CVA market-access (reuses population_access_gap,
+    honestly scoped to what GIS can actually answer). No new tools shipped -- spec and docs only.
+
+    v1.2.17 (2026-08-20):
+    Implemented analyze_incident_trend (reuses forecast_trend's existing trend math over per-zone
+    incident counts) and score_route_incident_risk (reuses buffer_analysis to score a route against
+    nearby incidents). No-go zones ship as prompt guidance pointing at difference_layers, not a new
+    tool, exactly as scoped. 134 tools total.
+
+    v1.2.16 (2026-08-20):
+    Wrote docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md -- a design spec (not code) for time-windowed
+    incident trend analysis, route-vs-incident risk scoring, and no-go zones as routing
+    hard-excludes, composing hotspot_analysis/buffer_analysis/difference_layers/forecast_trend's
+    existing trend math rather than new algorithms. No code changes.
+
+    v1.2.15 (2026-08-20):
+    Wrote docs/ROUTE_OPTIMIZATION_STRATEGY.md and docs/route_optimization_prototype.py -- a
+    file:line-verified review of logistics_tools.py's routing accuracy (the fix: wire up
+    SPEED_FIELD/DIRECTION_FIELD, already-supported params neither routing tool currently sets,
+    instead of a flat 50 km/h DEFAULT_SPEED) plus a standalone OSMnx/NetworkX prototype. Strategy
+    and prototype only -- no changes to logistics_tools.py itself. Also fixed a stale "125 tools"
+    count in README.md (real count: 132).
+
+    v1.2.14 (2026-08-17):
+    Live-confirmed install failure on extract_features_from_imagery's dependency group: a Windows
+    PermissionError on a locked markupsafe .pyd file when installing while QGIS is running (shared
+    jinja2/markupsafe with folium). This is an OS-level file-lock, not fixable in plugin code -- added
+    clear "close QGIS before installing" guidance to the tool's error message, requirements.txt, and
+    README instead of leaving users to troubleshoot a raw traceback.
+
+    v1.2.13 (2026-08-17):
+    Declined the MCP server suggestion from the security/competitive review -- product owner does
+    not want this surface added. No code was ever written toward it; marked as declined (not
+    deleted) in docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md for the record.
+
+    v1.2.12 (2026-08-17):
+    Implemented extract_features_from_imagery: class-agnostic object-boundary extraction from a
+    loaded raster via FastSAM, isolated in its own module (agent/tools/imagery_extraction.py) since
+    it's the first tool needing a real ML runtime (torch) rather than an API-key provider. Runs
+    locally/offline, CPU by default. Never labels results with a specific object class -- only a
+    polygon and a confidence score (new prompt rule 34). NOT yet verified against a live model
+    checkpoint -- structural/testable pieces only; see docs/SAM_IMAGERY_EXTRACTION_SPEC.md.
+
+    v1.2.11 (2026-08-17):
+    Wrote docs/SAM_IMAGERY_EXTRACTION_SPEC.md -- a design spec (not code) for imagery feature
+    extraction via a SAM-family segmentation model (FastSAM recommended), following the same
+    spec-before-build discipline as the Prompt Refinement Layer. No code changes.
+
+    v1.2.10 (2026-08-17):
+    Added docs/TRANSPARENCY_CARDS.md -- three procurement/compliance-facing one-pagers (running
+    model-generated Python, running model-generated SQL, deleting/mutating data), grounded entirely
+    in existing SECURITY.md file:line references. Documentation only, no code changes.
+
+    v1.2.9 (2026-08-17):
+    Added calculate_damage_exposure_severity: a RAPIDA-inspired composite combining before/after
+    change detection, building-footprint exposure counts, and an optional hazard-intensity raster
+    into one per-unit damage severity score, in the same thin-composite pattern as
+    calculate_population_in_need. Scoped down from RAPIDA's full pipeline (no seismic modeling, no
+    social signal ingestion).
+
+    v1.2.8 (2026-08-17):
+    Corrected repository/tracker/homepage to the actual repo, github.com/cartogenai-glitch/
+    QGIS-CARTOGEN-AI (confirmed private) -- the previous commit used a name that turned out not to
+    be the real one. Note: a private repo still conflicts with the QGIS Plugin Repository's
+    requirement that metadata links be publicly accessible; not resolved by this change.
+
+    v1.2.7 (2026-08-17):
+    Repointed repository/tracker/homepage from github.com/baron-dev07/qgis_ai_assistant (pre-rebrand
+    name, also an unrelated live listing's slug on the QGIS Plugin Repository) to
+    github.com/cartogenai-glitch/cartogen_ai.
+
+    v1.2.6 (2026-08-17):
+    Hardened the recurring monitoring scheduler following a security review: a 1-minute interval
+    floor (previously interval_minutes=0.001 became a ~60ms QTimer hammering the QGIS UI thread)
+    and a 5-schedule concurrent cap. Documented both new features (recurring monitoring, prompt
+    refinement) in SECURITY.md for the first time since they shipped.
+
+    v1.2.5 (2026-08-16):
+    Consolidated 4 redundant anti-fabrication prompt rules into one general principle plus
+    one-line pointers (rules 12/20/23/32), added a new ask-vs-guess decision-hierarchy rule (33),
+    fixed a stale hardcoded character count in prompt_refiner.py, and added a 12-case manual
+    prompt-rule eval file to catch a rule getting silently weakened before it ships, instead of
+    waiting for the next live bug report.
+
+    v1.2.4 (2026-08-16):
+    Clarified illustrative workflow-preset examples: a live Yemen monitoring session showed a
+    concrete JSON preview with plausible-but-unconfirmed indicator field names next to a real,
+    just-fetched layer name. Added a prompt rule requiring illustrative JSON examples to be
+    explicitly labeled as placeholder templates, extending the existing ban on inventing
+    real-world facts to illustrative examples.
+
+    v1.2.3 (2026-08-16):
+    Fixed a live bug caught on the first real use of recurring monitoring: the model could call
+    schedule_recurring_workflow before ever saving the referenced preset, guaranteeing a failed
+    tool call. Added prompt guidance to gather/confirm concrete inputs and save the preset first,
+    plus a self-documenting error message with a ready-to-use save_workflow_preset example.
+
+    v1.2.2 (2026-08-16):
+    Added recurring monitoring workflows: schedule_recurring_workflow/run_monitoring_workflow
+    re-run a saved read-only analysis workflow (severity index, presence gap, population in need,
+    etc.) on a QTimer for as long as QGIS stays open, diffing per-unit results each tick and
+    posting a short change summary into chat without spending an extra API call. In-session scope
+    only -- no OS-level scheduler integration. Closes the PRD's "scheduled/recurring workflow
+    object" gap.
+
+    v1.2.1 (2026-08-16):
+    Added calculate_population_in_need: composes calculate_severity_index's classification with
+    estimate_population_exposure's zonal-statistics path to report total population in
+    high-severity admin units -- the number allocation decisions actually get quoted in, not just
+    a severity class. Closes section A of docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md.
+
+    v1.2.0 (2026-08-14):
+    Humanitarian crisis-management and fund-allocation feature pass, from a field-analyst-
+    perspective review of what already served that workflow and what genuinely didn't. Nine new
+    tools, tool count 116 -> 125: calculate_severity_index (composite JIAF/INFORM-style needs
+    index across admin units), population_access_gap (population beyond a facility's service-area
+    reach), obfuscate_sensitive_points (geoprivacy jitter/grid-snap/admin-unit-snap for
+    protection-sensitive point data), load_3w_data + calculate_presence_gap (3W/4W operational-
+    presence loading and a severity-vs-presence coverage-gap overlay), fetch_hdx_admin_boundaries
+    (OCHA COD-AB boundaries carrying real P-codes, since geoBoundaries doesn't publish any),
+    generate_html_dashboard (interactive Leaflet situation map for non-QGIS audiences),
+    generate_sector_coverage_report (beneficiaries reached vs. target, by sector), OCHA cluster
+    color presets in the styling tools, and fetch_building_footprints (Microsoft Global ML
+    Building Footprints, for baseline digitization).
+
+    Every tool was checked against real code or live data before being built, not assumed from
+    the review's own framing -- two items needed a different underlying approach than what was
+    literally asked for and were corrected rather than built as scoped: P-code capture on
+    fetch_geoboundaries turned out to be impossible (geoBoundaries publishes none), solved instead
+    via a new HDX-based fetcher; imagery-based building/road extraction "via vision models" was
+    reframed to a pre-computed dataset fetch instead, since asking a vision LLM for precise
+    polygon coordinates is an unreliable pattern for work where geometric accuracy matters.
+
+    Also new: a provenance/lineage footer on generate_report and generate_spatial_report,
+    surfacing what tool/parameters/source produced each referenced layer -- for an audience that
+    needs to check a spatial claim, not just take it on faith.
+
+    v1.1.0 (2026-08-13):
+    Interface modernization: live per-tool-call step indicators in chat ("Using X" / "Used X" /
+    "Failed: X"), theme-adaptive QSS styling across the dock and Settings dialog, and a redesigned
+    Settings dialog showing only the selected provider's fields instead of every provider's row
+    always visible.
+
+    Providers: dropped Groq, Cerebras, and DeepSeek. Five supported providers going forward:
+    OpenRouter, Gemini, OpenAI, Claude, and local Ollama.
+
+    Security/reliability pass (2026-08-14), following a full code review -- each item confirmed
+    live before being fixed: the SSRF guard now re-validates every HTTP redirect hop, not just
+    the initial URL (a local test server proved the old check could be bypassed via a redirect
+    to an internal address), plus a download size cap; chat history is now opt-in (default off)
+    instead of always saved into the shared project file; the false-success narrative backstop
+    now scans every tool call in a turn instead of only the last one; the Stop button now
+    actually works outside a real QGIS process; a status-callback leak on task failure is fixed.
+    Also: a new build_cartogen_ai.py deterministically regenerates the second plugin tree from
+    this one, replacing hand-maintained mirror scripts; release zips are no longer committed to
+    git.
+
+    v1.0.1 (2026-08-13):
+    Production release v1.0.1: 116 PyQGIS tools, dual plugin builds (QGIS AI Assistant and Cartogen AI), bug fixes for Excel coordinate mapping, CSV encoding, multi-layer arrangement/opacity styling, and 13 new PyQGIS tools.
+
+    Chat UX & response quality (user feedback round): chat bubbles now follow QGIS's
+    actual live theme instead of hardcoded colors, with role badges, timestamps, and
+    a markdown renderer upgrade (tables, blockquotes, strikethrough, nested lists);
+    new prompt rules for structured answers, sensible-default gap-filling, and
+    pre-finalization style self-review; new forecast_trend tool (pure-Python trend
+    projection, always presented with a stated confidence, never as certain fact);
+    new apply_graduated_symbol_style tool for proportional-circle point maps, closing
+    the gap where the model hand-wrote ~40 lines of renderer code from scratch for
+    this map type; fixed apply_categorized_style using a diverging ramp on unordered
+    categories.
+
+    Reliability: fixed a critical cross-thread signal bug where every tool call could
+    silently fail with "Execution failed unexpectedly" even though the underlying
+    operation had actually succeeded (also explains task plans getting stuck
+    mid-progress); fixed the dock panel needing two clicks to open after a fresh
+    install; added a Stop button to cancel an in-progress request; added a code-level
+    check that catches the agent claiming success in its final answer when a tool call
+    actually failed, instead of relying purely on prompt instructions.
+
+    Security: hardened the PyQGIS script execution sandbox, including bypasses
+    confirmed exploitable both by adversarial testing (import builtins; gc/inspect
+    module access; string.format() attribute-traversal) and by real live use (Qt's
+    own QFile/QDir/QProcess/QNetworkAccessManager/QSettings classes completely
+    bypassed the Python-module blocklist since the module they live in must stay
+    importable) -- see SECURITY.md for the full before/after testing table. Read-only
+    SQL enforcement now also blocks server-side file-read and cross-server-execution
+    functions (lo_export, pg_read_file, dblink) that a plain SELECT could otherwise
+    reach undetected; made it fail closed instead of open. Added an SSRF guard on
+    URLs the model can fetch (tested against IP-obfuscation and userinfo-confusion
+    bypass attempts); flagged silent plaintext credential fallback in Settings; added
+    prompt-level guidance against treating fetched web/OSM/HDX content as
+    instructions.
+
+    Efficiency: retry-with-backoff on every cloud provider; Claude prompt caching;
+    batched geocoding plus caching for repeated geocode/OSM/HDX/boundary lookups; new
+    installs default to complexity-based automatic model selection instead of always
+    using the most expensive configured model.
+
+    Data handling: attaching a CSV/Excel file now gives the agent the real file path,
+    not just a row preview -- a new tool loads the FULL file as a real layer, with
+    automatic point-geometry detection for coordinate columns.
+
+    Providers: native web-search grounding and automatic model-retirement fallback for
+    both Gemini and OpenAI; QGIS 4.0 (Qt6) compatibility fixes alongside continued QGIS
+    3.x support.
+
+    Also: Task Manager panel (progress bar, plan history, retry/edit-and-resend, memory
+    search); in-app Help tab; multi-layer attribute join assistant; STAC imagery caching
+    with a quota guard; bulk/single incident-point plotting tools.
+
+# Tags are comma separated with spaces allowed
+tags=python,ai,agent,openrouter,spatial,cartogen
+
+homepage=https://github.com/cartogenai-glitch/QGIS-CARTOGEN-AI
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=False
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# qpip reads requirements.txt (in this plugin's root) and offers the user a
+# proper install dialog for the optional document-parsing/web-search
+# dependencies, instead of this plugin running pip itself.
+plugin_dependencies=qpip
+
+# Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Cartogen AI — Managed API access</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 640px; margin: 80px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  p.sub { color: #666; margin-top: 0; }
+  .plan { border: 1px solid #ddd; border-radius: 12px; padding: 24px; margin-top: 32px; }
+  .price { font-size: 32px; font-weight: 600; }
+  .price span { font-size: 15px; font-weight: 400; color: #666; }
+  ul { padding-left: 20px; color: #333; }
+  button { background: #111; color: #fff; border: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 16px; }
+  button:hover { background: #333; }
+  #error { color: #c0392b; margin-top: 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+  <h1>Cartogen AI — Managed plan</h1>
+  <p class="sub">No LLM API key to manage — we handle usage and billing for you.</p>
+
+  <div class="plan">
+    <div class="price">$19<span>/month</span></div>
+    <ul>
+      <li>Managed access to Claude / GPT / Gemini via Cartogen AI</li>
+      <li>Fair-use monthly budget, no separate API key to buy</li>
+      <li>Cancel anytime</li>
+    </ul>
+    <button id="subscribe">Subscribe</button>
+    <div id="error"></div>
+  </div>
+
+  <script>
+    document.getElementById('subscribe').addEventListener('click', async () => {
+      const res = await fetch('/create-checkout-session', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) {
+        window.location = data.url;
+      } else {
+        document.getElementById('error').textContent = data.error || 'Something went wrong.';
+      }
+    });
+  </script>
+</body>
+</html>

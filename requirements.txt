@@ -1,0 +1,29 @@
+# Optional dependencies for Cartogen AI.
+# Enables document parsing (PDF/Word/Excel attachments), web search, PDF table
+# extraction, and chart generation.
+# Versions intentionally left unpinned to avoid conflicting with other
+# plugins' requirements in the shared QGIS Python environment.
+# Installed via the qpip plugin (see metadata.txt plugin_dependencies) or
+# manually in the OSGeo4W Shell: python -m pip install -r requirements.txt
+pypdf
+python-docx
+openpyxl
+pandas
+duckduckgo-search
+pdfplumber
+matplotlib
+folium
+
+# --- Heavier, single-feature dependency -- only needed for
+# extract_features_from_imagery (see docs/SAM_IMAGERY_EXTRACTION_SPEC.md).
+# Pulls in torch; expect a real download (~200MB+) plus a model checkpoint
+# downloaded separately on first use. Install this line only if you plan to
+# use imagery feature extraction -- everything above works without it.
+#
+# IMPORTANT: install this with QGIS fully closed, not while it's running.
+# This group shares jinja2/markupsafe with folium (above) -- installing while
+# QGIS already has that module loaded can fail on Windows with
+# "PermissionError: [WinError 5] Access is denied" on a locked .pyd file.
+# Confirmed in real use, not hypothetical -- see SAM_IMAGERY_EXTRACTION_SPEC.md.
+# Close QGIS, install (qpip or OSGeo4W Shell), then reopen QGIS.
+ultralytics

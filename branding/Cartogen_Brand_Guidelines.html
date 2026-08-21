@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cartogen AI — Brand Guidelines</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ink: #0B2A3D;
+  --ink-2: #16324F;
+  --teal: #1F7A6C;
+  --teal-2: #2E9C89;
+  --amber: #E7A23D;
+  --amber-2: #C97F22;
+  --paper: #F5F2EA;
+  --paper-2: #EDE8DD;
+  --line: #D8D2C2;
+  --gray: #5B6B72;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', sans-serif;
+  line-height: 1.5;
+}
+.wrap{ max-width: 980px; margin: 0 auto; padding: 0 40px 120px; }
+
+/* ---- Cover ---- */
+.cover{
+  background: var(--ink);
+  color: var(--paper-2);
+  padding: 100px 40px 80px;
+  position: relative;
+  overflow: hidden;
+}
+.cover::after{
+  content:"";
+  position:absolute; right:-120px; top:-120px;
+  width:520px; height:520px; border-radius:50%;
+  border: 1px solid rgba(237,232,221,0.08);
+}
+.cover::before{
+  content:"";
+  position:absolute; right:-40px; top:-40px;
+  width:380px; height:380px; border-radius:50%;
+  border: 1px solid rgba(237,232,221,0.08);
+}
+.cover-inner{ max-width: 980px; margin: 0 auto; position:relative; z-index:2;}
+.cover-mark{ width:64px; height:64px; margin-bottom:28px; }
+.cover h1{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  font-size: 64px;
+  letter-spacing: 0.5px;
+  line-height: 1.0;
+}
+.cover .ai-tag{
+  display:inline-block; background:var(--amber); color:var(--ink);
+  font-family:'IBM Plex Mono', monospace; font-size:14px; font-weight:600;
+  padding: 4px 10px; border-radius:4px; margin-top:14px;
+}
+.cover p.sub{
+  margin-top:26px; max-width:520px; color: #C9C2AF; font-size:17px;
+}
+.cover .meta{
+  margin-top: 70px; display:flex; gap:48px;
+  font-family:'IBM Plex Mono', monospace; font-size:12px; color:#8FA0A6;
+  text-transform:uppercase; letter-spacing:0.08em;
+}
+
+/* ---- Section scaffolding ---- */
+section{ padding-top: 90px; }
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.12em;
+  text-transform:uppercase; color: var(--teal); margin-bottom: 10px;
+}
+h2{
+  font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:34px;
+  margin-bottom: 8px;
+}
+.lede{ color: var(--gray); font-size:16px; max-width:620px; margin-bottom:40px; }
+hr.rule{ border:none; border-top:1px solid var(--line); margin: 90px 0 0; }
+
+/* ---- Logo section ---- */
+.logo-stage{
+  background: var(--paper-2);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  padding: 60px;
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom: 22px;
+}
+.logo-stage.dark{ background: var(--ink); border-color: var(--ink); }
+.logo-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.logo-caption{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--gray); text-align:center; }
+
+.rules-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:18px; margin-top:44px; }
+.rule-card{ border:1px solid var(--line); border-radius:8px; padding:20px; background:#fff; }
+.rule-card .no-icon{ width:38px; height:38px; margin-bottom:14px; }
+.rule-card h4{ font-family:'Space Grotesk',sans-serif; font-size:15px; margin-bottom:6px; }
+.rule-card p{ font-size:13px; color:var(--gray); }
+
+/* ---- Color ---- */
+.swatches{ display:grid; grid-template-columns: repeat(3,1fr); gap:18px; }
+.swatch{ border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+.swatch-color{ height:120px; }
+.swatch-info{ background:#fff; padding:16px 18px; }
+.swatch-info .name{ font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px; }
+.swatch-info .hex{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--gray); margin-top:4px; }
+.swatch-info .use{ font-size:12px; color:var(--gray); margin-top:8px; }
+
+/* ---- Type ---- */
+.type-row{ border-bottom:1px solid var(--line); padding: 26px 0; display:flex; align-items:baseline; justify-content:space-between; gap:20px; }
+.type-row:last-child{ border-bottom:none; }
+.type-meta{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--gray); min-width:170px; }
+.type-sample-display{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:44px; }
+.type-sample-body{ font-family:'IBM Plex Sans',sans-serif; font-size:19px; max-width:520px; }
+.type-sample-mono{ font-family:'IBM Plex Mono',monospace; font-size:16px; }
+
+/* ---- Voice ---- */
+.voice-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.voice-card{ border:1px solid var(--line); border-radius:8px; padding:24px; background:#fff; }
+.voice-card h4{ font-family:'Space Grotesk',sans-serif; font-size:16px; margin-bottom:10px; color:var(--teal); }
+.voice-card p{ font-size:14px; color:var(--ink); }
+.voice-card .example{ margin-top:14px; padding:12px 14px; background:var(--paper); border-radius:6px; font-size:13px; font-family:'IBM Plex Mono',monospace; color:var(--ink-2); }
+
+/* ---- Applications ---- */
+.app-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 10px;}
+.app-card{ border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; }
+.app-card .stage{ padding:36px; display:flex; align-items:center; justify-content:center; min-height:160px; }
+.app-card .cap{ padding:14px 18px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--gray); }
+
+.icon-tile{ width:88px; height:88px; border-radius:20px; background:var(--ink); display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 30px rgba(11,42,61,0.25);}
+.icon-tile svg{ width:52px; height:52px; }
+
+.favicon-row{ display:flex; gap:14px; align-items:center; }
+.fav{ background:var(--ink); border-radius:6px; display:flex; align-items:center; justify-content:center; }
+.fav svg{ width:60%; height:60%; }
+
+.card-mock{ width:320px; background: var(--ink); color:var(--paper-2); border-radius:8px; padding:22px 24px; font-family:'IBM Plex Sans',sans-serif; }
+.card-mock .top{ display:flex; align-items:center; gap:10px; margin-bottom:26px; }
+.card-mock .top svg{ width:28px; height:28px; }
+.card-mock .top span{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; }
+.card-mock .name{ font-size:15px; font-weight:600; }
+.card-mock .role{ font-size:12px; color:#9FB0B5; margin-top:2px; }
+.card-mock .contact{ margin-top:20px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8FA0A6; line-height:1.7; }
+
+.banner-mock{ width:100%; aspect-ratio: 1200/630; background: var(--ink); border-radius:8px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:34px 40px; color:var(--paper-2); position:relative; overflow:hidden;}
+.banner-mock::after{ content:""; position:absolute; right:-60px; bottom:-60px; width:220px; height:220px; border-radius:50%; border:1px solid rgba(237,232,221,0.1);}
+.banner-mock .top{ display:flex; align-items:center; gap:10px; margin-bottom:16px;}
+.banner-mock .top svg{ width:26px; height:26px;}
+.banner-mock .top span{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;}
+.banner-mock h3{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; max-width:70%; line-height:1.25;}
+.banner-mock p{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9FB0B5; margin-top:12px; letter-spacing:0.04em;}
+
+footer{ margin-top:100px; padding-top:30px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gray); display:flex; justify-content:space-between; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <svg class="cover-mark" viewBox="0 0 100 100">
+      <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="5.4" stroke-linecap="round"/>
+      <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#3FB39E" stroke-width="4.6" stroke-linecap="round"/>
+      <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#5CC9B5" stroke-width="3.8" stroke-linecap="round"/>
+      <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#EDE8DD" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="46.514" cy="83.848" r="5.4" fill="#E7A23D"/>
+    </svg>
+    <h1>CARTOGEN</h1>
+    <div class="ai-tag">AI</div>
+    <p class="sub">Brand identity guidelines — logo system, color, typography, voice, and application standards for the spatial AI agent platform.</p>
+    <div class="meta">
+      <div>Version 1.0</div>
+      <div>Issued Aug 2026</div>
+      <div>Internal &amp; partner use</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <div class="eyebrow">01 — Brand Idea</div>
+  <h2>Layers converge on a point.</h2>
+  <p class="lede">Cartogen exists at the intersection of cartography and generation — a spatial agent that reads many layers of geographic data and resolves them into one precise, actionable answer. The identity is built on that single idea: contour rings, the universal language of terrain data, converging toward a single located point. Technical, not decorative. Field-instrument, not startup-generic.</p>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="eyebrow">02 — Logo</div>
+  <h2>The mark</h2>
+  <p class="lede">Three contour rings — navy, teal, and signal teal — open toward a single amber node: the point of insight the agent resolves from layered spatial data. Use the full lockup whenever space allows; the mark alone is reserved for icons, favicons, and constrained spaces.</p>
+
+  <div class="logo-grid">
+    <div>
+      <div class="logo-stage">
+        <svg viewBox="0 0 440 100" style="width:100%; max-width:360px;">
+          <g transform="translate(2,2) scale(0.92)">
+            <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#0B2A3D" stroke-width="5.4" stroke-linecap="round"/>
+            <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#1F7A6C" stroke-width="4.6" stroke-linecap="round"/>
+            <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#2E9C89" stroke-width="3.8" stroke-linecap="round"/>
+            <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#0B2A3D" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="46.514" cy="83.848" r="5.4" fill="#E7A23D"/>
+          </g>
+          <text x="112" y="58" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="40" fill="#0B2A3D" letter-spacing="0.5">CARTOGEN</text>
+          <rect x="112" y="66" width="46" height="20" rx="4" fill="#E7A23D"/>
+          <text x="119" y="80.5" font-family="'IBM Plex Mono',monospace" font-weight="600" font-size="13" fill="#0B2A3D">AI</text>
+        </svg>
+      </div>
+      <div class="logo-caption">PRIMARY LOCKUP — LIGHT</div>
+    </div>
+    <div>
+      <div class="logo-stage dark">
+        <svg viewBox="0 0 440 100" style="width:100%; max-width:360px;">
+          <g transform="translate(2,2) scale(0.92)">
+            <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="5.4" stroke-linecap="round"/>
+            <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#3FB39E" stroke-width="4.6" stroke-linecap="round"/>
+            <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#5CC9B5" stroke-width="3.8" stroke-linecap="round"/>
+            <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#EDE8DD" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="46.514" cy="83.848" r="5.4" fill="#E7A23D"/>
+          </g>
+          <text x="112" y="58" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="40" fill="#EDE8DD" letter-spacing="0.5">CARTOGEN</text>
+          <rect x="112" y="66" width="46" height="20" rx="4" fill="#E7A23D"/>
+          <text x="119" y="80.5" font-family="'IBM Plex Mono',monospace" font-weight="600" font-size="13" fill="#0B2A3D">AI</text>
+        </svg>
+      </div>
+      <div class="logo-caption">PRIMARY LOCKUP — DARK</div>
+    </div>
+  </div>
+
+  <div class="logo-grid" style="margin-top:22px;">
+    <div>
+      <div class="logo-stage">
+        <svg width="90" height="90" viewBox="0 0 100 100">
+          <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#0B2A3D" stroke-width="5.4" stroke-linecap="round"/>
+          <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#1F7A6C" stroke-width="4.6" stroke-linecap="round"/>
+          <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#2E9C89" stroke-width="3.8" stroke-linecap="round"/>
+          <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#0B2A3D" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="46.514" cy="83.848" r="5.4" fill="#E7A23D"/>
+        </svg>
+      </div>
+      <div class="logo-caption">MARK ONLY — FOR ICONS &amp; FAVICONS</div>
+    </div>
+    <div>
+      <div class="logo-stage">
+        <svg width="90" height="90" viewBox="0 0 100 100">
+          <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#0B2A3D" stroke-width="5.4" stroke-linecap="round"/>
+          <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#0B2A3D" stroke-width="4.6" stroke-linecap="round"/>
+          <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#0B2A3D" stroke-width="3.8" stroke-linecap="round"/>
+          <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#0B2A3D" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="46.514" cy="83.848" r="5.4" fill="#0B2A3D"/>
+        </svg>
+      </div>
+      <div class="logo-caption">MONOCHROME — STAMPS, ENGRAVING, 1-COLOR PRINT</div>
+    </div>
+  </div>
+
+  <div class="rules-grid">
+    <div class="rule-card">
+      <h4>Clear space</h4>
+      <p>Maintain clear space equal to the height of the node circle on all sides of the mark. Never let text, edges, or other marks intrude on this zone.</p>
+    </div>
+    <div class="rule-card">
+      <h4>Minimum size</h4>
+      <p>Mark alone: 24px minimum (digital), 8mm (print). Full lockup: 120px minimum width. Below this, use the mark-only version.</p>
+    </div>
+    <div class="rule-card">
+      <h4>Never</h4>
+      <p>Don't recolor the rings outside the approved palette, close the gap into a full ring, remove the node, or stretch the mark off-ratio.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="eyebrow">03 — Color</div>
+  <h2>Survey ink, not startup neon.</h2>
+  <p class="lede">A palette drawn from topographic survey instruments and nautical charts — deep ink navy as the dominant field, contour teal for structure, and a single signal amber reserved for the one thing that matters: the point, the action, the alert.</p>
+
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#0B2A3D;"></div>
+      <div class="swatch-info">
+        <div class="name">Survey Ink</div>
+        <div class="hex">#0B2A3D · RGB 11,42,61</div>
+        <div class="use">Primary — backgrounds, wordmark, dominant UI chrome</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#1F7A6C;"></div>
+      <div class="swatch-info">
+        <div class="name">Contour Teal</div>
+        <div class="hex">#1F7A6C · RGB 31,122,108</div>
+        <div class="use">Secondary — structure, links, data layers</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E7A23D;"></div>
+      <div class="swatch-info">
+        <div class="name">Signal Amber</div>
+        <div class="hex">#E7A23D · RGB 231,162,61</div>
+        <div class="use">Accent only — CTAs, the node, alerts. Use sparingly.</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#2E9C89;"></div>
+      <div class="swatch-info">
+        <div class="name">Signal Teal</div>
+        <div class="hex">#2E9C89 · RGB 46,156,137</div>
+        <div class="use">Tertiary — hover states, inner ring, success states</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F5F2EA;"></div>
+      <div class="swatch-info">
+        <div class="name">Field Paper</div>
+        <div class="hex">#F5F2EA · RGB 245,242,234</div>
+        <div class="use">Light-mode background — never pure white</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#5B6B72;"></div>
+      <div class="swatch-info">
+        <div class="name">Instrument Gray</div>
+        <div class="hex">#5B6B72 · RGB 91,107,114</div>
+        <div class="use">Body copy on light, secondary text, captions</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="eyebrow">04 — Typography</div>
+  <h2>Precision with a technical edge.</h2>
+  <p class="lede">Space Grotesk carries the brand's voice in headlines — geometric, slightly mechanical, confident. IBM Plex Sans handles body copy for genuine readability. IBM Plex Mono renders anything that reads like data: coordinates, tool names, version numbers, UI labels.</p>
+
+  <div class="type-row">
+    <div class="type-meta">DISPLAY<br>Space Grotesk 700</div>
+    <div class="type-sample-display">Resolve the layer.</div>
+  </div>
+  <div class="type-row">
+    <div class="type-meta">BODY<br>IBM Plex Sans 400/500</div>
+    <div class="type-sample-body">Cartogen plans multi-step spatial tasks, calls the right tools, and executes real operations against your open project — with every step inspectable.</div>
+  </div>
+  <div class="type-row">
+    <div class="type-meta">MONO / DATA<br>IBM Plex Mono 500</div>
+    <div class="type-sample-mono">33.5138° N, 36.2765° E&nbsp;&nbsp;·&nbsp;&nbsp;v1.0.0-beta&nbsp;&nbsp;·&nbsp;&nbsp;TOOL_CALL: buffer_analysis()</div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="eyebrow">05 — Voice</div>
+  <h2>Sounds like a field instrument, not a hype machine.</h2>
+  <div class="voice-grid">
+    <div class="voice-card">
+      <h4>Precise, not promotional</h4>
+      <p>State what the agent did and why. No "revolutionary," no "game-changing." Let the tool call and the result speak.</p>
+      <div class="example">"Buffered 500m around 14 facilities. 3 overlap the flood extent."</div>
+    </div>
+    <div class="voice-card">
+      <h4>Show the work</h4>
+      <p>Every claim is traceable to a tool, a parameter, a source. Voice never asserts what it can't cite from an actual step.</p>
+      <div class="example">"CRS mismatch detected — layer A is EPSG:4326, layer B is EPSG:32636."</div>
+    </div>
+    <div class="voice-card">
+      <h4>Field-tested, not theoretical</h4>
+      <p>Grounded in real humanitarian and technical workflows — HDX, OSM, PostGIS — not generic AI-assistant language.</p>
+      <div class="example">"Fetched admin4 boundaries for Syria from HDX. 3 features had topology errors."</div>
+    </div>
+    <div class="voice-card">
+      <h4>Calm under load</h4>
+      <p>Security, failure, and edge cases are described plainly and specifically, never buried in reassurance.</p>
+      <div class="example">"Read-only enforcement could not be confirmed — query refused."</div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="eyebrow">06 — Applications</div>
+  <h2>The system in use.</h2>
+
+  <div class="app-grid">
+    <div class="app-card">
+      <div class="stage">
+        <div class="icon-tile">
+          <svg viewBox="0 0 100 100">
+            <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="6.4" stroke-linecap="round"/>
+            <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#3FB39E" stroke-width="5.6" stroke-linecap="round"/>
+            <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#5CC9B5" stroke-width="4.8" stroke-linecap="round"/>
+            <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#EDE8DD" stroke-width="3.2" stroke-linecap="round"/>
+            <circle cx="46.514" cy="83.848" r="6.4" fill="#E7A23D"/>
+          </svg>
+        </div>
+      </div>
+      <div class="cap">APP ICON — 1024×1024 SOURCE, ROUNDED SQUARE</div>
+    </div>
+
+    <div class="app-card">
+      <div class="stage">
+        <div class="favicon-row">
+          <div class="fav" style="width:64px;height:64px;">
+            <svg viewBox="0 0 100 100"><path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="7" stroke-linecap="round"/><path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#5CC9B5" stroke-width="6" stroke-linecap="round"/><circle cx="46.514" cy="83.848" r="7" fill="#E7A23D"/></svg>
+          </div>
+          <div class="fav" style="width:32px;height:32px;">
+            <svg viewBox="0 0 100 100"><path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="9" stroke-linecap="round"/><circle cx="46.514" cy="83.848" r="9" fill="#E7A23D"/></svg>
+          </div>
+          <div class="fav" style="width:16px;height:16px;">
+            <svg viewBox="0 0 100 100"><circle cx="50" cy="55" r="30" fill="#E7A23D"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="cap">FAVICON — SIMPLIFIES AT SMALL SIZES DOWN TO A SINGLE NODE</div>
+    </div>
+
+    <div class="app-card">
+      <div class="stage">
+        <div class="card-mock">
+          <div class="top">
+            <svg viewBox="0 0 100 100"><path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="7" stroke-linecap="round"/><circle cx="46.514" cy="83.848" r="7" fill="#E7A23D"/></svg>
+            <span>CARTOGEN AI</span>
+          </div>
+          <div class="name">Alaa Al-Shoubaki</div>
+          <div class="role">Founder</div>
+          <div class="contact">alaa@cartogen.ai<br>cartogen.ai<br>+962 — Amman, Jordan</div>
+        </div>
+      </div>
+      <div class="cap">BUSINESS CARD — DARK FIELD, MONO CONTACT BLOCK</div>
+    </div>
+
+    <div class="app-card">
+      <div class="stage" style="padding:20px;">
+        <div class="banner-mock">
+          <div class="top">
+            <svg viewBox="0 0 100 100"><path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#EDE8DD" stroke-width="7" stroke-linecap="round"/><circle cx="46.514" cy="83.848" r="7" fill="#E7A23D"/></svg>
+            <span>CARTOGEN AI</span>
+          </div>
+          <h3>Spatial AI that executes, not just suggests.</h3>
+          <p>QGIS AGENT · v1.0.0-BETA · LOCAL &amp; CLOUD MODELS</p>
+        </div>
+      </div>
+      <div class="cap">SOCIAL / OG BANNER — 1200×630</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>CARTOGEN AI — BRAND GUIDELINES v1.0</div>
+  <div>PAGE FOR INTERNAL &amp; PARTNER USE ONLY</div>
+</footer>
+
+</div>
+</body>
+</html>

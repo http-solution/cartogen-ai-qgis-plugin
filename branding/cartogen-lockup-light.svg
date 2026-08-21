@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 100" width="880" height="200">
+  <defs>
+    <linearGradient id="nodeGradL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E7A23D"/>
+      <stop offset="100%" stop-color="#C97F22"/>
+    </linearGradient>
+    <style>
+      .word { font-family: 'Space Grotesk', 'Arial Narrow', sans-serif; font-weight: 700; }
+      .badge-text { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+    </style>
+  </defs>
+
+  <g transform="translate(2,2) scale(0.92)">
+    <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#0B2A3D" stroke-width="5.4" stroke-linecap="round"/>
+    <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#1F7A6C" stroke-width="4.6" stroke-linecap="round"/>
+    <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#2E9C89" stroke-width="3.8" stroke-linecap="round"/>
+    <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#0B2A3D" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="46.514" cy="83.848" r="5.4" fill="url(#nodeGradL)"/>
+  </g>
+
+  <text x="112" y="58" class="word" font-size="40" fill="#0B2A3D" letter-spacing="0.5">CARTOGEN</text>
+
+  <rect x="112" y="66" width="46" height="20" rx="4" fill="#E7A23D"/>
+  <text x="119" y="80.5" class="badge-text" font-size="13" fill="#0B2A3D">AI</text>
+</svg>

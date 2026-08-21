@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>You're in — Cartogen AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 640px; margin: 80px auto; padding: 0 20px; color: #1a1a1a; }
+  code { display: block; background: #f4f4f4; padding: 16px; border-radius: 8px; font-size: 14px; word-break: break-all; margin-top: 16px; }
+  #status { color: #666; }
+</style>
+</head>
+<body>
+  <h1>Thanks — you're subscribed.</h1>
+  <p id="status">Waiting for your key to be issued…</p>
+  <code id="key" style="display:none;"></code>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+
+    async function poll() {
+      const res = await fetch('/key-for-session?session_id=' + encodeURIComponent(sessionId));
+      const data = await res.json();
+      if (data.apiKey) {
+        document.getElementById('status').textContent =
+          'Paste this into the Cartogen AI plugin settings (Provider: Managed):';
+        const el = document.getElementById('key');
+        el.textContent = data.apiKey;
+        el.style.display = 'block';
+      } else {
+        setTimeout(poll, 1500);
+      }
+    }
+    if (sessionId) poll();
+    else document.getElementById('status').textContent = 'Missing session id.';
+  </script>
+</body>
+</html>

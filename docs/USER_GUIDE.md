@@ -1,0 +1,190 @@
+# User Guide
+
+## The panel
+
+Open **Cartogen AI** from the toolbar icon or the `Plugins` menu. It's a dock
+panel (drag it to float, or dock it left/right) with three tabs:
+
+- **💬 Chat** — talk to the agent.
+- **📋 Tasks & Memory** — see the current multi-step plan and stored project memory.
+- **❓ Help** — provider list, quick tips, and example prompts, built from the same
+  data as this guide so it can't drift out of sync.
+
+## First-time setup
+
+1. Click the ⚙ (settings) icon in the Chat tab.
+2. Pick a provider from the dropdown: **OpenRouter**, **Gemini**, **Ollama**, **OpenAI**,
+   or **Claude**.
+3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
+   key needed). The key field auto-fetches that provider's live model list when you
+   tab out of it.
+4. Pick a model, or leave it on **Auto** — the agent then routes simple requests to a
+   cheaper/faster model and complex multi-step requests to a stronger one
+   automatically, based on the request's wording and length. (Ollama always uses
+   whatever model you pick; local models aren't a cost concern the auto-router needs
+   to optimize for.)
+5. Click OK. You can switch providers anytime from the small dropdown at the top of
+   the Chat tab without reopening Settings.
+
+If Settings needed to fall back to storing a key without encryption (rare — only
+happens if QGIS's own encrypted credential store isn't available on your system),
+you'll get a warning dialog saying so.
+
+Settings also has a **"Save chat history in the project file"** checkbox, off by
+default. Turning it on saves the conversation into the current project's `.qgz` file
+so it's still there next time you open that project — but a project file is
+something you might share, email, or commit elsewhere, and the conversation
+travels with it if this is on. Leave it off unless you specifically want that.
+Turning it back off later doesn't remove history a project already saved while it
+was on.
+
+## Chatting
+
+Type a request and press **Enter** (Shift+Enter for a new line) or click **➤**. A few
+example prompts are pinned as clickable chips above the input box, and more are on the
+Help tab.
+
+While a request is running:
+- The status line shows what the agent is doing (e.g. "Thinking...", "Using Claude:
+  claude-opus-5...", a specific tool name).
+- Click **⏹ Stop** to cancel it. This is cooperative, not instant — it stops the
+  agent before its *next* step (another model call or tool call), not mid-flight, so
+  there can be a short delay after clicking before it actually stops.
+
+### Attaching files
+
+Click **📎** to attach a PDF, Word document, image, CSV, or Excel file.
+
+- PDF/Word: full text is extracted and given to the agent. If the data you actually
+  need is in a table (a sitrep's "IDPs by district" table, a needs-assessment
+  matrix), ask explicitly, e.g. *"extract the tables from this PDF"* -- the plain-text
+  extraction flattens tables into hard-to-use text, but the agent can pull real
+  structured rows/columns instead when asked.
+- Images: sent directly to the model for visual analysis — this only works if your
+  current provider/model supports vision (Claude and GPT-4o/GPT-5-class models do;
+  many smaller/free models don't).
+- **CSV/Excel**: the agent gets a short preview (column names, row count, a few
+  sample rows) *plus* the real file path. If you want the full dataset actually
+  loaded into the project rather than just described, ask for that explicitly, e.g.
+  *"load this as a layer"* — the agent will use the full file, not the preview.
+
+Optional file-parsing packages (PDF/Word/Excel support, plus PDF table extraction and
+chart generation) need to be installed via the qpip plugin dependency prompt, or
+manually — see the main [README](../README.md). If
+they're missing, attaching that file type gives a clear error telling you what to
+install rather than failing silently.
+
+## Multi-step requests and the Task Manager
+
+For anything involving several distinct steps, the agent creates a visible **plan** in
+the Tasks & Memory tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
+a progress bar. Click a task to see its result, rationale, and any code it ran.
+
+Buttons available depending on the selected task's state:
+- **✔ Confirm** — appears for a task in `PREVIEW_READY` state (see "Destructive
+  actions" below); approves and executes it.
+- **✕ Cancel** — cancels a `PREVIEW_READY` task instead of confirming it.
+- **🔁 Retry** — re-runs a `FAILED` task.
+- **✏️ Edit & Resend** — pre-fills the input box with an editable prompt for that
+  task's description so you can adjust it before resending (doesn't auto-send).
+- **📋 Copy Snippet** — copies the selected task's PyQGIS code (if any) to the
+  clipboard.
+- **✕ Clear Plan** — clears the currently visible plan from view.
+
+The dropdown above the task list lets you browse **plan history** (the last 5 plans
+this session) without losing the live one — selecting an older plan is read-only
+browsing; sending a new message automatically snaps back to the live plan.
+
+## Project memory
+
+The agent can remember facts across the conversation (and across QGIS sessions, tied
+to the current project file) via `store_project_memory`/`store_global_memory`. The
+Tasks & Memory tab shows what's stored, with a search box to filter it and a
+**🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
+unaffected).
+
+## Destructive actions
+
+Removing a layer or running a field calculator mutation always goes through a
+preview-then-confirm gate: the agent shows you what it's about to do and waits for an
+explicit **Confirm** click in the Tasks tab — it cannot skip this by itself, even if
+prompted to (the confirmation flag isn't something a tool call can set; only the UI
+button can).
+
+## Sensitive point data
+
+Before mapping, exporting, or reporting on individually-identified sensitive locations
+(GBV survivors, individual IDP households, named protection cases), use
+`obfuscate_sensitive_points` first — a Do No Harm safeguard, and increasingly an explicit
+donor/ECHO compliance requirement. Three methods, in your layer's own CRS units (not
+meters — reproject first if a specific real-world distance matters, since a geographic
+CRS would otherwise scatter points by hundreds of kilometers):
+
+- **`grid_snap`** — every point sharing a grid cell moves to that cell's center. The
+  strongest protection: multiple true locations become genuinely indistinguishable, not
+  just displaced.
+- **`jitter`** — random displacement within a radius. Still a 1:1 point per input point.
+- **`admin_unit_snap`** — moves each point to the centroid of the admin-boundary polygon
+  it falls within (needs a separate polygon layer of those boundaries).
+
+The agent won't apply this automatically — it's a judgment call about the data, and it'll
+ask which method you want when it looks relevant. Not every point layer needs it (facility
+locations, aggregate counts, and non-identifying incident logs don't).
+
+## Interactive HTML dashboards
+
+`generate_html_dashboard` exports one or more layers as a single interactive Leaflet map
+(pan/zoom, layer toggles, click-a-feature popups) — the deliverable to send a fund-allocation
+committee or donor who won't open QGIS themselves. **It needs internet access to view, not
+just to generate.** The file itself is created offline, but opening it in a browser loads the
+map library and basemap tiles from public CDNs each time — it is not a fully offline package,
+despite being a single file with no server to run. If the actual audience has no reliable
+connectivity, use a static export instead (`print_map`, `create_print_layout`,
+`generate_report`) rather than this.
+
+Popups show whatever field names the layer actually has, which are often technical
+(`food_insec_pct`, `wash_depriv_pct`). If you want real language instead — e.g. "Food Insecurity
+(IPC 3+) %" — ask for it explicitly (or the agent should offer it unprompted once it knows what
+the fields mean): a field with no requested label falls back to a mechanical Title Case of its raw
+name (`food_insec_pct` → `Food Insec Pct`), which is readable but not real language.
+
+## Building footprint data
+
+`fetch_building_footprints` pulls from Microsoft's Global ML Building Footprints dataset —
+pre-computed polygons covering 225 countries/regions, good for baseline digitization where no
+local footprint data exists (in-limit boundary work, population/exposure estimates). **This is
+not live extraction from a specific image, and it is not damage assessment.** It's Microsoft's
+own periodic dataset refresh, so it can lag the very latest imagery by months — a destroyed or
+newly-built structure may not be reflected yet. For damage assessment against a specific
+before/after image pair, use `calculate_raster_change_detection` instead; for road networks,
+`fetch_osm_features` already covers that (`key='highway'`) and isn't affected by this caveat.
+
+## Troubleshooting
+
+- **"No API key configured"** — open Settings and add a key for the active provider.
+- **A provider request fails** — cloud providers automatically retry transient
+  errors and fall back to an alternate model if the configured one is retired; if you
+  still see an error, check the message text (invalid key, quota exceeded, and
+  genuinely-down services all report distinctly).
+- **A request stops with "Reached the tool-call limit"** — this usually means the
+  request needed many individual actions (e.g. one call per item in a long list) —
+  try rephrasing so it can be done in bulk (*"create one layer with all of them"*), or
+  split it into smaller requests.
+- **Something claims success but doesn't look right** — the agent cross-checks its
+  own final answer against every tool call it actually made that turn (not just the
+  last one) and appends a correction if any failure goes unacknowledged, but this only
+  catches an *unacknowledged* mismatch, not every possible error — treat map/data
+  outputs the way you would any automated tool, and verify anything consequential.
+- **A CSV/Excel file loaded but has no location data, or points landed in the wrong
+  place** — `load_tabular_data_as_layer` auto-detects coordinate columns by name
+  (`latitude`/`lat`/`y`, `longitude`/`long`/`lon`/`lng`/`x`, or `wkt`/`geom`/`geometry`).
+  If your columns are named something else (e.g. `Coord_N`, `POINT_X`), it can't guess
+  confidently and returns `FIELD_SUGGESTION` with the real column names instead of
+  guessing wrong — ask again naming the correct columns and it'll build the layer from
+  those. If it does build a layer but every point is in the wrong place (or it refuses
+  with a coordinate-range error), the most common cause is `x_field`/`y_field` pointing
+  at the wrong columns, or data that isn't actually in WGS84 degrees (e.g. UTM meters) —
+  pass the correct `crs` if so.
+
+See [SECURITY.md](../SECURITY.md) for what's protected against and what's explicitly
+out of scope, and [docs/TOOLS_REFERENCE.md](TOOLS_REFERENCE.md) for the full tool list.
