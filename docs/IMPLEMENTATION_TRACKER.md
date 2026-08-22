@@ -97,8 +97,9 @@ so far (the plugin-side provider wiring, the `service/website/` billing hardenin
   `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1. **2026-08-22, on a normal (non-FUSE) local
   machine with `folium` installed:** 691 tests, 0 failures, 0 errors, 1 skipped — see
   `docs/BUG_TRACKER.md`'s 2026-08-22 baseline entry. The FUSE-specific failures don't reproduce
-  outside that sandbox; `skipUnless` guard is still worth adding so the test degrades cleanly on
-  any machine without `folium`, but it is no longer blocking a clean run here.
+  outside that sandbox, and the optional-dependency guard has since been added (see
+  `CHANGELOG.md`), so the test now skips cleanly on any machine without `folium` instead of
+  failing. Current baseline: **691 tests, 0 failures, 0 errors, 14 skipped.**
 - ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
   2026-08-22** — both now hold a placeholder `README.md` pointing at
   `docs/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
