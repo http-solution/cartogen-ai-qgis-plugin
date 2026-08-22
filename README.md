@@ -1,5 +1,11 @@
 # Cartogen AI
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="branding/cartogen-lockup-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="branding/cartogen-lockup-light.svg">
+  <img src="branding/cartogen-lockup-light.svg" alt="Cartogen AI" width="440">
+</picture>
+
 <p align="center">
   <strong>Spatial AI for QGIS — plan it, run it, inspect the work.</strong><br>
   Describe a mapping or analysis task in plain language and Cartogen AI turns it into
