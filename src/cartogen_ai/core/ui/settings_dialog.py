@@ -20,6 +20,7 @@ from ..agent.providers.gemini import list_models as _list_gemini
 from ..agent.providers.ollama import list_models as _list_ollama
 from ..agent.providers.openai import list_models as _list_openai
 from ..agent.providers.claude import list_models as _list_claude
+from ..agent.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet
 
 PROVIDER_KEY = "cartogen_ai/provider"
@@ -101,6 +102,18 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
         "key_default": "", "list_fn": _list_claude,
+    },
+    {
+        # Placed last, not first: docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
+        # making this the default on a fresh install, but no gateway is deployed at
+        # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
+        # install to a provider that can't resolve would break the out-of-the-box
+        # experience. Reorder to first once a real gateway exists (see that doc's Phase 1).
+        "value": "cartogen", "provider_label": "Cartogen (Cloud, subscription)",
+        "key_label": "Cartogen Key:", "model_label": "Cartogen Model:",
+        "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
+        "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
+        "key_default": "", "list_fn": _list_cartogen,
     },
 ]
 

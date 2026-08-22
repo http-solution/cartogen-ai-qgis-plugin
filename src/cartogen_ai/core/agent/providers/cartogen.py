@@ -42,12 +42,50 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 import json
 import requests
 from .base import BaseAiProvider, post_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage
+from ..model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
-# service/gateway/ only runs locally (see service/README.md); once a real deployment
-# exists, this needs to become a configurable setting (like every other provider's
-# endpoint/key), not a hardcoded constant.
+# service/gateway/ only runs locally (see service/README.md). Now overridable via
+# QgsSettings("cartogen_ai/cartogen_gateway_url") -- see agent.py's construction of
+# this client -- with this constant as the fallback default, per
+# docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.4.
 GATEWAY_BASE_URL = "https://gateway.cartogen.ai/v1/chat/completions"
+
+
+def _models_url(base_url):
+    """Derives the OpenAI-compatible /v1/models listing endpoint from the
+    chat/completions base_url, so this stays correct if GATEWAY_BASE_URL (or a
+    QgsSettings override) ever changes host/path -- same host, sibling path,
+    per LiteLLM's OpenAI-compatible proxy surface."""
+    base = (base_url or GATEWAY_BASE_URL).rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")]
+    return base + "/models"
+
+
+def list_models(api_key, base_url=None):
+    """Fetches the live model list from the gateway's /v1/models endpoint --
+    same shape as openai.py's list_models, since LiteLLM's proxy exposes an
+    OpenAI-compatible surface. Untested against a real gateway, like the rest
+    of this stub (see module docstring) -- no gateway is deployed anywhere
+    this repo can reach yet."""
+    try:
+        response = requests.get(
+            _models_url(base_url),
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+        ids = [m.get("id", "") for m in data.get("data", [])]
+        return {"success": True, "models": filter_chat_model_ids(ids)}
+    except requests.exceptions.HTTPError as e:
+        return {"error": f"Cartogen gateway models list failed ({e.response.status_code}): {e.response.text}"}
+    except Exception as e:
+        return {
+            "error": f"Cartogen gateway models list request failed: {e} (this is a stub client "
+            "-- no gateway is deployed yet; see this module's docstring and service/README.md)"
+        }
 
 # Matches the `model_name` aliases service/gateway/litellm_config.yaml defines today
 # (each mapped to a real underlying model + provider key on the gateway side) -- NOT

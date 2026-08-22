@@ -33,8 +33,9 @@ except ImportError:
         def setValue(self, k, v): pass
 
 from .providers import (
-    OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient,
+    OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient, CartogenClient,
 )
+from .providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
 from .model_selector import AUTO_SENTINEL, classify_complexity, pick_model_for_complexity
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -180,6 +181,14 @@ class CartogenAi:
         elif provider_name == "claude":
             claude_model = resolve_model("cartogen_ai/claude_model", "claude-opus-5")
             self.client = ClaudeClient(api_key=key, model=claude_model)
+        elif provider_name == "cartogen":
+            cartogen_model = resolve_model("cartogen_ai/cartogen_model", CARTOGEN_FALLBACK_MODELS[0])
+            # No gateway is deployed anywhere this repo can reach yet (see
+            # providers/cartogen.py's module docstring) -- gateway_url stays None
+            # (client falls back to its own GATEWAY_BASE_URL placeholder) unless
+            # someone has explicitly set this for local/self-hosted testing.
+            gateway_url = settings.value("cartogen_ai/cartogen_gateway_url", None) or None
+            self.client = CartogenClient(api_key=key, model=cartogen_model, base_url=gateway_url)
         else:
             # OpenRouter already has its own multi-model fallback chain (see
             # openrouter.py FALLBACK_MODELS + 429/404 handling), which plays the
