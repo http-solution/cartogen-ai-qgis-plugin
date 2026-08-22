@@ -17,10 +17,13 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const sessionId = params.get('session_id');
+    // Single-use retrieval token, not the raw Stripe session id -- see
+    // server.js's /create-checkout-session and db.js's consumeRetrievalToken.
+    // The browser never sees the Stripe session id at all.
+    const token = params.get('token');
 
     async function poll() {
-      const res = await fetch('/key-for-session?session_id=' + encodeURIComponent(sessionId));
+      const res = await fetch('/key-for-session?token=' + encodeURIComponent(token));
       const data = await res.json();
       if (data.apiKey) {
         document.getElementById('status').textContent =
@@ -32,8 +35,8 @@
         setTimeout(poll, 1500);
       }
     }
-    if (sessionId) poll();
-    else document.getElementById('status').textContent = 'Missing session id.';
+    if (token) poll();
+    else document.getElementById('status').textContent = 'Missing retrieval token.';
   </script>
 </body>
 </html>

@@ -111,9 +111,37 @@ you've wired up a real Stripe account. See the `curl` example at the bottom of `
 
 ## What's still missing before this is real
 
-- Persisting the customer↔key mapping in a real database instead of `data/subscriptions.json`
 - Emailing the API key instead of showing it on a success page
 - Mapping Stripe price IDs to specific LiteLLM budgets/rate limits (currently one flat plan)
-- Handling `customer.subscription.updated` / `.deleted` to change or revoke keys
-- Auth on the website itself (currently anyone with the Stripe session id can view a key)
-- Pointing the actual QGIS plugin at this gateway as a provider option
+- An actual deployment: a domain, a reachable gateway, real Stripe live-mode keys, and
+  `NODE_ENV=production` with a real `STRIPE_WEBHOOK_SECRET` set
+
+**Done, 2026-08-22** (see `db.js`/`server.js` — verified against a live Postgres and a live
+HTTP server, not just written):
+- Customer↔key mapping now lives in Postgres (`cartogen_subscriptions` table, `db.js`),
+  reusing the same `DATABASE_URL` LiteLLM's own virtual-key store already requires — no more
+  `data/subscriptions.json`.
+- `customer.subscription.updated`/`.deleted` are handled: a cancelled or unpaid subscription
+  gets its LiteLLM key blocked (`POST /key/block`); a reactivated one gets unblocked
+  (`POST /key/unblock`) rather than needing a whole new key.
+- `/key-for-session` no longer trusts the raw Stripe session id. `/create-checkout-session`
+  now mints a random single-use `retrieval_token`, embedded in the Stripe session's
+  `metadata` and in `success_url` — the browser never sees the Stripe session id at all.
+  The token is consumed atomically on first successful read (`token_used_at IS NULL` in the
+  `UPDATE ... WHERE` clause, not a separate read-then-write), so a leaked/logged/replayed
+  URL returns nothing on a second request — confirmed under 10 concurrent requests for the
+  same token, exactly one wins.
+- Pointing the actual QGIS plugin at this gateway as a provider option — done on the plugin
+  side (`CartogenClient` registered, selectable in Settings, not yet default); still needs a
+  real deployed gateway to actually talk to.
+- **Bug fix:** `website/server.js` was silently never loading `service/.env` — `dotenv`'s
+  default `config()` only looks in `process.cwd()`, which is `website/` once you `cd website
+  && npm start` per this doc's own setup steps above, not `service/` where `.env` actually
+  gets created. Confirmed empirically (a probe var in a parent-directory `.env` came back
+  `undefined`). Fixed with an explicit `__dirname`-relative path, verified against a live
+  Postgres by running the exact documented setup sequence end to end.
+
+All of the above verified live: a throwaway Postgres container, `npm start` run exactly per
+this doc's documented sequence, real HTTP requests through `/key-for-session` and the webhook
+route, including a 10-concurrent-request race against the same retrieval token (exactly one
+request won).
