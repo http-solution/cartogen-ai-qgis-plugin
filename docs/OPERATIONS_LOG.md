@@ -58,4 +58,10 @@ The full provider and service implementation remains in this private repository.
 - Automated checks are green for the public limited build.
 - Interactive QGIS smoke testing remains a release gate and must be completed in a real
   QGIS session before claiming a fully smoke-tested release.
+- Public GitHub tag: `v1.4.2` at commit `7ec55b064a5a2d106ff6a6de003575ca2546c205`.
+- GitHub release: [Cartogen AI Community v1.4.2](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.2).
+- Release state: published pre-release, pending the interactive QGIS smoke-test gate.
+- Release asset: `cartogen_ai_v1.4.2.zip` (325,616 bytes).
+- Release asset URL: https://github.com/cartogenai-glitch/cartogen_ai_community/releases/download/v1.4.2/cartogen_ai_v1.4.2.zip
+- Release asset SHA-256: `79d9c94510c6488825294cb5a9f4b518259b7f445b53698a96061a3dad5ffb19`.
 - No credentials, tokens, or private infrastructure values were recorded in this log.
