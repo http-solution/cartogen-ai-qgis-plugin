@@ -86,3 +86,52 @@ additions were tested against the real gate mechanism). A rough shape, for whene
    this is precisely the kind of change that checklist exists for.
 
 Not attempted as part of this round.
+
+## 2026-08-22: the split was done, and verified further than this doc expected possible
+
+The class is now split, on a local machine that (unlike every prior sandbox writing this doc)
+actually has QGIS installed (3.44.13) even though it still can't drive the GUI:
+`ui/dock_widget.py` → `CartogenAiDockWidget` (outer dock: signals, header, tab wiring) plus
+`ui/chat_tab_widget.py` (`ChatTabWidget`, `ChatInputEdit`), `ui/tasks_tab_widget.py`
+(`TasksTabWidget`), `ui/help_tab_widget.py` (`HelpTabWidget`), plus two small shared-code
+extractions this split needed that weren't anticipated above: `ui/dock_constants.py`
+(`PROVIDER_CHOICES`/`QUICK_SUGGESTION_CHIPS`, needed by all three tabs) and `ui/theme.py`
+(`extract_theme_palette`/`theme_colors`, needed by both the dock and Chat tab) — both exist
+specifically to avoid a circular import (a tab module importing back from `dock_widget.py`, which
+now imports all three tab modules).
+
+Design decisions from step 2/3 above, resolved: signals stay on the outer dock as recommended
+(the "Shared signals crossing the proposed boundary" point above), reached from tab widgets via a
+`self._dock` reference passed at construction — not proxied or duplicated per-tab. There are three
+tabs, not two, matching the correction already noted in this doc's "What was NOT done" section.
+The `_connected_task_manager` de-dup guard and the plan/memory refresh block that used to live
+inline in `_dispatch_message` moved to `TasksTabWidget.sync_with_agent(agent)`, called by
+`ChatTabWidget._dispatch_message` — same logic, same exception handling, relocated verbatim, now
+named instead of anonymous inline code. `_active_highlights` (the QgsHighlight-keepalive list) is
+no longer shared — `ChatTabWidget` and `TasksTabWidget` each keep their own, since the two flows
+that populate it (post-response mentioned-layer flash vs. pending-edit preview flash) never read
+each other's list.
+
+**What's actually been verified, beyond `py_compile`:** this machine has QGIS 3.44.13 installed,
+which makes `python-qgis-ltr.bat` a real Python environment with genuine `qgis.PyQt`/`qgis.core`
+importable — still without a GUI session, but a real step up from "only syntax-checkable" this doc
+assumed above. Confirmed via that environment (`QT_QPA_PLATFORM=offscreen`, no window shown):
+- All five new/changed modules import cleanly — no circular import, no `NameError`/`AttributeError`
+  at import time.
+- `CartogenAiDockWidget(agent_provider=...)` constructs successfully against a fake agent; all
+  three tabs are present in the right order (`💬 Chat`, `📋 Tasks & Memory`, `❓ Help`).
+- Every cross-tab signal connection fires correctly: `receiveMessageSignal` reaches
+  `chat_tab_widget._add_message`, `planUpdatedSignal` reaches `tasks_tab_widget._render_plan`
+  (rendered a fake plan, task list populated, title updated), `toolStepSignal` reaches
+  `chat_tab_widget._add_tool_step`.
+- `TasksTabWidget.sync_with_agent()` — the relocated de-dup/refresh logic — runs against a fake
+  agent without error and correctly populates the memory browser.
+
+**What's still not verified, and can't be from here:** no `iface`, no canvas, no real map project,
+no actual click-through. The stylesheet (`build_dock_stylesheet`) built without crashing but was
+never visually inspected. `_flash_preview_layer`/`_after_successful_response`'s canvas-highlight
+paths, `attach_file`'s file dialog, `open_settings`'s dialog, and the `QScrollArea` sizing behavior
+this file's own comments describe (the whole reason Tasks/Help are wrapped) are all unexercised.
+This is still exactly the gap `docs/RELEASE_SMOKE_TEST.md` exists for — run that checklist (or at
+minimum: open the dock, click all three tabs, send a message, select a task, resize the dock)
+before shipping this. Not done as part of this round; needs a human at the real QGIS session.
