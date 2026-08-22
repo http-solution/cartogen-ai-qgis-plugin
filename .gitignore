@@ -227,3 +227,8 @@ cython_debug/
 # Holds the actual moved-away content of the above (see comment there) --
 # not part of the published package, not meant to be read by anything.
 /_legacy_stubs/
+
+# QGIS writes this style database into whatever directory it was launched from.
+# It is runtime state, not source -- 917KB of SQLite that has no business in the
+# plugin repo. Ignored rather than deleted so a live QGIS session doesn't trip.
+symbology-style.db

@@ -304,6 +304,7 @@ class TestGenerateHtmlDashboardConnectivityNote(unittest.TestCase):
     reach the response dict without a full QGIS object graph."""
 
     def test_result_includes_connectivity_note(self):
+        _skip_if_missing(self, "folium")
         from unittest.mock import patch, MagicMock
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
 
