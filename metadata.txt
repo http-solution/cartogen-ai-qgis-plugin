@@ -14,8 +14,8 @@ email=alaa.alshoubaki@gmail.com
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
 
-tracker=https://github.com/cartogenai-glitch/cartogen_ai_community/issues
-repository=https://github.com/cartogenai-glitch/cartogen_ai_community
+tracker=https://github.com/cartogenai-glitch/CARTOGEN-AI/issues
+repository=https://github.com/cartogenai-glitch/CARTOGEN-AI
 license=GNU GPL v2
 
 # End of mandatory metadata

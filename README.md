@@ -1,15 +1,32 @@
 # Cartogen AI
 
-A QGIS plugin: spatial AI that plans, executes, and shows its work. Type what you want
-to do in plain language — the agent plans it, calls the right tools, and executes real
-spatial operations against your open project.
+<p align="center">
+  <strong>Spatial AI for QGIS — plan it, run it, inspect the work.</strong><br>
+  Describe a mapping or analysis task in plain language and Cartogen AI turns it into
+  visible, real operations against your open QGIS project.
+</p>
 
-**Version:** 1.4.1 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) ·
-**QGIS:** 3.0 – 4.99
+<p align="center">
+  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/workflows/tests.yml"><img src="https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/releases"><img src="https://img.shields.io/github/v/release/cartogenai-glitch/CARTOGEN-AI?display_name=tag&include_prereleases" alt="Release"></a>
+  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0-blue.svg" alt="GPL-2.0 license"></a>
+  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
+</p>
 
-> This repo is the single, consolidated successor to an earlier dual-tree setup
-> (root tree + a separately-branded copy tree kept in sync by a build script).
-> See [CHANGELOG.md](CHANGELOG.md)'s `[1.4.0]` entry for what changed and why.
+**Community edition · Version 1.4.2 · GNU GPL v2 · QGIS 3.0–4.99**
+
+Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
+needs to move from a question to a reproducible spatial result without leaving QGIS.
+The agent exposes its plan, tool calls, progress, and errors instead of returning a
+black-box answer.
+
+> **Project status:** active Community edition. The automated suite is green, while the
+> full pre-release checklist still requires verification in an interactive QGIS session.
+> See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
+> [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
+
+> This repository is the single public Cartogen AI Community codebase. See the
+> [changelog](CHANGELOG.md) for the consolidation history.
 
 ## What it does
 
