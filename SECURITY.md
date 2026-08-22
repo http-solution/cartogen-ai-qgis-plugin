@@ -120,10 +120,13 @@ model can inject into its own tool call.
 already-loaded layer's attribute table via `startEditing()`/`commitChanges()`), so leaving
 them ungated was an inconsistency, not a deliberate distinction. See
 `docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` for the full audit this fix came out of,
-including four tools this gate deliberately does *not* yet cover
+including four tools this gate deliberately does *not* cover
 (`calculate_severity_index`, `calculate_presence_gap`, `calculate_population_in_need`,
-`calculate_damage_exposure_severity`) pending a product decision on the workflow-friction
-tradeoff, and `execute_pyqgis_script`'s different protection model (sandbox, not a
+`calculate_damage_exposure_severity`) — **decided 2026-08-22**: leave ungated. They're
+idempotent (re-running just recomputes the same field), lower real-harm than a
+geometry-mutating op, and the extra confirmation click isn't worth the friction for this
+category. See `docs/IMPLEMENTATION_TRACKER.md` §4 for the record of this decision.
+`execute_pyqgis_script` has a different protection model entirely (sandbox, not a
 confirmation dialog — see Limitations below).
 
 ### 6. Prompt-injection guidance

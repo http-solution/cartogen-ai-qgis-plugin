@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.4.1
+version=1.4.2
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,26 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.4.1 (2026-08-21):
+changelog=v1.4.2 (2026-08-22):
+    ui/dock_widget.py's monolithic dock class split into CartogenAiDockWidget (outer dock:
+    signals, header, tab wiring) plus separate ChatTabWidget/TasksTabWidget/HelpTabWidget
+    classes, per docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md. Code moved verbatim, no logic
+    changes. Verified via offscreen construction against a real QGIS Python environment
+    (imports cleanly, all 3 tabs present, cross-tab signal wiring fires correctly) -- not yet
+    verified in a real interactive QGIS session; see docs/RELEASE_SMOKE_TEST.md.
+
+    Added the Cartogen Cloud Connect Gateway as a selectable (not yet functional) provider:
+    CartogenClient now exported from agent/providers, wired into agent.py's provider
+    selection and ui/settings_dialog.py's provider dropdown (placed last, not default --
+    no gateway is deployed anywhere yet). Adds providers/cartogen.py's list_models(). This
+    is client-side wiring only; see docs/PRO_TIER_BUILD_PLAN_2026-08-21.md for what's still
+    needed before this tier is real (gateway deployment, billing, etc.).
+
+    tests/test_export_tools.py's TestGenerateHtmlDashboardConnectivityNote now skips when
+    folium is absent instead of failing, matching every other optional-dependency guard in
+    this suite.
+
+v1.4.1 (2026-08-21):
     Follow-up fixes after the v1.4.0 consolidation, from direct feedback: two living reference
     docs were still named/linked like leftovers from the old repo -- QGIS_AI_Agent_Feature_List.md
     and QGIS_AI_Agent_PRD.md renamed to CARTOGEN_AI_FEATURE_LIST.md/CARTOGEN_AI_PRD.md and fully

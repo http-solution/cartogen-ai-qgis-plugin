@@ -9,6 +9,31 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/).
 > commit history back to v0.2.0 remains available in the old repo
 > (`C:\qgis_ai_assistant`) if ever needed.
 
+## [1.4.2] — 2026-08-22
+
+- **`ui/dock_widget.py` class split**, per `docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md`. The
+  1,355-line `CartogenAiDockWidget` is now the outer dock (signals, header, tab wiring) with
+  the Chat, Tasks & Memory, and Help tabs each extracted into their own `QWidget` class
+  (`ChatTabWidget`, `TasksTabWidget`, `HelpTabWidget`), plus two small shared-code extractions
+  (`dock_constants.py`, `theme.py`) needed to avoid a circular import. Code moved verbatim —
+  no logic changes. Verified by constructing the dock offscreen against a real QGIS Python
+  environment (`python-qgis-ltr.bat`, `QT_QPA_PLATFORM=offscreen`): all modules import
+  cleanly, all 3 tabs are present, and every cross-tab signal connection fires correctly.
+  **Not yet verified in a real interactive QGIS session** — run
+  `docs/RELEASE_SMOKE_TEST.md` before relying on this in production.
+- **Cartogen Cloud Connect Gateway wired in as a selectable provider** (not yet functional —
+  no gateway is deployed anywhere). `CartogenClient` is now exported from `agent/providers`,
+  registered in `agent.py`'s provider selection, and added to `ui/settings_dialog.py`'s
+  provider dropdown (deliberately placed last, not default, until a real gateway exists).
+  `providers/cartogen.py` gained a `list_models()` function for the Settings dialog's model
+  picker. See `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` for what's still needed (gateway
+  deployment, billing lifecycle, key-retrieval auth) before this tier has real value.
+- **Fixed:** `tests/test_export_tools.py`'s `TestGenerateHtmlDashboardConnectivityNote` now
+  skips when `folium` is absent instead of failing, matching every other optional-dependency
+  guard in the suite.
+- Added placeholder `README.md`s to the empty `cartogen-ai-pro/`/`cartogen-ai-enterprise/`
+  sibling directories so they no longer read as "the private repo exists."
+
 ## [1.4.1] — 2026-08-21
 
 Follow-up fixes after the `[1.4.0]` consolidation, from direct feedback that two problems slipped

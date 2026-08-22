@@ -70,9 +70,19 @@ new regressions — both are stable, understood, environment-specific artifacts,
   wrong, just more conservative than it needed to be. See `docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md`
   §3 for where this correction mattered in practice.
 
-Current baseline: **691 tests, 1 known failure + 6 known errors, 0 real defects.** If a full
-suite run ever shows a *different* failure/error count or a *different* failing test name,
-that's real signal — investigate it, don't assume it's this same known baseline.
+Current baseline (as originally recorded above): **691 tests, 1 known failure + 6 known errors,
+0 real defects**, specific to the FUSE-mounted sandbox described above. If a full suite run in
+that same environment ever shows a *different* failure/error count or a *different* failing
+test name, that's real signal — investigate it, don't assume it's this same known baseline.
+
+**2026-08-22, different environment (native Windows filesystem, not FUSE-mounted, `folium`
+0.20.0 installed):** `python -m unittest discover -s tests -t . -p "test_*.py"` gives **691
+tests, 0 failures, 0 errors, 1 skipped, in 13.874s.** Neither the `test_is_safe_url_accepts_public_host`
+DNS-egress failure nor the 6 `PermissionError`-on-cleanup errors reproduce here — consistent
+with both being properties of the old FUSE mount, not of the code. This does not supersede the
+baseline above (that one is still accurate for that sandbox); it's a second, separately-tracked
+baseline for whoever is running tests on a normal local machine, so a clean run there isn't
+mistaken for something broken having been silently fixed.
 
 ## Fixed (recent)
 

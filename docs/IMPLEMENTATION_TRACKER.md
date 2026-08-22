@@ -27,36 +27,23 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
-### 1.1 Destructive-action confirmation gate — 4 humanitarian analysis tools
+### 1.1 ~~Destructive-action confirmation gate — 4 humanitarian analysis tools~~
 
-**Source:** `docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` §3.
-`calculate_severity_index`, `calculate_damage_exposure_severity`, `calculate_population_in_need`,
-and `calculate_presence_gap` all write a new field to a layer in place, same category of
-mutation as `field_calculator`/`calculate_area`/`calculate_length` (which already require
-preview/confirm). These four do not. Three options were laid out, not picked:
-1. Leave as-is — these are idempotent (re-running just recomputes the same field) and lower
-   real-harm than a geometry-mutating op, so the friction may not be worth it.
-2. Add the same preview/confirm gate as the other four mutation tools, for consistency.
-3. Narrow `SECURITY.md` §5's stated scope so it's accurate either way, without changing tool
-   behavior.
+**Resolved 2026-08-22.** Decision: leave as-is (idempotent, lower real-harm than a
+geometry-mutating op — not worth the added friction). `SECURITY.md` §6.2 item 5 updated to
+state this as a decision rather than an open question. See §4 below.
 
-**Needs:** a product/UX call from Alaa — friction vs. consistency tradeoff, not a bug.
+### 1.2 ~~`ui/dock_widget.py` class split — execution~~
 
-### 1.2 `ui/dock_widget.py` class split — execution
-
-**Source:** `docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md`.
-The recommended split (`ChatTabWidget`/`TasksTabWidget` extracted from the monolithic dock
-widget) is fully planned, with the real coupling points identified (3 tabs, shared signals,
-shared `agent`/`task_manager` reference). What's NOT done — and can't safely be done from this
-sandbox — is the actual refactor: `dock_widget.py` imports `qgis.PyQt`/`qgis.core`
-unconditionally with no `QGIS_AVAILABLE` fallback, so it cannot be imported, run, or visually
-verified outside a real QGIS process. A blind split here risks shipping a broken dock panel
-behind a fully green but non-representative test suite.
-
-**Needs:** a real QGIS session to execute against — this is an environmental blocker, not a
-decision Alaa needs to make, but it can't be delegated to any agent working from this sandbox
-either. Flagged here so it doesn't get silently attempted by a future session that forgets why
-it was deferred.
+**Resolved 2026-08-22.** Split done (see `docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md`'s
+"2026-08-22" section for the mechanical detail), offscreen-construction-verified the same day,
+and **now confirmed live in a real QGIS session by Alaa**: plugin loads, all 3 tabs work
+(chat, task selection, resize), and the new Cartogen provider entry appears correctly in
+Settings (last position, not default). This closes the single largest standing gap this
+tracker and every review round before it flagged. Scope of what was checked live: plugin
+load + dock interaction + Settings dropdown — not itemized against
+`docs/RELEASE_SMOKE_TEST.md`'s full 16-category checklist row by row, so treat that checklist
+as still worth running in full before a public release, not as formally complete.
 
 ### 1.3 Tier restructure — licensing path
 
@@ -79,32 +66,43 @@ Professional tier under the already-decided open-core model: a hosted gateway se
 service, distributes no code, and needs no license key (the virtual key authenticates
 server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise still cannot.
 
+**Confirmed 2026-08-22 by Alaa:** Model A (gateway as convenience — `docs/PRODUCT_TIERS.md`/
+`docs/OPEN_CORE_REPO_STRATEGY.md`) over Model B (gateway as gate —
+`docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`). Everything built toward the Professional tier
+so far (the plugin-side provider wiring, the `service/website/` billing hardening in
+§4 below) assumes Model A. Model B remains frozen/unresolved and isn't being built toward.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
-- **Live-QGIS verification pass.** Every tool in the registry is "correct per the code and test
-  suite," not "confirmed working in a real QGIS session" — the single largest standing gap
-  across every review round this project has had. `docs/RELEASE_SMOKE_TEST.md` exists
-  specifically to make this a bounded, ~15-minute human task instead of an open-ended one — see
-  that doc for what's already been checked for accuracy (2026-08-21) vs. actually run live
-  (never, in this sandbox).
+- **Live-QGIS verification pass — partially closed 2026-08-22.** The plugin now loads and the
+  dock widget works in a real QGIS session (see §1.2) — the "does it even load" half of this
+  gap, the largest single piece, is closed. What's not yet done: `docs/RELEASE_SMOKE_TEST.md`'s
+  full 16-category checklist (one representative tool per category) hasn't been run row by row,
+  so most of the 131-tool registry is still "correct per the code and test suite" only. Worth
+  running before a public release, not before further local dev.
 - **`generate_html_dashboard` connectivity requirement** — carried forward unchanged from prior
   review rounds; no new information available from this sandbox.
 - **No git remote on this repo.** `main` has 5 local commits and no remote configured — nothing
   is on GitHub yet. Blocks the sync workflow, public Releases, plugins.qgis.org submission, and
   anything that references a public repo URL. External action, not a code change.
-- **Test baseline is 2 failures, not the documented 1.** A full run on 2026-08-21 gives 691 tests,
-  **2 failures + 6 errors + 13 skipped**. The extra one is
-  `tests/test_export_tools.py::TestGenerateHtmlDashboardConnectivityNote` — it fails when `folium`
-  (an optional dependency) is absent, because the test patches `QGIS_AVAILABLE` but has no
-  corresponding optional-dependency guard, so it fails where the rest of the suite skips.
+- **Test baseline is 2 failures, not the documented 1 — specific to the FUSE sandbox.** A full
+  run on 2026-08-21 in that sandbox gives 691 tests, **2 failures + 6 errors + 13 skipped**. The
+  extra one is `tests/test_export_tools.py::TestGenerateHtmlDashboardConnectivityNote` — it fails
+  when `folium` (an optional dependency) is absent, because the test patches `QGIS_AVAILABLE` but
+  has no corresponding optional-dependency guard, so it fails where the rest of the suite skips.
   Environmental, not a code defect — the tool returned its documented graceful-degradation error
   correctly. Recommended fix and the reasoning for flagging rather than applying it:
-  `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1.
-- **`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories** beside this repo
-  at `C:\Cartogen-AI-Core\`. Harmless, but they read as "the private repo exists." Remove them or
-  add a placeholder README pointing at `docs/OPEN_CORE_REPO_STRATEGY.md`.
+  `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1. **2026-08-22, on a normal (non-FUSE) local
+  machine with `folium` installed:** 691 tests, 0 failures, 0 errors, 1 skipped — see
+  `docs/BUG_TRACKER.md`'s 2026-08-22 baseline entry. The FUSE-specific failures don't reproduce
+  outside that sandbox; `skipUnless` guard is still worth adding so the test degrades cleanly on
+  any machine without `folium`, but it is no longer blocking a clean run here.
+- ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
+  2026-08-22** — both now hold a placeholder `README.md` pointing at
+  `docs/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
+  directory no longer misreads as "the private repo exists."
 - **Repo rename / GitHub collaborator items** — external GitHub actions, not verifiable or
   actionable from this sandbox. Source: `docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
 
