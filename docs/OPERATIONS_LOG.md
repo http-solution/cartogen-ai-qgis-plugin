@@ -159,5 +159,15 @@ The full provider and service implementation remains in this private repository.
 - Enterprise business-gap assessment and prioritized delivery backlog: `docs/ENTERPRISE_GROWTH_PLAN.md`.
 - Current recommendation: treat humanitarian aid mapping as the commercial beachhead and
   validate a paid Starter package before broad enterprise platform expansion.
+
+## Private Community sustainability and funding plan
+
+- Added `docs/COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md`.
+- This plan is private-only and must not be copied into `cartogen_ai_community` without an
+  explicit publication decision.
+- Recommended revenue/funding mix: sponsorship, grants, training, implementation, support,
+  research partnerships, managed service conversion, and emergency mapping retainers.
+- Guardrail: preserve a useful GPL Community edition and monetize operational value rather than
+  charging for GPL rights or manufacturing artificial feature deprivation.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

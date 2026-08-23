@@ -4,6 +4,8 @@
 
 The detailed gap assessment, enterprise backlog, 90-day sequence, and readiness definition are maintained in [`ENTERPRISE_GROWTH_PLAN.md`](ENTERPRISE_GROWTH_PLAN.md).
 
+The private-only Community sustainability, funding, sponsorship, grant, training, and services plan is maintained in [`COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md`](COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md). It must not be synchronized to the public Community repository without an explicit publication decision.
+
 ## Product architecture
 
 Cartogen AI has two coordinated products:

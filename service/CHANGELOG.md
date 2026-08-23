@@ -1,5 +1,14 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.8 — Community sustainability and funding plan
+
+- Added private-only `docs/COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md`.
+- Defined sustainable Community monetization through sponsorship, grants, training,
+  implementation, support, research partnerships, managed service conversion, and emergency
+  mapping retainers.
+- Added funding funnel, revenue experiments, impact evidence, guardrails, and 30-day actions.
+- Explicitly preserved GPL rights and the usefulness of the free Community edition.
+
 ## 0.2.7 — enterprise commercial growth plan
 
 - Added `docs/ENTERPRISE_GROWTH_PLAN.md` with the commercial business-gap assessment,
