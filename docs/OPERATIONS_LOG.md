@@ -107,6 +107,7 @@ The full provider and service implementation remains in this private repository.
 - Directus logs showed `POST /users/register` returning 204 followed by website login returning 401.
 - Updated the website registration flow to distinguish successful registration from immediate-login
   failure and display an activation/approval message instead of `Invalid user credentials`.
+- Login page now gives actionable guidance for account-specific 401s and duplicate-registration password history.
 - Local website/auth JavaScript syntax checks pass; the running container remains on the previous build
   because Compose cannot rebuild while the untracked `.env` lacks `POSTGRES_PASSWORD`.
 
@@ -468,5 +469,8 @@ The full provider and service implementation remains in this private repository.
 - Full live use case passed through strict Directus mode: registration 201, auth true, plan 200,
   task 201, review execution 200, buffer execution 200, export 201, HTML 200, PDF `%PDF-`,
   export history 200 with ten persisted exports.
+- **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
+  synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
+  or successfully logs in.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
