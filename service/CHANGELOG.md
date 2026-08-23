@@ -1,5 +1,17 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.5 — billing activation test and configuration consistency
+
+- Added `scripts/local_saas_smoke.sh` covering registration, session, simulated webhook,
+  LiteLLM key retrieval/replay protection, subscription activation, API authorization, and
+  Pro-client entitlement checks.
+- Fixed Compose configuration drift by explicitly passing the interpolated LiteLLM master
+  key into the website container.
+- Directus registration/session and LiteLLM virtual-key activation now pass locally.
+- Stripe checkout remains a configuration gate when Stripe credentials are absent.
+- Pro-client download/entitlement remains a deliberately visible missing gate until the
+  commercial client artifact and route are built.
+
 ## 0.2.4 — portal/session polish
 
 - Portal greeting now falls back safely to the authenticated user ID when optional profile fields are not readable.

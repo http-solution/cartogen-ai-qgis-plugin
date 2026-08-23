@@ -80,6 +80,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cartogen}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cartogen}
       DIRECTUS_URL: http://directus:8055
       LITELLM_BASE_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
     ports:
       - "${WEBSITE_PORT:-3000}:3000"
 
