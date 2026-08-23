@@ -2,6 +2,8 @@
 
 **Status:** Working strategy for HTTP-Solution decision-making. Pricing and packaging remain hypotheses until validated with paying design partners.
 
+The detailed gap assessment, enterprise backlog, 90-day sequence, and readiness definition are maintained in [`ENTERPRISE_GROWTH_PLAN.md`](ENTERPRISE_GROWTH_PLAN.md).
+
 ## Product architecture
 
 Cartogen AI has two coordinated products:
