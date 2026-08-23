@@ -257,5 +257,12 @@ The full provider and service implementation remains in this private repository.
   invalid GeoJSON 400.
 - Added Node tests: 4 passed; Phase 1 npm audit: 0 vulnerabilities; Node syntax passed.
 - Corrected Express 5 catch-all compatibility before verification.
+
+## Phase 1 browser-to-PostGIS layer flow
+
+- Added browser GeoJSON upload control to `web-platform/phase-1/index.html`.
+- Added `GET /api/layers/:layerId/geojson` for server-side geometry read-back.
+- Verified on the corrected API listener: health 200, upload 201, GeoJSON FeatureCollection read-back 200 with geometry coordinates preserved.
+- Development port is documented as 4177 because an orphaned earlier listener occupied 4176; no forced process termination was performed.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
