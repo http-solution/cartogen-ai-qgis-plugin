@@ -102,6 +102,14 @@ The full provider and service implementation remains in this private repository.
 - Directus public registration remains intentionally blocked until the minimal customer-role
   permission is configured and verified; no broad anonymous permission was granted.
 
+## Commercial Service — registration activation diagnostic
+
+- Directus logs showed `POST /users/register` returning 204 followed by website login returning 401.
+- Updated the website registration flow to distinguish successful registration from immediate-login
+  failure and display an activation/approval message instead of `Invalid user credentials`.
+- Local website/auth JavaScript syntax checks pass; the running container remains on the previous build
+  because Compose cannot rebuild while the untracked `.env` lacks `POSTGRES_PASSWORD`.
+
 ## Commercial Service v0.2.3 — release metadata synchronization
 
 - Synchronized the website package version and service changelog after the protected
