@@ -13,6 +13,7 @@
 - `DESIGN_PARTNER_VALIDATION_PACK.md` — interview script, prototype tasks, measures, and gates.
 - `HUMANITARIAN_PILOT_CHARTER.md` — pilot scope, data approval, and success template.
 - `HUMANITARIAN_CANDIDATE_SCORING.md` — candidate qualification rubric.
+- `OCHA_3W_STRUCTURED_ANALYSIS_2026-08-23.md` — private structured analysis of the public OCHA/HDX global 3W resource.
 - `ARCHITECTURE_SPIKE.md` — rendering/data/processing/AI architecture experiments.
 - `PROVENANCE_REGISTER.md` — QGIS inspiration, standards, dependency, and original-work record.
 - `LEGAL_TRUST_REVIEW_CHECKLIST.md` — private legal, licensing, privacy, AI, and security checklist.

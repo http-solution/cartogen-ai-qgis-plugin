@@ -192,5 +192,14 @@ The full provider and service implementation remains in this private repository.
 - Validation Hub and original prototype both served successfully with HTTP 200.
 - Candidate data is browser-local only; users must not enter sensitive beneficiary or operational data.
 - Public repository remains unchanged.
+
+## OCHA/HDX public 3W structured analysis
+
+- Analyzed the public OCHA Global Humanitarian Operational Presence 3W resource `global-3w-2023-06-08.xlsx`.
+- Dataset metadata modified: 2026-07-22; operational resource created/modified: 2023-06-08.
+- Extracted 11,306 rows, 55 countries, 31 sectors, 4,885 organization strings, and 161 exact duplicate rows.
+- Normalized mixed-format `3w date` values to an operational range of 2019-06-01 through 2023-05-01.
+- Key caveat: current catalogue metadata does not mean the operational resource is current; use it as historical baseline unless newer country-level data is found.
+- Report: `web-platform/phase-0/OCHA_3W_STRUCTURED_ANALYSIS_2026-08-23.md`.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
