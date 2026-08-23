@@ -272,5 +272,14 @@ The full provider and service implementation remains in this private repository.
 - Added automatic extent fitting from PostGIS GeoJSON read-back.
 - Workspace now loads the latest project layer geometry from the API on startup.
 - Verification: SVG overlay/static checks passed; API health and workspace HTTP 200; four Node tests passed.
+
+## Product requirement confirmation — embedded Cartogen AI analyst
+
+- Confirmed as a core web-platform requirement: users can provide narrative, documents, tabular data,
+  geospatial sources, and selected project layers to the AI assistant.
+- The assistant must create an inspectable plan, identify missing information and risks, request confirmation,
+  execute approved tools, create layers/reports/tasks, and preserve provenance and limitations.
+- Current Phase 1 UI has the reviewable-plan state; document ingestion, real tool execution, and task creation
+  remain implementation slices rather than completed capabilities.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
