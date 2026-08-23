@@ -429,5 +429,12 @@ The full provider and service implementation remains in this private repository.
 
 - Replaced browser-dependent CSS page counters with explicit generated page labels.
 - Live verification confirms `Page 1 of 4` through `Page 4 of 4` in the situation-report HTML.
+
+## Phase 1 report classification metadata
+
+- Added configurable classification values for DRAFT, INTERNAL REVIEW, PUBLIC DATA DEMONSTRATION,
+  and CONTROLLED authorised-user outputs.
+- Classification is stored in export layout JSON and rendered on the situation-report cover.
+- Live verification: `INTERNAL REVIEW` and report version `v0.3` read back in generated HTML.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
