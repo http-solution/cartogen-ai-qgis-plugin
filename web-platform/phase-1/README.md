@@ -82,6 +82,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Spatial Operations panel exposes source-layer selection, distance, execution, and result status.
 - [x] Feature inspector displays selected geometry type, properties, and provenance-review status.
 - [x] Attribute table filters rendered feature properties and exports filtered GeoJSON.
+- [x] Style and Legend panel applies thematic presets and opacity to rendered geometry.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.

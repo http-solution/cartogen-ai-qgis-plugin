@@ -348,5 +348,12 @@ The full provider and service implementation remains in this private repository.
 - Clicking a rendered geometry now selects the corresponding feature record.
 - Selecting a table row highlights the corresponding geometry.
 - Selected geometry receives a visible high-contrast stroke for review.
+
+## Phase 1 thematic symbology
+
+- Added Style and Legend controls for Coverage screening, Facilities and services,
+  Accessibility context, and Risk/exposure review.
+- Added layer opacity control and synchronized legend heading.
+- Verification: style-panel/static checks passed; eight Node tests and npm audit remain green.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
