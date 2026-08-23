@@ -33,6 +33,20 @@ me_status=$(printf '%s' "$me_response" | sed -n 's/.*HTTP_STATUS://p')
 USER_ID=$(printf '%s' "$me_response" | sed 's/HTTP_STATUS:.*//' | python -c 'import json,sys; print(json.load(sys.stdin)["user"]["id"])')
 if [ "$me_status" = "200" ] && [ -n "$USER_ID" ]; then pass "authenticated session (/api/me user=$USER_ID)"; else fail "session: $me_response"; exit 1; fi
 
+logout_response=$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" -X POST -w '\nHTTP_STATUS:%{http_code}' "$BASE_URL/auth/logout")
+logout_status=$(printf '%s' "$logout_response" | sed -n 's/.*HTTP_STATUS://p')
+if [ "$logout_status" = "200" ]; then pass "logout"; else fail "logout: $logout_response"; exit 1; fi
+
+login_response=$(curl -sS -c "$COOKIE_FILE" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" \
+  -w '\nHTTP_STATUS:%{http_code}' "$BASE_URL/auth/login")
+login_status=$(printf '%s' "$login_response" | sed -n 's/.*HTTP_STATUS://p')
+if [ "$login_status" = "200" ]; then pass "login after registration"; else fail "login: $login_response"; exit 1; fi
+
+me_after_login=$(curl -sS -b "$COOKIE_FILE" -w '\nHTTP_STATUS:%{http_code}' "$BASE_URL/api/me")
+me_after_login_status=$(printf '%s' "$me_after_login" | sed -n 's/.*HTTP_STATUS://p')
+if [ "$me_after_login_status" = "200" ]; then pass "session restored after login"; else fail "post-login session: $me_after_login"; exit 1; fi
+
 checkout_response=$(curl -sS -b "$COOKIE_FILE" -X POST -w '\nHTTP_STATUS:%{http_code}' "$BASE_URL/create-checkout-session")
 checkout_status=$(printf '%s' "$checkout_response" | sed -n 's/.*HTTP_STATUS://p')
 if [ "$checkout_status" = "200" ]; then pass "Stripe checkout session"; else block "Stripe checkout is not configured locally (HTTP $checkout_status)"; fi

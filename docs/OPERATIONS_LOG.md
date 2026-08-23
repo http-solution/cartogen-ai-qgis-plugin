@@ -461,5 +461,12 @@ The full provider and service implementation remains in this private repository.
 - Corrected strict middleware to request only the customer-readable Directus user ID.
 - Live end-to-end verification passed: website registration 201, Directus cookie accepted,
   Phase 1 `authenticated=true`, protected `/api/ai/plan` 200 with a plan returned.
+
+## Release smoke proof — authenticated humanitarian use case
+
+- Extended `service/scripts/local_saas_smoke.sh` to verify register → `/api/me` → logout → login → `/api/me`.
+- Full live use case passed through strict Directus mode: registration 201, auth true, plan 200,
+  task 201, review execution 200, buffer execution 200, export 201, HTML 200, PDF `%PDF-`,
+  export history 200 with ten persisted exports.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
