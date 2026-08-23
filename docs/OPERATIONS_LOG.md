@@ -320,5 +320,11 @@ The full provider and service implementation remains in this private repository.
 - Added a visible Spatial Operations panel to the workspace Analysis screen.
 - Added source-layer selection, metre distance input, execution button, completion notice, and map refresh.
 - Static/UI checks passed; eight Node tests and npm audit remain green.
+
+## Phase 1 visible derived-layer manager
+
+- Added Project result layers panel with Source/Derived badges, feature counts, operation/source metadata,
+  Show and Hide controls, and automatic refresh after buffer execution.
+- This makes PostGIS-derived outputs visible and manageable in the workspace UI.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
