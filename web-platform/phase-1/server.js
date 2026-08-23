@@ -5,6 +5,10 @@ const { Pool } = require('pg');
 const PORT = Number(process.env.PORT || 4180);
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://cartogen:phase1_local_only_change_me@127.0.0.1:55432/cartogen_phase1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const PHASE1_IDENTITY_MODE = process.env.PHASE1_IDENTITY_MODE || 'demo';
+const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
+const DIRECTUS_COOKIE = 'cartogen_session';
+const DIRECTUS_ORGANIZATION_ID = process.env.PHASE1_DIRECTUS_ORGANIZATION_ID || null;
 const app = express();
 const pool = new Pool({ connectionString: DATABASE_URL, max: 5 });
 
@@ -12,15 +16,40 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(__dirname));
 
-function identity(req) {
-  return req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+function parseCookies(header = '') {
+  return Object.fromEntries(header.split(';').map(part => { const index = part.indexOf('='); return index < 0 ? ['', ''] : [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]; }).filter(([key]) => key));
 }
 
-function requireIdentity(req, res, next) {
-  const organizationId = identity(req);
-  if (!organizationId) return res.status(401).json({ error: 'Authentication required' });
-  req.organizationId = organizationId;
-  next();
+async function directusUser(req) {
+  const token = parseCookies(req.headers.cookie)[DIRECTUS_COOKIE];
+  if (!token) return null;
+  const response = await fetch(`${DIRECTUS_URL}/users/me?fields=id,email,first_name,last_name,status,role`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return null;
+  const body = await response.json();
+  if (!body?.data || body.data.status !== 'active') return null;
+  return body.data;
+}
+
+async function resolveIdentity(req) {
+  if (PHASE1_IDENTITY_MODE === 'directus') {
+    if (!DIRECTUS_ORGANIZATION_ID) return null;
+    const user = await directusUser(req);
+    return user ? { organizationId: DIRECTUS_ORGANIZATION_ID, user } : null;
+  }
+  const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+  return organizationId ? { organizationId, user: null } : null;
+}
+
+async function requireIdentity(req, res, next) {
+  try {
+    const resolved = await resolveIdentity(req);
+    if (!resolved) return res.status(401).json({ error: 'Authentication required' });
+    req.organizationId = resolved.organizationId;
+    req.user = resolved.user;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication required' });
+  }
 }
 
 function buildTaskPlan({ prompt = '', documentText = '', sourceNames = [] }) {
@@ -100,6 +129,11 @@ function normalizeFeatureCollection(payload) {
     return { geometry: feature.geometry, properties: feature.properties || {} };
   });
 }
+
+app.get('/api/auth/status', async (req, res) => {
+  const resolved = await resolveIdentity(req).catch(() => null);
+  res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID) });
+});
 
 app.post('/api/ai/plan', requireIdentity, async (req, res) => {
   try {
