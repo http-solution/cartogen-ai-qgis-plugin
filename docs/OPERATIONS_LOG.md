@@ -236,5 +236,15 @@ The full provider and service implementation remains in this private repository.
 - Exit record: `web-platform/phase-0/PHASE_0_EXIT_RECORD.md`.
 - Phase 1 starting scope: project/data catalogue, 3W ingestion, boundaries, population/facilities/
   accessibility layers, freshness warnings, coverage screening, AI review flow, and map export.
+
+## Phase 1 humanitarian workspace vertical slice
+
+- Added private Phase 1 workspace: `web-platform/phase-1/index.html`.
+- Added generated demo summary: `web-platform/phase-1/demo-data.json`.
+- Added reproducible summary builder: `web-platform/phase-1/scripts/build_demo_data.py`.
+- Local verification: Phase 1 HTML and data served HTTP 200; 714 Pakistan 3W records and 4,849
+  health facilities loaded from the downloaded public bundle; source catalogue and compatibility warnings visible.
+- Current slice is an interface/data-backed vertical slice. PostGIS/API persistence, real geometry
+  rendering, asynchronous processing, authentication, and PDF generation remain next implementation gates.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
