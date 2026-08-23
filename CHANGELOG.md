@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.4] — sector-guided mapping experience
+
+- Added sector-aware prompt guidance for humanitarian aid, engineering, urban planning, logistics, agriculture, environment, public health, disaster risk, utilities, transport, public safety, research, real estate, and defense/intelligence profiles.
+- Priority rollout documented: humanitarian aid, engineering, urban planning, then logistics.
+- Verified against the Community and private prompt-refiner suites.
+
+
 ## [1.4.3] — UI terminology and navigation polish
 
 - Standardized the main tabs as **Chat**, **Tasks & Notes**, and **Help & Guide** in both plugin editions.
