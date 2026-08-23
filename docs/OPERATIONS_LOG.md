@@ -125,6 +125,18 @@ The full provider and service implementation remains in this private repository.
 - Pro-client download/entitlement is BLOCKED because no Pro artifact or download route exists yet.
 - Fixed website/LiteLLM master-key drift in Compose by explicitly passing the interpolated key.
 
+## Commercial Service v0.2.6 — security assessment and hardening
+
+- Security assessment completed across dependencies, secrets, Docker exposure, authentication,
+  webhooks, rate limiting, headers, and configuration boundaries.
+- Remediated all confirmed local configuration/application findings: loopback bindings,
+  opt-in registration, digest-pinned images, Helmet headers, rate limits, malformed-webhook safety,
+  and website/LiteLLM master-key consistency.
+- Evidence: npm audit 0 vulnerabilities, secret-pattern scan 0 files, Compose config valid,
+  malformed webhook 400 with process health preserved, and all local services healthy.
+- Residual gates: pip-audit in CI/VPS, SMTP/password reset, backups, monitoring, live Stripe,
+  Pro entitlement/download, and production TLS/firewall review.
+
 ## Plugin UI v1.4.3 — cross-edition interface terminology
 
 - Audited public Community and private commercial QGIS UI source side by side.

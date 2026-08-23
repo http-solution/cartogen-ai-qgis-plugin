@@ -1,5 +1,16 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.6 — security assessment and hardening
+
+- Bound Docker host ports to loopback by default.
+- Made Directus public registration opt-in rather than enabled by default.
+- Pinned verified Postgres, Directus, and LiteLLM image digests.
+- Added Helmet security headers and auth/checkout rate limiting.
+- Made malformed development webhooks return HTTP 400 without terminating Node.
+- Added `SECURITY_ASSESSMENT_2026-08-23.md` with findings, evidence, remediation, and residual production gates.
+- `npm audit --omit=dev`: 0 vulnerabilities; secret-pattern scan: 0 files.
+- Python dependency audit remains a VPS/CI gate because `pip-audit` is not installed locally.
+
 ## 0.2.5 — billing activation test and configuration consistency
 
 - Added `scripts/local_saas_smoke.sh` covering registration, session, simulated webhook,
