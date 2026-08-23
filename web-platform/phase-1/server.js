@@ -197,11 +197,78 @@ app.get('/api/analysis-jobs/:jobId', requireIdentity, async (req, res) => {
 
 app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
   try {
-    const job = await executeReviewOutputJob(req.params.jobId, req.organizationId);
+    const operation = await pool.query('SELECT operation FROM analysis_jobs WHERE id = $1 AND organization_id = $2', [req.params.jobId, req.organizationId]);
+    if (!operation.rowCount) return res.status(404).json({ error: 'Analysis job not found' });
+    const job = operation.rows[0].operation === 'buffer_layer'
+      ? await executeBufferJob(req.params.jobId, req.organizationId)
+      : await executeReviewOutputJob(req.params.jobId, req.organizationId);
     res.json({ job });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+async function executeBufferJob(jobId, organizationId) {
+  const jobResult = await pool.query(
+    `SELECT id, project_id, input, status FROM analysis_jobs WHERE id = $1 AND organization_id = $2`,
+    [jobId, organizationId],
+  );
+  if (!jobResult.rowCount) throw new Error('Analysis job not found');
+  const job = jobResult.rows[0];
+  if (job.status !== 'queued') throw new Error(`Analysis job is already ${job.status}`);
+  const sourceLayerId = job.input?.source_layer_id;
+  const distanceMeters = Number(job.input?.distance_meters);
+  if (!sourceLayerId) throw new Error('source_layer_id is required');
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0 || distanceMeters > 100000) throw new Error('distance_meters must be between 0 and 100000');
+  const source = await pool.query(
+    `SELECT id, project_id, name, source_resource, licence FROM project_layers
+      WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
+    [sourceLayerId, job.project_id, organizationId],
+  );
+  if (!source.rowCount) throw new Error('Source layer not found');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const resultLayer = await client.query(
+      `INSERT INTO project_layers (project_id, organization_id, name, source_resource, licence, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, created_at`,
+      [job.project_id, organizationId, `${source.rows[0].name} — ${distanceMeters}m buffer`, `derived:buffer:${sourceLayerId}`, source.rows[0].licence, { operation: 'buffer_layer', source_layer_id: sourceLayerId, distance_meters: distanceMeters }],
+    );
+    const inserted = await client.query(
+      `INSERT INTO project_layer_features (layer_id, project_id, organization_id, geometry, properties)
+       SELECT $1, project_id, organization_id, ST_Buffer(geometry::geography, $2)::geometry, properties
+         FROM project_layer_features
+        WHERE layer_id = $3 AND organization_id = $4
+       RETURNING id`,
+      [resultLayer.rows[0].id, distanceMeters, sourceLayerId, organizationId],
+    );
+    const output = { type: 'derived_geometry_layer', operation: 'buffer_layer', result_layer_id: resultLayer.rows[0].id, source_layer_id: sourceLayerId, distance_meters: distanceMeters, feature_count: inserted.rowCount, limitations: ['Buffer distance is calculated in metres using a WGS84 geography cast.', 'Derived output requires human review before operational use.'] };
+    const updated = await client.query(
+      `UPDATE analysis_jobs SET status = 'completed', output = $1, completed_at = now() WHERE id = $2 AND organization_id = $3 RETURNING id, operation, status, output, completed_at`,
+      [output, jobId, organizationId],
+    );
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
+app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, res) => {
+  const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  if (req.body.operation !== 'buffer_layer') return res.status(400).json({ error: 'Unsupported operation' });
+  try {
+    const distance = Number(req.body.distance_meters);
+    if (!req.body.source_layer_id || !Number.isFinite(distance) || distance <= 0 || distance > 100000) throw new Error('source_layer_id and distance_meters (1–100000) are required');
+    const result = await pool.query(
+      `INSERT INTO analysis_jobs (project_id, organization_id, operation, status, input, provenance)
+       VALUES ($1,$2,$3,'queued',$4,$5) RETURNING id, operation, status, input, created_at`,
+      [req.params.projectId, req.organizationId, 'buffer_layer', { source_layer_id: req.body.source_layer_id, distance_meters: distance }, { source: 'user-request', phase: '1' }],
+    );
+    res.status(201).json({ job: result.rows[0] });
+  } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -302,4 +369,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob };
+module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob };

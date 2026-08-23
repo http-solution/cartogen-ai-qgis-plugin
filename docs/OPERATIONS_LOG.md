@@ -307,5 +307,12 @@ The full provider and service implementation remains in this private repository.
 - Implemented the first safe executor: `create_review_output` reads stored PostGIS layers,
   feature counts, extents, source metadata, and limitations into a persisted humanitarian review summary.
 - Verified live: plan 200, task approval 201, job execution 200/completed, job read-back 200.
+
+## Phase 1 PostGIS buffer executor
+
+- Added `POST /api/projects/:projectId/analysis-jobs` for `buffer_layer` jobs.
+- Added a safe PostGIS executor using metre-based geography buffering.
+- Derived layers preserve source layer, distance, licence, and operation metadata.
+- Verified live: buffer job created 201, completed 200, result GeoJSON 200, two Polygon features returned.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
