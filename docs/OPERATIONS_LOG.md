@@ -333,5 +333,13 @@ The full provider and service implementation remains in this private repository.
 - Clicking a rendered geometry now opens the Feature inspector with geometry type, properties,
   provenance-review status, and a safe text-rendered properties block.
 - Uploaded properties are escaped before display to prevent HTML injection.
+
+## Phase 1 attribute table and filtered export
+
+- Added feature table for the active rendered layer.
+- Added case-insensitive property filtering.
+- Added row-to-feature selection and shared inspector behavior.
+- Added filtered GeoJSON export from the browser.
+- Verification: attribute-table/static checks passed; eight Node tests and npm audit remain green.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
