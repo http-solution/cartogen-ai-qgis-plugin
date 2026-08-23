@@ -2,8 +2,9 @@
 
 ## Phase status
 
-**Active:** discovery and validation
-**Implementation status:** no production implementation started
+**Status:** Provisional exit — Phase 0 research/design work parked; Phase 1 preparation authorized.
+**Implementation status:** Production implementation has not started.
+**Open validation gates:** Candidate interviews, pilot commitments, and funding validation remain open.
 **Repository:** private `CARTOGEN-AI`
 
 ## Artifacts
