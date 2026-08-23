@@ -115,3 +115,12 @@ The full provider and service implementation remains in this private repository.
   profile fields are not readable by the customer policy.
 - Local Directus registration/session smoke test verified: registration 201, `/api/me` 200,
   logout 200.
+
+## Commercial Service v0.2.5 — billing activation test and config consistency
+
+- Added `service/scripts/local_saas_smoke.sh` for repeatable registration-to-API activation testing.
+- Local smoke results: registration/session PASS; simulated webhook PASS; single-use key retrieval
+  PASS; replay rejection PASS; subscription activation/linkage PASS; LiteLLM `/v1/models` authorization PASS.
+- Stripe checkout is BLOCKED locally until real/test Stripe credentials and `STRIPE_PRICE_ID` are configured.
+- Pro-client download/entitlement is BLOCKED because no Pro artifact or download route exists yet.
+- Fixed website/LiteLLM master-key drift in Compose by explicitly passing the interpolated key.

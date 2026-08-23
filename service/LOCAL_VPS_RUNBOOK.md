@@ -147,6 +147,14 @@ The local stack now has Directus registration enabled for the customer role and 
 
 ## 6. Website/auth smoke test
 
+Run the repeatable local smoke test:
+
+```bash
+bash scripts/local_saas_smoke.sh
+```
+
+It exits non-zero when Stripe or the Pro-client entitlement gate is not configured.
+
 Check the unauthenticated boundary:
 
 ```bash
