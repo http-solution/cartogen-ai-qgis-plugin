@@ -214,5 +214,18 @@ The full provider and service implementation remains in this private repository.
 - Important caveat: the 2017 population source is not directly compatible with newer boundaries
   without a crosswalk; HNO is a 2021 snapshot; the 3W operational resource is historical to 2023;
   the flood layer is event-specific.
+
+## Operational extensions catalogue and local validation
+
+- Added `web-platform/phase-0/data/HUMANITARIAN_OPERATIONAL_EXTENSIONS_CATALOG.md`.
+- Added reproducible downloader `web-platform/phase-0/scripts/build_operational_extensions.py`.
+- Downloaded and validated eight extension resources: ACLED aggregated security workbook,
+  World Bank infrastructure indicators, three HOT accessibility CSVs, Pakistan airports,
+  and Afghanistan 2026 operational presence/capacity CSVs.
+- Local validation counts: infrastructure 1,488 rows; education access 2,426; hospitals 7,716;
+  primary healthcare 6,846; airports 195; Afghanistan presence 10,098; Afghanistan capacity 7,094.
+- ACLED detailed event access remains subject to provider access/licence controls.
+- No verified open Pakistan telecom tower/coverage layer was found; World Bank indicators are
+  country-level context, not a local coverage map.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

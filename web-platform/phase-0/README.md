@@ -14,6 +14,8 @@
 - `HUMANITARIAN_PILOT_CHARTER.md` — pilot scope, data approval, and success template.
 - `HUMANITARIAN_CANDIDATE_SCORING.md` — candidate qualification rubric.
 - `OCHA_3W_STRUCTURED_ANALYSIS_2026-08-23.md` — private structured analysis of the public OCHA/HDX global 3W resource.
+- `data/HUMANITARIAN_OPERATIONAL_EXTENSIONS_CATALOG.md` — logistics, security, IT infrastructure, and coverage-source catalogue.
+- `data/PAKISTAN_BUNDLE_PROFILE.md` — Pakistan cross-layer demo profile.
 - `ARCHITECTURE_SPIKE.md` — rendering/data/processing/AI architecture experiments.
 - `PROVENANCE_REGISTER.md` — QGIS inspiration, standards, dependency, and original-work record.
 - `LEGAL_TRUST_REVIEW_CHECKLIST.md` — private legal, licensing, privacy, AI, and security checklist.
