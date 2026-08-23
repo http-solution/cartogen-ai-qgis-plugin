@@ -1,0 +1,92 @@
+{
+  "retrieved_at": "2026-08-23T14:31:45+00:00",
+  "country": "Pakistan",
+  "sources": [
+    {
+      "dataset_id": "ocha-global-humanitarian-operational-presence-who-what-where-3w-portal",
+      "dataset_title": "OCHA Global Humanitarian Operational Presence Who, What, Where (3W) Portal",
+      "metadata_modified": "2026-07-22T08:03:45.981668",
+      "resource_name": "global-3w-2023-06-08.xlsx",
+      "format": "XLSX",
+      "size": 346519,
+      "url": "https://data.humdata.org/dataset/a5bed1d4-1906-4ddd-b6ee-7821043e7875/resource/121d6cbe-92ff-4059-841f-26d8a8887ac9/download/global-3w-2023-06-08.xlsx",
+      "local_file": "global-3w-2023-06-08.xlsx",
+      "notes": "Raw Global 3W national data visualized in the [Global Humanitarian Operational Presence Who, What, Where (3W) Portal](https://3w.unocha.org/) as of  08  June 2023.\r\n\r\nFields:\r\n\r\n  'country code' -- example 'UKR' for Ukraine\r\n\r\n'sector' -- example 'CCCM' = Camp Coordination / Management\r\n\r\n 'organization' -- Organization name provided in the field inputs\r\n\r\n  'type' -- INGO (International NGO), NNGO (National NGO), UN (United Nations), 'Undefined', or 'Other'\r\n\r\n  'COVID 19' -- 'yes' / 'no' (pert"
+    },
+    {
+      "dataset_id": "cod-ab-pak",
+      "dataset_title": "Pakistan - Subnational Administrative Boundaries",
+      "metadata_modified": "2026-08-14T07:22:41.457492",
+      "resource_name": "pak_admin_boundaries.geojson.zip",
+      "format": "GeoJSON",
+      "size": 29097223,
+      "url": "https://data.humdata.org/dataset/a64d1ff2-7158-48c7-887d-6af69ce21906/resource/c6521e04-75e1-41be-8e02-0554a424d9f4/download/pak_admin_boundaries.geojson.zip",
+      "local_file": "pak_admin_boundaries.geojson.zip",
+      "notes": "Pakistan administrative level 0-3 boundaries (COD-AB) dataset version 01.  \n  \nThis dataset is structured into 3 levels:  \n- Admin 1: 7 Province or Territory  \n- Admin 2: 160 District  \n- Admin 3: 577 Tehsil  \n  \n  \nDates associated with this dataset:  \n- 27 September 2024: dataset reviewed for accuracy and completeness  \n- 09 September 2022: valid for use by the humanitarian community  \n- 02 September 2022: last edit to the dataset before publishing  \n- 02 September 2022: boundaries created by "
+    },
+    {
+      "dataset_id": "cod-ps-pak",
+      "dataset_title": "Pakistan - Subnational Population Statistics",
+      "metadata_modified": "2025-07-22T20:39:33.666995",
+      "resource_name": "pak_admpop_adm2_v2.csv",
+      "format": "CSV",
+      "size": 10865,
+      "url": "https://data.humdata.org/dataset/9d48b019-3dd3-4284-ac11-200a70370447/resource/2fe439f1-8c17-4d5b-92d4-909858fc233b/download/pak_admpop_adm2_v2.csv",
+      "local_file": "pak_admpop_adm2_v2.csv",
+      "notes": "Pakistan administrative level 0-3 sex disaggregated  2017 population statistics\r\n\r\nREFERENCE YEAR:  2017\r\n\r\nUNFPA investigated replacement or projection of this dataset in 2021. No better alternative is currently available.\r\n\r\nNOTE this dataset is not compatible with the [Pakistan - Subnational Administrative Boundaries](https://data.humdata.org/dataset/cod-ab-pak) layers, which were updated on 2022_09_02."
+    },
+    {
+      "dataset_id": "pakistan-healthsites",
+      "dataset_title": "Pakistan Healthsites",
+      "metadata_modified": "2025-10-15T12:19:39.603133",
+      "resource_name": "pakistan-healthsites-csv",
+      "format": "CSV",
+      "size": 1014489,
+      "url": "https://data.humdata.org/dataset/60389a73-e09b-43c4-a22c-2ef6b3e5eb52/resource/6cae698f-fb01-4067-804f-b49dfde63188/download/pakistan.csv",
+      "local_file": "pakistan-healthsites-csv",
+      "notes": "This dataset shows the list of operating health facilities. Attributes included: Name,Nature of Facility, Activities, Lat, Long"
+    },
+    {
+      "dataset_id": "hotosm_pak_roads",
+      "dataset_title": "Pakistan Roads (OpenStreetMap Export)",
+      "metadata_modified": "2026-08-09T10:11:39.296500",
+      "resource_name": "hotosm_pak_roads_polygons_geojson.zip",
+      "format": "GeoJSON",
+      "size": 871139,
+      "url": "https://s3.dualstack.us-east-1.amazonaws.com/production-raw-data-api/ISO3/PAK/roads/polygons/hotosm_pak_roads_polygons_geojson.zip",
+      "local_file": "hotosm_pak_roads_polygons_geojson.zip",
+      "notes": "\n\nThis theme includes all OpenStreetMap features in this area matching ( Learn what tags means [here](https://wiki.openstreetmap.org/wiki/Tags) ) :\n\ntags['highway'] IS NOT NULL\n\nFeatures may have these attributes:\n\n- [name](http://wiki.openstreetmap.org/wiki/Key:name)\n- [name:en](http://wiki.openstreetmap.org/wiki/Key:name:en)\n- [highway](http://wiki.openstreetmap.org/wiki/Key:highway)\n- [surface](http://wiki.openstreetmap.org/wiki/Key:surface)\n- [smoothness](http://wiki.openstreetmap.org/wiki/K"
+    },
+    {
+      "dataset_id": "pakistan-humanitarian-needs-overview",
+      "dataset_title": "Pakistan: Humanitarian Needs Overview",
+      "metadata_modified": "2026-06-23T05:39:52.703133",
+      "resource_name": "PAK_HNO_2021.xlsx",
+      "format": "XLSX",
+      "size": 12100,
+      "url": "https://data.humdata.org/dataset/a6f0f0ce-83ef-465b-8b3b-a7cb36dd1a94/resource/d20b1642-e6de-4bc1-9315-81a32eb88c3a/download/pak_hno_2021.xlsx",
+      "local_file": "PAK_HNO_2021.xlsx",
+      "notes": "This dataset contains the people in need by sector and area. The dataset is produced by the United Nations for the Coordination of Humanitarian Affairs (OCHA) in collaboration with humanitarian partners."
+    },
+    {
+      "dataset_id": "pak-flood-fl-20250829-pak-00",
+      "dataset_title": "Pakistan - Flood on Aug 29 2025",
+      "metadata_modified": "2026-05-21T22:04:39.790885",
+      "resource_name": "pak_wfpadam_flood_20250829.zip",
+      "format": "GeoTIFF",
+      "size": 3507198,
+      "url": "https://data.humdata.org/dataset/9f191be0-30df-4368-b8bb-29f41e97804b/resource/74da6ef4-8142-43a6-a5ea-3b32f2917876/download/pak_wfpadam_flood_20250829.zip",
+      "local_file": "pak_wfpadam_flood_20250829.zip",
+      "notes": "**ADAM ID: **[FL-20250829-PAK-00](https://api.adam.geospatial.wfp.org/api/collections/adam.adam_fl_events/items?eventid=FL-20250829-PAK-00)  A flood occurred on Aug 29 2025 in Pakistan. It affected an estimated 5949956 people and 892075 ha of cropland.    \n    \nWFP\u2019s Automated Disaster Analysis and Mapping (ADAM) system is an operational system for collecting, analysing and mapping geospatial and socio-economic information following sudden onset humanitarian emergencies."
+    }
+  ],
+  "derived_artifacts": [
+    {
+      "local_file": "global-3w-pakistan-2023-06-08.csv",
+      "source": "global-3w-2023-06-08.xlsx",
+      "filter": "country code = PAK",
+      "rows": 714,
+      "columns": 5
+    }
+  ]
+}

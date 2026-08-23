@@ -201,5 +201,18 @@ The full provider and service implementation remains in this private repository.
 - Normalized mixed-format `3w date` values to an operational range of 2019-06-01 through 2023-05-01.
 - Key caveat: current catalogue metadata does not mean the operational resource is current; use it as historical baseline unless newer country-level data is found.
 - Report: `web-platform/phase-0/OCHA_3W_STRUCTURED_ANALYSIS_2026-08-23.md`.
+
+## Pakistan Phase 0 public humanitarian data bundle
+
+- Added reproducible downloader: `web-platform/phase-0/scripts/build_pakistan_bundle.py`.
+- Added Pakistan-only 3W extractor: `web-platform/phase-0/scripts/extract_3w_pakistan.py`.
+- Bundle sources: OCHA 3W, COD administrative boundaries, COD population, Healthsites,
+  HOT/OSM roads, Pakistan HNO, and WFP ADAM flood-event data.
+- Downloaded and validated locally: 7 source resources; archives test clean; population CSV 131 rows;
+  Healthsites CSV 4,849 rows; derived Pakistan 3W CSV 714 rows.
+- Raw downloaded files are ignored from Git; manifest and reproducible scripts are retained.
+- Important caveat: the 2017 population source is not directly compatible with newer boundaries
+  without a crosswalk; HNO is a 2021 snapshot; the 3W operational resource is historical to 2023;
+  the flood layer is event-specific.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
