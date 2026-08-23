@@ -213,9 +213,16 @@ app.post('/auth/register', async (req, res) => {
   }
   try {
     await auth.register({ email: email.trim(), password, first_name, last_name });
-    const result = await auth.login(email.trim(), password);
-    auth.setSession(res, result.data.access_token);
-    return res.status(201).json({ ok: true });
+    try {
+      const result = await auth.login(email.trim(), password);
+      auth.setSession(res, result.data.access_token);
+      return res.status(201).json({ ok: true });
+    } catch (loginError) {
+      if (loginError.status === 401) {
+        return res.status(202).json({ ok: true, verification_required: true, message: 'Registration succeeded. Activate the account or wait for approval, then sign in.' });
+      }
+      throw loginError;
+    }
   } catch (err) {
     return res.status(err.status === 401 ? 401 : 400).json({ error: err.message });
   }
