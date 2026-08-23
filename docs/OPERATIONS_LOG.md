@@ -263,7 +263,7 @@ The full provider and service implementation remains in this private repository.
 - Added browser GeoJSON upload control to `web-platform/phase-1/index.html`.
 - Added `GET /api/layers/:layerId/geojson` for server-side geometry read-back.
 - Verified on the corrected API listener: health 200, upload 201, GeoJSON FeatureCollection read-back 200 with geometry coordinates preserved.
-- Development port is documented as 4179 because earlier orphaned listeners occupied 4176/4177/4178; no forced process termination was performed.
+- Development port is documented as 4180 because earlier orphaned listeners occupied 4176–4179; no forced process termination was performed.
 
 ## Phase 1 geometry rendering
 

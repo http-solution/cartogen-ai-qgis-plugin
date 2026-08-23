@@ -2,7 +2,7 @@ const path = require('node:path');
 const express = require('express');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT || 4179);
+const PORT = Number(process.env.PORT || 4180);
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://cartogen:phase1_local_only_change_me@127.0.0.1:55432/cartogen_phase1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const app = express();
