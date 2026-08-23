@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, buildTaskPlan } = require('../server');
+const { normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -50,4 +50,15 @@ test('builds a humanitarian review plan from narrative and document context', ()
 
 test('requires content before creating a plan', () => {
   assert.throws(() => buildTaskPlan({}), /required/);
+});
+
+test('parses a valid gateway JSON plan', () => {
+  const content = ['```json', JSON.stringify({ objective: 'Review coverage', steps: [{ id: 1, tool: 'validate_sources', title: 'Validate sources', requires_confirmation: false }] }), '```'].join('\n');
+  const plan = parsePlannerResponse({ choices: [{ message: { content } }] });
+  assert.equal(plan.mode, 'live-gateway');
+  assert.equal(plan.steps[0].tool, 'validate_sources');
+});
+
+test('rejects malformed gateway plan responses', () => {
+  assert.throws(() => parsePlannerResponse({ choices: [{ message: { content: '{"wrong":true}' } }] }), /schema/);
 });

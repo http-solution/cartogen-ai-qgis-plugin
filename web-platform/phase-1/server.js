@@ -50,6 +50,46 @@ function buildTaskPlan({ prompt = '', documentText = '', sourceNames = [] }) {
   };
 }
 
+function parsePlannerResponse(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') throw new Error('Gateway response did not include assistant content');
+  const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const plan = JSON.parse(cleaned);
+  if (!plan || !Array.isArray(plan.steps) || !plan.objective) throw new Error('Gateway plan did not match the required schema');
+  return { ...plan, planner: 'cartogen-gateway', mode: 'live-gateway' };
+}
+
+async function buildLiveGatewayPlan(context) {
+  const gatewayUrl = process.env.CARTOGEN_AI_GATEWAY_URL || 'http://127.0.0.1:4001/v1/chat/completions';
+  const gatewayKey = process.env.CARTOGEN_AI_GATEWAY_KEY;
+  const model = process.env.CARTOGEN_AI_PLANNER_MODEL || 'gpt-default';
+  if (!gatewayKey) throw new Error('CARTOGEN_AI_GATEWAY_KEY is not configured');
+  const instruction = [
+    'You are Cartogen AI, a humanitarian GIS planning assistant.',
+    'Return JSON only with keys: objective, sector, steps, warnings, expected_outputs.',
+    'Each step must contain id, tool, title, and requires_confirmation.',
+    'Do not claim that an analysis was executed. Create a reviewable plan only.',
+    `User request: ${context.prompt || ''}`,
+    `Document text: ${context.documentText || ''}`,
+    `Source names: ${(context.sourceNames || []).join(', ')}`,
+  ].join('\n');
+  const response = await fetch(gatewayUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${gatewayKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: instruction }], temperature: 0, max_tokens: 1200 }),
+  });
+  if (!response.ok) throw new Error(`Gateway planning failed with HTTP ${response.status}`);
+  return parsePlannerResponse(await response.json());
+}
+
+async function createTaskPlan(context) {
+  if ((process.env.CARTOGEN_AI_PLANNER_MODE || 'deterministic') === 'live') {
+    try { return await buildLiveGatewayPlan(context); }
+    catch (error) { return { ...buildTaskPlan(context), gateway_fallback: error.message }; }
+  }
+  return buildTaskPlan(context);
+}
+
 function normalizeFeatureCollection(payload) {
   if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) {
     throw new Error('Expected a GeoJSON FeatureCollection');
@@ -63,7 +103,7 @@ function normalizeFeatureCollection(payload) {
 
 app.post('/api/ai/plan', requireIdentity, async (req, res) => {
   try {
-    const plan = buildTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] });
+    const plan = await createTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] });
     res.json({ plan });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -83,7 +123,7 @@ app.post('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => 
   const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
   if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
   let plan;
-  try { plan = req.body.plan || buildTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] }); }
+  try { plan = req.body.plan || await createTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] }); }
   catch (error) { return res.status(400).json({ error: error.message }); }
   const approved = req.body.approved === true;
   const client = await pool.connect();
@@ -209,4 +249,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan };
+module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan };
