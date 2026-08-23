@@ -76,3 +76,16 @@ The full provider and service implementation remains in this private repository.
 - Commercial differentiation is based on managed operations, governance, deployment, integrations,
   onboarding, support, and service commitments — not artificial removal of core GIS capability.
 - Public and private feature-placement decisions must be recorded before a significant feature ships.
+
+## Commercial Service v0.2.0 — local SaaS foundation
+
+- Added Directus CMS/authentication integration foundation and HTTP-only website sessions.
+- Added local client portal pages for registration, login, account state, and checkout entry.
+- Added Docker Compose services for Postgres, Directus, LiteLLM, and the website.
+- Added Postgres initialization for separate Directus, LiteLLM, and website databases.
+- Added VPS-oriented `.env.example`, website Dockerfile, health endpoint, and SaaS architecture guide.
+- Added Directus user identity to Stripe checkout metadata and subscription records.
+- Verified `node --check`, `npm install --package-lock-only` with zero reported vulnerabilities,
+  and `docker compose --env-file .env.example config`.
+- Not production-ready yet: live Stripe, SMTP, domain/TLS, provider credentials, backups,
+  monitoring, and real end-to-end VPS checkout/webhook/key lifecycle remain acceptance gates.

@@ -39,10 +39,12 @@ async function initSchema() {
       api_key TEXT,
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
+      directus_user_id TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE cartogen_subscriptions ADD COLUMN IF NOT EXISTS directus_user_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_cartogen_subscriptions_stripe_subscription_id
       ON cartogen_subscriptions (stripe_subscription_id);
   `);
@@ -61,13 +63,13 @@ async function createPendingCheckout({ sessionId, retrievalToken }) {
 }
 
 // Called from the checkout.session.completed webhook once the virtual key is minted.
-async function activateSubscription({ sessionId, apiKey, email, customerId, subscriptionId }) {
+async function activateSubscription({ sessionId, apiKey, email, customerId, subscriptionId, directusUserId }) {
   await getPool().query(
     `UPDATE cartogen_subscriptions
      SET api_key = $2, email = $3, stripe_customer_id = $4, stripe_subscription_id = $5,
-         status = 'active', updated_at = now()
+         directus_user_id = $6, status = 'active', updated_at = now()
      WHERE stripe_session_id = $1`,
-    [sessionId, apiKey, email, customerId, subscriptionId]
+    [sessionId, apiKey, email, customerId, subscriptionId, directusUserId || null]
   );
 }
 
