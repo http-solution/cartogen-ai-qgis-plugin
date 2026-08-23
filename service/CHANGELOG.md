@@ -1,5 +1,9 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.3 — release metadata synchronization
+
+- Synchronized the commercial service package version and changelog after the protected 0.2.2 tag.
+
 ## 0.2.2 — local/VPS runbook and deployment polish
 
 - Added the complete `LOCAL_VPS_RUNBOOK.md` with local access links, startup/shutdown commands,
