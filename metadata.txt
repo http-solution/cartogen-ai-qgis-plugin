@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.4.2
+version=1.4.3
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 

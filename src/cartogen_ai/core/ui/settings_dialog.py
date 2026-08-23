@@ -55,13 +55,13 @@ def _extract_theme_palette():
 # function) -- not another block of near-duplicate widget code.
 PROVIDERS = [
     {
-        "value": "openrouter", "provider_label": "OpenRouter (Cloud)",
+        "value": "openrouter", "provider_label": "OpenRouter (Hosted)",
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
         "model_setting_key": "cartogen_ai/openrouter_model", "default_model": AUTO_SENTINEL,
         "key_default": "", "list_fn": _list_openrouter,
     },
     {
-        "value": "gemini", "provider_label": "Google Gemini (Cloud)",
+        "value": "gemini", "provider_label": "Google Gemini (Hosted)",
         "key_label": "Gemini API Key:", "model_label": "Gemini Model:",
         # default_model is AUTO_SENTINEL (not a fixed model) so a fresh install
         # with nothing saved yet shows "Auto" pre-selected here, matching
@@ -90,14 +90,14 @@ PROVIDERS = [
         "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
     },
     {
-        "value": "openai", "provider_label": "OpenAI (Cloud, paid)",
+        "value": "openai", "provider_label": "OpenAI (Hosted)",
         "key_label": "OpenAI API Key (paid):", "model_label": "OpenAI Model:",
         "model_setting_key": "cartogen_ai/openai_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gpt-5.6",
         "key_default": "", "list_fn": _list_openai,
     },
     {
-        "value": "claude", "provider_label": "Claude / Anthropic (Cloud, paid)",
+        "value": "claude", "provider_label": "Claude / Anthropic (Hosted)",
         "key_label": "Claude API Key (paid):", "model_label": "Claude Model:",
         "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
@@ -109,8 +109,8 @@ PROVIDERS = [
         # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
         # install to a provider that can't resolve would break the out-of-the-box
         # experience. Reorder to first once a real gateway exists (see that doc's Phase 1).
-        "value": "cartogen", "provider_label": "Cartogen (Cloud, subscription)",
-        "key_label": "Cartogen Key:", "model_label": "Cartogen Model:",
+        "value": "cartogen", "provider_label": "Cartogen AI (Hosted)",
+        "key_label": "Cartogen AI Key:", "model_label": "Cartogen AI Model:",
         "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
         "key_default": "", "list_fn": _list_cartogen,
@@ -154,7 +154,7 @@ class CartogenAiSettingsDialog(QDialog):
         index = self.provider_combo.findData(current_provider)
         if index >= 0:
             self.provider_combo.setCurrentIndex(index)
-        top_form.addRow("AI Provider:", self.provider_combo)
+        top_form.addRow("Connection:", self.provider_combo)
         layout.addLayout(top_form)
 
         # One page per provider, holding just that provider's key/URL field and

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 Dock Widget UI for Cartogen AI.
-Provides dual-tab interface (Chat and Tasks/Memory Plan)
+Provides dual-tab interface (Chat and Tasks/Notes Plan)
 with non-blocking execution threads and file attachment handling.
 
 CartogenAiDockWidget is the outer QDockWidget: it owns the cross-tab signals, the
 agent_provider callable, and the header (title/provider switcher/settings button).
-The three tabs (Chat, Tasks & Memory, Help) are separate QWidget classes in
+The three tabs (Chat, Tasks & Notes, Help) are separate QWidget classes in
 chat_tab_widget.py / tasks_tab_widget.py / help_tab_widget.py --
 docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the full rationale for the split and
 what still needs verifying in a real QGIS session (this file cannot be imported or
@@ -113,7 +113,7 @@ class CartogenAiDockWidget(QDockWidget):
         tasks_scroll.setWidgetResizable(True)
         tasks_scroll.setFrameShape(QScrollArea.NoFrame)
         tasks_scroll.setWidget(self.tasks_tab_widget)
-        self.tab_widget.addTab(tasks_scroll, "📋 Tasks & Memory")
+        self.tab_widget.addTab(tasks_scroll, "📋 Tasks & Notes")
 
         self.help_tab_widget = HelpTabWidget()
         help_scroll = QScrollArea()

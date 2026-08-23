@@ -5,11 +5,11 @@ the three tab modules has to import from dock_widget.py itself -- dock_widget.py
 imports all three, so any of them importing back from it would be circular."""
 
 PROVIDER_CHOICES = [
-    ("OpenRouter", "openrouter"),
-    ("Gemini", "gemini"),
-    ("Ollama", "ollama"),
-    ("OpenAI", "openai"),
-    ("Claude", "claude"),
+    ("OpenRouter (Hosted)", "openrouter"),
+    ("Google Gemini (Hosted)", "gemini"),
+    ("Ollama (Local)", "ollama"),
+    ("OpenAI (Hosted)", "openai"),
+    ("Claude / Anthropic (Hosted)", "claude"),
 ]
 
 # Module-level (not a local in some widget's init_ui) so the Help tab can list the same
