@@ -31,11 +31,40 @@ _MIN_WORDS_TO_REFINE = 6
 
 PROFILE_LABELS = {
     "general": "GIS Generalist",
-    "humanitarian": "Humanitarian / Crisis Response",
-    "urban_planning": "Local Government / Urban Planning",
+    "humanitarian": "Humanitarian Aid / Crisis Response",
+    "engineering": "Engineering / Infrastructure",
+    "urban_planning": "Urban Planning / Local Government",
+    "logistics": "Logistics / Supply Chain",
+    "agriculture": "Agriculture / Food Security",
+    "environment": "Environment / Natural Resources",
+    "public_health": "Public Health / Epidemiology",
+    "disaster_risk": "Disaster Risk / Climate Resilience",
+    "utilities": "Utilities / Energy / Water",
+    "transport": "Transport / Mobility",
+    "public_safety": "Public Safety / Security",
+    "research": "Research / Academia",
+    "real_estate": "Real Estate / Site Selection",
     "defense_intel": "Defense / Intelligence",
 }
 DEFAULT_PROFILE = "general"
+
+PROFILE_GUIDANCE = {
+    "general": "Use clear GIS terminology and ask for the target layer, coordinate system, output, and validation steps when they are ambiguous.",
+    "humanitarian": "Prioritize affected populations, administrative levels, 3W/4W presence, needs/severity, protection, do-no-harm handling, data provenance, uncertainty, and decision-ready map outputs.",
+    "engineering": "Prioritize survey accuracy, coordinate reference systems, construction phases, asset condition, constraints, measurements, QA checks, and deliverables suitable for engineering review.",
+    "urban_planning": "Prioritize parcels, zoning, land use, accessibility, service catchments, population, development scenarios, planning constraints, and stakeholder-readable outputs.",
+    "logistics": "Prioritize origins/destinations, network accessibility, travel cost, hub-and-spoke coverage, route constraints, service levels, fleet assumptions, and operational map outputs.",
+    "agriculture": "Prioritize fields, crop/soil conditions, vegetation indices, irrigation, seasonal comparisons, yield proxies, and uncertainty in remote-sensing interpretation.",
+    "environment": "Prioritize habitat, land cover, protected areas, watersheds, pollution/exposure, change detection, conservation constraints, and reproducible evidence.",
+    "public_health": "Prioritize privacy, aggregation, catchment areas, accessibility, exposure, service coverage, temporal trends, and safe handling of sensitive locations.",
+    "disaster_risk": "Prioritize hazard, exposure, vulnerability, scenario assumptions, evacuation/access constraints, time sensitivity, and uncertainty-aware decision products.",
+    "utilities": "Prioritize network assets, service areas, outages, maintenance priority, dependencies, reliability, and field-verifiable asset records.",
+    "transport": "Prioritize network topology, travel time, accessibility, demand locations, mode assumptions, bottlenecks, safety, and route alternatives.",
+    "public_safety": "Prioritize lawful data handling, aggregation, incident trends, response coverage, route safety, uncertainty, and avoidance of sensitive-person identification.",
+    "research": "Prioritize reproducibility, documented methods, source citations, assumptions, parameterization, uncertainty, and exportable analytical outputs.",
+    "real_estate": "Prioritize site constraints, proximity, accessibility, demographics, market context, scenario comparison, and auditable decision criteria.",
+    "defense_intel": "Prioritize provenance, uncertainty, temporal context, access controls, lawful use, and explicit separation of observation from inference.",
+}
 
 _DEFAULT_REFINEMENT_MAX_TOKENS = 400
 
@@ -90,9 +119,10 @@ def build_refinement_messages(query: str, profile: str) -> list:
     memory/map context build_system_prompt() includes, which this call
     doesn't need. Kept under ~500 characters per spec §5.2."""
     label = PROFILE_LABELS.get(profile, PROFILE_LABELS[DEFAULT_PROFILE])
+    guidance = PROFILE_GUIDANCE.get(profile, PROFILE_GUIDANCE[DEFAULT_PROFILE])
     system = (
         f"You rewrite a QGIS user's request into two improved versions, without changing "
-        f"what they're asking for. Persona: {label}. Recommendation A ('Clarified') fixes "
+        f"what they're asking for. Persona: {label}. Sector guidance: {guidance} Recommendation A ('Clarified') fixes "
         f"genuine ambiguity while staying close to the original wording. Recommendation B "
         f"('Visualization-forward') makes explicit which QGIS output/visualization/export "
         f"the request implies. Respond as JSON only, no other text: "
