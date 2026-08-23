@@ -111,9 +111,9 @@ you've wired up a real Stripe account. See the `curl` example at the bottom of `
 
 ## SaaS architecture and VPS preparation
 
-The local stack now includes Directus CMS/authentication, a client portal foundation, Docker Compose orchestration, and a Postgres-backed billing/key lifecycle. See [`SAAS_ARCHITECTURE.md`](SAAS_ARCHITECTURE.md), [`CHANGELOG.md`](CHANGELOG.md), and `.env.example`.
+The local stack now includes Directus CMS/authentication, a client portal foundation, Docker Compose orchestration, and a Postgres-backed billing/key lifecycle. See [`SAAS_ARCHITECTURE.md`](SAAS_ARCHITECTURE.md), [`LOCAL_VPS_RUNBOOK.md`](LOCAL_VPS_RUNBOOK.md), [`CHANGELOG.md`](CHANGELOG.md), and `.env.example`.
 
-The service is versioned independently from the public QGIS plugin. The current commercial service foundation is **0.2.0** and is not production-ready until the documented VPS acceptance gates pass against real configured services.
+The service is versioned independently from the public QGIS plugin. The current commercial service foundation is **0.2.1** and is not production-ready until the documented VPS acceptance gates pass against real configured services.
 
 - Emailing the API key instead of showing it on a success page
 - Mapping Stripe price IDs to specific LiteLLM budgets/rate limits (currently one flat plan)
