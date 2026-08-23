@@ -127,7 +127,76 @@ Needs workspace governance, permissions, data policies, audit visibility, templa
 
 Avoid copying QGIS desktop menus and panels directly. Use a web-native three-zone workspace with task-oriented panels.
 
-## 6. Core feature list
+## 6. Cartogen AI experience
+
+The web platform must provide an embedded Cartogen AI assistant that guides users through mapping, analysis, and project creation. It is a core product surface, not a decorative chatbot.
+
+### User inputs
+
+The assistant must be able to work from:
+
+- natural-language narrative;
+- uploaded reports and documents;
+- spreadsheets and tabular data;
+- GeoJSON, GeoPackage, CSV, and approved geospatial sources;
+- selected project layers;
+- external source metadata and provenance.
+
+### Guided workflow
+
+1. The user describes a goal or uploads a source.
+2. Cartogen AI identifies the sector, decision question, relevant data, missing information, and risks.
+3. It creates a structured task plan with inputs, tools, assumptions, expected outputs, and validation steps.
+4. The user reviews the plan and confirms or edits it.
+5. The system runs approved tasks through a policy-controlled processing registry.
+6. Results appear as map layers, tables, charts, reports, alerts, or follow-up tasks.
+7. The system records provenance, source dates, parameters, warnings, and limitations.
+8. The user can save the workflow as a reusable project template or scheduled process where authorized.
+
+### Example capabilities
+
+- “Read this situation report and create a map of affected districts, reported partner presence, and service gaps.”
+- “Load this spreadsheet, detect the coordinate fields, validate the CRS, and create a facility layer.”
+- “Compare the health-facility accessibility table with the 3W presence data and prepare a review map.”
+- “Create a humanitarian situation report using these layers and clearly list data freshness and limitations.”
+- “Find missing or inconsistent fields before I publish this map.”
+- “Create tasks for the team to validate the districts with low coverage.”
+
+### Safety and control
+
+- The AI must show its plan before destructive edits, exports, external data access, or expensive jobs.
+- Users can inspect, modify, cancel, or reject proposed tasks.
+- Arbitrary browser-submitted Python or SQL is not allowed.
+- Sensitive humanitarian data receives classification, privacy, and sharing warnings.
+- AI-generated observations must be separated from verified source facts and analyst conclusions.
+- Every generated layer/report/task must retain provenance and limitations.
+
+### MVP AI scope
+
+- project-aware chat;
+- narrative-to-plan conversion;
+- document/table metadata extraction;
+- layer-aware analysis suggestions;
+- visible tool plan;
+- human confirmation;
+- core vector analysis execution;
+- result-layer creation;
+- report/task summary;
+- source and freshness warnings.
+
+### Enterprise AI scope
+
+- organization-approved tools and models;
+- provider routing and budgets;
+- retention policies;
+- audit records;
+- human review checkpoints;
+- shared prompt/workflow templates;
+- role-aware actions;
+- scheduled workflows;
+- private model or deployment options where justified.
+
+## 7. Core feature list
 
 ### A. Account and organization
 
