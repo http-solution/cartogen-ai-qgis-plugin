@@ -1,5 +1,17 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.2 — local/VPS runbook and deployment polish
+
+- Added the complete `LOCAL_VPS_RUNBOOK.md` with local access links, startup/shutdown commands,
+  health checks, Directus setup, Stripe/LiteLLM flow checks, VPS DNS/TLS/backup steps, and
+  production acceptance gates.
+- Documented the local workstation port mappings: website 3001, Directus 8055, LiteLLM 4001.
+- Added Docker build-context exclusions and synchronized the website package version.
+
+## 0.2.1 — container build patch
+
+- Cleaned the website container build with an explicit Node build argument and Docker build context exclusions.
+
 ## 0.2.0 — local SaaS foundation
 
 - Added Docker Compose orchestration for Postgres, Directus CMS/auth, LiteLLM, and the website.
