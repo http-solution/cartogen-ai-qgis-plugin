@@ -98,6 +98,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Optional strict Directus identity mode rejects unauthenticated Phase 1 requests.
 - [x] Strict Directus mode accepts the existing customer session with an ID-only `/users/me` permission.
 - [x] SaaS smoke test explicitly covers register, logout, login, and post-login `/api/me` session restoration.
+- [x] Workspace header displays current identity mode and Directus authentication state.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.
