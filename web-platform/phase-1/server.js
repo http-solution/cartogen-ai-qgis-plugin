@@ -2,7 +2,7 @@ const path = require('node:path');
 const express = require('express');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT || 4178);
+const PORT = Number(process.env.PORT || 4179);
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://cartogen:phase1_local_only_change_me@127.0.0.1:55432/cartogen_phase1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const app = express();
@@ -151,6 +151,59 @@ app.post('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => 
   } finally { client.release(); }
 });
 
+async function executeReviewOutputJob(jobId, organizationId) {
+  const jobResult = await pool.query(
+    `SELECT id, project_id, task_id, operation, status, input, provenance
+       FROM analysis_jobs WHERE id = $1 AND organization_id = $2`,
+    [jobId, organizationId],
+  );
+  if (!jobResult.rowCount) throw new Error('Analysis job not found');
+  const job = jobResult.rows[0];
+  if (job.status !== 'queued') throw new Error(`Analysis job is already ${job.status}`);
+  const layers = await pool.query(
+    `SELECT l.id, l.name, l.source_resource, l.source_modified_at, l.licence,
+            COUNT(f.id)::int AS feature_count, ST_AsGeoJSON(ST_Extent(f.geometry)) AS extent
+       FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
+      WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
+    [job.project_id, organizationId],
+  );
+  const output = {
+    type: 'humanitarian_review_summary',
+    feature_layers: layers.rows,
+    totals: { layers: layers.rowCount, features: layers.rows.reduce((sum, layer) => sum + layer.feature_count, 0) },
+    limitations: [
+      'This Phase 1 result summarizes stored project data; it is not a needs assessment.',
+      'Source freshness and administrative compatibility must be reviewed before publication.',
+    ],
+  };
+  const updated = await pool.query(
+    `UPDATE analysis_jobs SET status = 'completed', output = $1, completed_at = now()
+      WHERE id = $2 AND organization_id = $3
+      RETURNING id, operation, status, output, completed_at`,
+    [output, jobId, organizationId],
+  );
+  return updated.rows[0];
+}
+
+app.get('/api/analysis-jobs/:jobId', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, project_id, task_id, operation, status, input, output, provenance, created_at, completed_at
+       FROM analysis_jobs WHERE id = $1 AND organization_id = $2`,
+    [req.params.jobId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Analysis job not found' });
+  res.json({ job: result.rows[0] });
+});
+
+app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
+  try {
+    const job = await executeReviewOutputJob(req.params.jobId, req.organizationId);
+    res.json({ job });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const result = await pool.query('SELECT PostGIS_Version() AS postgis_version');
@@ -249,4 +302,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan };
+module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob };
