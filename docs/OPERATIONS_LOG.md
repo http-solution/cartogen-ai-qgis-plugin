@@ -89,3 +89,15 @@ The full provider and service implementation remains in this private repository.
   and `docker compose --env-file .env.example config`.
 - Not production-ready yet: live Stripe, SMTP, domain/TLS, provider credentials, backups,
   monitoring, and real end-to-end VPS checkout/webhook/key lifecycle remain acceptance gates.
+
+## Commercial Service v0.2.1 — container and local-runbook patch
+
+- Added clean Docker build argument handling and website `.dockerignore`.
+- Documented local ports, CMS/portal/health URLs, Directus role setup, VPS deployment,
+  troubleshooting, backup, and acceptance steps in `service/LOCAL_VPS_RUNBOOK.md`.
+- Local stack verified with Postgres healthy, Directus `/server/health` returning 200,
+  LiteLLM running on internal port 4000/local host mapping 4001, and website `/healthz`
+  returning 200 on local host mapping 3001.
+- Local website image built successfully with npm audit reporting zero vulnerabilities.
+- Directus public registration remains intentionally blocked until the minimal customer-role
+  permission is configured and verified; no broad anonymous permission was granted.
