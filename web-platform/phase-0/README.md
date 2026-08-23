@@ -9,7 +9,10 @@
 ## Artifacts
 
 - `prototype/index.html` — clickable browser prototype of the Map Workspace.
+- `validation-hub/index.html` — local-only candidate pipeline and Phase 0 exit-gate dashboard.
 - `DESIGN_PARTNER_VALIDATION_PACK.md` — interview script, prototype tasks, measures, and gates.
+- `HUMANITARIAN_PILOT_CHARTER.md` — pilot scope, data approval, and success template.
+- `HUMANITARIAN_CANDIDATE_SCORING.md` — candidate qualification rubric.
 - `ARCHITECTURE_SPIKE.md` — rendering/data/processing/AI architecture experiments.
 - `PROVENANCE_REGISTER.md` — QGIS inspiration, standards, dependency, and original-work record.
 - `LEGAL_TRUST_REVIEW_CHECKLIST.md` — private legal, licensing, privacy, AI, and security checklist.
@@ -27,6 +30,20 @@ Open:
 ```text
 http://127.0.0.1:4173/index.html
 ```
+
+## Run the private Validation Hub
+
+```bash
+python -m http.server 4174 --directory web-platform/phase-0/validation-hub
+```
+
+Open:
+
+```text
+http://127.0.0.1:4174/index.html
+```
+
+The Validation Hub stores candidate records only in the browser's local storage and supports JSON export. Do not enter sensitive personal, beneficiary, or operational data.
 
 ## Prototype flow
 

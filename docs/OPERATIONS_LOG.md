@@ -182,5 +182,15 @@ The full provider and service implementation remains in this private repository.
 - Research references include QGIS GPL-2.0, QGIS Server/OGC services, PostGIS, OGC APIs, MapLibre,
   and OpenLayers.
 - No implementation started; approval gates are required before the build begins.
+
+## Humanitarian Phase 0 exit-gate build
+
+- Added private local Validation Hub: `web-platform/phase-0/validation-hub/index.html`.
+- Added candidate pipeline, stage filtering, workflow/data/pilot/funding signals, prototype score,
+  JSON export, and five-gate readiness dashboard.
+- Added `HUMANITARIAN_PILOT_CHARTER.md` and `HUMANITARIAN_CANDIDATE_SCORING.md`.
+- Validation Hub and original prototype both served successfully with HTTP 200.
+- Candidate data is browser-local only; users must not enter sensitive beneficiary or operational data.
+- Public repository remains unchanged.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
