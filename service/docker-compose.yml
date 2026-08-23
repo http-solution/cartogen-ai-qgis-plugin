@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cartogen}
@@ -16,13 +16,13 @@ services:
       retries: 20
 
   directus:
-    image: ${DIRECTUS_IMAGE:-directus/directus:11}
+    image: ${DIRECTUS_IMAGE:-directus/directus@sha256:eb326f679ae847c0a776f93b972761dc2ebe84980e0b9d274a6bc31cd62809f7}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${DIRECTUS_PORT:-8055}:8055"
+      - "127.0.0.1:${DIRECTUS_PORT:-8055}:8055"
     environment:
       KEY: ${DIRECTUS_KEY:?set DIRECTUS_KEY in .env}
       SECRET: ${DIRECTUS_SECRET:?set DIRECTUS_SECRET in .env}
@@ -35,7 +35,7 @@ services:
       DB_DATABASE: directus
       DB_USER: ${POSTGRES_USER:-cartogen}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      USER_REGISTRATION: ${DIRECTUS_USER_REGISTRATION:-true}
+      USER_REGISTRATION: ${DIRECTUS_USER_REGISTRATION:-false}
       USER_REGISTER_ROLE: ${DIRECTUS_REGISTER_ROLE:-}
       WEBSOCKETS_ENABLED: "true"
     volumes:
@@ -43,14 +43,14 @@ services:
       - directus_extensions:/directus/extensions
 
   litellm:
-    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm:main-latest}
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:8386035f69266617cb88f35380a78e81a66e047a52821c73713666247ff2aba0}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
     ports:
-      - "${LITELLM_PORT:-4000}:4000"
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
       DATABASE_URL: postgresql://${POSTGRES_USER:-cartogen}:${POSTGRES_PASSWORD}@postgres:5432/litellm
@@ -82,7 +82,7 @@ services:
       LITELLM_BASE_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
     ports:
-      - "${WEBSITE_PORT:-3000}:3000"
+      - "127.0.0.1:${WEBSITE_PORT:-3000}:3000"
 
 volumes:
   postgres_data:

@@ -14,6 +14,8 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const crypto = require('crypto');
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
 
@@ -87,6 +89,14 @@ async function setKeyBlocked(apiKey, blocked) {
 }
 
 const app = express();
+app.disable('x-powered-by');
+// Inline static pages currently contain small scripts; keep CSP disabled until
+// those scripts are moved to nonce-bearing external assets.
+app.use(helmet({ contentSecurityPolicy: false }));
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
+const checkoutLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
+app.use('/auth', authLimiter);
+app.use('/create-checkout-session', checkoutLimiter);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Stripe requires the RAW body for webhook signature verification, so this route
@@ -103,11 +113,14 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
   } else if (NODE_ENV === 'development') {
-    // Dev-mode escape hatch: no real Stripe webhook secret configured yet, so trust
-    // the raw JSON body as-is. Lets you test the full flow with `curl` before you've
-    // set up a real Stripe account. See README "Testing the flow without real Stripe keys".
+    // Dev-mode escape hatch: no real Stripe webhook secret configured yet.
+    // Still reject malformed JSON safely; a bad local probe must not crash Node.
     console.warn('[dev] Skipping webhook signature verification (no STRIPE_WEBHOOK_SECRET)');
-    event = JSON.parse(req.body.toString('utf8'));
+    try {
+      event = JSON.parse(req.body.toString('utf8'));
+    } catch {
+      return res.status(400).send('Invalid JSON webhook body');
+    }
   } else {
     return res.status(400).send('Missing STRIPE_WEBHOOK_SECRET in production');
   }
