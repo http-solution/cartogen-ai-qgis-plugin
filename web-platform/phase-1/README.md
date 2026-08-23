@@ -93,6 +93,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Dynamic legend generated from the stored project layer list and synchronized to exports.
 - [x] Multi-page situation report with summary, map/register, limitations, provenance appendix, and version metadata.
 - [x] Export History panel lists persisted HTML/PDF reports with title, type, version, status, and timestamps.
+- [x] Situation-report page numbering is deterministic and embedded as Page N of 4.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.
