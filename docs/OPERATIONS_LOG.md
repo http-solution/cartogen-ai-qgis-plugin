@@ -65,3 +65,14 @@ The full provider and service implementation remains in this private repository.
 - Release asset URL: https://github.com/cartogenai-glitch/cartogen_ai_community/releases/download/v1.4.2/cartogen_ai_v1.4.2.zip
 - Release asset SHA-256: `f159fffc297dc5a1fa52ed69be2c4eb63ff0620cf4982497e1a7d79993b6f999`.
 - No credentials, tokens, or private infrastructure values were recorded in this log.
+
+## Product governance baseline — 2026-08-23
+
+- Significant changes receive a version, changelog entry, test evidence, release decision,
+  and GitHub release record when the release gate is complete.
+- Community/public scope is documented in `cartogen-ai-community-limited/docs/COMMUNITY_SCOPE.md`.
+- Private release governance is documented in `docs/RELEASE_GOVERNANCE.md`.
+- Private commercial strategy is documented in `docs/COMMERCIAL_PRODUCT_STRATEGY.md`.
+- Commercial differentiation is based on managed operations, governance, deployment, integrations,
+  onboarding, support, and service commitments — not artificial removal of core GIS capability.
+- Public and private feature-placement decisions must be recorded before a significant feature ships.
