@@ -6,17 +6,32 @@
 
 ## Run locally
 
-From the repository root:
+Start PostGIS:
 
 ```bash
-python -m http.server 4175 --directory web-platform/phase-1
+docker compose up -d postgis
+```
+
+Start the API-backed workspace:
+
+```bash
+npm install
+npm start
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:4175/index.html
+http://127.0.0.1:4176/index.html
 ```
+
+API health:
+
+```text
+http://127.0.0.1:4176/api/health
+```
+
+The earlier static-only preview remains available on port 4175 if needed, but Phase 1 development should use the API-backed server.
 
 ## Included in this slice
 
@@ -54,7 +69,10 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] AI plan is reviewable before execution.
 - [x] Safe-run state confirms source data is not modified.
 - [x] Structured provenance report can be exported.
-- [ ] Real PostGIS/API persistence.
+- [x] Real PostGIS/API persistence for projects and layers.
+- [x] GeoJSON FeatureCollection ingestion into PostGIS.
+- [x] Tenant/organization boundary on project and layer queries.
+- [x] Spatial extent read-back from PostGIS.
 - [ ] Real geometry rendering from uploaded layers.
 - [ ] Real asynchronous spatial processing.
 - [ ] Real authentication and organization permissions.

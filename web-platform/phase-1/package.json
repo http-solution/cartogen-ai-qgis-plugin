@@ -1,0 +1,15 @@
+{
+  "name": "cartogen-ai-phase1-api",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Private Cartogen AI Workspace Phase 1 API slice",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
+  }
+}

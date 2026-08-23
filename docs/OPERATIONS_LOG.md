@@ -246,5 +246,16 @@ The full provider and service implementation remains in this private repository.
   health facilities loaded from the downloaded public bundle; source catalogue and compatibility warnings visible.
 - Current slice is an interface/data-backed vertical slice. PostGIS/API persistence, real geometry
   rendering, asynchronous processing, authentication, and PDF generation remain next implementation gates.
+
+## Phase 1 PostGIS/API foundation
+
+- Added `web-platform/phase-1/docker-compose.yml` with local PostGIS.
+- Added projects/layers/features schema with PostGIS geometry and GiST indexes.
+- Added `web-platform/phase-1/server.js` API for health, project listing, layer listing, and GeoJSON ingestion.
+- Added organization boundary via request identity; production auth remains a later Directus integration gate.
+- Verified against live PostGIS: health 200, project list 200, GeoJSON ingestion 201, spatial extent read-back,
+  invalid GeoJSON 400.
+- Added Node tests: 4 passed; Phase 1 npm audit: 0 vulnerabilities; Node syntax passed.
+- Corrected Express 5 catch-all compatibility before verification.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
