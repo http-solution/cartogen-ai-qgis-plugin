@@ -49,7 +49,7 @@ async function currentUser(req) {
   const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
   if (!token) return null;
   try {
-    const result = await directus('/users/me', {
+    const result = await directus('/users/me?fields=id,email,first_name,last_name,status,role', {
       headers: { Authorization: `Bearer ${token}` },
     });
     return { ...result.data, accessToken: token };

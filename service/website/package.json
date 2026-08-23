@@ -1,6 +1,6 @@
 {
   "name": "cartogen-ai-service",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "Pricing page + Stripe checkout + webhook that mints LiteLLM virtual API keys",
   "main": "server.js",

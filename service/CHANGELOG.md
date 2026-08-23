@@ -1,5 +1,11 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.4 — portal/session polish
+
+- Portal greeting now falls back safely to the authenticated user ID when optional profile fields are not readable.
+- Verified local Directus registration returns 201, session `/api/me` returns 200, and logout returns 200.
+
+
 ## 0.2.3 — release metadata synchronization
 
 - Synchronized the commercial service package version and changelog after the protected 0.2.2 tag.
