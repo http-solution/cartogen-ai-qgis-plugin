@@ -1,5 +1,15 @@
 # Cartogen AI Commercial Service Changelog
 
+## 0.2.7 — enterprise commercial growth plan
+
+- Added `docs/ENTERPRISE_GROWTH_PLAN.md` with the commercial business-gap assessment,
+  revised packaging model, enterprise task backlog, sector sequence, 90-day plan, and
+  enterprise-readiness definition.
+- Humanitarian aid mapping is the recommended commercial beachhead, followed by engineering,
+  urban planning, and logistics.
+- Added explicit workstreams for product, design partners, pricing, billing, identity,
+  security, reliability, customer success, sales, and measurement.
+
 ## 0.2.6 — security assessment and hardening
 
 - Bound Docker host ports to loopback by default.
