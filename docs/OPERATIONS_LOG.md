@@ -101,3 +101,10 @@ The full provider and service implementation remains in this private repository.
 - Local website image built successfully with npm audit reporting zero vulnerabilities.
 - Directus public registration remains intentionally blocked until the minimal customer-role
   permission is configured and verified; no broad anonymous permission was granted.
+
+## Commercial Service v0.2.3 — release metadata synchronization
+
+- Synchronized the website package version and service changelog after the protected
+  `commercial-v0.2.2` tag.
+- Published private pre-release: https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-v0.2.3
+- Final private service commit: `981333d`.
