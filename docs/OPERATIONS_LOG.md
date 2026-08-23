@@ -169,5 +169,18 @@ The full provider and service implementation remains in this private repository.
   research partnerships, managed service conversion, and emergency mapping retainers.
 - Guardrail: preserve a useful GPL Community edition and monetize operational value rather than
   charging for GPL rights or manufacturing artificial feature deprivation.
+
+## Cartogen AI Web Mapping Platform proposal
+
+- Added private-only `docs/WEB_CARTOGEN_PRODUCT_PLAN.md`.
+- Proposed a new browser-native collaborative mapping workspace inspired by QGIS workflows,
+  not a browser port or source-code reuse of QGIS.
+- MVP focus: humanitarian operational mapping with project/data/layer management, core vector
+  analysis, safe AI plans, collaboration, provenance, reports, permissions, and exports.
+- Explicitly excluded from MVP: full QGIS parity, arbitrary Python/plugin execution, unrestricted
+  Processing provider support, full raster science, and offline parity.
+- Research references include QGIS GPL-2.0, QGIS Server/OGC services, PostGIS, OGC APIs, MapLibre,
+  and OpenLayers.
+- No implementation started; approval gates are required before the build begins.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
