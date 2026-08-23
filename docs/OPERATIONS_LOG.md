@@ -409,5 +409,13 @@ The full provider and service implementation remains in this private repository.
   scale bar, and geometry-backed map frame.
 - Live export verification passed against real stored layers: legend, actual layer name, north arrow,
   scale bar, and SVG geometry all present.
+
+## Phase 1 multi-page situation report
+
+- Added report type selector for single map sheet or multi-page situation report.
+- Added report version metadata.
+- Situation report pages include cover/classification, executive summary, findings,
+  map and layer register, limitations, provenance appendix, and page furniture.
+- Live verification: four HTML pages, real SVG geometry, HTML read-back 200, PDF `%PDF-` output.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
