@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create account — Cartogen AI</title><style>body{font:16px system-ui;max-width:480px;margin:5rem auto;padding:0 1rem;color:#0b2a3d}form{display:grid;gap:.8rem}input,button{padding:.8rem;border:1px solid #ccd6dc;border-radius:.5rem;font:inherit}button{background:#0b2a3d;color:white;cursor:pointer}.muted{color:#5d6b73}#message{min-height:1.5rem;color:#a33}</style></head>
+<body>
+<h1>Create your Cartogen AI account</h1><p class="muted">Use the portal to manage service access and billing.</p>
+<form id="register"><label>First name<input name="first_name" autocomplete="given-name"></label><label>Last name<input name="last_name" autocomplete="family-name"></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" minlength="12" autocomplete="new-password" required></label><button>Create account</button></form>
+<p id="message"></p><p class="muted">Already registered? <a href="/login.html">Sign in</a>.</p>
+<script>document.querySelector('#register').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(f))});const d=await r.json();if(r.ok)location='/portal.html';else document.querySelector('#message').textContent=d.error||'Registration failed';});</script>
+</body></html>

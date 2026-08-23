@@ -15,6 +15,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
+const auth = require('./auth');
 
 const {
   PORT = 3000,
@@ -132,6 +133,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
             email: session.customer_details?.email || session.customer_email || null,
             customerId: session.customer || null,
             subscriptionId: session.subscription || null,
+            directusUserId: session.metadata?.directus_user_id || session.client_reference_id || null,
           });
           console.log(`Issued virtual key for session ${session.id}`);
         } catch (err) {
@@ -175,7 +177,48 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 
 app.use(express.json());
 
-app.post('/create-checkout-session', async (req, res) => {
+app.get('/healthz', (req, res) => res.json({ ok: true, service: 'cartogen-website' }));
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    return res.status(400).json({ error: 'email and password are required' });
+  }
+  try {
+    const result = await auth.login(email.trim(), password);
+    auth.setSession(res, result.data.access_token);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(err.status === 401 ? 401 : 400).json({ error: err.message });
+  }
+});
+
+app.post('/auth/register', async (req, res) => {
+  const { email, password, first_name = '', last_name = '' } = req.body || {};
+  if (typeof email !== 'string' || typeof password !== 'string' || password.length < 12) {
+    return res.status(400).json({ error: 'email and a password of at least 12 characters are required' });
+  }
+  try {
+    await auth.register({ email: email.trim(), password, first_name, last_name });
+    const result = await auth.login(email.trim(), password);
+    auth.setSession(res, result.data.access_token);
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    return res.status(err.status === 401 ? 401 : 400).json({ error: err.message });
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  auth.clearSession(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/me', auth.requireUser, (req, res) => {
+  const { accessToken, ...user } = req.user;
+  res.json({ user });
+});
+
+app.post('/create-checkout-session', auth.requireUser, async (req, res) => {
   if (!stripe || !STRIPE_PRICE_ID) {
     return res.status(500).json({
       error: 'Stripe not configured yet — set STRIPE_SECRET_KEY and STRIPE_PRICE_ID in .env',
@@ -193,7 +236,9 @@ app.post('/create-checkout-session', async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      metadata: { retrieval_token: retrievalToken },
+      client_reference_id: req.user.id,
+      customer_email: req.user.email,
+      metadata: { retrieval_token: retrievalToken, directus_user_id: req.user.id },
       success_url: `${baseUrl}/success.html?token=${retrievalToken}`,
       cancel_url: `${baseUrl}/`,
     });

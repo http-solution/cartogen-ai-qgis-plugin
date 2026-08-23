@@ -1,0 +1,2 @@
+CREATE DATABASE directus;
+CREATE DATABASE litellm;
