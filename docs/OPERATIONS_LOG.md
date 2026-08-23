@@ -291,5 +291,14 @@ The full provider and service implementation remains in this private repository.
   queued analysis job created; task listing 200.
 - This is an explicit provider-independent planning contract, not a claim of live LLM inference.
   Real Cartogen model-gateway execution remains the next adapter integration.
+
+## Phase 1 Cartogen gateway adapter
+
+- Added OpenAI-compatible gateway adapter behind `CARTOGEN_AI_PLANNER_MODE=live`.
+- Added structured JSON response validation and fenced-JSON handling.
+- Added safe deterministic fallback when the live gateway key/configuration is unavailable.
+- Added unit coverage for valid and malformed gateway plan responses.
+- Gateway `/v1/models` is reachable locally with the active Compose credential context; live chat
+  completion is not yet certified because host/example key configuration differs from the active gateway context.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

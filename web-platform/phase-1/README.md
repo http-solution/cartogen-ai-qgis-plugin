@@ -77,6 +77,8 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Geometry read-back and SVG rendering for the workspace map.
 - [x] Narrative/document/source context creates a structured reviewable plan.
 - [x] Approved plan creates a persisted workspace task and queued analysis job.
+- [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
+- [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.
 - [ ] Real authentication and organization permissions.
 - [ ] Real PDF/print export engine.
