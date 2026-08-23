@@ -271,6 +271,56 @@ app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, 
   } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function buildServerExportHtml(project, layers, layout) {
+  const title = layout.title || project.name;
+  const paper = layout.paper || 'A4';
+  const orientation = layout.orientation || 'landscape';
+  const author = layout.author || 'Cartogen AI Humanitarian Mapping';
+  const warnings = layout.include_warnings !== false;
+  const sourceItems = layers.map(layer => `<li><b>${escapeHtml(layer.name)}</b> — ${escapeHtml(layer.source_resource || 'project layer')} — ${layer.feature_count} features</li>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Cartogen AI</title><style>@page{size:${escapeHtml(paper)} ${escapeHtml(orientation)};margin:12mm}body{font-family:Arial,sans-serif;color:#10232b;margin:0}.sheet{min-height:180mm;display:grid;grid-template-rows:auto 1fr auto;gap:7mm}.header{border-bottom:3px solid #087f7a;padding-bottom:4mm;display:flex;justify-content:space-between}.brand{font-weight:800;color:#087f7a;font-size:18px}.title{font-size:23px;font-weight:800;margin-top:2mm}.meta,.footer{font-size:9px;color:#627276}.body{display:grid;grid-template-columns:1fr 65mm;gap:6mm}.map{border:1px solid #9db4b1;background:#e4eeea;min-height:105mm;display:grid;place-items:center;color:#557174}.side{border:1px solid #cddbd9;padding:4mm;font-size:9px}.side h3{font-size:11px;color:#087f7a;margin:0 0 2mm}.side ul{padding-left:4mm}.warning{background:#fff8e7;border:1px solid #e5c978;padding:2mm;margin-top:3mm}.footer{border-top:1px solid #cddbd9;padding-top:3mm;display:flex;justify-content:space-between}</style></head><body><main class="sheet"><header class="header"><div><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="title">${escapeHtml(title)}</div><div class="meta">Prepared by ${escapeHtml(author)} · ${new Date().toISOString().slice(0,10)} · CRS ${escapeHtml(project.crs)}</div></div><div class="meta">${escapeHtml(project.sector)}<br>Phase 1 review export</div></header><div class="body"><section class="map">Map geometry is available in the interactive workspace</section><aside class="side"><h3>Layers and sources</h3><ul>${sourceItems}</ul>${warnings?'<h3>Data quality</h3><div class="warning">Review source freshness, administrative compatibility, and humanitarian limitations before publication.</div><div class="warning">This is a screening result, not a needs assessment or operational targeting decision.</div>':''}</aside></div><footer class="footer"><span>Source dates, licences, assumptions, and limitations accompany this output.</span><span>${escapeHtml(author)} · Cartogen AI</span></footer></main></body></html>`;
+}
+
+app.post('/api/projects/:projectId/exports', requireIdentity, async (req, res) => {
+  const project = await pool.query('SELECT id, name, sector, crs FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  const layout = req.body.layout || {};
+  const layers = await pool.query(
+    `SELECT l.id, l.name, l.source_resource, COUNT(f.id)::int AS feature_count
+       FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
+      WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
+    [req.params.projectId, req.organizationId],
+  );
+  const provenance = { created_by: req.organizationId, source_layer_count: layers.rowCount, generated_at: new Date().toISOString() };
+  const result = await pool.query(
+    `INSERT INTO export_jobs (project_id, organization_id, format, status, layout, provenance, completed_at)
+     VALUES ($1,$2,'html','completed',$3,$4,now()) RETURNING id, format, status, created_at, completed_at`,
+    [req.params.projectId, req.organizationId, layout, provenance],
+  );
+  res.status(201).json({ export: result.rows[0], download_url: `/api/exports/${result.rows[0].id}/html` });
+});
+
+app.get('/api/exports/:exportId/html', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT e.id, e.layout, p.id AS project_id, p.name, p.sector, p.crs
+       FROM export_jobs e JOIN projects p ON p.id = e.project_id
+      WHERE e.id = $1 AND e.organization_id = $2`,
+    [req.params.exportId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).send('Export not found');
+  const layers = await pool.query(
+    `SELECT l.name, l.source_resource, COUNT(f.id)::int AS feature_count
+       FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
+      WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
+    [result.rows[0].project_id, req.organizationId],
+  );
+  res.type('html').send(buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout));
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const result = await pool.query('SELECT PostGIS_Version() AS postgis_version');
