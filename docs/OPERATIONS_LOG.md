@@ -436,5 +436,16 @@ The full provider and service implementation remains in this private repository.
   and CONTROLLED authorised-user outputs.
 - Classification is stored in export layout JSON and rendered on the situation-report cover.
 - Live verification: `INTERNAL REVIEW` and report version `v0.3` read back in generated HTML.
+
+## Phase 1 Directus identity boundary
+
+- Added optional `PHASE1_IDENTITY_MODE=directus`.
+- Strict mode validates the existing `cartogen_session` HTTP-only cookie against Directus `/users/me`.
+- Strict mode requires `PHASE1_DIRECTUS_ORGANIZATION_ID`; the API never accepts the demo organization header in this mode.
+- Added `GET /api/auth/status` with non-secret mode/authentication metadata.
+- Verification: demo header mode authenticated; strict Directus mode without cookie returned unauthenticated;
+  protected plan request returned HTTP 401.
+- Full authenticated read-back remains user-dependent until a real Directus browser session and confirmed
+  organization mapping are available.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
