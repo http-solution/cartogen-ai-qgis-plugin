@@ -401,5 +401,13 @@ The full provider and service implementation remains in this private repository.
 - Added visible north arrow and scale bar to the interactive map surface.
 - Server-backed exports retain the geometry-backed map frame and report furniture.
 - Verification: composition/static checks passed; eight Node tests and npm audit remain green.
+
+## Phase 1 dynamic legend composition
+
+- Workspace legend now derives from the actual stored project layer list and feature counts.
+- Server HTML/PDF exports include generated legend entries, layer/source metadata, north arrow,
+  scale bar, and geometry-backed map frame.
+- Live export verification passed against real stored layers: legend, actual layer name, north arrow,
+  scale bar, and SVG geometry all present.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
