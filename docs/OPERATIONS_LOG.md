@@ -156,5 +156,8 @@ The full provider and service implementation remains in this private repository.
   transport, public safety, research, real estate, and defense/intelligence.
 - Public guide: `docs/SECTOR_WORKFLOWS.md`.
 - Private strategy: `docs/SECTOR_PRODUCT_STRATEGY.md`.
+- Enterprise business-gap assessment and prioritized delivery backlog: `docs/ENTERPRISE_GROWTH_PLAN.md`.
+- Current recommendation: treat humanitarian aid mapping as the commercial beachhead and
+  validate a paid Starter package before broad enterprise platform expansion.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
