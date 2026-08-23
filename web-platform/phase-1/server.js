@@ -23,10 +23,10 @@ function parseCookies(header = '') {
 async function directusUser(req) {
   const token = parseCookies(req.headers.cookie)[DIRECTUS_COOKIE];
   if (!token) return null;
-  const response = await fetch(`${DIRECTUS_URL}/users/me?fields=id,email,first_name,last_name,status,role`, { headers: { Authorization: `Bearer ${token}` } });
+  const response = await fetch(`${DIRECTUS_URL}/users/me?fields=id`, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) return null;
   const body = await response.json();
-  if (!body?.data || body.data.status !== 'active') return null;
+  if (!body?.data?.id) return null;
   return body.data;
 }
 
