@@ -469,6 +469,8 @@ The full provider and service implementation remains in this private repository.
 - Full live use case passed through strict Directus mode: registration 201, auth true, plan 200,
   task 201, review execution 200, buffer execution 200, export 201, HTML 200, PDF `%PDF-`,
   export history 200 with ten persisted exports.
+- Workspace identity badge added and live demo-mode verification passed: page 200, `authStatus` present,
+  `/api/auth/status` returned authenticated demo mode.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.
