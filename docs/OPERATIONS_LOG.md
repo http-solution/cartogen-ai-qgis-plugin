@@ -263,7 +263,7 @@ The full provider and service implementation remains in this private repository.
 - Added browser GeoJSON upload control to `web-platform/phase-1/index.html`.
 - Added `GET /api/layers/:layerId/geojson` for server-side geometry read-back.
 - Verified on the corrected API listener: health 200, upload 201, GeoJSON FeatureCollection read-back 200 with geometry coordinates preserved.
-- Development port is documented as 4177 because an orphaned earlier listener occupied 4176; no forced process termination was performed.
+- Development port is documented as 4178 because earlier orphaned listeners occupied 4176/4177; no forced process termination was performed.
 
 ## Phase 1 geometry rendering
 
@@ -281,5 +281,15 @@ The full provider and service implementation remains in this private repository.
   execute approved tools, create layers/reports/tasks, and preserve provenance and limitations.
 - Current Phase 1 UI has the reviewable-plan state; document ingestion, real tool execution, and task creation
   remain implementation slices rather than completed capabilities.
+
+## Phase 1 narrative-to-task planning slice
+
+- Added deterministic planning adapter `POST /api/ai/plan` for narrative/document/source context.
+- Added `workspace_tasks` and `analysis_jobs` PostGIS database tables.
+- Added task creation with proposed/approved states and queued analysis jobs.
+- Verified live: plan 200 with humanitarian sector and document/coverage steps; approved task 201;
+  queued analysis job created; task listing 200.
+- This is an explicit provider-independent planning contract, not a claim of live LLM inference.
+  Real Cartogen model-gateway execution remains the next adapter integration.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

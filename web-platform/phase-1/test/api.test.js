@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection } = require('../server');
+const { normalizeFeatureCollection, buildTaskPlan } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -33,4 +33,21 @@ test('rejects more than 1000 features', () => {
     properties: {},
   }));
   assert.throws(() => normalizeFeatureCollection({ type: 'FeatureCollection', features }), /1000/);
+});
+
+test('builds a humanitarian review plan from narrative and document context', () => {
+  const plan = buildTaskPlan({
+    prompt: 'Review WASH coverage gaps and partner presence',
+    documentText: 'Situation report for Pakistan',
+    sourceNames: ['3w.csv', 'hno.xlsx'],
+  });
+  assert.equal(plan.sector, 'humanitarian');
+  assert.equal(plan.mode, 'deterministic-planning-adapter');
+  assert.ok(plan.steps.some(step => step.tool === 'extract_document_context'));
+  assert.ok(plan.steps.some(step => step.tool === 'screen_service_coverage'));
+  assert.deepEqual(plan.source_names, ['3w.csv', 'hno.xlsx']);
+});
+
+test('requires content before creating a plan', () => {
+  assert.throws(() => buildTaskPlan({}), /required/);
 });

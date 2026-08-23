@@ -2,7 +2,7 @@ const path = require('node:path');
 const express = require('express');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT || 4177);
+const PORT = Number(process.env.PORT || 4178);
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://cartogen:phase1_local_only_change_me@127.0.0.1:55432/cartogen_phase1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const app = express();
@@ -23,6 +23,33 @@ function requireIdentity(req, res, next) {
   next();
 }
 
+function buildTaskPlan({ prompt = '', documentText = '', sourceNames = [] }) {
+  const text = `${prompt}\n${documentText}`.trim();
+  if (!text) throw new Error('A narrative, document text, or data context is required');
+  const lower = text.toLowerCase();
+  const sector = lower.includes('wash') || lower.includes('humanitarian') || lower.includes('3w') ? 'humanitarian' : 'general';
+  const steps = [
+    { id: 1, tool: 'validate_sources', title: 'Validate sources and assumptions', requires_confirmation: false },
+  ];
+  if (lower.includes('document') || documentText) steps.push({ id: steps.length + 1, tool: 'extract_document_context', title: 'Extract locations, dates, indicators, and data limitations', requires_confirmation: false });
+  if (lower.includes('coverage') || lower.includes('gap') || lower.includes('presence') || lower.includes('access')) steps.push({ id: steps.length + 1, tool: 'screen_service_coverage', title: 'Compare reported presence with service/access context', requires_confirmation: true });
+  else steps.push({ id: steps.length + 1, tool: 'inspect_project_layers', title: 'Inspect relevant project layers and attributes', requires_confirmation: false });
+  steps.push({ id: steps.length + 1, tool: 'create_review_output', title: 'Create a review layer, table, and provenance summary', requires_confirmation: true });
+  return {
+    planner: 'cartogen-local-planner-v1',
+    mode: 'deterministic-planning-adapter',
+    sector,
+    objective: prompt || 'Analyze the supplied document and project data',
+    source_names: sourceNames,
+    steps,
+    warnings: [
+      'This is a reviewable plan, not an operational decision.',
+      'Source freshness, compatibility, and humanitarian data-responsibility checks are required before publication.',
+    ],
+    expected_outputs: ['review map/layer', 'summary table', 'provenance and limitations'],
+  };
+}
+
 function normalizeFeatureCollection(payload) {
   if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) {
     throw new Error('Expected a GeoJSON FeatureCollection');
@@ -33,6 +60,56 @@ function normalizeFeatureCollection(payload) {
     return { geometry: feature.geometry, properties: feature.properties || {} };
   });
 }
+
+app.post('/api/ai/plan', requireIdentity, async (req, res) => {
+  try {
+    const plan = buildTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] });
+    res.json({ plan });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, title, description, status, plan, provenance, created_at, updated_at
+       FROM workspace_tasks WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC`,
+    [req.params.projectId, req.organizationId],
+  );
+  res.json({ tasks: result.rows });
+});
+
+app.post('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => {
+  const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  let plan;
+  try { plan = req.body.plan || buildTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] }); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const approved = req.body.approved === true;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const task = await client.query(
+      `INSERT INTO workspace_tasks (project_id, organization_id, title, description, status, plan, provenance)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, title, status, plan, created_at`,
+      [req.params.projectId, req.organizationId, req.body.title || 'Cartogen AI humanitarian analysis', plan.objective || 'Reviewable analysis task', approved ? 'approved' : 'proposed', plan, { planner: plan.planner, mode: plan.mode }],
+    );
+    let job = null;
+    if (approved) {
+      const created = await client.query(
+        `INSERT INTO analysis_jobs (project_id, organization_id, task_id, operation, status, input, provenance)
+         VALUES ($1,$2,$3,$4,'queued',$5,$6) RETURNING id, operation, status, created_at`,
+        [req.params.projectId, req.organizationId, task.rows[0].id, plan.steps.at(-1)?.tool || 'review_output', { plan }, { planner: plan.planner, mode: plan.mode }],
+      );
+      job = created.rows[0];
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ task: task.rows[0], job });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: 'Task creation failed', detail: error.message });
+  } finally { client.release(); }
+});
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -132,4 +209,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection };
+module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan };

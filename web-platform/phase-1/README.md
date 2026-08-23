@@ -22,13 +22,13 @@ npm start
 Open:
 
 ```text
-http://127.0.0.1:4177/index.html
+http://127.0.0.1:4178/index.html
 ```
 
 API health:
 
 ```text
-http://127.0.0.1:4177/api/health
+http://127.0.0.1:4178/api/health
 ```
 
 The earlier static-only preview remains available on port 4175 if needed, but Phase 1 development should use the API-backed server.
@@ -75,6 +75,8 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Spatial extent read-back from PostGIS.
 - [x] Browser GeoJSON upload to the API.
 - [x] Geometry read-back and SVG rendering for the workspace map.
+- [x] Narrative/document/source context creates a structured reviewable plan.
+- [x] Approved plan creates a persisted workspace task and queued analysis job.
 - [ ] Real asynchronous spatial processing.
 - [ ] Real authentication and organization permissions.
 - [ ] Real PDF/print export engine.
