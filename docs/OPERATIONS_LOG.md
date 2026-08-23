@@ -395,5 +395,11 @@ The full provider and service implementation remains in this private repository.
 - Added `Download PDF` to the Reports & exports interface.
 - The button creates a persisted export configuration and opens the server PDF endpoint.
 - The browser workflow now exposes print preview, HTML download, and PDF download separately.
+
+## Phase 1 dynamic map composition
+
+- Added visible north arrow and scale bar to the interactive map surface.
+- Server-backed exports retain the geometry-backed map frame and report furniture.
+- Verification: composition/static checks passed; eight Node tests and npm audit remain green.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

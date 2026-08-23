@@ -89,6 +89,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Server export embeds stored PostGIS geometry as SVG in the report map frame.
 - [x] Server-backed PDF rendering with configured paper size and orientation.
 - [x] Reports UI exposes Download PDF and uses the persisted export job.
+- [x] Dynamic north arrow and scale bar displayed in the workspace map.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.
