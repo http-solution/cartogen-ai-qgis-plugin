@@ -1,4 +1,5 @@
-FROM node:${NODE_VERSION:-22}-alpine
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
