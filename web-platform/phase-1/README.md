@@ -73,7 +73,8 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] GeoJSON FeatureCollection ingestion into PostGIS.
 - [x] Tenant/organization boundary on project and layer queries.
 - [x] Spatial extent read-back from PostGIS.
-- [ ] Real geometry rendering from uploaded layers.
+- [x] Browser GeoJSON upload to the API.
+- [x] Geometry read-back and SVG rendering for the workspace map.
 - [ ] Real asynchronous spatial processing.
 - [ ] Real authentication and organization permissions.
 - [ ] Real PDF/print export engine.
