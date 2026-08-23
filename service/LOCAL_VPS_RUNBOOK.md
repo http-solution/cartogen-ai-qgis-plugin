@@ -143,9 +143,7 @@ Postgres is intentionally not published to the host by default. The databases ar
 7. Configure SMTP before enabling production email verification and password reset.
 8. Put the customer-role UUID into `DIRECTUS_REGISTER_ROLE` in the deployment `.env`.
 
-Current local status: Directus and the website are healthy, but the public registration
-permission still requires this explicit role/policy configuration. Do not solve it by
-granting anonymous administrator permissions.
+The local stack now has Directus registration enabled for the customer role and the website registration/session flow has been verified. The customer self-read policy for optional profile fields should still be reviewed in the Directus admin UI before production; the portal safely falls back to the user ID when those fields are not readable.
 
 ## 6. Website/auth smoke test
 

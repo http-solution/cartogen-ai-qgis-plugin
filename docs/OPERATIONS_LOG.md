@@ -108,3 +108,10 @@ The full provider and service implementation remains in this private repository.
   `commercial-v0.2.2` tag.
 - Published private pre-release: https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-v0.2.3
 - Final private service commit: `981333d`.
+
+## Commercial Service v0.2.4 — portal/session polish
+
+- Portal greeting now falls back safely to the authenticated Directus user ID when optional
+  profile fields are not readable by the customer policy.
+- Local Directus registration/session smoke test verified: registration 201, `/api/me` 200,
+  logout 200.
