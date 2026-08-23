@@ -22,13 +22,13 @@ npm start
 Open:
 
 ```text
-http://127.0.0.1:4178/index.html
+http://127.0.0.1:4179/index.html
 ```
 
 API health:
 
 ```text
-http://127.0.0.1:4178/api/health
+http://127.0.0.1:4179/api/health
 ```
 
 The earlier static-only preview remains available on port 4175 if needed, but Phase 1 development should use the API-backed server.
@@ -77,6 +77,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Geometry read-back and SVG rendering for the workspace map.
 - [x] Narrative/document/source context creates a structured reviewable plan.
 - [x] Approved plan creates a persisted workspace task and queued analysis job.
+- [x] Approved queued job executes a persisted humanitarian review summary.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.

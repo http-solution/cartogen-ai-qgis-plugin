@@ -263,7 +263,7 @@ The full provider and service implementation remains in this private repository.
 - Added browser GeoJSON upload control to `web-platform/phase-1/index.html`.
 - Added `GET /api/layers/:layerId/geojson` for server-side geometry read-back.
 - Verified on the corrected API listener: health 200, upload 201, GeoJSON FeatureCollection read-back 200 with geometry coordinates preserved.
-- Development port is documented as 4178 because earlier orphaned listeners occupied 4176/4177; no forced process termination was performed.
+- Development port is documented as 4179 because earlier orphaned listeners occupied 4176/4177/4178; no forced process termination was performed.
 
 ## Phase 1 geometry rendering
 
@@ -300,5 +300,12 @@ The full provider and service implementation remains in this private repository.
 - Added unit coverage for valid and malformed gateway plan responses.
 - Gateway `/v1/models` is reachable locally with the active Compose credential context; live chat
   completion is not yet certified because host/example key configuration differs from the active gateway context.
+
+## Phase 1 approved-task executor
+
+- Added `POST /api/analysis-jobs/:jobId/run` and `GET /api/analysis-jobs/:jobId`.
+- Implemented the first safe executor: `create_review_output` reads stored PostGIS layers,
+  feature counts, extents, source metadata, and limitations into a persisted humanitarian review summary.
+- Verified live: plan 200, task approval 201, job execution 200/completed, job read-back 200.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
