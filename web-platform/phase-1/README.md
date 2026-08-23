@@ -22,13 +22,13 @@ npm start
 Open:
 
 ```text
-http://127.0.0.1:4176/index.html
+http://127.0.0.1:4177/index.html
 ```
 
 API health:
 
 ```text
-http://127.0.0.1:4176/api/health
+http://127.0.0.1:4177/api/health
 ```
 
 The earlier static-only preview remains available on port 4175 if needed, but Phase 1 development should use the API-backed server.

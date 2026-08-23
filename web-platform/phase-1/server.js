@@ -2,7 +2,7 @@ const path = require('node:path');
 const express = require('express');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT || 4176);
+const PORT = Number(process.env.PORT || 4177);
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://cartogen:phase1_local_only_change_me@127.0.0.1:55432/cartogen_phase1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const app = express();
@@ -73,6 +73,19 @@ app.get('/api/projects/:projectId/layers', requireIdentity, async (req, res) => 
     [req.params.projectId, req.organizationId],
   );
   res.json({ layers: result.rows });
+});
+
+app.get('/api/layers/:layerId/geojson', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+       FROM project_layer_features f
+       JOIN project_layers l ON l.id = f.layer_id
+      WHERE f.layer_id = $1 AND f.organization_id = $2 AND l.organization_id = $2
+      ORDER BY f.id`,
+    [req.params.layerId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Layer not found or empty' });
+  res.json({ type: 'FeatureCollection', features: result.rows.map(row => ({ type: 'Feature', geometry: row.geometry, properties: row.properties })) });
 });
 
 app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) => {
