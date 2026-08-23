@@ -133,3 +133,5 @@ The full provider and service implementation remains in this private repository.
 - Normalized commercial provider labels to Hosted/Local terminology and clarified Settings as `Connection`.
 - Updated help copy and public/private changelogs.
 - Verification: Community suite 620 passed; private suite 691 passed; both Python compile checks passed.
+- Public Community release: [v1.4.3](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.3), commit `d5a980b`, ZIP SHA-256 `c5519c0b7e4b8e9e8faf299531f0812a498448e15420954cea5332acbc304a2a`.
+- Private commercial-plugin release: [commercial-plugin-v1.4.3](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.3), commit `cb54e32`.
