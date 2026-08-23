@@ -377,5 +377,10 @@ The full provider and service implementation remains in this private repository.
 - Added `POST /api/projects/:projectId/exports` and `GET /api/exports/:exportId/html`.
 - UI Download HTML now persists the selected layout configuration before serving the artifact.
 - Verified live: export creation 201/completed, HTML read-back 200, custom title/source/warning content preserved.
+
+## Phase 1 geometry-backed server export
+
+- Server export now queries stored PostGIS feature geometries and embeds an SVG map frame.
+- Export verification: SVG present, Polygon geometry present, placeholder map removed.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.

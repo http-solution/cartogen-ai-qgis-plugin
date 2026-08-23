@@ -275,14 +275,38 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
-function buildServerExportHtml(project, layers, layout) {
+function buildExportSvg(features) {
+  const coordinates = [];
+  const collect = geometry => {
+    if (!geometry) return;
+    if (geometry.type === 'Point') coordinates.push(geometry.coordinates);
+    else if (geometry.coordinates) geometry.coordinates.forEach(item => Array.isArray(item[0]) ? collect({ type: geometry.type, coordinates: item }) : coordinates.push(item));
+  };
+  features.forEach(feature => collect(feature.geometry));
+  if (!coordinates.length) return '<svg viewBox="0 0 100 100" aria-label="No geometry available"><text x="50" y="50" text-anchor="middle" fill="#557174">No geometry available</text></svg>';
+  const xs = coordinates.map(c => c[0]); const ys = coordinates.map(c => c[1]);
+  const minX = Math.min(...xs); const maxX = Math.max(...xs); const minY = Math.min(...ys); const maxY = Math.max(...ys);
+  const dx = maxX - minX || 1; const dy = maxY - minY || 1;
+  const point = coordinate => [((coordinate[0] - minX) / dx) * 88 + 6, 100 - (((coordinate[1] - minY) / dy) * 88 + 6)];
+  const shapes = [];
+  const draw = geometry => {
+    if (geometry.type === 'Point') { const [x, y] = point(geometry.coordinates); shapes.push(`<circle cx="${x}" cy="${y}" r="1.4"/>`); }
+    else if (geometry.type === 'LineString') shapes.push(`<polyline points="${geometry.coordinates.map(c => point(c).join(',')).join(' ')}"/>`);
+    else if (geometry.type === 'Polygon') geometry.coordinates.forEach(ring => shapes.push(`<path d="M ${ring.map(c => point(c).join(' L '))} Z"/>`));
+    else if (geometry.coordinates) geometry.coordinates.forEach(item => draw({ type: geometry.type.replace('Multi', ''), coordinates: item }));
+  };
+  features.forEach(feature => draw(feature.geometry));
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Project geometry">${shapes.join('')}</svg>`;
+}
+
+function buildServerExportHtml(project, layers, layout, features = []) {
   const title = layout.title || project.name;
   const paper = layout.paper || 'A4';
   const orientation = layout.orientation || 'landscape';
   const author = layout.author || 'Cartogen AI Humanitarian Mapping';
   const warnings = layout.include_warnings !== false;
   const sourceItems = layers.map(layer => `<li><b>${escapeHtml(layer.name)}</b> — ${escapeHtml(layer.source_resource || 'project layer')} — ${layer.feature_count} features</li>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Cartogen AI</title><style>@page{size:${escapeHtml(paper)} ${escapeHtml(orientation)};margin:12mm}body{font-family:Arial,sans-serif;color:#10232b;margin:0}.sheet{min-height:180mm;display:grid;grid-template-rows:auto 1fr auto;gap:7mm}.header{border-bottom:3px solid #087f7a;padding-bottom:4mm;display:flex;justify-content:space-between}.brand{font-weight:800;color:#087f7a;font-size:18px}.title{font-size:23px;font-weight:800;margin-top:2mm}.meta,.footer{font-size:9px;color:#627276}.body{display:grid;grid-template-columns:1fr 65mm;gap:6mm}.map{border:1px solid #9db4b1;background:#e4eeea;min-height:105mm;display:grid;place-items:center;color:#557174}.side{border:1px solid #cddbd9;padding:4mm;font-size:9px}.side h3{font-size:11px;color:#087f7a;margin:0 0 2mm}.side ul{padding-left:4mm}.warning{background:#fff8e7;border:1px solid #e5c978;padding:2mm;margin-top:3mm}.footer{border-top:1px solid #cddbd9;padding-top:3mm;display:flex;justify-content:space-between}</style></head><body><main class="sheet"><header class="header"><div><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="title">${escapeHtml(title)}</div><div class="meta">Prepared by ${escapeHtml(author)} · ${new Date().toISOString().slice(0,10)} · CRS ${escapeHtml(project.crs)}</div></div><div class="meta">${escapeHtml(project.sector)}<br>Phase 1 review export</div></header><div class="body"><section class="map">Map geometry is available in the interactive workspace</section><aside class="side"><h3>Layers and sources</h3><ul>${sourceItems}</ul>${warnings?'<h3>Data quality</h3><div class="warning">Review source freshness, administrative compatibility, and humanitarian limitations before publication.</div><div class="warning">This is a screening result, not a needs assessment or operational targeting decision.</div>':''}</aside></div><footer class="footer"><span>Source dates, licences, assumptions, and limitations accompany this output.</span><span>${escapeHtml(author)} · Cartogen AI</span></footer></main></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Cartogen AI</title><style>@page{size:${escapeHtml(paper)} ${escapeHtml(orientation)};margin:12mm}body{font-family:Arial,sans-serif;color:#10232b;margin:0}.sheet{min-height:180mm;display:grid;grid-template-rows:auto 1fr auto;gap:7mm}.header{border-bottom:3px solid #087f7a;padding-bottom:4mm;display:flex;justify-content:space-between}.brand{font-weight:800;color:#087f7a;font-size:18px}.title{font-size:23px;font-weight:800;margin-top:2mm}.meta,.footer{font-size:9px;color:#627276}.body{display:grid;grid-template-columns:1fr 65mm;gap:6mm}.map{border:1px solid #9db4b1;background:#e4eeea;min-height:105mm;display:grid;place-items:center;color:#557174}.map svg{width:100%;height:100%;display:block}.map circle{fill:#087f7a;stroke:#fff;stroke-width:.7}.map path{fill:#d96a5466;stroke:#b04c3b;stroke-width:.6}.map polyline{fill:none;stroke:#087f7a;stroke-width:.6}.side{border:1px solid #cddbd9;padding:4mm;font-size:9px}.side h3{font-size:11px;color:#087f7a;margin:0 0 2mm}.side ul{padding-left:4mm}.warning{background:#fff8e7;border:1px solid #e5c978;padding:2mm;margin-top:3mm}.footer{border-top:1px solid #cddbd9;padding-top:3mm;display:flex;justify-content:space-between}</style></head><body><main class="sheet"><header class="header"><div><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="title">${escapeHtml(title)}</div><div class="meta">Prepared by ${escapeHtml(author)} · ${new Date().toISOString().slice(0,10)} · CRS ${escapeHtml(project.crs)}</div></div><div class="meta">${escapeHtml(project.sector)}<br>Phase 1 review export</div></header><div class="body"><section class="map">${buildExportSvg(features)}</section><aside class="side"><h3>Layers and sources</h3><ul>${sourceItems}</ul>${warnings?'<h3>Data quality</h3><div class="warning">Review source freshness, administrative compatibility, and humanitarian limitations before publication.</div><div class="warning">This is a screening result, not a needs assessment or operational targeting decision.</div>':''}</aside></div><footer class="footer"><span>Source dates, licences, assumptions, and limitations accompany this output.</span><span>${escapeHtml(author)} · Cartogen AI</span></footer></main></body></html>`;
 }
 
 app.post('/api/projects/:projectId/exports', requireIdentity, async (req, res) => {
@@ -318,7 +342,14 @@ app.get('/api/exports/:exportId/html', requireIdentity, async (req, res) => {
       WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
     [result.rows[0].project_id, req.organizationId],
   );
-  res.type('html').send(buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout));
+  const features = await pool.query(
+    `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+       FROM project_layer_features f
+      WHERE f.project_id = $1 AND f.organization_id = $2
+      ORDER BY f.id LIMIT 2000`,
+    [result.rows[0].project_id, req.organizationId],
+  );
+  res.type('html').send(buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout, features.rows));
 });
 
 app.get('/api/health', async (_req, res) => {
