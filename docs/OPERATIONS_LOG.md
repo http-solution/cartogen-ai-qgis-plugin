@@ -389,5 +389,11 @@ The full provider and service implementation remains in this private repository.
 - Added `GET /api/exports/:exportId/pdf`.
 - PDF honours stored paper size and orientation and includes the geometry-backed report layout.
 - Live verification: HTTP 200, `application/pdf`, valid `%PDF-` signature, 59,456-byte output.
+
+## Phase 1 visible PDF export
+
+- Added `Download PDF` to the Reports & exports interface.
+- The button creates a persisted export configuration and opens the server PDF endpoint.
+- The browser workflow now exposes print preview, HTML download, and PDF download separately.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
