@@ -84,6 +84,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Attribute table filters rendered feature properties and exports filtered GeoJSON.
 - [x] Style and Legend panel applies thematic presets and opacity to rendered geometry.
 - [x] A4 print preview and downloadable HTML humanitarian report layout.
+- [x] Configurable paper size, orientation, title, author, and warning visibility.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [ ] Real asynchronous spatial processing.

@@ -363,5 +363,12 @@ The full provider and service implementation remains in this private repository.
 - Report includes title, subtitle/date, CRS, map frame, legend, source/resource dates,
   data-quality warnings, limitations, and humanitarian screening disclaimer.
 - Embedded script token diagnostic passes; eight Node tests and npm audit remain green.
+
+## Phase 1 configurable print-layout designer
+
+- Added report controls for A4/A3/A2/A1/A0, portrait/landscape, title, author/team,
+  and warning/limitation visibility.
+- Print preview and downloaded HTML now consume the selected report configuration.
+- Verification: report-control/static checks passed; eight Node tests and npm audit remain green.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
