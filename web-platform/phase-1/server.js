@@ -404,6 +404,26 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
   }
 });
 
+app.get('/api/projects/:projectId/exports', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, format, status, layout->>'title' AS title, layout->>'report_type' AS report_type,
+            layout->>'report_version' AS report_version, created_at, completed_at
+       FROM export_jobs WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC LIMIT 50`,
+    [req.params.projectId, req.organizationId],
+  );
+  res.json({ exports: result.rows });
+});
+
+app.get('/api/projects/:projectId/exports/:exportId', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, format, status, layout, provenance, created_at, completed_at
+       FROM export_jobs WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
+    [req.params.exportId, req.params.projectId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Export not found' });
+  res.json({ export: result.rows[0] });
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const result = await pool.query('SELECT PostGIS_Version() AS postgis_version');
