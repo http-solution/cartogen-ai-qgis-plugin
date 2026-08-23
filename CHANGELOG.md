@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.3] — UI terminology and navigation polish
+
+- Standardized the main tabs as **Chat**, **Tasks & Notes**, and **Help & Guide** in both plugin editions.
+- Normalized commercial provider labels to Hosted/Local terminology.
+- Clarified Settings connection naming and project-notes labels.
+- Automated UI regression suites remain green: 691 private tests and 620 Community tests.
+
+
 All notable changes to Cartogen AI are documented here, newest first. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/).
 

@@ -20,14 +20,14 @@ def _build_help_html():
     <h3>🗺️ Cartogen AI — Help</h3>
     <p>Ask questions or give instructions in plain English in the <b>Chat</b> tab. The assistant
     can inspect your loaded layers, run real PyQGIS/Processing operations, and build maps for
-    you — every action it takes is visible in the <b>Tasks &amp; Memory</b> tab.</p>
+    you — every action it takes is visible in the <b>Tasks &amp; Notes</b> tab.</p>
 
     <h4>Getting started</h4>
     <ol>
     <li>Open <b>Settings</b> (top-right gear icon) and pick a provider and enter its API key.</li>
     <li>Type a request in the chat box and press Enter (Shift+Enter for a new line).</li>
     <li>For anything that edits or deletes data, you'll be asked to confirm in the
-    <b>Tasks &amp; Memory</b> tab before it actually runs.</li>
+    <b>Tasks &amp; Notes</b> tab before it actually runs.</li>
     </ol>
 
     <h4>Supported AI providers</h4>
@@ -44,7 +44,7 @@ def _build_help_html():
 
     <h4>Safety</h4>
     <p>Destructive actions (removing a layer, changing attribute values) always require an
-    explicit click on <b>Confirm &amp; Apply Edit</b> in the Tasks &amp; Memory tab — the AI
+    explicit click on <b>Confirm &amp; Apply Edit</b> in the Tasks &amp; Notes tab — the AI
     cannot apply them on its own.</p>
     """
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tasks & Memory tab, extracted from dock_widget.py's CartogenAiDockWidget
+"""Tasks & Notes tab, extracted from dock_widget.py's CartogenAiDockWidget
 (docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the live plan/progress display,
 plan history browsing, the task inspector (rationale/code snippet/confirm-retry-
 edit-cancel), and the spatial memory panel.
@@ -141,7 +141,7 @@ class TasksTabWidget(QWidget):
 
         # Spatial Memory panel: search box + browser (now actually resizes with the dock) + clear button
         memory_header = QHBoxLayout()
-        memory_header.addWidget(QLabel("<b>🧠 Spatial Memory & Notes</b>"))
+        memory_header.addWidget(QLabel("<b>🧠 Project Notes & Memory</b>"))
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
@@ -163,7 +163,7 @@ class TasksTabWidget(QWidget):
         # this cap just keeps it from dominating this tab's own scrollable area.
         self.memory_browser.setMinimumHeight(120)
         self.memory_browser.setMaximumHeight(220)
-        self.memory_browser.setPlaceholderText("Spatial Memory & Project Notes...")
+        self.memory_browser.setPlaceholderText("Project Notes & Memory...")
         tasks_layout.addWidget(self.memory_browser, stretch=1)
 
     def sync_with_agent(self, agent):

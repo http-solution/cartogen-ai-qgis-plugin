@@ -124,3 +124,12 @@ The full provider and service implementation remains in this private repository.
 - Stripe checkout is BLOCKED locally until real/test Stripe credentials and `STRIPE_PRICE_ID` are configured.
 - Pro-client download/entitlement is BLOCKED because no Pro artifact or download route exists yet.
 - Fixed website/LiteLLM master-key drift in Compose by explicitly passing the interpolated key.
+
+## Plugin UI v1.4.3 — cross-edition interface terminology
+
+- Audited public Community and private commercial QGIS UI source side by side.
+- Standardized tabs to `Chat`, `Tasks & Notes`, and `Help & Guide`.
+- Standardized memory panel wording to `Project Notes & Memory`.
+- Normalized commercial provider labels to Hosted/Local terminology and clarified Settings as `Connection`.
+- Updated help copy and public/private changelogs.
+- Verification: Community suite 620 passed; private suite 691 passed; both Python compile checks passed.
