@@ -352,6 +352,39 @@ app.get('/api/exports/:exportId/html', requireIdentity, async (req, res) => {
   res.type('html').send(buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout, features.rows));
 });
 
+app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
+  try {
+    const playwright = require('playwright');
+    const result = await pool.query(
+      `SELECT e.id, e.layout, p.id AS project_id, p.name, p.sector, p.crs
+         FROM export_jobs e JOIN projects p ON p.id = e.project_id
+        WHERE e.id = $1 AND e.organization_id = $2`,
+      [req.params.exportId, req.organizationId],
+    );
+    if (!result.rowCount) return res.status(404).send('Export not found');
+    const layers = await pool.query(
+      `SELECT l.name, l.source_resource, COUNT(f.id)::int AS feature_count
+         FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
+        WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
+      [result.rows[0].project_id, req.organizationId],
+    );
+    const features = await pool.query(
+      `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+         FROM project_layer_features f WHERE f.project_id = $1 AND f.organization_id = $2 ORDER BY f.id LIMIT 2000`,
+      [result.rows[0].project_id, req.organizationId],
+    );
+    const html = buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout, features.rows);
+    const browser = await playwright.chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdf = await page.pdf({ format: result.rows[0].layout.paper || 'A4', landscape: (result.rows[0].layout.orientation || 'landscape') === 'landscape', printBackground: true, margin: { top: '12mm', right: '12mm', bottom: '12mm', left: '12mm' } });
+    await browser.close();
+    res.type('application/pdf').set('Content-Disposition', `attachment; filename="cartogen-${result.rows[0].id}.pdf"`).send(pdf);
+  } catch (error) {
+    res.status(503).json({ error: 'PDF renderer unavailable', detail: error.message });
+  }
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const result = await pool.query('SELECT PostGIS_Version() AS postgis_version');

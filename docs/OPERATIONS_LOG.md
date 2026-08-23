@@ -382,5 +382,12 @@ The full provider and service implementation remains in this private repository.
 
 - Server export now queries stored PostGIS feature geometries and embeds an SVG map frame.
 - Export verification: SVG present, Polygon geometry present, placeholder map removed.
+
+## Phase 1 PDF renderer
+
+- Added Playwright using the installed Chrome binary for server-side PDF generation.
+- Added `GET /api/exports/:exportId/pdf`.
+- PDF honours stored paper size and orientation and includes the geometry-backed report layout.
+- Live verification: HTTP 200, `application/pdf`, valid `%PDF-` signature, 59,456-byte output.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
