@@ -50,7 +50,7 @@ The full provider and service implementation remains in this private repository.
 - Markdown local-link scan passed with 0 broken links.
 - Public provider directory contains only `ollama.py` and `cartogen.py` plus shared base/export files.
 - Public tree contains no `service/`, `DOCUMENTATION.md`, tier/pricing files, or private gateway paths.
-- Public `main` final commit: `bd8ee6b`.
+- Public `main` final commit: `fef731ab842ce3ba7070ad5905854c4cd2183971`.
 - Full private `CARTOGEN-AI/main`: `5e4bb6f`.
 
 ### Release/security status
@@ -58,10 +58,10 @@ The full provider and service implementation remains in this private repository.
 - Automated checks are green for the public limited build.
 - Interactive QGIS smoke testing remains a release gate and must be completed in a real
   QGIS session before claiming a fully smoke-tested release.
-- Public GitHub tag: `v1.4.2` at commit `7ec55b064a5a2d106ff6a6de003575ca2546c205`.
+- Public GitHub tag: `v1.4.2` at commit `fef731ab842ce3ba7070ad5905854c4cd2183971`.
 - GitHub release: [Cartogen AI Community v1.4.2](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.2).
 - Release state: published pre-release, pending the interactive QGIS smoke-test gate.
-- Release asset: `cartogen_ai_v1.4.2.zip` (325,616 bytes).
+- Release asset: `cartogen_ai_v1.4.2.zip` (325,443 bytes).
 - Release asset URL: https://github.com/cartogenai-glitch/cartogen_ai_community/releases/download/v1.4.2/cartogen_ai_v1.4.2.zip
-- Release asset SHA-256: `79d9c94510c6488825294cb5a9f4b518259b7f445b53698a96061a3dad5ffb19`.
+- Release asset SHA-256: `f159fffc297dc5a1fa52ed69be2c4eb63ff0620cf4982497e1a7d79993b6f999`.
 - No credentials, tokens, or private infrastructure values were recorded in this log.
