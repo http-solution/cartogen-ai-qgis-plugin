@@ -492,6 +492,12 @@ The full provider and service implementation remains in this private repository.
 - Added visible source/overlay selectors and execution status to the Analysis screen.
 - Live verification passed against stored polygon buffers: job 201, execution 200/completed,
   derived layer created, two Polygon features read back through GeoJSON 200.
+
+## Phase 1 analysis job history
+
+- Added project-scoped `GET /api/projects/:projectId/analysis-jobs`.
+- Added visible Processing audit trail to the Analysis screen.
+- Live verification: HTTP 200, eight persisted jobs returned with operation and status metadata.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.

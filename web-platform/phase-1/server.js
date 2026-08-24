@@ -309,6 +309,15 @@ async function executeIntersectionJob(jobId, organizationId) {
   } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 }
 
+app.get('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, operation, status, input, output, provenance, created_at, completed_at
+       FROM analysis_jobs WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC LIMIT 100`,
+    [req.params.projectId, req.organizationId],
+  );
+  res.json({ jobs: result.rows });
+});
+
 app.get('/api/analysis-jobs/:jobId', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT id, project_id, task_id, operation, status, input, output, provenance, created_at, completed_at
