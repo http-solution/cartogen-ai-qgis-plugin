@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -78,6 +78,14 @@ test('resolves central planner provider aliases', () => {
   assert.equal(resolvePlannerModel('local'), 'local-default');
   assert.equal(resolvePlannerModel('unknown'), 'gpt-default');
   assert.equal(resolvePlannerModel('openai', 'custom-model'), 'custom-model');
+});
+
+test('reports non-secret provider status', () => {
+  const result = plannerProviderStatus();
+  assert.equal(result.providers.length, 5);
+  assert.deepEqual(result.providers.map(item => item.provider), ['gemini', 'openai', 'claude', 'openrouter', 'local']);
+  assert.ok(result.providers.every(item => typeof item.credential_configured === 'boolean'));
+  assert.ok(!JSON.stringify(result).match(/sk-[A-Za-z0-9]/));
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {

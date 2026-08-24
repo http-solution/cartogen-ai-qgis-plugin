@@ -70,6 +70,27 @@ function resolvePlannerModel(provider = process.env.CARTOGEN_AI_PROVIDER, explic
   return PLANNER_PROVIDER_MODELS[normalized] || PLANNER_PROVIDER_MODELS.openai;
 }
 
+function plannerProviderStatus() {
+  const selectedProvider = String(process.env.CARTOGEN_AI_PROVIDER || 'openai').trim().toLowerCase();
+  const credentials = {
+    gemini: Boolean(process.env.GEMINI_API_KEY),
+    google: Boolean(process.env.GEMINI_API_KEY),
+    openai: Boolean(process.env.OPENAI_API_KEY),
+    claude: Boolean(process.env.ANTHROPIC_API_KEY),
+    anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+    openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+    local: Boolean(process.env.OLLAMA_BASE_URL),
+    ollama: Boolean(process.env.OLLAMA_BASE_URL),
+  };
+  const providers = [...new Set(Object.keys(PLANNER_PROVIDER_MODELS).map(name => name === 'google' ? 'gemini' : name === 'anthropic' ? 'claude' : name === 'ollama' ? 'local' : name))]
+    .map(provider => ({ provider, model: PLANNER_PROVIDER_MODELS[provider], credential_configured: credentials[provider] || false }));
+  return { selected_provider: selectedProvider, selected_model: resolvePlannerModel(), providers };
+}
+
+app.get('/api/ai/providers', (req, res) => {
+  res.json(plannerProviderStatus());
+});
+
 function buildTaskPlan({ prompt = '', documentText = '', sourceNames = [] }) {
   const text = `${prompt}\n${documentText}`.trim();
   if (!text) throw new Error('A narrative, document text, or data context is required');
@@ -177,7 +198,7 @@ function normalizeExportStyle({ style_preset = 'coverage', opacity = 85 } = {}) 
 
 app.get('/api/auth/status', async (req, res) => {
   const resolved = await resolveIdentity(req).catch(() => null);
-  res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID) });
+  res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID), providers: plannerProviderStatus() });
 });
 
 app.get('/api/projects/:projectId/documents', requireIdentity, async (req, res) => {
@@ -708,4 +729,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
