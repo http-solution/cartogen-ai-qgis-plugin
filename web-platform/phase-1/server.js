@@ -175,6 +175,139 @@ function normalizeDatasetSearchInput({ q = '', limit = 20 } = {}) {
   return { query, limit: boundedLimit };
 }
 
+const HDX_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+const HDX_IMPORT_MAX_FEATURES = 1000;
+const HDX_ALLOWED_HOSTS = new Set(['data.humdata.org', 'www.humdata.org', 'hdx.humdata.org']);
+const HDX_FETCH_HOSTS = new Set([...HDX_ALLOWED_HOSTS, 'production-raw-data-api.s3.amazonaws.com', 's3.amazonaws.com', 's3.us-east-1.amazonaws.com']);
+
+function normalizeHdxImportRequest(body = {}) {
+  const projectId = String(body.project_id || '').trim();
+  const resourceUrl = String(body.resource_url || '').trim();
+  if (!projectId) throw new Error('project_id is required');
+  if (body.approved !== true) throw new Error('approved must be true before importing an HDX resource');
+  let parsed;
+  try { parsed = new URL(resourceUrl); } catch { throw new Error('resource_url must be a valid HTTPS HDX URL'); }
+  if (parsed.protocol !== 'https:' || !HDX_FETCH_HOSTS.has(parsed.hostname.toLowerCase())) throw new Error('resource_url must point to an HTTPS HDX resource');
+  const resourceFormat = String(body.resource_format || (parsed.pathname.toLowerCase().match(/\.(geojson|json|csv)$/)?.[1] || '')).trim().toLowerCase();
+  if (!['geojson', 'json', 'csv'].includes(resourceFormat)) throw new Error('resource_format must be GeoJSON, JSON, or CSV');
+  const isoDate = value => value == null || value === '' ? null : (Number.isNaN(Date.parse(String(value))) ? (() => { throw new Error('metadata dates must be valid ISO dates'); })() : new Date(String(value)).toISOString());
+  return {
+    project_id: projectId,
+    resource_url: parsed.toString(),
+    resource_format: resourceFormat,
+    dataset_id: body.dataset_id ? String(body.dataset_id).slice(0, 255) : null,
+    resource_id: body.resource_id ? String(body.resource_id).slice(0, 255) : null,
+    provider: String(body.provider || 'HDX').trim().slice(0, 255) || 'HDX',
+    licence: body.licence == null ? null : String(body.licence).slice(0, 255),
+    metadata_created: isoDate(body.metadata_created),
+    metadata_modified: isoDate(body.metadata_modified),
+    name: String(body.name || body.resource_name || 'HDX imported layer').trim().slice(0, 255) || 'HDX imported layer',
+    approved: true,
+  };
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === ',' && !quoted) { row.push(cell); cell = ''; }
+    else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && text[i + 1] === '\n') i += 1;
+      row.push(cell); cell = ''; if (row.some(value => value.trim())) rows.push(row); row = [];
+    } else cell += char;
+  }
+  if (quoted) throw new Error('Invalid CSV: unterminated quoted field');
+  if (cell || row.length) { row.push(cell); if (row.some(value => value.trim())) rows.push(row); }
+  return rows;
+}
+
+function normalizeCsvResource(text, filename = 'resource.csv') {
+  if (typeof text !== 'string' || !text.trim()) throw new Error('CSV resource is empty');
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) throw new Error('CSV resource must contain a header and at least one row');
+  const headers = rows[0].map(value => value.trim());
+  const findHeader = names => headers.findIndex(header => names.includes(header.toLowerCase().replace(/[^a-z0-9]/g, '')));
+  const latIndex = findHeader(['lat', 'latitude', 'y']);
+  const lonIndex = findHeader(['lon', 'lng', 'long', 'longitude', 'x']);
+  if (latIndex < 0 || lonIndex < 0) throw new Error('CSV requires latitude and longitude columns');
+  if (rows.length - 1 > HDX_IMPORT_MAX_FEATURES) throw new Error(`CSV exceeds the Phase 1 limit of ${HDX_IMPORT_MAX_FEATURES} features`);
+  const features = rows.slice(1).map((values, rowIndex) => {
+    const latitude = Number(values[latIndex]); const longitude = Number(values[lonIndex]);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) throw new Error(`CSV row ${rowIndex + 2} has invalid latitude/longitude`);
+    const properties = Object.fromEntries(headers.map((header, index) => [header || `column_${index + 1}`, values[index] ?? '']).filter(([, value], index) => index !== latIndex && index !== lonIndex));
+    return { geometry: { type: 'Point', coordinates: [longitude, latitude] }, properties };
+  });
+  return normalizeFeatureCollection({ type: 'FeatureCollection', features: features.map(feature => ({ type: 'Feature', ...feature })) });
+}
+
+async function downloadHdxResource(resourceUrl) {
+  let url = new URL(resourceUrl);
+  const originalUrl = url.toString();
+  for (let redirect = 0; redirect <= 3; redirect += 1) {
+    if (url.protocol !== 'https:' || !HDX_FETCH_HOSTS.has(url.hostname.toLowerCase())) throw new Error('HDX resource redirected outside an allowed HDX host');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try { response = await fetch(url, { redirect: 'manual', signal: controller.signal, headers: { Accept: 'application/geo+json, application/json, text/csv, */*' } }); }
+    catch (error) { throw new Error(error.name === 'AbortError' ? 'HDX resource download timed out' : 'HDX resource download failed'); }
+    finally { clearTimeout(timeout); }
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location');
+      if (!location || redirect === 3) throw new Error('HDX resource has too many redirects');
+      url = new URL(location, url);
+      continue;
+    }
+    if (!response.ok) throw new Error(`HDX resource download failed with HTTP ${response.status}`);
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > HDX_IMPORT_MAX_BYTES) throw new Error(`HDX resource exceeds the ${HDX_IMPORT_MAX_BYTES} byte limit`);
+    const chunks = []; let total = 0;
+    for await (const chunk of response.body) {
+      total += chunk.length;
+      if (total > HDX_IMPORT_MAX_BYTES) throw new Error(`HDX resource exceeds the ${HDX_IMPORT_MAX_BYTES} byte limit`);
+      chunks.push(chunk);
+    }
+    return { buffer: Buffer.concat(chunks), text: Buffer.concat(chunks).toString('utf8'), url: url.toString(), original_url: originalUrl, contentType: response.headers.get('content-type') || '' };
+  }
+  throw new Error('HDX resource redirect failed');
+}
+
+function extractGeoJsonFromZip(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.readUInt32LE(0) !== 0x04034b50) throw new Error('HDX ZIP resource is invalid');
+  let offset = 0;
+  while (offset + 30 <= buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
+    const method = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const uncompressedSize = buffer.readUInt32LE(offset + 22);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const name = buffer.subarray(offset + 30, offset + 30 + nameLength).toString('utf8');
+    const dataStart = offset + 30 + nameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (dataEnd > buffer.length || uncompressedSize > HDX_IMPORT_MAX_BYTES) throw new Error('HDX ZIP entry exceeds the import limit');
+    if (/\.geojson$|\.json$/i.test(name)) {
+      let content;
+      if (method === 0) content = buffer.subarray(dataStart, dataEnd);
+      else if (method === 8) content = require('node:zlib').inflateRawSync(buffer.subarray(dataStart, dataEnd));
+      else throw new Error(`Unsupported HDX ZIP compression method: ${method}`);
+      return content.toString('utf8');
+    }
+    offset = dataEnd;
+  }
+  throw new Error('HDX ZIP did not contain a GeoJSON or JSON entry');
+}
+
+function parseDownloadedHdxResource(download, resourceFormat = '') {
+  const isZip = download.contentType.toLowerCase().includes('zip') || download.buffer?.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  const sourceText = isZip ? extractGeoJsonFromZip(download.buffer) : download.text;
+  const format = resourceFormat || (new URL(download.original_url || download.url).pathname.toLowerCase().endsWith('.csv') ? 'csv' : 'geojson');
+  if (format === 'csv') return normalizeCsvResource(sourceText);
+  let payload;
+  try { payload = JSON.parse(sourceText); } catch { throw new Error('Invalid GeoJSON resource: response is not valid JSON'); }
+  return normalizeFeatureCollection(payload);
+}
 function normalizeHdxSearchResponse(payload, { query, retrievedAt = new Date().toISOString() }) {
   const sourceResults = Array.isArray(payload?.result?.results) ? payload.result.results : [];
   const candidates = sourceResults.map(item => ({
@@ -239,9 +372,20 @@ function normalizeFeatureCollection(payload) {
   if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) {
     throw new Error('Expected a GeoJSON FeatureCollection');
   }
-  if (payload.features.length > 1000) throw new Error('FeatureCollection exceeds the Phase 1 limit of 1000 features');
+  if (payload.features.length > HDX_IMPORT_MAX_FEATURES) throw new Error(`FeatureCollection exceeds the Phase 1 limit of ${HDX_IMPORT_MAX_FEATURES} features`);
+  const allowedGeometryTypes = new Set(['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
+  const validateCoordinates = coordinates => {
+    if (!Array.isArray(coordinates) || coordinates.length === 0) throw new Error('Geometry has invalid coordinates');
+    if (typeof coordinates[0] === 'number') {
+      if (coordinates.length < 2 || !coordinates.slice(0, 2).every(Number.isFinite) || coordinates[0] < -180 || coordinates[0] > 180 || coordinates[1] < -90 || coordinates[1] > 90) throw new Error('Geometry has invalid coordinates');
+      return;
+    }
+    coordinates.forEach(validateCoordinates);
+  };
   return payload.features.map((feature, index) => {
-    if (!feature || feature.type !== 'Feature' || !feature.geometry) throw new Error(`Feature ${index + 1} has no valid geometry`);
+    if (!feature || feature.type !== 'Feature' || !feature.geometry || !allowedGeometryTypes.has(feature.geometry.type)) throw new Error(`Feature ${index + 1} has no valid geometry`);
+    validateCoordinates(feature.geometry.coordinates);
+    if (feature.properties != null && (typeof feature.properties !== 'object' || Array.isArray(feature.properties))) throw new Error(`Feature ${index + 1} has invalid properties`);
     return { geometry: feature.geometry, properties: feature.properties || {} };
   });
 }
@@ -366,6 +510,55 @@ app.get('/api/datasets/search', requireIdentity, async (req, res) => {
   } finally { clearTimeout(timeout); }
 });
 
+app.post('/api/datasets/import', requireIdentity, async (req, res) => {
+  let input;
+  try { input = normalizeHdxImportRequest(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  if (input.project_id !== String(req.body.project_id)) return res.status(400).json({ error: 'project_id is required' });
+  const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [input.project_id, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  let features; let downloaded;
+  try {
+    downloaded = await downloadHdxResource(input.resource_url);
+    features = parseDownloadedHdxResource(downloaded, input.resource_format);
+  } catch (error) {
+    const status = /HTTP 4|timed out|exceeds|Unsupported|Invalid|requires|unterminated|outside/.test(error.message) ? 400 : 502;
+    return res.status(status).json({ error: error.message });
+  }
+  const retrievedAt = new Date().toISOString();
+  const metadata = {
+    provider: input.provider,
+    dataset_id: input.dataset_id,
+    resource_id: input.resource_id,
+    metadata_created: input.metadata_created,
+    metadata_modified: input.metadata_modified,
+    retrieved_at: retrievedAt,
+    source: 'HDX / data.humdata.org',
+    import_approved: true,
+  };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const layer = await client.query(
+      `INSERT INTO project_layers (project_id, organization_id, name, source_url, source_resource, source_modified_at, licence, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id, project_id, organization_id, name, source_url, source_resource, source_modified_at, source_retrieved_at, licence, metadata, created_at`,
+      [input.project_id, req.organizationId, input.name, input.resource_url, input.resource_id || input.dataset_id, input.metadata_modified, input.licence, metadata],
+    );
+    for (const feature of features) {
+      await client.query(
+        `INSERT INTO project_layer_features (layer_id, project_id, organization_id, geometry, properties)
+         VALUES ($1,$2,$3,ST_SetSRID(ST_GeomFromGeoJSON($4),4326),$5)`,
+        [layer.rows[0].id, input.project_id, req.organizationId, JSON.stringify(feature.geometry), feature.properties],
+      );
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ layer: layer.rows[0], feature_count: features.length });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: 'HDX layer import failed', detail: error.message });
+  } finally { client.release(); }
+});
 app.get('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT id, title, description, status, plan, provenance, created_at, updated_at
@@ -850,4 +1043,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
