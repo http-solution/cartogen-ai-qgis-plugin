@@ -102,9 +102,10 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
+- [x] Durable one-shot/background analysis worker claims queued jobs and persists completion output.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
-- [ ] Real asynchronous spatial processing.
+- [x] Real queued analysis processing through the Phase 1 worker.
 - [ ] Real authentication and organization permissions.
 - [ ] Real PDF/print export engine.
 

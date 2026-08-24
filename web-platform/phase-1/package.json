@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "worker": "node scripts/analysis_worker.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
