@@ -337,6 +337,106 @@ function normalizeHdxSearchResponse(payload, { query, retrievedAt = new Date().t
   };
 }
 
+function validateApprovalPlan(plan) {
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan) || !String(plan.objective || '').trim() || !Array.isArray(plan.steps) || plan.steps.length === 0) {
+    throw new Error('Agent run has no usable plan');
+  }
+  return plan;
+}
+
+async function approveAgentRun({ runId, organizationId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const runResult = await client.query(
+      `SELECT id, organization_id, project_id, status, prompt, context, provider, model, plan, rationale,
+              created_at, updated_at, started_at, completed_at, error
+         FROM agent_runs
+        WHERE id = $1 AND organization_id = $2
+        FOR UPDATE`,
+      [runId, organizationId],
+    );
+    if (!runResult.rowCount) {
+      const error = new Error('Agent run not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    const run = runResult.rows[0];
+    if (!run.project_id) {
+      const error = new Error('Agent run is not associated with a project');
+      error.statusCode = 404;
+      throw error;
+    }
+    const project = await client.query(
+      'SELECT id FROM projects WHERE id = $1 AND organization_id = $2',
+      [run.project_id, organizationId],
+    );
+    if (!project.rowCount) {
+      const error = new Error('Project not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (run.status !== 'completed') {
+      const error = new Error(`Only completed agent runs can be approved; current status is ${run.status}`);
+      error.statusCode = 409;
+      throw error;
+    }
+    const plan = validateApprovalPlan(run.plan);
+    const existing = await client.query(
+      `SELECT id FROM workspace_tasks
+        WHERE organization_id = $1 AND project_id = $2 AND provenance->>'run_id' = $3
+        LIMIT 1`,
+      [organizationId, run.project_id, String(run.id)],
+    );
+    if (existing.rowCount) {
+      const error = new Error('Agent run has already been approved');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const taskResult = await client.query(
+      `INSERT INTO workspace_tasks (project_id, organization_id, title, description, status, plan, provenance)
+       VALUES ($1,$2,$3,$4,'approved',$5,$6)
+       RETURNING id, project_id, organization_id, title, description, status, plan, provenance, created_at, updated_at`,
+      [
+        run.project_id,
+        organizationId,
+        String(plan.objective).slice(0, 500),
+        String(plan.objective),
+        plan,
+        { source: 'ai-run-approval', run_id: String(run.id), planner: plan.planner || null, mode: plan.mode || null },
+      ],
+    );
+    const task = taskResult.rows[0];
+    const operation = String(plan.steps.at(-1)?.tool || 'create_review_output');
+    const jobResult = await client.query(
+      `INSERT INTO analysis_jobs (project_id, organization_id, task_id, operation, status, input, provenance)
+       VALUES ($1,$2,$3,$4,'queued',$5,$6)
+       RETURNING id, project_id, organization_id, task_id, operation, status, input, output, provenance, created_at, completed_at`,
+      [run.project_id, organizationId, task.id, operation, { plan, run_id: String(run.id) }, { source: 'ai-run-approval', run_id: String(run.id), task_id: String(task.id) }],
+    );
+    const job = jobResult.rows[0];
+    await client.query(
+      `UPDATE agent_steps
+          SET status = CASE WHEN status IN ('pending','running') THEN 'queued' ELSE status END,
+              rationale = CASE WHEN (plan->>'requires_confirmation')::boolean IS TRUE
+                THEN 'Human confirmation recorded; step is queued for execution.'
+                ELSE rationale END,
+              updated_at = now(), completed_at = NULL
+        WHERE run_id = $1 AND organization_id = $2
+          AND COALESCE((plan->>'requires_confirmation')::boolean, false) IS TRUE`,
+      [run.id, organizationId],
+    );
+    await client.query('COMMIT');
+    return { run, task, job };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function persistAgentRun({ organizationId, projectId = null, context, plan }) {
   const provider = String(process.env.CARTOGEN_AI_PROVIDER || 'gemini').trim().toLowerCase();
   const model = resolvePlannerModel(provider);
@@ -585,6 +685,15 @@ app.get('/api/ai/runs/:runId', requireIdentity, async (req, res) => {
     [req.params.runId, req.organizationId],
   );
   res.json({ run: result.rows[0], steps: steps.rows });
+});
+
+app.post('/api/ai/runs/:runId/approve', requireIdentity, async (req, res) => {
+  try {
+    const result = await approveAgentRun({ runId: req.params.runId, organizationId: req.organizationId });
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
+  }
 });
 
 app.get('/api/datasets/search', requireIdentity, async (req, res) => {
@@ -1325,4 +1434,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };

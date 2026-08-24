@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS agent_steps (
   organization_id text NOT NULL,
   project_id text REFERENCES projects(id) ON DELETE CASCADE,
   step_index integer NOT NULL CHECK (step_index > 0),
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'skipped', 'cancelled')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'queued', 'running', 'completed', 'failed', 'skipped', 'cancelled')),
   title text NOT NULL,
   tool text NOT NULL,
   prompt text,

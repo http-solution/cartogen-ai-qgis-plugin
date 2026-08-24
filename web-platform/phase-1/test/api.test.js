@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, validateApprovalPlan } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -112,6 +112,13 @@ test('builds a humanitarian review plan from narrative and document context', ()
 
 test('requires content before creating a plan', () => {
   assert.throws(() => buildTaskPlan({}), /required/);
+});
+
+test('requires a non-empty persisted plan before approval', () => {
+  const plan = validateApprovalPlan({ objective: 'Review coverage', steps: [{ tool: 'create_review_output' }] });
+  assert.equal(plan.objective, 'Review coverage');
+  assert.throws(() => validateApprovalPlan({}), /no usable plan/);
+  assert.throws(() => validateApprovalPlan({ objective: 'Review coverage', steps: [] }), /no usable plan/);
 });
 
 test('parses a valid gateway JSON plan', () => {
