@@ -329,6 +329,8 @@ The full provider and service implementation remains in this private repository.
 - Added an AI-first command centre to the workspace: plain-language objective input, Gemini active-planner label, plan request, reviewable returned steps, and approve/run action.
 - Removed decorative mock map background implementation; the map now contains only stored SVG geometry, controls, and explicit layer/status UI.
 - Gateway planner now sends a separate system-role message and user-role task context.
+- Replaced the previous dashboard-style workspace with a functional three-column AI-first workspace: chat, stored-data map, and tools/jobs.
+- Live smoke verified page HTTP 200, seven stored layers returned, and Gemini plan HTTP 200.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.
 
 ## Phase 1 approved-task executor
