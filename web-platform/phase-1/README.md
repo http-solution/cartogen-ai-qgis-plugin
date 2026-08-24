@@ -143,6 +143,7 @@ It never returns provider keys.
 - [x] Map contains no decorative mock geometry; it renders stored project geometry only.
 - [x] Ground-up AI-first workspace uses chat-left, stored-data map-centre, and tools/jobs-right layout.
 - [x] Real Leaflet map uses OpenStreetMap as the default basemap and supports HOT, Carto Voyager, and Esri World Street Map alternatives with attribution.
+- [x] Map fills the centre panel without visible Leaflet branding controls; required basemap attribution remains visible.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
