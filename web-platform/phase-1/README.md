@@ -106,6 +106,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Failed analysis jobs can be safely requeued with preserved retry provenance; completed jobs reject retry.
 - [x] Unsupported analysis operations fail explicitly in API and worker paths instead of falling through to review execution.
 - [x] Reports UI regression check confirms Print preview, Download HTML, and Download PDF are all present.
+- [x] Selected thematic style preset and opacity are persisted and applied to HTML/PDF export map frames.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [x] Real queued analysis processing through the Phase 1 worker.
