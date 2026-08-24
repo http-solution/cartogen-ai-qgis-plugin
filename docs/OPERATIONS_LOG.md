@@ -309,6 +309,10 @@ The full provider and service implementation remains in this private repository.
 - Added unit coverage for valid and malformed gateway plan responses.
 - Gateway `/v1/models` is reachable locally with the active Compose credential context; live chat
   completion is not yet certified because host/example key configuration differs from the active gateway context.
+- Latest live certification probe: `/v1/models` returned HTTP 200 and advertised `claude-default` and
+  `gpt-default`; `claude-default` chat returned provider HTTP 401 because Anthropic provider authentication
+  is unavailable, and `gpt-default` chat returned provider HTTP 401 because OpenAI provider authentication
+  is unavailable. No credentials were exposed or changed; this remains an environment/provider-key blocker.
 
 ## Phase 1 approved-task executor
 
