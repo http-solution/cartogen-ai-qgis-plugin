@@ -408,7 +408,7 @@ async function approveAgentRun({ runId, organizationId }) {
       ],
     );
     const task = taskResult.rows[0];
-    const operation = String(plan.steps.at(-1)?.tool || 'create_review_output');
+    const operation = 'create_review_output';
     const jobResult = await client.query(
       `INSERT INTO analysis_jobs (project_id, organization_id, task_id, operation, status, input, provenance)
        VALUES ($1,$2,$3,$4,'queued',$5,$6)
@@ -839,7 +839,13 @@ async function executeReviewOutputJob(jobId, organizationId) {
       RETURNING id, operation, status, output, completed_at`,
     [output, jobId, organizationId],
   );
-  return updated.rows[0];
+  const completed = updated.rows[0];
+  const runId = job.provenance?.run_id || job.input?.run_id;
+  if (runId) {
+    await pool.query(`UPDATE agent_runs SET status = 'completed', completed_at = now(), updated_at = now(), error = NULL WHERE id = $1 AND organization_id = $2`, [runId, organizationId]);
+    await pool.query(`UPDATE agent_steps SET status = 'completed', completed_at = now(), updated_at = now(), error = NULL WHERE run_id = $1 AND organization_id = $2 AND status IN ('queued','running','pending')`, [runId, organizationId]);
+  }
+  return completed;
 }
 
 async function executeIntersectionJob(jobId, organizationId) {

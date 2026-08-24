@@ -342,6 +342,7 @@ The full provider and service implementation remains in this private repository.
 - Scheduling gate passed live: read-only schedule create 201, run 200/completed, history 200 with one run, cancel 200/cancelled. Unsafe operations are rejected from schedules.
 - Project-context gate passed: organization-scoped `GET /api/projects` returned one project; browser project selection now drives all project-scoped API calls instead of a fixed project constant.
 - Chat approval gate passed: Gemini plan HTTP 200 with persisted run ID, approval HTTP 201, approved task created, and queued analysis job returned.
+- Chat completion linkage gate passed: approved Gemini plan mapped to supported `create_review_output`, job completed HTTP 200, agent run became completed, and all persisted agent steps became completed.
 - PM delivery control plan added at `docs/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
 - Removed the browser's hard-coded `x-demo-organization` header; development identity is resolved server-side and strict mode can use Directus session identity.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.
