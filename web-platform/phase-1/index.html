@@ -31,7 +31,7 @@
 </section>
 </div>
 <script>
-const ORG='demo-humanitarian-lab';const PROJECT='pakistan-humanitarian-screening';let layers=[];let currentPlan=null;const headers=extra=>Object.assign({'x-demo-organization':ORG},extra||{});const $=id=>document.getElementById(id);
+const PROJECT='pakistan-humanitarian-screening';let layers=[];let currentPlan=null;const headers=extra=>Object.assign({},extra||{});const $=id=>document.getElementById(id);
 async function jsonFetch(url,options={}){const response=await fetch(url,Object.assign({},options,{headers:Object.assign({},headers(options.headers),options.body?{'content-type':'application/json'}:{})}));let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data}
 function addMessage(kind,text){const el=document.createElement('div');el.className=`message ${kind}`;el.textContent=text;$('messages').appendChild(el);$('messages').scrollTop=$('messages').scrollHeight}
 function clearChat(){$('messages').innerHTML='<div class="message system">Conversation cleared. Start with a humanitarian objective.</div>';currentPlan=null}
