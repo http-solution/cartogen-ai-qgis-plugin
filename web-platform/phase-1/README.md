@@ -146,6 +146,7 @@ It never returns provider keys.
 - [x] Persisted AI runs and ordered AI steps can be created and read back with organization/project scope.
 - [x] Read-only HDX dataset search returns bounded candidates and provenance metadata.
 - [x] Feature editing uses server preview, before/after diff, explicit apply approval, optimistic hash/token checks, and lineage read-back.
+- [x] Read-only workflow schedules persist interval/next-run state, run history, cancellation, and worker-linked analysis jobs.
 - [x] Approved HDX import validates trusted hosts, explicit approval, bounded GeoJSON/CSV/ZIP resources, and PostGIS transaction boundaries.
 - [x] Map fills the centre panel without visible Leaflet branding controls; required basemap attribution remains visible.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.

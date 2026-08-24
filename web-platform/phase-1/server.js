@@ -481,6 +481,33 @@ function isSupportedAnalysisOperation(operation) {
   return ['create_review_output', 'buffer_layer', 'intersect_layers'].includes(operation);
 }
 
+const SCHEDULE_MIN_INTERVAL_SECONDS = 60;
+const ALLOWED_SCHEDULED_OPERATIONS = new Set(['create_review_output']);
+
+function isAllowedScheduledOperation(operation) {
+  return ALLOWED_SCHEDULED_OPERATIONS.has(String(operation || '').trim());
+}
+
+function normalizeWorkflowScheduleRequest(body = {}) {
+  const workflow = body.workflow && typeof body.workflow === 'object' && !Array.isArray(body.workflow) ? body.workflow : body;
+  const operation = String(workflow.operation || '').trim();
+  if (!isAllowedScheduledOperation(operation)) throw new Error('Only read-only create_review_output workflows may be scheduled');
+  const intervalSeconds = Number(body.interval_seconds ?? workflow.interval_seconds);
+  if (!Number.isInteger(intervalSeconds) || intervalSeconds < SCHEDULE_MIN_INTERVAL_SECONDS || intervalSeconds > 31536000) {
+    throw new Error(`interval_seconds must be at least ${SCHEDULE_MIN_INTERVAL_SECONDS} and at most 31536000`);
+  }
+  const rawNextRun = body.next_run ?? workflow.next_run;
+  const nextRun = rawNextRun == null ? new Date(Date.now() + intervalSeconds * 1000) : new Date(rawNextRun);
+  if (Number.isNaN(nextRun.getTime())) throw new Error('next_run must be a valid timestamp');
+  const name = String(body.name || workflow.name || 'Scheduled read-only workflow').trim().slice(0, 255);
+  if (!name) throw new Error('name is required');
+  const cleanWorkflow = { ...workflow, operation };
+  delete cleanWorkflow.interval_seconds;
+  delete cleanWorkflow.next_run;
+  delete cleanWorkflow.name;
+  return { name, interval_seconds: intervalSeconds, next_run: nextRun, workflow: cleanWorkflow };
+}
+
 function normalizeExportStyle({ style_preset = 'coverage', opacity = 85 } = {}) {
   const presets = new Set(['coverage', 'facilities', 'accessibility', 'risk']);
   const value = Number(opacity);
@@ -840,6 +867,125 @@ async function executeBufferJob(jobId, organizationId) {
   } finally { client.release(); }
 }
 
+app.post('/api/projects/:projectId/workflow-schedules', requireIdentity, async (req, res) => {
+  let input;
+  try { input = normalizeWorkflowScheduleRequest(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  try {
+    const result = await pool.query(
+      `INSERT INTO workflow_schedules (organization_id, project_id, name, workflow, interval_seconds, next_run)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id, organization_id, project_id, name, workflow, interval_seconds, next_run, status, last_run_id, last_run_at, last_error, created_at, updated_at`,
+      [req.organizationId, req.params.projectId, input.name, input.workflow, input.interval_seconds, input.next_run],
+    );
+    res.status(201).json({ schedule: result.rows[0] });
+  } catch (error) { res.status(400).json({ error: 'Workflow schedule creation failed', detail: error.message }); }
+});
+
+app.get('/api/projects/:projectId/workflow-schedules', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, organization_id, project_id, name, workflow, interval_seconds, next_run, status,
+            last_run_id, last_run_at, last_error, created_at, updated_at
+       FROM workflow_schedules WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC`,
+    [req.params.projectId, req.organizationId],
+  );
+  res.json({ schedules: result.rows });
+});
+
+app.post('/api/workflow-schedules/:scheduleId/cancel', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `UPDATE workflow_schedules SET status = 'cancelled', updated_at = now()
+      WHERE id = $1 AND organization_id = $2 RETURNING id, organization_id, project_id, name, workflow, interval_seconds, next_run, status, last_run_id, last_run_at, last_error, created_at, updated_at`,
+    [req.params.scheduleId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Workflow schedule not found' });
+  res.json({ schedule: result.rows[0] });
+});
+
+async function listWorkflowRuns(req, res) {
+  const result = await pool.query(
+    `SELECT id, organization_id, project_id, schedule_id, analysis_job_id, operation, workflow, status,
+            output, error, started_at, completed_at, created_at, updated_at
+       FROM workflow_runs WHERE schedule_id = $1 AND organization_id = $2 ORDER BY created_at DESC LIMIT 100`,
+    [req.params.scheduleId, req.organizationId],
+  );
+  res.json({ runs: result.rows });
+}
+app.get('/api/workflow-schedules/:scheduleId/runs', requireIdentity, listWorkflowRuns);
+app.get('/api/projects/:projectId/workflow-schedules/:scheduleId/runs', requireIdentity, async (req, res) => {
+  const schedule = await pool.query('SELECT id FROM workflow_schedules WHERE id = $1 AND project_id = $2 AND organization_id = $3', [req.params.scheduleId, req.params.projectId, req.organizationId]);
+  if (!schedule.rowCount) return res.status(404).json({ error: 'Workflow schedule not found' });
+  return listWorkflowRuns(req, res);
+});
+
+app.post('/api/workflow-schedules/:scheduleId/run', requireIdentity, async (req, res) => {
+  const scheduleResult = await pool.query(
+    `SELECT id, project_id, organization_id, workflow, status FROM workflow_schedules WHERE id = $1 AND organization_id = $2`,
+    [req.params.scheduleId, req.organizationId],
+  );
+  if (!scheduleResult.rowCount) return res.status(404).json({ error: 'Workflow schedule not found' });
+  const schedule = scheduleResult.rows[0];
+  if (schedule.status !== 'active') return res.status(409).json({ error: 'Workflow schedule is cancelled' });
+  if (!isAllowedScheduledOperation(schedule.workflow?.operation)) return res.status(400).json({ error: 'Scheduled workflow is not an allowed read-only operation' });
+  const client = await pool.connect();
+  let clientReleased = false;
+  let run;
+  let job;
+  try {
+    await client.query('BEGIN');
+    const jobResult = await client.query(
+      `INSERT INTO analysis_jobs (project_id, organization_id, operation, status, input, provenance)
+       VALUES ($1,$2,$3,'queued',$4,$5) RETURNING id, project_id, organization_id, operation, status, input, provenance, created_at`,
+      [schedule.project_id, req.organizationId, schedule.workflow.operation, schedule.workflow.input || {}, { source: 'workflow-schedule', schedule_id: schedule.id }],
+    );
+    job = jobResult.rows[0];
+    const runResult = await client.query(
+      `INSERT INTO workflow_runs (organization_id, project_id, schedule_id, analysis_job_id, operation, workflow, status, started_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'running',now())
+       RETURNING id, organization_id, project_id, schedule_id, analysis_job_id, operation, workflow, status, output, error, started_at, completed_at, created_at, updated_at`,
+      [req.organizationId, schedule.project_id, schedule.id, job.id, schedule.workflow.operation, schedule.workflow],
+    );
+    run = runResult.rows[0];
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    client.release();
+    clientReleased = true;
+    return res.status(400).json({ error: 'Workflow run creation failed', detail: error.message });
+  } finally { if (!clientReleased) client.release(); }
+  try {
+    const completedJob = await executeReviewOutputJob(job.id, req.organizationId);
+    const completed = await pool.query(
+      `UPDATE workflow_runs SET status = 'completed', output = $1, completed_at = now(), updated_at = now()
+        WHERE id = $2 AND organization_id = $3
+        RETURNING id, organization_id, project_id, schedule_id, analysis_job_id, operation, workflow, status, output, error, started_at, completed_at, created_at, updated_at`,
+      [completedJob.output, run.id, req.organizationId],
+    );
+    const scheduleUpdate = await pool.query(
+      `UPDATE workflow_schedules SET last_run_id = $1, last_run_at = now(), last_error = NULL,
+              next_run = now() + (interval_seconds * interval '1 second'), updated_at = now()
+        WHERE id = $2 AND organization_id = $3
+        RETURNING id, organization_id, project_id, name, workflow, interval_seconds, next_run, status, last_run_id, last_run_at, last_error, created_at, updated_at`,
+      [run.id, schedule.id, req.organizationId],
+    );
+    return res.json({ run: completed.rows[0], job: completedJob, schedule: scheduleUpdate.rows[0] });
+  } catch (error) {
+    await pool.query(`UPDATE analysis_jobs SET status = 'failed', output = $1, completed_at = now() WHERE id = $2 AND organization_id = $3`, [{ error: error.message }, job.id, req.organizationId]);
+    const failed = await pool.query(`UPDATE workflow_runs SET status = 'failed', error = $1, completed_at = now(), updated_at = now() WHERE id = $2 AND organization_id = $3 RETURNING id, status, error, started_at, completed_at, created_at, updated_at`, [error.message, run.id, req.organizationId]);
+    await pool.query(`UPDATE workflow_schedules SET last_run_id = $1, last_run_at = now(), last_error = $2, next_run = now() + (interval_seconds * interval '1 second'), updated_at = now() WHERE id = $3 AND organization_id = $4`, [run.id, error.message, schedule.id, req.organizationId]);
+    return res.status(400).json({ error: 'Workflow run failed', run: failed.rows[0] });
+  }
+});
+
+app.post('/api/projects/:projectId/workflow-schedules/:scheduleId/run', requireIdentity, async (req, res) => {
+  const schedule = await pool.query('SELECT id FROM workflow_schedules WHERE id = $1 AND project_id = $2 AND organization_id = $3', [req.params.scheduleId, req.params.projectId, req.organizationId]);
+  if (!schedule.rowCount) return res.status(404).json({ error: 'Workflow schedule not found' });
+  req.url = `/api/workflow-schedules/${schedule.rows[0].id}/run`;
+  return app.handle(req, res);
+});
+
 app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, res) => {
   const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
   if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
@@ -1179,4 +1325,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
