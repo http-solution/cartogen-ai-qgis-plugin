@@ -86,6 +86,15 @@ local-default        Ollama/local LLM
 
 The deterministic planner remains the safe fallback when the selected provider is unavailable.
 
+Provider diagnostics:
+
+```text
+http://127.0.0.1:4180/api/ai/providers
+```
+
+This endpoint exposes provider names, model aliases, selected provider, and boolean credential readiness only.
+It never returns provider keys.
+
 ## Phase 1 acceptance checks
 
 - [x] Project workspace loads.
