@@ -166,6 +166,75 @@ async function createTaskPlan(context) {
   return buildTaskPlan(context);
 }
 
+function normalizeDatasetSearchInput({ q = '', limit = 20 } = {}) {
+  const query = String(q || '').trim();
+  const boundedLimit = Number(limit);
+  if (!query) throw new Error('q is required');
+  if (query.length > 200) throw new Error('q must not exceed 200 characters');
+  if (!Number.isInteger(boundedLimit) || boundedLimit < 1 || boundedLimit > 100) throw new Error('limit must be between 1 and 100');
+  return { query, limit: boundedLimit };
+}
+
+function normalizeHdxSearchResponse(payload, { query, retrievedAt = new Date().toISOString() }) {
+  const sourceResults = Array.isArray(payload?.result?.results) ? payload.result.results : [];
+  const candidates = sourceResults.map(item => ({
+    id: item.id || item.name || null,
+    name: item.name || null,
+    title: item.title || item.name || null,
+    notes: typeof item.notes === 'string' ? item.notes.slice(0, 4000) : null,
+    organization: item.organization?.name || null,
+    metadata_created: item.metadata_created || null,
+    metadata_modified: item.metadata_modified || null,
+    license: item.license_title || item.license_id || null,
+    tags: Array.isArray(item.tags) ? item.tags.map(tag => tag.display_name || tag.name).filter(Boolean).slice(0, 50) : [],
+    resources: Array.isArray(item.resources) ? item.resources.slice(0, 100).map(resource => ({
+      id: resource.id || null,
+      name: resource.name || null,
+      description: typeof resource.description === 'string' ? resource.description.slice(0, 2000) : null,
+      format: resource.format || null,
+      url: resource.url || null,
+      last_modified: resource.last_modified || null,
+      size: resource.size || null,
+    })) : [],
+  }));
+  return {
+    count: Number(payload?.result?.count || candidates.length),
+    candidates,
+    provenance: { source: 'HDX / data.humdata.org', query, retrieved_at: retrievedAt, api: 'CKAN package_search', import_performed: false },
+  };
+}
+
+async function persistAgentRun({ organizationId, projectId = null, context, plan }) {
+  const provider = String(process.env.CARTOGEN_AI_PROVIDER || 'gemini').trim().toLowerCase();
+  const model = resolvePlannerModel(provider);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const run = await client.query(
+      `INSERT INTO agent_runs (organization_id, project_id, status, prompt, context, provider, model, plan, rationale, started_at, completed_at)
+       VALUES ($1,$2,'completed',$3,$4,$5,$6,$7,$8,now(),now())
+       RETURNING id, organization_id, project_id, status, prompt, context, provider, model, plan, rationale, created_at, updated_at, started_at, completed_at, error`,
+      [organizationId, projectId, String(context.prompt || '').slice(0, 20000), context, provider, model, plan, Array.isArray(plan.warnings) ? plan.warnings.join(' ') : null],
+    );
+    const steps = [];
+    for (let index = 0; index < plan.steps.length; index += 1) {
+      const source = plan.steps[index] || {};
+      const result = await client.query(
+        `INSERT INTO agent_steps (run_id, organization_id, project_id, step_index, status, title, tool, prompt, context, provider, model, plan, rationale, started_at, completed_at)
+         VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8,$9,$10,$11,$12,NULL,NULL)
+         RETURNING id, run_id, project_id, step_index, status, title, tool, prompt, context, provider, model, plan, rationale, created_at, updated_at, started_at, completed_at, error`,
+        [run.rows[0].id, organizationId, projectId, index + 1, String(source.title || `Step ${index + 1}`).slice(0, 500), String(source.tool || 'review').slice(0, 200), context.prompt || null, { ...context, step: source }, provider, model, source, source.requires_confirmation ? 'Human confirmation required before execution.' : 'Reviewable planning step.'],
+      );
+      steps.push(result.rows[0]);
+    }
+    await client.query('COMMIT');
+    return { run: run.rows[0], steps };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
 function normalizeFeatureCollection(payload) {
   if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) {
     throw new Error('Expected a GeoJSON FeatureCollection');
@@ -246,11 +315,55 @@ app.get('/api/projects/:projectId/documents/:documentId', requireIdentity, async
 
 app.post('/api/ai/plan', requireIdentity, async (req, res) => {
   try {
-    const plan = await createTaskPlan({ prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] });
-    res.json({ plan });
+    const context = { prompt: req.body.prompt, documentText: req.body.document_text, sourceNames: req.body.source_names || [] };
+    const projectId = req.body.project_id ? String(req.body.project_id) : null;
+    if (projectId) {
+      const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [projectId, req.organizationId]);
+      if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+    }
+    const plan = await createTaskPlan(context);
+    const persisted = await persistAgentRun({ organizationId: req.organizationId, projectId, context, plan });
+    res.json({ plan, run_id: persisted.run.id, steps: persisted.steps });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(error.message.includes('Gateway') || error.message.includes('database') ? 503 : 400).json({ error: error.message });
   }
+});
+
+app.get('/api/ai/runs/:runId', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, organization_id, project_id, status, prompt, context, provider, model, plan, rationale, created_at, updated_at, started_at, completed_at, error
+       FROM agent_runs WHERE id = $1 AND organization_id = $2`,
+    [req.params.runId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Agent run not found' });
+  const steps = await pool.query(
+    `SELECT id, run_id, project_id, step_index, status, title, tool, prompt, context, provider, model, plan, rationale, created_at, updated_at, started_at, completed_at, error
+       FROM agent_steps WHERE run_id = $1 AND organization_id = $2 ORDER BY step_index`,
+    [req.params.runId, req.organizationId],
+  );
+  res.json({ run: result.rows[0], steps: steps.rows });
+});
+
+app.get('/api/datasets/search', requireIdentity, async (req, res) => {
+  let input;
+  try { input = normalizeDatasetSearchInput(req.query); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  if (req.query.project_id) {
+    const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [String(req.query.project_id), req.organizationId]);
+    if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const url = new URL('https://data.humdata.org/api/3/action/package_search');
+    url.searchParams.set('q', input.query);
+    url.searchParams.set('rows', String(input.limit));
+    const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
+    if (!response.ok) return res.status(502).json({ error: `HDX search failed with HTTP ${response.status}` });
+    res.json(normalizeHdxSearchResponse(await response.json(), { query: input.query }));
+  } catch (error) {
+    res.status(502).json({ error: error.name === 'AbortError' ? 'HDX search timed out' : 'HDX search unavailable' });
+  } finally { clearTimeout(timeout); }
 });
 
 app.get('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => {
@@ -737,4 +850,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
