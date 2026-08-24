@@ -321,6 +321,7 @@ The full provider and service implementation remains in this private repository.
 - Follow-up provider reachability checks: OpenRouter endpoint reachable HTTP 200; Gemini endpoint reachable HTTP 403 (key required); local Ollama `127.0.0.1:11434` unavailable. No usable provider key was present in the active backend/container configuration.
 - After backend configuration was populated, LiteLLM was recreated successfully on host port 4000; `/v1/models` exposed all five aliases and Gemini live planner execution returned HTTP 200 with `cartogen-gateway`, `live-gateway`, four structured steps, and no fallback.
 - Compose now explicitly passes `UI_USERNAME` and `UI_PASSWORD` from `.env`; the live container contains both variables without exposing values.
+- User-confirmed UI acceptance: LiteLLM Admin UI accessible at `http://localhost:4001/ui/` after correcting the host-port mapping.
 
 ## Phase 1 approved-task executor
 
