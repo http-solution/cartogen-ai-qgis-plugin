@@ -1,4 +1,5 @@
 const path = require('node:path');
+const crypto = require('node:crypto');
 const express = require('express');
 const { Pool } = require('pg');
 
@@ -130,9 +131,53 @@ function normalizeFeatureCollection(payload) {
   });
 }
 
+function normalizeDocumentContext({ name = '', mime_type = 'text/plain', text = '', source_url = null, metadata = {} }) {
+  const allowed = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/json']);
+  if (!allowed.has(mime_type)) throw new Error(`Unsupported document format: ${mime_type}`);
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Document text is required');
+  if (text.length > 200000) throw new Error('Document text exceeds the Phase 1 limit of 200000 characters');
+  const cleanName = String(name || 'context.txt').trim().slice(0, 255);
+  return { name: cleanName || 'context.txt', mime_type, text: text.trim(), source_url: source_url ? String(source_url).slice(0, 2000) : null, metadata: metadata && typeof metadata === 'object' ? metadata : {} };
+}
+
 app.get('/api/auth/status', async (req, res) => {
   const resolved = await resolveIdentity(req).catch(() => null);
   res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID) });
+});
+
+app.get('/api/projects/:projectId/documents', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, name, mime_type, length(text_content)::int AS character_count, source_url, sha256, metadata, created_at
+       FROM project_documents WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC`,
+    [req.params.projectId, req.organizationId],
+  );
+  res.json({ documents: result.rows });
+});
+
+app.post('/api/projects/:projectId/documents', requireIdentity, async (req, res) => {
+  let document;
+  try { document = normalizeDocumentContext(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
+  if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
+  const sha256 = crypto.createHash('sha256').update(document.text, 'utf8').digest('hex');
+  const result = await pool.query(
+    `INSERT INTO project_documents (project_id, organization_id, name, mime_type, text_content, source_url, sha256, metadata)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING id, name, mime_type, length(text_content)::int AS character_count, source_url, sha256, metadata, created_at`,
+    [req.params.projectId, req.organizationId, document.name, document.mime_type, document.text, document.source_url, sha256, document.metadata],
+  );
+  res.status(201).json({ document: result.rows[0] });
+});
+
+app.get('/api/projects/:projectId/documents/:documentId', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, name, mime_type, text_content, source_url, sha256, metadata, created_at
+       FROM project_documents WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
+    [req.params.documentId, req.params.projectId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Document not found' });
+  res.json({ document: result.rows[0] });
 });
 
 app.post('/api/ai/plan', requireIdentity, async (req, res) => {
@@ -557,4 +602,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob };
+module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob };

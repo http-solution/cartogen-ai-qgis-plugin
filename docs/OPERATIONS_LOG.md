@@ -473,6 +473,16 @@ The full provider and service implementation remains in this private repository.
   `/api/auth/status` returned authenticated demo mode.
 - Real-account acceptance remains open: no active browser session/credential was available for direct user-account submission,
   and the system will not handle or infer the user's password.
+
+## Phase 1 document/context ingestion
+
+- Added `project_documents` persistence with MIME type, text content, source URL, SHA-256 provenance hash,
+  metadata, and character count.
+- Added project-scoped document list, create, and read-back endpoints.
+- Added browser upload and document selection for reviewable AI planning.
+- Supported formats: text/plain, Markdown, CSV, and JSON; maximum text size 200,000 characters.
+- Live verification passed: create 201, list 200, read-back 200, hash present, planner 200,
+  document-context step present.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.
