@@ -62,6 +62,8 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 
 Provider keys are configured centrally in the backend environment. User accounts do not provide or store provider credentials.
 
+**Current Phase 1 active provider: Google Gemini only.** Other provider aliases remain registered for later phases but are not active for planner execution.
+
 Set the Phase 1 planner provider with:
 
 ```text

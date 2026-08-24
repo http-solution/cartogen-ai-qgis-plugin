@@ -310,6 +310,8 @@ The full provider and service implementation remains in this private repository.
 - Added central backend provider aliases: `gemini`, `openai`, `claude`, `openrouter`, and `local`/`ollama`.
 - LiteLLM registry now exposes `gemini-default`, `gpt-default`, `claude-default`, `openrouter-default`, and `local-default`.
 - Provider keys remain backend-only environment configuration; user accounts do not manage provider credentials.
+- Phase 1 active planner provider is now Gemini only; other aliases remain registered for later phases but are not selected by default.
+- Default-provider smoke passed with no explicit provider: Gemini selected, HTTP 200, `cartogen-gateway`, `live-gateway`, five steps, and no fallback.
 - Live reload of the expanded LiteLLM registry is blocked because Compose cannot recreate the container without the existing private `POSTGRES_PASSWORD`; no secret was guessed or changed.
 - Added non-secret `GET /api/ai/providers` diagnostics and included the same provider readiness data in `/api/auth/status`.
 - Gateway `/v1/models` is reachable locally with the active Compose credential context; live chat
