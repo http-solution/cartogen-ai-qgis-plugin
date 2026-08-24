@@ -498,6 +498,14 @@ The full provider and service implementation remains in this private repository.
 - Added project-scoped `GET /api/projects/:projectId/analysis-jobs`.
 - Added visible Processing audit trail to the Analysis screen.
 - Live verification: HTTP 200, eight persisted jobs returned with operation and status metadata.
+
+## Phase 1 durable analysis worker
+
+- Added `scripts/analysis_worker.js` and `npm run worker`.
+- Worker claims queued jobs with PostgreSQL advisory locks and dispatches review, buffer, and intersection operations.
+- `WORKER_ONCE=1` supports deterministic smoke tests; default mode polls continuously.
+- Live verification: queued worker smoke job completed with HTTP read-back 200, humanitarian review output,
+  7 layers, and 12 features.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.
