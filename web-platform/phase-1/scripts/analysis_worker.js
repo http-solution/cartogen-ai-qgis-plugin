@@ -21,7 +21,8 @@ async function claimJob() {
 async function executeJob(job) {
   if (job.operation === 'buffer_layer') return executeBufferJob(job.id, job.organization_id);
   if (job.operation === 'intersect_layers') return executeIntersectionJob(job.id, job.organization_id);
-  return executeReviewOutputJob(job.id, job.organization_id);
+  if (job.operation === 'create_review_output') return executeReviewOutputJob(job.id, job.organization_id);
+  throw new Error(`Unsupported analysis operation: ${job.operation}`);
 }
 
 async function tick() {

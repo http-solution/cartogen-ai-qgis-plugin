@@ -513,6 +513,13 @@ The full provider and service implementation remains in this private repository.
 - Retry resets the job to queued and preserves retry-request provenance.
 - Processing audit trail exposes Retry for failed jobs and Show result for completed derived jobs.
 - Live verification: completed-job retry rejected with HTTP 409; job history returned nine jobs.
+
+## Phase 1 unsupported-operation hardening
+
+- Added supported-operation validation for review, buffer, and intersection jobs.
+- Worker no longer defaults unknown operations to review execution.
+- Live smoke inserted an unsupported queued job; worker persisted `failed|Unsupported analysis operation: unsupported_operation`.
+- Retry endpoint then returned 202, requeued the failed job, and preserved retry provenance.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.

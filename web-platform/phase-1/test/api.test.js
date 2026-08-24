@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -55,6 +55,13 @@ test('validates intersection layer inputs', () => {
   assert.deepEqual(normalizeIntersectionInput({ source_layer_id: 'a', overlay_layer_id: 'b' }), { source_layer_id: 'a', overlay_layer_id: 'b' });
   assert.throws(() => normalizeIntersectionInput({ source_layer_id: 'a', overlay_layer_id: 'a' }), /different/);
   assert.throws(() => normalizeIntersectionInput({ source_layer_id: 'a' }), /overlay_layer_id/);
+});
+
+test('validates supported analysis operations', () => {
+  assert.equal(isSupportedAnalysisOperation('create_review_output'), true);
+  assert.equal(isSupportedAnalysisOperation('buffer_layer'), true);
+  assert.equal(isSupportedAnalysisOperation('intersect_layers'), true);
+  assert.equal(isSupportedAnalysisOperation('unsupported_operation'), false);
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {

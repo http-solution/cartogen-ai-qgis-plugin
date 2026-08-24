@@ -146,6 +146,10 @@ function normalizeIntersectionInput({ source_layer_id = '', overlay_layer_id = '
   return { source_layer_id: String(source_layer_id), overlay_layer_id: String(overlay_layer_id) };
 }
 
+function isSupportedAnalysisOperation(operation) {
+  return ['create_review_output', 'buffer_layer', 'intersect_layers'].includes(operation);
+}
+
 app.get('/api/auth/status', async (req, res) => {
   const resolved = await resolveIdentity(req).catch(() => null);
   res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID) });
@@ -345,6 +349,7 @@ app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
   try {
     const operation = await pool.query('SELECT operation FROM analysis_jobs WHERE id = $1 AND organization_id = $2', [req.params.jobId, req.organizationId]);
     if (!operation.rowCount) return res.status(404).json({ error: 'Analysis job not found' });
+    if (!isSupportedAnalysisOperation(operation.rows[0].operation)) throw new Error(`Unsupported analysis operation: ${operation.rows[0].operation}`);
     const job = operation.rows[0].operation === 'buffer_layer'
       ? await executeBufferJob(req.params.jobId, req.organizationId)
       : operation.rows[0].operation === 'intersect_layers'
@@ -672,4 +677,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
