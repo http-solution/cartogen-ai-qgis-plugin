@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -49,6 +49,12 @@ test('rejects empty or oversized document context', () => {
 
 test('rejects unsupported document context format', () => {
   assert.throws(() => normalizeDocumentContext({ name: 'photo.png', mime_type: 'image/png', text: 'not an image' }), /Unsupported/);
+});
+
+test('validates intersection layer inputs', () => {
+  assert.deepEqual(normalizeIntersectionInput({ source_layer_id: 'a', overlay_layer_id: 'b' }), { source_layer_id: 'a', overlay_layer_id: 'b' });
+  assert.throws(() => normalizeIntersectionInput({ source_layer_id: 'a', overlay_layer_id: 'a' }), /different/);
+  assert.throws(() => normalizeIntersectionInput({ source_layer_id: 'a' }), /overlay_layer_id/);
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {

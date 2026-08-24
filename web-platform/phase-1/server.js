@@ -140,6 +140,12 @@ function normalizeDocumentContext({ name = '', mime_type = 'text/plain', text = 
   return { name: cleanName || 'context.txt', mime_type, text: text.trim(), source_url: source_url ? String(source_url).slice(0, 2000) : null, metadata: metadata && typeof metadata === 'object' ? metadata : {} };
 }
 
+function normalizeIntersectionInput({ source_layer_id = '', overlay_layer_id = '' }) {
+  if (!source_layer_id || !overlay_layer_id) throw new Error('source_layer_id and overlay_layer_id are required');
+  if (String(source_layer_id) === String(overlay_layer_id)) throw new Error('source and overlay layers must be different');
+  return { source_layer_id: String(source_layer_id), overlay_layer_id: String(overlay_layer_id) };
+}
+
 app.get('/api/auth/status', async (req, res) => {
   const resolved = await resolveIdentity(req).catch(() => null);
   res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID) });
@@ -264,6 +270,45 @@ async function executeReviewOutputJob(jobId, organizationId) {
   return updated.rows[0];
 }
 
+async function executeIntersectionJob(jobId, organizationId) {
+  const jobResult = await pool.query('SELECT id, project_id, input, status FROM analysis_jobs WHERE id = $1 AND organization_id = $2', [jobId, organizationId]);
+  if (!jobResult.rowCount) throw new Error('Analysis job not found');
+  const job = jobResult.rows[0];
+  if (job.status !== 'queued') throw new Error(`Analysis job is already ${job.status}`);
+  const input = normalizeIntersectionInput(job.input || {});
+  const sources = await pool.query(
+    `SELECT id, name, licence FROM project_layers WHERE id = ANY($1::uuid[]) AND project_id = $2 AND organization_id = $3`,
+    [[input.source_layer_id, input.overlay_layer_id], job.project_id, organizationId],
+  );
+  if (sources.rowCount !== 2) throw new Error('Source or overlay layer not found');
+  const source = sources.rows.find(layer => layer.id === input.source_layer_id);
+  const overlay = sources.rows.find(layer => layer.id === input.overlay_layer_id);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const resultLayer = await client.query(
+      `INSERT INTO project_layers (project_id, organization_id, name, source_resource, licence, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, created_at`,
+      [job.project_id, organizationId, `${source.name} ∩ ${overlay.name}`, `derived:intersection:${source.id}:${overlay.id}`, source.licence || overlay.licence, { operation: 'intersect_layers', source_layer_id: source.id, overlay_layer_id: overlay.id }],
+    );
+    const inserted = await client.query(
+      `INSERT INTO project_layer_features (layer_id, project_id, organization_id, geometry, properties)
+       SELECT $1, $2, $3, ST_CollectionExtract(ST_Intersection(a.geometry, b.geometry), 3),
+              jsonb_build_object('source_properties', a.properties, 'overlay_properties', b.properties)
+         FROM project_layer_features a JOIN project_layer_features b ON ST_Intersects(a.geometry, b.geometry)
+        WHERE a.layer_id = $4 AND b.layer_id = $5 AND a.organization_id = $3 AND b.organization_id = $3
+          AND NOT ST_IsEmpty(ST_Intersection(a.geometry, b.geometry))
+          AND ST_GeometryType(ST_CollectionExtract(ST_Intersection(a.geometry, b.geometry), 3)) = 'ST_Polygon'
+       RETURNING id`,
+      [resultLayer.rows[0].id, job.project_id, organizationId, input.source_layer_id, input.overlay_layer_id],
+    );
+    const output = { type: 'derived_geometry_layer', operation: 'intersect_layers', result_layer_id: resultLayer.rows[0].id, source_layer_id: source.id, overlay_layer_id: overlay.id, feature_count: inserted.rowCount, limitations: ['Only polygon intersections are retained in this Phase 1 operation.', 'Derived output requires human review before operational use.'] };
+    const updated = await client.query(`UPDATE analysis_jobs SET status = 'completed', output = $1, completed_at = now() WHERE id = $2 AND organization_id = $3 RETURNING id, operation, status, output, completed_at`, [output, jobId, organizationId]);
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+}
+
 app.get('/api/analysis-jobs/:jobId', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT id, project_id, task_id, operation, status, input, output, provenance, created_at, completed_at
@@ -280,7 +325,9 @@ app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
     if (!operation.rowCount) return res.status(404).json({ error: 'Analysis job not found' });
     const job = operation.rows[0].operation === 'buffer_layer'
       ? await executeBufferJob(req.params.jobId, req.organizationId)
-      : await executeReviewOutputJob(req.params.jobId, req.organizationId);
+      : operation.rows[0].operation === 'intersect_layers'
+        ? await executeIntersectionJob(req.params.jobId, req.organizationId)
+        : await executeReviewOutputJob(req.params.jobId, req.organizationId);
     res.json({ job });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -337,14 +384,15 @@ async function executeBufferJob(jobId, organizationId) {
 app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, res) => {
   const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
   if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
-  if (req.body.operation !== 'buffer_layer') return res.status(400).json({ error: 'Unsupported operation' });
+  if (!['buffer_layer', 'intersect_layers'].includes(req.body.operation)) return res.status(400).json({ error: 'Unsupported operation' });
   try {
-    const distance = Number(req.body.distance_meters);
-    if (!req.body.source_layer_id || !Number.isFinite(distance) || distance <= 0 || distance > 100000) throw new Error('source_layer_id and distance_meters (1–100000) are required');
+    const input = req.body.operation === 'buffer_layer'
+      ? (() => { const distance = Number(req.body.distance_meters); if (!req.body.source_layer_id || !Number.isFinite(distance) || distance <= 0 || distance > 100000) throw new Error('source_layer_id and distance_meters (1–100000) are required'); return { source_layer_id: req.body.source_layer_id, distance_meters: distance }; })()
+      : normalizeIntersectionInput(req.body);
     const result = await pool.query(
       `INSERT INTO analysis_jobs (project_id, organization_id, operation, status, input, provenance)
        VALUES ($1,$2,$3,'queued',$4,$5) RETURNING id, operation, status, input, created_at`,
-      [req.params.projectId, req.organizationId, 'buffer_layer', { source_layer_id: req.body.source_layer_id, distance_meters: distance }, { source: 'user-request', phase: '1' }],
+      [req.params.projectId, req.organizationId, req.body.operation, input, { source: 'user-request', phase: '1' }],
     );
     res.status(201).json({ job: result.rows[0] });
   } catch (error) { res.status(400).json({ error: error.message }); }
@@ -602,4 +650,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob };
+module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
