@@ -335,6 +335,7 @@ The full provider and service implementation remains in this private repository.
 - Leaflet map presentation corrected: visible Leaflet attribution control removed, required OpenStreetMap attribution retained in a Cartogen map footer, and the map layer set to fill the complete centre panel.
 - Live asset/API verification passed; remote browser harness screenshot verification remains unavailable until Chrome remote-debugging approval is granted.
 - Live smoke verified page HTTP 200, seven stored layers returned, and Gemini plan HTTP 200.
+- Phase 1 Workstream B integrated: persisted `agent_runs`/`agent_steps` with ordered step read-back and organization/project scope; real read-only HDX dataset search returns bounded candidates with provenance.
 - PM delivery control plan added at `docs/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
 - Removed the browser's hard-coded `x-demo-organization` header; development identity is resolved server-side and strict mode can use Directus session identity.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -123,4 +123,19 @@ test('parses a valid gateway JSON plan', () => {
 
 test('rejects malformed gateway plan responses', () => {
   assert.throws(() => parsePlannerResponse({ choices: [{ message: { content: '{"wrong":true}' } }] }), /schema/);
+});
+
+test('validates dataset search input without accepting unbounded requests', () => {
+  assert.deepEqual(normalizeDatasetSearchInput({ q: ' WASH ', limit: 10 }), { query: 'WASH', limit: 10 });
+  assert.throws(() => normalizeDatasetSearchInput({ q: '' }), /required/);
+  assert.throws(() => normalizeDatasetSearchInput({ q: 'x', limit: 101 }), /between/);
+});
+
+test('normalizes HDX package search results with bounded provenance and resources', () => {
+  const result = normalizeHdxSearchResponse({ result: { count: 1, results: [{ id: 'dataset-1', name: 'dataset-1', title: 'WASH', notes: 'desc', metadata_modified: '2025-01-01', organization: { name: 'OCHA' }, resources: [{ id: 'r1', name: 'data.csv', url: 'https://data.humdata.org/dataset/x/resource/r1', format: 'CSV' }] }] } }, { query: 'WASH', retrievedAt: '2026-01-01T00:00:00.000Z' });
+  assert.equal(result.count, 1);
+  assert.equal(result.candidates[0].id, 'dataset-1');
+  assert.equal(result.candidates[0].resources[0].format, 'CSV');
+  assert.equal(result.provenance.source, 'HDX / data.humdata.org');
+  assert.equal(result.provenance.query, 'WASH');
 });
