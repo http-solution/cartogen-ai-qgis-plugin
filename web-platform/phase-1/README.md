@@ -146,7 +146,8 @@ It never returns provider keys.
 - [x] Selected thematic style preset and opacity are persisted and applied to HTML/PDF export map frames.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [x] Central backend provider registry supports Google Gemini, OpenAI, Anthropic Claude, OpenRouter, and local Ollama.
-- [ ] Live gateway chat completion certified with aligned runtime credentials.
+- [x] Live Gemini gateway chat completion certified with aligned runtime credentials.
+- [ ] Live gateway chat completion certified for OpenAI, Claude, OpenRouter, and local Ollama.
 - [x] Real queued analysis processing through the Phase 1 worker.
 - [ ] Real authentication and organization permissions.
 - [ ] Real PDF/print export engine.
