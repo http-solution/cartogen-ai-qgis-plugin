@@ -328,6 +328,19 @@ app.get('/api/analysis-jobs/:jobId', requireIdentity, async (req, res) => {
   res.json({ job: result.rows[0] });
 });
 
+app.post('/api/analysis-jobs/:jobId/retry', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `UPDATE analysis_jobs
+        SET status = 'queued', output = jsonb_build_object('retry_requested', true), completed_at = NULL,
+            provenance = provenance || jsonb_build_object('retry_requested_at', now(), 'retry_requested_by', $2)
+      WHERE id = $1 AND organization_id = $2 AND status = 'failed'
+      RETURNING id, operation, status, input, provenance, created_at`,
+    [req.params.jobId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(409).json({ error: 'Only failed jobs can be retried' });
+  res.status(202).json({ job: result.rows[0] });
+});
+
 app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
   try {
     const operation = await pool.query('SELECT operation FROM analysis_jobs WHERE id = $1 AND organization_id = $2', [req.params.jobId, req.organizationId]);
