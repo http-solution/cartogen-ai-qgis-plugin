@@ -149,6 +149,7 @@ It never returns provider keys.
 - [x] Read-only workflow schedules persist interval/next-run state, run history, cancellation, and worker-linked analysis jobs.
 - [x] Active project selector loads organization-scoped projects and binds layers, AI plans, datasets, jobs, schedules, and edits to the selected project.
 - [x] Chat plans can be explicitly approved into a persisted workspace task and queued analysis job.
+- [x] Approved chat plans map safely to supported worker operations and close the persisted agent run/step statuses after completion.
 - [x] Approved HDX import validates trusted hosts, explicit approval, bounded GeoJSON/CSV/ZIP resources, and PostGIS transaction boundaries.
 - [x] Map fills the centre panel without visible Leaflet branding controls; required basemap attribution remains visible.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
