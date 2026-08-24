@@ -520,6 +520,12 @@ The full provider and service implementation remains in this private repository.
 - Worker no longer defaults unknown operations to review execution.
 - Live smoke inserted an unsupported queued job; worker persisted `failed|Unsupported analysis operation: unsupported_operation`.
 - Retry endpoint then returned 202, requeued the failed job, and preserved retry provenance.
+
+## Phase 1 report export regression check
+
+- Restored the three Reports actions after iterative Analysis UI changes removed two buttons:
+  Print preview, Download HTML, and Download PDF.
+- Static and inline-script verification passed for all three actions.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.
