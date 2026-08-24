@@ -153,6 +153,7 @@ It never returns provider keys.
 - [x] Approved HDX import validates trusted hosts, explicit approval, bounded GeoJSON/CSV/ZIP resources, and PostGIS transaction boundaries.
 - [x] Positive HDX GeoJSON import/read-back verified with a trusted 790-feature resource.
 - [x] Map fills the centre panel without visible Leaflet branding controls; required basemap attribution remains visible.
+- [x] Browser approval smoke passes plan → approve → approved task → queued job with no page errors.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
