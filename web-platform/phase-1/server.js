@@ -127,24 +127,32 @@ function parsePlannerResponse(payload) {
   return { ...plan, planner: 'cartogen-gateway', mode: 'live-gateway' };
 }
 
+const GATEWAY_SYSTEM_PROMPT = [
+  'You are Cartogen AI, a humanitarian GIS planning assistant.',
+  'Return JSON only with keys: objective, sector, steps, warnings, expected_outputs.',
+  'Each step must contain id, tool, title, and requires_confirmation.',
+  'Do not claim that an analysis was executed. Create a reviewable plan only.',
+].join(' ');
+
+function buildGatewayMessages(context) {
+  const instruction = [
+    `User request: ${context.prompt || ''}`,
+    `Document text: ${context.documentText || ''}`,
+    `Source names: ${(context.sourceNames || []).join(', ')}`,
+  ].join('\\n');
+  return [{ role: 'system', content: GATEWAY_SYSTEM_PROMPT }, { role: 'user', content: instruction }];
+}
+
 async function buildLiveGatewayPlan(context) {
   const gatewayUrl = process.env.CARTOGEN_AI_GATEWAY_URL || 'http://127.0.0.1:4001/v1/chat/completions';
   const gatewayKey = process.env.CARTOGEN_AI_GATEWAY_KEY;
   const model = resolvePlannerModel();
   if (!gatewayKey) throw new Error('CARTOGEN_AI_GATEWAY_KEY is not configured');
-  const instruction = [
-    'You are Cartogen AI, a humanitarian GIS planning assistant.',
-    'Return JSON only with keys: objective, sector, steps, warnings, expected_outputs.',
-    'Each step must contain id, tool, title, and requires_confirmation.',
-    'Do not claim that an analysis was executed. Create a reviewable plan only.',
-    `User request: ${context.prompt || ''}`,
-    `Document text: ${context.documentText || ''}`,
-    `Source names: ${(context.sourceNames || []).join(', ')}`,
-  ].join('\n');
+  const messages = buildGatewayMessages(context);
   const response = await fetch(gatewayUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${gatewayKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: instruction }], temperature: 0, max_tokens: 1200 }),
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 1200 }),
   });
   if (!response.ok) throw new Error(`Gateway planning failed with HTTP ${response.status}`);
   return parsePlannerResponse(await response.json());
@@ -729,4 +737,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };

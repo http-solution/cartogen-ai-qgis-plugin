@@ -327,6 +327,8 @@ The full provider and service implementation remains in this private repository.
 - Current-port Gemini smoke: Phase 1 planner through `http://127.0.0.1:4001/v1/chat/completions` returned HTTP 200, `cartogen-gateway`, `live-gateway`, four steps, objective present, and no fallback.
 - Map rendering diagnosis: live PostGIS layers and GeoJSON were present, but point markers were too small over the decorative workspace background; increased point marker radius and verified the refreshed workspace on port 4205 returned HTTP 200.
 - Added an AI-first command centre to the workspace: plain-language objective input, Gemini active-planner label, plan request, reviewable returned steps, and approve/run action.
+- Removed decorative mock map background implementation; the map now contains only stored SVG geometry, controls, and explicit layer/status UI.
+- Gateway planner now sends a separate system-role message and user-role task context.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.
 
 ## Phase 1 approved-task executor

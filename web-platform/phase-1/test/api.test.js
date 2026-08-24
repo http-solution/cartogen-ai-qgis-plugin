@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -86,6 +86,15 @@ test('reports non-secret provider status', () => {
   assert.deepEqual(result.providers.map(item => item.provider), ['gemini', 'openai', 'claude', 'openrouter', 'local']);
   assert.ok(result.providers.every(item => typeof item.credential_configured === 'boolean'));
   assert.ok(!JSON.stringify(result).match(/sk-[A-Za-z0-9]/));
+});
+
+test('builds gateway messages with a separate system role', () => {
+  const messages = buildGatewayMessages({ prompt: 'Find coverage gaps', documentText: 'WASH context', sourceNames: ['facilities.geojson'] });
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].role, 'system');
+  assert.match(messages[0].content, /humanitarian GIS planning assistant/);
+  assert.equal(messages[1].role, 'user');
+  assert.match(messages[1].content, /Find coverage gaps/);
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {

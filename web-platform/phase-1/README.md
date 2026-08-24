@@ -139,6 +139,8 @@ It never returns provider keys.
 - [x] SaaS smoke test explicitly covers register, logout, login, and post-login `/api/me` session restoration.
 - [x] Workspace header displays current identity mode and Directus authentication state.
 - [x] Workspace starts with an AI-first Gemini command centre for plain-language humanitarian objectives.
+- [x] Live gateway planner uses a separate system role and user task role.
+- [x] Map contains no decorative mock geometry; it renders stored project geometry only.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
