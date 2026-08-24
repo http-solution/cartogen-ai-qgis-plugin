@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cartogen Workspace Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<style>
+:root{
+  --ground:#0C1416; --panel:#111D1F; --raised:#16272A; --raised2:#1B3034;
+  --line:#20363A; --line-soft:#1A2B2E;
+  --text:#E8F1EE; --muted:#8FA7A4; --faint:#617977;
+  --accent:#3ECFA6; --accent-deep:#1E6E59; --accent-ink:#04211A;
+  --warn:#E8B15C; --alert:#EE7A6B; --info:#74B7E8;
+  --r:10px; --r-sm:7px;
+  --f-ui:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-cond:"Barlow Condensed","Barlow",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--f-ui);font-size:13px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#22383C;border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+
+.shell{position:relative;height:100svh;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;background:var(--ground)}
+.stripe{height:3px;background:linear-gradient(90deg,var(--warn) 0 18%,var(--line) 18% 100%)}
+
+.top{display:flex;align-items:center;gap:14px;height:50px;padding:0 12px 0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mark{display:flex;align-items:center;gap:9px;flex:none}
+.mark .glyph{width:22px;height:22px;flex:none}
+.mark .name{font-family:var(--f-cond);font-weight:700;font-size:19px;letter-spacing:.06em;text-transform:uppercase}
+.mark .name em{font-style:normal;color:var(--accent)}
+.switcher{display:flex;align-items:center;gap:7px;flex:none;padding:6px 9px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--raised);max-width:230px}
+.switcher .lbl{font-family:var(--f-cond);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);line-height:1}
+.switcher .val{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.switcher svg{flex:none;color:var(--muted)}
+
+.omni{flex:1;min-width:0;max-width:640px;position:relative}
+.omni-field{display:flex;align-items:center;gap:9px;height:36px;padding:0 11px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);transition:border-color .15s,box-shadow .15s}
+.omni-field:hover{border-color:#2C494E}
+.omni.open .omni-field{border-color:var(--accent-deep);box-shadow:0 0 0 3px rgba(62,207,166,.12)}
+.omni-field input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:13px}
+.omni-field input::placeholder{color:var(--faint)}
+.kbd{font-family:var(--f-mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.omni-pop{position:absolute;z-index:60;top:42px;left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 18px 48px rgba(0,0,0,.55);padding:6px;display:none}
+.omni.open .omni-pop{display:block}
+.omni-group{font-family:var(--f-cond);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:8px 9px 4px}
+.omni-row{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:var(--r-sm)}
+.omni-row:hover,.omni-row.sel{background:var(--raised2)}
+.omni-row .ico{width:18px;text-align:center;color:var(--muted);flex:none}
+.omni-row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omni-row .t b{font-weight:600}
+.omni-row .m{font-family:var(--f-mono);font-size:10.5px;color:var(--faint);flex:none}
+
+.classification{display:flex;align-items:center;gap:7px;flex:none;padding:5px 10px;border-radius:var(--r-sm);background:rgba(232,177,92,.12);border:1px solid rgba(232,177,92,.36);color:var(--warn);font-family:var(--f-cond);font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.who{display:flex;align-items:center;gap:8px;flex:none;color:var(--muted);font-size:12px}
+.who .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(62,207,166,.16)}
+.ghost{display:flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm);color:var(--muted);font-size:12px;font-weight:500;flex:none}
+.ghost:hover{border-color:#2C494E;color:var(--text)}
+.ghost.on{border-color:var(--accent-deep);color:var(--accent);background:rgba(62,207,166,.08)}
+
+.mid{display:grid;grid-template-columns:52px auto minmax(0,1fr) auto;min-height:0}
+.rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0}
+.rail button{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;color:var(--faint);position:relative}
+.rail button:hover{color:var(--text);background:var(--raised)}
+.rail button.on{color:var(--accent-ink);background:var(--accent)}
+.rail .spacer{flex:1}
+.rail .tip{position:absolute;left:46px;white-space:nowrap;background:#04100F;border:1px solid var(--line);color:var(--text);font-size:11.5px;padding:4px 8px;border-radius:6px;opacity:0;pointer-events:none;transform:translateX(-4px);transition:.12s;z-index:70}
+.rail button:hover .tip{opacity:1;transform:none}
+
+.drawer{width:352px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
+.shell.collapse-left .drawer{width:0;overflow:hidden;border-right-width:0}
+.pane{display:none;flex-direction:column;min-height:0;flex:1}
+.pane.on{display:flex}
+.pane-head{padding:13px 14px 11px;border-bottom:1px solid var(--line);flex:none}
+.eyebrow{font-family:var(--f-cond);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.pane-head h2{margin:3px 0 0;font-family:var(--f-cond);font-size:20px;font-weight:600;letter-spacing:.01em}
+.pane-head p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.pane-body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.pane-foot{flex:none;border-top:1px solid var(--line);padding:11px 12px;background:var(--panel)}
+
+.sect{margin-bottom:16px}
+.sect-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.sect-h h3{margin:0;font-family:var(--f-cond);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.link{color:var(--accent);font-size:11.5px;font-weight:500}
+.link:hover{text-decoration:underline}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--raised2);font-weight:500;font-size:12.5px}
+.btn:hover{border-color:#33555A}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.pri:hover{background:#4EDCB4}
+.btn.sm{padding:5px 9px;font-size:11.5px}
+.field{width:100%;background:#0C1719;border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;outline:none}
+.field:focus{border-color:var(--accent-deep)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;font-family:var(--f-mono);font-size:10px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--accent);border-color:rgba(62,207,166,.4);background:rgba(62,207,166,.08)}
+.chip.warn{color:var(--warn);border-color:rgba(232,177,92,.4);background:rgba(232,177,92,.08)}
+.chip.bad{color:var(--alert);border-color:rgba(238,122,107,.4);background:rgba(238,122,107,.08)}
+.chip.info{color:var(--info);border-color:rgba(116,183,232,.35);background:rgba(116,183,232,.08)}
+.mono{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hint{color:var(--faint);font-size:11.5px;line-height:1.5}
+
+.trust{position:relative;padding-left:13px}
+.trust::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:3px;background:var(--faint)}
+.trust.t-ok::before{background:var(--accent)}
+.trust.t-aging::before{background:var(--warn)}
+.trust.t-stale::before{background:var(--alert)}
+.trust.t-new::before{background:repeating-linear-gradient(180deg,var(--faint) 0 3px,transparent 3px 7px)}
+
+.thread{display:flex;flex-direction:column;gap:12px}
+.msg{border-radius:var(--r);padding:10px 12px;font-size:12.5px;line-height:1.55}
+.msg.sys{background:transparent;border:1px dashed var(--line);color:var(--faint);font-size:11.5px}
+.msg.me{background:var(--raised2);border:1px solid #2A4A4B}
+.msg .from{font-family:var(--f-cond);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+
+.runway{border:1px solid var(--line);border-radius:var(--r);background:var(--raised);overflow:hidden}
+.runway-top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(62,207,166,.09),transparent)}
+.runway-top .ttl{font-family:var(--f-cond);font-size:14.5px;white-space:nowrap;font-weight:600;letter-spacing:.03em;flex:1}
+.steps{list-style:none;margin:0;padding:6px 0}
+.step{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:9px 12px 11px}
+.step+.step{border-top:1px solid var(--line-soft)}
+.step .n{font-family:var(--f-mono);font-size:11px;color:var(--accent);width:24px;height:24px;border:1px solid var(--accent-deep);border-radius:50%;display:grid;place-items:center;background:rgba(62,207,166,.07)}
+.step .st{font-weight:600;font-size:12.5px}
+.step dl{margin:6px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 9px;font-size:11.5px}
+.step dt{font-family:var(--f-cond);letter-spacing:.1em;text-transform:uppercase;font-size:10px;color:var(--faint);padding-top:2px}
+.step dd{margin:0;color:var(--muted)}
+.step dd b{color:var(--text);font-weight:500}
+.runway-foot{display:flex;gap:7px;padding:11px 12px;border-top:1px solid var(--line);background:#0F1C1E}
+.runway-foot .btn{flex:1}
+.compose{border:1px solid var(--line);border-radius:var(--r);background:#0C1719;padding:9px}
+.compose textarea{width:100%;min-height:62px;resize:vertical;background:none;border:0;outline:none;font-size:12.5px}
+.compose-bar{display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap}
+.compose-bar .btn{padding:6px 10px}
+
+.lrow{display:flex;align-items:flex-start;gap:9px;padding:9px 9px 9px 0;border-radius:var(--r-sm)}
+.lrow:hover{background:var(--raised)}
+.lrow.sel{background:var(--raised2)}
+.lrow .eye{flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--muted)}
+.lrow .eye:hover{background:var(--raised2);color:var(--text)}
+.lrow .eye.off{color:#3E5654}
+.sw{flex:none;width:13px;height:13px;border-radius:3px;margin-top:4px;border:1px solid rgba(255,255,255,.22)}
+.lrow .meta{flex:1;min-width:0}
+.lrow .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .sub{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center}
+.ramp{display:flex;height:9px;border-radius:3px;overflow:hidden;margin-top:6px;width:100%;max-width:150px}
+.ramp i{flex:1}
+
+.ds{padding:11px;border:1px solid var(--line);border-radius:var(--r);background:var(--raised);margin-bottom:9px}
+.ds h4{margin:0 0 5px;font-size:12.5px;font-weight:600}
+.ds .rowline{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.ds .res{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line-soft);border-radius:var(--r-sm);background:#0E1A1C;margin-top:6px}
+.ds .res .fmt{font-family:var(--f-mono);font-size:10px;color:var(--info);border:1px solid rgba(116,183,232,.3);border-radius:4px;padding:1px 5px}
+.ds .res .nm{flex:1;min-width:0;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.pages{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}
+.pg{aspect-ratio:1/1.414;border:1px solid var(--line);border-radius:5px;background:#F6F5F1;position:relative;overflow:hidden}
+.pg .band{position:absolute;top:0;left:0;right:0;height:6px;background:var(--warn)}
+.pg .ln{position:absolute;left:6px;right:6px;height:2px;background:#C9C7BF;border-radius:2px}
+.pg .blk{position:absolute;left:6px;right:6px;background:#DCDAD2;border:1px solid #C9C7BF;border-radius:2px}
+.pg .num{position:absolute;bottom:3px;right:5px;font-family:var(--f-mono);font-size:7px;color:#8A887F}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label.f{display:block;margin-bottom:9px}
+label.f span.lab{display:block;font-family:var(--f-cond);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.seg button{flex:1;padding:7px 6px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--raised2);color:var(--text);font-weight:600}
+.seg button+button{border-left:1px solid var(--line)}
+
+.stage{position:relative;min-width:0;background:#DFE3DC;overflow:hidden}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+#map.drag{cursor:grabbing}
+.float{position:absolute;z-index:20}
+.plate{background:rgba(12,20,22,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);border-radius:var(--r);box-shadow:0 8px 26px rgba(0,0,0,.34)}
+.mapbtns{top:12px;right:12px;display:flex;flex-direction:column;gap:6px}
+.mapbtn{width:34px;height:34px;display:grid;place-items:center;color:var(--text);background:rgba(12,20,22,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.mapbtn:hover{background:rgba(22,39,42,.96);color:var(--accent)}
+.mapbtn.stack{height:auto;flex-direction:column;padding:0;display:flex}
+.mapbtn.stack span{display:grid;place-items:center;width:32px;height:32px}
+.mapbtn.stack span+span{border-top:1px solid rgba(255,255,255,.09)}
+
+.legend{left:12px;bottom:104px;width:232px;padding:11px 12px}
+.legend h4{margin:0 0 9px;font-family:var(--f-cond);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.lg{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px}
+.lg .k{width:15px;height:11px;border-radius:2px;flex:none;border:1px solid rgba(255,255,255,.2)}
+.lg .k.dot{width:9px;height:9px;border-radius:50%;margin:0 3px}
+.lg .k.line{height:0;border:0;border-top:2px dashed #9AA6A2;border-radius:0}
+.lg .txt{flex:1;min-width:0;color:#D7E4E1}
+.lgramp{display:flex;height:10px;border-radius:3px;overflow:hidden;margin:2px 0 5px}
+.lgramp i{flex:1}
+.lgscale{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:9.5px;color:var(--faint)}
+
+.basemaps{left:12px;bottom:12px;display:flex;gap:6px;padding:6px}
+.bm{width:52px;border-radius:7px;overflow:hidden;border:2px solid transparent;position:relative;padding:0}
+.bm.on{border-color:var(--accent)}
+.bm canvas{display:block;width:100%;height:34px}
+.bm span{display:block;font-family:var(--f-cond);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:2px 0 1px;color:var(--muted)}
+.bm.on span{color:var(--accent)}
+
+.readout{right:12px;bottom:12px;display:flex;align-items:center;gap:14px;padding:6px 11px;font-family:var(--f-mono);font-size:10.5px;color:#CBDBD8}
+.readout .sb{display:flex;flex-direction:column;gap:3px;align-items:center}
+.readout .sb i{display:block;width:74px;height:5px;border:1px solid #CBDBD8;border-top:0}
+.attrib{position:absolute;z-index:15;right:12px;bottom:44px;font-size:10px;color:#3D4C49;background:rgba(255,255,255,.78);padding:2px 7px;border-radius:4px}
+
+.runlet{top:12px;left:12px;width:270px;padding:11px 12px}
+.runlet .hd{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.runlet .hd .t{font-family:var(--f-cond);font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);flex:1}
+.prog{height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin:8px 0 7px}
+.prog i{display:block;height:100%;width:62%;background:var(--accent);border-radius:4px}
+.runlet .rows{font-size:11.5px;color:#C6D6D3}
+.runlet .rw{display:flex;gap:7px;align-items:center;padding:2px 0}
+.runlet .rw .s{width:13px;flex:none;text-align:center;font-family:var(--f-mono);font-size:10px}
+
+.tooltip{position:absolute;z-index:30;pointer-events:none;padding:7px 10px;border-radius:8px;background:rgba(12,20,22,.95);border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 20px rgba(0,0,0,.4);font-size:11.5px;display:none;min-width:170px}
+.tooltip b{display:block;font-size:12.5px;margin-bottom:3px}
+.tooltip .r{display:flex;justify-content:space-between;gap:14px;color:var(--muted);font-family:var(--f-mono);font-size:10.5px}
+
+.ctx{width:320px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
+.shell.collapse-right .ctx{width:0;overflow:hidden;border-left-width:0}
+.ctx-head{padding:12px 14px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:flex-start;gap:8px}
+.ctx-head .g{flex:1;min-width:0}
+.ctx-head h3{margin:2px 0 0;font-family:var(--f-cond);font-size:17px;font-weight:600}
+.ctx-body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.kv{width:100%;border-collapse:collapse;font-size:11.5px}
+.kv th,.kv td{text-align:left;padding:5px 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.kv th{color:var(--faint);font-weight:500;width:44%;font-family:var(--f-cond);letter-spacing:.08em;text-transform:uppercase;font-size:10px;padding-top:7px}
+.kv td{font-family:var(--f-mono);font-size:11px;word-break:break-word}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 12px 17px;font-size:11.5px;color:var(--muted)}
+.tl li::before{content:"";position:absolute;left:2px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--accent-deep);border:1px solid var(--accent)}
+.tl li::after{content:"";position:absolute;left:5px;top:14px;bottom:0;width:1px;background:var(--line)}
+.tl li:last-child::after{display:none}
+.tl b{color:var(--text);font-weight:600;display:block}
+.diff{border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;font-family:var(--f-mono);font-size:10.5px}
+.diff div{padding:4px 8px}
+.diff .b{background:rgba(238,122,107,.09);color:#F0A9A0}
+.diff .a{background:rgba(62,207,166,.09);color:#8FE5C7}
+
+.dock{background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;height:218px;transition:height .2s ease}
+.shell.dock-closed .dock{height:37px}
+.dock-tabs{display:flex;align-items:center;gap:2px;padding:0 8px;height:36px;flex:none;border-bottom:1px solid var(--line)}
+.dock-tabs button.tab{padding:0 12px;height:36px;font-family:var(--f-cond);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;font-weight:600}
+.dock-tabs button.tab:hover{color:var(--text)}
+.dock-tabs button.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.dock-tabs .rt{margin-left:auto;display:flex;align-items:center;gap:8px}
+.dock-body{flex:1;min-height:0;overflow:auto}
+.shell.dock-closed .dock-body{display:none}
+.dpane{display:none}
+.dpane.on{display:block}
+table.data{width:100%;border-collapse:collapse;font-size:11.5px}
+table.data th{position:sticky;top:0;background:var(--panel);text-align:left;font-family:var(--f-cond);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:7px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.data td{padding:6px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;font-variant-numeric:tabular-nums}
+table.data tr:hover td{background:var(--raised)}
+table.data td.n{font-family:var(--f-mono);color:var(--muted)}
+.jrow{display:grid;grid-template-columns:1fr auto;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);align-items:center}
+.jrow .t{font-weight:600;font-size:12.5px}
+.jrow .s{display:flex;gap:6px;align-items:center;margin-top:4px}
+.spin{width:11px;height:11px;border-radius:50%;border:2px solid rgba(62,207,166,.25);border-top-color:var(--accent);animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+
+.pin{position:absolute;z-index:80;width:21px;height:21px;border-radius:50%;background:var(--warn);color:#231703;font-family:var(--f-mono);font-size:11px;display:grid;place-items:center;box-shadow:0 0 0 3px rgba(232,177,92,.22),0 3px 9px rgba(0,0,0,.45);transform:translate(-50%,-50%);padding:0}
+.pin:hover{background:#FFD08A}
+.notes{position:absolute;z-index:90;top:0;right:0;bottom:0;width:372px;background:var(--panel);border-left:1px solid var(--line);box-shadow:-14px 0 44px rgba(0,0,0,.5);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}
+.shell.notes-open .notes{transform:none}
+.notes-head{padding:14px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:flex-start;gap:10px}
+.notes-head h2{margin:3px 0 0;font-family:var(--f-cond);font-size:20px;font-weight:600}
+.notes-body{flex:1;overflow:auto;padding:6px 14px 18px}
+.note{padding:12px 0;border-bottom:1px solid var(--line-soft);display:grid;grid-template-columns:22px 1fr;gap:11px}
+.note.hi{background:rgba(232,177,92,.07);box-shadow:inset 3px 0 var(--warn);padding-left:9px;margin-left:-9px}
+.note .n{width:21px;height:21px;border-radius:50%;background:rgba(232,177,92,.16);border:1px solid rgba(232,177,92,.5);color:var(--warn);font-family:var(--f-mono);font-size:11px;display:grid;place-items:center;margin-top:1px}
+.note h4{margin:0 0 4px;font-size:12.5px;font-weight:600}
+.note p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+.note .was{margin-top:6px;font-size:11.5px;color:var(--faint);border-left:2px solid var(--line);padding-left:8px}
+.note .was b{color:var(--alert);font-weight:500}
+
+@media (max-width:1180px){.ctx{width:0;border-left-width:0;overflow:hidden}.drawer{width:300px}}
+@media (max-width:900px){.omni{display:none}.drawer{width:0;border-right-width:0;overflow:hidden}}
+</style>
+
+<div class="shell" id="shell">
+<div class="stripe"></div>
+
+<header class="top">
+  <div class="mark">
+    <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.6 21 7v10l-9 4.4L3 17V7l9-4.4Z" stroke="#3ECFA6" stroke-width="1.4" stroke-linejoin="round"/><path d="M3 7l9 4.4L21 7M12 11.4V21.4" stroke="#3ECFA6" stroke-width="1.1" opacity=".55"/><circle cx="12" cy="11.4" r="2" fill="#3ECFA6"/></svg>
+    <div class="name"><em>Cartogen</em></div>
+  </div>
+
+  <button class="switcher" data-pin="1">
+    <span style="min-width:0">
+      <span class="lbl" style="display:block">Project</span>
+      <span class="val" style="display:block">Pakistan — Sindh flood coverage</span>
+    </span>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <div class="omni" id="omni" data-pin="2">
+    <div class="omni-field">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#8FA7A4" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="#8FA7A4" stroke-width="2" stroke-linecap="round"/></svg>
+      <input value="flood" aria-label="Search places, layers, datasets and commands">
+      <span class="kbd">Ctrl K</span>
+    </div>
+    <div class="omni-pop">
+      <div class="omni-group">Places</div>
+      <div class="omni-row sel"><span class="ico">◎</span><span class="t"><b>Dadu District</b> · Sindh, Pakistan</span><span class="m">26.73N 67.78E</span></div>
+      <div class="omni-group">Project layers</div>
+      <div class="omni-row"><span class="ico" style="color:#3A7BD5">▬</span><span class="t"><b>Flood</b> extent — WFP ADAM, 29 Aug 2025</span><span class="m">790 features</span></div>
+      <div class="omni-group">Catalogue · HDX</div>
+      <div class="omni-row"><span class="ico">⬗</span><span class="t">Pakistan <b>flood</b>ed area 2025 — UNOSAT</span><span class="m">GEOJSON</span></div>
+      <div class="omni-group">Commands</div>
+      <div class="omni-row"><span class="ico">⌁</span><span class="t">Buffer a layer…</span><span class="m">analysis</span></div>
+      <div class="omni-row"><span class="ico">⎙</span><span class="t">Export situation report…</span><span class="m">reports</span></div>
+    </div>
+  </div>
+
+  <div class="classification" data-pin="3" title="Applied to every export">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6l7-3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    Internal — not for redistribution
+  </div>
+
+  <button class="ghost" id="notesBtn">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    Design notes
+  </button>
+
+  <div class="who"><span class="dot"></span>Directus · verified</div>
+</header>
+
+<div class="mid">
+  <nav class="rail" data-pin="4" aria-label="Workspace sections">
+    <button class="on" data-pane="ask" aria-label="Ask"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12a8 8 0 1 1-3.2-6.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="m12 8 1.4 2.6L16 12l-2.6 1.4L12 16l-1.4-2.6L8 12l2.6-1.4L12 8Z" fill="currentColor"/></svg><span class="tip">Ask · plan and approve</span></button>
+    <button data-pane="layers" aria-label="Layers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m12 3 9 5-9 5-9-5 9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m3 13 9 5 9-5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="tip">Layers · style and legend</span></button>
+    <button data-pane="data" aria-label="Data"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6" rx="7" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" stroke="currentColor" stroke-width="1.8"/></svg><span class="tip">Data · catalogue and context</span></button>
+    <button data-pane="analysis" aria-label="Analysis"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span class="tip">Analysis · operations and schedules</span></button>
+    <button data-pane="reports" aria-label="Reports"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span class="tip">Reports · print and export</span></button>
+    <button data-pane="activity" aria-label="Activity"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 4 13L16 12h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tip">Activity · audit and lineage</span></button>
+    <div class="spacer"></div>
+    <button id="collapseLeft" aria-label="Collapse panel"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M14 6 8 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tip">Collapse panel</span></button>
+  </nav>
+
+  <aside class="drawer">
+
+    <section class="pane on" data-pane="ask">
+      <div class="pane-head">
+        <div class="eyebrow">Planner · Gemini gateway</div>
+        <h2>What do you need to understand?</h2>
+        <p>Describe the decision, not the tool. Every plan is reviewable before anything runs.</p>
+      </div>
+      <div class="pane-body">
+        <div class="thread">
+          <div class="msg sys">Deterministic fallback planner is on standby if the gateway is unreachable.</div>
+          <div class="msg me"><div class="from">Alaa · 09:12</div>Which flood-affected districts in Sindh have the weakest health coverage — no partner presence and no facility within an hour?</div>
+
+          <div class="runway" data-pin="5">
+            <div class="runway-top">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m12 3 2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2L12 3Z" fill="#3ECFA6"/></svg>
+              <span class="ttl">Reviewable plan · 4 steps</span>
+              <span class="chip info">gemini</span>
+            </div>
+            <ol class="steps">
+              <li class="step">
+                <span class="n">1</span>
+                <div>
+                  <div class="st">Clip 3W presence to the flood extent</div>
+                  <dl>
+                    <dt>Tool</dt><dd><b>intersect_layers</b> · PostGIS</dd>
+                    <dt>In</dt><dd>3W presence (714) × Flood extent 29 Aug 2025</dd>
+                    <dt>Out</dt><dd>Derived layer, ~180 records</dd>
+                  </dl>
+                </div>
+              </li>
+              <li class="step">
+                <span class="n">2</span>
+                <div>
+                  <div class="st">Build 60-minute catchments around health facilities</div>
+                  <dl>
+                    <dt>Tool</dt><dd><b>buffer_layer</b> · 15 km proxy</dd>
+                    <dt>In</dt><dd>Healthsites Pakistan (4,849)</dd>
+                    <dt>Assumes</dt><dd>Straight-line proxy — travel time needs the accessibility raster</dd>
+                  </dl>
+                </div>
+              </li>
+              <li class="step">
+                <span class="n">3</span>
+                <div>
+                  <div class="st">Score coverage gap by admin 2</div>
+                  <dl>
+                    <dt>Tool</dt><dd><b>create_review_output</b></dd>
+                    <dt>Assumes</dt><dd>Population is 2017 vintage on 2023 boundaries — result is indicative, not a denominator</dd>
+                  </dl>
+                </div>
+              </li>
+              <li class="step">
+                <span class="n">4</span>
+                <div>
+                  <div class="st">Draft the situation report</div>
+                  <dl>
+                    <dt>Out</dt><dd>4 pages · map, register, limitations, provenance</dd>
+                  </dl>
+                </div>
+              </li>
+            </ol>
+            <div class="runway-foot">
+              <button class="btn pri">Approve and queue</button>
+              <button class="btn">Revise</button>
+              <button class="btn">Discard</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pane-foot">
+        <div class="compose">
+          <textarea placeholder="Ask a follow-up, or paste a situation report to plan from…"></textarea>
+          <div class="compose-bar">
+            <button class="btn sm">+ Context</button>
+            <span class="chip">PAK_HNO_2021.xlsx</span>
+            <span style="flex:1"></span>
+            <button class="btn pri sm">Ask planner</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="layers">
+      <div class="pane-head">
+        <div class="eyebrow">Map</div>
+        <h2>Layers and legend</h2>
+        <p>Colour, order and freshness for everything drawn on the map.</p>
+      </div>
+      <div class="pane-body">
+        <div class="sect">
+          <div class="sect-h"><h3>Analysis results</h3><button class="link">Clear all</button></div>
+          <div class="lrow sel trust t-new">
+            <button class="eye" aria-label="Hide layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg></button>
+            <span class="sw" style="background:linear-gradient(90deg,#F6EEE3,#A63D2A)"></span>
+            <div class="meta">
+              <div class="nm">Coverage gap by admin 2</div>
+              <div class="ramp"><i style="background:#F6EEE3"></i><i style="background:#EFCFAE"></i><i style="background:#E0A277"></i><i style="background:#C86F49"></i><i style="background:#A63D2A"></i></div>
+              <div class="sub"><span class="chip">24 features</span><span class="chip ok">derived today</span><span class="chip">unreviewed</span></div>
+            </div>
+          </div>
+          <div class="lrow trust t-new">
+            <button class="eye off" aria-label="Show layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M9.9 5.7A9.8 9.8 0 0 1 12 5.5c6.4 0 10 6.5 10 6.5a17 17 0 0 1-3.3 4M6.3 8.2A17 17 0 0 0 2 12s3.6 6.5 10 6.5c1.3 0 2.4-.2 3.5-.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+            <span class="sw" style="background:transparent;border:1px dashed #7FD8BE"></span>
+            <div class="meta"><div class="nm">Facility catchments · 15 km</div>
+              <div class="sub"><span class="chip">4,849 features</span><span class="chip warn">proxy distance</span></div></div>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-h"><h3>Project layers</h3><button class="link">Add data</button></div>
+          <div class="lrow trust t-ok" data-pin="6">
+            <button class="eye" aria-label="Hide layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg></button>
+            <span class="sw" style="background:#3A7BD5"></span>
+            <div class="meta"><div class="nm">Flood extent — WFP ADAM</div>
+              <div class="sub"><span class="chip ok">29 Aug 2025 · current</span><span class="chip">CC BY 4.0</span></div></div>
+          </div>
+          <div class="lrow trust t-ok">
+            <button class="eye" aria-label="Hide layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg></button>
+            <span class="sw" style="background:#31474C;border-color:#E9E7E0"></span>
+            <div class="meta"><div class="nm">Health facilities — Healthsites</div>
+              <div class="sub"><span class="chip">4,849 points</span><span class="chip ok">retrieved 12 Aug</span><span class="chip warn">status varies</span></div></div>
+          </div>
+          <div class="lrow trust t-aging">
+            <button class="eye" aria-label="Hide layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg></button>
+            <span class="sw" style="background:#6C4FA3"></span>
+            <div class="meta"><div class="nm">3W operational presence — OCHA</div>
+              <div class="sub"><span class="chip warn">2023 vintage · aging</span><span class="chip">714 records</span></div></div>
+          </div>
+          <div class="lrow trust t-stale">
+            <button class="eye" aria-label="Hide layer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/></svg></button>
+            <span class="sw" style="background:#8FA7A4"></span>
+            <div class="meta"><div class="nm">Population — COD admin 2</div>
+              <div class="sub"><span class="chip bad">2017 · not joinable</span></div>
+              <div class="hint" style="margin-top:6px;color:var(--alert)">Boundary version differs from the 2023 admin layer. A crosswalk is required before any per-capita figure.</div>
+              <button class="btn sm" style="margin-top:7px">Review the mismatch</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-h"><h3>Style · coverage gap</h3></div>
+          <div class="card">
+            <label class="f"><span class="lab">Thematic preset</span>
+              <span class="seg"><button class="on">Coverage</button><button>Severity</button><button>Presence</button><button>Neutral</button></span>
+            </label>
+            <label class="f" style="margin-bottom:0"><span class="lab">Opacity · 78%</span>
+              <input type="range" min="0" max="100" value="78" style="width:100%;accent-color:var(--accent)">
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="data">
+      <div class="pane-head">
+        <div class="eyebrow">Catalogue</div>
+        <h2>Find and import data</h2>
+        <p>Candidates stay outside the project until you approve a specific resource.</p>
+      </div>
+      <div class="pane-body">
+        <div class="sect">
+          <input class="field" value="pakistan flood 2025" aria-label="Search the data catalogue">
+          <div class="hint" style="margin-top:7px">Trusted hosts only · 5 MB and 1,000 features per import · GeoJSON, CSV, ZIP</div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>2 candidates · HDX</h3><span class="chip">nothing imported</span></div>
+          <article class="ds trust t-ok">
+            <h4>Pakistan — flood-affected area, 29 Aug 2025</h4>
+            <div class="rowline"><span class="chip ok">WFP</span><span class="chip">CC BY 4.0</span><span class="chip">modified 3 Sep 2025</span></div>
+            <div class="res"><span class="fmt">GEOJSON</span><span class="nm">pak_wfpadam_flood_20250829.geojson</span><button class="btn sm">Review</button></div>
+            <div class="res"><span class="fmt">ZIP</span><span class="nm">pak_wfpadam_flood_20250829.zip · 3.3 MB</span><button class="btn sm">Review</button></div>
+          </article>
+          <article class="ds trust t-aging">
+            <h4>Pakistan — humanitarian needs overview indicators</h4>
+            <div class="rowline"><span class="chip">OCHA</span><span class="chip warn">2021 snapshot</span></div>
+            <div class="res"><span class="fmt">XLSX</span><span class="nm">PAK_HNO_2021.xlsx</span><button class="btn sm">Review</button></div>
+          </article>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Planning context</h3><button class="link">Add file</button></div>
+          <div class="card trust t-ok" style="padding-left:22px">
+            <div style="font-weight:600;font-size:12.5px">Sindh flood response · sitrep 14</div>
+            <div class="mono" style="margin-top:5px">text/markdown · 18 KB</div>
+            <div class="mono" style="margin-top:2px">sha256 4f9c…a12e</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="analysis">
+      <div class="pane-head">
+        <div class="eyebrow">Operations</div>
+        <h2>Run and schedule</h2>
+        <p>Results become new layers. Source data is never modified.</p>
+      </div>
+      <div class="pane-body">
+        <div class="sect">
+          <div class="sect-h"><h3>Operation</h3></div>
+          <div class="seg" style="margin-bottom:10px"><button class="on">Buffer</button><button>Intersect</button><button>Coverage screen</button></div>
+          <label class="f"><span class="lab">Source layer</span><select class="field"><option>Health facilities — Healthsites · 4,849</option></select></label>
+          <label class="f"><span class="lab">Distance · metres</span><input class="field" value="15000"></label>
+          <div class="grid2"><button class="btn">Preview extent</button><button class="btn pri">Queue run</button></div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Schedules</h3><button class="link">New</button></div>
+          <div class="card trust t-ok" style="padding-left:22px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px"><div style="flex:1;font-weight:600;font-size:12.5px">Daily coverage review</div><span class="chip ok">active</span></div>
+            <div class="mono" style="margin-top:6px">every 24 h · next 25 Aug 06:00</div>
+            <div class="hint" style="margin-top:5px">Last 5 runs completed.</div>
+          </div>
+          <div class="hint">Edits, imports and destructive operations cannot be scheduled.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="reports">
+      <div class="pane-head">
+        <div class="eyebrow">Output</div>
+        <h2>Situation report</h2>
+        <p>The layout you configure is the layout that renders server-side.</p>
+      </div>
+      <div class="pane-body" data-pin="10">
+        <div class="sect">
+          <div class="grid2">
+            <label class="f"><span class="lab">Paper</span><select class="field"><option>A4</option><option>A3</option><option>Letter</option></select></label>
+            <label class="f"><span class="lab">Orientation</span><span class="seg"><button class="on">Portrait</button><button>Landscape</button></span></label>
+          </div>
+          <label class="f"><span class="lab">Title</span><input class="field" value="Sindh flood — health coverage gap"></label>
+          <label class="f"><span class="lab">Sensitivity label</span><select class="field"><option>Internal — not for redistribution</option><option>Public</option><option>Restricted</option></select></label>
+          <label class="f" style="display:flex;gap:9px;align-items:center;margin-bottom:0"><input type="checkbox" checked style="accent-color:var(--accent);width:15px;height:15px"><span style="font-size:12.5px">Print freshness and limitation warnings</span></label>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Preview · 4 pages</h3><span class="chip">Page N of 4</span></div>
+          <div class="pages">
+            <div class="pg"><span class="band"></span><span class="ln" style="top:14px;width:60%"></span><span class="blk" style="top:24px;height:44%"></span><span class="ln" style="bottom:14px"></span><span class="num">1</span></div>
+            <div class="pg"><span class="band"></span><span class="ln" style="top:14px;width:44%"></span><span class="ln" style="top:22px"></span><span class="ln" style="top:28px"></span><span class="ln" style="top:34px;width:70%"></span><span class="blk" style="top:44px;height:34%"></span><span class="num">2</span></div>
+            <div class="pg"><span class="band"></span><span class="ln" style="top:14px;width:52%"></span><span class="ln" style="top:24px"></span><span class="ln" style="top:30px"></span><span class="ln" style="top:36px"></span><span class="ln" style="top:42px;width:64%"></span><span class="num">3</span></div>
+            <div class="pg"><span class="band"></span><span class="ln" style="top:14px;width:58%"></span><span class="blk" style="top:24px;height:26%"></span><span class="ln" style="top:60%"></span><span class="ln" style="top:68%"></span><span class="num">4</span></div>
+          </div>
+          <div class="hint" style="margin-top:8px">Cover · map and register · limitations · provenance appendix</div>
+        </div>
+        <div class="sect">
+          <div class="grid2"><button class="btn">Download HTML</button><button class="btn pri">Download PDF</button></div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Export history</h3></div>
+          <div class="card trust t-ok" style="padding-left:22px;margin-bottom:7px">
+            <div style="display:flex;gap:8px;align-items:center"><div style="flex:1;font-weight:600;font-size:12.5px">Sindh flood — v3</div><span class="chip ok">PDF</span></div>
+            <div class="mono" style="margin-top:5px">24 Aug 08:41 · A4 portrait · 4 pp</div>
+          </div>
+          <div class="card trust t-ok" style="padding-left:22px">
+            <div style="display:flex;gap:8px;align-items:center"><div style="flex:1;font-weight:600;font-size:12.5px">Sindh flood — v2</div><span class="chip">HTML</span></div>
+            <div class="mono" style="margin-top:5px">21 Aug 17:03 · A4 portrait · 4 pp</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="activity">
+      <div class="pane-head">
+        <div class="eyebrow">Audit</div>
+        <h2>Activity</h2>
+        <p>Every approval, edit and export, in order, with the actor.</p>
+      </div>
+      <div class="pane-body">
+        <ul class="tl">
+          <li><b>Export rendered · v3</b>PDF, A4 portrait, sensitivity label applied<div class="mono">24 Aug 08:41 · alaa</div></li>
+          <li><b>Plan approved</b>4 steps → task 8f2c, job 5b91<div class="mono">24 Aug 08:12 · alaa</div></li>
+          <li><b>Feature edited</b>Healthsites #2214 · operational status corrected<div class="mono">23 Aug 16:55 · alaa · hash 9ad1→c30f</div></li>
+          <li><b>Resource imported</b>WFP flood extent · 790 features · HDX<div class="mono">23 Aug 14:20 · alaa</div></li>
+          <li><b>Job failed</b>intersect_layers · geometry not valid, retried<div class="mono">23 Aug 13:58 · worker</div></li>
+        </ul>
+      </div>
+    </section>
+  </aside>
+
+  <main class="stage" id="stage" aria-label="Project map">
+    <canvas id="map"></canvas>
+    <div class="attrib" id="attrib">© OpenStreetMap contributors © CARTO</div>
+
+    <div class="float runlet plate" data-pin="8">
+      <div class="hd">
+        <span class="spin"></span>
+        <span class="t">Running · step 2 of 4</span>
+      </div>
+      <div class="prog"><i></i></div>
+      <div class="rows">
+        <div class="rw"><span class="s" style="color:var(--accent)">✓</span><span>Clip 3W presence to flood extent · 183 records</span></div>
+        <div class="rw"><span class="s" style="color:var(--accent)">◐</span><span>Buffering 4,849 facilities…</span></div>
+        <div class="rw" style="color:var(--faint)"><span class="s">·</span><span>Score coverage gap by admin 2</span></div>
+        <div class="rw" style="color:var(--faint)"><span class="s">·</span><span>Draft situation report</span></div>
+      </div>
+    </div>
+
+    <div class="float mapbtns" data-pin="7">
+      <div class="mapbtn stack"><span id="zin" role="button" tabindex="0" aria-label="Zoom in"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span id="zout" role="button" tabindex="0" aria-label="Zoom out"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></div>
+      <button class="mapbtn" aria-label="Measure distance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m3 15 6-6 6 6-6 6-6-6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 4h6v6M20 4 12 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="mapbtn" aria-label="Zoom to project extent"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="mapbtn" aria-label="Print preview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 9V3h10v6M7 19H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 15h10v6H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="float legend plate" data-pin="9">
+      <h4>Legend <span class="mono" style="text-transform:none">24 Aug</span></h4>
+      <div class="hint" style="margin-bottom:3px">Coverage gap · admin 2</div>
+      <div class="lgramp"><i style="background:#F6EEE3"></i><i style="background:#EFCFAE"></i><i style="background:#E0A277"></i><i style="background:#C86F49"></i><i style="background:#A63D2A"></i></div>
+      <div class="lgscale" style="margin-bottom:9px"><span>served</span><span>critical</span></div>
+      <div class="lg"><span class="k" style="background:rgba(58,123,213,.55);border-color:#3A7BD5"></span><span class="txt">Flood extent</span><span class="chip ok">29 Aug</span></div>
+      <div class="lg"><span class="k dot" style="background:#31474C;border-color:#fff"></span><span class="txt">Health facility</span><span class="mono">4,849</span></div>
+      <div class="lg" style="margin-bottom:0"><span class="k line"></span><span class="txt">Admin 2 boundary</span><span class="chip warn">2023</span></div>
+    </div>
+
+    <div class="float basemaps plate">
+      <button class="bm on"><canvas width="104" height="68" data-bm="voyager"></canvas><span>Voyager</span></button>
+      <button class="bm"><canvas width="104" height="68" data-bm="osm"></canvas><span>OSM</span></button>
+      <button class="bm"><canvas width="104" height="68" data-bm="hot"></canvas><span>HOT</span></button>
+      <button class="bm"><canvas width="104" height="68" data-bm="sat"></canvas><span>Imagery</span></button>
+    </div>
+
+    <div class="float readout plate">
+      <span id="coords">26.7314° N, 67.7810° E</span>
+      <span>EPSG:4326</span>
+      <span class="sb"><span id="scaleLabel">100 km</span><i></i></span>
+    </div>
+
+    <div class="tooltip" id="tip"></div>
+  </main>
+
+  <aside class="ctx" data-pin="11">
+    <div class="ctx-head">
+      <div class="g">
+        <div class="eyebrow">Selected · admin 2</div>
+        <h3 id="ctxName">Dadu</h3>
+      </div>
+      <button class="ghost" id="collapseRight" style="padding:5px 8px" aria-label="Close panel">✕</button>
+    </div>
+    <div class="ctx-body">
+      <div class="sect">
+        <div class="sect-h"><h3>Screening result</h3></div>
+        <div class="card">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <div style="font-family:var(--f-mono);font-size:29px;color:var(--alert);line-height:1" id="ctxScore">0.81</div>
+            <div class="hint" style="flex:1">coverage gap index<br>4th of 24 districts</div>
+          </div>
+          <div class="ramp" style="max-width:none;margin-top:10px"><i style="background:#F6EEE3"></i><i style="background:#EFCFAE"></i><i style="background:#E0A277"></i><i style="background:#C86F49"></i><i style="background:#A63D2A"></i></div>
+        </div>
+      </div>
+      <div class="sect">
+        <div class="sect-h"><h3>Attributes</h3><button class="link">Edit</button></div>
+        <table class="kv">
+          <tbody>
+          <tr><th>pcode</th><td id="ctxCode">PK2208</td></tr>
+          <tr><th>partners</th><td id="ctxPartners">3</td></tr>
+          <tr><th>facilities</th><td id="ctxFac">28</td></tr>
+          <tr><th>flooded area</th><td id="ctxFlood">41%</td></tr>
+          <tr><th>population 2017</th><td>1,550,266</td></tr>
+          </tbody>
+        </table>
+        <div class="hint" style="margin-top:8px;color:var(--warn)">Population is from the 2017 COD on a superseded boundary set. Not used in the score.</div>
+      </div>
+      <div class="sect">
+        <div class="sect-h"><h3>Provenance</h3></div>
+        <table class="kv">
+          <tbody>
+          <tr><th>derived from</th><td>3W presence · Healthsites · flood extent</td></tr>
+          <tr><th>job</th><td>5b91 · intersect_layers</td></tr>
+          <tr><th>run by</th><td>alaa · approved plan 4a7f</td></tr>
+          <tr><th>retrieved</th><td>2026-08-24T08:12Z</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="sect">
+        <div class="sect-h"><h3>Pending edit</h3></div>
+        <div class="diff">
+          <div class="b">− "status": "unknown"</div>
+          <div class="a">+ "status": "functional"</div>
+        </div>
+        <div class="grid2" style="margin-top:9px"><button class="btn">Discard</button><button class="btn pri">Apply edit</button></div>
+        <div class="hint" style="margin-top:7px">Applying writes a lineage event with the before and after hash.</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<section class="dock" data-pin="12">
+  <div class="dock-tabs">
+    <button class="tab on" data-dpane="attrs">Attributes</button>
+    <button class="tab" data-dpane="jobs">Jobs <span class="chip ok" style="margin-left:5px">1 running</span></button>
+    <button class="tab" data-dpane="lineage">Lineage</button>
+    <div class="rt">
+      <input class="field" placeholder="Filter 24 rows…" style="width:180px;padding:5px 9px;font-size:12px">
+      <button class="btn sm">Export filtered</button>
+      <button class="ghost" id="dockToggle" style="padding:5px 8px" aria-label="Collapse dock">▾</button>
+    </div>
+  </div>
+  <div class="dock-body">
+    <div class="dpane on" data-dpane="attrs">
+      <table class="data">
+        <thead><tr><th>district</th><th>pcode</th><th>gap index</th><th>partners</th><th>facilities</th><th>flooded %</th><th>3W vintage</th><th>lineage</th></tr></thead>
+        <tbody id="attrRows"></tbody>
+      </table>
+    </div>
+    <div class="dpane" data-dpane="jobs">
+      <div class="jrow"><div><div class="t">buffer_layer · Healthsites 15 km</div><div class="s"><span class="spin"></span><span class="mono">running · started 08:13:04</span></div></div><button class="btn sm">Cancel</button></div>
+      <div class="jrow"><div><div class="t">intersect_layers · 3W × flood extent</div><div class="s"><span class="chip ok">completed</span><span class="mono">183 features · 4.2 s</span></div></div><button class="btn sm">Show result</button></div>
+      <div class="jrow"><div><div class="t">intersect_layers · admin 2 × flood extent</div><div class="s"><span class="chip bad">failed</span><span class="mono">invalid geometry at feature 118</span></div></div><button class="btn sm">Retry</button></div>
+      <div class="jrow"><div><div class="t">create_review_output · daily coverage review</div><div class="s"><span class="chip ok">completed</span><span class="mono">scheduled · 06:00</span></div></div><button class="btn sm">Open</button></div>
+    </div>
+    <div class="dpane" data-dpane="lineage">
+      <table class="data">
+        <thead><tr><th>when</th><th>object</th><th>event</th><th>actor</th><th>before</th><th>after</th></tr></thead>
+        <tbody>
+          <tr><td class="n">24 Aug 08:41</td><td>export v3</td><td>rendered</td><td>alaa</td><td class="n">—</td><td class="n">e41c…</td></tr>
+          <tr><td class="n">24 Aug 08:12</td><td>run 4a7f</td><td>plan approved</td><td>alaa</td><td class="n">proposed</td><td class="n">queued</td></tr>
+          <tr><td class="n">23 Aug 16:55</td><td>feature 2214</td><td>properties edited</td><td>alaa</td><td class="n">9ad1…</td><td class="n">c30f…</td></tr>
+          <tr><td class="n">23 Aug 14:20</td><td>layer 7c02</td><td>imported</td><td>alaa</td><td class="n">—</td><td class="n">790 ft</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<aside class="notes" id="notes" aria-label="Design notes">
+  <div class="notes-head">
+    <div style="flex:1">
+      <div class="eyebrow">Review</div>
+      <h2>What changed, and why</h2>
+    </div>
+    <button class="ghost" id="notesClose" style="padding:5px 8px">✕</button>
+  </div>
+  <div class="notes-body" id="notesBody"></div>
+</aside>
+</div>
+
+<script>
+const NOTES=[
+ {t:"A switcher, not the whole navigation",p:"The project switcher stays, but it is no longer the only way to move. Section is chosen on the rail; the project is chosen here.",w:"A bare select in the header was the entire navigation model."},
+ {t:"One field for places, layers, data and commands",p:"Results resolve into groups by kind, so one keystroke path covers finding a district, a layer, a catalogue dataset or an operation.",w:"No search of any kind — not for places, not for layers, not across 4,849 facilities."},
+ {t:"Sensitivity is visible while you work",p:"The classification is stored and printed on exports, so it belongs in the chrome too. The amber stripe above the header carries it at a glance.",w:"Classification existed in the database and on the PDF, and nowhere in the interface."},
+ {t:"The mode rail brings the sections back",p:"Ask, Layers, Data, Analysis, Reports, Activity — the Phase 0 information architecture, restored as a rail so one dense panel is open at a time.",w:"Seven sections stacked open in a single 300 px column: basemap, layers, dataset search, inspector, analysis, jobs, schedules. Everything was a scroll hunt."},
+ {t:"The plan is an object, not a paragraph",p:"Each step shows its tool, inputs, assumptions and expected output — what the architecture spike specified. Assumptions that would invalidate the result sit in the step that makes them. Approve, revise or discard.",w:"The plan card listed step titles only, with a single Approve button and no way to push back."},
+ {t:"Freshness lives on the layer",p:"The trust stripe and vintage chip put source age where the decision is made. The 2017 population and 2023 boundary mismatch is an alert on the layer with a route to resolve it.",w:"Layers showed a feature count and a licence. The documented compatibility warning appeared nowhere in the UI."},
+ {t:"Map furniture a mapper expects",p:"Scale bar, coordinate readout, extent zoom, measure, print. Basemaps as thumbnails, and attribution that changes with the basemap.",w:"No scale, no coordinates, no measure. Attribution was hard-coded to OpenStreetMap and stayed there under Carto and Esri tiles — an attribution compliance problem, not a polish one."},
+ {t:"Work in progress is visible on the map",p:"An approved plan runs where you can watch it: step state, counts and elapsed time, with cancel available.",w:"Queue a job and the Jobs list said queued until something else happened to refresh it. No polling, no completion signal."},
+ {t:"A real legend, generated from the layers",p:"Classes, ramp, counts and each layer's currency — the same legend that goes into the export.",w:"Every layer rendered in the same teal fill, and no legend existed at all."},
+ {t:"Reports, restored to the interface",p:"Paper, orientation, title, sensitivity, warning visibility, a four-page preview, HTML and PDF, and the export history.",w:"The whole Reports surface is implemented in the API and absent from the current index.html."},
+ {t:"One inspector, and edits that survive",p:"Result, attributes, provenance and the pending edit diff in a single column. The edit is held until you apply or discard it.",w:"Clicking empty map cleared the inspector and silently discarded unsaved edit JSON. A popup duplicated the inspector with the words Stored feature."},
+ {t:"A dock for the tabular half of GIS",p:"Attribute table with filter and filtered export, live jobs, and the lineage log. Collapsible, always in the same place.",w:"No attribute table. Jobs were a 12-item list in a narrow sidebar with no result links and no retry."}
+];
+const shell=document.getElementById('shell');
+document.getElementById('notesBody').innerHTML=NOTES.map((n,i)=>'<article class="note" id="note-'+(i+1)+'"><span class="n">'+(i+1)+'</span><div><h4>'+n.t+'</h4><p>'+n.p+'</p><div class="was">Today · <b>'+n.w+'</b></div></div></article>').join('');
+
+function placePins(){
+  document.querySelectorAll('.pin').forEach(p=>p.remove());
+  if(!shell.classList.contains('notes-open'))return;
+  const base=shell.getBoundingClientRect();
+  document.querySelectorAll('[data-pin]').forEach(el=>{
+    const i=el.dataset.pin,r=el.getBoundingClientRect();
+    if(!r.width)return;
+    const b=document.createElement('button');
+    b.className='pin';b.textContent=i;b.setAttribute('aria-label','Design note '+i);
+    b.style.left=(r.left-base.left+Math.min(r.width-10,26))+'px';
+    b.style.top=(r.top-base.top+12)+'px';
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.note').forEach(n=>n.classList.remove('hi'));
+      const n=document.getElementById('note-'+i);
+      if(n){n.classList.add('hi');n.scrollIntoView({block:'center',behavior:'smooth'})}
+    });
+    shell.appendChild(b);
+  });
+}
+document.getElementById('notesBtn').addEventListener('click',()=>{
+  shell.classList.toggle('notes-open');
+  document.getElementById('notesBtn').classList.toggle('on');
+  requestAnimationFrame(placePins);
+});
+document.getElementById('notesClose').addEventListener('click',()=>{
+  shell.classList.remove('notes-open');
+  document.getElementById('notesBtn').classList.remove('on');
+  placePins();
+});
+
+document.querySelectorAll('.rail button[data-pane]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.rail button[data-pane]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    shell.classList.remove('collapse-left');
+    document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.pane===b.dataset.pane));
+    setTimeout(()=>{resize();placePins()},220);
+  });
+});
+document.getElementById('collapseLeft').addEventListener('click',()=>{shell.classList.toggle('collapse-left');setTimeout(()=>{resize();placePins()},230)});
+document.getElementById('collapseRight').addEventListener('click',()=>{shell.classList.toggle('collapse-right');setTimeout(()=>{resize();placePins()},230)});
+document.getElementById('dockToggle').addEventListener('click',()=>{
+  shell.classList.toggle('dock-closed');
+  document.getElementById('dockToggle').textContent=shell.classList.contains('dock-closed')?'▴':'▾';
+  setTimeout(()=>{resize();placePins()},230);
+});
+document.querySelectorAll('.dock-tabs .tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.dock-tabs .tab').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.querySelectorAll('.dpane').forEach(p=>p.classList.toggle('on',p.dataset.dpane===t.dataset.dpane));
+  });
+});
+document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{
+  e.preventDefault();seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+})));
+document.querySelectorAll('.lrow .eye').forEach(e=>e.addEventListener('click',ev=>{ev.stopPropagation();e.classList.toggle('off')}));
+document.querySelectorAll('.lrow').forEach(r=>r.addEventListener('click',()=>{
+  document.querySelectorAll('.lrow').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+}));
+
+const DISTRICTS=["Jacobabad","Kashmore","Shikarpur","Ghotki","Larkana","Sukkur","Qambar","Khairpur","Dadu","N. Feroze","Jamshoro","Benazirabad","Sanghar","Matiari","Hyderabad","T. Allahyar","Mirpur Khas","Umerkot","T. M. Khan","Badin","Thatta","Sujawal","Tharparkar","Karachi"];
+const RAMP=["#F6EEE3","#EFCFAE","#E0A277","#C86F49","#A63D2A"];
+const BASE={voyager:{land:"#F3F1EB",out:"#E7E4DC",water:"#B9D5E4",road:"#FFFFFF",casing:"#E2DED3",label:"#5B6C68",cred:"© OpenStreetMap contributors © CARTO"},
+            osm:{land:"#F2EFE9",out:"#E6E2D8",water:"#AAD3DF",road:"#FFFFFF",casing:"#D9D4C6",label:"#4E5A57",cred:"© OpenStreetMap contributors"},
+            hot:{land:"#F7F3EA",out:"#EAE4D6",water:"#9FC4D8",road:"#FFF6E4",casing:"#D8CDB4",label:"#5A5346",cred:"© OpenStreetMap contributors · tiles by HOT"},
+            sat:{land:"#3E4735",out:"#333A2C",water:"#25384A",road:"#C9C3A8",casing:"#5A5F4A",label:"#E9EEE2",cred:"Imagery © Esri"}};
+let base="voyager";
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const W=1500,H=1000,COLS=6,ROWS=4;
+const R=rng(20260824);
+const pts=[];
+for(let r=0;r<=ROWS;r++){pts[r]=[];for(let c=0;c<=COLS;c++){
+  const edgeP=(r===0||c===0||r===ROWS||c===COLS);
+  pts[r][c]={x:60+c*(W-120)/COLS+(R()-.5)*(edgeP?150:110),y:60+r*(H-120)/ROWS+(R()-.5)*(edgeP?130:100)};
+}}
+function subdiv(a,b,seed){
+  let p=[a,b];const rr=rng(seed);
+  for(let it=0;it<3;it++){const q=[p[0]];
+    for(let i=0;i<p.length-1;i++){const s=p[i],e=p[i+1];
+      const dx=e.x-s.x,dy=e.y-s.y,len=Math.hypot(dx,dy)||1,d=(rr()-.5)*len*0.16;
+      q.push({x:(s.x+e.x)/2-dy/len*d,y:(s.y+e.y)/2+dx/len*d});q.push(e);}
+    p=q;}
+  return p;
+}
+const edgeCache=new Map();
+function edge(r1,c1,r2,c2){
+  const k=[r1,c1,r2,c2].join('_'),k2=[r2,c2,r1,c1].join('_');
+  if(edgeCache.has(k))return edgeCache.get(k);
+  if(edgeCache.has(k2))return edgeCache.get(k2).slice().reverse();
+  const v=subdiv(pts[r1][c1],pts[r2][c2],(r1*9173+c1*3121+r2*137+c2*71));
+  edgeCache.set(k,v);return v;
+}
+const cells=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+  const ring=[].concat(edge(r,c,r,c+1),edge(r,c+1,r+1,c+1).slice(1),edge(r+1,c+1,r+1,c).slice(1),edge(r+1,c,r,c).slice(1));
+  const cx=ring.reduce((s,p)=>s+p.x,0)/ring.length,cy=ring.reduce((s,p)=>s+p.y,0)/ring.length;
+  cells.push({ring:ring,cx:cx,cy:cy,name:DISTRICTS[cells.length%DISTRICTS.length],gap:+(R()*0.85+0.12).toFixed(2),
+    partners:Math.floor(R()*14),fac:Math.floor(R()*90)+4,flood:Math.floor(R()*70),path:null,idx:cells.length});
+}
+const facilities=[];for(let i=0;i<170;i++)facilities.push({x:70+R()*(W-140),y:70+R()*(H-140),big:R()>.9});
+const floodPoly=(function(){const cx=W*0.42,cy=H*0.5,n=28,o=[],rr=rng(77);
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2,rad=190+Math.sin(a*3)*70+Math.cos(a*5)*45+rr()*60;
+    o.push({x:cx+Math.cos(a)*rad*1.5,y:cy+Math.sin(a)*rad*1.15});}return o})();
+const river=(function(){const o=[],rr=rng(311);for(let i=0;i<=22;i++){const t=i/22;o.push({x:W*0.18+t*W*0.5+Math.sin(t*7)*70,y:-40+t*(H+80)+(rr()-.5)*40})}return o})();
+const roads=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const i=r*COLS+c;
+  if(c<COLS-1)roads.push([cells[i],cells[i+1],R()>.55]);
+  if(r<ROWS-1)roads.push([cells[i],cells[i+COLS],R()>.6]);}
+const hull=[];
+for(let c=0;c<COLS;c++)hull.push.apply(hull,edge(0,c,0,c+1));
+for(let r=0;r<ROWS;r++)hull.push.apply(hull,edge(r,COLS,r+1,COLS));
+for(let c=COLS;c>0;c--)hull.push.apply(hull,edge(ROWS,c,ROWS,c-1));
+for(let r=ROWS;r>0;r--)hull.push.apply(hull,edge(r,0,r-1,0));
+
+const cv=document.getElementById('map'),ctx=cv.getContext('2d');
+const view={k:1,x:0,y:0,set:0};let dpr=1,hover=null;
+function poly(p){ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.closePath()}
+function pline(p){ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y)}
+function resize(){
+  const w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  if(!view.set){const k=Math.max(w/W,h/H)*1.04;view.k=k;view.x=(w-W*k)/2;view.y=(h-H*k)/2;view.set=1}
+  draw();
+}
+function draw(){
+  const P=BASE[base],w=cv.clientWidth,h=cv.clientHeight;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=P.out;ctx.fillRect(0,0,w,h);
+  ctx.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.x,dpr*view.y);
+  poly(hull);ctx.fillStyle=P.land;ctx.fill();
+  ctx.save();ctx.clip();
+  cells.forEach(function(c){
+    c.path=new Path2D();c.path.moveTo(c.ring[0].x,c.ring[0].y);
+    for(let i=1;i<c.ring.length;i++)c.path.lineTo(c.ring[i].x,c.ring[i].y);c.path.closePath();
+    ctx.fillStyle=RAMP[Math.min(4,Math.floor(c.gap*5))];ctx.globalAlpha=base==='sat'?.6:.78;ctx.fill(c.path);ctx.globalAlpha=1;});
+  ctx.lineJoin='round';ctx.lineCap='round';
+  pline(river);ctx.strokeStyle=P.water;ctx.lineWidth=15;ctx.stroke();
+  poly(floodPoly);ctx.fillStyle='rgba(58,123,213,.24)';ctx.fill();
+  ctx.strokeStyle='rgba(26,72,150,.85)';ctx.lineWidth=2.6;ctx.stroke();
+  roads.forEach(function(rd){const a=rd[0],b=rd[1],major=rd[2];
+    const mx=(a.cx+b.cx)/2+(b.cy-a.cy)*0.07,my=(a.cy+b.cy)/2+(a.cx-b.cx)*0.07;
+    ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.quadraticCurveTo(mx,my,b.cx,b.cy);
+    ctx.strokeStyle=P.casing;ctx.lineWidth=major?9:5.5;ctx.stroke();
+    ctx.strokeStyle=P.road;ctx.lineWidth=major?6:3;ctx.stroke();});
+  ctx.setLineDash([9,6]);ctx.strokeStyle=base==='sat'?'rgba(230,235,220,.65)':'rgba(120,134,130,.85)';ctx.lineWidth=1.6;
+  cells.forEach(function(c){ctx.stroke(c.path)});ctx.setLineDash([]);
+  ctx.setLineDash([5,5]);ctx.strokeStyle='rgba(24,96,78,.6)';ctx.lineWidth=1.6;
+  facilities.forEach(function(f){if(f.big){ctx.beginPath();ctx.arc(f.x,f.y,52,0,6.284);ctx.stroke()}});
+  ctx.setLineDash([]);
+  facilities.forEach(function(f){ctx.beginPath();ctx.arc(f.x,f.y,f.big?5.5:3.4,0,6.284);
+    ctx.fillStyle='#31474C';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineWidth=1.4;ctx.stroke();});
+  if(hover){ctx.lineWidth=4;ctx.strokeStyle='rgba(12,20,22,.85)';ctx.stroke(hover.path);
+    ctx.lineWidth=1.8;ctx.strokeStyle='#3ECFA6';ctx.stroke(hover.path);}
+  ctx.font='600 15px "Barlow Condensed",sans-serif';ctx.textAlign='center';ctx.lineJoin='round';
+  cells.forEach(function(c){
+    ctx.strokeStyle=base==='sat'?'rgba(18,22,16,.75)':'rgba(255,255,255,.88)';ctx.lineWidth=3.2;
+    ctx.strokeText(c.name.toUpperCase(),c.cx,c.cy);
+    ctx.fillStyle=P.label;ctx.fillText(c.name.toUpperCase(),c.cx,c.cy);});
+  ctx.restore();
+  poly(hull);ctx.strokeStyle=base==='sat'?'rgba(240,244,235,.75)':'rgba(96,112,108,.9)';ctx.lineWidth=2.4;ctx.stroke();
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  document.getElementById('scaleLabel').textContent=Math.max(5,Math.round(120/view.k/5)*5)+' km';
+}
+const tip=document.getElementById('tip');
+let drag=null;
+cv.addEventListener('mousemove',function(e){
+  const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+  const wx=(px-view.x)/view.k,wy=(py-view.y)/view.k;
+  document.getElementById('coords').textContent=(28.6-wy/H*5.3).toFixed(4)+'° N, '+(66.7+wx/W*5.1).toFixed(4)+'° E';
+  if(drag){view.x+=e.clientX-drag.x;view.y+=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};draw();return}
+  ctx.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.x,dpr*view.y);
+  let hit=null;
+  for(let i=0;i<cells.length;i++){if(cells[i].path&&ctx.isPointInPath(cells[i].path,wx,wy)){hit=cells[i];break}}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(hit!==hover){hover=hit;draw()}
+  if(hit){tip.style.display='block';
+    tip.innerHTML='<b>'+hit.name+'</b><div class="r"><span>coverage gap</span><span>'+hit.gap.toFixed(2)+'</span></div><div class="r"><span>partners</span><span>'+hit.partners+'</span></div><div class="r"><span>facilities</span><span>'+hit.fac+'</span></div><div class="r"><span>flooded</span><span>'+hit.flood+'%</span></div>';
+    tip.style.left=Math.min(px+16,cv.clientWidth-195)+'px';tip.style.top=Math.min(py+16,cv.clientHeight-110)+'px';
+  } else tip.style.display='none';
+});
+cv.addEventListener('mouseleave',function(){tip.style.display='none';if(hover){hover=null;draw()}});
+cv.addEventListener('click',function(){if(!hover)return;
+  document.getElementById('ctxName').textContent=hover.name;
+  const s=document.getElementById('ctxScore');
+  s.textContent=hover.gap.toFixed(2);
+  s.style.color=hover.gap>.6?'var(--alert)':hover.gap>.35?'var(--warn)':'var(--accent)';
+  document.getElementById('ctxCode').textContent='PK'+(2200+hover.idx);
+  document.getElementById('ctxPartners').textContent=hover.partners;
+  document.getElementById('ctxFac').textContent=hover.fac;
+  document.getElementById('ctxFlood').textContent=hover.flood+'%';
+  shell.classList.remove('collapse-right');setTimeout(resize,230);
+});
+cv.addEventListener('mousedown',function(e){drag={x:e.clientX,y:e.clientY};cv.classList.add('drag')});
+window.addEventListener('mouseup',function(){drag=null;cv.classList.remove('drag')});
+cv.addEventListener('wheel',function(e){e.preventDefault();
+  const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const f=e.deltaY<0?1.12:1/1.12,nk=Math.min(6,Math.max(.5,view.k*f));
+  view.x=mx-(mx-view.x)*(nk/view.k);view.y=my-(my-view.y)*(nk/view.k);view.k=nk;draw()},{passive:false});
+function zoomBy(f){const w=cv.clientWidth/2,h=cv.clientHeight/2,nk=Math.min(6,Math.max(.5,view.k*f));
+  view.x=w-(w-view.x)*(nk/view.k);view.y=h-(h-view.y)*(nk/view.k);view.k=nk;draw()}
+document.getElementById('zin').addEventListener('click',function(){zoomBy(1.3)});
+document.getElementById('zout').addEventListener('click',function(){zoomBy(1/1.3)});
+
+document.querySelectorAll('.bm').forEach(function(b){
+  const c=b.querySelector('canvas'),g=c.getContext('2d'),P=BASE[c.dataset.bm];
+  g.fillStyle=P.land;g.fillRect(0,0,104,68);
+  g.lineCap='round';
+  g.strokeStyle=P.water;g.lineWidth=9;g.beginPath();g.moveTo(20,-5);g.quadraticCurveTo(46,34,32,74);g.stroke();
+  g.strokeStyle=P.casing;g.lineWidth=7;g.beginPath();g.moveTo(-5,48);g.lineTo(110,24);g.stroke();
+  g.strokeStyle=P.road;g.lineWidth=4;g.beginPath();g.moveTo(-5,48);g.lineTo(110,24);g.stroke();
+  g.fillStyle='rgba(58,123,213,.35)';g.beginPath();g.ellipse(70,50,26,15,.3,0,6.284);g.fill();
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.bm').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');base=c.dataset.bm;
+    document.getElementById('attrib').textContent=BASE[base].cred;draw()});
+});
+
+document.getElementById('attrRows').innerHTML=cells.map(function(c){
+  const cls=c.gap>.6?'bad':c.gap>.35?'warn':'ok';
+  return '<tr><td style="font-weight:600">'+c.name+'</td><td class="n">PK'+(2200+c.idx)+'</td><td class="n"><span class="chip '+cls+'">'+c.gap.toFixed(2)+'</span></td><td class="n">'+c.partners+'</td><td class="n">'+c.fac+'</td><td class="n">'+c.flood+'%</td><td class="n"><span class="chip warn">2023</span></td><td class="n">'+(4096+c.idx*37).toString(16)+'…</td></tr>';
+}).join('');
+
+var omni=document.getElementById('omni');
+omni.querySelector('input').addEventListener('focus',function(){omni.classList.add('open')});
+document.addEventListener('click',function(e){if(!omni.contains(e.target))omni.classList.remove('open')});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){omni.classList.remove('open');shell.classList.remove('notes-open');
+    document.getElementById('notesBtn').classList.remove('on');placePins();}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();omni.querySelector('input').focus();omni.querySelector('input').select()}
+});
+window.addEventListener('resize',function(){resize();placePins()});
+resize();
+</script>
+
+</body>
+</html>
