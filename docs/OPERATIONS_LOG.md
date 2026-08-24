@@ -325,6 +325,7 @@ The full provider and service implementation remains in this private repository.
 - Compose now explicitly passes `UI_USERNAME` and `UI_PASSWORD` from `.env`; the live container contains both variables without exposing values.
 - User-confirmed UI acceptance: LiteLLM Admin UI accessible at `http://localhost:4001/ui/` after correcting the host-port mapping.
 - Current-port Gemini smoke: Phase 1 planner through `http://127.0.0.1:4001/v1/chat/completions` returned HTTP 200, `cartogen-gateway`, `live-gateway`, four steps, objective present, and no fallback.
+- Map rendering diagnosis: live PostGIS layers and GeoJSON were present, but point markers were too small over the decorative workspace background; increased point marker radius and verified the refreshed workspace on port 4205 returned HTTP 200.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.
 
 ## Phase 1 approved-task executor
