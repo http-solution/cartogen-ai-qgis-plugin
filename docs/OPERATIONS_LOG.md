@@ -330,6 +330,8 @@ The full provider and service implementation remains in this private repository.
 - Removed decorative mock map background implementation; the map now contains only stored SVG geometry, controls, and explicit layer/status UI.
 - Gateway planner now sends a separate system-role message and user-role task context.
 - Replaced the previous dashboard-style workspace with a functional three-column AI-first workspace: chat, stored-data map, and tools/jobs.
+- Replaced the SVG map surface with a Leaflet map using OpenStreetMap default tiles and selectable HOT, Carto Voyager, and Esri World Street Map basemaps, each with attribution.
+- Live asset/API verification passed; remote browser harness screenshot verification remains unavailable until Chrome remote-debugging approval is granted.
 - Live smoke verified page HTTP 200, seven stored layers returned, and Gemini plan HTTP 200.
 - PM delivery control plan added at `docs/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
 - Removed the browser's hard-coded `x-demo-organization` header; development identity is resolved server-side and strict mode can use Directus session identity.
