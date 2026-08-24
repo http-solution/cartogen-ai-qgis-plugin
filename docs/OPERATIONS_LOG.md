@@ -318,6 +318,7 @@ The full provider and service implementation remains in this private repository.
   `gpt-default`; `claude-default` chat returned provider HTTP 401 because Anthropic provider authentication
   is unavailable, and `gpt-default` chat returned provider HTTP 401 because OpenAI provider authentication
   is unavailable. No credentials were exposed or changed; this remains an environment/provider-key blocker.
+- Follow-up provider reachability checks: OpenRouter endpoint reachable HTTP 200; Gemini endpoint reachable HTTP 403 (key required); local Ollama `127.0.0.1:11434` unavailable. No usable provider key was present in the active backend/container configuration.
 
 ## Phase 1 approved-task executor
 
