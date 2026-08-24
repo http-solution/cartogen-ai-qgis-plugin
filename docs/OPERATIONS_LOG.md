@@ -506,6 +506,13 @@ The full provider and service implementation remains in this private repository.
 - `WORKER_ONCE=1` supports deterministic smoke tests; default mode polls continuously.
 - Live verification: queued worker smoke job completed with HTTP read-back 200, humanitarian review output,
   7 layers, and 12 features.
+
+## Phase 1 analysis retry safety
+
+- Added `POST /api/analysis-jobs/:jobId/retry` for failed jobs only.
+- Retry resets the job to queued and preserves retry-request provenance.
+- Processing audit trail exposes Retry for failed jobs and Show result for completed derived jobs.
+- Live verification: completed-job retry rejected with HTTP 409; job history returned nine jobs.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.

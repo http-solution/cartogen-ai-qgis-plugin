@@ -103,6 +103,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
 - [x] Durable one-shot/background analysis worker claims queued jobs and persists completion output.
+- [x] Failed analysis jobs can be safely requeued with preserved retry provenance; completed jobs reject retry.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [x] Real queued analysis processing through the Phase 1 worker.
