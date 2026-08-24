@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -33,6 +33,22 @@ test('rejects more than 1000 features', () => {
     properties: {},
   }));
   assert.throws(() => normalizeFeatureCollection({ type: 'FeatureCollection', features }), /1000/);
+});
+
+test('normalizes bounded text document context', () => {
+  const result = normalizeDocumentContext({ name: 'situation.txt', mime_type: 'text/plain', text: 'Pakistan WASH coverage review' });
+  assert.equal(result.name, 'situation.txt');
+  assert.equal(result.mime_type, 'text/plain');
+  assert.equal(result.text, 'Pakistan WASH coverage review');
+});
+
+test('rejects empty or oversized document context', () => {
+  assert.throws(() => normalizeDocumentContext({ name: 'empty.txt', mime_type: 'text/plain', text: '   ' }), /text is required/);
+  assert.throws(() => normalizeDocumentContext({ name: 'large.txt', mime_type: 'text/plain', text: 'x'.repeat(200001) }), /200000/);
+});
+
+test('rejects unsupported document context format', () => {
+  assert.throws(() => normalizeDocumentContext({ name: 'photo.png', mime_type: 'image/png', text: 'not an image' }), /Unsupported/);
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {
