@@ -76,7 +76,7 @@ test('resolves central planner provider aliases', () => {
   assert.equal(resolvePlannerModel('claude'), 'claude-default');
   assert.equal(resolvePlannerModel('openrouter'), 'openrouter-default');
   assert.equal(resolvePlannerModel('local'), 'local-default');
-  assert.equal(resolvePlannerModel('unknown'), 'gpt-default');
+  assert.equal(resolvePlannerModel('unknown'), 'gemini-default');
   assert.equal(resolvePlannerModel('openai', 'custom-model'), 'custom-model');
 });
 

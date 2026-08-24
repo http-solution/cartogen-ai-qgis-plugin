@@ -64,14 +64,14 @@ const PLANNER_PROVIDER_MODELS = Object.freeze({
   ollama: 'local-default',
 });
 
-function resolvePlannerModel(provider = process.env.CARTOGEN_AI_PROVIDER, explicitModel = process.env.CARTOGEN_AI_PLANNER_MODEL) {
+function resolvePlannerModel(provider = process.env.CARTOGEN_AI_PROVIDER || 'gemini', explicitModel = process.env.CARTOGEN_AI_PLANNER_MODEL) {
   if (explicitModel) return explicitModel;
-  const normalized = String(provider || 'openai').trim().toLowerCase();
-  return PLANNER_PROVIDER_MODELS[normalized] || PLANNER_PROVIDER_MODELS.openai;
+  const normalized = String(provider || 'gemini').trim().toLowerCase();
+  return PLANNER_PROVIDER_MODELS[normalized] || PLANNER_PROVIDER_MODELS.gemini;
 }
 
 function plannerProviderStatus() {
-  const selectedProvider = String(process.env.CARTOGEN_AI_PROVIDER || 'openai').trim().toLowerCase();
+  const selectedProvider = String(process.env.CARTOGEN_AI_PROVIDER || 'gemini').trim().toLowerCase();
   const credentials = {
     gemini: Boolean(process.env.GEMINI_API_KEY),
     google: Boolean(process.env.GEMINI_API_KEY),
