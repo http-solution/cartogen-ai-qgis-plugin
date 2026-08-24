@@ -390,6 +390,78 @@ function normalizeFeatureCollection(payload) {
   });
 }
 
+const EDIT_PREVIEW_SECRET = process.env.CARTOGEN_EDIT_PREVIEW_SECRET || crypto.randomBytes(32);
+const EDIT_PREVIEW_TTL_SECONDS = 15 * 60;
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+function canonicalFeatureState({ geometry, properties }) {
+  return stableJson({ geometry, properties: properties || {} });
+}
+
+function hashFeatureState(state) {
+  return crypto.createHash('sha256').update(canonicalFeatureState(state), 'utf8').digest('hex');
+}
+
+function normalizeFeatureEditRequest(body = {}) {
+  const mode = String(body.mode || 'preview').trim().toLowerCase();
+  if (!['preview', 'apply'].includes(mode)) throw new Error('mode must be preview or apply');
+  const hasProperties = Object.prototype.hasOwnProperty.call(body, 'properties');
+  const hasGeometry = Object.prototype.hasOwnProperty.call(body, 'geometry');
+  if (!hasProperties && !hasGeometry) throw new Error('properties or geometry is required');
+  let properties;
+  if (hasProperties) {
+    if (!body.properties || typeof body.properties !== 'object' || Array.isArray(body.properties)) throw new Error('properties must be an object');
+    try { if (JSON.stringify(body.properties).length > 200000) throw new Error('properties exceed the 200000 byte limit'); } catch (error) { throw new Error(error.message || 'properties must be valid JSON'); }
+    properties = body.properties;
+  }
+  let geometry;
+  if (hasGeometry) {
+    try { geometry = normalizeFeatureCollection({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: body.geometry, properties: {} }] })[0].geometry; }
+    catch (error) { throw new Error(`geometry is invalid: ${error.message}`); }
+  }
+  if (mode === 'apply' && body.approved !== true) throw new Error('approved must be true before applying a feature edit');
+  const beforeHash = body.before_hash == null ? null : String(body.before_hash).trim();
+  if (beforeHash && !/^[a-f0-9]{64}$/i.test(beforeHash)) throw new Error('before_hash must be a SHA-256 hash');
+  return { mode, approved: body.approved === true, properties, geometry, before_hash: beforeHash, preview_token: body.preview_token ? String(body.preview_token) : null };
+}
+
+function createEditPreviewToken({ layerId, featureId, beforeHash, afterHash }) {
+  const payload = Buffer.from(JSON.stringify({ layerId: String(layerId), featureId: String(featureId), beforeHash, afterHash, exp: Math.floor(Date.now() / 1000) + EDIT_PREVIEW_TTL_SECONDS })).toString('base64url');
+  const signature = crypto.createHmac('sha256', EDIT_PREVIEW_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyEditPreviewToken(token) {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const expected = crypto.createHmac('sha256', EDIT_PREVIEW_SECRET).update(parts[0]).digest();
+  let actual;
+  try { actual = Buffer.from(parts[1], 'base64url'); } catch { return null; }
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    if (!payload || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return { layerId: String(payload.layerId), featureId: String(payload.featureId), beforeHash: payload.beforeHash, afterHash: payload.afterHash };
+  } catch { return null; }
+}
+
+function mergeFeatureState(before, edit) {
+  return { geometry: edit.geometry === undefined ? before.geometry : edit.geometry, properties: edit.properties === undefined ? before.properties : edit.properties };
+}
+
+function featureStateDiff(before, after) {
+  const diff = {};
+  if (stableJson(before.geometry) !== stableJson(after.geometry)) diff.geometry = { before: before.geometry, after: after.geometry };
+  if (stableJson(before.properties) !== stableJson(after.properties)) diff.properties = { before: before.properties, after: after.properties };
+  return diff;
+}
+
 function normalizeDocumentContext({ name = '', mime_type = 'text/plain', text = '', source_url = null, metadata = {} }) {
   const allowed = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/json']);
   if (!allowed.has(mime_type)) throw new Error(`Unsupported document format: ${mime_type}`);
@@ -986,9 +1058,73 @@ app.get('/api/projects/:projectId/layers', requireIdentity, async (req, res) => 
   res.json({ layers: result.rows });
 });
 
+app.get('/api/layers/:layerId/features/:featureId', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT f.id, f.layer_id, f.project_id, f.organization_id, ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+       FROM project_layer_features f JOIN project_layers l ON l.id = f.layer_id
+      WHERE f.id = $1 AND f.layer_id = $2 AND f.organization_id = $3 AND l.organization_id = $3 AND f.project_id = l.project_id`,
+    [req.params.featureId, req.params.layerId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Feature not found' });
+  const row = result.rows[0];
+  const state = { geometry: row.geometry, properties: row.properties || {} };
+  res.json({ feature: { type: 'Feature', id: String(row.id), geometry: row.geometry, properties: row.properties || {} }, before_hash: hashFeatureState(state) });
+});
+
+app.post('/api/layers/:layerId/features/:featureId/edit', requireIdentity, async (req, res) => {
+  let edit;
+  try { edit = normalizeFeatureEditRequest(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT f.id, f.layer_id, f.project_id, f.organization_id, ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+         FROM project_layer_features f JOIN project_layers l ON l.id = f.layer_id
+        WHERE f.id = $1 AND f.layer_id = $2 AND f.organization_id = $3 AND l.organization_id = $3 AND f.project_id = l.project_id
+        FOR UPDATE`,
+      [req.params.featureId, req.params.layerId, req.organizationId],
+    );
+    if (!result.rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Feature not found' }); }
+    const row = result.rows[0];
+    const before = { geometry: row.geometry, properties: row.properties || {} };
+    const beforeHash = hashFeatureState(before);
+    const after = mergeFeatureState(before, edit);
+    const afterHash = hashFeatureState(after);
+    const tokenPayload = edit.preview_token ? verifyEditPreviewToken(edit.preview_token) : null;
+    if (edit.before_hash && edit.before_hash !== beforeHash) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Feature has changed since the supplied before_hash', before_hash: beforeHash }); }
+    if (edit.mode === 'apply') {
+      const tokenMatches = tokenPayload && tokenPayload.layerId === String(req.params.layerId) && tokenPayload.featureId === String(req.params.featureId) && tokenPayload.beforeHash === beforeHash && tokenPayload.afterHash === afterHash;
+      if (!tokenMatches && !edit.before_hash) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'A valid preview_token or matching before_hash is required' }); }
+      if (tokenPayload && (!tokenMatches || tokenPayload.beforeHash !== beforeHash)) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Preview token is stale or does not match this feature' }); }
+      const updated = await client.query(
+        `UPDATE project_layer_features
+            SET properties = $1::jsonb, geometry = CASE WHEN $2::text IS NULL THEN geometry ELSE ST_SetSRID(ST_GeomFromGeoJSON($2),4326) END
+          WHERE id = $3 AND layer_id = $4 AND project_id = $5 AND organization_id = $6
+          RETURNING id, ST_AsGeoJSON(geometry)::json AS geometry, properties`,
+        [after.properties, edit.geometry === undefined ? null : JSON.stringify(after.geometry), req.params.featureId, req.params.layerId, row.project_id, req.organizationId],
+      );
+      if (!updated.rowCount) throw new Error('Feature update failed');
+      await client.query(
+        `INSERT INTO feature_lineage_events (feature_id, layer_id, project_id, organization_id, event_type, actor_id, before_hash, after_hash, before_state, after_state, metadata)
+         VALUES ($1,$2,$3,$4,'feature_edit',$5,$6,$7,$8,$9,$10)`,
+        [row.id, row.layer_id, row.project_id, req.organizationId, req.user?.id || null, beforeHash, afterHash, before, after, { approved: true, via_preview_token: Boolean(tokenMatches) }],
+      );
+      await client.query('COMMIT');
+      return res.json({ mode: 'apply', applied: true, before, after, diff: featureStateDiff(before, after), before_hash: beforeHash, after_hash: afterHash });
+    }
+    const previewToken = createEditPreviewToken({ layerId: req.params.layerId, featureId: req.params.featureId, beforeHash, afterHash });
+    await client.query('ROLLBACK');
+    return res.json({ mode: 'preview', applied: false, before, after, diff: featureStateDiff(before, after), before_hash: beforeHash, after_hash: afterHash, preview_token: previewToken });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    res.status(400).json({ error: 'Feature edit failed', detail: error.message });
+  } finally { client.release(); }
+});
+
 app.get('/api/layers/:layerId/geojson', requireIdentity, async (req, res) => {
   const result = await pool.query(
-    `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+    `SELECT f.id, ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
        FROM project_layer_features f
        JOIN project_layers l ON l.id = f.layer_id
       WHERE f.layer_id = $1 AND f.organization_id = $2 AND l.organization_id = $2
@@ -996,7 +1132,7 @@ app.get('/api/layers/:layerId/geojson', requireIdentity, async (req, res) => {
     [req.params.layerId, req.organizationId],
   );
   if (!result.rowCount) return res.status(404).json({ error: 'Layer not found or empty' });
-  res.json({ type: 'FeatureCollection', features: result.rows.map(row => ({ type: 'Feature', geometry: row.geometry, properties: row.properties })) });
+  res.json({ type: 'FeatureCollection', features: result.rows.map(row => ({ id: String(row.id), type: 'Feature', geometry: row.geometry, properties: row.properties })) });
 });
 
 app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) => {
@@ -1043,4 +1179,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
