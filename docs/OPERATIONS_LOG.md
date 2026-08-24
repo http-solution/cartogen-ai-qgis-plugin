@@ -483,6 +483,15 @@ The full provider and service implementation remains in this private repository.
 - Supported formats: text/plain, Markdown, CSV, and JSON; maximum text size 200,000 characters.
 - Live verification passed: create 201, list 200, read-back 200, hash present, planner 200,
   document-context step present.
+
+## Phase 1 PostGIS intersection
+
+- Added `intersect_layers` validation, queued job creation, and executor.
+- Intersects two stored layers with PostGIS `ST_Intersection` and retains polygon results.
+- Derived layer metadata records both source and overlay layer IDs.
+- Added visible source/overlay selectors and execution status to the Analysis screen.
+- Live verification passed against stored polygon buffers: job 201, execution 200/completed,
+  derived layer created, two Polygon features read back through GeoJSON 200.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.
