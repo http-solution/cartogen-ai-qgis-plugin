@@ -338,6 +338,7 @@ The full provider and service implementation remains in this private repository.
 - Phase 1 Workstream B integrated: persisted `agent_runs`/`agent_steps` with ordered step read-back and organization/project scope; real read-only HDX dataset search returns bounded candidates with provenance.
 - Added explicit HDX resource approval/import API and UI; importer supports trusted HDX/S3 delivery hosts, GeoJSON/CSV, ZIP-wrapped GeoJSON, provenance, and transactional PostGIS writes.
 - Live import safety tests rejected oversized GeoJSON, non-spatial CSV, untrusted hosts, invalid content, and missing approval. A positive external import remains open because current candidate resources exceeded the 1,000-feature/5 MB Phase 1 limits or were not valid spatial payloads.
+- Feature edit gate passed live: preview HTTP 200 with diff/token, apply HTTP 200 with `applied=true`, GeoJSON read-back contained the edited property, and three feature lineage events were present in PostGIS.
 - PM delivery control plan added at `docs/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
 - Removed the browser's hard-coded `x-demo-organization` header; development identity is resolved server-side and strict mode can use Directus session identity.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.

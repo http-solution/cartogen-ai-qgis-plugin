@@ -145,6 +145,7 @@ It never returns provider keys.
 - [x] Real Leaflet map uses OpenStreetMap as the default basemap and supports HOT, Carto Voyager, and Esri World Street Map alternatives with attribution.
 - [x] Persisted AI runs and ordered AI steps can be created and read back with organization/project scope.
 - [x] Read-only HDX dataset search returns bounded candidates and provenance metadata.
+- [x] Feature editing uses server preview, before/after diff, explicit apply approval, optimistic hash/token checks, and lineage read-back.
 - [x] Approved HDX import validates trusted hosts, explicit approval, bounded GeoJSON/CSV/ZIP resources, and PostGIS transaction boundaries.
 - [x] Map fills the centre panel without visible Leaflet branding controls; required basemap attribution remains visible.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
