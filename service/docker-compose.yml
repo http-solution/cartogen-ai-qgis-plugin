@@ -53,6 +53,8 @@ services:
       - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
+      UI_USERNAME: ${UI_USERNAME:-admin}
+      UI_PASSWORD: ${UI_PASSWORD:-${LITELLM_MASTER_KEY}}
       DATABASE_URL: postgresql://${POSTGRES_USER:-cartogen}:${POSTGRES_PASSWORD}@postgres:5432/litellm
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
