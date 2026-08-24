@@ -340,6 +340,7 @@ The full provider and service implementation remains in this private repository.
 - Live import safety tests rejected oversized GeoJSON, non-spatial CSV, untrusted hosts, invalid content, and missing approval. A positive external import remains open because current candidate resources exceeded the 1,000-feature/5 MB Phase 1 limits or were not valid spatial payloads.
 - Positive HDX import gate now passed: trusted Ghana subnational GeoJSON, 790 features, import HTTP 201, PostGIS layer read-back HTTP 200 with 790 features and source URL provenance.
 - Browser dataset-import retry identified a stale listener serving an older payload contract; current source now sends `approved:true` and explicit `resource_format` and the API positive import is already verified.
+- Clean Chrome dataset-import smoke passed with the Ghana GeoJSON resource: candidate search, specific GeoJSON resource selection, approved import, layer/map reload, and no page errors.
 - Feature edit gate passed live: preview HTTP 200 with diff/token, apply HTTP 200 with `applied=true`, GeoJSON read-back contained the edited property, and three feature lineage events were present in PostGIS.
 - Scheduling gate passed live: read-only schedule create 201, run 200/completed, history 200 with one run, cancel 200/cancelled. Unsafe operations are rejected from schedules.
 - Project-context gate passed: organization-scoped `GET /api/projects` returned one project; browser project selection now drives all project-scoped API calls instead of a fixed project constant.
