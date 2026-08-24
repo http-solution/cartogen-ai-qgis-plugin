@@ -53,6 +53,23 @@ async function requireIdentity(req, res, next) {
   }
 }
 
+const PLANNER_PROVIDER_MODELS = Object.freeze({
+  gemini: 'gemini-default',
+  google: 'gemini-default',
+  openai: 'gpt-default',
+  claude: 'claude-default',
+  anthropic: 'claude-default',
+  openrouter: 'openrouter-default',
+  local: 'local-default',
+  ollama: 'local-default',
+});
+
+function resolvePlannerModel(provider = process.env.CARTOGEN_AI_PROVIDER, explicitModel = process.env.CARTOGEN_AI_PLANNER_MODEL) {
+  if (explicitModel) return explicitModel;
+  const normalized = String(provider || 'openai').trim().toLowerCase();
+  return PLANNER_PROVIDER_MODELS[normalized] || PLANNER_PROVIDER_MODELS.openai;
+}
+
 function buildTaskPlan({ prompt = '', documentText = '', sourceNames = [] }) {
   const text = `${prompt}\n${documentText}`.trim();
   if (!text) throw new Error('A narrative, document text, or data context is required');
@@ -92,7 +109,7 @@ function parsePlannerResponse(payload) {
 async function buildLiveGatewayPlan(context) {
   const gatewayUrl = process.env.CARTOGEN_AI_GATEWAY_URL || 'http://127.0.0.1:4001/v1/chat/completions';
   const gatewayKey = process.env.CARTOGEN_AI_GATEWAY_KEY;
-  const model = process.env.CARTOGEN_AI_PLANNER_MODEL || 'gpt-default';
+  const model = resolvePlannerModel();
   if (!gatewayKey) throw new Error('CARTOGEN_AI_GATEWAY_KEY is not configured');
   const instruction = [
     'You are Cartogen AI, a humanitarian GIS planning assistant.',
@@ -691,4 +708,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, executeReviewOutputJob, executeBufferJob, executeIntersectionJob };

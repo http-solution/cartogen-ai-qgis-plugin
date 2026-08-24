@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -68,6 +68,16 @@ test('validates export style presets and opacity', () => {
   assert.deepEqual(normalizeExportStyle({ style_preset: 'facilities', opacity: 72 }), { style_preset: 'facilities', opacity: 72 });
   assert.throws(() => normalizeExportStyle({ style_preset: 'unknown' }), /style_preset/);
   assert.throws(() => normalizeExportStyle({ style_preset: 'coverage', opacity: 101 }), /opacity/);
+});
+
+test('resolves central planner provider aliases', () => {
+  assert.equal(resolvePlannerModel('gemini'), 'gemini-default');
+  assert.equal(resolvePlannerModel('openai'), 'gpt-default');
+  assert.equal(resolvePlannerModel('claude'), 'claude-default');
+  assert.equal(resolvePlannerModel('openrouter'), 'openrouter-default');
+  assert.equal(resolvePlannerModel('local'), 'local-default');
+  assert.equal(resolvePlannerModel('unknown'), 'gpt-default');
+  assert.equal(resolvePlannerModel('openai', 'custom-model'), 'custom-model');
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {
