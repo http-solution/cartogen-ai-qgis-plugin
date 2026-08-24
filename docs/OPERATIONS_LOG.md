@@ -526,6 +526,13 @@ The full provider and service implementation remains in this private repository.
 - Restored the three Reports actions after iterative Analysis UI changes removed two buttons:
   Print preview, Download HTML, and Download PDF.
 - Static and inline-script verification passed for all three actions.
+
+## Phase 1 reproducible export symbology
+
+- Added export style validation for coverage, facilities, accessibility, and risk presets.
+- Export jobs now persist style preset and opacity from the workspace controls.
+- HTML and PDF map frames apply the selected thematic stroke/fill and opacity.
+- Live verification: facilities preset produced `#dfa43b` styling and `opacity:0.72` in generated HTML.
 - **NOT COMPLETED:** real user account login acceptance remains blocked by account-specific Directus HTTP 401;
   synthetic registration/login smoke tests pass, but the real-account gate stays open until the account is reset
   or successfully logs in.

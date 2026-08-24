@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, buildTaskPlan, parsePlannerResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, buildTaskPlan, parsePlannerResponse } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -62,6 +62,12 @@ test('validates supported analysis operations', () => {
   assert.equal(isSupportedAnalysisOperation('buffer_layer'), true);
   assert.equal(isSupportedAnalysisOperation('intersect_layers'), true);
   assert.equal(isSupportedAnalysisOperation('unsupported_operation'), false);
+});
+
+test('validates export style presets and opacity', () => {
+  assert.deepEqual(normalizeExportStyle({ style_preset: 'facilities', opacity: 72 }), { style_preset: 'facilities', opacity: 72 });
+  assert.throws(() => normalizeExportStyle({ style_preset: 'unknown' }), /style_preset/);
+  assert.throws(() => normalizeExportStyle({ style_preset: 'coverage', opacity: 101 }), /opacity/);
 });
 
 test('builds a humanitarian review plan from narrative and document context', () => {
