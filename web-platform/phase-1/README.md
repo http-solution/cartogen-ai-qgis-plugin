@@ -58,6 +58,34 @@ python web-platform/phase-1/scripts/build_demo_data.py
 
 The script reads the locally downloaded Phase 0 bundle and creates the non-sensitive summary consumed by the browser slice.
 
+## Backend provider selection
+
+Provider keys are configured centrally in the backend environment. User accounts do not provide or store provider credentials.
+
+Set the Phase 1 planner provider with:
+
+```text
+CARTOGEN_AI_PROVIDER=gemini|openai|claude|openrouter|local
+```
+
+Optional explicit model alias:
+
+```text
+CARTOGEN_AI_PLANNER_MODEL=
+```
+
+Supported backend aliases:
+
+```text
+gemini-default       Google Gemini
+gpt-default          OpenAI
+claude-default       Anthropic Claude
+openrouter-default   OpenRouter
+local-default        Ollama/local LLM
+```
+
+The deterministic planner remains the safe fallback when the selected provider is unavailable.
+
 ## Phase 1 acceptance checks
 
 - [x] Project workspace loads.
@@ -108,6 +136,7 @@ The script reads the locally downloaded Phase 0 bundle and creates the non-sensi
 - [x] Reports UI regression check confirms Print preview, Download HTML, and Download PDF are all present.
 - [x] Selected thematic style preset and opacity are persisted and applied to HTML/PDF export map frames.
 - [x] OpenAI-compatible Cartogen gateway adapter with structured-plan validation and fallback.
+- [x] Central backend provider registry supports Google Gemini, OpenAI, Anthropic Claude, OpenRouter, and local Ollama.
 - [ ] Live gateway chat completion certified with aligned runtime credentials.
 - [x] Real queued analysis processing through the Phase 1 worker.
 - [ ] Real authentication and organization permissions.

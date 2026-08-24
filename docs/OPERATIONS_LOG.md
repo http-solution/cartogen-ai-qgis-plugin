@@ -307,6 +307,10 @@ The full provider and service implementation remains in this private repository.
 - Added structured JSON response validation and fenced-JSON handling.
 - Added safe deterministic fallback when the live gateway key/configuration is unavailable.
 - Added unit coverage for valid and malformed gateway plan responses.
+- Added central backend provider aliases: `gemini`, `openai`, `claude`, `openrouter`, and `local`/`ollama`.
+- LiteLLM registry now exposes `gemini-default`, `gpt-default`, `claude-default`, `openrouter-default`, and `local-default`.
+- Provider keys remain backend-only environment configuration; user accounts do not manage provider credentials.
+- Live reload of the expanded LiteLLM registry is blocked because Compose cannot recreate the container without the existing private `POSTGRES_PASSWORD`; no secret was guessed or changed.
 - Gateway `/v1/models` is reachable locally with the active Compose credential context; live chat
   completion is not yet certified because host/example key configuration differs from the active gateway context.
 - Latest live certification probe: `/v1/models` returned HTTP 200 and advertised `claude-default` and
