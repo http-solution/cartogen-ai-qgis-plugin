@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse } = require('../server');
+const { normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource } = require('../server');
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
@@ -130,6 +130,33 @@ test('validates dataset search input without accepting unbounded requests', () =
   assert.throws(() => normalizeDatasetSearchInput({ q: '' }), /required/);
   assert.throws(() => normalizeDatasetSearchInput({ q: 'x', limit: 101 }), /between/);
 });
+
+test('normalizes HDX import metadata and requires explicit approval', () => {
+  const result = normalizeHdxImportRequest({
+    project_id: 'pakistan-humanitarian-screening',
+    resource_url: 'https://data.humdata.org/dataset/example/resource/abc.csv',
+    dataset_id: 'example', resource_id: 'abc', provider: 'HDX', licence: 'CC BY 4.0',
+    metadata_created: '2024-01-01T00:00:00Z', metadata_modified: '2024-02-01T00:00:00Z',
+    name: 'Example facilities', approved: true,
+  });
+  assert.equal(result.project_id, 'pakistan-humanitarian-screening');
+  assert.equal(result.resource_url, 'https://data.humdata.org/dataset/example/resource/abc.csv');
+  assert.equal(result.approved, true);
+  assert.throws(() => normalizeHdxImportRequest({ project_id: 'p', resource_url: 'https://data.humdata.org/x.csv' }), /approved/);
+  assert.throws(() => normalizeHdxImportRequest({ project_id: 'p', resource_url: 'https://example.com/x.csv', approved: true }), /HDX/);
+});
+
+test('normalizes CSV latitude/longitude rows into GeoJSON features', () => {
+  const features = normalizeCsvResource('name,latitude,longitude\nClinic A,24.86,67.01\nClinic B,24.87,67.02\n', 'facilities.csv');
+  assert.equal(features.length, 2);
+  assert.deepEqual(features[0].geometry, { type: 'Point', coordinates: [67.01, 24.86] });
+  assert.equal(features[0].properties.name, 'Clinic A');
+});
+
+test('rejects CSV without usable coordinate columns', () => {
+  assert.throws(() => normalizeCsvResource('name,value\nA,1\n', 'bad.csv'), /latitude.*longitude|longitude.*latitude/i);
+});
+
 
 test('normalizes HDX package search results with bounded provenance and resources', () => {
   const result = normalizeHdxSearchResponse({ result: { count: 1, results: [{ id: 'dataset-1', name: 'dataset-1', title: 'WASH', notes: 'desc', metadata_modified: '2025-01-01', organization: { name: 'OCHA' }, resources: [{ id: 'r1', name: 'data.csv', url: 'https://data.humdata.org/dataset/x/resource/r1', format: 'CSV' }] }] } }, { query: 'WASH', retrievedAt: '2026-01-01T00:00:00.000Z' });
