@@ -796,21 +796,83 @@ function normalizeDocumentContext({ name = '', mime_type = 'text/plain', text = 
   return { name: cleanName || 'context.txt', mime_type, text: text.trim(), source_url: source_url ? String(source_url).slice(0, 2000) : null, metadata: metadata && typeof metadata === 'object' ? metadata : {} };
 }
 
-function normalizeIntersectionInput({ source_layer_id = '', overlay_layer_id = '' }) {
-  if (!source_layer_id || !overlay_layer_id) throw new Error('source_layer_id and overlay_layer_id are required');
-  if (String(source_layer_id) === String(overlay_layer_id)) throw new Error('source and overlay layers must be different');
-  return { source_layer_id: String(source_layer_id), overlay_layer_id: String(overlay_layer_id) };
+// The public contract for spatial analysis operations. Keep this registry free of
+// organization or user state so it can safely power API discovery and clients.
+const OPERATION_REGISTRY = Object.freeze({
+  create_review_output: Object.freeze({
+    display_name: 'Create review output',
+    parameter_types: Object.freeze({ include_layers: 'boolean' }),
+    required_fields: Object.freeze([]),
+    read_only: true,
+    schedulable: true,
+    executor_id: 'review_output',
+  }),
+  buffer_layer: Object.freeze({
+    display_name: 'Buffer layer',
+    parameter_types: Object.freeze({ source_layer_id: 'string', distance_meters: 'number' }),
+    required_fields: Object.freeze(['source_layer_id', 'distance_meters']),
+    read_only: false,
+    schedulable: false,
+    executor_id: 'buffer_layer',
+  }),
+  intersect_layers: Object.freeze({
+    display_name: 'Intersect layers',
+    parameter_types: Object.freeze({ source_layer_id: 'string', overlay_layer_id: 'string' }),
+    required_fields: Object.freeze(['source_layer_id', 'overlay_layer_id']),
+    read_only: false,
+    schedulable: false,
+    executor_id: 'intersect_layers',
+  }),
+});
+
+function normalizeAnalysisOperationInput(operation, input = {}) {
+  const operationId = String(operation || '').trim();
+  const definition = OPERATION_REGISTRY[operationId];
+  if (!definition) throw new Error(`Unsupported analysis operation: ${operationId || 'unknown'}`);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error(`Invalid parameters for operation ${operationId}`);
+  for (const field of definition.required_fields) {
+    if (input[field] === undefined || input[field] === null || input[field] === '') {
+      throw new Error(`Invalid parameters for operation ${operationId}: ${field} is required`);
+    }
+  }
+  const normalized = {};
+  for (const [field, type] of Object.entries(definition.parameter_types)) {
+    if (input[field] === undefined) continue;
+    const value = input[field];
+    if (type === 'string') {
+      if (typeof value !== 'string' || !value.trim()) throw new Error(`Invalid parameters for operation ${operationId}: ${field} must be a string`);
+      normalized[field] = value.trim();
+    } else if (type === 'number') {
+      const number = typeof value === 'number' ? value : (typeof value === 'string' && value.trim() ? Number(value) : NaN);
+      if (!Number.isFinite(number)) throw new Error(`Invalid parameters for operation ${operationId}: ${field} must be a number`);
+      normalized[field] = number;
+    } else if (type === 'boolean') {
+      if (typeof value !== 'boolean') throw new Error(`Invalid parameters for operation ${operationId}: ${field} must be a boolean`);
+      normalized[field] = value;
+    }
+  }
+  if (operationId === 'intersect_layers' && normalized.source_layer_id === normalized.overlay_layer_id) {
+    throw new Error('Invalid parameters for operation intersect_layers: source and overlay layers must be different');
+  }
+  if (operationId === 'buffer_layer' && (normalized.distance_meters <= 0 || normalized.distance_meters > 100000)) {
+    throw new Error('Invalid parameters for operation buffer_layer: distance_meters must be between 0 and 100000');
+  }
+  return normalized;
+}
+
+function normalizeIntersectionInput(input = {}) {
+  return normalizeAnalysisOperationInput('intersect_layers', input);
 }
 
 function isSupportedAnalysisOperation(operation) {
-  return ['create_review_output', 'buffer_layer', 'intersect_layers'].includes(operation);
+  return Object.prototype.hasOwnProperty.call(OPERATION_REGISTRY, String(operation || '').trim());
 }
 
 const SCHEDULE_MIN_INTERVAL_SECONDS = 60;
-const ALLOWED_SCHEDULED_OPERATIONS = new Set(['create_review_output']);
 
 function isAllowedScheduledOperation(operation) {
-  return ALLOWED_SCHEDULED_OPERATIONS.has(String(operation || '').trim());
+  const definition = OPERATION_REGISTRY[String(operation || '').trim()];
+  return Boolean(definition?.read_only && definition.schedulable);
 }
 
 function normalizeWorkflowScheduleRequest(body = {}) {
@@ -1501,7 +1563,7 @@ app.post('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => 
       const created = await client.query(
         `INSERT INTO analysis_jobs (project_id, organization_id, task_id, operation, status, input, provenance)
          VALUES ($1,$2,$3,$4,'queued',$5,$6) RETURNING id, operation, status, created_at`,
-        [req.params.projectId, req.organizationId, task.rows[0].id, plan.steps.at(-1)?.tool || 'review_output', { plan }, { planner: plan.planner, mode: plan.mode }],
+        [req.params.projectId, req.organizationId, task.rows[0].id, 'create_review_output', { plan }, { planner: plan.planner, mode: plan.mode }],
       );
       job = created.rows[0];
     }
@@ -1629,10 +1691,12 @@ app.post('/api/analysis-jobs/:jobId/run', requireIdentity, async (req, res) => {
   try {
     const operation = await pool.query('SELECT operation FROM analysis_jobs WHERE id = $1 AND organization_id = $2', [req.params.jobId, req.organizationId]);
     if (!operation.rowCount) return res.status(404).json({ error: 'Analysis job not found' });
-    if (!isSupportedAnalysisOperation(operation.rows[0].operation)) throw new Error(`Unsupported analysis operation: ${operation.rows[0].operation}`);
-    const job = operation.rows[0].operation === 'buffer_layer'
+    const operationId = String(operation.rows[0].operation || '').trim();
+    const definition = OPERATION_REGISTRY[operationId];
+    if (!definition) throw new Error(`Unsupported analysis operation: ${operationId}`);
+    const job = definition.executor_id === 'buffer_layer'
       ? await executeBufferJob(req.params.jobId, req.organizationId)
-      : operation.rows[0].operation === 'intersect_layers'
+      : definition.executor_id === 'intersect_layers'
         ? await executeIntersectionJob(req.params.jobId, req.organizationId)
         : await executeReviewOutputJob(req.params.jobId, req.organizationId);
     res.json({ job });
@@ -1811,18 +1875,20 @@ app.post('/api/projects/:projectId/workflow-schedules/:scheduleId/run', requireI
   return app.handle(req, res);
 });
 
+app.get('/api/analysis/operations', (req, res) => {
+  res.json({ operations: Object.entries(OPERATION_REGISTRY).map(([id, definition]) => ({ operation: id, ...definition })) });
+});
+
 app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, res) => {
   const project = await pool.query('SELECT id FROM projects WHERE id = $1 AND organization_id = $2', [req.params.projectId, req.organizationId]);
   if (!project.rowCount) return res.status(404).json({ error: 'Project not found' });
-  if (!['buffer_layer', 'intersect_layers'].includes(req.body.operation)) return res.status(400).json({ error: 'Unsupported operation' });
+  const operation = String(req.body?.operation || '').trim();
   try {
-    const input = req.body.operation === 'buffer_layer'
-      ? (() => { const distance = Number(req.body.distance_meters); if (!req.body.source_layer_id || !Number.isFinite(distance) || distance <= 0 || distance > 100000) throw new Error('source_layer_id and distance_meters (1–100000) are required'); return { source_layer_id: req.body.source_layer_id, distance_meters: distance }; })()
-      : normalizeIntersectionInput(req.body);
+    const input = normalizeAnalysisOperationInput(operation, req.body || {});
     const result = await pool.query(
       `INSERT INTO analysis_jobs (project_id, organization_id, operation, status, input, provenance)
        VALUES ($1,$2,$3,'queued',$4,$5) RETURNING id, operation, status, input, created_at`,
-      [req.params.projectId, req.organizationId, req.body.operation, input, { source: 'user-request', phase: '1' }],
+      [req.params.projectId, req.organizationId, operation, input, { source: 'user-request', phase: '1' }],
     );
     res.status(201).json({ job: result.rows[0] });
   } catch (error) { res.status(400).json({ error: error.message }); }
@@ -2226,4 +2292,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };
+module.exports = { app, pool, OPERATION_REGISTRY, normalizeAnalysisOperationInput, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };
