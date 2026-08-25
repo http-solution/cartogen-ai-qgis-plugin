@@ -1,6 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, validateApprovalPlan } = require('../server');
+const { app, pool, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, normalizeExportStyle, resolvePlannerModel, plannerProviderStatus, buildGatewayMessages, buildTaskPlan, parsePlannerResponse, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, validateApprovalPlan, normalizeFeatureTableQuery } = require('../server');
+
+test('validates bounded feature table pagination and search', () => {
+  assert.deepEqual(normalizeFeatureTableQuery({ limit: '25', offset: '10', q: ' clinic ' }), { limit: 25, offset: 10, query: 'clinic' });
+  assert.deepEqual(normalizeFeatureTableQuery({}), { limit: 50, offset: 0, query: '' });
+  assert.throws(() => normalizeFeatureTableQuery({ limit: '0' }), /limit/);
+  assert.throws(() => normalizeFeatureTableQuery({ limit: '101' }), /limit/);
+  assert.throws(() => normalizeFeatureTableQuery({ offset: '-1' }), /offset/);
+  assert.throws(() => normalizeFeatureTableQuery({ q: 'x'.repeat(201) }), /q/);
+});
 
 test('normalizes a valid GeoJSON FeatureCollection', () => {
   const result = normalizeFeatureCollection({
