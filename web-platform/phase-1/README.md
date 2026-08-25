@@ -165,6 +165,7 @@ It never returns provider keys.
 - [x] Browser approval smoke passes plan → approve → approved task → queued job with no page errors.
 - [x] Browser HDX discovery/import smoke passes candidate search → GeoJSON resource approval → import → layer/map reload.
 - [x] UI audit correctness blockers addressed: provider attribution follows basemap, jobs poll, unsaved edits are protected, layers have distinct colors/legend, and queue submission is locked while pending.
+- [x] Reports mode creates real organization-scoped exports and exposes HTML/PDF downloads plus export history.
 - [x] Browser planning-context upload supports text, Markdown, CSV, and JSON with provenance hash and bounded size.
 - [x] PostGIS intersection operation creates a derived polygon result layer from two project layers.
 - [x] Analysis history panel lists queued/completed jobs with operation, status, counts, timestamps, and result links.
