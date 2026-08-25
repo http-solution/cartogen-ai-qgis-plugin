@@ -15,7 +15,7 @@ const pool = new Pool({ connectionString: DATABASE_URL, max: 5 });
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(__dirname));
+app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => { const index = part.indexOf('='); return index < 0 ? ['', ''] : [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]; }).filter(([key]) => key));
@@ -1205,7 +1205,7 @@ app.get('/api/exports/:exportId/html', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT e.id, e.layout, p.id AS project_id, p.name, p.sector, p.crs
        FROM export_jobs e JOIN projects p ON p.id = e.project_id
-      WHERE e.id = $1 AND e.organization_id = $2`,
+      WHERE e.id = $1 AND e.organization_id = $2 AND p.organization_id = $2`,
     [req.params.exportId, req.organizationId],
   );
   if (!result.rowCount) return res.status(404).send('Export not found');
@@ -1231,7 +1231,7 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
     const result = await pool.query(
       `SELECT e.id, e.layout, p.id AS project_id, p.name, p.sector, p.crs
          FROM export_jobs e JOIN projects p ON p.id = e.project_id
-        WHERE e.id = $1 AND e.organization_id = $2`,
+        WHERE e.id = $1 AND e.organization_id = $2 AND p.organization_id = $2`,
       [req.params.exportId, req.organizationId],
     );
     if (!result.rowCount) return res.status(404).send('Export not found');
@@ -1247,7 +1247,7 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
       [result.rows[0].project_id, req.organizationId],
     );
     const html = buildServerExportHtml(result.rows[0], layers.rows, result.rows[0].layout, features.rows);
-    const browser = await playwright.chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+    const browser = await playwright.chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH, headless: true } : { headless: true });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load' });
     const pdf = await page.pdf({ format: result.rows[0].layout.paper || 'A4', landscape: (result.rows[0].layout.orientation || 'landscape') === 'landscape', printBackground: true, margin: { top: '12mm', right: '12mm', bottom: '12mm', left: '12mm' } });
@@ -1262,7 +1262,9 @@ app.get('/api/projects/:projectId/exports', requireIdentity, async (req, res) =>
   const result = await pool.query(
     `SELECT id, format, status, layout->>'title' AS title, layout->>'report_type' AS report_type,
             layout->>'report_version' AS report_version, created_at, completed_at
-       FROM export_jobs WHERE project_id = $1 AND organization_id = $2 ORDER BY created_at DESC LIMIT 50`,
+       FROM export_jobs e JOIN projects p ON p.id = e.project_id
+      WHERE e.project_id = $1 AND e.organization_id = $2 AND p.organization_id = $2
+      ORDER BY e.created_at DESC LIMIT 50`,
     [req.params.projectId, req.organizationId],
   );
   res.json({ exports: result.rows });
@@ -1434,7 +1436,7 @@ app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) =>
   }
 });
 
-app.use((_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));

@@ -9,13 +9,21 @@
 Start PostGIS:
 
 ```bash
+cp .env.example .env
+# Set POSTGRES_PASSWORD in .env before starting Compose.
 docker compose up -d postgis
+```
+
+Seed the real local Phase 0 bundle into PostGIS:
+
+```bash
+npm install
+npm run seed
 ```
 
 Start the API-backed workspace:
 
 ```bash
-npm install
 npm start
 ```
 
@@ -38,7 +46,8 @@ The earlier static-only preview remains available on port 4175 if needed, but Ph
 - Cartogen AI Workspace shell;
 - project/layer workspace;
 - source catalogue;
-- real Pakistan public-data summary loaded from `demo-data.json`;
+- real Pakistan public-data layers seeded into PostGIS with `npm run seed`;
+- Pakistan administrative-boundary and health-facility layer read-back;
 - 714 Pakistan 3W presence records;
 - 4,849 health facilities;
 - accessibility source summaries;
