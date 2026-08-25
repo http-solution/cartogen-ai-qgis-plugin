@@ -1,6 +1,22 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Tracks which db/migrations/*.sql files have been applied -- see
+-- db/MIGRATIONS.md. init.sql (this file) only ever runs once, against a
+-- completely empty Postgres data directory (docker-entrypoint-initdb.d's
+-- contract), and defines the exact same end state as running every
+-- migration in db/migrations/ in order. The INSERTs at the bottom of this
+-- file mark all of them applied immediately, so a freshly-initialized
+-- database is already up to date and `node scripts/migrate.js` against it
+-- correctly reports "nothing pending" instead of trying to redundantly
+-- recreate tables this file already created (harmless either way, since
+-- every migration is idempotent, but the ledger being accurate from the
+-- start is what makes it trustworthy for an *existing* database's upgrade).
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version text PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Organizations, Directus-user membership, and per-organization billing state.
 -- See db/organizations.sql for the apply-once patch and the rationale comment
 -- (not modeled as Directus collections; `directus_user_id` is a plain string,
@@ -199,10 +215,26 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   output jsonb NOT NULL DEFAULT '{}'::jsonb, error text, started_at timestamptz,
   completed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS workflow_schedules_last_run_fk;
 ALTER TABLE workflow_schedules ADD CONSTRAINT workflow_schedules_last_run_fk FOREIGN KEY (last_run_id) REFERENCES workflow_runs(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS workflow_schedules_scope_idx ON workflow_schedules(organization_id, project_id, status, next_run);
 CREATE INDEX IF NOT EXISTS workflow_runs_schedule_idx ON workflow_runs(schedule_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS workflow_runs_scope_idx ON workflow_runs(organization_id, project_id, created_at DESC);
+
+-- Mark every migration this file's schema matches as already applied -- see
+-- the schema_migrations comment near the top of this file.
+INSERT INTO schema_migrations (version) VALUES
+  ('0001_core_schema.sql'),
+  ('0002_ai_tasks.sql'),
+  ('0003_exports.sql'),
+  ('0004_documents.sql'),
+  ('0005_feature_lineage.sql'),
+  ('0006_agent_runs.sql'),
+  ('0007_ai_run_approval.sql'),
+  ('0008_workflow_schedules.sql'),
+  ('0009_organizations_billing.sql'),
+  ('0010_seed_demo_data.sql')
+ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO organizations (id, name, slug)
 VALUES ('demo-humanitarian-lab', 'Demo Humanitarian Lab', 'demo-humanitarian-lab')

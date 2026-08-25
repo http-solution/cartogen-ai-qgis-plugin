@@ -217,7 +217,7 @@ test('an authenticated Directus user with no membership row gets no organization
 
       const created = await fetch(`${baseUrl}/api/projects`, {
         method: 'POST',
-        headers: { cookie: 'cartogen_session=tok', 'content-type': 'application/json' },
+        headers: { cookie: 'cartogen_session=tok', 'content-type': 'application/json', origin: baseUrl },
         body: JSON.stringify({ name: 'Should Be Rejected' }),
       });
       assert.equal(created.status, 401);
@@ -272,10 +272,12 @@ test('billing portal requires an owner/admin role, not just membership', async (
       const baseUrl = `http://127.0.0.1:${server.address().port}`;
       const portal = await fetch(`${baseUrl}/api/organizations/org-1/billing/portal`, {
         method: 'POST',
-        headers: { cookie: 'cartogen_session=tok', 'content-type': 'application/json' },
+        headers: { cookie: 'cartogen_session=tok', 'content-type': 'application/json', origin: baseUrl },
         body: '{}',
       });
       assert.equal(portal.status, 403);
+      const portalBody = await portal.json();
+      assert.match(portalBody.error, /owner or admin/, 'must be rejected by the role check, not by an unrelated CSRF/origin failure');
     } finally {
       await new Promise(resolve => server.close(resolve));
     }

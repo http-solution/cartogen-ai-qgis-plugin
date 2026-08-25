@@ -1,6 +1,8 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
 const express = require('express');
+const helmet = require('helmet');
+const { rateLimit } = require('express-rate-limit');
 const { Pool } = require('pg');
 
 const PORT = Number(process.env.PORT || 4180);
@@ -25,6 +27,16 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || null;
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || null;
 const STRIPE_PORTAL_CONFIGURATION_ID = process.env.STRIPE_PORTAL_CONFIGURATION_ID || null;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null;
+// Origins allowed to make cookie-authenticated cross-origin requests, and the
+// same allowlist doubles as the CSRF Origin/Referer check below. PUBLIC_BASE_URL
+// is always included when set. Comma-separated; extra origins are only needed
+// if the frontend is ever served from a different origin than this API (e.g.
+// behind a reverse proxy that splits them) -- the default single-origin
+// deployment (this server serves both the HTML and the /api/* routes) needs
+// nothing extra here.
+const CORS_ALLOWED_ORIGINS = new Set(
+  [PUBLIC_BASE_URL, ...(process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(value => value.trim())].filter(Boolean),
+);
 // Requiring 'stripe' lazily (only when a secret key is configured) means the
 // module still boots and every non-billing route still works on a deployment
 // that hasn't set up Stripe yet -- billing routes report 'not configured'
@@ -64,8 +76,109 @@ app.disable('x-powered-by');
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json({ limit: '2mb' }));
+
+// Security headers. CSP allows 'unsafe-inline' for script-src/style-src
+// because every page in this app (index.html, login.html, welcome.html) is a
+// single file with its logic inline -- a stricter nonce-based CSP would
+// require splitting those into external .js files (or per-request nonce
+// injection), which is a real follow-up but out of scope here. Even with
+// that carve-out, this still blocks remote script/object injection,
+// clickjacking (frame-ancestors), and MIME-sniffing, which the app had zero
+// protection against before. imgSrc lists the exact basemap tile hosts
+// index.html's L.tileLayer() calls use (OSM, HOT, Carto Voyager, Esri) --
+// {s}.tile.openstreetmap.org, {s}.tile.openstreetmap.fr, and
+// {s}.basemaps.cartocdn.com's {s} subdomain wildcard is why these need
+// wildcard-subdomain entries rather than exact hosts.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      imgSrc: [
+        "'self'", 'data:', 'blob:',
+        'https://*.tile.openstreetmap.org', 'https://*.tile.openstreetmap.fr',
+        'https://*.basemaps.cartocdn.com', 'https://server.arcgisonline.com',
+      ],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", 'https://unpkg.com', 'data:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
+  // Third-party tiles/scripts above aren't served with CORP/COEP headers of
+  // their own, so a strict cross-origin-embedder-policy would silently block
+  // them (Leaflet tiles just not appearing, no console error explaining why).
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Explicit CORS: this server serves both the frontend HTML and the /api/*
+// routes from one origin, so no cross-origin API access is required for the
+// app to function -- the correct default is to allow none, explicitly,
+// rather than silently inheriting whatever Express's un-configured default
+// happens to be. CORS_ALLOWED_ORIGINS exists only for a reverse-proxy setup
+// that splits frontend and API onto different origins.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && CORS_ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-organization-id,x-demo-organization');
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+// CSRF protection for cookie-authenticated state-changing requests. The
+// session cookie is SameSite=Lax + HttpOnly already (see setSessionCookie
+// below), which blocks most cross-site POSTs in modern browsers -- this is
+// defense in depth on top of that, and the only requests it actually
+// constrains are ones that (a) change state (non-GET/HEAD/OPTIONS) and (b)
+// carry the session cookie. A request with no session cookie has nothing for
+// CSRF to forge, so it's left to the normal requireIdentity/requireUser auth
+// checks. The Stripe webhook is naturally exempt: Stripe never sends the
+// cartogen_session cookie, and that route is authenticated by signature
+// verification instead, not by this cookie at all.
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const hasSessionCookie = Boolean(parseCookies(req.headers.cookie)[DIRECTUS_COOKIE]);
+  if (!hasSessionCookie) return next();
+  const originHeader = req.headers.origin || req.headers.referer;
+  if (!originHeader) return res.status(403).json({ error: 'Missing Origin/Referer header on a cookie-authenticated request' });
+  let requestOrigin;
+  try { requestOrigin = new URL(originHeader).origin; } catch { return res.status(403).json({ error: 'Invalid Origin/Referer header' }); }
+  const selfOrigin = PUBLIC_BASE_URL ? new URL(PUBLIC_BASE_URL).origin : `${req.protocol}://${req.get('host')}`;
+  if (requestOrigin !== selfOrigin && !CORS_ALLOWED_ORIGINS.has(requestOrigin)) {
+    return res.status(403).json({ error: 'Cross-origin request rejected' });
+  }
+  next();
+});
+
+// Rate limiting. Auth routes are the classic credential-stuffing/brute-force
+// target; HDX import/search fan out to an external host per request and
+// (for import) write to Postgres, so both are worth capping independently of
+// general traffic. Window/max are deliberately generous for real usage and
+// tight enough to blunt automated abuse; tune via env if a deployment needs
+// different numbers.
+const authRateLimit = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  limit: Number(process.env.AUTH_RATE_LIMIT_MAX || 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
+const hdxRateLimit = rateLimit({
+  windowMs: Number(process.env.HDX_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  limit: Number(process.env.HDX_RATE_LIMIT_MAX || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many dataset requests, please try again later' },
+});
+
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.get('/index-v2.html', (req, res) => res.sendFile(path.join(__dirname, 'index-v2.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
 app.get(['/welcome', '/welcome.html'], (req, res) => res.sendFile(path.join(__dirname, 'welcome.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
 app.get(['/login', '/login.html'], (req, res) => res.sendFile(path.join(__dirname, 'login.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
 
@@ -786,7 +899,7 @@ function clearSessionCookie(res) {
   res.clearCookie(DIRECTUS_COOKIE, { path: '/' });
 }
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimit, async (req, res) => {
   if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Login is only available in directus identity mode' });
   const email = String(req.body?.email || '').trim();
   const password = String(req.body?.password || '');
@@ -800,7 +913,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authRateLimit, async (req, res) => {
   if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Registration is only available in directus identity mode' });
   const email = String(req.body?.email || '').trim();
   const password = String(req.body?.password || '');
@@ -827,6 +940,52 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+// Directus's own password-reset flow, proxied the same way login/register
+// are: the request/reset tokens and the actual password never pass through
+// anything this app stores, and Directus itself emails the reset link.
+// Always returns ok:true on /request regardless of whether the email exists
+// -- an "unknown email" response would let an attacker enumerate registered
+// accounts, which the login/register error messages above already avoid by
+// only ever surfacing Directus's own generic failure text.
+app.post('/api/auth/password/request', authRateLimit, async (req, res) => {
+  if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Password reset is only available in directus identity mode' });
+  const email = String(req.body?.email || '').trim();
+  if (!email) return res.status(400).json({ error: 'email is required' });
+  const resetUrl = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/login.html?reset=1` : undefined;
+  try {
+    await fetch(`${DIRECTUS_URL}/auth/password/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(resetUrl ? { email, reset_url: resetUrl } : { email }),
+    });
+  } catch (error) {
+    console.error('Directus password reset request failed:', error.message);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/password/reset', authRateLimit, async (req, res) => {
+  if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Password reset is only available in directus identity mode' });
+  const token = String(req.body?.token || '');
+  const password = String(req.body?.password || '');
+  if (!token || password.length < 12) return res.status(400).json({ error: 'token and a password of at least 12 characters are required' });
+  try {
+    const response = await fetch(`${DIRECTUS_URL}/auth/password/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      return res.status(400).json({ error: body?.errors?.[0]?.message || 'Password reset failed' });
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Directus password reset failed:', error.message);
+    res.status(502).json({ error: 'Password reset service unavailable' });
+  }
 });
 
 app.get('/api/me', requireUser, (req, res) => {
@@ -1241,7 +1400,7 @@ app.post('/api/ai/runs/:runId/approve', requireIdentity, async (req, res) => {
   }
 });
 
-app.get('/api/datasets/search', requireIdentity, async (req, res) => {
+app.get('/api/datasets/search', hdxRateLimit, requireIdentity, async (req, res) => {
   let input;
   try { input = normalizeDatasetSearchInput(req.query); }
   catch (error) { return res.status(400).json({ error: error.message }); }
@@ -1263,7 +1422,7 @@ app.get('/api/datasets/search', requireIdentity, async (req, res) => {
   } finally { clearTimeout(timeout); }
 });
 
-app.post('/api/datasets/import', requireIdentity, async (req, res) => {
+app.post('/api/datasets/import', hdxRateLimit, requireIdentity, async (req, res) => {
   let input;
   try { input = normalizeHdxImportRequest(req.body || {}); }
   catch (error) { return res.status(400).json({ error: error.message }); }

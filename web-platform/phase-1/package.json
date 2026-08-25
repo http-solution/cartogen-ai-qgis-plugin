@@ -9,10 +9,15 @@
     "worker": "node scripts/analysis_worker.js",
     "seed": "python scripts/seed_postgis.py",
     "preflight": "node scripts/validate_env.js",
-    "test": "node --test test/*.test.js"
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
+    "test": "node --test test/*.test.js",
+    "test:python": "python3 -m unittest scripts/test_seed_pakistan_accessibility_layers.py"
   },
   "dependencies": {
     "express": "^5.1.0",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
     "pg": "^8.16.3",
     "playwright": "^1.62.1",
     "stripe": "^22.5.0"
