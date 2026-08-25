@@ -10,12 +10,64 @@ const PHASE1_IDENTITY_MODE = process.env.PHASE1_IDENTITY_MODE || 'demo';
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
 const DIRECTUS_COOKIE = 'cartogen_session';
 const DIRECTUS_ORGANIZATION_ID = process.env.PHASE1_DIRECTUS_ORGANIZATION_ID || null;
+// Off by default. When on, ANY authenticated Directus user with zero
+// organization_members rows is treated as a member (never 'owner') of
+// PHASE1_DIRECTUS_ORGANIZATION_ID -- a migration aid for the single
+// pre-multi-tenant deployment that set PHASE1_DIRECTUS_ORGANIZATION_ID
+// before organization_members existed. Never enable in a shared/production
+// deployment: it grants org access with no membership record at all.
+const ALLOW_LEGACY_ORG_FALLBACK = process.env.PHASE1_ALLOW_LEGACY_ORG_FALLBACK === 'true';
+const LITELLM_URL = process.env.LITELLM_URL || 'http://127.0.0.1:4000';
+const LITELLM_MASTER_KEY = process.env.LITELLM_MASTER_KEY || null;
+const LITELLM_PLAN_MAX_BUDGET_USD = Number(process.env.LITELLM_PLAN_MAX_BUDGET_USD || 5);
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || null;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || null;
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || null;
+const STRIPE_PORTAL_CONFIGURATION_ID = process.env.STRIPE_PORTAL_CONFIGURATION_ID || null;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null;
+// Requiring 'stripe' lazily (only when a secret key is configured) means the
+// module still boots and every non-billing route still works on a deployment
+// that hasn't set up Stripe yet -- billing routes report 'not configured'
+// instead of crashing the whole server at require-time.
+const stripeClient = STRIPE_SECRET_KEY ? require('stripe')(STRIPE_SECRET_KEY) : null;
 const app = express();
-const pool = new Pool({ connectionString: DATABASE_URL, max: 5 });
+// Prefer discrete PG* connection params over a single interpolated
+// DATABASE_URL when they're set: docker-compose's ${VAR} substitution has no
+// URL-encoding step, so a generated password containing @ : / ? # would
+// silently corrupt a `postgresql://user:${PASSWORD}@host/db` string (a
+// truncated/misparsed user, host, or path) instead of failing loudly. Passing
+// the fields directly to `pg` sidesteps that entirely -- no string to
+// mis-parse. DATABASE_URL remains supported for anyone running server.js
+// outside the merged compose stack with a password known not to contain
+// those characters.
+const PG_DISCRETE_ENV_KEYS = ['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE'];
+const hasDiscretePgEnv = PG_DISCRETE_ENV_KEYS.some(key => process.env[key]);
+const poolConfig = hasDiscretePgEnv
+  ? {
+      host: process.env.PGHOST || '127.0.0.1',
+      port: Number(process.env.PGPORT || 5432),
+      user: process.env.PGUSER || 'cartogen',
+      password: process.env.PGPASSWORD || '',
+      database: process.env.PGDATABASE || 'cartogen_phase1',
+      max: 5,
+    }
+  : { connectionString: DATABASE_URL, max: 5 };
+const pool = new Pool(poolConfig);
 
 app.disable('x-powered-by');
+
+// Stripe requires the RAW request body for webhook signature verification, so
+// this route must be registered before the global express.json() parser
+// below -- once express.json() consumes a request body, the raw bytes are
+// gone. handleStripeWebhook is a hoisted function declaration defined further
+// down in this file; referencing it here before its definition is safe.
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
 app.use(express.json({ limit: '2mb' }));
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/index-v2.html', (req, res) => res.sendFile(path.join(__dirname, 'index-v2.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
+app.get(['/welcome', '/welcome.html'], (req, res) => res.sendFile(path.join(__dirname, 'welcome.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
+app.get(['/login', '/login.html'], (req, res) => res.sendFile(path.join(__dirname, 'login.html'), error => { if (error) res.status(404).json({ error: 'Not found' }); }));
 
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => { const index = part.indexOf('='); return index < 0 ? ['', ''] : [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]; }).filter(([key]) => key));
@@ -24,21 +76,58 @@ function parseCookies(header = '') {
 async function directusUser(req) {
   const token = parseCookies(req.headers.cookie)[DIRECTUS_COOKIE];
   if (!token) return null;
-  const response = await fetch(`${DIRECTUS_URL}/users/me?fields=id`, { headers: { Authorization: `Bearer ${token}` } });
+  const response = await fetch(`${DIRECTUS_URL}/users/me?fields=id,email,first_name,last_name`, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) return null;
   const body = await response.json();
   if (!body?.data?.id) return null;
-  return body.data;
+  // Deliberately NOT `{ ...body.data, accessToken: token }`: this object
+  // reaches the browser verbatim via GET /api/me and req.user in several
+  // JSON responses. The whole point of the HttpOnly session cookie is that
+  // client-side JS can never read the Directus access token; echoing it
+  // back in a JSON body would defeat that. The cookie itself (read via
+  // parseCookies, above) is the only thing that should ever carry it.
+  return { ...body.data };
+}
+
+// Which organization a Directus-authenticated request is acting as. An
+// explicit x-organization-id header (sent once welcome.html's org switcher
+// has a selection) is validated against real membership; with no header, the
+// user's earliest membership is the default -- the same "pick something
+// reasonable" fallback demo mode already uses for x-demo-organization.
+async function resolveOrganizationForUser(directusUserId, requestedOrganizationId) {
+  if (requestedOrganizationId) {
+    const result = await pool.query(
+      `SELECT organization_id, role FROM organization_members WHERE directus_user_id = $1 AND organization_id = $2`,
+      [directusUserId, requestedOrganizationId],
+    );
+    return result.rows[0] || null;
+  }
+  const result = await pool.query(
+    `SELECT organization_id, role FROM organization_members WHERE directus_user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+    [directusUserId],
+  );
+  return result.rows[0] || null;
 }
 
 async function resolveIdentity(req) {
   if (PHASE1_IDENTITY_MODE === 'directus') {
-    if (!DIRECTUS_ORGANIZATION_ID) return null;
     const user = await directusUser(req);
-    return user ? { organizationId: DIRECTUS_ORGANIZATION_ID, user } : null;
+    if (!user) return null;
+    const membership = await resolveOrganizationForUser(user.id, req.header('x-organization-id') || null);
+    if (membership) return { organizationId: membership.organization_id, user, role: membership.role };
+    // Legacy fallback: explicit opt-in only (see ALLOW_LEGACY_ORG_FALLBACK
+    // above), and never grants 'owner' -- a user with no real membership row
+    // gets read/write access to the fallback organization but not billing or
+    // membership-management rights (requireOrganizationMembership, used by
+    // the billing routes, does not consult this fallback at all -- it
+    // requires a real organization_members row unconditionally).
+    if (ALLOW_LEGACY_ORG_FALLBACK && DIRECTUS_ORGANIZATION_ID) {
+      return { organizationId: DIRECTUS_ORGANIZATION_ID, user, role: 'member' };
+    }
+    return null;
   }
   const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
-  return organizationId ? { organizationId, user: null } : null;
+  return organizationId ? { organizationId, user: null, role: 'owner' } : null;
 }
 
 async function requireIdentity(req, res, next) {
@@ -47,10 +136,33 @@ async function requireIdentity(req, res, next) {
     if (!resolved) return res.status(401).json({ error: 'Authentication required' });
     req.organizationId = resolved.organizationId;
     req.user = resolved.user;
+    req.role = resolved.role || 'owner';
     next();
   } catch (error) {
     res.status(401).json({ error: 'Authentication required' });
   }
+}
+
+// Session-only middleware: requires a valid identity but NOT organization
+// membership -- unlike requireIdentity, a Directus user with zero
+// organizations yet still reaches routes guarded by this (list/create
+// organization) instead of being 401'd before they can create their first one.
+async function requireUser(req, res, next) {
+  if (PHASE1_IDENTITY_MODE === 'directus') {
+    try {
+      const user = await directusUser(req);
+      if (!user) return res.status(401).json({ error: 'Authentication required' });
+      req.directusUser = user;
+      return next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+  }
+  const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+  if (!organizationId) return res.status(401).json({ error: 'Authentication required' });
+  req.directusUser = null;
+  req.demoOrganizationId = organizationId;
+  next();
 }
 
 const PLANNER_PROVIDER_MODELS = Object.freeze({
@@ -621,6 +733,439 @@ app.get('/api/auth/status', async (req, res) => {
   res.json({ authenticated: Boolean(resolved), mode: PHASE1_IDENTITY_MODE, organization_configured: Boolean(DIRECTUS_ORGANIZATION_ID), providers: plannerProviderStatus() });
 });
 
+// ---------------------------------------------------------------------------
+// Directus session login/registration. The website never sees or stores a
+// password itself -- it forwards to Directus's own /auth/login and /users/register,
+// then holds only the resulting Directus access token, in an HttpOnly cookie
+// the browser's JS can't read. Mirrors service/website/auth.js's contract
+// exactly (same cookie name, same field set) so the same Directus instance
+// can serve both the QGIS-plugin portal and this workspace.
+// ---------------------------------------------------------------------------
+
+async function directusLogin(email, password) {
+  const response = await fetch(`${DIRECTUS_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body?.errors?.[0]?.message || 'Login failed');
+    error.statusCode = response.status === 401 ? 401 : 400;
+    throw error;
+  }
+  return body.data;
+}
+
+async function directusRegister({ email, password, first_name, last_name }) {
+  const response = await fetch(`${DIRECTUS_URL}/users/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, first_name, last_name }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body?.errors?.[0]?.message || 'Registration failed');
+    error.statusCode = response.status === 401 ? 401 : 400;
+    throw error;
+  }
+  return body.data;
+}
+
+function setSessionCookie(res, accessToken) {
+  res.cookie(DIRECTUS_COOKIE, accessToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(DIRECTUS_COOKIE, { path: '/' });
+}
+
+app.post('/api/auth/login', async (req, res) => {
+  if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Login is only available in directus identity mode' });
+  const email = String(req.body?.email || '').trim();
+  const password = String(req.body?.password || '');
+  if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+  try {
+    const result = await directusLogin(email, password);
+    setSessionCookie(res, result.access_token);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Registration is only available in directus identity mode' });
+  const email = String(req.body?.email || '').trim();
+  const password = String(req.body?.password || '');
+  const firstName = String(req.body?.first_name || '');
+  const lastName = String(req.body?.last_name || '');
+  if (!email || password.length < 12) return res.status(400).json({ error: 'email and a password of at least 12 characters are required' });
+  try {
+    await directusRegister({ email, password, first_name: firstName, last_name: lastName });
+    try {
+      const result = await directusLogin(email, password);
+      setSessionCookie(res, result.access_token);
+      res.status(201).json({ ok: true });
+    } catch (loginError) {
+      if (loginError.statusCode === 401) {
+        return res.status(202).json({ ok: true, verification_required: true, message: 'Registration succeeded. Activate the account or wait for approval, then sign in.' });
+      }
+      throw loginError;
+    }
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/me', requireUser, (req, res) => {
+  res.json({ user: req.directusUser, mode: PHASE1_IDENTITY_MODE });
+});
+
+// ---------------------------------------------------------------------------
+// Organizations: list/create. Guarded by requireUser (session only) rather
+// than requireIdentity, so a just-registered Directus user with zero
+// organizations yet can still reach these and create their first one.
+// ---------------------------------------------------------------------------
+
+function normalizeSlug(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+}
+
+function normalizeOrganizationCreateRequest(body = {}) {
+  const name = String(body.name || '').trim().slice(0, 255);
+  if (!name) throw new Error('name is required');
+  const slug = normalizeSlug(body.slug || name);
+  if (!slug) throw new Error('A usable slug could not be derived from name');
+  return { name, slug };
+}
+
+app.get('/api/organizations', requireUser, async (req, res) => {
+  if (PHASE1_IDENTITY_MODE === 'directus') {
+    const result = await pool.query(
+      `SELECT o.id, o.name, o.slug, om.role
+         FROM organization_members om JOIN organizations o ON o.id = om.organization_id
+        WHERE om.directus_user_id = $1
+        ORDER BY om.created_at ASC`,
+      [req.directusUser.id],
+    );
+    return res.json({ organizations: result.rows });
+  }
+  const result = await pool.query(`SELECT id, name, slug FROM organizations WHERE id = $1`, [req.demoOrganizationId]);
+  const organizations = result.rowCount
+    ? result.rows.map(row => ({ ...row, role: 'owner' }))
+    : [{ id: req.demoOrganizationId, name: req.demoOrganizationId, slug: req.demoOrganizationId, role: 'owner' }];
+  res.json({ organizations });
+});
+
+app.post('/api/organizations', requireUser, async (req, res) => {
+  if (PHASE1_IDENTITY_MODE !== 'directus') return res.status(400).json({ error: 'Organization creation requires directus identity mode' });
+  let input;
+  try { input = normalizeOrganizationCreateRequest(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const org = await client.query(
+      `INSERT INTO organizations (id, name, slug) VALUES ($1,$2,$3) RETURNING id, name, slug, created_at`,
+      [input.slug, input.name, input.slug],
+    );
+    await client.query(`INSERT INTO organization_members (organization_id, directus_user_id, role) VALUES ($1,$2,'owner')`, [org.rows[0].id, req.directusUser.id]);
+    await client.query(`INSERT INTO organization_billing (organization_id, stripe_subscription_status) VALUES ($1,'none')`, [org.rows[0].id]);
+    await client.query('COMMIT');
+    res.status(201).json({ organization: { ...org.rows[0], role: 'owner' } });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    const duplicate = error.code === '23505';
+    // error.message can carry raw Postgres internals (constraint/column
+    // names, sometimes query fragments) -- log it server-side, but the
+    // client only ever needs to know whether the slug collided.
+    if (!duplicate) console.error('Organization creation failed:', error.message);
+    res.status(duplicate ? 409 : 400).json({ error: duplicate ? 'That organization slug is already taken' : 'Organization creation failed' });
+  } finally { client.release(); }
+});
+
+// ---------------------------------------------------------------------------
+// Project creation. GET /api/projects has existed since Phase 1's first cut;
+// there was never a POST to match it, so the only way a project ever existed
+// was the seed script -- welcome.html's "create a new project" flow needs this.
+// ---------------------------------------------------------------------------
+
+function normalizeProjectCreateRequest(body = {}) {
+  const id = normalizeSlug(body.id || body.name);
+  if (!id) throw new Error('id (or a name a slug can be derived from) is required');
+  const name = String(body.name || id).trim().slice(0, 255);
+  if (!name) throw new Error('name is required');
+  const sector = String(body.sector || 'general').trim().slice(0, 120) || 'general';
+  const crs = String(body.crs || 'EPSG:4326').trim().slice(0, 64) || 'EPSG:4326';
+  const metadata = body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {};
+  return { id, name, sector, crs, metadata };
+}
+
+app.post('/api/projects', requireIdentity, async (req, res) => {
+  let input;
+  try { input = normalizeProjectCreateRequest(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  try {
+    const result = await pool.query(
+      `INSERT INTO projects (id, organization_id, name, sector, crs, status, metadata)
+       VALUES ($1,$2,$3,$4,$5,'draft',$6)
+       RETURNING id, name, sector, crs, status, metadata, created_at, updated_at`,
+      [input.id, req.organizationId, input.name, input.sector, input.crs, input.metadata],
+    );
+    res.status(201).json({ project: result.rows[0] });
+  } catch (error) {
+    const duplicate = error.code === '23505';
+    if (!duplicate) console.error('Project creation failed:', error.message);
+    res.status(duplicate ? 409 : 400).json({ error: duplicate ? 'A project with that id already exists' : 'Project creation failed' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Billing: LiteLLM virtual-key credit read, Stripe Checkout, Stripe billing
+// portal, and the Stripe webhook (registered earlier, before express.json(),
+// for raw-body signature verification). One Stripe subscription and one
+// LiteLLM virtual key per organization -- the same "one plan" shape
+// service/website/server.js already uses per QGIS-plugin user, rescoped here
+// to an organization. Stripe env vars unset simply means these routes report
+// 503 "not configured" rather than the server failing to boot.
+// ---------------------------------------------------------------------------
+
+async function issueLiteLlmVirtualKey({ organizationId, organizationName }) {
+  if (!LITELLM_MASTER_KEY) throw new Error('LITELLM_MASTER_KEY is not configured');
+  const response = await fetch(`${LITELLM_URL}/key/generate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${LITELLM_MASTER_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      max_budget: LITELLM_PLAN_MAX_BUDGET_USD,
+      budget_duration: '30d',
+      metadata: { organization_id: organizationId, organization_name: organizationName },
+    }),
+  });
+  if (!response.ok) throw new Error(`LiteLLM /key/generate failed (${response.status}): ${await response.text()}`);
+  const body = await response.json();
+  return { key: body.key, keyId: body.token || body.key_name || null };
+}
+
+async function setLiteLlmKeyBlocked(virtualKey, blocked) {
+  if (!LITELLM_MASTER_KEY || !virtualKey) return;
+  const response = await fetch(`${LITELLM_URL}${blocked ? '/key/block' : '/key/unblock'}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${LITELLM_MASTER_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: virtualKey }),
+  });
+  if (!response.ok) throw new Error(`LiteLLM key ${blocked ? 'block' : 'unblock'} failed (${response.status}): ${await response.text()}`);
+}
+
+async function readLiteLlmKeyInfo(virtualKey) {
+  if (!LITELLM_MASTER_KEY || !virtualKey) return null;
+  const response = await fetch(`${LITELLM_URL}/key/info?key=${encodeURIComponent(virtualKey)}`, {
+    headers: { Authorization: `Bearer ${LITELLM_MASTER_KEY}` },
+  });
+  if (!response.ok) return null;
+  const body = await response.json();
+  const info = body.info || body;
+  const spend = Number(info.spend || 0);
+  const maxBudget = info.max_budget == null ? null : Number(info.max_budget);
+  return { spend, max_budget: maxBudget, remaining: maxBudget == null ? null : Math.max(0, maxBudget - spend) };
+}
+
+async function requireOrganizationMembership(req, res, next) {
+  try {
+    if (PHASE1_IDENTITY_MODE === 'directus') {
+      const user = await directusUser(req);
+      if (!user) return res.status(401).json({ error: 'Authentication required' });
+      const membership = await resolveOrganizationForUser(user.id, req.params.organizationId);
+      if (!membership) return res.status(404).json({ error: 'Organization not found' });
+      req.organizationId = membership.organization_id;
+      req.user = user;
+      req.role = membership.role;
+      return next();
+    }
+    const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+    if (!organizationId || organizationId !== req.params.organizationId) return res.status(404).json({ error: 'Organization not found' });
+    req.organizationId = organizationId;
+    req.user = null;
+    req.role = 'owner';
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication required' });
+  }
+}
+
+app.get('/api/organizations/:organizationId/billing', requireOrganizationMembership, async (req, res) => {
+  const result = await pool.query(
+    `SELECT organization_id, stripe_subscription_status, stripe_price_id, litellm_virtual_key, litellm_max_budget_usd, updated_at
+       FROM organization_billing WHERE organization_id = $1`,
+    [req.organizationId],
+  );
+  const billing = result.rows[0] || { stripe_subscription_status: 'none', litellm_virtual_key: null };
+  let credit = null;
+  if (billing.litellm_virtual_key) {
+    try { credit = await readLiteLlmKeyInfo(billing.litellm_virtual_key); }
+    catch (error) { credit = null; }
+  }
+  res.json({
+    plan: {
+      status: billing.stripe_subscription_status,
+      configured: Boolean(stripeClient && STRIPE_PRICE_ID),
+      price_id: billing.stripe_price_id || null,
+    },
+    credit: credit ? { max_budget_usd: credit.max_budget, spent_usd: credit.spend, remaining_usd: credit.remaining } : null,
+    updated_at: billing.updated_at || null,
+  });
+});
+
+app.post('/api/organizations/:organizationId/billing/checkout', requireOrganizationMembership, async (req, res) => {
+  if (!stripeClient || !STRIPE_PRICE_ID) return res.status(503).json({ error: 'Stripe is not configured yet' });
+  if (!['owner', 'admin'].includes(req.role)) return res.status(403).json({ error: 'Only an organization owner or admin can manage billing' });
+  try {
+    const existing = await pool.query(`SELECT stripe_customer_id FROM organization_billing WHERE organization_id = $1`, [req.organizationId]);
+    const customerId = existing.rows[0]?.stripe_customer_id || null;
+    const baseUrl = PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const session = await stripeClient.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      ...(customerId ? { customer: customerId } : req.user?.email ? { customer_email: req.user.email } : {}),
+      client_reference_id: req.organizationId,
+      metadata: { organization_id: req.organizationId },
+      success_url: `${baseUrl}/welcome.html?checkout=success`,
+      cancel_url: `${baseUrl}/welcome.html?checkout=cancelled`,
+    });
+    res.json({ url: session.url });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/organizations/:organizationId/billing/portal', requireOrganizationMembership, async (req, res) => {
+  if (!stripeClient) return res.status(503).json({ error: 'Stripe is not configured yet' });
+  // The billing portal lets a visitor change payment methods and cancel the
+  // subscription -- membership alone isn't enough, same as /billing/checkout.
+  if (!['owner', 'admin'].includes(req.role)) return res.status(403).json({ error: 'Only an organization owner or admin can manage billing' });
+  const existing = await pool.query(`SELECT stripe_customer_id FROM organization_billing WHERE organization_id = $1`, [req.organizationId]);
+  const customerId = existing.rows[0]?.stripe_customer_id;
+  if (!customerId) return res.status(404).json({ error: 'No billing customer on file for this organization yet' });
+  try {
+    const baseUrl = PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const session = await stripeClient.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${baseUrl}/welcome.html`,
+      ...(STRIPE_PORTAL_CONFIGURATION_ID ? { configuration: STRIPE_PORTAL_CONFIGURATION_ID } : {}),
+    });
+    res.json({ url: session.url });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+const STRIPE_ACTIVE_STATUSES = new Set(['active', 'trialing']);
+const STRIPE_REVOKED_STATUSES = new Set(['canceled', 'unpaid', 'incomplete_expired', 'past_due']);
+
+// Hoisted function declaration -- referenced by app.post('/api/billing/webhook', ...)
+// near the top of the file, before this point is reached in file order. Safe:
+// function declarations are hoisted with their full body, and Express only
+// invokes this later, at request time, by which point the whole module has
+// finished loading regardless.
+async function handleStripeWebhook(req, res) {
+  let event;
+  if (stripeClient && STRIPE_WEBHOOK_SECRET) {
+    try {
+      event = stripeClient.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
+    } catch (error) {
+      return res.status(400).send(`Webhook Error: ${error.message}`);
+    }
+  } else if (NODE_ENV === 'development') {
+    try { event = JSON.parse(req.body.toString('utf8')); }
+    catch { return res.status(400).send('Invalid JSON webhook body'); }
+  } else {
+    return res.status(400).send('Missing STRIPE_WEBHOOK_SECRET in production');
+  }
+
+  // Idempotency: claim this event id before running any side effects. Stripe
+  // retries undelivered-ack'd events, and without this a retried
+  // checkout.session.completed would call issueLiteLlmVirtualKey again,
+  // minting a second LiteLLM key (only the newest gets persisted, but the
+  // first is now an orphaned, still-valid credit grant). If the claim hits a
+  // duplicate, this event already succeeded -- ack it and stop. If
+  // processing then throws, the claim is released so a genuine retry (after
+  // a transient failure) can still reprocess it.
+  let claimed = false;
+  try {
+    const claim = await pool.query(
+      `INSERT INTO stripe_webhook_events (event_id, event_type) VALUES ($1,$2) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
+      [event.id, event.type],
+    );
+    if (!claim.rowCount) return res.json({ received: true, duplicate: true });
+    claimed = true;
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const organizationId = session.metadata?.organization_id || session.client_reference_id;
+      if (!organizationId) {
+        console.error(`checkout.session.completed with no organization_id in metadata (session ${session.id})`);
+      } else {
+        const org = await pool.query(`SELECT name FROM organizations WHERE id = $1`, [organizationId]);
+        if (!org.rowCount) {
+          console.error(`checkout.session.completed for unknown organization ${organizationId}`);
+        } else {
+          const issued = await issueLiteLlmVirtualKey({ organizationId, organizationName: org.rows[0].name });
+          await pool.query(
+            `INSERT INTO organization_billing (organization_id, stripe_customer_id, stripe_subscription_id, stripe_subscription_status, stripe_price_id, litellm_key_id, litellm_virtual_key, litellm_max_budget_usd, updated_at)
+             VALUES ($1,$2,$3,'active',$4,$5,$6,$7,now())
+             ON CONFLICT (organization_id) DO UPDATE SET
+               stripe_customer_id = EXCLUDED.stripe_customer_id,
+               stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+               stripe_subscription_status = 'active',
+               stripe_price_id = EXCLUDED.stripe_price_id,
+               litellm_key_id = COALESCE(EXCLUDED.litellm_key_id, organization_billing.litellm_key_id),
+               litellm_virtual_key = COALESCE(EXCLUDED.litellm_virtual_key, organization_billing.litellm_virtual_key),
+               litellm_max_budget_usd = COALESCE(EXCLUDED.litellm_max_budget_usd, organization_billing.litellm_max_budget_usd),
+               updated_at = now()`,
+            [organizationId, session.customer || null, session.subscription || null, STRIPE_PRICE_ID, issued.keyId || null, issued.key || null, LITELLM_PLAN_MAX_BUDGET_USD],
+          );
+        }
+      }
+    } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object;
+      const record = await pool.query(
+        `SELECT organization_id, litellm_virtual_key, stripe_subscription_status FROM organization_billing WHERE stripe_subscription_id = $1`,
+        [subscription.id],
+      );
+      if (record.rowCount) {
+        const row = record.rows[0];
+        const nextStatus = event.type === 'customer.subscription.deleted' ? 'canceled' : subscription.status;
+        const wasActive = STRIPE_ACTIVE_STATUSES.has(row.stripe_subscription_status);
+        const shouldBlock = STRIPE_REVOKED_STATUSES.has(nextStatus) || event.type === 'customer.subscription.deleted';
+        const shouldUnblock = STRIPE_ACTIVE_STATUSES.has(nextStatus) && !wasActive;
+        if (row.litellm_virtual_key && shouldBlock) await setLiteLlmKeyBlocked(row.litellm_virtual_key, true);
+        else if (row.litellm_virtual_key && shouldUnblock) await setLiteLlmKeyBlocked(row.litellm_virtual_key, false);
+        await pool.query(`UPDATE organization_billing SET stripe_subscription_status = $1, updated_at = now() WHERE organization_id = $2`, [nextStatus, row.organization_id]);
+      }
+    }
+    res.json({ received: true });
+  } catch (error) {
+    console.error(`Error handling Stripe webhook event ${event.type} (${event.id}):`, error.message);
+    if (claimed) await pool.query(`DELETE FROM stripe_webhook_events WHERE event_id = $1`, [event.id]).catch(releaseError => console.error('Failed to release webhook event claim:', releaseError.message));
+    // Non-2xx so Stripe treats this delivery as failed and retries -- an
+    // earlier version of this handler always returned 200 here, which told
+    // Stripe every delivery succeeded even when provisioning or the DB write
+    // had just thrown, silently losing the event for good.
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+}
+
 app.get('/api/projects/:projectId/documents', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT id, name, mime_type, length(text_content)::int AS character_count, source_url, sha256, metadata, created_at
@@ -764,7 +1309,8 @@ app.post('/api/datasets/import', requireIdentity, async (req, res) => {
     res.status(201).json({ layer: layer.rows[0], feature_count: features.length });
   } catch (error) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: 'HDX layer import failed', detail: error.message });
+    console.error('HDX layer import failed:', error.message);
+    res.status(400).json({ error: 'HDX layer import failed' });
   } finally { client.release(); }
 });
 app.get('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => {
@@ -804,7 +1350,8 @@ app.post('/api/projects/:projectId/tasks', requireIdentity, async (req, res) => 
     res.status(201).json({ task: task.rows[0], job });
   } catch (error) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: 'Task creation failed', detail: error.message });
+    console.error('Task creation failed:', error.message);
+    res.status(400).json({ error: 'Task creation failed' });
   } finally { client.release(); }
 });
 
@@ -996,7 +1543,10 @@ app.post('/api/projects/:projectId/workflow-schedules', requireIdentity, async (
       [req.organizationId, req.params.projectId, input.name, input.workflow, input.interval_seconds, input.next_run],
     );
     res.status(201).json({ schedule: result.rows[0] });
-  } catch (error) { res.status(400).json({ error: 'Workflow schedule creation failed', detail: error.message }); }
+  } catch (error) {
+    console.error('Workflow schedule creation failed:', error.message);
+    res.status(400).json({ error: 'Workflow schedule creation failed' });
+  }
 });
 
 app.get('/api/projects/:projectId/workflow-schedules', requireIdentity, async (req, res) => {
@@ -1068,7 +1618,8 @@ app.post('/api/workflow-schedules/:scheduleId/run', requireIdentity, async (req,
     await client.query('ROLLBACK');
     client.release();
     clientReleased = true;
-    return res.status(400).json({ error: 'Workflow run creation failed', detail: error.message });
+    console.error('Workflow run creation failed:', error.message);
+    return res.status(400).json({ error: 'Workflow run creation failed' });
   } finally { if (!clientReleased) client.release(); }
   try {
     const completedJob = await executeReviewOutputJob(job.id, req.organizationId);
@@ -1254,7 +1805,8 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
     await browser.close();
     res.type('application/pdf').set('Content-Disposition', `attachment; filename="cartogen-${result.rows[0].id}.pdf"`).send(pdf);
   } catch (error) {
-    res.status(503).json({ error: 'PDF renderer unavailable', detail: error.message });
+    console.error('PDF renderer unavailable:', error.message);
+    res.status(503).json({ error: 'PDF renderer unavailable' });
   }
 });
 
@@ -1443,7 +1995,8 @@ app.post('/api/layers/:layerId/features/:featureId/edit', requireIdentity, async
     return res.json({ mode: 'preview', applied: false, before, after, diff: featureStateDiff(before, after), before_hash: beforeHash, after_hash: afterHash, preview_token: previewToken });
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch {}
-    res.status(400).json({ error: 'Feature edit failed', detail: error.message });
+    console.error('Feature edit failed:', error.message);
+    res.status(400).json({ error: 'Feature edit failed' });
   } finally { client.release(); }
 });
 
@@ -1492,7 +2045,8 @@ app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) =>
     res.status(201).json({ layer: layer.rows[0], feature_count: features.length });
   } catch (error) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: 'Layer ingestion failed', detail: error.message });
+    console.error('Layer ingestion failed:', error.message);
+    res.status(400).json({ error: 'Layer ingestion failed' });
   } finally {
     client.release();
   }
@@ -1501,7 +2055,16 @@ app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) =>
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 if (require.main === module) {
+  // Demo mode has no login and no per-user isolation -- every request that
+  // doesn't send x-demo-organization is treated as the shared demo org. That
+  // is the right default for local dev, but a deployment that's reachable
+  // outside localhost while still in demo mode has no real authentication at
+  // all. This doesn't block startup (a public demo environment might be a
+  // deliberate choice), but it should never be silent.
+  if (NODE_ENV === 'production' && PHASE1_IDENTITY_MODE !== 'directus') {
+    console.warn('WARNING: NODE_ENV=production but PHASE1_IDENTITY_MODE is not "directus" -- this deployment has no real login/authentication. Set PHASE1_IDENTITY_MODE=directus before exposing this beyond localhost.');
+  }
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };

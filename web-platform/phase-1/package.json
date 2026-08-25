@@ -8,11 +8,13 @@
     "start": "node server.js",
     "worker": "node scripts/analysis_worker.js",
     "seed": "python scripts/seed_postgis.py",
+    "preflight": "node scripts/validate_env.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "express": "^5.1.0",
     "pg": "^8.16.3",
-    "playwright": "^1.62.1"
+    "playwright": "^1.62.1",
+    "stripe": "^22.5.0"
   }
 }

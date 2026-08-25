@@ -1,6 +1,50 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Organizations, Directus-user membership, and per-organization billing state.
+-- See db/organizations.sql for the apply-once patch and the rationale comment
+-- (not modeled as Directus collections; `directus_user_id` is a plain string,
+-- the `id` field Directus's own /users/me returns).
+CREATE TABLE IF NOT EXISTS organizations (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS organization_members (
+  organization_id text NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  directus_user_id text NOT NULL,
+  role text NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, directus_user_id)
+);
+CREATE INDEX IF NOT EXISTS organization_members_user_idx ON organization_members (directus_user_id);
+
+CREATE TABLE IF NOT EXISTS organization_billing (
+  organization_id text PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  stripe_subscription_status text NOT NULL DEFAULT 'none'
+    CHECK (stripe_subscription_status IN ('none', 'incomplete', 'active', 'trialing', 'past_due', 'canceled', 'unpaid')),
+  stripe_price_id text,
+  litellm_key_id text,
+  litellm_virtual_key text,
+  litellm_max_budget_usd numeric(10,2),
+  pending_checkout_org_id text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS organization_billing_subscription_idx ON organization_billing (stripe_subscription_id);
+
+-- Idempotency ledger for the Stripe webhook -- see db/organizations.sql for
+-- the full rationale comment.
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  event_id text PRIMARY KEY,
+  event_type text NOT NULL,
+  processed_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS projects (
   id text PRIMARY KEY,
   organization_id text NOT NULL,
@@ -159,6 +203,14 @@ ALTER TABLE workflow_schedules ADD CONSTRAINT workflow_schedules_last_run_fk FOR
 CREATE INDEX IF NOT EXISTS workflow_schedules_scope_idx ON workflow_schedules(organization_id, project_id, status, next_run);
 CREATE INDEX IF NOT EXISTS workflow_runs_schedule_idx ON workflow_runs(schedule_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS workflow_runs_scope_idx ON workflow_runs(organization_id, project_id, created_at DESC);
+
+INSERT INTO organizations (id, name, slug)
+VALUES ('demo-humanitarian-lab', 'Demo Humanitarian Lab', 'demo-humanitarian-lab')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO organization_billing (organization_id, stripe_subscription_status)
+VALUES ('demo-humanitarian-lab', 'none')
+ON CONFLICT (organization_id) DO NOTHING;
 
 INSERT INTO projects (id, organization_id, name, sector, crs, status, metadata)
 VALUES ('pakistan-humanitarian-screening', 'demo-humanitarian-lab', 'Pakistan Humanitarian Service Coverage', 'humanitarian', 'EPSG:4326', 'draft', '{"phase":"1","source":"public-data-demo"}')

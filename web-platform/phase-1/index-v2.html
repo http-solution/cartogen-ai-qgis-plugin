@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cartogen AI Workspace</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+:root{
+  --bg:#0C1416; --panel:#111D1F; --raised:#16272A; --raised2:#1B3034;
+  --line:#20363A; --line-soft:#1A2B2E;
+  --text:#E8F1EE; --muted:#8FA7A4; --faint:#617977;
+  --accent:#3ECFA6; --accent-deep:#1E6E59; --accent-ink:#04211A;
+  --warn:#E8B15C; --alert:#EE7A6B; --info:#74B7E8;
+  --r:10px; --r-sm:7px;
+  --f-ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-cond:"Inter",system-ui,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,"IBM Plex Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--f-ui);font-size:13px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+button:disabled{cursor:not-allowed;opacity:.5}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#22383C;border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.shell{position:relative;height:100svh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:var(--bg)}
+
+.top{display:flex;align-items:center;gap:12px;height:50px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.mark{display:flex;align-items:center;gap:8px;flex:none}
+.mark svg{flex:none}
+.mark b{font-weight:800;letter-spacing:.02em}
+.mark b em{font-style:normal;color:var(--accent)}
+select.projSel{flex:none;max-width:260px;background:var(--raised);color:var(--text);border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 9px;font-size:12.5px;font-weight:600}
+.omni{flex:1;min-width:0;max-width:560px;position:relative}
+.omni-field{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);transition:border-color .15s,box-shadow .15s}
+.omni-field:focus-within{border-color:var(--accent-deep);box-shadow:0 0 0 3px rgba(62,207,166,.12)}
+.omni-field input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:12.5px}
+.omni-field input::placeholder{color:var(--faint)}
+.kbd{font-family:var(--f-mono);font-size:9.5px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 5px;flex:none}
+.omni-pop{position:absolute;z-index:60;top:40px;left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 18px 48px rgba(0,0,0,.55);padding:6px;display:none;max-height:60vh;overflow:auto}
+.omni.open .omni-pop{display:block}
+.omni-group{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:8px 9px 4px;font-weight:700}
+.omni-row{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:var(--r-sm)}
+.omni-row:hover,.omni-row.sel{background:var(--raised2)}
+.omni-row .ico{width:16px;text-align:center;color:var(--muted);flex:none}
+.omni-row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omni-row .m{font-family:var(--f-mono);font-size:10px;color:var(--faint);flex:none}
+.omni-empty{padding:14px 9px;color:var(--faint);font-size:12px}
+
+.statuschip{display:flex;align-items:center;gap:6px;flex:none;padding:5px 9px;border-radius:var(--r-sm);background:rgba(232,177,92,.1);border:1px solid rgba(232,177,92,.32);color:var(--warn);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.idfield{display:flex;align-items:center;gap:6px;flex:none;color:var(--muted);font-size:11px}
+.idfield input{width:140px;background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-family:var(--f-mono);font-size:11px}
+.who{display:flex;align-items:center;gap:7px;flex:none;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.who .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.who .dot.on{background:var(--accent);box-shadow:0 0 0 3px rgba(62,207,166,.16)}
+.who .dot.off{background:var(--alert)}
+
+.mid{display:grid;grid-template-columns:52px auto minmax(0,1fr) auto;min-height:0}
+.rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;flex:none}
+.rail button{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;color:var(--faint);position:relative}
+.rail button:hover{color:var(--text);background:var(--raised)}
+.rail button.on{color:var(--accent-ink);background:var(--accent)}
+.rail .spacer{flex:1}
+.rail .tip{position:absolute;left:46px;white-space:nowrap;background:#04100F;border:1px solid var(--line);color:var(--text);font-size:11px;padding:4px 8px;border-radius:6px;opacity:0;pointer-events:none;transform:translateX(-4px);transition:.12s;z-index:70}
+.rail button:hover .tip{opacity:1;transform:none}
+
+.drawer{width:352px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;transition:width .18s ease;flex:none}
+.shell.collapse-left .drawer{width:0;overflow:hidden;border-right-width:0}
+.pane{display:none;flex-direction:column;min-height:0;flex:1}
+.pane.on{display:flex}
+.pane-head{padding:12px 14px 10px;border-bottom:1px solid var(--line);flex:none}
+.eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.pane-head h2{margin:3px 0 0;font-size:17px;font-weight:700;letter-spacing:.01em}
+.pane-head p{margin:5px 0 0;color:var(--muted);font-size:11.5px}
+.pane-body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.pane-foot{flex:none;border-top:1px solid var(--line);padding:10px 12px;background:var(--panel)}
+
+.sect{margin-bottom:16px}
+.sect-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.sect-h h3{margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.link{color:var(--accent);font-size:11.5px;font-weight:600}
+.link:hover{text-decoration:underline}
+.link:disabled{color:var(--faint);text-decoration:none}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--raised2);font-weight:600;font-size:12px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:#33555A}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover:not(:disabled){background:#4EDCB4}
+.btn.danger{color:var(--alert);border-color:rgba(238,122,107,.4)}
+.btn.sm{padding:5px 9px;font-size:11px}
+.field{width:100%;background:#0C1719;border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;outline:none}
+.field:focus{border-color:var(--accent-deep)}
+textarea.field{resize:vertical}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;font-family:var(--f-mono);font-size:9.5px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--accent);border-color:rgba(62,207,166,.4);background:rgba(62,207,166,.08)}
+.chip.warn{color:var(--warn);border-color:rgba(232,177,92,.4);background:rgba(232,177,92,.08)}
+.chip.bad{color:var(--alert);border-color:rgba(238,122,107,.4);background:rgba(238,122,107,.08)}
+.chip.info{color:var(--info);border-color:rgba(116,183,232,.35);background:rgba(116,183,232,.08)}
+.mono{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hint{color:var(--faint);font-size:11px;line-height:1.5}
+.empty{color:var(--faint);font-size:12px;padding:14px 4px;text-align:center}
+.err{color:var(--alert);font-size:11.5px;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label.f{display:block;margin-bottom:9px}
+label.f span.lab{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px;font-weight:700}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.seg button{flex:1;padding:7px 6px;font-size:11.5px;color:var(--muted)}
+.seg button.on{background:var(--raised2);color:var(--text);font-weight:700}
+.seg button+button{border-left:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:8px}
+.wrap{display:flex;flex-wrap:wrap;gap:6px}
+
+.trust{position:relative;padding-left:12px}
+.trust::before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:3px;border-radius:3px;background:var(--faint)}
+.trust.t-ok::before{background:var(--accent)}
+.trust.t-aging::before{background:var(--warn)}
+.trust.t-stale::before{background:var(--alert)}
+.trust.t-new::before{background:repeating-linear-gradient(180deg,var(--faint) 0 3px,transparent 3px 7px)}
+
+.thread{display:flex;flex-direction:column;gap:11px}
+.msg{border-radius:var(--r);padding:9px 11px;font-size:12px;line-height:1.55}
+.msg.sys{background:transparent;border:1px dashed var(--line);color:var(--faint);font-size:11px}
+.msg.me{background:var(--raised2);border:1px solid #2A4A4B}
+.msg .from{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:4px;font-weight:700}
+
+.runway{border:1px solid var(--line);border-radius:var(--r);background:var(--raised);overflow:hidden}
+.runway-top{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(62,207,166,.09),transparent);flex-wrap:wrap}
+.runway-top .ttl{font-size:13px;font-weight:700;flex:1;min-width:120px}
+.steps{list-style:none;margin:0;padding:4px 0}
+.step{display:grid;grid-template-columns:22px 1fr;gap:9px;padding:8px 11px 10px}
+.step+.step{border-top:1px solid var(--line-soft)}
+.step .n{font-family:var(--f-mono);font-size:10px;color:var(--accent);width:20px;height:20px;border:1px solid var(--accent-deep);border-radius:50%;display:grid;place-items:center;background:rgba(62,207,166,.07)}
+.step .st{font-weight:600;font-size:12px}
+.step .meta{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
+.runway-block{padding:9px 11px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
+.runway-block b{color:var(--text)}
+.runway-block ul{margin:4px 0 0;padding-left:16px}
+.runway-foot{display:flex;gap:7px;padding:10px 11px;border-top:1px solid var(--line);background:#0F1C1E}
+.runway-foot .btn{flex:1}
+.compose{border:1px solid var(--line);border-radius:var(--r);background:#0C1719;padding:9px}
+.compose textarea{width:100%;min-height:58px;resize:vertical;background:none;border:0;outline:none;font-size:12px}
+.compose-bar{display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap}
+.compose-bar .btn{padding:6px 10px}
+
+.lrow{display:flex;align-items:flex-start;gap:9px;padding:9px 9px 9px 0;border-radius:var(--r-sm)}
+.lrow:hover{background:var(--raised)}
+.lrow.sel{background:var(--raised2)}
+.lrow .eye{flex:none;width:23px;height:23px;border-radius:6px;display:grid;place-items:center;color:var(--muted)}
+.lrow .eye:hover{background:var(--raised2);color:var(--text)}
+.lrow .eye.off{color:#3E5654}
+.sw{flex:none;width:12px;height:12px;border-radius:3px;margin-top:4px;border:1px solid rgba(255,255,255,.22)}
+.lrow .meta{flex:1;min-width:0}
+.lrow .nm{font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .sub{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center}
+.lrow .warnline{margin-top:6px;color:var(--warn);font-size:11px;line-height:1.5}
+.lrow .actions{display:flex;gap:5px;margin-top:7px}
+
+.ds{padding:11px;border:1px solid var(--line);border-radius:var(--r);background:var(--raised);margin-bottom:9px}
+.ds h4{margin:0 0 5px;font-size:12px;font-weight:700}
+.ds .res{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line-soft);border-radius:var(--r-sm);background:#0E1A1C;margin-top:6px}
+.ds .res .fmt{font-family:var(--f-mono);font-size:9.5px;color:var(--info);border:1px solid rgba(116,183,232,.3);border-radius:4px;padding:1px 5px;flex:none}
+.ds .res .nm{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.pages{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+.pg{aspect-ratio:1/1.414;border:1px solid var(--line);border-radius:5px;background:#F6F5F1;position:relative;overflow:hidden}
+.pg .band{position:absolute;top:0;left:0;right:0;height:5px;background:var(--warn)}
+.pg .ln{position:absolute;left:6px;right:6px;height:2px;background:#C9C7BF;border-radius:2px}
+.pg .blk{position:absolute;left:6px;right:6px;background:#DCDAD2;border:1px solid #C9C7BF;border-radius:2px}
+
+.stage{position:relative;min-width:0;background:#DFE3DC;overflow:hidden}
+#leafletMap{position:absolute;inset:0;width:100%;height:100%}
+.float{position:absolute;z-index:400}
+.plate{background:rgba(12,20,22,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);border-radius:var(--r);box-shadow:0 8px 26px rgba(0,0,0,.34)}
+.mapbtns{top:12px;right:12px;display:flex;flex-direction:column;gap:6px}
+.mapbtn{width:33px;height:33px;display:grid;place-items:center;color:var(--text);background:rgba(12,20,22,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);border-radius:9px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.mapbtn:hover{background:rgba(22,39,42,.96);color:var(--accent)}
+.mapbtn.on{color:var(--accent);border-color:var(--accent-deep)}
+.mapbtn.stack{height:auto;flex-direction:column;padding:0;display:flex}
+.mapbtn.stack span{display:grid;place-items:center;width:31px;height:31px;cursor:pointer}
+.mapbtn.stack span+span{border-top:1px solid rgba(255,255,255,.09)}
+.legend{left:12px;bottom:12px;width:224px;padding:10px 11px;max-height:44vh;overflow:auto}
+.legend h4{margin:0 0 8px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.lg{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:11px}
+.lg .k{width:12px;height:12px;border-radius:3px;flex:none;border:1px solid rgba(255,255,255,.2)}
+.lg .txt{flex:1;min-width:0;color:#D7E4E1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.basemaps{right:12px;bottom:12px;display:flex;gap:5px;padding:5px}
+.bm{padding:6px 9px;border-radius:7px;border:1px solid transparent;font-size:11px;color:var(--muted)}
+.bm.on{border-color:var(--accent);color:var(--accent);background:rgba(62,207,166,.08)}
+.readout{left:12px;top:12px;display:flex;align-items:center;gap:12px;padding:6px 11px;font-family:var(--f-mono);font-size:10px;color:#CBDBD8}
+.attrib{position:absolute;z-index:390;right:12px;bottom:64px;font-size:9.5px;color:#3D4C49;background:rgba(255,255,255,.78);padding:2px 7px;border-radius:4px}
+.map-empty{position:absolute;z-index:395;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none}
+.map-empty>div{max-width:320px;padding:16px 19px;border:1px solid rgba(28,59,55,.2);border-radius:12px;background:rgba(245,250,248,.95);color:#29433f;box-shadow:0 5px 22px rgba(0,0,0,.13);pointer-events:auto}
+.map-empty[hidden]{display:none}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#172224;color:var(--text)}
+.leaflet-popup-content{margin:9px 11px;font-size:12px}
+.leaflet-popup-content b{color:var(--accent)}
+.leaflet-control-attribution{display:none}
+.measure-pt{background:#3ECFA6;border:2px solid #08201a;border-radius:50%;width:9px;height:9px}
+
+.ctx{width:320px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;transition:width .18s ease;flex:none}
+.shell.collapse-right .ctx{width:0;overflow:hidden;border-left-width:0}
+.ctx-head{padding:11px 13px;border-bottom:1px solid var(--line);flex:none;display:flex;align-items:flex-start;gap:8px}
+.ctx-head .g{flex:1;min-width:0}
+.ctx-head h3{margin:2px 0 0;font-size:16px;font-weight:700;word-break:break-word}
+.ctx-body{flex:1;min-height:0;overflow:auto;padding:12px 13px}
+.kv{width:100%;border-collapse:collapse;font-size:11px}
+.kv th,.kv td{text-align:left;padding:5px 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.kv th{color:var(--faint);font-weight:600;width:40%;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding-top:7px}
+.kv td{font-family:var(--f-mono);font-size:10.5px;word-break:break-word}
+.diff{border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;font-family:var(--f-mono);font-size:10px}
+.diff div{padding:5px 8px;white-space:pre-wrap;word-break:break-word}
+.diff .b{background:rgba(238,122,107,.09);color:#F0A9A0}
+.diff .a{background:rgba(62,207,166,.09);color:#8FE5C7}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 12px 16px;font-size:11px;color:var(--muted)}
+.tl li::before{content:"";position:absolute;left:2px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--accent-deep);border:1px solid var(--accent)}
+.tl li::after{content:"";position:absolute;left:4.5px;top:13px;bottom:0;width:1px;background:var(--line)}
+.tl li:last-child::after{display:none}
+.tl b{color:var(--text);font-weight:700;display:block;font-size:12px}
+
+.dock{background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;height:210px;transition:height .18s ease;flex:none}
+.shell.dock-closed .dock{height:36px}
+.dock-tabs{display:flex;align-items:center;gap:2px;padding:0 8px;height:35px;flex:none;border-bottom:1px solid var(--line)}
+.dock-tabs button.tab{padding:0 11px;height:35px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;font-weight:700}
+.dock-tabs button.tab:hover{color:var(--text)}
+.dock-tabs button.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.dock-tabs .rt{margin-left:auto;display:flex;align-items:center;gap:7px}
+.dock-body{flex:1;min-height:0;overflow:auto}
+.shell.dock-closed .dock-body{display:none}
+.dpane{display:none}
+.dpane.on{display:block}
+table.data{width:100%;border-collapse:collapse;font-size:11px}
+table.data th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;padding:6px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.data td{padding:6px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap;font-variant-numeric:tabular-nums;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+table.data tr:hover td{background:var(--raised)}
+.jrow{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 11px;border-bottom:1px solid var(--line-soft);align-items:center}
+.jrow .t{font-weight:700;font-size:12px}
+.jrow .s{display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap}
+.jrow .btns{display:flex;gap:5px}
+.spin{width:11px;height:11px;border-radius:50%;border:2px solid rgba(62,207,166,.25);border-top-color:var(--accent);animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.toasts{position:fixed;z-index:900;top:58px;right:14px;display:flex;flex-direction:column;gap:8px;max-width:340px}
+.toast{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:12px;box-shadow:0 10px 28px rgba(0,0,0,.4);animation:tin .15s ease}
+.toast.error{border-left-color:var(--alert)}
+.toast.warn{border-left-color:var(--warn)}
+@keyframes tin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+@media (max-width:1180px){.ctx{width:0;border-left-width:0;overflow:hidden}}
+@media (max-width:900px){.omni{display:none}.drawer{width:300px}}
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+<header class="top">
+  <div class="mark">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.6 21 7v10l-9 4.4L3 17V7l9-4.4Z" stroke="#3ECFA6" stroke-width="1.4" stroke-linejoin="round"/><path d="M3 7l9 4.4L21 7M12 11.4V21.4" stroke="#3ECFA6" stroke-width="1.1" opacity=".55"/><circle cx="12" cy="11.4" r="2" fill="#3ECFA6"/></svg>
+    <b>Cartogen <em>AI</em></b>
+  </div>
+  <select class="projSel" id="projectSelect" aria-label="Active project"><option>Loading projects…</option></select>
+  <div class="omni" id="omni">
+    <div class="omni-field">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#8FA7A4" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="#8FA7A4" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="omniInput" placeholder="Search layers, features, or run a command" aria-label="Search layers, features and commands" autocomplete="off">
+      <span class="kbd">/</span>
+    </div>
+    <div class="omni-pop" id="omniPop"></div>
+  </div>
+  <div class="statuschip" id="statusChip" title="Every export defaults to this classification until changed">DRAFT · REVIEW REQUIRED</div>
+  <div class="idfield" title="Sent as the x-demo-organization header on every request. Ignored when identity mode is directus.">
+    org <input id="orgIdInput" value="demo-humanitarian-lab" spellcheck="false">
+  </div>
+  <div class="who" id="identityWho"><span class="dot" id="identityDot"></span><span id="identityText">Checking identity…</span></div>
+</header>
+
+<div class="mid">
+  <nav class="rail" aria-label="Workspace sections">
+    <button class="on" data-pane="ask" aria-label="Ask"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12a8 8 0 1 1-3.2-6.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="m12 8 1.4 2.6L16 12l-2.6 1.4L12 16l-1.4-2.6L8 12l2.6-1.4L12 8Z" fill="currentColor"/></svg><span class="tip">Ask · plan and approve</span></button>
+    <button data-pane="layers" aria-label="Layers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m12 3 9 5-9 5-9-5 9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m3 13 9 5 9-5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="tip">Layers · style and legend</span></button>
+    <button data-pane="data" aria-label="Data"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6" rx="7" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" stroke="currentColor" stroke-width="1.8"/></svg><span class="tip">Data · catalogue and context</span></button>
+    <button data-pane="analysis" aria-label="Analysis"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span class="tip">Analysis · operations and schedules</span></button>
+    <button data-pane="reports" aria-label="Reports"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span class="tip">Reports · print and export</span></button>
+    <button data-pane="activity" aria-label="Activity"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2.5-6 4 13L16 12h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tip">Activity · jobs, exports, documents</span></button>
+    <div class="spacer"></div>
+    <button id="collapseLeft" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 6 8 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tip">Collapse panel</span></button>
+  </nav>
+
+  <aside class="drawer">
+    <section class="pane on" data-pane="ask">
+      <div class="pane-head">
+        <div class="eyebrow" id="plannerEyebrow">Planner</div>
+        <h2>What do you need to understand?</h2>
+        <p>Describe the decision, not the tool. Every plan is reviewable before anything runs.</p>
+      </div>
+      <div class="pane-body"><div class="thread" id="messages"><div class="msg sys">No conversation yet. Start with an objective, not a tool command.</div></div></div>
+      <div class="pane-foot">
+        <div class="compose">
+          <textarea id="chatInput" placeholder="Example: Find areas where partner presence is low and facilities are far away."></textarea>
+          <div class="compose-bar">
+            <button class="btn pri sm" id="askButton">Ask planner</button>
+            <button class="btn sm" id="clearChatButton">Clear</button>
+          </div>
+        </div>
+        <div class="err" id="chatError" style="margin-top:6px;display:none"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="layers">
+      <div class="pane-head"><div class="eyebrow">Map</div><h2>Layers and legend</h2><p>Colour, freshness and visibility for everything drawn on the map.</p></div>
+      <div class="pane-body">
+        <div class="sect">
+          <div class="sect-h"><h3>Project layers</h3><button class="link" id="refreshLayersLink">Refresh</button></div>
+          <div class="hint" style="margin-bottom:8px">Freshness is computed client-side from source dates: current (&lt;90d), aging (&lt;365d), stale, or unknown.</div>
+          <div id="layerList"><div class="empty">Loading layers…</div></div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Rendering</h3></div>
+          <div class="card">
+            <label class="f" style="margin-bottom:0"><span class="lab">Fill opacity · <span id="opacityVal">55%</span></span>
+              <input type="range" id="opacitySlider" min="10" max="90" value="55" style="width:100%;accent-color:var(--accent)">
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="data">
+      <div class="pane-head"><div class="eyebrow">Catalogue</div><h2>Find and import data</h2><p>Candidates stay outside the project until you approve a specific resource.</p></div>
+      <div class="pane-body">
+        <div class="sect">
+          <div class="row"><input class="field" id="datasetQuery" placeholder="Search HDX (e.g. pakistan flood)"><button class="btn sm" id="datasetSearchButton">Search</button></div>
+          <div class="hint" style="margin-top:7px">Trusted hosts only · 5 MB and 1,000 features per import · GeoJSON, CSV, ZIP</div>
+          <div class="err" id="datasetError" style="margin-top:6px;display:none"></div>
+        </div>
+        <div class="sect"><div id="datasetResults"></div></div>
+        <div class="sect">
+          <div class="sect-h"><h3>Upload a GeoJSON layer</h3></div>
+          <input class="field" type="file" id="layerFile" accept=".json,.geojson,application/json">
+          <input class="field" id="layerFileName" placeholder="Layer name" style="margin-top:7px">
+          <button class="btn sm" id="layerUploadButton" style="margin-top:7px;width:100%">Upload as new layer</button>
+          <div class="err" id="uploadError" style="margin-top:6px;display:none"></div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Planning context</h3><button class="link" id="refreshDocsLink">Refresh</button></div>
+          <textarea class="field" id="docText" placeholder="Paste sitrep text, notes, or context for the planner…" style="min-height:70px"></textarea>
+          <div class="row" style="margin-top:7px"><input class="field" id="docName" placeholder="Document name" style="flex:1"><button class="btn sm" id="docUploadButton">Save</button></div>
+          <div class="err" id="docError" style="margin-top:6px;display:none"></div>
+          <div id="docList" style="margin-top:9px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="analysis">
+      <div class="pane-head"><div class="eyebrow">Operations</div><h2>Run and schedule</h2><p>Results become new layers. Source data is never modified.</p></div>
+      <div class="pane-body">
+        <div class="sect">
+          <div class="sect-h"><h3>Queue an operation</h3></div>
+          <div class="seg" id="opSeg" style="margin-bottom:9px"><button class="on" data-op="buffer_layer">Buffer</button><button data-op="intersect_layers">Intersect</button></div>
+          <label class="f"><span class="lab">Source layer</span><select class="field" id="sourceLayer"></select></label>
+          <label class="f" id="overlayField"><span class="lab">Overlay layer</span><select class="field" id="overlayLayer"></select></label>
+          <label class="f" id="distanceField"><span class="lab">Distance · metres</span><input class="field" id="distance" type="number" value="1000" min="1" max="100000"></label>
+          <button class="btn pri" id="queueButton" style="width:100%">Queue analysis</button>
+          <div class="err" id="analysisError" style="margin-top:7px;display:none"></div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Schedules</h3><button class="link" id="refreshSchedulesLink">Refresh</button></div>
+          <form id="scheduleForm">
+            <input class="field" id="scheduleName" placeholder="Schedule name" required>
+            <input class="field" id="scheduleInterval" type="number" min="1" step="1" value="1440" placeholder="Interval (minutes)" style="margin-top:7px">
+            <button class="btn sm pri" type="submit" style="margin-top:7px;width:100%">Create read-only schedule</button>
+          </form>
+          <div class="hint" style="margin-top:7px">Only <span class="mono" style="color:var(--faint)">create_review_output</span> can be scheduled. Edits and imports cannot.</div>
+          <div class="err" id="scheduleError" style="margin-top:6px;display:none"></div>
+          <div id="scheduleList" style="margin-top:9px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="reports">
+      <div class="pane-head"><div class="eyebrow">Output</div><h2>Situation report</h2><p>The layout you configure is the layout that renders server-side.</p></div>
+      <div class="pane-body">
+        <div class="sect">
+          <label class="f"><span class="lab">Report type</span><span class="seg" id="reportTypeSeg"><button class="on" data-type="situation_report">Situation report · 4pp</button><button data-type="single">Single sheet</button></span></label>
+          <div class="grid2">
+            <label class="f"><span class="lab">Paper</span><select class="field" id="reportPaper"><option>A4</option><option>A3</option><option>Letter</option></select></label>
+            <label class="f"><span class="lab">Orientation</span><span class="seg" id="orientSeg"><button class="on" data-o="portrait">Portrait</button><button data-o="landscape">Landscape</button></span></label>
+          </div>
+          <label class="f"><span class="lab">Title</span><input class="field" id="reportTitle" placeholder="Leave blank to use the project name"></label>
+          <label class="f"><span class="lab">Prepared by</span><input class="field" id="reportAuthor" value="Cartogen AI Humanitarian Mapping"></label>
+          <label class="f"><span class="lab">Style preset</span><select class="field" id="reportStyle"><option value="coverage">Coverage</option><option value="facilities">Facilities</option><option value="accessibility">Accessibility</option><option value="risk">Risk</option></select></label>
+          <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="reportWarnings" checked style="accent-color:var(--accent);width:14px;height:14px"><span style="font-size:12px">Print freshness and limitation warnings</span></label>
+          <button class="btn pri" id="createExportButton" style="width:100%">Create export</button>
+          <div class="err" id="exportError" style="margin-top:7px;display:none"></div>
+        </div>
+        <div class="sect">
+          <div class="pages"><div class="pg"><span class="band"></span><span class="ln" style="top:12px;width:60%"></span><span class="blk" style="top:20px;height:46%"></span></div><div class="pg"><span class="band"></span><span class="ln" style="top:12px;width:44%"></span><span class="ln" style="top:20px"></span><span class="ln" style="top:26px"></span><span class="blk" style="top:36px;height:40%"></span></div><div class="pg"><span class="band"></span><span class="blk" style="top:12px;height:66%"></span></div><div class="pg"><span class="band"></span><span class="ln" style="top:12px;width:56%"></span><span class="ln" style="top:20px"></span><span class="ln" style="top:26px"></span></div></div>
+          <div class="hint" style="margin-top:8px" id="reportPreviewHint">Cover · executive summary · map and register · limitations and provenance appendix</div>
+        </div>
+        <div class="sect">
+          <div class="sect-h"><h3>Export history</h3><button class="link" id="refreshExportsLink">Refresh</button></div>
+          <div id="exportList"><div class="empty">No exports yet.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="activity">
+      <div class="pane-head"><div class="eyebrow">Audit</div><h2>Activity</h2><p>Analysis jobs, exports, and saved context for this project, merged and ordered.</p></div>
+      <div class="pane-body"><button class="link" id="refreshActivityLink" style="margin-bottom:9px">Refresh</button><ul class="tl" id="activityList"><li>Loading…</li></ul></div>
+    </section>
+  </aside>
+
+  <main class="stage" id="stage" aria-label="Project map">
+    <div id="leafletMap"></div>
+    <div class="attrib" id="attrib">© OpenStreetMap contributors</div>
+    <div class="map-empty" id="mapEmpty"><div><b>No project geometry is loaded</b><br><span class="hint">Toggle a layer on the left, or import data from the Data panel.</span></div></div>
+
+    <div class="float mapbtns">
+      <div class="mapbtn stack"><span id="zin" role="button" tabindex="0" aria-label="Zoom in">+</span><span id="zout" role="button" tabindex="0" aria-label="Zoom out">−</span></div>
+      <button class="mapbtn" id="measureBtn" aria-label="Measure distance" title="Measure distance">📏</button>
+      <button class="mapbtn" id="fitAllBtn" aria-label="Zoom to visible layers" title="Zoom to visible layers">⤢</button>
+      <button class="mapbtn" id="printBtn" aria-label="Go to Reports" title="Go to Reports">🖶</button>
+    </div>
+    <div class="float legend plate" id="legendBox"><h4>Legend <button class="link" id="legendCollapse" style="font-size:10px">hide</button></h4><div id="legendBody" class="empty" style="padding:2px 0">No layers visible</div></div>
+    <div class="float basemaps plate" id="basemapSwitch">
+      <button class="bm on" data-bm="voyager">Voyager</button>
+      <button class="bm" data-bm="osm">OSM</button>
+      <button class="bm" data-bm="hot">HOT</button>
+      <button class="bm" data-bm="esri">Esri</button>
+    </div>
+    <div class="float readout plate" id="readout"><span id="coords">move over the map</span><span id="measureOut" style="display:none"></span></div>
+  </main>
+
+  <aside class="ctx" id="ctxPanel">
+    <div class="ctx-head">
+      <div class="g"><div class="eyebrow" id="ctxKind">Feature</div><h3 id="ctxName">Nothing selected</h3></div>
+      <button class="btn sm" id="collapseRight" aria-label="Close panel" style="padding:5px 8px">✕</button>
+    </div>
+    <div class="ctx-body" id="ctxBody"><div class="empty">Select a feature on the map to inspect its stored properties.</div></div>
+  </aside>
+</div>
+
+<section class="dock">
+  <div class="dock-tabs">
+    <button class="tab on" data-dpane="attrs">Attributes</button>
+    <button class="tab" data-dpane="jobs">Jobs <span class="chip" id="jobsBadge" style="margin-left:4px;display:none"></span></button>
+    <button class="tab" data-dpane="history">History</button>
+    <div class="rt">
+      <input class="field" id="attrFilter" placeholder="Filter rows…" style="width:170px;padding:5px 9px;font-size:11.5px">
+      <button class="btn sm" id="exportFilteredBtn">Export filtered</button>
+      <button class="btn sm" id="dockToggle" aria-label="Collapse dock">▾</button>
+    </div>
+  </div>
+  <div class="dock-body">
+    <div class="dpane on" data-dpane="attrs"><div id="attrTableWrap"><div class="empty">Select a layer to see its attribute table.</div></div></div>
+    <div class="dpane" data-dpane="jobs"><div id="jobsList"><div class="empty">No analysis jobs yet.</div></div></div>
+    <div class="dpane" data-dpane="history"><div id="historyList"><div class="empty">No history yet.</div></div></div>
+  </div>
+</section>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+</div>
+
+<script>
+/* Cartogen AI Workspace — v2 interface, wired to the Phase 1 API. */
+const $ = id => document.getElementById(id);
+const shell = $('shell');
+
+/* ---------------------------------------------------------------- identity / fetch */
+const ORG_KEY = 'cartogen.orgId';
+$('orgIdInput').value = localStorage.getItem(ORG_KEY) || 'demo-humanitarian-lab';
+$('orgIdInput').addEventListener('change', () => { localStorage.setItem(ORG_KEY, $('orgIdInput').value.trim()); loadIdentity(); loadProjects(); });
+
+async function api(pathAndQuery, options = {}) {
+  const headers = Object.assign({ 'x-demo-organization': $('orgIdInput').value.trim() || 'demo-humanitarian-lab' }, options.headers || {});
+  if (options.body) headers['content-type'] = 'application/json';
+  const response = await fetch(pathAndQuery, Object.assign({}, options, { headers }));
+  const contentType = response.headers.get('content-type') || '';
+  let data = null;
+  if (contentType.includes('application/json')) { try { data = await response.json(); } catch { data = null; } }
+  if (!response.ok) {
+    const message = (data && (data.error || data.message)) || `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+  return data === null ? {} : data;
+}
+
+/* ---------------------------------------------------------------- toasts */
+function toast(message, kind) {
+  const el = document.createElement('div');
+  el.className = `toast${kind ? ' ' + kind : ''}`;
+  el.textContent = message;
+  $('toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 260); }, 4600);
+}
+function showErr(id, message) { const el = $(id); if (!el) return; if (!message) { el.style.display = 'none'; el.textContent = ''; return; } el.style.display = 'block'; el.textContent = message; }
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); }
+
+/* ---------------------------------------------------------------- state */
+const state = {
+  projectId: null,
+  projects: [],
+  layers: [],
+  loadedGeo: new Map(),      // layerId -> { fc, leafletLayer, color }
+  visible: new Set(),
+  activeLayerId: null,
+  selectedFeature: null,     // { layerId, featureId, layerName }
+  editPreview: null,         // { changes, before, after, before_hash, after_hash, preview_token }
+  documents: [],
+  jobs: [],
+  schedules: [],
+  exports: [],
+  jobsPollTimer: null,
+  measure: { on: false, points: [], line: null, markers: [] },
+  map: null,
+  basemapLayer: null,
+};
+
+/* ---------------------------------------------------------------- identity */
+async function loadIdentity() {
+  try {
+    const data = await api('/api/auth/status');
+    const dot = $('identityDot');
+    dot.className = 'dot ' + (data.authenticated ? 'on' : 'off');
+    const provider = data.providers ? `${data.providers.selected_provider} · ${data.providers.selected_model}` : '';
+    $('identityText').textContent = `${data.authenticated ? 'Authenticated' : 'Unauthenticated'} · ${data.mode}${provider ? ' · ' + provider : ''}`;
+  } catch (error) {
+    $('identityDot').className = 'dot off';
+    $('identityText').textContent = 'Identity check failed';
+  }
+}
+
+/* ---------------------------------------------------------------- projects */
+async function loadProjects() {
+  try {
+    const data = await api('/api/projects');
+    state.projects = Array.isArray(data.projects) ? data.projects : [];
+    const select = $('projectSelect');
+    if (!state.projects.length) { select.innerHTML = '<option value="">No projects for this organization</option>'; state.projectId = null; return; }
+    select.innerHTML = state.projects.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+    const saved = localStorage.getItem('cartogen.project');
+    state.projectId = state.projects.some(p => p.id === saved) ? saved : state.projects[0].id;
+    select.value = state.projectId;
+    localStorage.setItem('cartogen.project', state.projectId);
+    await refreshProjectContext();
+  } catch (error) {
+    $('projectSelect').innerHTML = '<option value="">Failed to load projects</option>';
+    toast(`Could not load projects: ${error.message}`, 'error');
+  }
+}
+
+async function refreshProjectContext() {
+  clearMapLayers();
+  clearInspector(true);
+  await Promise.all([loadLayers(), loadJobs(), loadSchedules(), loadDocuments(), loadExports()]);
+  renderActivity();
+}
+
+/* ---------------------------------------------------------------- freshness heuristic */
+function freshnessOf(layer) {
+  const dateStr = layer.source_modified_at || layer.source_retrieved_at;
+  if (!dateStr) return { cls: 't-new', label: 'no date recorded', chip: 'chip' };
+  const ageDays = (Date.now() - new Date(dateStr).getTime()) / 86400000;
+  if (Number.isNaN(ageDays)) return { cls: 't-new', label: 'unrecorded', chip: 'chip' };
+  if (ageDays < 90) return { cls: 't-ok', label: `${Math.round(ageDays)}d old`, chip: 'chip ok' };
+  if (ageDays < 365) return { cls: 't-aging', label: `${Math.round(ageDays / 30)}mo old`, chip: 'chip warn' };
+  return { cls: 't-stale', label: `${Math.round(ageDays / 365)}y old`, chip: 'chip bad' };
+}
+
+/* ---------------------------------------------------------------- layer color */
+function colorForLayer(id) {
+  let hash = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i += 1) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  return `hsl(${hue} 62% 55%)`;
+}
+
+/* ---------------------------------------------------------------- layers pane */
+async function loadLayers() {
+  $('layerList').innerHTML = '<div class="empty">Loading layers…</div>';
+  try {
+    const data = await api(`/api/projects/${encodeURIComponent(state.projectId)}/layers`);
+    state.layers = Array.isArray(data.layers) ? data.layers : [];
+    renderLayerList();
+    fillLayerSelects();
+  } catch (error) {
+    $('layerList').innerHTML = `<div class="err">Unable to load layers: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderLayerList() {
+  const list = $('layerList');
+  if (!state.layers.length) { list.innerHTML = '<div class="empty">No stored layers yet. Import data from the Data panel.</div>'; return; }
+  list.innerHTML = state.layers.map(layer => {
+    const fresh = freshnessOf(layer);
+    const visible = state.visible.has(layer.id);
+    const color = colorForLayer(layer.id);
+    const warning = layer.metadata && layer.metadata.compatibility_warning ? `<div class="warnline">${escapeHtml(layer.metadata.compatibility_warning)}</div>` : '';
+    const derived = layer.metadata && layer.metadata.operation ? `<span class="chip info">derived · ${escapeHtml(layer.metadata.operation)}</span>` : '';
+    return `<div class="lrow trust ${fresh.cls} ${state.activeLayerId === layer.id ? 'sel' : ''}" data-layer="${escapeHtml(layer.id)}">
+      <button class="eye ${visible ? '' : 'off'}" data-toggle="${escapeHtml(layer.id)}" aria-label="Toggle ${escapeHtml(layer.name)}">${visible ? '◉' : '○'}</button>
+      <span class="sw" style="background:${color}"></span>
+      <div class="meta">
+        <div class="nm" title="${escapeHtml(layer.name)}">${escapeHtml(layer.name)}</div>
+        <div class="sub"><span class="chip">${Number(layer.feature_count) || 0} features</span><span class="${fresh.chip}">${fresh.label}</span>${layer.licence ? `<span class="chip">${escapeHtml(layer.licence)}</span>` : ''}${derived}</div>
+        ${warning}
+        <div class="actions"><button class="btn sm" data-fit="${escapeHtml(layer.id)}" ${state.loadedGeo.has(layer.id) ? '' : 'disabled'}>Fit</button><button class="btn sm" data-inspect="${escapeHtml(layer.id)}">Attributes</button></div>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-toggle]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); toggleLayer(btn.dataset.toggle); }));
+  list.querySelectorAll('[data-fit]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fitLayer(btn.dataset.fit); }));
+  list.querySelectorAll('[data-inspect]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); state.activeLayerId = btn.dataset.inspect; renderLayerList(); renderAttrTable(); setDock('attrs'); }));
+  list.querySelectorAll('.lrow').forEach(row => row.addEventListener('click', () => { state.activeLayerId = row.dataset.layer; renderLayerList(); renderAttrTable(); }));
+}
+
+function fillLayerSelects() {
+  const opts = state.layers.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.name)} · ${Number(l.feature_count) || 0}</option>`).join('');
+  $('sourceLayer').innerHTML = opts || '<option value="">No stored layers</option>';
+  $('overlayLayer').innerHTML = opts || '<option value="">No stored layers</option>';
+  if (state.layers.length > 1) $('overlayLayer').selectedIndex = 1;
+}
+
+async function toggleLayer(layerId) {
+  const layer = state.layers.find(l => l.id === layerId);
+  if (!layer) return;
+  if (state.visible.has(layerId)) {
+    state.visible.delete(layerId);
+    const entry = state.loadedGeo.get(layerId);
+    if (entry) state.map.removeLayer(entry.leafletLayer);
+    renderLayerList(); updateMapEmptyState(); renderLegend();
+    return;
+  }
+  if (!state.loadedGeo.has(layerId)) {
+    try {
+      const fc = await api(`/api/layers/${encodeURIComponent(layerId)}/geojson`);
+      addLayerToMap(layer, fc);
+    } catch (error) {
+      if (error.status === 404) {
+        // Layer exists but has zero stored features yet — treat as empty, not missing.
+        addLayerToMap(layer, { type: 'FeatureCollection', features: [] });
+        toast(`${layer.name} has no stored features yet.`, 'warn');
+      } else {
+        toast(`Could not load ${layer.name}: ${error.message}`, 'error');
+        return;
+      }
+    }
+  }
+  state.visible.add(layerId);
+  state.loadedGeo.get(layerId).leafletLayer.addTo(state.map);
+  renderLayerList(); updateMapEmptyState(); renderLegend();
+}
+
+function addLayerToMap(layer, fc) {
+  const color = colorForLayer(layer.id);
+  const opacity = Number($('opacitySlider').value) / 100;
+  const leafletLayer = L.geoJSON(fc, {
+    style: () => ({ color, weight: 2, fillColor: color, fillOpacity: opacity }),
+    pointToLayer: (_, latlng) => L.circleMarker(latlng, { radius: 6, color: '#0b1a19', weight: 1.5, fillColor: color, fillOpacity: Math.min(1, opacity + 0.2) }),
+    onEachFeature: (feature, featureLayer) => {
+      featureLayer.on('click', event => {
+        L.DomEvent.stopPropagation(event);
+        state.activeLayerId = layer.id;
+        renderLayerList();
+        selectFeature(feature, layer);
+        const props = feature.properties || {};
+        const keys = Object.keys(props).slice(0, 2);
+        const preview = keys.length ? keys.map(k => `${escapeHtml(k)}: ${escapeHtml(props[k])}`).join('<br>') : 'No stored properties';
+        featureLayer.bindPopup(`<b>${escapeHtml(layer.name)}</b><br>${preview}`).openPopup();
+      });
+    },
+  });
+  state.loadedGeo.set(layer.id, { fc, leafletLayer, color });
+}
+
+function fitLayer(layerId) {
+  const entry = state.loadedGeo.get(layerId);
+  if (!entry) return;
+  try { const bounds = entry.leafletLayer.getBounds(); if (bounds.isValid()) state.map.fitBounds(bounds.pad(0.15)); } catch {}
+}
+
+function fitAllVisible() {
+  const layers = [...state.visible].map(id => state.loadedGeo.get(id)?.leafletLayer).filter(Boolean);
+  if (!layers.length) { toast('No layers are visible to fit.', 'warn'); return; }
+  try { const group = L.featureGroup(layers); const bounds = group.getBounds(); if (bounds.isValid()) state.map.fitBounds(bounds.pad(0.15)); } catch {}
+}
+
+function clearMapLayers() {
+  state.loadedGeo.forEach(entry => { if (state.map) state.map.removeLayer(entry.leafletLayer); });
+  state.loadedGeo.clear();
+  state.visible.clear();
+  state.activeLayerId = null;
+  renderLegend();
+  updateMapEmptyState();
+}
+
+function updateMapEmptyState() { $('mapEmpty').hidden = state.visible.size > 0; }
+
+function renderLegend() {
+  const body = $('legendBody');
+  const visible = state.layers.filter(l => state.visible.has(l.id));
+  if (!visible.length) { body.className = 'empty'; body.style.padding = '2px 0'; body.textContent = 'No layers visible'; return; }
+  body.className = ''; body.style.padding = '';
+  body.innerHTML = visible.map(l => `<div class="lg"><span class="k" style="background:${colorForLayer(l.id)}"></span><span class="txt">${escapeHtml(l.name)}</span></div>`).join('');
+}
+
+$('opacitySlider').addEventListener('input', () => {
+  $('opacityVal').textContent = `${$('opacitySlider').value}%`;
+  const opacity = Number($('opacitySlider').value) / 100;
+  state.loadedGeo.forEach(entry => entry.leafletLayer.setStyle && entry.leafletLayer.setStyle({ fillOpacity: opacity }));
+});
+
+/* ---------------------------------------------------------------- inspector / feature edit */
+function clearInspector(force) {
+  if (!force && state.editPreview) {
+    if (!confirm('You have an unsaved edit preview. Discard it?')) return false;
+  }
+  state.selectedFeature = null;
+  state.editPreview = null;
+  $('ctxKind').textContent = 'Feature';
+  $('ctxName').textContent = 'Nothing selected';
+  $('ctxBody').innerHTML = '<div class="empty">Select a feature on the map to inspect its stored properties.</div>';
+  return true;
+}
+
+function featureIdOf(feature) { return feature?.id ?? feature?.properties?.id ?? null; }
+
+async function selectFeature(feature, layer) {
+  const featureId = featureIdOf(feature);
+  state.selectedFeature = { feature, layer, featureId };
+  state.editPreview = null;
+  shell.classList.remove('collapse-right');
+  const props = feature.properties || {};
+  const rows = Object.keys(props).length
+    ? Object.entries(props).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(typeof v === 'object' ? JSON.stringify(v) : v)}</td></tr>`).join('')
+    : '<tr><td colspan="2">No stored properties</td></tr>';
+  $('ctxKind').textContent = layer.name;
+  $('ctxName').textContent = featureId === null ? 'Feature (no id)' : `Feature #${featureId}`;
+  const editBlock = featureId === null ? '<div class="hint" style="margin-top:8px">This stored feature has no editable id.</div>' : `
+    <div class="sect-h" style="margin-top:14px"><h3>Edit</h3></div>
+    <label class="f"><span class="lab">Properties (JSON)</span><textarea class="field" id="editProps" style="min-height:110px;font-family:var(--f-mono);font-size:11px" spellcheck="false">${escapeHtml(JSON.stringify(props, null, 2))}</textarea></label>
+    <label class="f"><span class="lab">Geometry (GeoJSON, optional)</span><textarea class="field" id="editGeom" style="min-height:70px;font-family:var(--f-mono);font-size:11px" spellcheck="false" placeholder="Leave blank to keep the current geometry">${feature.geometry ? escapeHtml(JSON.stringify(feature.geometry)) : ''}</textarea></label>
+    <div class="row"><button class="btn sm" id="previewEditBtn">Preview changes</button><button class="btn sm pri" id="applyEditBtn" disabled>Apply edit</button></div>
+    <div id="editDiffBox" style="margin-top:9px"></div>
+    <div class="err" id="editErr" style="margin-top:7px;display:none"></div>`;
+  $('ctxBody').innerHTML = `<table class="kv"><tbody>${rows}</tbody></table>${editBlock}`;
+  if (featureId !== null) {
+    $('previewEditBtn').addEventListener('click', previewEdit);
+    $('applyEditBtn').addEventListener('click', applyEdit);
+  }
+}
+
+function parseEditInputs() {
+  let properties;
+  try { properties = JSON.parse($('editProps').value); } catch (e) { throw new Error(`Properties JSON is invalid: ${e.message}`); }
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) throw new Error('Properties must be a JSON object.');
+  const geomText = $('editGeom').value.trim();
+  let geometry;
+  if (geomText) { try { geometry = JSON.parse(geomText); } catch (e) { throw new Error(`Geometry JSON is invalid: ${e.message}`); } }
+  return geomText ? { properties, geometry } : { properties };
+}
+
+async function previewEdit() {
+  let changes;
+  try { changes = parseEditInputs(); } catch (error) { showErr('editErr', error.message); return; }
+  showErr('editErr', '');
+  $('previewEditBtn').disabled = true; $('applyEditBtn').disabled = true;
+  const sel = state.selectedFeature;
+  try {
+    const result = await api(`/api/layers/${encodeURIComponent(sel.layer.id)}/features/${encodeURIComponent(sel.featureId)}/edit`, {
+      method: 'POST', body: JSON.stringify(Object.assign({ mode: 'preview' }, changes)),
+    });
+    state.editPreview = { changes, result };
+    $('editDiffBox').innerHTML = `<div class="diff"><div class="b">before: ${escapeHtml(JSON.stringify(result.before))}</div><div class="a">after: ${escapeHtml(JSON.stringify(result.after))}</div></div><div class="hint" style="margin-top:6px">Preview token expires in 15 minutes. Apply to persist this change.</div>`;
+    $('applyEditBtn').disabled = false;
+  } catch (error) {
+    showErr('editErr', error.status === 409 ? 'This feature changed since it was loaded. Reload the layer and try again.' : `Preview failed: ${error.message}`);
+    state.editPreview = null;
+  } finally { $('previewEditBtn').disabled = false; }
+}
+
+async function applyEdit() {
+  if (!state.editPreview) { showErr('editErr', 'Preview the change first.'); return; }
+  const sel = state.selectedFeature;
+  const preview = state.editPreview;
+  $('previewEditBtn').disabled = true; $('applyEditBtn').disabled = true;
+  try {
+    await api(`/api/layers/${encodeURIComponent(sel.layer.id)}/features/${encodeURIComponent(sel.featureId)}/edit`, {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ mode: 'apply', approved: true, preview_token: preview.result.preview_token }, preview.changes)),
+    });
+    toast('Edit applied and recorded in feature lineage.', 'ok');
+    state.editPreview = null;
+    await refreshLayerData(sel.layer.id, sel.featureId);
+  } catch (error) {
+    showErr('editErr', error.status === 409 ? 'The preview token is stale. Preview again before applying.' : `Apply failed: ${error.message}`);
+    $('previewEditBtn').disabled = false;
+  }
+}
+
+async function refreshLayerData(layerId, reselectFeatureId) {
+  const layer = state.layers.find(l => l.id === layerId);
+  if (!layer) return;
+  const wasVisible = state.visible.has(layerId);
+  const old = state.loadedGeo.get(layerId);
+  if (old && state.map) state.map.removeLayer(old.leafletLayer);
+  state.loadedGeo.delete(layerId);
+  try {
+    const fc = await api(`/api/layers/${encodeURIComponent(layerId)}/geojson`);
+    addLayerToMap(layer, fc);
+  } catch { addLayerToMap(layer, { type: 'FeatureCollection', features: [] }); }
+  if (wasVisible) { state.visible.add(layerId); state.loadedGeo.get(layerId).leafletLayer.addTo(state.map); }
+  renderLayerList(); renderLegend(); renderAttrTable();
+  if (reselectFeatureId != null) {
+    const fc = state.loadedGeo.get(layerId).fc;
+    const refreshed = (fc.features || []).find(f => String(featureIdOf(f)) === String(reselectFeatureId));
+    if (refreshed) selectFeature(refreshed, layer);
+  }
+}
+
+/* ---------------------------------------------------------------- attribute table dock */
+function renderAttrTable() {
+  const wrap = $('attrTableWrap');
+  const layerId = state.activeLayerId;
+  const entry = layerId ? state.loadedGeo.get(layerId) : null;
+  if (!entry || !entry.fc.features || !entry.fc.features.length) {
+    wrap.innerHTML = '<div class="empty">Select and load a layer to see its attribute table.</div>';
+    return;
+  }
+  const filterText = ($('attrFilter').value || '').toLowerCase();
+  const keys = new Set();
+  entry.fc.features.forEach(f => Object.keys(f.properties || {}).forEach(k => keys.add(k)));
+  const cols = [...keys].slice(0, 10);
+  const rows = entry.fc.features.filter(f => {
+    if (!filterText) return true;
+    return JSON.stringify(f.properties || {}).toLowerCase().includes(filterText);
+  });
+  const head = `<tr><th>id</th>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+  const body = rows.slice(0, 500).map(f => `<tr data-fid="${escapeHtml(featureIdOf(f))}"><td class="mono">${escapeHtml(featureIdOf(f))}</td>${cols.map(c => `<td>${escapeHtml((f.properties || {})[c])}</td>`).join('')}</tr>`).join('');
+  wrap.innerHTML = `<div class="hint" style="padding:6px 11px">${rows.length} of ${entry.fc.features.length} features${rows.length > 500 ? ' (showing first 500)' : ''}</div><table class="data">${head}<tbody>${body}</tbody></table>`;
+  wrap.querySelectorAll('tr[data-fid]').forEach(tr => tr.addEventListener('click', () => {
+    const layer = state.layers.find(l => l.id === layerId);
+    const feature = entry.fc.features.find(f => String(featureIdOf(f)) === tr.dataset.fid);
+    if (feature && layer) selectFeature(feature, layer);
+  }));
+}
+$('attrFilter').addEventListener('input', renderAttrTable);
+$('exportFilteredBtn').addEventListener('click', () => {
+  const entry = state.activeLayerId ? state.loadedGeo.get(state.activeLayerId) : null;
+  if (!entry) { toast('Select a layer first.', 'warn'); return; }
+  const filterText = ($('attrFilter').value || '').toLowerCase();
+  const features = entry.fc.features.filter(f => !filterText || JSON.stringify(f.properties || {}).toLowerCase().includes(filterText));
+  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features }, null, 2)], { type: 'application/geo+json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${(state.layers.find(l => l.id === state.activeLayerId) || {}).name || 'layer'}-filtered.geojson`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast(`Exported ${features.length} features.`, 'ok');
+});
+
+/* ---------------------------------------------------------------- planner / ask */
+function addMessage(kind, html) { const el = document.createElement('div'); el.className = `msg ${kind}`; el.innerHTML = html; $('messages').appendChild(el); $('messages').scrollTop = $('messages').scrollHeight; }
+
+function renderPlanCard(runId, plan) {
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const card = document.createElement('div');
+  card.className = 'runway';
+  const fallback = plan.gateway_fallback ? `<div class="runway-block" style="color:var(--warn)">Live gateway unavailable — used the deterministic fallback planner. (${escapeHtml(plan.gateway_fallback)})</div>` : '';
+  card.innerHTML = `
+    <div class="runway-top"><span class="ttl">Reviewable plan · ${steps.length} step${steps.length === 1 ? '' : 's'}</span><span class="chip info">${escapeHtml(plan.planner || plan.mode || 'planner')}</span></div>
+    <ol class="steps">${steps.map((s, i) => `<li class="step"><span class="n">${i + 1}</span><div><div class="st">${escapeHtml(s.title || s.tool || 'Step')}</div><div class="meta"><span class="chip">${escapeHtml(s.tool || 'tool')}</span>${s.requires_confirmation ? '<span class="chip warn">needs confirmation</span>' : '<span class="chip">automatic</span>'}</div></div></li>`).join('')}</ol>
+    ${fallback}
+    ${Array.isArray(plan.warnings) && plan.warnings.length ? `<div class="runway-block"><b>Assumptions and warnings</b><ul>${plan.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>` : ''}
+    ${Array.isArray(plan.expected_outputs) && plan.expected_outputs.length ? `<div class="runway-block"><b>Expected output</b> — ${plan.expected_outputs.map(escapeHtml).join(', ')}</div>` : ''}
+    <div class="runway-foot">
+      <button class="btn pri sm" data-approve>Approve and queue</button>
+      <button class="btn sm" data-revise>Revise</button>
+      <button class="btn sm" data-discard>Discard</button>
+    </div>
+    <div id="approveResult-${runId}"></div>`;
+  card.querySelector('[data-approve]').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      const result = await api(`/api/ai/runs/${encodeURIComponent(runId)}/approve`, { method: 'POST', body: JSON.stringify({ project_id: state.projectId }) });
+      card.querySelector(`#approveResult-${runId}`).innerHTML = `<div class="runway-block" style="color:var(--accent)"><b>Approved.</b> Task ${escapeHtml(result.task?.id)} · Job ${escapeHtml(result.job?.id)} queued as ${escapeHtml(result.job?.operation)}.</div>`;
+      toast('Plan approved — job queued.', 'ok');
+      await loadJobs(); setDock('jobs'); startJobsPolling();
+    } catch (error) {
+      card.querySelector(`#approveResult-${runId}`).innerHTML = `<div class="runway-block" style="color:var(--alert)">Approval failed: ${escapeHtml(error.message)}</div>`;
+      e.target.disabled = false;
+    }
+  });
+  card.querySelector('[data-revise]').addEventListener('click', () => { $('chatInput').value = plan.objective || ''; $('chatInput').focus(); });
+  card.querySelector('[data-discard]').addEventListener('click', () => { card.remove(); });
+  $('messages').appendChild(card);
+  $('messages').scrollTop = $('messages').scrollHeight;
+}
+
+async function askPlanner() {
+  const prompt = $('chatInput').value.trim();
+  if (!prompt) { showErr('chatError', 'Enter a question first.'); return; }
+  showErr('chatError', '');
+  addMessage('me', `<div class="from">you</div>${escapeHtml(prompt)}`);
+  $('chatInput').value = '';
+  $('askButton').disabled = true;
+  try {
+    const result = await api('/api/ai/plan', { method: 'POST', body: JSON.stringify({ project_id: state.projectId, prompt, source_names: state.layers.map(l => l.name) }) });
+    renderPlanCard(result.run_id, result.plan || {});
+  } catch (error) {
+    addMessage('sys', `Planning failed: ${escapeHtml(error.message)}`);
+    showErr('chatError', error.message);
+  } finally { $('askButton').disabled = false; }
+}
+$('askButton').addEventListener('click', askPlanner);
+$('clearChatButton').addEventListener('click', () => { $('messages').innerHTML = '<div class="msg sys">Conversation cleared. Start with a humanitarian objective.</div>'; });
+
+/* ---------------------------------------------------------------- data / datasets */
+async function searchDatasets() {
+  const q = $('datasetQuery').value.trim();
+  if (!q) { showErr('datasetError', 'Enter a search term first.'); return; }
+  showErr('datasetError', '');
+  $('datasetSearchButton').disabled = true;
+  $('datasetResults').innerHTML = '<div class="empty">Searching HDX…</div>';
+  try {
+    const data = await api(`/api/datasets/search?q=${encodeURIComponent(q)}&limit=15${state.projectId ? `&project_id=${encodeURIComponent(state.projectId)}` : ''}`);
+    const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+    if (!candidates.length) { $('datasetResults').innerHTML = '<div class="empty">No candidates found.</div>'; return; }
+    $('datasetResults').innerHTML = candidates.map((c, ci) => `
+      <article class="ds">
+        <h4>${escapeHtml(c.title || c.name || 'Untitled dataset')}</h4>
+        <div class="wrap" style="margin-bottom:6px"><span class="chip">${escapeHtml(c.organization || 'unknown org')}</span><span class="chip">${escapeHtml(c.license || 'licence not stated')}</span>${c.metadata_modified ? `<span class="chip">${escapeHtml(String(c.metadata_modified).slice(0, 10))}</span>` : ''}</div>
+        ${(c.resources || []).slice(0, 5).map((r, ri) => `<div class="res"><span class="fmt">${escapeHtml((r.format || '?').toUpperCase())}</span><span class="nm">${escapeHtml(r.name || r.url || 'resource')}</span><button class="btn sm" data-import="${ci}:${ri}">Import</button></div>`).join('') || '<div class="hint">No importable resources.</div>'}
+      </article>`).join('');
+    $('datasetResults').querySelectorAll('[data-import]').forEach(btn => btn.addEventListener('click', () => importDataset(candidates, btn.dataset.import, btn)));
+  } catch (error) {
+    showErr('datasetError', error.message);
+    $('datasetResults').innerHTML = '';
+  } finally { $('datasetSearchButton').disabled = false; }
+}
+async function importDataset(candidates, key, btn) {
+  const [ci, ri] = key.split(':').map(Number);
+  const candidate = candidates[ci]; const resource = candidate?.resources?.[ri];
+  if (!candidate || !resource || !resource.url) { toast('That resource has no direct URL to import.', 'error'); return; }
+  btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    const result = await api('/api/datasets/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: state.projectId, approved: true,
+        resource_url: resource.url, resource_format: (resource.format || '').toLowerCase(),
+        dataset_id: candidate.id, resource_id: resource.id, provider: candidate.organization || 'HDX',
+        name: resource.name || candidate.title, metadata_modified: candidate.metadata_modified, metadata_created: candidate.metadata_created,
+      }),
+    });
+    toast(`Imported ${result.feature_count} features into a new layer.`, 'ok');
+    btn.textContent = 'Imported';
+    await loadLayers();
+  } catch (error) {
+    toast(`Import failed: ${error.message}`, 'error');
+    btn.disabled = false; btn.textContent = 'Import';
+  }
+}
+$('datasetSearchButton').addEventListener('click', searchDatasets);
+$('datasetQuery').addEventListener('keydown', e => { if (e.key === 'Enter') searchDatasets(); });
+
+$('layerUploadButton').addEventListener('click', async () => {
+  const file = $('layerFile').files[0];
+  if (!file) { showErr('uploadError', 'Choose a .geojson or .json file first.'); return; }
+  showErr('uploadError', '');
+  try {
+    const text = await file.text();
+    const geojson = JSON.parse(text);
+    const name = $('layerFileName').value.trim() || file.name;
+    $('layerUploadButton').disabled = true;
+    const result = await api(`/api/projects/${encodeURIComponent(state.projectId)}/layers`, { method: 'POST', body: JSON.stringify({ geojson, name, source_resource: file.name }) });
+    toast(`Uploaded ${result.feature_count} features as "${name}".`, 'ok');
+    $('layerFile').value = ''; $('layerFileName').value = '';
+    await loadLayers();
+  } catch (error) {
+    showErr('uploadError', error.message);
+  } finally { $('layerUploadButton').disabled = false; }
+});
+
+async function loadDocuments() {
+  try {
+    const data = await api(`/api/projects/${encodeURIComponent(state.projectId)}/documents`);
+    state.documents = Array.isArray(data.documents) ? data.documents : [];
+    renderDocuments();
+  } catch { $('docList').innerHTML = '<div class="empty">Could not load documents.</div>'; }
+}
+function renderDocuments() {
+  if (!state.documents.length) { $('docList').innerHTML = '<div class="empty">No planning context saved yet.</div>'; return; }
+  $('docList').innerHTML = state.documents.map(d => `<div class="card" style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${escapeHtml(d.name)}</div><div class="mono" style="margin-top:4px">${escapeHtml(d.mime_type)} · ${d.character_count} chars · sha256 ${escapeHtml((d.sha256 || '').slice(0, 12))}…</div></div>`).join('');
+}
+$('docUploadButton').addEventListener('click', async () => {
+  const text = $('docText').value.trim();
+  const name = $('docName').value.trim() || 'context.txt';
+  if (!text) { showErr('docError', 'Paste some text first.'); return; }
+  showErr('docError', '');
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/documents`, { method: 'POST', body: JSON.stringify({ name, mime_type: 'text/plain', text }) });
+    toast('Context saved.', 'ok');
+    $('docText').value = ''; $('docName').value = '';
+    await loadDocuments(); renderActivity();
+  } catch (error) { showErr('docError', error.message); }
+});
+$('refreshDocsLink').addEventListener('click', loadDocuments);
+
+/* ---------------------------------------------------------------- analysis */
+let currentOp = 'buffer_layer';
+$('opSeg').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+  $('opSeg').querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on'); currentOp = btn.dataset.op;
+  $('overlayField').style.display = currentOp === 'intersect_layers' ? 'block' : 'none';
+  $('distanceField').style.display = currentOp === 'buffer_layer' ? 'block' : 'none';
+}));
+$('overlayField').style.display = 'none';
+
+$('queueButton').addEventListener('click', async () => {
+  showErr('analysisError', '');
+  const body = { operation: currentOp };
+  if (currentOp === 'buffer_layer') {
+    body.source_layer_id = $('sourceLayer').value;
+    body.distance_meters = Number($('distance').value);
+    if (!body.source_layer_id) { showErr('analysisError', 'Choose a source layer.'); return; }
+  } else {
+    body.source_layer_id = $('sourceLayer').value;
+    body.overlay_layer_id = $('overlayLayer').value;
+    if (!body.source_layer_id || !body.overlay_layer_id) { showErr('analysisError', 'Choose two layers.'); return; }
+  }
+  $('queueButton').disabled = true;
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/analysis-jobs`, { method: 'POST', body: JSON.stringify(body) });
+    toast(`Queued ${currentOp}.`, 'ok');
+    await loadJobs(); setDock('jobs'); startJobsPolling();
+  } catch (error) { showErr('analysisError', error.message); }
+  finally { $('queueButton').disabled = false; }
+});
+
+async function loadJobs() {
+  try {
+    const data = await api(`/api/projects/${encodeURIComponent(state.projectId)}/analysis-jobs`);
+    state.jobs = Array.isArray(data.jobs) ? data.jobs : [];
+    renderJobs();
+  } catch { $('jobsList').innerHTML = '<div class="empty">Could not load jobs.</div>'; }
+}
+function renderJobs() {
+  const pending = state.jobs.filter(j => ['queued', 'running'].includes(j.status)).length;
+  $('jobsBadge').style.display = pending ? 'inline-flex' : 'none';
+  $('jobsBadge').className = 'chip ' + (pending ? 'warn' : '');
+  $('jobsBadge').textContent = pending ? `${pending} running` : '';
+  if (!state.jobs.length) { $('jobsList').innerHTML = '<div class="empty">No analysis jobs yet.</div>'; return; }
+  $('jobsList').innerHTML = state.jobs.map(j => {
+    const statusChip = j.status === 'completed' ? 'chip ok' : j.status === 'failed' ? 'chip bad' : j.status === 'running' ? 'chip info' : 'chip warn';
+    const resultCount = j.output?.feature_count ?? j.output?.totals?.features;
+    return `<div class="jrow"><div><div class="t">${escapeHtml(j.operation)}</div><div class="s">${j.status === 'queued' || j.status === 'running' ? '<span class="spin"></span>' : ''}<span class="${statusChip}">${escapeHtml(j.status)}</span>${resultCount != null ? `<span class="chip">${resultCount} features</span>` : ''}<span class="mono">${new Date(j.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span></div></div>
+      <div class="btns">${j.status === 'queued' ? `<button class="btn sm" data-run="${escapeHtml(j.id)}">Run now</button>` : ''}${j.status === 'failed' ? `<button class="btn sm" data-retry="${escapeHtml(j.id)}">Retry</button>` : ''}</div></div>`;
+  }).join('');
+  $('jobsList').querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => runJobNow(b.dataset.run, b)));
+  $('jobsList').querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => retryJob(b.dataset.retry, b)));
+}
+async function runJobNow(id, btn) {
+  btn.disabled = true;
+  try { await api(`/api/analysis-jobs/${encodeURIComponent(id)}/run`, { method: 'POST' }); toast('Job executed.', 'ok'); await Promise.all([loadJobs(), loadLayers()]); renderActivity(); }
+  catch (error) { toast(`Run failed: ${error.message}`, 'error'); btn.disabled = false; }
+}
+async function retryJob(id, btn) {
+  btn.disabled = true;
+  try { await api(`/api/analysis-jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }); toast('Job requeued.', 'ok'); await loadJobs(); startJobsPolling(); }
+  catch (error) { toast(`Retry failed: ${error.message}`, 'error'); btn.disabled = false; }
+}
+function startJobsPolling() {
+  if (state.jobsPollTimer) return;
+  state.jobsPollTimer = setInterval(async () => {
+    await loadJobs();
+    const pending = state.jobs.some(j => ['queued', 'running'].includes(j.status));
+    if (!pending) { clearInterval(state.jobsPollTimer); state.jobsPollTimer = null; }
+  }, 4000);
+}
+
+/* ---------------------------------------------------------------- schedules */
+async function loadSchedules() {
+  try {
+    const data = await api(`/api/projects/${encodeURIComponent(state.projectId)}/workflow-schedules`);
+    state.schedules = Array.isArray(data.schedules) ? data.schedules : [];
+    renderSchedules();
+  } catch { $('scheduleList').innerHTML = '<div class="empty">Could not load schedules.</div>'; }
+}
+function renderSchedules() {
+  if (!state.schedules.length) { $('scheduleList').innerHTML = '<div class="empty">No schedules yet.</div>'; return; }
+  $('scheduleList').innerHTML = state.schedules.map(s => `<div class="card" style="margin-bottom:7px">
+    <div class="row"><div style="flex:1;font-weight:700;font-size:12px">${escapeHtml(s.name)}</div><span class="chip ${s.status === 'active' ? 'ok' : 'bad'}">${escapeHtml(s.status)}</span></div>
+    <div class="mono" style="margin-top:5px">every ${Math.round(s.interval_seconds / 60)} min · next ${new Date(s.next_run).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
+    ${s.last_run_at ? `<div class="mono">last run ${new Date(s.last_run_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}${s.last_error ? ` · error: ${escapeHtml(s.last_error)}` : ''}</div>` : ''}
+    <div class="row" style="margin-top:7px"><button class="btn sm" data-run-sched="${escapeHtml(s.id)}">Run now</button>${s.status === 'active' ? `<button class="btn sm danger" data-cancel-sched="${escapeHtml(s.id)}">Cancel</button>` : ''}</div>
+  </div>`).join('');
+  $('scheduleList').querySelectorAll('[data-run-sched]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; try { await api(`/api/workflow-schedules/${encodeURIComponent(b.dataset.runSched)}/run`, { method: 'POST' }); toast('Schedule run complete.', 'ok'); await Promise.all([loadSchedules(), loadJobs()]); } catch (e) { toast(e.message, 'error'); } finally { b.disabled = false; } }));
+  $('scheduleList').querySelectorAll('[data-cancel-sched]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; try { await api(`/api/workflow-schedules/${encodeURIComponent(b.dataset.cancelSched)}/cancel`, { method: 'POST' }); toast('Schedule cancelled.', 'ok'); await loadSchedules(); } catch (e) { toast(e.message, 'error'); b.disabled = false; } }));
+}
+$('scheduleForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  showErr('scheduleError', '');
+  const name = $('scheduleName').value.trim();
+  const minutes = Number($('scheduleInterval').value);
+  if (!name) { showErr('scheduleError', 'Name is required.'); return; }
+  if (!Number.isFinite(minutes) || minutes < 1) { showErr('scheduleError', 'Interval must be at least 1 minute.'); return; }
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/workflow-schedules`, { method: 'POST', body: JSON.stringify({ name, interval_seconds: Math.round(minutes * 60), workflow: { operation: 'create_review_output' } }) });
+    toast('Schedule created.', 'ok');
+    $('scheduleForm').reset(); $('scheduleInterval').value = '1440';
+    await loadSchedules();
+  } catch (error) { showErr('scheduleError', error.message); }
+});
+$('refreshSchedulesLink').addEventListener('click', loadSchedules);
+$('refreshLayersLink').addEventListener('click', loadLayers);
+
+/* ---------------------------------------------------------------- reports / exports */
+let reportType = 'situation_report';
+$('reportTypeSeg').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => { $('reportTypeSeg').querySelectorAll('button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); reportType = btn.dataset.type; $('reportPreviewHint').textContent = reportType === 'situation_report' ? 'Cover · executive summary · map and register · limitations and provenance appendix' : 'Single-page map sheet with legend and sources'; }));
+let orientation = 'portrait';
+$('orientSeg').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => { $('orientSeg').querySelectorAll('button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); orientation = btn.dataset.o; }));
+
+$('createExportButton').addEventListener('click', async () => {
+  showErr('exportError', '');
+  $('createExportButton').disabled = true;
+  const layout = {
+    title: $('reportTitle').value.trim() || undefined,
+    author: $('reportAuthor').value.trim() || undefined,
+    paper: $('reportPaper').value,
+    orientation,
+    style_preset: $('reportStyle').value,
+    include_warnings: $('reportWarnings').checked,
+  };
+  if (reportType === 'situation_report') layout.report_type = 'situation_report';
+  try {
+    const result = await api(`/api/projects/${encodeURIComponent(state.projectId)}/exports`, { method: 'POST', body: JSON.stringify({ layout }) });
+    toast('Export created.', 'ok');
+    await loadExports(); renderActivity();
+  } catch (error) { showErr('exportError', error.message); }
+  finally { $('createExportButton').disabled = false; }
+});
+
+async function loadExports() {
+  try {
+    const data = await api(`/api/projects/${encodeURIComponent(state.projectId)}/exports`);
+    state.exports = Array.isArray(data.exports) ? data.exports : [];
+    renderExports();
+  } catch { $('exportList').innerHTML = '<div class="empty">Could not load exports.</div>'; }
+}
+function renderExports() {
+  if (!state.exports.length) { $('exportList').innerHTML = '<div class="empty">No exports yet.</div>'; return; }
+  $('exportList').innerHTML = state.exports.map(e => `<div class="card" style="margin-bottom:7px">
+    <div class="row"><div style="flex:1;font-weight:700;font-size:12px">${escapeHtml(e.title || e.report_type || 'Export')}</div><span class="chip ${e.status === 'completed' ? 'ok' : ''}">${escapeHtml(e.status)}</span></div>
+    <div class="mono" style="margin-top:5px">${new Date(e.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
+    <div class="row" style="margin-top:7px"><a class="btn sm" href="/api/exports/${escapeHtml(e.id)}/html" target="_blank" rel="noopener">Open HTML</a><button class="btn sm" data-pdf="${escapeHtml(e.id)}">Download PDF</button></div>
+  </div>`).join('');
+  $('exportList').querySelectorAll('[data-pdf]').forEach(b => b.addEventListener('click', () => downloadPdf(b.dataset.pdf, b)));
+}
+async function downloadPdf(id, btn) {
+  btn.disabled = true; btn.textContent = 'Rendering…';
+  try {
+    const response = await fetch(`/api/exports/${encodeURIComponent(id)}/pdf`, { headers: { 'x-demo-organization': $('orgIdInput').value.trim() } });
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`;
+      try { const data = await response.json(); message = data.error || message; } catch {}
+      throw new Error(message);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `cartogen-${id}.pdf`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (error) {
+    toast(`PDF export unavailable: ${error.message}`, 'error');
+  } finally { btn.disabled = false; btn.textContent = 'Download PDF'; }
+}
+$('refreshExportsLink').addEventListener('click', loadExports);
+
+/* ---------------------------------------------------------------- activity (merged real history) */
+function renderActivity() {
+  const events = [];
+  state.jobs.forEach(j => events.push({ t: j.created_at, title: `Analysis job · ${j.operation}`, sub: `${j.status}${j.completed_at ? ' · completed ' + new Date(j.completed_at).toLocaleTimeString() : ''}` }));
+  state.exports.forEach(e => events.push({ t: e.created_at, title: `Export · ${e.title || e.report_type || 'report'}`, sub: e.status }));
+  state.documents.forEach(d => events.push({ t: d.created_at, title: `Context saved · ${d.name}`, sub: `${d.character_count} chars` }));
+  state.schedules.forEach(s => events.push({ t: s.created_at, title: `Schedule created · ${s.name}`, sub: `every ${Math.round(s.interval_seconds / 60)} min` }));
+  events.sort((a, b) => new Date(b.t) - new Date(a.t));
+  if (!events.length) { $('activityList').innerHTML = '<li>No activity recorded for this project yet.</li>'; return; }
+  $('activityList').innerHTML = events.slice(0, 60).map(e => `<li><b>${escapeHtml(e.title)}</b>${escapeHtml(e.sub)}<div class="mono">${new Date(e.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</div></li>`).join('');
+}
+$('refreshActivityLink').addEventListener('click', async () => { await Promise.all([loadJobs(), loadExports(), loadDocuments(), loadSchedules()]); renderActivity(); });
+
+/* ---------------------------------------------------------------- map */
+const BASEMAPS = {
+  voyager: { tiles: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap contributors &copy; CARTO', options: { subdomains: 'abcd', maxZoom: 20 } },
+  osm: { tiles: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap contributors', options: { maxZoom: 19 } },
+  hot: { tiles: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap contributors, tiles by HOT', options: { maxZoom: 19 } },
+  esri: { tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', attribution: 'Tiles &copy; Esri', options: { maxZoom: 19 } },
+};
+function setBasemap(name) {
+  const config = BASEMAPS[name] || BASEMAPS.voyager;
+  if (state.basemapLayer) state.map.removeLayer(state.basemapLayer);
+  state.basemapLayer = L.tileLayer(config.tiles, Object.assign({ attribution: config.attribution }, config.options)).addTo(state.map);
+  $('attrib').innerHTML = config.attribution;
+  $('basemapSwitch').querySelectorAll('.bm').forEach(b => b.classList.toggle('on', b.dataset.bm === name));
+}
+$('basemapSwitch').querySelectorAll('.bm').forEach(btn => btn.addEventListener('click', () => setBasemap(btn.dataset.bm)));
+
+function initMap() {
+  state.map = L.map('leafletMap', { zoomControl: false }).setView([20, 10], 3);
+  setBasemap('voyager');
+  L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(state.map);
+  state.map.on('click', () => { if (!clearInspector(false)) return; if (state.measure.on) addMeasurePoint(state.map.getCenter()); });
+  state.map.on('mousemove', e => { $('coords').textContent = `${e.latlng.lat.toFixed(4)}°, ${e.latlng.lng.toFixed(4)}°`; });
+  state.map.on('click', e => { if (state.measure.on) addMeasurePoint(e.latlng); });
+}
+$('zin').addEventListener('click', () => state.map.zoomIn());
+$('zout').addEventListener('click', () => state.map.zoomOut());
+$('fitAllBtn').addEventListener('click', fitAllVisible);
+$('printBtn').addEventListener('click', () => setPane('reports'));
+$('legendCollapse').addEventListener('click', () => { const box = $('legendBox'); box.style.display = box.style.display === 'none' ? '' : 'none'; });
+
+/* measure tool */
+function addMeasurePoint(latlng) {
+  state.measure.points.push(latlng);
+  const marker = L.circleMarker(latlng, { radius: 5, className: 'measure-pt' }).addTo(state.map);
+  state.measure.markers.push(marker);
+  if (state.measure.line) state.map.removeLayer(state.measure.line);
+  if (state.measure.points.length > 1) {
+    state.measure.line = L.polyline(state.measure.points, { color: '#3ECFA6', weight: 2, dashArray: '6,5' }).addTo(state.map);
+    let total = 0;
+    for (let i = 1; i < state.measure.points.length; i += 1) total += state.measure.points[i - 1].distanceTo(state.measure.points[i]);
+    $('measureOut').style.display = 'inline';
+    $('measureOut').textContent = total > 1000 ? `${(total / 1000).toFixed(2)} km` : `${Math.round(total)} m`;
+  }
+}
+function resetMeasure() {
+  state.measure.markers.forEach(m => state.map.removeLayer(m));
+  if (state.measure.line) state.map.removeLayer(state.measure.line);
+  state.measure.points = []; state.measure.markers = []; state.measure.line = null;
+  $('measureOut').style.display = 'none';
+}
+$('measureBtn').addEventListener('click', () => {
+  state.measure.on = !state.measure.on;
+  $('measureBtn').classList.toggle('on', state.measure.on);
+  if (!state.measure.on) resetMeasure();
+  else toast('Measure mode on — click points on the map, click the ruler again to stop.', 'ok');
+});
+
+/* ---------------------------------------------------------------- omnibox */
+function omniResults(query) {
+  const q = query.trim().toLowerCase();
+  const rows = [];
+  const commands = [
+    { label: 'Ask the planner', pane: 'ask', focus: 'chatInput' },
+    { label: 'Queue a buffer analysis', pane: 'analysis' },
+    { label: 'Search the data catalogue', pane: 'data', focus: 'datasetQuery' },
+    { label: 'Create an export', pane: 'reports' },
+    { label: 'View activity', pane: 'activity' },
+  ];
+  if (!q) {
+    commands.forEach(c => rows.push({ group: 'Commands', label: c.label, meta: '', action: () => { setPane(c.pane); if (c.focus) setTimeout(() => $(c.focus)?.focus(), 60); } }));
+    return rows;
+  }
+  state.layers.filter(l => l.name.toLowerCase().includes(q)).slice(0, 6).forEach(l => rows.push({ group: 'Layers', label: l.name, meta: `${l.feature_count || 0} features`, action: () => { setPane('layers'); state.activeLayerId = l.id; renderLayerList(); if (!state.visible.has(l.id)) toggleLayer(l.id); else fitLayer(l.id); } }));
+  state.loadedGeo.forEach((entry, layerId) => {
+    const layer = state.layers.find(l => l.id === layerId);
+    (entry.fc.features || []).forEach(f => {
+      const props = JSON.stringify(f.properties || {}).toLowerCase();
+      if (props.includes(q) && rows.filter(r => r.group === 'Features').length < 8) {
+        const label = Object.values(f.properties || {})[0] || `Feature #${featureIdOf(f)}`;
+        rows.push({ group: 'Features', label: String(label), meta: layer ? layer.name : '', action: () => { selectFeature(f, layer); try { const b = L.geoJSON(f).getBounds(); if (b.isValid()) state.map.fitBounds(b.pad(0.4)); } catch {} } });
+      }
+    });
+  });
+  commands.filter(c => c.label.toLowerCase().includes(q)).forEach(c => rows.push({ group: 'Commands', label: c.label, meta: '', action: () => { setPane(c.pane); if (c.focus) setTimeout(() => $(c.focus)?.focus(), 60); } }));
+  return rows;
+}
+function renderOmni() {
+  const rows = omniResults($('omniInput').value);
+  const groups = {};
+  rows.forEach(r => { (groups[r.group] = groups[r.group] || []).push(r); });
+  const html = Object.keys(groups).map(g => `<div class="omni-group">${escapeHtml(g)}</div>${groups[g].map((r, i) => `<div class="omni-row" data-idx="${escapeHtml(g)}-${i}"><span class="ico">›</span><span class="t">${escapeHtml(r.label)}</span><span class="m">${escapeHtml(r.meta)}</span></div>`).join('')}`).join('');
+  $('omniPop').innerHTML = html || '<div class="omni-empty">No matches</div>';
+  $('omniPop').querySelectorAll('.omni-row').forEach((el, i) => el.addEventListener('click', () => { rows[i].action(); $('omni').classList.remove('open'); }));
+}
+$('omniInput').addEventListener('focus', () => { $('omni').classList.add('open'); renderOmni(); });
+$('omniInput').addEventListener('input', renderOmni);
+document.addEventListener('click', e => { if (!$('omni').contains(e.target)) $('omni').classList.remove('open'); });
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== $('omniInput') && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('omniInput').focus(); }
+  if (e.key === 'Escape') { $('omni').classList.remove('open'); }
+});
+
+/* ---------------------------------------------------------------- panes / rail / dock */
+function setPane(name) {
+  document.querySelectorAll('.rail button[data-pane]').forEach(b => b.classList.toggle('on', b.dataset.pane === name));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
+  shell.classList.remove('collapse-left');
+  setTimeout(() => state.map && state.map.invalidateSize(), 200);
+}
+document.querySelectorAll('.rail button[data-pane]').forEach(b => b.addEventListener('click', () => setPane(b.dataset.pane)));
+$('collapseLeft').addEventListener('click', () => { shell.classList.toggle('collapse-left'); setTimeout(() => state.map && state.map.invalidateSize(), 200); });
+$('collapseRight').addEventListener('click', () => { shell.classList.toggle('collapse-right'); setTimeout(() => state.map && state.map.invalidateSize(), 200); });
+
+function setDock(name) {
+  document.querySelectorAll('.dock-tabs .tab').forEach(t => t.classList.toggle('on', t.dataset.dpane === name));
+  document.querySelectorAll('.dpane').forEach(p => p.classList.toggle('on', p.dataset.dpane === name));
+  shell.classList.remove('dock-closed');
+  $('dockToggle').textContent = '▾';
+}
+document.querySelectorAll('.dock-tabs .tab').forEach(t => t.addEventListener('click', () => setDock(t.dataset.dpane)));
+$('dockToggle').addEventListener('click', () => {
+  shell.classList.toggle('dock-closed');
+  $('dockToggle').textContent = shell.classList.contains('dock-closed') ? '▴' : '▾';
+});
+
+$('projectSelect').addEventListener('change', e => { state.projectId = e.target.value; localStorage.setItem('cartogen.project', state.projectId); refreshProjectContext(); });
+
+window.addEventListener('resize', () => state.map && state.map.invalidateSize());
+
+/* ---------------------------------------------------------------- boot */
+initMap();
+loadIdentity();
+loadProjects();
+
+</script>
+</body>
+</html>
