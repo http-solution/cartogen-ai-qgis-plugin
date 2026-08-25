@@ -1306,6 +1306,68 @@ app.get('/api/projects/:projectId', requireIdentity, async (req, res) => {
   res.json({ project: result.rows[0] });
 });
 
+function normalizeFeatureTableQuery({ limit = 50, offset = 0, q = '' } = {}) {
+  const boundedLimit = Number(limit);
+  const boundedOffset = Number(offset);
+  const query = String(q || '').trim();
+  if (!Number.isInteger(boundedLimit) || boundedLimit < 1 || boundedLimit > 100) throw new Error('limit must be between 1 and 100');
+  if (!Number.isInteger(boundedOffset) || boundedOffset < 0 || boundedOffset > 100000) throw new Error('offset must be between 0 and 100000');
+  if (query.length > 200) throw new Error('q must not exceed 200 characters');
+  return { limit: boundedLimit, offset: boundedOffset, query };
+}
+
+app.get('/api/projects/:projectId/layers/:layerId/features', requireIdentity, async (req, res) => {
+  let input;
+  try { input = normalizeFeatureTableQuery(req.query); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const layerScope = await pool.query(
+    `SELECT l.id
+       FROM project_layers l JOIN projects p ON p.id = l.project_id AND p.organization_id = l.organization_id
+      WHERE l.id = $1 AND l.project_id = $2 AND l.organization_id = $3`,
+    [req.params.layerId, req.params.projectId, req.organizationId],
+  );
+  if (!layerScope.rowCount) return res.status(404).json({ error: 'Layer not found' });
+  const scope = [req.params.projectId, req.params.layerId, req.organizationId];
+  const filter = input.query ? ' AND f.properties::text ILIKE $4' : '';
+  const filterParams = input.query ? [`%${input.query}%`] : [];
+  const count = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM project_layer_features f
+       JOIN project_layers l ON l.id = f.layer_id AND l.project_id = f.project_id AND l.organization_id = f.organization_id
+       JOIN projects p ON p.id = f.project_id AND p.organization_id = f.organization_id
+      WHERE f.project_id = $1 AND f.layer_id = $2 AND f.organization_id = $3${filter}`,
+    scope.concat(filterParams),
+  );
+  const result = await pool.query(
+    `SELECT f.id, f.properties, regexp_replace(ST_GeometryType(f.geometry), '^ST_', '') AS geometry_type
+       FROM project_layer_features f
+       JOIN project_layers l ON l.id = f.layer_id AND l.project_id = f.project_id AND l.organization_id = f.organization_id
+       JOIN projects p ON p.id = f.project_id AND p.organization_id = f.organization_id
+      WHERE f.project_id = $1 AND f.layer_id = $2 AND f.organization_id = $3${filter}
+      ORDER BY f.id LIMIT $${4 + (input.query ? 1 : 0)} OFFSET $${5 + (input.query ? 1 : 0)}`,
+    scope.concat(filterParams, [input.limit, input.offset]),
+  );
+  const total = count.rows[0].total;
+  res.json({
+    features: result.rows,
+    pagination: { limit: input.limit, offset: input.offset, total, has_more: input.offset + result.rowCount < total },
+  });
+});
+
+app.get('/api/projects/:projectId/features/:featureId/lineage', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT e.id, e.feature_id, e.layer_id, e.project_id, e.event_type, e.actor_id,
+            e.before_hash, e.after_hash, e.before_state, e.after_state, e.metadata, e.created_at
+       FROM feature_lineage_events e
+       JOIN project_layers l ON l.id = e.layer_id AND l.project_id = e.project_id AND l.organization_id = e.organization_id
+       JOIN projects p ON p.id = e.project_id AND p.organization_id = e.organization_id
+      WHERE e.project_id = $1 AND e.feature_id = $2 AND e.organization_id = $3
+      ORDER BY e.created_at ASC, e.id ASC`,
+    [req.params.projectId, req.params.featureId, req.organizationId],
+  );
+  res.json({ lineage: result.rows });
+});
+
 app.get('/api/projects/:projectId/layers', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT l.id, l.name, l.source_url, l.source_resource, l.source_modified_at, l.source_retrieved_at,
@@ -1442,4 +1504,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
+module.exports = { app, pool, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff };
