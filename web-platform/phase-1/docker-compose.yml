@@ -1,21 +1,141 @@
 services:
-  postgis:
+  postgres:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
     environment:
-      POSTGRES_DB: cartogen_phase1
-      POSTGRES_USER: cartogen
+      POSTGRES_USER: ${POSTGRES_USER:-cartogen}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in web-platform/phase-1/.env}
+      POSTGRES_DB: cartogen_phase1
     ports:
       - "127.0.0.1:55432:5432"
     volumes:
-      - phase1_postgis_data:/var/lib/postgresql/data
+      - phase1_postgres_data:/var/lib/postgresql/data
+      # Alphabetical order: 00- creates the directus/litellm databases before
+      # 01- (the postgis schema) runs against the default cartogen_phase1 db.
+      - ./db/00-create-databases.sql:/docker-entrypoint-initdb.d/00-create-databases.sql:ro
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cartogen -d cartogen_phase1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cartogen} -d cartogen_phase1"]
       interval: 3s
       timeout: 5s
       retries: 20
 
+  directus:
+    image: ${DIRECTUS_IMAGE:-directus/directus@sha256:eb326f679ae847c0a776f93b972761dc2ebe84980e0b9d274a6bc31cd62809f7}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DIRECTUS_PORT:-8055}:8055"
+    environment:
+      KEY: ${DIRECTUS_KEY:?set DIRECTUS_KEY in .env}
+      SECRET: ${DIRECTUS_SECRET:?set DIRECTUS_SECRET in .env}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?set DIRECTUS_ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?set DIRECTUS_ADMIN_PASSWORD in .env}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: directus
+      DB_USER: ${POSTGRES_USER:-cartogen}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      USER_REGISTRATION: ${DIRECTUS_USER_REGISTRATION:-false}
+      USER_REGISTER_ROLE: ${DIRECTUS_REGISTER_ROLE:-}
+      WEBSOCKETS_ENABLED: "true"
+    volumes:
+      - directus_uploads:/directus/uploads
+      - directus_extensions:/directus/extensions
+
+  litellm:
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:8386035f69266617cb88f35380a78e81a66e047a52821c73713666247ff2aba0}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
+      UI_USERNAME: ${UI_USERNAME:-admin}
+      UI_PASSWORD: ${UI_PASSWORD:-${LITELLM_MASTER_KEY}}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cartogen}:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./gateway/litellm_config.yaml:/app/config.yaml:ro
+
+  phase1-api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      directus:
+        condition: service_started
+      litellm:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${PORT:-4180}:4180"
+    environment:
+      PORT: 4180
+      NODE_ENV: ${NODE_ENV:-development}
+      # Discrete PG* vars, not an interpolated DATABASE_URL: compose's ${VAR}
+      # substitution doesn't URL-encode, so a password containing @ : / ? #
+      # would silently corrupt a postgresql://user:pass@host/db string.
+      # server.js prefers these over DATABASE_URL when any are set.
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-cartogen}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: cartogen_phase1
+      PHASE1_IDENTITY_MODE: ${PHASE1_IDENTITY_MODE:-demo}
+      PHASE1_ALLOW_LEGACY_ORG_FALLBACK: ${PHASE1_ALLOW_LEGACY_ORG_FALLBACK:-false}
+      DIRECTUS_URL: http://directus:8055
+      PHASE1_DIRECTUS_ORGANIZATION_ID: ${PHASE1_DIRECTUS_ORGANIZATION_ID:-}
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_PLAN_MAX_BUDGET_USD: ${LITELLM_PLAN_MAX_BUDGET_USD:-5}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_PORTAL_CONFIGURATION_ID: ${STRIPE_PORTAL_CONFIGURATION_ID:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      CARTOGEN_AI_PROVIDER: ${CARTOGEN_AI_PROVIDER:-gemini}
+      CARTOGEN_AI_PLANNER_MODEL: ${CARTOGEN_AI_PLANNER_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
+  phase1-worker:
+    build: .
+    restart: unless-stopped
+    command: ["node", "scripts/analysis_worker.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # analysis_worker.js (pre-dates this change, not modified here) may
+      # construct its own Pool from DATABASE_URL directly rather than
+      # through server.js's discrete-PG*-vars-preferred config, so both are
+      # provided: PG* for forward compatibility if it's ever updated to match
+      # server.js's pattern, DATABASE_URL so it keeps working unmodified today.
+      # Same interpolation caveat as before applies to DATABASE_URL here if
+      # POSTGRES_PASSWORD contains @ : / ? # -- see PGPASSWORD comment below.
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-cartogen}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: cartogen_phase1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cartogen}:${POSTGRES_PASSWORD}@postgres:5432/cartogen_phase1
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-2000}
+
 volumes:
-  phase1_postgis_data:
+  phase1_postgres_data:
+  directus_uploads:
+  directus_extensions:
