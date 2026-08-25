@@ -1260,8 +1260,8 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
 
 app.get('/api/projects/:projectId/exports', requireIdentity, async (req, res) => {
   const result = await pool.query(
-    `SELECT id, format, status, layout->>'title' AS title, layout->>'report_type' AS report_type,
-            layout->>'report_version' AS report_version, created_at, completed_at
+    `SELECT e.id, e.format, e.status, layout->>'title' AS title, layout->>'report_type' AS report_type,
+            layout->>'report_version' AS report_version, e.created_at, e.completed_at
        FROM export_jobs e JOIN projects p ON p.id = e.project_id
       WHERE e.project_id = $1 AND e.organization_id = $2 AND p.organization_id = $2
       ORDER BY e.created_at DESC LIMIT 50`,
