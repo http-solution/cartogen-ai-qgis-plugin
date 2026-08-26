@@ -65,6 +65,16 @@ function validate(values) {
     else if (PLACEHOLDER_PATTERN.test(value)) problems.push(`${key} still looks like the .env.example placeholder -- set a real value.`);
   }
 
+  const identityMode = values.PHASE1_IDENTITY_MODE || 'directus';
+  if (identityMode !== 'directus') problems.push('PHASE1_IDENTITY_MODE must be directus; demo identity is local-only and cannot pass production preflight.');
+  let localPublicUrl = true;
+  if (values.PUBLIC_BASE_URL) {
+    try { localPublicUrl = ['localhost', '127.0.0.1', '::1'].includes(new URL(values.PUBLIC_BASE_URL).hostname); }
+    catch { localPublicUrl = false; }
+  }
+  if (values.ALLOW_UNSIGNED_STRIPE_WEBHOOKS === 'true' && (values.NODE_ENV === 'production' || !localPublicUrl)) {
+    problems.push('ALLOW_UNSIGNED_STRIPE_WEBHOOKS=true is only permitted for loopback/local development, never production.');
+  }
   if (values.PHASE1_IDENTITY_MODE === 'directus' && values.PHASE1_ALLOW_LEGACY_ORG_FALLBACK === 'true' && !values.PHASE1_DIRECTUS_ORGANIZATION_ID) {
     problems.push('PHASE1_ALLOW_LEGACY_ORG_FALLBACK=true but PHASE1_DIRECTUS_ORGANIZATION_ID is unset -- the fallback has nothing to fall back to.');
   }

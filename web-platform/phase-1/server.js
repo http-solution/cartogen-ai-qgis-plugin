@@ -1,5 +1,6 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const express = require('express');
 const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
@@ -24,6 +25,7 @@ const LITELLM_MASTER_KEY = process.env.LITELLM_MASTER_KEY || null;
 const LITELLM_PLAN_MAX_BUDGET_USD = Number(process.env.LITELLM_PLAN_MAX_BUDGET_USD || 5);
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || null;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || null;
+const ALLOW_UNSIGNED_STRIPE_WEBHOOKS = process.env.ALLOW_UNSIGNED_STRIPE_WEBHOOKS === 'true';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || null;
 const STRIPE_PORTAL_CONFIGURATION_ID = process.env.STRIPE_PORTAL_CONFIGURATION_ID || null;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null;
@@ -186,6 +188,15 @@ function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => { const index = part.indexOf('='); return index < 0 ? ['', ''] : [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]; }).filter(([key]) => key));
 }
 
+function isLoopbackAddress(address) {
+  const normalized = String(address || '').replace(/^::ffff:/i, '');
+  return normalized === '::1' || (net.isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+function requestIsLoopback(req) {
+  return isLoopbackAddress(req.ip || req.socket?.remoteAddress);
+}
+
 async function directusUser(req) {
   const token = parseCookies(req.headers.cookie)[DIRECTUS_COOKIE];
   if (!token) return null;
@@ -239,7 +250,7 @@ async function resolveIdentity(req) {
     }
     return null;
   }
-  const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+  const organizationId = requestIsLoopback(req) && (req.header('x-demo-organization') || 'demo-humanitarian-lab');
   return organizationId ? { organizationId, user: null, role: 'owner' } : null;
 }
 
@@ -271,7 +282,7 @@ async function requireUser(req, res, next) {
       return res.status(401).json({ error: 'Authentication required' });
     }
   }
-  const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+  const organizationId = requestIsLoopback(req) && (req.header('x-demo-organization') || 'demo-humanitarian-lab');
   if (!organizationId) return res.status(401).json({ error: 'Authentication required' });
   req.directusUser = null;
   req.demoOrganizationId = organizationId;
@@ -401,6 +412,7 @@ function normalizeDatasetSearchInput({ q = '', limit = 20 } = {}) {
 }
 
 const HDX_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+const HDX_IMPORT_MAX_COMPRESSION_RATIO = 100;
 const HDX_IMPORT_MAX_FEATURES = 1000;
 const HDX_ALLOWED_HOSTS = new Set(['data.humdata.org', 'www.humdata.org', 'hdx.humdata.org']);
 const HDX_FETCH_HOSTS = new Set([...HDX_ALLOWED_HOSTS, 'production-raw-data-api.s3.amazonaws.com', 's3.amazonaws.com', 's3.us-east-1.amazonaws.com']);
@@ -511,11 +523,11 @@ function extractGeoJsonFromZip(buffer) {
     const name = buffer.subarray(offset + 30, offset + 30 + nameLength).toString('utf8');
     const dataStart = offset + 30 + nameLength + extraLength;
     const dataEnd = dataStart + compressedSize;
-    if (dataEnd > buffer.length || uncompressedSize > HDX_IMPORT_MAX_BYTES) throw new Error('HDX ZIP entry exceeds the import limit');
+    if (dataEnd > buffer.length || uncompressedSize > HDX_IMPORT_MAX_BYTES || (compressedSize === 0 ? uncompressedSize > 0 : uncompressedSize / compressedSize > HDX_IMPORT_MAX_COMPRESSION_RATIO)) throw new Error('HDX ZIP entry exceeds the import expansion limit');
     if (/\.geojson$|\.json$/i.test(name)) {
       let content;
       if (method === 0) content = buffer.subarray(dataStart, dataEnd);
-      else if (method === 8) content = require('node:zlib').inflateRawSync(buffer.subarray(dataStart, dataEnd));
+      else if (method === 8) content = require('node:zlib').inflateRawSync(buffer.subarray(dataStart, dataEnd), { maxOutputLength: HDX_IMPORT_MAX_BYTES });
       else throw new Error(`Unsupported HDX ZIP compression method: ${method}`);
       return content.toString('utf8');
     }
@@ -1532,7 +1544,7 @@ async function requireOrganizationMembership(req, res, next) {
       req.role = membership.role;
       return next();
     }
-    const organizationId = req.header('x-demo-organization') || (NODE_ENV === 'development' ? 'demo-humanitarian-lab' : null);
+    const organizationId = requestIsLoopback(req) && (req.header('x-demo-organization') || 'demo-humanitarian-lab');
     if (!organizationId || organizationId !== req.params.organizationId) return res.status(404).json({ error: 'Organization not found' });
     req.organizationId = organizationId;
     req.user = null;
@@ -1612,6 +1624,15 @@ app.post('/api/organizations/:organizationId/billing/portal', requireOrganizatio
 const STRIPE_ACTIVE_STATUSES = new Set(['active', 'trialing']);
 const STRIPE_REVOKED_STATUSES = new Set(['canceled', 'unpaid', 'incomplete_expired', 'past_due']);
 
+async function validateCheckoutSessionPayment(session) {
+  if (session?.payment_status !== 'paid') throw new Error('Checkout payment is not paid');
+  const subscription = typeof session.subscription === 'object'
+    ? session.subscription
+    : await stripeClient?.subscriptions.retrieve(session.subscription);
+  if (!subscription || !STRIPE_ACTIVE_STATUSES.has(subscription.status)) throw new Error('Checkout subscription is not active');
+  return subscription;
+}
+
 // Hoisted function declaration -- referenced by app.post('/api/billing/webhook', ...)
 // near the top of the file, before this point is reached in file order. Safe:
 // function declarations are hoisted with their full body, and Express only
@@ -1625,7 +1646,7 @@ async function handleStripeWebhook(req, res) {
     } catch (error) {
       return res.status(400).send(`Webhook Error: ${error.message}`);
     }
-  } else if (NODE_ENV === 'development') {
+  } else if (ALLOW_UNSIGNED_STRIPE_WEBHOOKS && requestIsLoopback(req)) {
     try { event = JSON.parse(req.body.toString('utf8')); }
     catch { return res.status(400).send('Invalid JSON webhook body'); }
   } else {
@@ -1651,6 +1672,7 @@ async function handleStripeWebhook(req, res) {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
+      await validateCheckoutSessionPayment(session);
       const organizationId = session.metadata?.organization_id || session.client_reference_id;
       if (!organizationId) {
         console.error(`checkout.session.completed with no organization_id in metadata (session ${session.id})`);
@@ -2687,17 +2709,18 @@ app.post('/api/projects/:projectId/layers', requireIdentity, async (req, res) =>
 
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
-if (require.main === module) {
-  // Demo mode has no login and no per-user isolation -- every request that
-  // doesn't send x-demo-organization is treated as the shared demo org. That
-  // is the right default for local dev, but a deployment that's reachable
-  // outside localhost while still in demo mode has no real authentication at
-  // all. This doesn't block startup (a public demo environment might be a
-  // deliberate choice), but it should never be silent.
+function assertProductionPreflight() {
   if (NODE_ENV === 'production' && PHASE1_IDENTITY_MODE !== 'directus') {
-    console.warn('WARNING: NODE_ENV=production but PHASE1_IDENTITY_MODE is not "directus" -- this deployment has no real login/authentication. Set PHASE1_IDENTITY_MODE=directus before exposing this beyond localhost.');
+    throw new Error('Production startup requires PHASE1_IDENTITY_MODE=directus');
   }
+  if (NODE_ENV === 'production' && ALLOW_UNSIGNED_STRIPE_WEBHOOKS) {
+    throw new Error('Unsigned Stripe webhooks are forbidden in production');
+  }
+}
+
+if (require.main === module) {
+  assertProductionPreflight();
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, OPERATION_REGISTRY, normalizeAnalysisOperationInput, normalizeLayerCrs, diagnoseSpatialCompatibility, assertSpatialCompatibility, inspectSpatialLayers, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDigitizingFeature, normalizeGeometryOperation, applyGeometryOperation, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, normalizeLayerStyle, buildServerExportHtml, buildExportSvg, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };
+module.exports = { app, pool, OPERATION_REGISTRY, normalizeAnalysisOperationInput, normalizeLayerCrs, diagnoseSpatialCompatibility, assertSpatialCompatibility, inspectSpatialLayers, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDigitizingFeature, normalizeGeometryOperation, applyGeometryOperation, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, normalizeLayerStyle, buildServerExportHtml, buildExportSvg, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, extractGeoJsonFromZip, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity, isLoopbackAddress, validateCheckoutSessionPayment, assertProductionPreflight };
