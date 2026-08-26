@@ -1,6 +1,44 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { app, OPERATION_REGISTRY, normalizeAnalysisOperationInput } = require('../server');
+const { app, OPERATION_REGISTRY, normalizeAnalysisOperationInput, diagnoseSpatialCompatibility, assertSpatialCompatibility } = require('../server');
+
+test('diagnoses matching CRS and valid homogeneous geometries', () => {
+  const diagnosis = diagnoseSpatialCompatibility({
+    source: { id: 'source', crs: 'EPSG:4326', geometry_types: ['Polygon'], invalid_geometry_count: 0 },
+    overlay: { id: 'overlay', crs: 'EPSG:4326', geometry_types: ['Polygon'], invalid_geometry_count: 0 },
+  });
+  assert.equal(diagnosis.compatible, true);
+  assert.deepEqual(diagnosis.warnings, []);
+  assert.deepEqual(diagnosis.geometry_types, ['Polygon']);
+  assert.doesNotThrow(() => assertSpatialCompatibility(diagnosis));
+});
+
+test('rejects CRS mismatch with a structured safe error', () => {
+  const diagnosis = diagnoseSpatialCompatibility({
+    source: { id: 'source', crs: 'EPSG:4326', geometry_types: ['Polygon'], invalid_geometry_count: 0 },
+    overlay: { id: 'overlay', crs: 'EPSG:3857', geometry_types: ['Polygon'], invalid_geometry_count: 0 },
+  });
+  assert.equal(diagnosis.compatible, false);
+  assert.throws(() => assertSpatialCompatibility(diagnosis), error => {
+    assert.equal(error.code, 'SPATIAL_CRS_MISMATCH');
+    assert.equal(error.statusCode, 400);
+    assert.equal(error.safe, true);
+    assert.equal(error.details.source_crs, 'EPSG:4326');
+    assert.equal(error.details.overlay_crs, 'EPSG:3857');
+    return true;
+  });
+});
+
+test('reports mixed geometry and invalid topology as warnings and rejects invalid inputs', () => {
+  const diagnosis = diagnoseSpatialCompatibility({
+    source: { id: 'source', crs: 'EPSG:4326', geometry_types: ['Polygon', 'MultiPolygon'], invalid_geometry_count: 1 },
+    overlay: { id: 'overlay', crs: 'EPSG:4326', geometry_types: ['Polygon'], invalid_geometry_count: 0 },
+  });
+  assert.equal(diagnosis.compatible, true);
+  assert.match(diagnosis.warnings.join(' '), /invalid/i);
+  assert.match(diagnosis.warnings.join(' '), /mixed/i);
+  assert.throws(() => assertSpatialCompatibility(diagnosis), error => error.code === 'SPATIAL_INVALID_GEOMETRY');
+});
 
 test('exposes stable typed spatial operation metadata', () => {
   assert.deepEqual(Object.keys(OPERATION_REGISTRY), ['create_review_output', 'buffer_layer', 'intersect_layers']);

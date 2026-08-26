@@ -715,6 +715,211 @@ function normalizeFeatureCollection(payload) {
   });
 }
 
+function normalizeDigitizingFeature(body = {}) {
+  const geometry = body.geometry;
+  if (!geometry || !['Point', 'LineString', 'Polygon'].includes(geometry.type)) throw new Error('geometry must be a GeoJSON Point, LineString, or Polygon');
+  const isPosition = value => Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(Number.isFinite)
+    && value[0] >= -180 && value[0] <= 180 && value[1] >= -90 && value[1] <= 90;
+  if (geometry.type === 'Point') {
+    if (!isPosition(geometry.coordinates)) throw new Error('Geometry has invalid coordinates');
+  } else if (geometry.type === 'LineString') {
+    if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) throw new Error('LineString must contain at least 2 coordinate positions');
+    if (!geometry.coordinates.every(isPosition)) throw new Error('Geometry has invalid coordinates');
+  } else {
+    if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length === 0) throw new Error('Polygon must contain at least one ring');
+    for (const ring of geometry.coordinates) {
+      if (!Array.isArray(ring) || ring.length < 4 || !ring.every(isPosition)) throw new Error('Polygon ring must contain at least 4 valid positions');
+      const first = ring[0]; const last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) throw new Error('Polygon ring must be a closed ring');
+    }
+  }
+  if (!body.properties || typeof body.properties !== 'object' || Array.isArray(body.properties)) throw new Error('properties must be an object');
+  return { geometry, properties: body.properties };
+}
+
+function normalizeGeometryOperation(body = {}) {
+  const source = body.parameters && typeof body.parameters === 'object' && !Array.isArray(body.parameters)
+    ? { ...body.parameters, ...body } : body;
+  const operation = String(source.operation || source.type || '').trim().toLowerCase().replace(/[- ]/g, '_');
+  const number = (value, field, { integer = false } = {}) => {
+    const parsed = typeof value === 'number' ? value : (typeof value === 'string' && value.trim() ? Number(value) : NaN);
+    if (!Number.isFinite(parsed) || (integer && !Number.isInteger(parsed))) throw new Error(`${field} must be a finite ${integer ? 'integer' : 'number'}`);
+    return parsed;
+  };
+  const position = value => {
+    if (!Array.isArray(value) || value.length < 2 || !value.slice(0, 2).every(Number.isFinite)) throw new Error('origin must be a coordinate position');
+    return [Number(value[0]), Number(value[1])];
+  };
+  const coordinateList = (value, field, { closed = false } = {}) => {
+    if (!Array.isArray(value) || value.length < (closed ? 4 : 2) || !value.every(item => Array.isArray(item) && item.length >= 2 && item.slice(0, 2).every(Number.isFinite) && item[0] >= -180 && item[0] <= 180 && item[1] >= -90 && item[1] <= 90)) throw new Error(`${field} must be a valid ${closed ? 'closed ring' : 'coordinate list'}`);
+    if (closed && (value[0][0] !== value[value.length - 1][0] || value[0][1] !== value[value.length - 1][1])) throw new Error(`${field} must be closed`);
+    return value.map(item => item.slice());
+  };
+  const geometry = (value, field) => {
+    try { return normalizeFeatureCollection({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: value, properties: {} }] })[0].geometry; }
+    catch (error) { throw new Error(`${field} is invalid: ${error.message}`); }
+  };
+  if (!['move', 'rotate', 'scale', 'reverse', 'simplify', 'offset', 'trim', 'extend', 'trim_extend', 'split', 'add_ring', 'delete_ring', 'add_part', 'delete_part', 'reshape', 'feature_array'].includes(operation)) throw new Error(`Unsupported geometry operation: ${operation || 'unknown'}`);
+  if (operation === 'reverse') return { operation };
+  if (operation === 'move') return { operation, dx: number(source.dx ?? source.delta_x, 'dx'), dy: number(source.dy ?? source.delta_y, 'dy') };
+  if (operation === 'rotate') return { operation, angle: number(source.angle ?? source.degrees, 'angle'), origin: position(source.origin || [0, 0]) };
+  if (operation === 'scale') {
+    const factor = number(source.factor, 'factor');
+    if (factor <= 0 || factor > 1000) throw new Error('factor must be greater than 0 and at most 1000');
+    return { operation, factor, origin: position(source.origin || [0, 0]) };
+  }
+  if (operation === 'simplify') {
+    const tolerance = number(source.tolerance, 'tolerance');
+    if (tolerance <= 0 || tolerance > 180) throw new Error('tolerance must be greater than 0 and at most 180');
+    return { operation, tolerance };
+  }
+  if (operation === 'offset') {
+    const distance = number(source.distance ?? source.distance_degrees, 'distance');
+    if (distance === 0 || Math.abs(distance) > 180) throw new Error('distance must be non-zero and at most 180 degrees');
+    return { operation, distance };
+  }
+  if (operation === 'trim' || operation === 'extend' || operation === 'trim_extend') {
+    const start = number(source.start, 'start', { integer: true });
+    const end = number(source.end, 'end', { integer: true });
+    if (start < 0 || end <= start) throw new Error('trim/extend requires integer start and end indexes with end greater than start');
+    return { operation: operation === 'trim_extend' ? 'trim_extend' : operation, start, end };
+  }
+  if (operation === 'split') {
+    if (source.index == null && source.split_index == null && !source.parts) throw new Error('split requires index for LineString or parts for Polygon');
+    if (source.parts !== undefined) {
+      if (!Array.isArray(source.parts) || source.parts.length < 2) throw new Error('split parts must contain at least two Polygon parts');
+      return { operation, parts: source.parts.map((part, index) => geometry(part && part.type === 'Polygon' ? part : { type: 'Polygon', coordinates: Array.isArray(part) && Array.isArray(part[0]) && Array.isArray(part[0][0]) ? part : [part] }, `parts[${index}]`)) };
+    }
+    return { operation, index: number(source.index ?? source.split_index, 'index', { integer: true }) };
+  }
+  if (operation === 'add_ring') {
+    if (source.ring === undefined) throw new Error('add_ring requires ring');
+    return { operation, ring: coordinateList(source.ring, 'ring', { closed: true }) };
+  }
+  if (operation === 'delete_ring' || operation === 'delete_part') {
+    return { operation, index: number(source.index, 'index', { integer: true }) };
+  }
+  if (operation === 'add_part') {
+    if (source.part === undefined) throw new Error('add_part requires part');
+    return { operation, part: source.part };
+  }
+  if (operation === 'reshape') {
+    if (source.coordinates === undefined) throw new Error('reshape requires coordinates');
+    return { operation, coordinates: source.coordinates, ring_index: source.ring_index == null ? 0 : number(source.ring_index, 'ring_index', { integer: true }) };
+  }
+  if (operation === 'feature_array') {
+    if (!Array.isArray(source.geometries) || source.geometries.length < 1) throw new Error('feature_array requires a non-empty geometries array');
+    return { operation, geometries: source.geometries.map((item, index) => geometry(item, `geometries[${index}]`)) };
+  }
+}
+
+function perpendicularDistance(point, lineStart, lineEnd) {
+  const [x, y] = point; const [x1, y1] = lineStart; const [x2, y2] = lineEnd;
+  const dx = x2 - x1; const dy = y2 - y1;
+  if (dx === 0 && dy === 0) return Math.hypot(x - x1, y - y1);
+  const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
+  const clamped = Math.max(0, Math.min(1, t));
+  return Math.hypot(x - (x1 + clamped * dx), y - (y1 + clamped * dy));
+}
+
+// Ramer-Douglas-Peucker line simplification: keeps a point only if it deviates
+// from the straight line between its neighbors by more than `tolerance`
+// (same raw coordinate-degree units as the rest of applyGeometryOperation).
+// Always keeps the first and last point so the line's endpoints never move.
+function douglasPeuckerSimplify(points, tolerance) {
+  if (points.length <= 2) return points.map(point => point.slice());
+  let maxDistance = 0; let splitIndex = 0;
+  const first = points[0]; const last = points[points.length - 1];
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = perpendicularDistance(points[i], first, last);
+    if (distance > maxDistance) { maxDistance = distance; splitIndex = i; }
+  }
+  if (maxDistance > tolerance) {
+    const left = douglasPeuckerSimplify(points.slice(0, splitIndex + 1), tolerance);
+    const right = douglasPeuckerSimplify(points.slice(splitIndex), tolerance);
+    return left.slice(0, -1).concat(right);
+  }
+  return [first.slice(), last.slice()];
+}
+
+function applyGeometryOperation(geometry, operation) {
+  const op = normalizeGeometryOperation(operation);
+  const coordinateList = (value, field, { closed = false } = {}) => {
+    if (!Array.isArray(value) || value.length < (closed ? 4 : 2) || !value.every(item => Array.isArray(item) && item.length >= 2 && item.slice(0, 2).every(Number.isFinite) && item[0] >= -180 && item[0] <= 180 && item[1] >= -90 && item[1] <= 90)) throw new Error(`${field} must be a valid ${closed ? 'closed ring' : 'coordinate list'}`);
+    if (closed && (value[0][0] !== value[value.length - 1][0] || value[0][1] !== value[value.length - 1][1])) throw new Error(`${field} must be closed`);
+    return value.map(item => item.slice());
+  };
+  const mapPositions = transform => {
+    const walk = coordinates => Array.isArray(coordinates) && typeof coordinates[0] === 'number' ? transform(coordinates) : coordinates.map(walk);
+    return walk(geometry.coordinates);
+  };
+  const origin = op.origin || [0, 0];
+  const transform = position => {
+    const x = position[0]; const y = position[1];
+    if (op.operation === 'move') return [x + op.dx, y + op.dy, ...position.slice(2)];
+    if (op.operation === 'rotate') { const radians = op.angle * Math.PI / 180; return [origin[0] + (x - origin[0]) * Math.cos(radians) - (y - origin[1]) * Math.sin(radians), origin[1] + (x - origin[0]) * Math.sin(radians) + (y - origin[1]) * Math.cos(radians), ...position.slice(2)]; }
+    if (op.operation === 'scale') return [origin[0] + (x - origin[0]) * op.factor, origin[1] + (y - origin[1]) * op.factor, ...position.slice(2)];
+    if (op.operation === 'offset') return [x + op.distance, y, ...position.slice(2)];
+    return position.slice();
+  };
+  let result = { type: geometry.type, coordinates: geometry.coordinates };
+  if (['move', 'rotate', 'scale', 'offset'].includes(op.operation)) result = { ...geometry, coordinates: mapPositions(transform) };
+  else if (op.operation === 'reverse') {
+    if (geometry.type === 'Point') throw new Error('reverse is not supported for Point geometry');
+    const reverse = coordinates => Array.isArray(coordinates) && typeof coordinates[0] === 'number' ? coordinates.slice() : coordinates.slice().reverse().map(reverse);
+    result = { ...geometry, coordinates: reverse(geometry.coordinates) };
+  } else if (op.operation === 'simplify') {
+    if (!['LineString', 'MultiLineString'].includes(geometry.type)) throw new Error('simplify is supported only for line geometry');
+    const simplify = points => douglasPeuckerSimplify(points, op.tolerance);
+    result = { ...geometry, coordinates: geometry.type === 'LineString' ? simplify(geometry.coordinates) : geometry.coordinates.map(simplify) };
+  } else if (['trim', 'extend', 'trim_extend'].includes(op.operation)) {
+    if (geometry.type !== 'LineString') throw new Error('trim/extend is supported only for LineString geometry');
+    const coordinates = geometry.coordinates.slice(op.start, Math.min(op.end, geometry.coordinates.length));
+    if (coordinates.length < 2) throw new Error('trim/extend would produce an invalid LineString');
+    result = { ...geometry, coordinates };
+  } else if (op.operation === 'split') {
+    if (geometry.type === 'LineString') {
+      if (op.index < 1 || op.index >= geometry.coordinates.length - 1) throw new Error('split index must leave at least 2 positions in each LineString');
+      result = { type: 'MultiLineString', coordinates: [geometry.coordinates.slice(0, op.index + 1), geometry.coordinates.slice(op.index)] };
+    } else if (geometry.type === 'Polygon') {
+      if (!op.parts) throw new Error('Polygon split requires explicit Polygon parts');
+      result = { type: 'MultiPolygon', coordinates: op.parts.map(part => part.coordinates) };
+    } else throw new Error('split is supported only for LineString or Polygon geometry');
+  } else if (op.operation === 'add_ring') {
+    if (geometry.type !== 'Polygon') throw new Error('add_ring is supported only for Polygon geometry');
+    result = { ...geometry, coordinates: [...geometry.coordinates, op.ring] };
+  } else if (op.operation === 'delete_ring') {
+    if (geometry.type !== 'Polygon') throw new Error('delete_ring is supported only for Polygon geometry');
+    if (op.index < 1 || op.index >= geometry.coordinates.length) throw new Error('delete_ring index must identify an interior ring');
+    result = { ...geometry, coordinates: geometry.coordinates.filter((_ring, index) => index !== op.index) };
+  } else if (op.operation === 'add_part') {
+    if (geometry.type === 'MultiLineString') result = { ...geometry, coordinates: [...geometry.coordinates, coordinateList(op.part, 'part')] };
+    else if (geometry.type === 'MultiPolygon') result = { ...geometry, coordinates: [...geometry.coordinates, (Array.isArray(op.part) && Array.isArray(op.part[0]) && Array.isArray(op.part[0][0]) ? op.part : [op.part])] };
+    else throw new Error('add_part is supported only for MultiLineString or MultiPolygon geometry');
+  } else if (op.operation === 'delete_part') {
+    if (!['MultiLineString', 'MultiPolygon'].includes(geometry.type)) throw new Error('delete_part is supported only for multi-part geometry');
+    if (op.index < 0 || op.index >= geometry.coordinates.length || geometry.coordinates.length < 2) throw new Error('delete_part index must identify a part and leave at least one part');
+    result = { ...geometry, coordinates: geometry.coordinates.filter((_part, index) => index !== op.index) };
+  } else if (op.operation === 'reshape') {
+    if (geometry.type === 'LineString') result = { ...geometry, coordinates: coordinateList(op.coordinates, 'coordinates') };
+    else if (geometry.type === 'Polygon') {
+      const ringIndex = op.ring_index == null ? 0 : op.ring_index;
+      if (!Number.isInteger(ringIndex) || ringIndex < 0 || ringIndex >= geometry.coordinates.length) throw new Error('reshape ring_index is invalid');
+      const coordinates = geometry.coordinates.map((ring, index) => index === ringIndex ? coordinateList(op.coordinates, 'coordinates', { closed: true }) : ring);
+      result = { ...geometry, coordinates };
+    } else throw new Error('reshape is supported only for LineString or Polygon geometry');
+  } else if (op.operation === 'feature_array') {
+    const types = new Set(op.geometries.map(item => item.type));
+    if (types.size !== 1) throw new Error('feature_array geometries must all have the same type');
+    const type = [...types][0];
+    const multiType = { Point: 'MultiPoint', LineString: 'MultiLineString', Polygon: 'MultiPolygon' }[type];
+    if (!multiType) throw new Error('feature_array supports only Point, LineString, or Polygon geometries');
+    result = { type: multiType, coordinates: op.geometries.map(item => item.coordinates) };
+  }
+  try { return normalizeFeatureCollection({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: result, properties: {} }] })[0].geometry; }
+  catch (error) { throw new Error(`geometry operation produced invalid geometry: ${error.message}`); }
+}
+
 const EDIT_PREVIEW_SECRET = process.env.CARTOGEN_EDIT_PREVIEW_SECRET || crypto.randomBytes(32);
 const EDIT_PREVIEW_TTL_SECONDS = 15 * 60;
 
@@ -737,7 +942,8 @@ function normalizeFeatureEditRequest(body = {}) {
   if (!['preview', 'apply'].includes(mode)) throw new Error('mode must be preview or apply');
   const hasProperties = Object.prototype.hasOwnProperty.call(body, 'properties');
   const hasGeometry = Object.prototype.hasOwnProperty.call(body, 'geometry');
-  if (!hasProperties && !hasGeometry) throw new Error('properties or geometry is required');
+  const hasGeometryOperation = Object.prototype.hasOwnProperty.call(body, 'geometry_operation');
+  if (!hasProperties && !hasGeometry && !hasGeometryOperation) throw new Error('properties, geometry, or geometry_operation is required');
   let properties;
   if (hasProperties) {
     if (!body.properties || typeof body.properties !== 'object' || Array.isArray(body.properties)) throw new Error('properties must be an object');
@@ -749,10 +955,16 @@ function normalizeFeatureEditRequest(body = {}) {
     try { geometry = normalizeFeatureCollection({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: body.geometry, properties: {} }] })[0].geometry; }
     catch (error) { throw new Error(`geometry is invalid: ${error.message}`); }
   }
+  let geometryOperation;
+  if (hasGeometryOperation) {
+    try { geometryOperation = normalizeGeometryOperation(body.geometry_operation); }
+    catch (error) { throw new Error(`geometry_operation is invalid: ${error.message}`); }
+  }
+  if (hasGeometry && hasGeometryOperation) throw new Error('geometry and geometry_operation cannot be supplied together');
   if (mode === 'apply' && body.approved !== true) throw new Error('approved must be true before applying a feature edit');
   const beforeHash = body.before_hash == null ? null : String(body.before_hash).trim();
   if (beforeHash && !/^[a-f0-9]{64}$/i.test(beforeHash)) throw new Error('before_hash must be a SHA-256 hash');
-  return { mode, approved: body.approved === true, properties, geometry, before_hash: beforeHash, preview_token: body.preview_token ? String(body.preview_token) : null };
+  return { mode, approved: body.approved === true, properties, geometry, geometry_operation: geometryOperation, before_hash: beforeHash, preview_token: body.preview_token ? String(body.preview_token) : null };
 }
 
 function createEditPreviewToken({ layerId, featureId, beforeHash, afterHash }) {
@@ -777,7 +989,8 @@ function verifyEditPreviewToken(token) {
 }
 
 function mergeFeatureState(before, edit) {
-  return { geometry: edit.geometry === undefined ? before.geometry : edit.geometry, properties: edit.properties === undefined ? before.properties : edit.properties };
+  const geometry = edit.geometry_operation ? applyGeometryOperation(before.geometry, edit.geometry_operation) : (edit.geometry === undefined ? before.geometry : edit.geometry);
+  return { geometry, properties: edit.properties === undefined ? before.properties : edit.properties };
 }
 
 function featureStateDiff(before, after) {
@@ -864,6 +1077,89 @@ function normalizeIntersectionInput(input = {}) {
   return normalizeAnalysisOperationInput('intersect_layers', input);
 }
 
+function normalizeLayerCrs(value) {
+  if (value === undefined || value === null) return null;
+  const crs = String(value).trim().toUpperCase().replace(/\s+/g, '');
+  return crs || null;
+}
+
+function spatialLayerCrs(layer) {
+  return normalizeLayerCrs(layer?.crs || layer?.coordinate_reference_system || layer?.metadata?.crs || layer?.project_crs || 'EPSG:4326');
+}
+
+function spatialGeometryTypes(layer) {
+  const values = layer?.geometry_types || layer?.geometry_type || [];
+  return [...new Set((Array.isArray(values) ? values : [values]).filter(Boolean).map(value => String(value).replace(/^ST_/, '')))].sort();
+}
+
+function diagnoseSpatialCompatibility({ source, overlay = null } = {}) {
+  const sourceCrs = spatialLayerCrs(source);
+  const overlayCrs = overlay ? spatialLayerCrs(overlay) : null;
+  const sourceTypes = spatialGeometryTypes(source);
+  const overlayTypes = spatialGeometryTypes(overlay);
+  const geometryTypes = [...new Set([...sourceTypes, ...overlayTypes])].sort();
+  const invalidGeometryCount = Number(source?.invalid_geometry_count || 0) + Number(overlay?.invalid_geometry_count || 0);
+  const warnings = [];
+  if (invalidGeometryCount > 0) warnings.push(`${invalidGeometryCount} invalid geometr${invalidGeometryCount === 1 ? 'y' : 'ies'} detected; topology operations may fail`);
+  if (sourceTypes.length > 1 || overlayTypes.length > 1 || (sourceTypes.length && overlayTypes.length && sourceTypes.join('|') !== overlayTypes.join('|'))) {
+    warnings.push(`mixed geometry types detected: ${geometryTypes.join(', ') || 'unknown'}`);
+  }
+  if (source?.geometry_srid && overlay?.geometry_srid && String(source.geometry_srid) !== String(overlay.geometry_srid)) {
+    warnings.push(`geometry SRID differs (${source.geometry_srid} vs ${overlay.geometry_srid})`);
+  }
+  return {
+    compatible: !overlay || sourceCrs === overlayCrs,
+    source_crs: sourceCrs,
+    overlay_crs: overlayCrs,
+    geometry_types: geometryTypes,
+    source_geometry_types: sourceTypes,
+    overlay_geometry_types: overlayTypes,
+    invalid_geometry_count: invalidGeometryCount,
+    warnings,
+  };
+}
+
+function spatialCompatibilityError(code, message, details) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = 400;
+  error.safe = true;
+  error.details = details;
+  return error;
+}
+
+function assertSpatialCompatibility(diagnosis) {
+  if (diagnosis?.overlay_crs && diagnosis.source_crs !== diagnosis.overlay_crs) {
+    throw spatialCompatibilityError('SPATIAL_CRS_MISMATCH', 'Source and overlay layers use incompatible coordinate reference systems', {
+      source_crs: diagnosis.source_crs,
+      overlay_crs: diagnosis.overlay_crs,
+    });
+  }
+  if (Number(diagnosis?.invalid_geometry_count || 0) > 0) {
+    throw spatialCompatibilityError('SPATIAL_INVALID_GEOMETRY', 'Spatial operation requires valid geometries', {
+      invalid_geometry_count: diagnosis.invalid_geometry_count,
+      warnings: diagnosis.warnings,
+    });
+  }
+  return diagnosis;
+}
+
+async function inspectSpatialLayers({ projectId, organizationId, layerIds }) {
+  const result = await pool.query(
+    `SELECT l.id, l.name, l.metadata, p.crs AS project_crs,
+            COALESCE(l.metadata->>'crs', l.metadata->>'coordinate_reference_system', p.crs, 'EPSG:4326') AS crs,
+            COALESCE(array_agg(DISTINCT regexp_replace(ST_GeometryType(f.geometry), '^ST_', '')) FILTER (WHERE f.id IS NOT NULL), ARRAY[]::text[]) AS geometry_types,
+            COALESCE(array_agg(DISTINCT ST_SRID(f.geometry)) FILTER (WHERE f.id IS NOT NULL), ARRAY[]::int[]) AS geometry_srids,
+            COUNT(f.id) FILTER (WHERE f.id IS NOT NULL AND NOT ST_IsValid(f.geometry))::int AS invalid_geometry_count
+       FROM project_layers l JOIN projects p ON p.id = l.project_id AND p.organization_id = l.organization_id
+       LEFT JOIN project_layer_features f ON f.layer_id = l.id AND f.project_id = l.project_id AND f.organization_id = l.organization_id
+      WHERE l.id = ANY($1::uuid[]) AND l.project_id = $2 AND l.organization_id = $3
+      GROUP BY l.id, p.crs`,
+    [layerIds, projectId, organizationId],
+  );
+  return result.rows.map(row => ({ ...row, geometry_srid: row.geometry_srids?.length === 1 ? row.geometry_srids[0] : null }));
+}
+
 function isSupportedAnalysisOperation(operation) {
   return Object.prototype.hasOwnProperty.call(OPERATION_REGISTRY, String(operation || '').trim());
 }
@@ -901,6 +1197,28 @@ function normalizeExportStyle({ style_preset = 'coverage', opacity = 85 } = {}) 
   if (!presets.has(style_preset)) throw new Error('style_preset must be coverage, facilities, accessibility, or risk');
   if (!Number.isFinite(value) || value < 20 || value > 100) throw new Error('opacity must be between 20 and 100');
   return { style_preset, opacity: value };
+}
+
+const LAYER_STYLE_DEFAULTS = { preset: 'coverage', color: '#d96a54', fill_opacity: 55, line_weight: 2, classification: 'DRAFT · REVIEW REQUIRED', legend_label: null };
+function normalizeLayerStyle(body = {}) {
+  const input = body.style && typeof body.style === 'object' && !Array.isArray(body.style) ? body.style : body;
+  const preset = String(input.preset ?? input.style_preset ?? LAYER_STYLE_DEFAULTS.preset);
+  if (!['coverage', 'facilities', 'accessibility', 'risk'].includes(preset)) throw new Error('preset must be coverage, facilities, accessibility, or risk');
+  const color = String(input.color ?? input.style_color ?? LAYER_STYLE_DEFAULTS.color).toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(color)) throw new Error('color must be a six-digit hexadecimal color');
+  const fill_opacity = Number(input.fill_opacity ?? input.style_fill_opacity ?? LAYER_STYLE_DEFAULTS.fill_opacity);
+  if (!Number.isFinite(fill_opacity) || fill_opacity < 0 || fill_opacity > 100) throw new Error('fill_opacity must be between 0 and 100');
+  const line_weight = Number(input.line_weight ?? input.style_line_weight ?? LAYER_STYLE_DEFAULTS.line_weight);
+  if (!Number.isFinite(line_weight) || line_weight <= 0 || line_weight > 20) throw new Error('line_weight must be greater than 0 and at most 20');
+  const classification = String(input.classification ?? input.style_classification ?? LAYER_STYLE_DEFAULTS.classification).trim().slice(0, 120);
+  const legend_label = input.legend_label == null ? (input.style_legend_label == null ? LAYER_STYLE_DEFAULTS.legend_label : String(input.style_legend_label).trim().slice(0, 255)) : String(input.legend_label).trim().slice(0, 255);
+  if (!classification) throw new Error('classification must not be empty');
+  if (legend_label === '') throw new Error('legend_label must not be empty');
+  return { preset, color, fill_opacity, line_weight, classification, legend_label: legend_label || null };
+}
+
+function layerStyleFromRow(row = {}) {
+  return normalizeLayerStyle({ preset: row.style_preset, color: row.style_color, fill_opacity: row.style_fill_opacity, line_weight: row.style_line_weight, classification: row.style_classification, legend_label: row.style_legend_label });
 }
 
 app.get('/api/auth/status', async (req, res) => {
@@ -1629,6 +1947,12 @@ async function executeIntersectionJob(jobId, organizationId) {
   if (sources.rowCount !== 2) throw new Error('Source or overlay layer not found');
   const source = sources.rows.find(layer => layer.id === input.source_layer_id);
   const overlay = sources.rows.find(layer => layer.id === input.overlay_layer_id);
+  const inspected = await inspectSpatialLayers({ projectId: job.project_id, organizationId, layerIds: [input.source_layer_id, input.overlay_layer_id] });
+  const spatialDiagnosis = diagnoseSpatialCompatibility({
+    source: inspected.find(layer => layer.id === input.source_layer_id),
+    overlay: inspected.find(layer => layer.id === input.overlay_layer_id),
+  });
+  assertSpatialCompatibility(spatialDiagnosis);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1648,7 +1972,7 @@ async function executeIntersectionJob(jobId, organizationId) {
        RETURNING id`,
       [resultLayer.rows[0].id, job.project_id, organizationId, input.source_layer_id, input.overlay_layer_id],
     );
-    const output = { type: 'derived_geometry_layer', operation: 'intersect_layers', result_layer_id: resultLayer.rows[0].id, source_layer_id: source.id, overlay_layer_id: overlay.id, feature_count: inserted.rowCount, limitations: ['Only polygon intersections are retained in this Phase 1 operation.', 'Derived output requires human review before operational use.'] };
+    const output = { type: 'derived_geometry_layer', operation: 'intersect_layers', result_layer_id: resultLayer.rows[0].id, source_layer_id: source.id, overlay_layer_id: overlay.id, feature_count: inserted.rowCount, topology_diagnosis: spatialDiagnosis, limitations: ['Only polygon intersections are retained in this Phase 1 operation.', 'Derived output requires human review before operational use.'] };
     const updated = await client.query(`UPDATE analysis_jobs SET status = 'completed', output = $1, completed_at = now() WHERE id = $2 AND organization_id = $3 RETURNING id, operation, status, output, completed_at`, [output, jobId, organizationId]);
     await client.query('COMMIT');
     return updated.rows[0];
@@ -1723,6 +2047,9 @@ async function executeBufferJob(jobId, organizationId) {
     [sourceLayerId, job.project_id, organizationId],
   );
   if (!source.rowCount) throw new Error('Source layer not found');
+  const inspected = await inspectSpatialLayers({ projectId: job.project_id, organizationId, layerIds: [sourceLayerId] });
+  const spatialDiagnosis = diagnoseSpatialCompatibility({ source: inspected[0] });
+  assertSpatialCompatibility(spatialDiagnosis);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1739,7 +2066,7 @@ async function executeBufferJob(jobId, organizationId) {
        RETURNING id`,
       [resultLayer.rows[0].id, distanceMeters, sourceLayerId, organizationId],
     );
-    const output = { type: 'derived_geometry_layer', operation: 'buffer_layer', result_layer_id: resultLayer.rows[0].id, source_layer_id: sourceLayerId, distance_meters: distanceMeters, feature_count: inserted.rowCount, limitations: ['Buffer distance is calculated in metres using a WGS84 geography cast.', 'Derived output requires human review before operational use.'] };
+    const output = { type: 'derived_geometry_layer', operation: 'buffer_layer', result_layer_id: resultLayer.rows[0].id, source_layer_id: sourceLayerId, distance_meters: distanceMeters, feature_count: inserted.rowCount, topology_diagnosis: spatialDiagnosis, limitations: ['Buffer distance is calculated in metres using a WGS84 geography cast.', 'Derived output requires human review before operational use.'] };
     const updated = await client.query(
       `UPDATE analysis_jobs SET status = 'completed', output = $1, completed_at = now() WHERE id = $2 AND organization_id = $3 RETURNING id, operation, status, output, completed_at`,
       [output, jobId, organizationId],
@@ -1885,20 +2212,35 @@ app.post('/api/projects/:projectId/analysis-jobs', requireIdentity, async (req, 
   const operation = String(req.body?.operation || '').trim();
   try {
     const input = normalizeAnalysisOperationInput(operation, req.body || {});
+    let spatialDiagnosis = null;
+    if (operation === 'intersect_layers' || operation === 'buffer_layer') {
+      const layerIds = operation === 'intersect_layers'
+        ? [input.source_layer_id, input.overlay_layer_id]
+        : [input.source_layer_id];
+      const layers = await inspectSpatialLayers({ projectId: req.params.projectId, organizationId: req.organizationId, layerIds });
+      if (layers.length !== layerIds.length) throw new Error('Source or overlay layer not found');
+      const source = layers.find(layer => layer.id === input.source_layer_id);
+      const overlay = operation === 'intersect_layers' ? layers.find(layer => layer.id === input.overlay_layer_id) : null;
+      spatialDiagnosis = diagnoseSpatialCompatibility({ source, overlay });
+      assertSpatialCompatibility(spatialDiagnosis);
+    }
     const result = await pool.query(
       `INSERT INTO analysis_jobs (project_id, organization_id, operation, status, input, provenance)
        VALUES ($1,$2,$3,'queued',$4,$5) RETURNING id, operation, status, input, created_at`,
-      [req.params.projectId, req.organizationId, operation, input, { source: 'user-request', phase: '1' }],
+      [req.params.projectId, req.organizationId, operation, input, { source: 'user-request', phase: '1', ...(spatialDiagnosis ? { spatial_diagnosis: spatialDiagnosis } : {}) }],
     );
     res.status(201).json({ job: result.rows[0] });
-  } catch (error) { res.status(400).json({ error: error.message }); }
+  } catch (error) {
+    const body = error.safe ? { error: { code: error.code, message: error.message, details: error.details } } : { error: error.message };
+    res.status(error.statusCode || 400).json(body);
+  }
 });
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
-function buildExportSvg(features) {
+function buildExportSvg(features, layerStyles = {}) {
   const coordinates = [];
   const collect = geometry => {
     if (!geometry) return;
@@ -1912,13 +2254,14 @@ function buildExportSvg(features) {
   const dx = maxX - minX || 1; const dy = maxY - minY || 1;
   const point = coordinate => [((coordinate[0] - minX) / dx) * 88 + 6, 100 - (((coordinate[1] - minY) / dy) * 88 + 6)];
   const shapes = [];
-  const draw = geometry => {
-    if (geometry.type === 'Point') { const [x, y] = point(geometry.coordinates); shapes.push(`<circle cx="${x}" cy="${y}" r="1.4"/>`); }
-    else if (geometry.type === 'LineString') shapes.push(`<polyline points="${geometry.coordinates.map(c => point(c).join(',')).join(' ')}"/>`);
-    else if (geometry.type === 'Polygon') geometry.coordinates.forEach(ring => shapes.push(`<path d="M ${ring.map(c => point(c).join(' L '))} Z"/>`));
-    else if (geometry.coordinates) geometry.coordinates.forEach(item => draw({ type: geometry.type.replace('Multi', ''), coordinates: item }));
+  const draw = (geometry, style) => {
+    const stroke = style?.color || '#087f7a'; const fill = style ? `${stroke}${Math.round(style.fill_opacity * 2.55).toString(16).padStart(2, '0')}` : '#087f7a55'; const weight = style?.line_weight || 0.6;
+    if (geometry.type === 'Point') { const [x, y] = point(geometry.coordinates); shapes.push(`<circle cx="${x}" cy="${y}" r="1.4" style="fill:${stroke};stroke:#fff;stroke-width:${weight}"/>`); }
+    else if (geometry.type === 'LineString') shapes.push(`<polyline points="${geometry.coordinates.map(c => point(c).join(',')).join(' ')}" style="fill:none;stroke:${stroke};stroke-width:${weight}"/>`);
+    else if (geometry.type === 'Polygon') geometry.coordinates.forEach(ring => shapes.push(`<path d="M ${ring.map(c => point(c).join(' L '))} Z" style="fill:${fill};stroke:${stroke};stroke-width:${weight}"/>`));
+    else if (geometry.coordinates) geometry.coordinates.forEach(item => draw({ type: geometry.type.replace('Multi', ''), coordinates: item }, style));
   };
-  features.forEach(feature => draw(feature.geometry));
+  features.forEach(feature => draw(feature.geometry, layerStyles[feature.layer_id]));
   return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Project geometry">${shapes.join('')}</svg>`;
 }
 
@@ -1930,6 +2273,7 @@ function buildSituationReportHtml(project, layers, layout, features) {
   const style = normalizeExportStyle(layout);
   const styleMap = { coverage: ['#d96a54', '#d96a5466'], facilities: ['#dfa43b', '#dfa43b66'], accessibility: ['#087f7a', '#087f7a55'], risk: ['#a952c4', '#a952c466'] };
   const [styleStroke, styleFill] = styleMap[style.style_preset];
+  const layerStyles = Object.fromEntries(layers.map(layer => [layer.id, layerStyleFromRow(layer)]));
   const date = new Date().toISOString().slice(0, 10);
   const totalFeatures = features.length;
   const sourceRows = layers.map((layer, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(layer.name)}</td><td>${escapeHtml(layer.source_resource || 'project layer')}</td><td>${layer.feature_count}</td></tr>`).join('');
@@ -1937,7 +2281,7 @@ function buildSituationReportHtml(project, layers, layout, features) {
   const pages = [
     `<article class="page cover"><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="classification">${escapeHtml(classification)}</div><h1>${escapeHtml(title)}</h1><p class="lead">Humanitarian service-coverage screening situation report</p><div class="hero-rule"></div><dl><dt>Prepared by</dt><dd>${escapeHtml(author)}</dd><dt>Project</dt><dd>${escapeHtml(project.name)}</dd><dt>Reference system</dt><dd>${escapeHtml(project.crs)}</dd><dt>Report version</dt><dd>${escapeHtml(reportVersion)}</dd><dt>Prepared</dt><dd>${date}</dd></dl><div class="warning">This report supports structured humanitarian review. It is not a needs assessment, targeting decision, or live security product.</div></article>`,
     `<article class="page"><h2>1. Executive summary</h2><p>This report presents a reviewable, public-data screening slice for humanitarian service coverage in ${escapeHtml(project.name)}. The result combines project layers stored in PostGIS with documented source and compatibility limitations.</p><div class="stat-grid"><div><b>${layers.length}</b><small>project layers</small></div><div><b>${totalFeatures}</b><small>features in export</small></div><div><b>${escapeHtml(project.crs)}</b><small>coordinate reference</small></div></div><h3>Review findings</h3><ul><li>Stored project geometry is available for visual and attribute review.</li><li>Derived layers are retained separately from source layers.</li><li>Source age and administrative compatibility require analyst confirmation.</li><li>Any operational use requires provenance and limitations to remain attached.</li></ul><h3>Recommended next action</h3><p>Confirm source vintages and administrative crosswalks with the responsible information-management team before using the screening output for prioritisation.</p></article>`,
-    `<article class="page"><h2>2. Map and layer register</h2><div class="map-report">${buildExportSvg(features)}</div><h3>Layer register</h3><table><thead><tr><th>#</th><th>Layer</th><th>Source</th><th>Features</th></tr></thead><tbody>${sourceRows}</tbody></table></article>`,
+    `<article class="page"><h2>2. Map and layer register</h2><div class="map-report">${buildExportSvg(features, layerStyles)}</div><h3>Layer register</h3><table><thead><tr><th>#</th><th>Layer</th><th>Source</th><th>Features</th></tr></thead><tbody>${sourceRows}</tbody></table></article>`,
     `<article class="page"><h2>3. Limitations and provenance appendix</h2><h3>Known limitations</h3><ul><li>Population reference year 2017 is not directly compatible with newer administrative boundaries without a validated crosswalk.</li><li>3W presence does not prove service quality, capacity, funding, outcomes, or absence of need.</li><li>Modelled accessibility is not live road-status or security information.</li><li>Public-data demonstration layers are not a substitute for controlled humanitarian datasets.</li></ul><h3>Provenance register</h3><ul>${provenanceRows}</ul><div class="warning">Retain source URL, resource date, retrieval date, licence, assumptions, and limitations with every distributed copy.</div></article>`
   ];
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Situation Report</title><style>@page{size:${escapeHtml(layout.paper || 'A4')} ${escapeHtml(layout.orientation || 'portrait')};margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#10232b;margin:0;background:#eef4f2}.page{background:#fff;min-height:calc(297mm - 24mm);padding:12mm;page-break-after:always;position:relative}.page:last-child{page-break-after:auto}.brand{color:#087f7a;font-weight:800;font-size:17px}.classification{float:right;color:#9d402f;font-size:9px;font-weight:800;border:1px solid #e5b7ac;padding:2mm;border-radius:4px}.cover{display:flex;flex-direction:column;justify-content:center}.cover h1{font-size:30px;max-width:170mm;margin:24mm 0 5mm;color:#102b33}.lead{font-size:16px;color:#627276}.hero-rule{height:4px;background:#087f7a;width:55mm;margin:12mm 0}.page h2{font-size:22px;color:#087f7a;border-bottom:2px solid #dce5e6;padding-bottom:4mm}.page h3{font-size:14px;color:#087f7a;margin-top:9mm}.page p,.page li{font-size:11px;line-height:1.55}.page dl{display:grid;grid-template-columns:42mm 1fr;gap:3mm;font-size:11px}.page dt{font-weight:800;color:#627276}.page dd{margin:0}.warning{background:#fff8e7;border:1px solid #e5c978;padding:4mm;margin-top:8mm;font-size:10px;line-height:1.45}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;margin:8mm 0}.stat-grid div{border:1px solid #cddbd9;padding:6mm;text-align:center}.stat-grid b{display:block;font-size:22px;color:#087f7a}.stat-grid small{color:#627276}.map-report{height:120mm;border:1px solid #9db4b1;background:#e4eeea;position:relative;margin:7mm 0}.map-report:after{content:'N ↑';position:absolute;right:6mm;top:6mm;background:#fff;border:1px solid #c6d6d3;padding:2mm;font-weight:800}.map-report:before{content:'0 ─── 5 ─── 10 km';position:absolute;right:6mm;bottom:6mm;background:#ffffffe8;border:1px solid #c6d6d3;padding:2mm;font-size:8px}.map-report svg{width:100%;height:100%;display:block;opacity:${style.opacity / 100}}.map-report circle{fill:${styleStroke};stroke:#fff;stroke-width:.7}.map-report path{fill:${styleFill};stroke:${styleStroke};stroke-width:.6}.map-report polyline{fill:none;stroke:${styleStroke};stroke-width:.6}table{width:100%;border-collapse:collapse;font-size:10px}th,td{text-align:left;border-bottom:1px solid #dce5e6;padding:3mm}th{color:#627276;font-size:9px;text-transform:uppercase}.page-number{position:absolute;bottom:6mm;right:12mm;color:#879699;font-size:8px}</style></head><body>${pages.map((page, index) => page.replace('</article>', `<div class="page-number">Page ${index + 1} of ${pages.length} · Cartogen AI</div></article>`)).join('')}</body></html>`;
@@ -1953,9 +2297,10 @@ function buildServerExportHtml(project, layers, layout, features = []) {
   const style = normalizeExportStyle(layout);
   const styleMap = { coverage: ['#d96a54', '#d96a5466'], facilities: ['#dfa43b', '#dfa43b66'], accessibility: ['#087f7a', '#087f7a55'], risk: ['#a952c4', '#a952c466'] };
   const [styleStroke, styleFill] = styleMap[style.style_preset];
+  const layerStyles = Object.fromEntries(layers.map(layer => [layer.id, layerStyleFromRow(layer)]));
   const sourceItems = layers.map(layer => `<li><b>${escapeHtml(layer.name)}</b> — ${escapeHtml(layer.source_resource || 'project layer')} — ${layer.feature_count} features</li>`).join('');
-  const legendItems = layers.map(layer => `<div><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${styleStroke}"></span> ${escapeHtml(layer.name)} <small>(${layer.feature_count})</small></div>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Cartogen AI</title><style>@page{size:${escapeHtml(paper)} ${escapeHtml(orientation)};margin:12mm}body{font-family:Arial,sans-serif;color:#10232b;margin:0}.sheet{min-height:180mm;display:grid;grid-template-rows:auto 1fr auto;gap:7mm}.header{border-bottom:3px solid #087f7a;padding-bottom:4mm;display:flex;justify-content:space-between}.brand{font-weight:800;color:#087f7a;font-size:18px}.title{font-size:23px;font-weight:800;margin-top:2mm}.meta,.footer{font-size:9px;color:#627276}.body{display:grid;grid-template-columns:1fr 65mm;gap:6mm}.map{border:1px solid #9db4b1;background:#e4eeea;min-height:105mm;display:grid;place-items:center;color:#557174;position:relative}.map:after{content:'N ↑';position:absolute;right:7mm;top:7mm;background:#fff;border:1px solid #c6d6d3;border-radius:5px;padding:2mm;font-weight:800}.map:before{content:'0 ─── 5 ─── 10 km';position:absolute;right:7mm;bottom:7mm;background:#ffffffe8;border:1px solid #c6d6d3;border-radius:4px;padding:2mm;font-size:8px}.map svg{width:100%;height:100%;display:block;opacity:${style.opacity / 100}}.map circle{fill:${styleStroke};stroke:#fff;stroke-width:.7}.map path{fill:${styleFill};stroke:${styleStroke};stroke-width:.6}.map polyline{fill:none;stroke:${styleStroke};stroke-width:.6}.side{border:1px solid #cddbd9;padding:4mm;font-size:9px}.side h3{font-size:11px;color:#087f7a;margin:0 0 2mm}.side ul{padding-left:4mm}.warning{background:#fff8e7;border:1px solid #e5c978;padding:2mm;margin-top:3mm}.footer{border-top:1px solid #cddbd9;padding-top:3mm;display:flex;justify-content:space-between}</style></head><body><main class="sheet"><header class="header"><div><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="title">${escapeHtml(title)}</div><div class="meta">Prepared by ${escapeHtml(author)} · ${new Date().toISOString().slice(0,10)} · CRS ${escapeHtml(project.crs)}</div></div><div class="meta">${escapeHtml(project.sector)}<br>Phase 1 review export</div></header><div class="body"><section class="map">${buildExportSvg(features)}</section><aside class="side"><h3>Legend</h3>${legendItems}<h3>Layers and sources</h3><ul>${sourceItems}</ul>${warnings?'<h3>Data quality</h3><div class="warning">Review source freshness, administrative compatibility, and humanitarian limitations before publication.</div><div class="warning">This is a screening result, not a needs assessment or operational targeting decision.</div>':''}</aside></div><footer class="footer"><span>Source dates, licences, assumptions, and limitations accompany this output.</span><span>${escapeHtml(author)} · Cartogen AI</span></footer></main></body></html>`;
+  const legendItems = layers.map(layer => { const s = layerStyleFromRow(layer); return `<div><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${s.color};opacity:${s.fill_opacity / 100}"></span> ${escapeHtml(s.legend_label || layer.name)} <small>(${escapeHtml(s.classification)} · ${layer.feature_count})</small></div>`; }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} — Cartogen AI</title><style>@page{size:${escapeHtml(paper)} ${escapeHtml(orientation)};margin:12mm}body{font-family:Arial,sans-serif;color:#10232b;margin:0}.sheet{min-height:180mm;display:grid;grid-template-rows:auto 1fr auto;gap:7mm}.header{border-bottom:3px solid #087f7a;padding-bottom:4mm;display:flex;justify-content:space-between}.brand{font-weight:800;color:#087f7a;font-size:18px}.title{font-size:23px;font-weight:800;margin-top:2mm}.meta,.footer{font-size:9px;color:#627276}.body{display:grid;grid-template-columns:1fr 65mm;gap:6mm}.map{border:1px solid #9db4b1;background:#e4eeea;min-height:105mm;display:grid;place-items:center;color:#557174;position:relative}.map:after{content:'N ↑';position:absolute;right:7mm;top:7mm;background:#fff;border:1px solid #c6d6d3;border-radius:5px;padding:2mm;font-weight:800}.map:before{content:'0 ─── 5 ─── 10 km';position:absolute;right:7mm;bottom:7mm;background:#ffffffe8;border:1px solid #c6d6d3;border-radius:4px;padding:2mm;font-size:8px}.map svg{width:100%;height:100%;display:block;opacity:${style.opacity / 100}}.map circle{fill:${styleStroke};stroke:#fff;stroke-width:.7}.map path{fill:${styleFill};stroke:${styleStroke};stroke-width:.6}.map polyline{fill:none;stroke:${styleStroke};stroke-width:.6}.side{border:1px solid #cddbd9;padding:4mm;font-size:9px}.side h3{font-size:11px;color:#087f7a;margin:0 0 2mm}.side ul{padding-left:4mm}.warning{background:#fff8e7;border:1px solid #e5c978;padding:2mm;margin-top:3mm}.footer{border-top:1px solid #cddbd9;padding-top:3mm;display:flex;justify-content:space-between}</style></head><body><main class="sheet"><header class="header"><div><div class="brand">Cartogen AI · Humanitarian Mapping</div><div class="title">${escapeHtml(title)}</div><div class="meta">Prepared by ${escapeHtml(author)} · ${new Date().toISOString().slice(0,10)} · CRS ${escapeHtml(project.crs)}</div></div><div class="meta">${escapeHtml(project.sector)}<br>Phase 1 review export</div></header><div class="body"><section class="map">${buildExportSvg(features, layerStyles)}</section><aside class="side"><h3>Legend</h3>${legendItems}<h3>Layers and sources</h3><ul>${sourceItems}</ul>${warnings?'<h3>Data quality</h3><div class="warning">Review source freshness, administrative compatibility, and humanitarian limitations before publication.</div><div class="warning">This is a screening result, not a needs assessment or operational targeting decision.</div>':''}</aside></div><footer class="footer"><span>Source dates, licences, assumptions, and limitations accompany this output.</span><span>${escapeHtml(author)} · Cartogen AI</span></footer></main></body></html>`;
 }
 
 app.post('/api/projects/:projectId/exports', requireIdentity, async (req, res) => {
@@ -1986,13 +2331,13 @@ app.get('/api/exports/:exportId/html', requireIdentity, async (req, res) => {
   );
   if (!result.rowCount) return res.status(404).send('Export not found');
   const layers = await pool.query(
-    `SELECT l.name, l.source_resource, COUNT(f.id)::int AS feature_count
+    `SELECT l.id, l.name, l.source_resource, l.style_preset, l.style_color, l.style_fill_opacity, l.style_line_weight, l.style_classification, l.style_legend_label, COUNT(f.id)::int AS feature_count
        FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
       WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
     [result.rows[0].project_id, req.organizationId],
   );
   const features = await pool.query(
-    `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+    `SELECT f.layer_id, ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
        FROM project_layer_features f
       WHERE f.project_id = $1 AND f.organization_id = $2
       ORDER BY f.id LIMIT 2000`,
@@ -2012,13 +2357,13 @@ app.get('/api/exports/:exportId/pdf', requireIdentity, async (req, res) => {
     );
     if (!result.rowCount) return res.status(404).send('Export not found');
     const layers = await pool.query(
-      `SELECT l.name, l.source_resource, COUNT(f.id)::int AS feature_count
+      `SELECT l.id, l.name, l.source_resource, l.style_preset, l.style_color, l.style_fill_opacity, l.style_line_weight, l.style_classification, l.style_legend_label, COUNT(f.id)::int AS feature_count
          FROM project_layers l LEFT JOIN project_layer_features f ON f.layer_id = l.id
         WHERE l.project_id = $1 AND l.organization_id = $2 GROUP BY l.id ORDER BY l.created_at`,
       [result.rows[0].project_id, req.organizationId],
     );
     const features = await pool.query(
-      `SELECT ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
+      `SELECT f.layer_id, ST_AsGeoJSON(f.geometry)::json AS geometry, f.properties
          FROM project_layer_features f WHERE f.project_id = $1 AND f.organization_id = $2 ORDER BY f.id LIMIT 2000`,
       [result.rows[0].project_id, req.organizationId],
     );
@@ -2131,6 +2476,44 @@ app.get('/api/projects/:projectId/layers/:layerId/features', requireIdentity, as
   });
 });
 
+app.post('/api/projects/:projectId/layers/:layerId/features', requireIdentity, async (req, res) => {
+  let feature;
+  try { feature = normalizeDigitizingFeature(req.body || {}); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const layerScope = await pool.query(
+    `SELECT l.id
+       FROM project_layers l JOIN projects p ON p.id = l.project_id AND p.organization_id = l.organization_id
+      WHERE l.id = $1 AND l.project_id = $2 AND l.organization_id = $3`,
+    [req.params.layerId, req.params.projectId, req.organizationId],
+  );
+  if (!layerScope.rowCount) return res.status(404).json({ error: 'Layer not found' });
+  const before = { geometry: null, properties: {} };
+  const beforeHash = hashFeatureState(before);
+  const afterHash = hashFeatureState(feature);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inserted = await client.query(
+      `INSERT INTO project_layer_features (layer_id, project_id, organization_id, geometry, properties)
+       VALUES ($1,$2,$3,ST_SetSRID(ST_GeomFromGeoJSON($4),4326),$5)
+       RETURNING id, ST_AsGeoJSON(geometry)::json AS geometry, properties`,
+      [req.params.layerId, req.params.projectId, req.organizationId, JSON.stringify(feature.geometry), feature.properties],
+    );
+    const created = inserted.rows[0];
+    await client.query(
+      `INSERT INTO feature_lineage_events (feature_id, layer_id, project_id, organization_id, event_type, actor_id, before_hash, after_hash, before_state, after_state, metadata)
+       VALUES ($1,$2,$3,$4,'feature_create',$5,$6,$7,$8,$9,$10)`,
+      [created.id, req.params.layerId, req.params.projectId, req.organizationId, req.user?.id || null, beforeHash, afterHash, before, feature, { source: 'digitizing' }],
+    );
+    await client.query('COMMIT');
+    return res.status(201).json({ feature: created });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('Feature creation failed:', error.message);
+    return res.status(400).json({ error: 'Feature creation failed' });
+  } finally { client.release(); }
+});
+
 app.get('/api/projects/:projectId/features/:featureId/lineage', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT e.id, e.feature_id, e.layer_id, e.project_id, e.event_type, e.actor_id,
@@ -2145,10 +2528,35 @@ app.get('/api/projects/:projectId/features/:featureId/lineage', requireIdentity,
   res.json({ lineage: result.rows });
 });
 
+app.get('/api/projects/:projectId/layers/:layerId/style', requireIdentity, async (req, res) => {
+  const result = await pool.query(
+    `SELECT l.id, l.project_id, l.style_preset, l.style_color, l.style_fill_opacity, l.style_line_weight, l.style_classification, l.style_legend_label
+       FROM project_layers l JOIN projects p ON p.id = l.project_id AND p.organization_id = l.organization_id
+      WHERE l.id = $1 AND l.project_id = $2 AND l.organization_id = $3`,
+    [req.params.layerId, req.params.projectId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Layer not found' });
+  res.json({ style: layerStyleFromRow(result.rows[0]), layer_id: result.rows[0].id });
+});
+
+app.put('/api/projects/:projectId/layers/:layerId/style', requireIdentity, async (req, res) => {
+  let style;
+  try { style = normalizeLayerStyle(req.body || {}); } catch (error) { return res.status(400).json({ error: error.message }); }
+  const result = await pool.query(
+    `UPDATE project_layers l SET style_preset = $1, style_color = $2, style_fill_opacity = $3, style_line_weight = $4, style_classification = $5, style_legend_label = $6
+       FROM projects p WHERE l.id = $7 AND l.project_id = $8 AND l.organization_id = $9 AND p.id = l.project_id AND p.organization_id = l.organization_id
+       RETURNING l.id, l.project_id, l.style_preset, l.style_color, l.style_fill_opacity, l.style_line_weight, l.style_classification, l.style_legend_label`,
+    [style.preset, style.color, style.fill_opacity, style.line_weight, style.classification, style.legend_label, req.params.layerId, req.params.projectId, req.organizationId],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Layer not found' });
+  res.json({ style: layerStyleFromRow(result.rows[0]), layer_id: result.rows[0].id });
+});
+
 app.get('/api/projects/:projectId/layers', requireIdentity, async (req, res) => {
   const result = await pool.query(
     `SELECT l.id, l.name, l.source_url, l.source_resource, l.source_modified_at, l.source_retrieved_at,
-            l.licence, l.metadata, COUNT(f.id)::int AS feature_count,
+            l.licence, l.metadata, l.style_preset, l.style_color, l.style_fill_opacity, l.style_line_weight,
+            l.style_classification, l.style_legend_label, COUNT(f.id)::int AS feature_count,
             ST_AsGeoJSON(ST_Extent(f.geometry)) AS extent
        FROM project_layers l
        LEFT JOIN project_layer_features f ON f.layer_id = l.id
@@ -2204,7 +2612,7 @@ app.post('/api/layers/:layerId/features/:featureId/edit', requireIdentity, async
             SET properties = $1::jsonb, geometry = CASE WHEN $2::text IS NULL THEN geometry ELSE ST_SetSRID(ST_GeomFromGeoJSON($2),4326) END
           WHERE id = $3 AND layer_id = $4 AND project_id = $5 AND organization_id = $6
           RETURNING id, ST_AsGeoJSON(geometry)::json AS geometry, properties`,
-        [after.properties, edit.geometry === undefined ? null : JSON.stringify(after.geometry), req.params.featureId, req.params.layerId, row.project_id, req.organizationId],
+        [after.properties, edit.geometry === undefined && !edit.geometry_operation ? null : JSON.stringify(after.geometry), req.params.featureId, req.params.layerId, row.project_id, req.organizationId],
       );
       if (!updated.rowCount) throw new Error('Feature update failed');
       await client.query(
@@ -2292,4 +2700,4 @@ if (require.main === module) {
   app.listen(PORT, () => console.log(`Cartogen Phase 1 API listening on http://127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, pool, OPERATION_REGISTRY, normalizeAnalysisOperationInput, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };
+module.exports = { app, pool, OPERATION_REGISTRY, normalizeAnalysisOperationInput, normalizeLayerCrs, diagnoseSpatialCompatibility, assertSpatialCompatibility, inspectSpatialLayers, PLANNER_PROVIDER_MODELS, resolvePlannerModel, plannerProviderStatus, GATEWAY_SYSTEM_PROMPT, buildGatewayMessages, normalizeFeatureCollection, normalizeDigitizingFeature, normalizeGeometryOperation, applyGeometryOperation, normalizeDocumentContext, normalizeIntersectionInput, isSupportedAnalysisOperation, isAllowedScheduledOperation, normalizeWorkflowScheduleRequest, normalizeExportStyle, normalizeLayerStyle, buildServerExportHtml, buildExportSvg, buildTaskPlan, parsePlannerResponse, createTaskPlan, persistAgentRun, approveAgentRun, validateApprovalPlan, normalizeDatasetSearchInput, normalizeFeatureTableQuery, normalizeHdxSearchResponse, normalizeHdxImportRequest, normalizeCsvResource, downloadHdxResource, parseDownloadedHdxResource, executeReviewOutputJob, executeBufferJob, executeIntersectionJob, normalizeFeatureEditRequest, canonicalFeatureState, hashFeatureState, createEditPreviewToken, verifyEditPreviewToken, mergeFeatureState, featureStateDiff, normalizeSlug, normalizeOrganizationCreateRequest, normalizeProjectCreateRequest, resolveOrganizationForUser, issueLiteLlmVirtualKey, setLiteLlmKeyBlocked, readLiteLlmKeyInfo, directusUser, resolveIdentity };

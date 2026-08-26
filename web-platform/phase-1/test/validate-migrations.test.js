@@ -16,7 +16,7 @@ const {
 // This is the concrete, Docker-free proof that the migration set is
 // complete and correctly named/ordered -- no live database required.
 
-test('listMigrationFiles finds all 10 real migrations, correctly named and ordered', () => {
+test('listMigrationFiles finds all 11 real migrations, correctly named and ordered', () => {
   const files = listMigrationFiles();
   const expected = [
     '0001_core_schema.sql',
@@ -29,6 +29,7 @@ test('listMigrationFiles finds all 10 real migrations, correctly named and order
     '0008_workflow_schedules.sql',
     '0009_organizations_billing.sql',
     '0010_seed_demo_data.sql',
+    '0011_layer_styles.sql',
   ];
   assert.deepEqual(files, expected);
   // Sorted lexicographically == numeric order, since every name shares the
