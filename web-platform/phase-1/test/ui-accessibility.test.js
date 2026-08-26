@@ -32,5 +32,6 @@ test('workspace has no horizontal overflow at required viewports', async t => {
     await page.goto(`file://${file.replace(/\\/g, '/')}`, { waitUntil: 'domcontentloaded' });
     const result = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
     assert.ok(result.scrollWidth <= result.innerWidth, `${width}px viewport overflows: ${JSON.stringify(result)}`);
+    assert.equal(await page.locator('.mode-rail .rail-button:visible').count(), 6, `${width}px must expose all workspace modes`);
   }
 });
