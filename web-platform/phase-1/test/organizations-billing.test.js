@@ -290,7 +290,7 @@ test('billing portal requires an owner/admin role, not just membership', async (
 
 test('Stripe webhook: a retried checkout.session.completed does not re-provision a LiteLLM key', async () => {
   const originalFetch = global.fetch;
-  const fresh = freshServerWithEnv({ LITELLM_MASTER_KEY: 'test-master-key' });
+  const fresh = freshServerWithEnv({ LITELLM_MASTER_KEY: 'test-master-key', ALLOW_UNSIGNED_STRIPE_WEBHOOKS: 'true' });
   const originalQuery = fresh.pool.query;
 
   let liteLlmGenerateCalls = 0;
@@ -317,7 +317,7 @@ test('Stripe webhook: a retried checkout.session.completed does not re-provision
   const fakeEvent = {
     id: 'evt_test_1',
     type: 'checkout.session.completed',
-    data: { object: { id: 'cs_test_1', metadata: { organization_id: 'org-1' }, customer: 'cus_1', subscription: 'sub_1' } },
+    data: { object: { id: 'cs_test_1', payment_status: 'paid', metadata: { organization_id: 'org-1' }, customer: 'cus_1', subscription: { id: 'sub_1', status: 'active' } } },
   };
 
   try {
@@ -348,7 +348,7 @@ test('Stripe webhook: a retried checkout.session.completed does not re-provision
 });
 
 test('Stripe webhook: a processing failure returns a non-2xx status instead of a false-positive ack', async () => {
-  const fresh = freshServerWithEnv({ LITELLM_MASTER_KEY: 'test-master-key' });
+  const fresh = freshServerWithEnv({ LITELLM_MASTER_KEY: 'test-master-key', ALLOW_UNSIGNED_STRIPE_WEBHOOKS: 'true' });
   const originalQuery = fresh.pool.query;
 
   const queries = [];
@@ -362,7 +362,7 @@ test('Stripe webhook: a processing failure returns a non-2xx status instead of a
   const fakeEvent = {
     id: 'evt_test_fail',
     type: 'checkout.session.completed',
-    data: { object: { id: 'cs_test_fail', metadata: { organization_id: 'org-1' } } },
+    data: { object: { id: 'cs_test_fail', payment_status: 'paid', metadata: { organization_id: 'org-1' }, subscription: { id: 'sub_fail', status: 'active' } } },
   };
 
   try {
