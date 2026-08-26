@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS project_layers (
   source_retrieved_at timestamptz NOT NULL DEFAULT now(),
   licence text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  style_preset text NOT NULL DEFAULT 'coverage',
+  style_color text NOT NULL DEFAULT '#d96a54',
+  style_fill_opacity numeric NOT NULL DEFAULT 55,
+  style_line_weight numeric NOT NULL DEFAULT 2,
+  style_classification text NOT NULL DEFAULT 'DRAFT · REVIEW REQUIRED',
+  style_legend_label text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -233,7 +239,8 @@ INSERT INTO schema_migrations (version) VALUES
   ('0007_ai_run_approval.sql'),
   ('0008_workflow_schedules.sql'),
   ('0009_organizations_billing.sql'),
-  ('0010_seed_demo_data.sql')
+  ('0010_seed_demo_data.sql'),
+  ('0011_layer_styles.sql')
 ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO organizations (id, name, slug)
