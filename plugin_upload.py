@@ -12,6 +12,34 @@ import sys
 import zipfile
 
 PLUGIN_NAME = "cartogen_ai"
+
+# The single top-level folder inside the release zip -- and therefore the name
+# of the directory QGIS installs the plugin into.
+#
+# This used to be derived from the build directory's own name, via
+#   os.path.relpath(abs_path, os.path.dirname(script_dir))
+# which made the installed plugin folder depend on whatever the checkout
+# happened to be called. Confirmed live: v1.4.3 was built from a scratch
+# directory and shipped with a top-level folder "_tmp_v143_build", so QGIS
+# installed it as a SECOND, separately-named plugin sitting alongside the
+# existing "cartogen-ai" install instead of replacing it. Two copies of the
+# same plugin then load in one session, each inserting its own src/ onto
+# sys.path, and whichever loads first wins the cartogen_ai namespace for both.
+#
+# MUST NOT be "cartogen_ai". The plugins directory is on sys.path, so a folder
+# with that exact name is a REGULAR package (it has __init__.py) that contains
+# no core/ -- it would beat the PEP-420 namespace package under src/ at any
+# sys.path position and produce "No module named 'cartogen_ai.core'". The
+# hyphen is deliberate: it cannot be imported as a top-level Python name, so it
+# cannot shadow anything. See __init__.py's _bootstrap_namespace().
+PACKAGE_DIR = "cartogen-ai"
+
+if PACKAGE_DIR == "cartogen_ai":
+    raise SystemExit(
+        "PACKAGE_DIR must not be 'cartogen_ai': an importable folder of that "
+        "name in the plugins directory shadows the cartogen_ai namespace "
+        "package under src/ and breaks every cartogen_ai.core import."
+    )
 EXCLUDE_DIRS = {
     ".git", ".github", "__pycache__", ".pytest_cache", "tests", ".idea", ".vscode", ".claude",
     "dist", "brain", "scratch",
@@ -30,6 +58,17 @@ EXCLUDE_DIRS = {
     # restructure (see docs/BUG_TRACKER.md BUG-2026-08-21-6). Not part of
     # the published package.
     "_legacy_stubs",
+    # Standalone web-dashboard prototype (Phase 0/1) for the planned
+    # Professional-tier Cloud Connect Gateway -- not part of the QGIS plugin,
+    # same category as service/ above. Confirmed live on 2026-08-26: without
+    # this exclusion the release zip pulled in web-platform/phase-1's
+    # node_modules/ wholesale (2400+ files), ballooning a ~600KB plugin
+    # package to over 10MB with code that can't even run inside QGIS.
+    "web-platform",
+    # Marker directory for files awaiting manual deletion once this sandbox's
+    # FUSE-mount unlink restriction allows it (see docs/BUG_TRACKER.md's
+    # rm/mv finding) -- by definition nothing here belongs in a release.
+    "_to_delete",
 }
 # Directory names excluded ONLY at the plugin root, not wherever they occur --
 # unlike EXCLUDE_DIRS above, these bare names ("agent", "ui") also legitimately
@@ -108,7 +147,9 @@ def package_plugin():
                     continue
 
                 abs_path = os.path.join(root, file)
-                rel_path = os.path.relpath(abs_path, os.path.dirname(script_dir))
+                rel_path = os.path.join(
+                    PACKAGE_DIR, os.path.relpath(abs_path, script_dir)
+                )
                 zipf.write(abs_path, rel_path)
                 print(f"  + Added: {rel_path}")
 
