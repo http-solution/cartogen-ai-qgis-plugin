@@ -4,7 +4,7 @@ import threading
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
-    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox
+    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton
 )
 from qgis.core import QgsSettings
 
@@ -145,6 +145,15 @@ class CartogenAiSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
+        account_row = QHBoxLayout()
+        account_status = QLabel("Hosted Cartogen AI account")
+        self.account_button = QPushButton("Manage account")
+        self.account_button.clicked.connect(self._open_account_dialog)
+        account_row.addWidget(account_status)
+        account_row.addStretch(1)
+        account_row.addWidget(self.account_button)
+        layout.addLayout(account_row)
+
         top_form = QFormLayout()
         self.provider_combo = QComboBox()
         for entry in PROVIDERS:
@@ -268,6 +277,11 @@ class CartogenAiSettingsDialog(QDialog):
 
         self.provider_combo.currentIndexChanged.connect(self.update_fields)
         self.update_fields()
+
+    def _open_account_dialog(self):
+        from .account_dialog import CartogenAccountDialog
+        dialog = CartogenAccountDialog(self)
+        dialog.exec()
 
     def update_fields(self):
         provider = self.provider_combo.currentData()

@@ -144,17 +144,17 @@ def _layer_geometry_kind(layer):
     if not QGIS_AVAILABLE:
         return "unknown"
     try:
-        if layer.type() == QgsMapLayer.RasterLayer:
+        if layer.type() == QgsMapLayer.LayerType.RasterLayer:
             return "raster"
     except Exception:
         pass
     try:
         gt = layer.geometryType()
-        if gt == QgsWkbTypes.PointGeometry:
+        if gt == QgsWkbTypes.GeometryType.PointGeometry:
             return "point"
-        if gt == QgsWkbTypes.LineGeometry:
+        if gt == QgsWkbTypes.GeometryType.LineGeometry:
             return "line"
-        if gt == QgsWkbTypes.PolygonGeometry:
+        if gt == QgsWkbTypes.GeometryType.PolygonGeometry:
             return "polygon"
     except Exception:
         pass
@@ -166,7 +166,7 @@ def _default_opacity_for_geometry(geometry_type):
     them -- default those to a semi-transparent value. Point/line symbols
     stay fully opaque by default; a washed-out marker is harder to read, not
     easier, and they're rarely what's doing the burying."""
-    return 75 if geometry_type == QgsWkbTypes.PolygonGeometry else 100
+    return 75 if geometry_type == QgsWkbTypes.GeometryType.PolygonGeometry else 100
 
 
 def _apply_opacity(layer, opacity):
@@ -412,7 +412,7 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         return {"error": f"Layer '{layer_name}' not found"}
     if field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
-    if layer.geometryType() != QgsWkbTypes.PointGeometry:
+    if layer.geometryType() != QgsWkbTypes.GeometryType.PointGeometry:
         return {"error": "apply_graduated_symbol_style only supports point layers -- use apply_graduated_style for polygon choropleths."}
 
     try:
