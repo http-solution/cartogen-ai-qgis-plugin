@@ -45,7 +45,7 @@ class CartogenAiDockWidget(QDockWidget):
     def __init__(self, agent_provider=None, parent=None):
         super().__init__("Cartogen AI", parent)
         self.setObjectName("CartogenAiDockWidget")
-        self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
+        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
         self._agent_provider = agent_provider
 
         self.init_ui()
@@ -154,7 +154,7 @@ class CartogenAiDockWidget(QDockWidget):
     def open_settings(self):
         from .settings_dialog import CartogenAiSettingsDialog
         dialog = CartogenAiSettingsDialog(self)
-        if dialog.exec_():
+        if dialog.exec():
             self.statusSignal.emit("Settings saved")
             # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
             provider_value = QgsSettings().value("cartogen_ai/provider", "openrouter")

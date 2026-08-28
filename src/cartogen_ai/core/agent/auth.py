@@ -95,6 +95,86 @@ class CredentialManager:
         return False
 
     @staticmethod
+    def save_secure_credential(name: str, secret: str) -> bool:
+        """Persist a credential only through QGIS encrypted auth storage."""
+        return CredentialManager._save_auth_secret(name, secret)
+
+    @staticmethod
+    def save_account_session(session_cookie: str) -> bool:
+        """Persist the Cartogen session cookie only in QGIS encrypted auth storage."""
+        return CredentialManager._save_auth_secret("account_session", session_cookie)
+
+    @staticmethod
+    def get_account_session() -> str:
+        return CredentialManager._get_auth_secret("account_session")
+
+    @staticmethod
+    def clear_account_session() -> None:
+        CredentialManager._delete_auth_secret("account_session")
+
+    @staticmethod
+    def _save_auth_secret(name: str, secret: str) -> bool:
+        if not secret or not secret.strip() or not QGIS_AVAILABLE:
+            return False
+        try:
+            auth_mgr = QgsApplication.authManager()
+            if not auth_mgr or auth_mgr.isDisabled():
+                return False
+            settings = QgsSettings()
+            setting = f"{CredentialManager.AUTH_KEY_PREFIX}{name}"
+            config = QgsAuthMethodConfig("Basic")
+            existing = settings.value(setting, "")
+            if existing:
+                config.setId(existing)
+            config.setName(f"Cartogen AI ({name})")
+            config.setConfig("username", "cartogen-account")
+            config.setConfig("password", secret.strip())
+            save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(auth_mgr, "saveAuthenticationConfig", None)
+            if not save_fn or not save_fn(config):
+                return False
+            settings.setValue(setting, config.id())
+            return True
+        except Exception as e:
+            print(f"[CredentialManager] secure account session save failed: {e}")
+            return False
+
+    @staticmethod
+    def _get_auth_secret(name: str) -> str:
+        if not QGIS_AVAILABLE:
+            return ""
+        try:
+            settings = QgsSettings()
+            auth_id = settings.value(f"{CredentialManager.AUTH_KEY_PREFIX}{name}", "")
+            if not auth_id:
+                return ""
+            auth_mgr = QgsApplication.authManager()
+            if not auth_mgr or auth_mgr.isDisabled():
+                return ""
+            config = QgsAuthMethodConfig()
+            if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
+                return config.config("password") or ""
+        except Exception as e:
+            print(f"[CredentialManager] secure account session load failed: {e}")
+        return ""
+
+    @staticmethod
+    def _delete_auth_secret(name: str) -> None:
+        if not QGIS_AVAILABLE:
+            return
+        try:
+            settings = QgsSettings()
+            setting = f"{CredentialManager.AUTH_KEY_PREFIX}{name}"
+            auth_id = settings.value(setting, "")
+            auth_mgr = QgsApplication.authManager()
+            if auth_id and auth_mgr and not auth_mgr.isDisabled():
+                remove_fn = getattr(auth_mgr, "removeAuthenticationConfig", None)
+                if remove_fn:
+                    remove_fn(auth_id)
+            settings.remove(setting)
+        except Exception as e:
+            print(f"[CredentialManager] secure account session delete failed: {e}")
+
+    @staticmethod
     def get_credential(provider: str) -> str:
         """Retrieves API key from QgsAuthManager or fallback QgsSettings."""
         if not QGIS_AVAILABLE:

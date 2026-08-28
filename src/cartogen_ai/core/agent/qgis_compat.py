@@ -38,3 +38,42 @@ def set_project_custom_property(project, key, value):
             return True
         except Exception:
             return False
+
+
+def enum_member(name, *owners):
+    """Resolve an enum member across the Qt5/Qt6 and QGIS 3/4 spellings.
+
+    Qt6 (QGIS 4.0, released 2026-03-06) requires enum members to be reached
+    through their enum type -- ``Qt.ItemDataRole.UserRole`` rather than
+    ``Qt.UserRole`` -- and the same applies to QGIS's own sip enums. For most
+    of them the scoped spelling also works on PyQt5, so the call sites just
+    use it directly.
+
+    QgsUnitTypes is the exception this helper exists for. Its members were
+    reachable unscoped on QGIS 3 (``QgsUnitTypes.LayoutMillimeters``), while
+    current API docs give the canonical types as ``Qgis.LayoutUnit`` and
+    ``Qgis.DistanceUnit`` -- so neither a bare unscoped attribute nor one
+    fixed scoped spelling is safe to hard-code across both majors.
+
+    Each owner is searched directly, then one level into its nested enum
+    types. The first hit wins. Resolve once at module import, not per call.
+    """
+    for owner in owners:
+        if owner is None:
+            continue
+        found = getattr(owner, name, None)
+        if found is not None:
+            return found
+        for attr in dir(owner):
+            if not attr[:1].isupper():
+                continue
+            nested = getattr(owner, attr, None)
+            if nested is None:
+                continue
+            found = getattr(nested, name, None)
+            if found is not None:
+                return found
+    raise AttributeError(
+        "enum member %r not found on any of: %s"
+        % (name, ", ".join(getattr(o, "__name__", repr(o)) for o in owners if o is not None))
+    )

@@ -228,7 +228,7 @@ class TasksTabWidget(QWidget):
         )
         label = QLabel(html)
         label.setWordWrap(True)
-        label.setTextFormat(Qt.RichText)
+        label.setTextFormat(Qt.TextFormat.RichText)
         return label
 
     def _render_plan(self, plan_data):
@@ -261,7 +261,7 @@ class TasksTabWidget(QWidget):
         self.task_list_widget.clear()
         for task in tasks:
             item = QListWidgetItem()
-            item.setData(Qt.UserRole, task)
+            item.setData(Qt.ItemDataRole.UserRole, task)
             widget = self._build_task_item_widget(task)
             item.setSizeHint(widget.sizeHint())
             self.task_list_widget.addItem(item)
@@ -322,7 +322,7 @@ class TasksTabWidget(QWidget):
             self.cancel_task_btn.setEnabled(False)
             return
 
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         rat = task.get("rationale") or "(No rationale provided for this step)"
         snippet = task.get("code_snippet") or "# No code snippet recorded for this step"
         status = task.get("status")
@@ -373,7 +373,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         pending_tool = task.get("pending_tool")
         pending_args = task.get("pending_args", {})
@@ -398,7 +398,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         if self._agent_provider:
             agent = self._agent_provider()
@@ -414,7 +414,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         desc = task.get("description", "")
         result = task.get("result", "")
@@ -434,7 +434,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         desc = task.get("description", "")
         chat_tab = self._dock.chat_tab_widget

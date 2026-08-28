@@ -33,7 +33,7 @@ class ChatInputEdit(QTextEdit):
     sendRequested = pyqtSignal()
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and not (event.modifiers() & Qt.ShiftModifier):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
             self.sendRequested.emit()
             return
         super().keyPressEvent(event)

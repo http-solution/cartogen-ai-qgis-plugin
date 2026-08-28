@@ -90,8 +90,8 @@ class ToolDispatcher(QObject):
         super().__init__()
         self.agent = agent
         # Connect to slots on the thread where this object was created (main Qt thread).
-        self.request_execution.connect(self._do_execute, Qt.BlockingQueuedConnection)
-        self.request_callable.connect(self._do_execute_callable, Qt.BlockingQueuedConnection)
+        self.request_execution.connect(self._do_execute, Qt.ConnectionType.BlockingQueuedConnection)
+        self.request_callable.connect(self._do_execute_callable, Qt.ConnectionType.BlockingQueuedConnection)
 
     @pyqtSlot(str, object, object)
     def _do_execute(self, name, arguments, result_container):
