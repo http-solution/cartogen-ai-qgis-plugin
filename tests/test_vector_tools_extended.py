@@ -122,7 +122,7 @@ class TestVectorToolsValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_voronoi_polygons_rejects_non_point_layers(self, mock_find, mock_wkb):
-        mock_wkb.PointGeometry = "point-sentinel"
+        mock_wkb.GeometryType.PointGeometry = "point-sentinel"
         fake_layer = MagicMock()
         fake_layer.geometryType.return_value = "not-a-point"
         mock_find.return_value = fake_layer
@@ -136,7 +136,7 @@ class TestVectorToolsValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
     def test_delaunay_triangulation_rejects_non_point_layers(self, mock_find, mock_wkb):
-        mock_wkb.PointGeometry = "point-sentinel"
+        mock_wkb.GeometryType.PointGeometry = "point-sentinel"
         fake_layer = MagicMock()
         fake_layer.geometryType.return_value = "not-a-point"
         mock_find.return_value = fake_layer

@@ -245,7 +245,7 @@ class TestEstimatePopulationExposureValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     def test_rejects_non_polygon_area_layer(self, mock_find, mock_wkb):
-        mock_wkb.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
         raster = MagicMock()
         vector = MagicMock()
         vector.geometryType.return_value = "not-a-polygon"

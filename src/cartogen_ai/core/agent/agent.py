@@ -23,6 +23,17 @@ except ImportError:
     def pyqtSlot(*args, **kwargs):
         return lambda fn: fn
     class Qt:
+        # Mirrors the Qt6 shape the real code now uses. The plugin reaches enum
+        # members through their enum type (Qt.ConnectionType.X) because Qt6
+        # requires it, so this stub has to expose the nested type too -- not
+        # just the flat name -- or every no-QGIS path that builds a
+        # ToolDispatcher raises AttributeError. Caught by the test suite:
+        # 21 tests in test_new_tools.py failed on
+        # "type object 'Qt' has no attribute 'ConnectionType'".
+        # The flat alias is kept so any older call site still resolves.
+        class ConnectionType:
+            BlockingQueuedConnection = 1
+
         BlockingQueuedConnection = 1
     class QThread:
         @staticmethod
