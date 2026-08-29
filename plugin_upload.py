@@ -113,7 +113,12 @@ EXCLUDE_FILES = {
 # importing all 59 modules against real QGIS bindings: 58 OK, this one
 # NameError: name 'test' is not defined. Excluded from the package;
 # delete the file itself when the mount allows it.
-EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py")
+# *.bak-YYYYmmdd-HHMMSS files are backups this workflow writes before an
+# in-place edit. They are the previous version of a shipped module, so
+# packaging them would put two copies of the same file in the plugin --
+# and the stale one would still be importable.
+EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py",
+                         "*.bak", "*.bak-*", "*.orig", "*.rej")
 
 
 def get_plugin_version(script_dir):
