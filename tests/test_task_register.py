@@ -1,0 +1,173 @@
+# -*- coding: utf-8 -*-
+"""Tests for the Humanitarian Mapping Task Register and its matcher."""
+import unittest
+
+from cartogen_ai.core.agent import task_register as reg
+from cartogen_ai.core.agent import task_matcher as tm
+
+
+class TestRegisterIntegrity(unittest.TestCase):
+    def setUp(self):
+        self.data = reg.load()
+
+    def test_register_loads_all_tasks(self):
+        self.assertEqual(len(self.data), 791)
+
+    def test_ids_are_unique(self):
+        ids = [e["id"] for e in self.data]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_every_task_has_a_known_output_contract(self):
+        for e in self.data:
+            self.assertIn(e["out"], reg.OUTPUTS, e["id"])
+
+    def test_every_tool_reference_is_a_real_registered_tool(self):
+        from cartogen_ai.core.agent.tools import TOOL_REGISTRY
+        known = set(TOOL_REGISTRY)
+        for e in self.data:
+            for t in e["tools"]:
+                self.assertIn(t, known, "%s references unknown tool %s" % (e["id"], t))
+
+    def test_layer_and_layout_tasks_can_acquire_data(self):
+        acquire = ("fetch_", "search_", "add_layer_from_path", "load_", "geocode_",
+                   "georeference_image", "extract_features_from_imagery",
+                   "add_point_layer", "add_incident_point")
+        for e in self.data:
+            if e["out"] in ("layer", "layout"):
+                self.assertTrue(
+                    any(t.startswith(acquire) or t in acquire for t in e["tools"]),
+                    "%s (%s) has no way to get data" % (e["id"], e["text"]))
+
+    def test_only_guidance_tasks_may_have_no_tools(self):
+        for e in self.data:
+            if not e["tools"]:
+                self.assertEqual(e["out"], "guidance", e["id"])
+
+    def test_every_slot_has_a_question_and_a_default_policy(self):
+        for e in self.data:
+            for s in e["slots"]:
+                self.assertIn(s, reg.SLOT_QUESTIONS, s)
+                self.assertIn(s, reg.SLOT_DEFAULTS, s)
+
+    def test_by_id_round_trips(self):
+        for e in self.data[:50]:
+            self.assertEqual(reg.by_id(e["id"])["text"], e["text"])
+
+    def test_missing_data_file_degrades_instead_of_raising(self):
+        real = reg._data_path
+        reg._DATA = None
+        reg._data_path = lambda: "/nonexistent/task_register.json"
+        try:
+            self.assertEqual(reg.load(), [])
+        finally:
+            reg._data_path = real
+            reg._DATA = None
+            reg.load()
+
+
+class TestMatching(unittest.TestCase):
+    def test_matches_a_clear_request(self):
+        r = tm.classify("map flooded areas in Sindh after the August floods")
+        self.assertEqual(r["best"]["text"], "Map flooded areas")
+        self.assertFalse(r["ambiguous"])
+
+    def test_empty_query_matches_nothing(self):
+        for q in ("", "   ", None):
+            r = tm.classify(q)
+            self.assertIsNone(r["best"])
+            self.assertFalse(r["ambiguous"])
+
+    def test_greeting_matches_nothing(self):
+        self.assertIsNone(tm.classify("hello")["best"])
+
+    def test_weak_match_is_flagged_ambiguous(self):
+        r = tm.classify("how many people live within 5 km of a health facility")
+        self.assertTrue(r["ambiguous"])
+
+    def test_matches_are_ordered_best_first(self):
+        ms = tm.match("map damaged buildings after the earthquake")
+        self.assertTrue(all(ms[i][1] >= ms[i + 1][1] for i in range(len(ms) - 1)))
+
+    def test_guidance_task_is_reachable(self):
+        r = tm.classify("train our field team in GPS collection")
+        self.assertEqual(r["best"]["out"], "guidance")
+
+
+class TestOutputContract(unittest.TestCase):
+    def test_explicit_dashboard_overrides_the_task_default(self):
+        q = "make a dashboard of displacement over time"
+        e = tm.classify(q)["best"]
+        c = tm.output_contract(e, q)
+        self.assertEqual(c["kind"], "dashboard")
+        self.assertTrue(c["overridden"])
+        self.assertIn("generate_html_dashboard", c["render"])
+
+    def test_no_override_keeps_the_task_default(self):
+        q = "map flooded areas in Sindh"
+        e = tm.classify(q)["best"]
+        c = tm.output_contract(e, q)
+        self.assertEqual(c["kind"], e["out"])
+        self.assertFalse(c["overridden"])
+
+    def test_export_request_becomes_a_dataset(self):
+        q = "export the camp boundaries as geopackage"
+        e = tm.classify(q)["best"]
+        self.assertEqual(tm.output_contract(e, q)["kind"], "dataset")
+
+    def test_contract_is_none_without_a_task(self):
+        self.assertIsNone(tm.output_contract(None, "anything"))
+
+
+class TestSlots(unittest.TestCase):
+    def setUp(self):
+        self.q = "map flood hazard"
+        self.e = tm.classify(self.q)["best"]
+
+    def test_hazard_named_in_query_is_not_asked_for(self):
+        self.assertNotIn("hazard_type", tm.missing_slots(self.e, self.q))
+
+    def test_qgis_context_suppresses_the_question(self):
+        self.assertEqual(tm.missing_slots(self.e, self.q, {"aoi": "canvas extent"}), [])
+
+    def test_detail_in_the_query_suppresses_the_question(self):
+        q = "map flood hazard in Sindh district using sentinel imagery from 2026 within 10 km"
+        self.assertEqual(tm.missing_slots(tm.classify(q)["best"], q), [])
+
+    def test_one_question_covers_every_missing_slot(self):
+        miss = tm.missing_slots(self.e, self.q)
+        text = tm.clarify_question(self.e, miss)
+        for s in miss:
+            self.assertIn(reg.SLOT_QUESTIONS[s], text)
+
+    def test_defaults_are_stated_in_the_question(self):
+        miss = tm.missing_slots(self.e, self.q)
+        self.assertIn("current canvas extent", tm.clarify_question(self.e, miss))
+
+    def test_consequential_slots_have_no_silent_default(self):
+        # guessing a hazard type or sector produces confidently wrong output
+        for s in ("hazard_type", "sector", "facility_type"):
+            self.assertEqual(tm.defaults([s]), {})
+            self.assertEqual(tm.unresolvable([s]), [s])
+
+    def test_no_question_when_nothing_is_missing(self):
+        self.assertEqual(tm.clarify_question(self.e, []), "")
+
+
+class TestDirective(unittest.TestCase):
+    def test_directive_stays_within_the_prompt_budget(self):
+        for e in reg.load():
+            d = tm.task_directive(e, {"aoi": "current canvas extent"})
+            self.assertLess(len(d), 500, "%s directive too long" % e["id"])
+
+    def test_directive_names_the_task_and_the_deliverable(self):
+        e = reg.by_id("14.01")
+        d = tm.task_directive(e)
+        self.assertIn("14.01", d)
+        self.assertIn("Deliver:", d)
+
+    def test_no_task_gives_no_directive(self):
+        self.assertEqual(tm.task_directive(None), "")
+
+
+if __name__ == "__main__":
+    unittest.main()

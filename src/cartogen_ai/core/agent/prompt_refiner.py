@@ -187,3 +187,94 @@ def refine(query: str, profile: str, client, max_tokens: int = _DEFAULT_REFINEME
         return {"error": "invalid refinement response"}
 
     return parsed
+
+
+# --------------------------------------------------------------------------
+# Task-register integration (Humanitarian Mapping Task Register, 791 tasks).
+#
+# Added alongside refine() rather than inside it: refine() is exercised by an
+# existing test suite and by dock_widget.send_message, and its contract must
+# not change. analyze_request() is the new entry point; callers that do not
+# use it see no behavioural difference at all.
+#
+# Stage 1 is local (task_matcher, no API call). Stage 2 -- the disambiguation
+# call -- is only worth making when stage 1 reports ambiguous, and remains the
+# caller's decision, because only the caller knows whether a client is
+# available and whether the user has refinement switched on.
+# --------------------------------------------------------------------------
+
+def analyze_request(query, context=None):
+    """Local, offline analysis of a request against the task register.
+
+    Returns, and never raises:
+        {
+          "task":       entry | None,      matched register task
+          "score":      float,
+          "ambiguous":  bool,              True -> a stage-2 call is worthwhile
+          "missing":    [slot, ...],       still unanswered
+          "unresolved": [slot, ...],       missing AND unsafe to default
+          "defaults":   {slot: value},     what would be assumed
+          "question":   str,               the single consolidated ask ("" if none)
+          "directive":  str,               inject into the prompt
+          "contract":   {...} | None,      what to do with the response
+        }
+
+    `context` is whatever the host already knows, e.g. what QGIS can answer
+    without asking: {"aoi": "current canvas extent", "admin_level": "admin2"}.
+    """
+    try:
+        from . import task_matcher as tmatch
+    except Exception as e:  # pragma: no cover - diagnostic path
+        print("[PromptRefiner] task register unavailable: %s" % e)
+        return {"task": None, "score": 0.0, "ambiguous": False, "missing": [],
+                "unresolved": [], "defaults": {}, "question": "",
+                "directive": "", "contract": None}
+
+    try:
+        verdict = tmatch.classify(query)
+        entry = verdict["best"]
+        missing = tmatch.missing_slots(entry, query, context)
+        return {
+            "task":       entry,
+            "score":      verdict["score"],
+            "ambiguous":  verdict["ambiguous"],
+            "missing":    missing,
+            "unresolved": tmatch.unresolvable(missing),
+            "defaults":   tmatch.defaults(missing),
+            "question":   tmatch.clarify_question(entry, missing),
+            "directive":  tmatch.task_directive(entry, tmatch.defaults(missing), query),
+            "contract":   tmatch.output_contract(entry, query),
+        }
+    except Exception as e:  # pragma: no cover - never break the send path
+        print("[PromptRefiner] analyze_request failed: %s" % e)
+        return {"task": None, "score": 0.0, "ambiguous": False, "missing": [],
+                "unresolved": [], "defaults": {}, "question": "",
+                "directive": "", "contract": None}
+
+
+def build_disambiguation_messages(query, candidates):
+    """Stage 2: only for when analyze_request() reported ambiguous.
+
+    Sends just the shortlisted task ids and labels -- never the register, which
+    is ~40 KB and would dwarf every other prompt this plugin sends.
+    """
+    listing = "; ".join("%s = %s" % (e["id"], e["text"]) for e, _ in candidates[:5])
+    system = (
+        "Pick which task the user means. Candidates: " + listing + ". "
+        'Respond as JSON only: {"task_id": "..."} using exactly one of the ids above, '
+        'or {"task_id": null} if none fit.'
+    )
+    return [{"role": "system", "content": system},
+            {"role": "user", "content": query}]
+
+
+def parse_disambiguation_response(raw_content):
+    """Task id from a stage-2 response, or None. Never raises."""
+    try:
+        data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    tid = data.get("task_id")
+    return tid if isinstance(tid, str) and tid else None
