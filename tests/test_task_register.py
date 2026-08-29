@@ -171,3 +171,55 @@ class TestDirective(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSlotContextFromTheOpenProject(unittest.TestCase):
+    """QGIS already knows some of what the register would otherwise ask for."""
+
+    def test_a_project_with_layers_answers_the_area_question(self):
+        ctx = tm.slot_context_from_map({"layers": [{"name": "admin2"}],
+                                        "active_layer": "admin2"})
+        self.assertIn("aoi", ctx)
+        self.assertIn("admin2", ctx["aoi"])
+
+    def test_an_empty_project_answers_nothing(self):
+        self.assertEqual(tm.slot_context_from_map({"layers": []}), {})
+        self.assertEqual(tm.slot_context_from_map({}), {})
+
+    def test_a_non_dict_never_raises(self):
+        self.assertEqual(tm.slot_context_from_map(None), {})
+        self.assertEqual(tm.slot_context_from_map("layers"), {})
+
+    def test_the_string_none_active_layer_is_not_reported_as_a_layer_name(self):
+        ctx = tm.slot_context_from_map({"layers": [{"name": "x"}], "active_layer": "None"})
+        self.assertNotIn("None", ctx["aoi"])
+
+
+class TestSlotsAreAnswerable(unittest.TestCase):
+    def setUp(self):
+        self.data = reg.load()
+
+    def test_a_statistical_distribution_never_asks_which_facility(self):
+        """'Map population distribution' asked "which facility or service
+        type?" -- an unanswerable question, because the word `distribution`
+        matched the distribution-POINT vocabulary. A distribution point is
+        still a facility, so the two senses have to stay separated."""
+        for tid in ("3.01", "3.18", "7.14", "7.20", "25b.05"):
+            e = reg.by_id(tid)
+            self.assertIsNotNone(e, tid)
+            self.assertNotIn("facility_type", e["slots"], "%s: %s" % (tid, e["text"]))
+
+    def test_a_real_distribution_point_task_still_asks(self):
+        e = reg.by_id("24.05")
+        self.assertIsNotNone(e)
+        self.assertIn("facility_type", e["slots"], e["text"])
+
+    def test_most_requests_are_not_blocked_once_a_project_is_open(self):
+        """The gate exists to catch the genuinely unanswerable, not to
+        interrogate. With a project open, a request phrased as the task's own
+        title should get through unblocked in the large majority of cases."""
+        ctx = {"aoi": "the current canvas extent"}
+        blocked = sum(1 for e in self.data
+                      if tm.unresolvable(tm.missing_slots(e, e["text"], ctx)))
+        self.assertLess(blocked, len(self.data) * 0.15,
+                        "%d of %d tasks would stop and ask" % (blocked, len(self.data)))

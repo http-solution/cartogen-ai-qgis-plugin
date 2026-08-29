@@ -1,0 +1,116 @@
+# -*- coding: utf-8 -*-
+"""Make the answer come back in the shape the task promised.
+
+task_matcher.output_contract() says what a request should turn into -- a
+styled layer, a print layout, an HTML dashboard, a CSV, a written report.
+Saying it is not the same as getting it: a model handed a dashboard task will
+quite happily add three layers, describe them, and stop, because from its side
+the question has been answered. The user is then told they will get an HTML
+file and gets chat prose instead. That gap is what this module closes.
+
+The approach is deliberately not "call the renderer ourselves". The renderers
+need arguments -- which layer, which field, which output path -- that only the
+model, holding the conversation, knows. Guessing them would produce a
+confidently wrong artifact, which in humanitarian work is worse than none.
+
+So instead: after a turn finishes, compare the contract against the tools that
+actually ran. If the renderer never ran, send ONE follow-up turn naming
+exactly what is still owed. The model has the full context by then and calls
+the renderer with real arguments. If it still does not, we stop -- one
+follow-up, never a loop.
+
+Everything here is pure: it takes a contract and a list of tool names, and
+returns strings and booleans. No QGIS, no Qt, no network -- so all of it is
+unit tested for real rather than mocked.
+"""
+
+from . import file_io
+
+# A contract with no renderer is satisfied the moment the turn ends: guidance
+# is prose, and a layer contract is satisfied by the layers themselves.
+_NO_RENDER = ("guidance",)
+
+# One follow-up per turn. This is the whole loop guard: the caller records that
+# a follow-up was issued and passes already_retried=True the second time.
+MAX_FOLLOWUPS = 1
+
+
+def required_renderers(contract):
+    """The tools that would satisfy this contract. Any one of them is enough."""
+    if not contract:
+        return []
+    return list(contract.get("render") or [])
+
+
+def satisfied(contract, executed_tools):
+    """True when the turn already produced what the contract promised."""
+    if not contract:
+        return True
+    if contract.get("kind") in _NO_RENDER:
+        return True
+    needed = required_renderers(contract)
+    if not needed:
+        return True
+    ran = set(executed_tools or [])
+    if contract.get("kind") == "layer":
+        # A layer contract is met by anything that puts a layer on the canvas,
+        # not only by the two styling tools in `render` -- styling an
+        # unstyleable layer is not a failure to deliver.
+        return any(t.startswith(("add_layer", "fetch_", "load_", "geocode_",
+                                 "interpolate_", "buffer_", "clip_", "merge_",
+                                 "intersect_", "union_", "dissolve_", "spatial_join",
+                                 "extract_features_from_imagery", "georeference_image"))
+                   or t in needed for t in ran)
+    return any(t in ran for t in needed)
+
+
+def followup_instruction(contract, executed_tools, already_retried=False):
+    """The one extra turn to send, or None when nothing is owed.
+
+    Returns a plain instruction, not a scolding: it names the deliverable, the
+    tool that produces it, and the file type the user was promised.
+    """
+    if already_retried or satisfied(contract, executed_tools):
+        return None
+    kind = contract.get("kind")
+    needed = required_renderers(contract)
+    if not needed:
+        return None
+    writer = file_io.writer_for(kind) or needed[0]
+    artifact = file_io.artifact_sentence(kind)
+    return (
+        "The deliverable for this task is %s, and it has not been produced yet. "
+        "Using the layers and results already in the project from the previous "
+        "step, call %s now to produce it. Do not redo the analysis, and do not "
+        "answer in prose instead -- if a required argument is genuinely missing, "
+        "say which one and stop." % (artifact, writer)
+    )
+
+
+def delivery_note(contract, executed_tools):
+    """One line for the chat log saying what the user actually ended up with.
+
+    Honest in both directions: it says 'not produced' when it was not, rather
+    than describing the intended artifact as though it exists.
+    """
+    if not contract:
+        return ""
+    kind = contract.get("kind")
+    artifact = file_io.artifact_sentence(kind)
+    if kind in _NO_RENDER:
+        return "Delivered: %s." % artifact
+    if satisfied(contract, executed_tools):
+        return "Delivered: %s." % artifact
+    return ("Expected %s for this task, but the step that writes it did not run."
+            % artifact)
+
+
+def describe_contract(contract):
+    """What the user is told BEFORE the call, alongside the prompt preview."""
+    if not contract:
+        return ""
+    kind = contract.get("kind")
+    line = "Output: %s -- %s." % (kind, file_io.artifact_sentence(kind))
+    if contract.get("overridden"):
+        line += " (You asked for this explicitly; it overrides the task default.)"
+    return line

@@ -78,7 +78,14 @@ EXCLUDE_DIRS = {
 # match by bare name at every depth and silently drop the real code from the
 # release zip. These two are leftover "MOVED" stub directories at the plugin
 # root only (can't be deleted -- see their own file contents for why).
-EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui"}
+# tools/ at the repo ROOT holds build-time dev scripts (tools/derive_task_io.py
+# regenerates the task register's derived fields); it has no caller inside an
+# installed plugin. It MUST be root-only, not an EXCLUDE_DIRS entry: there is a
+# real src/cartogen_ai/core/agent/tools/ package holding every registered tool,
+# and a bare-name exclusion drops all 19 of those modules from the release zip,
+# shipping a plugin whose agent has nothing to call. Verified: adding "tools" to
+# EXCLUDE_DIRS took the zip from 63 source files to 44.
+EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
 EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
 # plugin and shouldn't ship in the release package.

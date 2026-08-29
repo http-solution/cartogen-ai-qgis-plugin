@@ -20,6 +20,10 @@ class TestAgentRunner(unittest.TestCase):
         self.assertIn("Damascus", prompt)
         self.assertIn("AGENTIC TASK & MEMORY RULES", prompt)
 
+    def test_system_prompt_includes_compact_registered_task_context(self):
+        prompt = build_system_prompt(map_context={"task_directive": "Recognised task 01.01. Deliver: an HTML dashboard."})
+        self.assertIn("REGISTERED TASK CONTEXT", prompt)
+        self.assertIn("Recognised task 01.01", prompt)
 
 class _FakeClient:
     """Returns one tool call, then a final answer -- just enough to exercise
