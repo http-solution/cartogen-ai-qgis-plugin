@@ -105,7 +105,7 @@ class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_rejects_non_point_layers(self, mock_find, mock_wkb):
-        mock_wkb.PointGeometry = "point-geometry-sentinel"
+        mock_wkb.GeometryType.PointGeometry = "point-geometry-sentinel"
         fake_field = MagicMock()
         fake_field.name.return_value = "field"
         fake_layer = MagicMock()
@@ -163,12 +163,12 @@ class TestApplyOpacity(unittest.TestCase):
 class TestDefaultOpacityForGeometry(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     def test_polygons_default_semi_transparent(self, mock_wkb):
-        mock_wkb.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
         self.assertEqual(_default_opacity_for_geometry("polygon-sentinel"), 75)
 
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     def test_points_and_lines_stay_fully_opaque(self, mock_wkb):
-        mock_wkb.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
         self.assertEqual(_default_opacity_for_geometry("point-sentinel"), 100)
 
 

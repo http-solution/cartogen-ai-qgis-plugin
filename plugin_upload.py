@@ -106,7 +106,14 @@ EXCLUDE_FILES = {
 # because EXCLUDE_FILES only does exact matches and neither of these was ever
 # expected to exist at build time. The packaging step must defend against this
 # itself -- it can't assume the working tree is always clean when it runs.
-EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*")
+# _delete_probe.py is a 5-byte scratch file containing the literal word
+# "test" -- left over from probing this sandbox's FUSE unlink restriction.
+# Nothing imports it and it is not valid Python, so it fails any
+# import-everything sweep (including pyqgis4-checker on upload). Caught by
+# importing all 59 modules against real QGIS bindings: 58 OK, this one
+# NameError: name 'test' is not defined. Excluded from the package;
+# delete the file itself when the mount allows it.
+EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py")
 
 
 def get_plugin_version(script_dir):
