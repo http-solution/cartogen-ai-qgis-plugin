@@ -13,7 +13,7 @@ from ..agent.chat_persistence import PERSIST_SETTING_KEY
 from ..agent.model_selector import AUTO_SENTINEL
 from ..agent.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
-    PROMPT_REFINEMENT_ENABLED_KEY, USER_PROFILE_KEY,
+    PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
 )
 from ..agent.providers.openrouter import list_models as _list_openrouter
 from ..agent.providers.gemini import list_models as _list_gemini
@@ -250,6 +250,23 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.prompt_refinement_checkbox)
 
+        # Default ON, unlike the checkbox above: this one costs nothing (it
+        # renders text that has already been composed locally) and exists so
+        # that the register's enrichment -- assumed defaults, attachment
+        # handling, the task directive added to the system prompt -- is never
+        # applied to a message without the user seeing it first.
+        self.prompt_preview_checkbox = QCheckBox("Show the prompt and reasoning before sending")
+        self.prompt_preview_checkbox.setChecked(
+            bool(self.settings.value(PROMPT_PREVIEW_ENABLED_KEY, True, type=bool))
+        )
+        self.prompt_preview_checkbox.setToolTip(
+            "When on, a message that matches a task in the Humanitarian Mapping Task Register "
+            "shows the exact text that will be sent -- including any values assumed on your "
+            "behalf and what each attached file will be read as -- with the reasoning behind "
+            "it, before anything reaches the API. No extra API call. On by default."
+        )
+        layout.addWidget(self.prompt_preview_checkbox)
+
         profile_form = QFormLayout()
         self.user_profile_combo = QComboBox()
         for value, label in PROFILE_LABELS.items():
@@ -347,6 +364,7 @@ class CartogenAiSettingsDialog(QDialog):
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
+        self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
         fallback_providers = []

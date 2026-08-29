@@ -232,3 +232,6 @@ cython_debug/
 # It is runtime state, not source -- 917KB of SQLite that has no business in the
 # plugin repo. Ignored rather than deleted so a live QGIS session doesn't trip.
 symbology-style.db
+
+# Quarantine for files the sandboxed mount cannot unlink (see CONTRIBUTING.md)
+_to_delete/

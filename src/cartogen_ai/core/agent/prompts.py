@@ -303,6 +303,10 @@ def _format_map_context(map_context: dict) -> str:
     else:
         lines.append("- No layers currently loaded.")
 
+    if map_context.get("task_directive"):
+        lines.append("## REGISTERED TASK CONTEXT")
+        lines.append(map_context["task_directive"])
+
     return "\n".join(lines)
 
 

@@ -12,6 +12,7 @@ Nothing here raises. A failure to match is a normal outcome, reported as an
 empty match list, and the caller falls through to today's unmodified
 behaviour.
 """
+import os
 import re
 
 from . import task_register as reg
@@ -221,8 +222,16 @@ def task_directive(entry, filled=None, query=None):
         "Deliver: %s." % reg.OUTPUT_INTENT.get(output_override(query) or entry["out"],
                                               entry["out"]),
     ]
-    if entry.get("tools"):
-        parts.append("Prefer these tools, in order: %s." % ", ".join(entry["tools"]))
+    tools = list(entry.get("tools") or [])
+    # When the user overrides the output ("...as a dashboard"), the task's own
+    # chain ends in the wrong renderer. Append the one the requested output
+    # actually needs, or the model is told to deliver an HTML dashboard while
+    # being handed a chain that ends in zoom_to_layer.
+    for t in (output_contract(entry, query) or {}).get("render", []):
+        if t not in tools:
+            tools.append(t)
+    if tools:
+        parts.append("Prefer these tools, in order: %s." % ", ".join(tools))
     if filled:
         parts.append("Given: " + "; ".join("%s = %s" % (k, v) for k, v in filled.items()) + ".")
     return " ".join(parts)
@@ -255,3 +264,121 @@ def output_contract(entry, query=None):
         "render": [t for t in RENDER.get(kind, []) if t in entry.get("tools", [])]
                   or RENDER.get(kind, []),
     }
+
+
+# ------------------------------------------------------- files in and out --
+
+def attachment_plan(entry, attachments):
+    """What will be done with each attached file, and whether it fits the task.
+
+    Returns [{"path", "name", "kind", "tool", "line", "accepted"}]. `accepted`
+    is False when the task does not list that media kind -- the file is still
+    described and still sent, but the caller can say so rather than silently
+    ignoring it.
+    """
+    from . import file_io
+
+    out = []
+    acc = set((entry or {}).get("acc", []) or [])
+    for path in attachments or []:
+        kind = file_io.classify(path)
+        line = file_io.describe_attachment(path, (entry or {}).get("text", ""))
+        out.append({
+            "path": path,
+            "name": os.path.basename(path or ""),
+            "kind": kind,
+            "tool": file_io.reader_for(kind, (entry or {}).get("text", "")) if kind else None,
+            "line": line or "%s -- unrecognised file type, sent as plain text"
+                            % os.path.basename(path or ""),
+            "accepted": bool(kind) and (not acc or kind in acc),
+        })
+    return out
+
+
+def compose_user_message(query, filled=None, plan=None):
+    """The exact text that will be sent as the user turn.
+
+    The original wording is never rewritten -- it leads, verbatim. What is
+    appended is only the facts the model would otherwise have to guess at:
+    the slot values that were resolved on its behalf, and what each attached
+    file is. Nothing here restates the system prompt.
+    """
+    parts = [(query or "").strip()]
+    if filled:
+        parts.append("Given: " + "; ".join("%s = %s" % (k, v)
+                                           for k, v in sorted(filled.items())) + ".")
+    if plan:
+        lines = ["Attached files:"]
+        for p in plan:
+            lines.append("- " + p["line"])
+        parts.append("\n".join(lines))
+    return "\n\n".join(p for p in parts if p)
+
+
+def expected_output(entry, query=None):
+    """One sentence naming the artifact the user should end up with."""
+    from . import file_io
+
+    if not entry:
+        return ""
+    kind = output_override(query) or entry["out"]
+    return file_io.artifact_sentence(kind, entry.get("tools", []))
+
+
+def reasoning(entry, score, filled, plan, query=None):
+    """Why this request is being sent the way it is -- shown to the user.
+
+    Every line is a statement about a decision that was actually made, in the
+    order it was made. No line is decorative: if there were no attachments,
+    there is no attachment line.
+    """
+    if not entry:
+        return ["No register task matched -- sending the request unchanged."]
+    lines = [
+        "Matched task %s in section %s (%s), confidence %.2f."
+        % (entry["id"], entry["cat"], entry["cname"], score),
+    ]
+    over = output_override(query)
+    if over and over != entry["out"]:
+        lines.append("You asked for a %s, so that overrides the task's usual %s output."
+                     % (over, entry["out"]))
+    lines.append("Deliverable: %s." % expected_output(entry, query))
+    if filled:
+        lines.append("Assumed, because you did not specify: "
+                     + "; ".join("%s = %s" % (k, v) for k, v in sorted(filled.items())) + ".")
+    for p in plan or []:
+        if p["accepted"]:
+            lines.append("Attachment %s will be read as %s." % (p["name"], p["kind"]))
+        else:
+            lines.append("Attachment %s is not a file type this task uses -- "
+                         "it will be passed as plain text." % p["name"])
+    if entry.get("tools"):
+        lines.append("Tool order suggested to the model: %s." % ", ".join(entry["tools"]))
+    return lines
+
+
+def slot_context_from_map(map_context):
+    """Slot values QGIS can answer without asking the user.
+
+    The register's slots are questions; some of them the host already knows
+    the answer to, and asking anyway is the difference between a plugin that
+    helps and one that interrogates. Only facts that are actually true of the
+    open project are returned -- nothing is invented to suppress a question.
+
+    Today that is the area of interest: if the project has layers, there is an
+    extent and an active layer, and 'the area you are looking at' is a real
+    answer to "which area?". It is still stated back to the user in the prompt
+    preview, so a wrong assumption is visible before anything is sent.
+    """
+    ctx = {}
+    if not isinstance(map_context, dict):
+        return ctx
+    layers = map_context.get("layers") or []
+    if layers:
+        active = map_context.get("active_layer")
+        # map_context reports the string "None" when nothing is active.
+        if active and active != "None":
+            ctx["aoi"] = "the current canvas extent (active layer: %s)" % active
+        else:
+            ctx["aoi"] = "the current canvas extent"
+    return ctx

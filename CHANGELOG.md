@@ -2,6 +2,46 @@
 
 ## [1.4.4] — sector-guided mapping experience
 
+### Humanitarian Mapping Task Register, wired end to end
+
+The register (791 tasks across 35 sections) now drives the chat send path
+instead of sitting beside it.
+
+- **Every task declares what it takes in and what it puts out.** New
+  `agent/file_io.py` models the media kinds the plugin can actually ingest --
+  picture, PDF, TXT, Word, spreadsheet, vector, raster, QGIS project -- each
+  with a real registered tool behind it, and the artifact each output contract
+  leaves on disk (`.pdf`/`.png` for a layout, `.html` for a dashboard, `.csv`
+  for an analysis, `.gpkg` for an export). Both fields are derived for all 791
+  tasks by `tools/derive_task_io.py`; `tests/test_file_io.py` re-runs the
+  derivation and fails if the committed register has drifted from it.
+- **Attachments join the task.** A file attached in chat is classified, routed
+  to the tool that can read it (a 3W spreadsheet to `load_3w_data`, a damage
+  photo to `extract_features_from_imagery`, a sitrep to `extract_pdf_tables`),
+  and carried into the next message rather than analysed as a side errand.
+- **The prompt is shown before it is sent.** A new preview panel (on by
+  default, Settings ▸ *Show the prompt and reasoning before sending*) displays
+  the literal text that will be sent -- the user turn, plus the addendum added
+  to the system prompt -- together with the reasoning: which task matched and
+  how confidently, what will be delivered, which values were assumed, and what
+  each attached file will be read as. No extra API call; it renders text that
+  has already been composed locally.
+- **Only genuinely unanswerable gaps interrupt.** Slots QGIS can answer (area
+  of interest, from the open project) are answered; slots with a safe default
+  are filled and stated in the preview; only hazard type, facility type and
+  sector -- where a guess produces confidently wrong humanitarian output --
+  stop and ask. That is ~10% of tasks rather than ~89%.
+- **The answer is checked against the contract.** New `agent/output_router.py`
+  compares the tools that actually ran against what the task promised. A
+  dashboard task that ended in prose gets exactly one follow-up turn naming
+  the missing renderer; the reason is written into the chat, and if it is still
+  not produced the chat says so rather than describing an artifact that does
+  not exist.
+- Fixed five tasks that asked "which facility or service type?" about a
+  statistical distribution (*Map population distribution*, *Map age and sex
+  distribution*, and three others) because `distribution` also names a
+  distribution point. Real distribution-point tasks keep the slot.
+
 - Added sector-aware prompt guidance for humanitarian aid, engineering, urban planning, logistics, agriculture, environment, public health, disaster risk, utilities, transport, public safety, research, real estate, and defense/intelligence profiles.
 - Priority rollout documented: humanitarian aid, engineering, urban planning, then logistics.
 - Verified against the Community and private prompt-refiner suites.

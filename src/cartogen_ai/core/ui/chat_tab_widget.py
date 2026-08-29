@@ -46,6 +46,18 @@ class ChatTabWidget(QWidget):
         self._active_highlights = []  # keeps QgsHighlight objects alive until their timer fires
         self._active_task = None  # the running QgsTask, if any -- lets _stop_current_task cancel it
         self._pending_refinement_text = None  # original text while the refinement panel is shown
+        self._pending_analysis_text = None
+        self._pending_analysis = None
+        # Files the user attached since the last send. attach_file() still
+        # analyses each one immediately (unchanged); this list is what lets the
+        # NEXT message know those files exist, so a sitrep PDF or a damage
+        # photo becomes part of the task rather than a separate side errand.
+        self._attached_paths = []
+        # Tool names that ran during the turn in flight -- the evidence
+        # agent/output_router.py checks the output contract against.
+        self._executed_tools = []
+        self._pending_contract = None
+        self._contract_followup_used = False
 
         from ..agent.deps import get_dependency_warning_message
         self._dep_warning = get_dependency_warning_message()
@@ -150,6 +162,54 @@ class ChatTabWidget(QWidget):
         refinement_layout.addWidget(send_as_typed_btn)
 
         chat_layout.addWidget(self.refinement_panel)
+
+        # Local task-register requirement gate. This is deliberately separate
+        # from prompt refinement: it asks only for slots the matched task needs.
+        self.requirement_panel = QGroupBox()
+        self.requirement_panel.setVisible(False)
+        requirement_layout = QVBoxLayout(self.requirement_panel)
+        self.requirement_question = QLabel()
+        self.requirement_question.setWordWrap(True)
+        requirement_layout.addWidget(self.requirement_question)
+        requirement_buttons = QHBoxLayout()
+        self.requirement_continue_btn = QPushButton("Proceed with stated defaults")
+        self.requirement_continue_btn.clicked.connect(self._proceed_with_analysis_defaults)
+        self.requirement_edit_btn = QPushButton("Edit request")
+        self.requirement_edit_btn.clicked.connect(self._edit_analysis_request)
+        requirement_buttons.addWidget(self.requirement_continue_btn)
+        requirement_buttons.addWidget(self.requirement_edit_btn)
+        requirement_layout.addLayout(requirement_buttons)
+        chat_layout.addWidget(self.requirement_panel)
+
+        # Prompt preview. The user asked to be shown the prompt that will be
+        # sent, as reasoning, before it is sent -- so this shows the literal
+        # text (agent/prompt_refiner.compose_optimum_prompt returns both halves
+        # verbatim), not a paraphrase of it. Nothing is sent while this panel
+        # is open.
+        self.preview_panel = QGroupBox("Prompt that will be sent")
+        self.preview_panel.setVisible(False)
+        preview_layout = QVBoxLayout(self.preview_panel)
+        self.preview_reasoning = QLabel()
+        self.preview_reasoning.setWordWrap(True)
+        self.preview_reasoning.setTextFormat(Qt.TextFormat.RichText)
+        preview_layout.addWidget(self.preview_reasoning)
+        self.preview_prompt = QTextEdit()
+        self.preview_prompt.setReadOnly(True)
+        self.preview_prompt.setFixedHeight(120)
+        preview_layout.addWidget(self.preview_prompt)
+        preview_buttons = QHBoxLayout()
+        self.preview_send_btn = QPushButton("Send this")
+        self.preview_send_btn.setObjectName("successButton")
+        self.preview_send_btn.clicked.connect(self._send_previewed_prompt)
+        self.preview_original_btn = QPushButton("Send my wording only")
+        self.preview_original_btn.clicked.connect(self._send_preview_original)
+        self.preview_cancel_btn = QPushButton("Cancel")
+        self.preview_cancel_btn.clicked.connect(self._cancel_preview)
+        preview_buttons.addWidget(self.preview_send_btn)
+        preview_buttons.addWidget(self.preview_original_btn)
+        preview_buttons.addWidget(self.preview_cancel_btn)
+        preview_layout.addLayout(preview_buttons)
+        chat_layout.addWidget(self.preview_panel)
 
         # Input Area
         input_layout = QHBoxLayout()
@@ -279,6 +339,11 @@ class ChatTabWidget(QWidget):
         _add_message -- a turn with many tool calls shouldn't visually
         compete with the actual conversation."""
         colors = theme_colors()
+        # Also the record agent/output_router.py checks the output contract
+        # against. Only completed steps count -- a tool that started and failed
+        # did not produce the deliverable.
+        if name and status and status.lower() in ("done", "ok", "finished", "completed", "success"):
+            self._executed_tools.append(name)
         self.chat_browser.append(render_tool_step_html(name, status, error or None, colors))
 
     def send_message(self):
@@ -294,8 +359,42 @@ class ChatTabWidget(QWidget):
         # its _pending_refinement_text would linger orphaned.
         if self.refinement_panel.isVisible():
             self._hide_refinement_panel()
+        if self.requirement_panel.isVisible():
+            self._hide_requirement_panel()
+        if self.preview_panel.isVisible():
+            self._cancel_preview()
 
-        from ..agent.prompt_refiner import should_refine, is_refinement_enabled
+        from ..agent.prompt_refiner import (
+            analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
+        )
+        try:
+            from ..agent.map_context import get_map_context_summary
+            request_context = get_map_context_summary()
+        except Exception:
+            request_context = {}
+        analysis = analyze_request(text, request_context, self._attached_paths)
+
+        # Order matters. A genuinely unanswerable gap is asked about FIRST:
+        # previewing a prompt that is about to guess the hazard type would be
+        # showing the user a decision instead of asking them for it.
+        #
+        # Only `blocking` stops the send, not every missing slot. A slot with a
+        # safe default (area of interest, admin level, period) is filled in and
+        # STATED in the preview below, where the user can see and correct it --
+        # that is the register's "ask once, then default" policy. Stopping for
+        # every missing slot would interrupt roughly nine messages in ten, and
+        # a prompt that interrupts constantly gets clicked through unread,
+        # which defeats the disclosure it exists for.
+        if analysis.get("blocking"):
+            self._show_requirement_panel(text, analysis)
+            return
+        self._pending_analysis_text = text
+        self._pending_analysis = analysis
+
+        if analysis.get("task") is not None and is_prompt_preview_enabled():
+            self._show_preview_panel(text, analysis)
+            return
+
         agent = self._agent_provider() if self._agent_provider else None
         client = getattr(agent, "client", None) if agent is not None else None
 
@@ -308,7 +407,85 @@ class ChatTabWidget(QWidget):
             self._start_refinement(text, client)
             return
 
-        self._dispatch_message(text)
+        self._dispatch_message(text, analysis)
+
+    def _show_requirement_panel(self, original_text, analysis):
+        self._pending_analysis_text = original_text
+        self._pending_analysis = analysis
+        self.requirement_question.setText(analysis.get("question") or "Additional task details are required.")
+        # Deliberately disabled while something unanswerable is outstanding:
+        # there is no safe default for a hazard type or a sector, and offering
+        # "proceed anyway" would be offering to guess one.
+        self.requirement_continue_btn.setEnabled(not analysis.get("blocking"))
+        self.requirement_panel.setVisible(True)
+
+    def _hide_requirement_panel(self):
+        self.requirement_panel.setVisible(False)
+
+    def _proceed_with_analysis_defaults(self):
+        text = self._pending_analysis_text
+        analysis = self._pending_analysis
+        if text and analysis and not analysis.get("blocking"):
+            self._hide_requirement_panel()
+            from ..agent.prompt_refiner import is_prompt_preview_enabled
+            if is_prompt_preview_enabled():
+                self._show_preview_panel(text, analysis)
+                return
+            self._dispatch_message(text, analysis)
+
+    # ------------------------------------------------------ prompt preview --
+
+    def _show_preview_panel(self, original_text, analysis):
+        """Shows the exact prompt and the reasoning behind it, then waits."""
+        self._pending_analysis_text = original_text
+        self._pending_analysis = analysis
+        from ..agent import output_router
+
+        lines = list(analysis.get("reasoning") or [])
+        contract_line = output_router.describe_contract(analysis.get("contract"))
+        if contract_line:
+            lines.append(contract_line)
+        self.preview_reasoning.setText(
+            "<b>Why this prompt</b><ul>"
+            + "".join("<li>%s</li>" % escape_plain_text(l) for l in lines)
+            + "</ul>"
+        )
+        self.preview_prompt.setPlainText(analysis.get("optimum_prompt") or original_text)
+        self.preview_panel.setVisible(True)
+
+    def _hide_preview_panel(self):
+        self.preview_panel.setVisible(False)
+
+    def _send_previewed_prompt(self):
+        text = self._pending_analysis_text
+        analysis = self._pending_analysis
+        self._hide_preview_panel()
+        if text:
+            self._dispatch_message(text, analysis)
+
+    def _send_preview_original(self):
+        """Sends the user's own wording with no register enrichment at all --
+        the escape hatch for when the matched task is simply wrong."""
+        text = self._pending_analysis_text
+        self._hide_preview_panel()
+        if text:
+            self._dispatch_message(text, None)
+
+    def _cancel_preview(self):
+        self._hide_preview_panel()
+        text = self._pending_analysis_text
+        self._pending_analysis = None
+        self._pending_analysis_text = None
+        if text:
+            self.input_edit.setPlainText(text)
+            self.input_edit.setFocus()
+
+    def _edit_analysis_request(self):
+        text = self._pending_analysis_text or ""
+        self._hide_requirement_panel()
+        if text:
+            self.input_edit.setPlainText(text + "\n\nDetails: ")
+            self.input_edit.setFocus()
 
     def _start_refinement(self, text, client):
         """Runs the refinement API call on a background thread -- it's a
@@ -344,7 +521,7 @@ class ChatTabWidget(QWidget):
         errors the user's turn because this helper call misbehaved."""
         self._dock.statusSignal.emit("")
         if not isinstance(result, dict) or "error" in result or "recommendations" not in result:
-            self._dispatch_message(original_text)
+            self._dispatch_message(original_text, self._pending_analysis)
             return
         self._show_refinement_panel(original_text, result["recommendations"])
 
@@ -368,7 +545,7 @@ class ChatTabWidget(QWidget):
         chosen_text = card["prompt"].text() if card else ""
         self._hide_refinement_panel()
         if chosen_text:
-            self._dispatch_message(chosen_text)
+            self._dispatch_message(chosen_text, self._pending_analysis)
 
     def _edit_refinement_card(self, card_id):
         """Opens the refined text in ChatInputEdit for the user to modify
@@ -387,9 +564,9 @@ class ChatTabWidget(QWidget):
         original_text = self._pending_refinement_text
         self._hide_refinement_panel()
         if original_text:
-            self._dispatch_message(original_text)
+            self._dispatch_message(original_text, self._pending_analysis)
 
-    def _dispatch_message(self, text):
+    def _dispatch_message(self, text, analysis=None):
         """The actual send path -- unchanged from send_message()'s original
         body. Shared by the refinement skip-path (send_message() calls this
         directly) and the post-choice path (a card's 'Use this', 'Send as
@@ -423,6 +600,29 @@ class ChatTabWidget(QWidget):
         # Gathered here, on the main thread, before the background QgsTask
         # starts -- QgsProject/layers aren't thread-safe to touch from run().
         map_ctx = get_map_context_summary()
+        if analysis is None:
+            analysis = self._pending_analysis if isinstance(self._pending_analysis, dict) else None
+        analysis_directive = analysis.get("directive", "") if isinstance(analysis, dict) else ""
+        if analysis_directive:
+            map_ctx = dict(map_ctx or {})
+            map_ctx["task_directive"] = analysis_directive
+
+        # What actually goes over the wire. Identical to the text shown in the
+        # preview panel -- the preview is a disclosure, not a mock-up, so the
+        # two must come from the same value.
+        sent_text = text
+        if isinstance(analysis, dict) and analysis.get("user_message"):
+            sent_text = analysis["user_message"]
+
+        new_contract = analysis.get("contract") if isinstance(analysis, dict) else None
+        if new_contract is not self._pending_contract:
+            # A genuinely new request, not the contract follow-up re-entering.
+            self._contract_followup_used = False
+        self._pending_contract = new_contract
+        self._executed_tools = []
+        self._attached_paths = []
+        self._pending_analysis = None
+        self._pending_analysis_text = None
 
         def on_complete(response, err):
             self._active_task = None
@@ -438,6 +638,7 @@ class ChatTabWidget(QWidget):
             else:
                 self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
                 self._after_successful_response(agent, response)
+                self._enforce_output_contract(sent_text)
 
         def on_status(msg):
             self._dock.statusSignal.emit(msg)
@@ -454,13 +655,51 @@ class ChatTabWidget(QWidget):
         # task to silently never execute or never report completion.
         self._active_task = run_agent_task(
             agent=agent,
-            user_text=text,
+            user_text=sent_text,
             description="Cartogen AI Analysis",
             on_complete=on_complete,
             on_status=on_status,
             map_context=map_ctx,
             on_tool_step=on_tool_step,
         )
+
+    def _enforce_output_contract(self, sent_text):
+        """After a turn: did the answer actually come back in the promised form?
+
+        The contract said, before the call, what the user would get. If the
+        tool that writes it never ran, one -- and only one -- follow-up turn is
+        sent asking for it, with the reason stated in the chat so the extra
+        call is never silent. See agent/output_router.py for why the renderer
+        is not simply called directly from here.
+        """
+        contract = self._pending_contract
+        if not contract:
+            return
+        from ..agent import output_router
+
+        executed = list(self._executed_tools)
+        if output_router.satisfied(contract, executed):
+            self._pending_contract = None
+            self._contract_followup_used = False
+            return
+
+        instruction = output_router.followup_instruction(
+            contract, executed, already_retried=self._contract_followup_used)
+        if instruction is None:
+            # Already retried once. Say so plainly rather than trying again.
+            self._dock.receiveMessageSignal.emit(
+                "ai", "_%s_" % output_router.delivery_note(contract, executed))
+            self._pending_contract = None
+            self._contract_followup_used = False
+            return
+
+        self._contract_followup_used = True
+        self._dock.receiveMessageSignal.emit(
+            "ai", "_%s Asking for it now._" % output_router.delivery_note(contract, executed))
+        # Re-enter dispatch with the contract preserved, so the follow-up turn
+        # is checked the same way -- and _contract_followup_used stops it there.
+        followup_analysis = {"contract": contract, "user_message": instruction, "directive": ""}
+        self._dispatch_message(instruction, followup_analysis)
 
     def _stop_current_task(self):
         """Cancels the in-flight request. This is cooperative, not instant --
@@ -561,7 +800,17 @@ class ChatTabWidget(QWidget):
             self._dock.receiveMessageSignal.emit("ai", f"Error reading {name}: {err}")
             return
 
-        self._dock.receiveMessageSignal.emit("ai", f"📎 **File attached:** {name}\n\nAnalyzing...")
+        # Remembered for the next chat message so the file becomes part of the
+        # task, not just a one-off analysis -- see analyze_request(attachments=).
+        if path not in self._attached_paths:
+            self._attached_paths.append(path)
+
+        from ..agent import file_io
+        kind = file_io.classify(path)
+        carried = (" It will also be used with your next message as a %s input."
+                   % kind) if kind else ""
+        self._dock.receiveMessageSignal.emit(
+            "ai", f"📎 **File attached:** {name}{carried}\n\nAnalyzing...")
         self._dock.statusSignal.emit("Analyzing...")
 
         agent = None
