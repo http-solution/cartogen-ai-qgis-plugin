@@ -124,8 +124,14 @@ EXCLUDE_FILES = {
 # in-place edit. They are the previous version of a shipped module, so
 # packaging them would put two copies of the same file in the plugin --
 # and the stale one would still be importable.
+# _*.json / _*.html / _*.tgz: staging files this workflow writes into the repo
+# root to hand a file across to the cloud sandbox (the mount is the only shared
+# path). Confirmed live: _register_page.html and _reg_compact.json shipped in a
+# build before this pattern existed. Nothing the plugin needs starts with an
+# underscore at the repo root, so the pattern is safe to be broad.
 EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py",
-                         "*.bak", "*.bak-*", "*.orig", "*.rej")
+                         "*.bak", "*.bak-*", "*.orig", "*.rej",
+                         "_*.json", "_*.html", "_*.tgz", "_*.tar.gz")
 
 
 def get_plugin_version(script_dir):

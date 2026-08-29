@@ -133,6 +133,14 @@ class TestArtifacts(unittest.TestCase):
         self.assertEqual(file_io.artifacts_for("layer"), [])
         self.assertEqual(file_io.artifacts_for("guidance"), [])
 
+    def test_a_map_task_that_also_draws_a_chart_promises_the_png(self):
+        self.assertEqual(file_io.artifacts_for("layer", ["generate_chart"]), [".png"])
+
+    def test_guidance_never_promises_a_file_even_with_a_chart_tool(self):
+        # A few guidance tasks carry generate_chart in their suggested chain.
+        # That is a mis-assignment in the chain, not a promise of a PNG.
+        self.assertEqual(file_io.artifacts_for("guidance", ["generate_chart"]), [])
+
     def test_sentences_read_as_english(self):
         self.assertEqual(file_io.artifact_sentence("dashboard"), "an HTML file")
         self.assertEqual(file_io.artifact_sentence("analysis"), "a CSV file")

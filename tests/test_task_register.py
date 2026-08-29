@@ -223,3 +223,53 @@ class TestSlotsAreAnswerable(unittest.TestCase):
                       if tm.unresolvable(tm.missing_slots(e, e["text"], ctx)))
         self.assertLess(blocked, len(self.data) * 0.15,
                         "%d of %d tasks would stop and ask" % (blocked, len(self.data)))
+
+
+class TestEveryContractIsCoherent(unittest.TestCase):
+    """Sweeps all 791 contracts rather than the handful anyone reads by hand.
+
+    Written after an audit of the full set found ten tasks promising a file
+    their contract does not write. Hand-inspecting a few dozen entries out of
+    791 is not coverage; this is.
+    """
+
+    def setUp(self):
+        self.data = reg.load()
+
+    def test_every_file_producing_contract_has_a_renderer(self):
+        for e in self.data:
+            if e["out"] in ("layer", "guidance"):
+                continue
+            c = tm.output_contract(e)
+            self.assertTrue(c["render"], "%s (%s) has no renderer" % (e["id"], e["out"]))
+
+    def test_the_writer_for_a_produced_file_is_in_the_render_chain(self):
+        from cartogen_ai.core.agent import file_io
+        for e in self.data:
+            w = file_io.writer_for(e["out"])
+            if not e["prod"] or not w:
+                continue
+            self.assertIn(w, tm.output_contract(e)["render"], e["id"])
+
+    def test_a_guidance_task_never_promises_a_file(self):
+        for e in self.data:
+            if e["out"] == "guidance":
+                self.assertEqual(e["prod"], [], "%s: %s" % (e["id"], e["text"]))
+
+    def test_every_non_guidance_task_can_take_some_file(self):
+        for e in self.data:
+            if e["out"] != "guidance":
+                self.assertTrue(e["acc"], "%s takes no file at all" % e["id"])
+
+    def test_no_directive_is_too_long_to_ride_alongside_the_system_prompt(self):
+        for e in self.data:
+            d = tm.task_directive(e, {}, e["text"])
+            self.assertLess(len(d), 600, "%s directive is %d chars" % (e["id"], len(d)))
+
+    def test_the_matcher_still_finds_every_task_from_its_own_title(self):
+        """Self-retrieval. Not a claim about real user phrasing -- it is the
+        floor: a task the matcher cannot find from its own words is
+        unreachable by anything."""
+        missed = [e["id"] for e in self.data
+                  if e["id"] not in [m[0]["id"] for m in tm.match(e["text"])]]
+        self.assertEqual(missed, [], "unreachable tasks: %s" % missed[:10])

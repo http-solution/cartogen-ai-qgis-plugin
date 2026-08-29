@@ -143,15 +143,24 @@ ARTIFACTS = {
     "guidance":  ((),               None),   # written answer, no file
 }
 
-# Charts are an add-on rather than a contract of their own: a report or an
-# analysis gains a PNG when the task's own tool chain asks for one.
+# Charts are an add-on rather than a contract of their own: a report, an
+# analysis or a map gains a PNG when the task's own tool chain asks for one.
 CHART_TOOLS = ("generate_chart", "generate_sector_coverage_report")
+
+# ...except for guidance, whose contract is "a written procedure, no GIS
+# output". A handful of guidance tasks carry generate_chart in their suggested
+# chain, which is a mis-assignment in the chain rather than a promise of a
+# file; honouring it would have the plugin tell the user to expect a PNG from
+# "Support local ownership of geographic data".
+_NO_ARTIFACTS = ("guidance",)
 
 
 def artifacts_for(kind, tools=()):
     """Extensions this contract should leave behind, given the task's tools."""
     exts, _writer = ARTIFACTS.get(kind, ((), None))
     out = list(exts)
+    if kind in _NO_ARTIFACTS:
+        return out
     if any(t in CHART_TOOLS for t in (tools or ())) and ".png" not in out:
         out.append(".png")
     return out
