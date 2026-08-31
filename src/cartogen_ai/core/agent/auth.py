@@ -174,6 +174,55 @@ class CredentialManager:
         except Exception as e:
             print(f"[CredentialManager] secure account session delete failed: {e}")
 
+    _MISSING_KEY_MESSAGE = (
+        "**No API key configured for the selected provider.** Open **Settings** "
+        "(the ⚙ gear icon, top right) to pick a provider and add its API key "
+        "-- or switch to Ollama to run fully locally with no key needed."
+    )
+
+    @classmethod
+    def missing_credential_message(cls, provider: str = None, client=None) -> str:
+        """Returns a friendly, actionable chat message if there's no usable
+        credential to send a request with, or None if it's fine to proceed.
+        Meant to be checked BEFORE a request goes out, so the user sees this
+        instead of the provider's raw 401.
+
+        Prefers checking the real client object when one is given (pass the
+        agent's actual `.client`): every provider client except Ollama's
+        stores its key as `self.api_key` (see providers/openrouter.py,
+        providers/gemini.py, etc.); Ollama has no such attribute at all (it
+        uses `self.endpoint_url` instead, and needs no key). An object with
+        no `api_key` attribute -- Ollama's client, or one this check doesn't
+        recognize, including any test double -- is left alone rather than
+        guessed about: this is a UX nicety, not a security gate, so silence
+        is the safe default when unsure.
+
+        With no client given, falls back to reading the configured provider
+        setting and saved credential directly -- used by the welcome-message
+        nudge, which may run before any agent has been constructed yet.
+        Outside QGIS there is no real settings store (and no UI to show the
+        message in), so this always returns None there -- same
+        QGIS_AVAILABLE-guard shape as agent/prompt_refiner.py's
+        is_prompt_preview_enabled(), never raises."""
+        if client is not None:
+            if not hasattr(client, "api_key"):
+                return None
+            return None if client.api_key else cls._MISSING_KEY_MESSAGE
+
+        if not QGIS_AVAILABLE:
+            return None
+        try:
+            settings = QgsSettings()
+            if provider is None:
+                provider = settings.value("cartogen_ai/provider", "openrouter")
+            if provider == "ollama":
+                return None
+            if CredentialManager.get_credential(provider):
+                return None
+        except Exception:
+            return None
+        return cls._MISSING_KEY_MESSAGE
+
     @staticmethod
     def get_credential(provider: str) -> str:
         """Retrieves API key from QgsAuthManager or fallback QgsSettings."""

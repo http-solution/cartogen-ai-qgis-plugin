@@ -22,6 +22,7 @@ from qgis.PyQt.QtWidgets import (
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
+    format_send_error,
 )
 from .attachments import read_attached_file as _read_attached_file
 from .theme import theme_colors
@@ -117,7 +118,7 @@ class ChatTabWidget(QWidget):
         # send_message() decides a message should be refined and a valid
         # response comes back. Modeled on the confirm_btn/PREVIEW_READY
         # gate's explicit-button, nothing-auto-proceeds interaction language.
-        self.refinement_panel = QGroupBox()
+        self.refinement_panel = QGroupBox("Suggested rewordings")
         self.refinement_panel.setVisible(False)
         refinement_layout = QVBoxLayout(self.refinement_panel)
 
@@ -147,7 +148,7 @@ class ChatTabWidget(QWidget):
             card_btn_row = QHBoxLayout()
             use_btn = QPushButton("Use this")
             use_btn.clicked.connect(lambda checked=False, cid=card_id: self._use_refinement_card(cid))
-            edit_btn = QPushButton("Edit first")
+            edit_btn = QPushButton("Edit request")
             edit_btn.clicked.connect(lambda checked=False, cid=card_id: self._edit_refinement_card(cid))
             card_btn_row.addWidget(use_btn)
             card_btn_row.addWidget(edit_btn)
@@ -165,7 +166,7 @@ class ChatTabWidget(QWidget):
 
         # Local task-register requirement gate. This is deliberately separate
         # from prompt refinement: it asks only for slots the matched task needs.
-        self.requirement_panel = QGroupBox()
+        self.requirement_panel = QGroupBox("One more detail needed")
         self.requirement_panel.setVisible(False)
         requirement_layout = QVBoxLayout(self.requirement_panel)
         self.requirement_question = QLabel()
@@ -173,6 +174,11 @@ class ChatTabWidget(QWidget):
         requirement_layout.addWidget(self.requirement_question)
         requirement_buttons = QHBoxLayout()
         self.requirement_continue_btn = QPushButton("Proceed with stated defaults")
+        self.requirement_continue_btn.setToolTip(
+            "Disabled until this is resolved -- there's no safe default for this detail (for "
+            "example, hazard or facility type), and guessing one risks confidently wrong "
+            "humanitarian output. Click Edit request to add the missing detail, then send again."
+        )
         self.requirement_continue_btn.clicked.connect(self._proceed_with_analysis_defaults)
         self.requirement_edit_btn = QPushButton("Edit request")
         self.requirement_edit_btn.clicked.connect(self._edit_analysis_request)
@@ -199,7 +205,12 @@ class ChatTabWidget(QWidget):
         preview_layout.addWidget(self.preview_prompt)
         preview_buttons = QHBoxLayout()
         self.preview_send_btn = QPushButton("Send this")
-        self.preview_send_btn.setObjectName("successButton")
+        # Deliberately the default (accent) button style, not "successButton" --
+        # that green is reserved for the Tasks tab's destructive-action confirm
+        # gate ("Confirm & Apply Edit"). Reusing it here made the same color mean
+        # both "send a low-stakes composed prompt" and "apply an edit/delete",
+        # collapsing a meaning-carrying color -- found in the UX audit dated
+        # 2026-08-31.
         self.preview_send_btn.clicked.connect(self._send_previewed_prompt)
         self.preview_original_btn = QPushButton("Send my wording only")
         self.preview_original_btn.clicked.connect(self._send_preview_original)
@@ -216,6 +227,7 @@ class ChatTabWidget(QWidget):
         self.attach_btn = QPushButton("📎")
         self.attach_btn.setObjectName("iconButton")
         self.attach_btn.setFixedSize(30, 30)
+        self.attach_btn.setToolTip("Attach a file (PDF, Word, image, CSV, or Excel)")
         self.attach_btn.clicked.connect(self.attach_file)
 
         self.input_edit = ChatInputEdit()
@@ -226,6 +238,7 @@ class ChatTabWidget(QWidget):
         self.send_btn = QPushButton("➤")
         self.send_btn.setObjectName("iconButton")
         self.send_btn.setFixedSize(30, 30)
+        self.send_btn.setToolTip("Send (Enter)")
         self.send_btn.clicked.connect(self.send_message)
 
         self.stop_btn = QPushButton("⏹")
@@ -248,6 +261,7 @@ class ChatTabWidget(QWidget):
         (agent/chat_persistence.py) if one exists. Called on first load, and again
         by refresh_chat_for_project_change() whenever the active QGIS project changes."""
         restored = False
+        agent = None
         if self._agent_provider:
             try:
                 agent = self._agent_provider()
@@ -272,6 +286,12 @@ class ChatTabWidget(QWidget):
                 "against your open project -- with spatial memory and every step inspectable.\n\n"
                 "Ask me to analyze, buffer, style, or process your layers!"
             )
+
+        from ..agent.auth import CredentialManager
+        missing_key_msg = CredentialManager.missing_credential_message(
+            client=getattr(agent, "client", None) if agent is not None else None)
+        if missing_key_msg:
+            self._dock.receiveMessageSignal.emit("ai", missing_key_msg)
 
         if self._dep_warning:
             self._dock.receiveMessageSignal.emit("ai", self._dep_warning)
@@ -347,6 +367,12 @@ class ChatTabWidget(QWidget):
         self.chat_browser.append(render_tool_step_html(name, status, error or None, colors))
 
     def send_message(self):
+        if not self.send_btn.isEnabled():
+            # A request is already in flight. send_btn.setEnabled(False) blocks
+            # a second click, but ChatInputEdit.keyPressEvent emits
+            # sendRequested on Enter unconditionally -- without this check,
+            # Enter could still start a second, overlapping turn.
+            return
         text = self.input_edit.toPlainText().strip()
         if not text:
             return
@@ -417,10 +443,17 @@ class ChatTabWidget(QWidget):
         # there is no safe default for a hazard type or a sector, and offering
         # "proceed anyway" would be offering to guess one.
         self.requirement_continue_btn.setEnabled(not analysis.get("blocking"))
+        # Read-only, not disabled: a disabled QTextEdit also greys out and
+        # blocks selection/copy, which is worse than necessary here. This
+        # panel's buttons act on the analysis snapshot captured above, not on
+        # whatever is currently in the box -- read-only stops a user from
+        # typing an edit that would then be silently ignored by Continue.
+        self.input_edit.setReadOnly(True)
         self.requirement_panel.setVisible(True)
 
     def _hide_requirement_panel(self):
         self.requirement_panel.setVisible(False)
+        self.input_edit.setReadOnly(False)
 
     def _proceed_with_analysis_defaults(self):
         text = self._pending_analysis_text
@@ -451,10 +484,17 @@ class ChatTabWidget(QWidget):
             + "</ul>"
         )
         self.preview_prompt.setPlainText(analysis.get("optimum_prompt") or original_text)
+        # Read-only while this panel is up: Send this / Send my wording only
+        # both act on the original_text snapshot captured above, not on
+        # whatever is in the box right now. Without this, editing the box
+        # underneath the open panel and clicking either button silently sent
+        # the pre-edit text -- found in the UX audit dated 2026-08-31.
+        self.input_edit.setReadOnly(True)
         self.preview_panel.setVisible(True)
 
     def _hide_preview_panel(self):
         self.preview_panel.setVisible(False)
+        self.input_edit.setReadOnly(False)
 
     def _send_previewed_prompt(self):
         text = self._pending_analysis_text
@@ -497,6 +537,17 @@ class ChatTabWidget(QWidget):
         from ..agent.prompt_refiner import refine, get_user_profile
 
         self._dock.statusSignal.emit("Refining prompt...")
+        # Blocks a second Send/Enter from starting a second refine() call
+        # while this network round-trip is in flight. Previously unguarded --
+        # a fast double-send could race two refine() calls, and whichever
+        # response landed last would silently overwrite
+        # _pending_refinement_text (and the panel's cards), possibly for the
+        # wrong prompt. _on_refinement_fetched (both branches) re-enables
+        # send_btn once this settles. stop_btn is deliberately left alone --
+        # there is no cancellation wired for this background thread, and a
+        # Stop button that looks actionable but does nothing would be its
+        # own bug.
+        self.send_btn.setEnabled(False)
         profile = get_user_profile()
 
         def worker():
@@ -523,6 +574,10 @@ class ChatTabWidget(QWidget):
         if not isinstance(result, dict) or "error" in result or "recommendations" not in result:
             self._dispatch_message(original_text, self._pending_analysis)
             return
+        # _dispatch_message (the other branch above) re-enables send_btn itself
+        # via _add_message; this branch doesn't reach _dispatch_message, so it
+        # must undo _start_refinement's send_btn.setEnabled(False) here.
+        self.send_btn.setEnabled(True)
         self._show_refinement_panel(original_text, result["recommendations"])
 
     def _show_refinement_panel(self, original_text, recommendations):
@@ -534,11 +589,13 @@ class ChatTabWidget(QWidget):
             card["label"].setText(rec.get("label") or rec.get("id", ""))
             card["prompt"].setText(rec.get("refined_prompt", ""))
             card["rationale"].setText(rec.get("rationale", ""))
+        self.input_edit.setReadOnly(True)
         self.refinement_panel.setVisible(True)
 
     def _hide_refinement_panel(self):
         self.refinement_panel.setVisible(False)
         self._pending_refinement_text = None
+        self.input_edit.setReadOnly(False)
 
     def _use_refinement_card(self, card_id):
         card = self._refinement_cards.get(card_id)
@@ -587,6 +644,22 @@ class ChatTabWidget(QWidget):
         agent = None
         if self._agent_provider:
             agent = self._agent_provider()
+
+        # Checked before scheduling a background task: without this, a missing
+        # key reached the provider's HTTP API and came back as a raw 401 (see
+        # chat_formatting.format_send_error for the general case below) --
+        # this specific, extremely common first-run scenario gets a direct
+        # answer instead of a round trip that was always going to fail.
+        from ..agent.auth import CredentialManager
+        no_agent_msg = "**Agent could not be initialized.** Check the QGIS Python console for details."
+        block_msg = no_agent_msg if agent is None else \
+            CredentialManager.missing_credential_message(client=getattr(agent, "client", None))
+        if block_msg:
+            self._dock.receiveMessageSignal.emit("ai", block_msg)
+            self.send_btn.setEnabled(True)
+            self.stop_btn.setEnabled(False)
+            self._dock.statusSignal.emit("")
+            return
 
         # Sending a new message means "back to work" -- hands off to the Tasks tab to
         # snap out of history-browsing mode and refresh the live plan/memory panels
@@ -639,7 +712,7 @@ class ChatTabWidget(QWidget):
             self._active_task = None
             self.stop_btn.setEnabled(False)
             if err:
-                self._dock.receiveMessageSignal.emit("ai", f"**Error:** {err}")
+                self._dock.receiveMessageSignal.emit("ai", format_send_error(err))
                 # A multi-tool-call turn can accumulate usage on earlier,
                 # successful client.complete() calls before a later one in the
                 # same turn errors out -- refresh here too so that usage isn't
@@ -835,8 +908,12 @@ class ChatTabWidget(QWidget):
 
     def _analyze_file(self, agent, name, path, data):
         try:
-            if agent is None:
-                self._dock.receiveMessageSignal.emit("ai", "**No API key configured.**")
+            from ..agent.auth import CredentialManager
+            no_agent_msg = "**Agent could not be initialized.** Check the QGIS Python console for details."
+            block_msg = no_agent_msg if agent is None else \
+                CredentialManager.missing_credential_message(client=getattr(agent, "client", None))
+            if block_msg:
+                self._dock.receiveMessageSignal.emit("ai", block_msg)
                 return
 
             client = getattr(agent, "client", None)

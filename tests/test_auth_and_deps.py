@@ -51,6 +51,60 @@ class TestAuthAndDeps(unittest.TestCase):
         self.assertTrue(result)
         self.assertFalse(CredentialManager.used_plaintext_fallback("test_clear_provider"))
 
+    def test_missing_credential_message_none_outside_qgis(self):
+        # QGIS_AVAILABLE is False in this test environment -- no real settings
+        # store exists, so the no-client fallback path must return None
+        # (never raise, never guess).
+        self.assertIsNone(CredentialManager.missing_credential_message())
+
+    def test_missing_credential_message_client_with_empty_key(self):
+        # The real path: check the agent's actual client object. Every
+        # provider client except Ollama's stores its key as self.api_key
+        # (providers/openrouter.py etc.) -- this is the shape a real,
+        # unconfigured OpenRouterClient/GeminiClient/... has.
+        fake_client = MagicMock(spec=["api_key"])
+        fake_client.api_key = ""
+        msg = CredentialManager.missing_credential_message(client=fake_client)
+        self.assertIsNotNone(msg)
+        self.assertIn("Settings", msg)
+
+    def test_missing_credential_message_client_with_real_key(self):
+        fake_client = MagicMock(spec=["api_key"])
+        fake_client.api_key = "sk-or-v1-real-key"
+        self.assertIsNone(CredentialManager.missing_credential_message(client=fake_client))
+
+    def test_missing_credential_message_client_without_api_key_attr_is_left_alone(self):
+        # Ollama's client has no api_key attribute at all (it uses
+        # endpoint_url instead) -- and so does a test double that doesn't
+        # model either shape. Both must be left alone rather than guessed
+        # about: this check is a UX nicety, not a security gate, and a false
+        # positive here would incorrectly block a working Ollama setup (or,
+        # as originally found, silently break every existing UI test that
+        # passes a fake agent with a fake client).
+        class _NoApiKeyClient:
+            pass
+        self.assertIsNone(CredentialManager.missing_credential_message(client=_NoApiKeyClient()))
+
+    def test_missing_credential_message_no_client_reads_settings(self):
+        fake_settings = MagicMock()
+        fake_settings.value.return_value = "openrouter"
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
+             patch.object(CredentialManager, "get_credential", return_value=""):
+            msg = CredentialManager.missing_credential_message()
+        self.assertIsNotNone(msg)
+
+    def test_missing_credential_message_no_client_ollama_never_needs_a_key(self):
+        # Ollama's "key" field is a local endpoint URL, not a credential --
+        # an empty one still means "the default local server", not "missing".
+        fake_settings = MagicMock()
+        fake_settings.value.return_value = "ollama"
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
+             patch.object(CredentialManager, "get_credential", return_value=""):
+            msg = CredentialManager.missing_credential_message(provider="ollama")
+        self.assertIsNone(msg)
+
     def test_verify_dependencies(self):
         deps = verify_dependencies()
         self.assertIn("all_installed", deps)
