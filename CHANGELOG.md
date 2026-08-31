@@ -41,6 +41,17 @@ instead of sitting beside it.
   statistical distribution (*Map population distribution*, *Map age and sex
   distribution*, and three others) because `distribution` also names a
   distribution point. Real distribution-point tasks keep the slot.
+- **The click-through itself is now verified, not just the logic behind it.**
+  New `tests/test_chat_widget_live.py` boots a real `QgsApplication`, builds
+  the real dock and chat widgets, and drives them with `QTest.mouseClick` on
+  the actual buttons -- the requirement panel, the prompt preview, and the
+  output-contract follow-up, previously proven correct only at the level of
+  pure-logic unit tests and static source inspection. It caught a real bug
+  doing it: `_dispatch_message` had a stale `analysis is None` fallback that
+  silently re-applied the register's enrichment -- and its output contract --
+  after clicking "Send my wording only", the escape hatch for when the
+  matched task is simply wrong. Fixed; the button now dispatches the user's
+  own wording with no contract attached, as intended.
 
 - Added sector-aware prompt guidance for humanitarian aid, engineering, urban planning, logistics, agriculture, environment, public health, disaster risk, utilities, transport, public safety, research, real estate, and defense/intelligence profiles.
 - Priority rollout documented: humanitarian aid, engineering, urban planning, then logistics.
