@@ -210,6 +210,35 @@ Run `python -m unittest discover -s tests -t . -p "test_*.py" -v` to see all of 
 as passing, permanent regression tests (search for `# Confirmed live` / `# A1:` / `# A2:`
 / `# A3:` / `# A4:` comments in `tests/test_new_tools.py`, `tests/test_auth_and_deps.py`).
 
+## Data protection (recommendation, not yet assessed)
+
+**GDPR alignment has not been formally assessed and is recommended before any EU/DG ECHO
+deployment handling real beneficiary or operational data.** When a cloud provider
+(OpenRouter, Gemini, OpenAI, or Claude — see `docs/USER_GUIDE.md`) is selected, the chat
+message text and any layer/attribute content the model is given via tool calls (e.g.
+`get_layers`, attribute-table reads, population/incident/assessment data described back in
+chat) leaves the user's machine and is processed by that provider, most of which are
+US-based. In a humanitarian GIS context this can include personal or special-category data
+(names, household identifiers, security-incident details, vulnerability/protection data)
+under GDPR Art. 9. Recommended, not yet done:
+
+- A formal GDPR alignment review covering lawful basis (Art. 6), special-category data
+  (Art. 9) where JIAF/CVA/protection-related tools are used, cross-border transfer
+  mechanisms (Art. 44-49) for each cloud provider, and a Data Protection Impact Assessment
+  (Art. 35) if processing is judged high-risk.
+- Documenting, per provider, what data-processing agreement/SCCs (if any) apply — this is
+  outside what a QGIS plugin's own code can control or verify.
+- A user-facing recommendation (in `docs/USER_GUIDE.md` and/or the in-app Help tab) to
+  prefer the local Ollama provider, or to redact/aggregate personal and special-category
+  data before it reaches chat, when working with real beneficiary data rather than test
+  data.
+- No data minimization or redaction is currently built into the plugin's tool-calling path
+  — this is a genuine gap, not an oversight to silently "fix" here, since deciding what
+  counts as personal/special-category humanitarian data is a legal judgment call per
+  `CONTRIBUTING.md` §3, not an engineering one.
+
+Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
+
 ## Known limitations (accepted risk, not fixed)
 
 - **DNS rebinding (TOCTOU) on the SSRF guard.** `_is_safe_url` resolves the hostname,

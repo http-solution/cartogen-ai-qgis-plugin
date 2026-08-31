@@ -227,7 +227,8 @@ cartogen-ai/                          (repo root — this is the QGIS plugin fol
 ├── branding/                         Brand guidelines and logo assets
 ├── .github/workflows/                CI (tests.yml) + sync-to-private.yml (inactive scaffold)
 ├── LICENSE, LICENSE_AUDIT.md, SECURITY.md, CONTRIBUTING.md, CLAUDE.md
-└── CHANGELOG.md                      Full version history
+├── CHANGELOG.md                      Version history, [1.4.0] onward
+└── CHANGELOG_ARCHIVE.md              Frozen: [1.3.0] and earlier
 ```
 
 This is a single tree — there is no second copy to keep in sync. (An earlier version of this
@@ -1048,8 +1049,9 @@ count on a full suite run is real signal to investigate.
 | BUG-2026-08-21-2 | 2026-08-21 | v1.2.33 | low | Route optimization prototype script missing a `scikit-learn` dependency line. |
 | BUG-2026-08-21-1 | 2026-08-21 | v1.2.33 | medium | Route optimization prototype script called `ox.graph_from_bbox` with bbox arguments in the wrong order for the installed `osmnx` version. |
 
-Full history before `docs/BUG_TRACKER.md` existed: see `CHANGELOG.md`, every version from v1.0.0
-forward.
+Full history before `docs/BUG_TRACKER.md` existed: see `CHANGELOG.md` (`[1.4.0]` onward) and
+`CHANGELOG_ARCHIVE.md` (`[1.3.0]` and earlier, including v1.0.0), split in the 2026-08-31
+documentation pass.
 
 ---
 
@@ -1130,7 +1132,8 @@ real bugs found and fixed; the full MultiTier namespace-package restructure comp
 | [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | **Living** — in-repo bug tracker |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Codebase conventions: comment discipline, honest status labeling, testing |
 | [CLAUDE.md](CLAUDE.md) | AI-coding-agent orientation (reproduced in full in [§9](#9-ai-agent-instructions-claudemd-full-text)) |
-| [CHANGELOG.md](CHANGELOG.md) | **Living** — full version history |
+| [CHANGELOG.md](CHANGELOG.md) | **Living** — version history, `[1.4.0]` onward |
+| [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md) | Frozen -- `[1.3.0]` and earlier, relocated verbatim in the 2026-08-31 documentation pass |
 | [LICENSE](LICENSE) | GNU GPL v2 |
 | [LICENSE_AUDIT.md](LICENSE_AUDIT.md) | Dependency/API license compliance audit |
 | [CARTOGEN_AI_PRD.md](CARTOGEN_AI_PRD.md) | Frozen engineering PRD/roadmap |
