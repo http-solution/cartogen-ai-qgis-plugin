@@ -74,6 +74,22 @@ server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise stil
 so far (the plugin-side provider wiring, the `service/website/` billing hardening in
 §4 below) assumes Model A. Model B remains frozen/unresolved and isn't being built toward.
 
+### 1.4 GDPR / data-protection alignment
+
+**Added 2026-08-31**, per the 2026-08-31 UX/documentation audit's recommendation. Full detail
+in `SECURITY.md`'s new "Data protection" section. Summary: when a cloud provider (OpenRouter,
+Gemini, OpenAI, Claude) is selected, chat text and any layer/attribute data the model is given
+via tool calls leaves the user's machine to that provider — in a humanitarian GIS context this
+can include personal or special-category data (GDPR Art. 9: security-incident details,
+household identifiers, vulnerability/protection data). No GDPR alignment review has been done.
+
+**Needs:** real legal/DPO review before any EU/DG ECHO deployment processes real beneficiary
+data — lawful basis (Art. 6), special-category data (Art. 9), cross-border transfer mechanism
+per provider (Art. 44-49), and whether a DPIA (Art. 35) is required. Not an engineering call
+per `CONTRIBUTING.md` §3 — flagged here, not silently decided. Until resolved, the practical
+mitigation is recommending the local Ollama provider (or data redaction) for real beneficiary
+data, which `SECURITY.md` now states explicitly.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
@@ -176,7 +192,7 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
 | Doc | Status |
 |---|---|
 | `docs/archive/STATUS_REVIEW_2026-08-20.md` | Frozen snapshot, v1.2.21. Superseded by this tracker for "what's open." |
-| `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` | Frozen proposal, not built. §3 licensing question is the live blocker — see §1.3 above. |
+| `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` | Frozen proposal, not built. §3 licensing question is the live blocker — see §1.3 above. Its own 2026-08-31 correction addendum flags the now-stale "134 tools" figure (not re-frozen, since that's a factual pointer to the current number, not new proposal content). |
 | `docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` | Frozen review. All 4 follow-up tasks from this round are closed (§4 above). |
 | `docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` | Frozen audit. §3's decision is the live item in §1.1 above. |
 | `docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md` | Frozen plan. Execution is the live item in §1.2 above. |
