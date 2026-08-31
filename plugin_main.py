@@ -11,7 +11,7 @@ regardless of sys.path order. Confirmed live: `python -m unittest discover`
 failed 31 tests importing `cartogen_ai.core.agent.*` because "cartogen_ai"
 resolved to this file (then its qgis.PyQt import failed, since qgis isn't
 installed outside a real QGIS session) instead of the namespace package.
-Renaming this file is what fixes it -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md
+Renaming this file is what fixes it -- see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md
 §3 for the full writeup, and docs/BUG_TRACKER.md for the incident entry.
 """
 import os.path

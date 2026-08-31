@@ -7,7 +7,7 @@ sequence of already-registered analysis tools at an interval for as long as
 QGIS stays open, and diffs each run's per-unit results against the previous
 run so a change ("3 units moved into severity class 5 since last check") can
 be surfaced without an extra API call every tick. Closes the "scheduled/
-recurring monitoring" gap flagged in docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md
+recurring monitoring" gap flagged in docs/archive/HUMANITARIAN_GIS_FEATURE_REVIEW.md
 and CARTOGEN_AI_PRD.md 5.1/5.3.
 """
 

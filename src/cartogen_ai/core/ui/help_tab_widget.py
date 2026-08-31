@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Help tab, extracted from dock_widget.py's CartogenAiDockWidget
-(docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). No live state -- lowest-risk of the
+(docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). No live state -- lowest-risk of the
 three tabs to split out, per that plan's step 4."""
 
 from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QTextBrowser

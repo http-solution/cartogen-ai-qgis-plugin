@@ -25,7 +25,7 @@ step, no compiled artifacts beyond the release zip.
 - `docs/` — see the table in `README.md`. `docs/USER_GUIDE.md` and `docs/TOOLS_REFERENCE.md` are
   living references; `docs/IMPLEMENTATION_TRACKER.md` and `docs/BUG_TRACKER.md` are living
   trackers you should update when you close or find something; dated docs
-  (`docs/STATUS_REVIEW_2026-08-20.md` and similar) are frozen snapshots — see below.
+  (`docs/archive/STATUS_REVIEW_2026-08-20.md` and similar) are frozen snapshots — see below.
 - `service/` — a standalone hosted-gateway/monetization prototype for the planned Pro tier. Not
   part of the QGIS plugin; not built or tested by the CI workflow.
 - `metadata.txt` — QGIS plugin manifest, including an embedded `changelog=` field. Its historical
@@ -74,7 +74,7 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are three editions, but **not** three
 variants of this one codebase — this repo is, and stays, the single public Community codebase.
 Pro/Enterprise are planned to be built in a *separate private repo* that consumes this one as an
-upstream core (one-way sync, decided but not yet built — see `docs/OPEN_CORE_REPO_STRATEGY.md`).
+upstream core (one-way sync, decided but not yet built — see `docs/archive/OPEN_CORE_REPO_STRATEGY.md`).
 **Don't add tier-check/licensing-gate logic to this repo** — that kind of logic belongs in the
 private repo once it exists, not here. If you're ever asked to add tier-gating directly to this
 codebase, that's a sign the request conflicts with the decided architecture — flag it rather than

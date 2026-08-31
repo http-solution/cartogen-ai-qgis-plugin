@@ -24,7 +24,7 @@ except ImportError:
 # against the main Qt thread -- e.g. 0.001 minutes becomes a ~60ms QTimer
 # re-running full geoprocessing (zonal statistics, severity scoring) on
 # every fire. Found live in a security review (docs/
-# SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md A.1) -- interval_minutes <= 0
+# docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md A.1) -- interval_minutes <= 0
 # was the only guard before this.
 _MIN_INTERVAL_MINUTES = 1
 

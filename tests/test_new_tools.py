@@ -328,7 +328,7 @@ class TestNewTools(unittest.TestCase):
         self.assertEqual(res.get("status"), "PREVIEW_REQUIRED")
 
     def test_destructive_calculate_area_gate(self):
-        # docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md: calculate_area calls the same
+        # docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md: calculate_area calls the same
         # _add_calculated_field primitive as field_calculator, so it must be gated
         # the same way -- this was a real, fixed inconsistency, not a duplicate test.
         res = calculate_area("layer_test", confirmed=False)
@@ -919,7 +919,7 @@ class TestNewTools(unittest.TestCase):
             self.assertEqual(res["feature_count"], 1)
             self.assertFalse(res["truncated"])
             # Moved here from the tool description -- see
-            # docs/API_COST_OPTIMIZATION_REVIEW.md section 2.3.
+            # docs/archive/API_COST_OPTIMIZATION_REVIEW.md section 2.3.
             self.assertIn("baseline_caveat", res)
             self.assertIn("not live extraction", res["baseline_caveat"])
             with open(res["local_path"], encoding="utf-8") as f:
@@ -969,7 +969,7 @@ class TestNewTools(unittest.TestCase):
         self.assertEqual(agent.conversation_history[1]["role"], "assistant")
 
     def test_agent_run_accumulates_usage_from_provider_response(self):
-        # docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2: session usage
+        # docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2: session usage
         # tracking. A single-turn, no-tool-calls response should add exactly
         # that call's usage into session_usage and be reflected in
         # get_session_usage_text().

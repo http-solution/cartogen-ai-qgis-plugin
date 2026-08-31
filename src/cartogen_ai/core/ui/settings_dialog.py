@@ -116,7 +116,7 @@ PROVIDERS = [
         "key_help_url": "https://console.anthropic.com/settings/keys",
     },
     {
-        # Placed last, not first: docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
+        # Placed last, not first: docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
         # making this the default on a fresh install, but no gateway is deployed at
         # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
         # install to a provider that can't resolve would break the out-of-the-box
@@ -265,7 +265,7 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.persist_history_checkbox)
 
-        # Roadmap feature per docs/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
+        # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
         # this shouldn't silently change every user's per-message cost
         # profile until real usage data justifies flipping the default).
@@ -277,7 +277,7 @@ class CartogenAiSettingsDialog(QDialog):
             "When on, a longer or ambiguous message shows two AI-rewritten alternatives to pick "
             "from, edit, or skip before it's sent. Off by default -- this adds one small extra "
             "API call per refined message (roughly 300-650 tokens, see "
-            "docs/API_COST_OPTIMIZATION_REVIEW.md and docs/PROMPT_REFINEMENT_LAYER_SPEC.md §8)."
+            "docs/archive/API_COST_OPTIMIZATION_REVIEW.md and docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §8)."
         )
         layout.addWidget(self.prompt_refinement_checkbox)
 

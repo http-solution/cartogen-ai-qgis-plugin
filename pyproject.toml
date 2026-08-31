@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cartogen-ai-core"
 # Kept in sync with metadata.txt's version= by hand for now -- see
-# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md for why there isn't a single
+# docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md for why there isn't a single
 # source of truth between the two yet (metadata.txt is QGIS's own plugin
 # manifest format and can't easily read from pyproject.toml at plugin-load
 # time; a `python docs/generate_tools_reference.py`-style sync script would
@@ -30,7 +30,7 @@ where = ["src"]
 # Pro/Enterprise repo's own pyproject.toml would do the same thing for its
 # own cartogen_ai.pro / cartogen_ai.enterprise packages, and pip merges both
 # installs into one working `cartogen_ai` namespace with no file conflicts --
-# see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md for the full design.
+# see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md for the full design.
 include = ["cartogen_ai.core", "cartogen_ai.core.*"]
 
 [tool.setuptools.package-data]

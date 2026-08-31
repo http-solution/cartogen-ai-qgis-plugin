@@ -17,7 +17,12 @@ panel (drag it to float, or dock it left/right) with three tabs:
    or **Claude**.
 3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
    key needed). The key field auto-fetches that provider's live model list when you
-   tab out of it.
+   tab out of it. Get a key from the provider you picked:
+   - OpenRouter (has a genuinely free tier covering many models — a good default if you
+     don't already have a key with another provider): https://openrouter.ai/keys
+   - Google Gemini: https://aistudio.google.com/apikey
+   - OpenAI: https://platform.openai.com/api-keys
+   - Anthropic Claude: https://console.anthropic.com/settings/keys
 4. Pick a model, or leave it on **Auto** — the agent then routes simple requests to a
    cheaper/faster model and complex multi-step requests to a stronger one
    automatically, based on the request's wording and length. (Ollama always uses
