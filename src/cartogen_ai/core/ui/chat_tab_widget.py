@@ -600,8 +600,19 @@ class ChatTabWidget(QWidget):
         # Gathered here, on the main thread, before the background QgsTask
         # starts -- QgsProject/layers aren't thread-safe to touch from run().
         map_ctx = get_map_context_summary()
-        if analysis is None:
-            analysis = self._pending_analysis if isinstance(self._pending_analysis, dict) else None
+        # analysis=None is meaningful, not "not supplied" -- it is exactly
+        # what _send_preview_original() passes to mean "skip the register's
+        # enrichment entirely" (the escape hatch for when the matched task is
+        # simply wrong). Every call site above passes its own analysis (or
+        # explicitly None) already, so there is no caller left that needs a
+        # self._pending_analysis fallback here -- and a fallback used to sit
+        # here, which silently undid "Send my wording only": clicking it
+        # looked like it worked, then this line re-applied the very
+        # enrichment, and the very output contract, the user had just opted
+        # out of. Found by a real click on a real button in a headless
+        # QGIS session (tests/test_chat_widget_live.py); no unit test on the
+        # pure logic could have caught it, because the pure logic was never
+        # wrong -- only this one call site's default was.
         analysis_directive = analysis.get("directive", "") if isinstance(analysis, dict) else ""
         if analysis_directive:
             map_ctx = dict(map_ctx or {})
