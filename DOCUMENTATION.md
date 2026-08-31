@@ -1,10 +1,10 @@
 # Cartogen AI — Full Project Documentation
 
-**Version:** 1.4.1 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) · **QGIS:** 3.0 – 4.99
+**Version:** 1.4.4 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) · **QGIS:** 3.0 – 4.99
 **Repository:** this file (`cartogen-ai`, public, Community edition) — consolidated single-tree
 successor to an earlier dual-tree setup (see `CHANGELOG.md`'s `[1.4.0]` entry)
 **Author / maintainer:** Alaa Alshoubaki ([alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com))
-**Document generated:** 2026-08-21, against commit `e5682c2` on `main`
+**Document last synced:** 2026-08-31, against v1.4.4 (see `CHANGELOG.md`'s `[1.4.2]`-`[1.4.4]` entries and `docs/USER_GUIDE.md` for the task-register-driven prompt-preview/slot-gate/output-contract pipeline this section below did not previously mention)
 
 This is a single, consolidated reference for the whole project — what it is, how it's built, what's
 shipped versus roadmap, how it's licensed, and how an AI coding agent (or a human) should work in
@@ -66,6 +66,14 @@ authors, decision-makers) who need to ask questions of a map without learning QG
 - **File attachments** — PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be loaded as
   full real layers (not just a preview), with automatic point-geometry detection for coordinate
   columns.
+- **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
+  matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
+  it's sent (Settings: "Show the prompt and reasoning before sending", on by default); stops to
+  ask only when a detail genuinely can't be safely guessed (e.g. hazard or facility type,
+  `agent/prompt_refiner.py`'s `analyze_request`); and checks the response against what the task
+  promised (`agent/output_router.py`), with one automatic, disclosed follow-up if a promised
+  dashboard, export, or chart didn't actually get produced. Full detail in
+  `docs/USER_GUIDE.md`.
 - **Native web search grounding** on Gemini and OpenAI, with automatic model fallback if a
   configured model is retired.
 - **Stop button** — cancel an in-progress request cooperatively instead of waiting it out.

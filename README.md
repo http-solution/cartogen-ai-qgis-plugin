@@ -19,7 +19,7 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.4.2 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.4.4 · GNU GPL v2 · QGIS 3.0–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
@@ -47,6 +47,12 @@ black-box answer.
   interactive HTML situation dashboard export for non-QGIS audiences, geoprivacy obfuscation
   for sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
+- **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
+  matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
+  it's sent; stops to ask only when a detail genuinely can't be safely guessed (e.g. hazard or
+  facility type); and checks the response against what the task promised, with one automatic,
+  disclosed follow-up if a promised dashboard, export, or chart didn't actually get produced.
+  See [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 - **Task Manager**: multi-step requests get a visible plan with progress tracking,
   retry, and edit-and-resend for failed steps.
 - **File attachments**: PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be

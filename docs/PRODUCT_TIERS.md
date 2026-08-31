@@ -5,8 +5,10 @@ requirements) and `CARTOGEN_AI_FEATURE_LIST.md` (implementation reality matrix) 
 exists to keep the *business* framing (pricing tiers, target clients, verticals) equally honest about
 what's actually shipped versus what's planned, since those two things drift apart easily otherwise.
 
-**Last updated:** 2026-08-15. Every "Shipped today" claim below was checked against the live codebase
-(125-tool registry, `agent/`, `ui/`) at that date, not carried forward from an earlier draft.
+**Last updated:** 2026-08-31. Every "Shipped today" claim below was checked against the live codebase
+(131-tool registry, `agent/`, `ui/`) at that date, not carried forward from an earlier draft. (Was
+stamped "125-tool registry" through 2026-08-15 -- stale; the registry has been 131 since the
+duplicate-registration cleanup noted in `docs/IMPLEMENTATION_TRACKER.md` §4.)
 
 ---
 

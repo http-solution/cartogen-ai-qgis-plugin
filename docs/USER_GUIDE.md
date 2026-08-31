@@ -6,7 +6,7 @@ Open **Cartogen AI** from the toolbar icon or the `Plugins` menu. It's a dock
 panel (drag it to float, or dock it left/right) with three tabs:
 
 - **💬 Chat** — talk to the agent.
-- **📋 Tasks & Memory** — see the current multi-step plan and stored project memory.
+- **📋 Tasks & Notes** — see the current multi-step plan and stored project memory.
 - **❓ Help** — provider list, quick tips, and example prompts, built from the same
   data as this guide so it can't drift out of sync.
 
@@ -153,7 +153,7 @@ install rather than failing silently.
 ## Multi-step requests and the Task Manager
 
 For anything involving several distinct steps, the agent creates a visible **plan** in
-the Tasks & Memory tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
+the Tasks & Notes tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
 a progress bar. Click a task to see its result, rationale, and any code it ran.
 
 Buttons available depending on the selected task's state:
@@ -175,7 +175,7 @@ browsing; sending a new message automatically snaps back to the live plan.
 
 The agent can remember facts across the conversation (and across QGIS sessions, tied
 to the current project file) via `store_project_memory`/`store_global_memory`. The
-Tasks & Memory tab shows what's stored, with a search box to filter it and a
+Tasks & Notes tab shows what's stored, with a search box to filter it and a
 **🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
 unaffected).
 
