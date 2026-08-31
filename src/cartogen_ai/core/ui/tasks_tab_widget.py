@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tasks & Notes tab, extracted from dock_widget.py's CartogenAiDockWidget
-(docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the live plan/progress display,
+(docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the live plan/progress display,
 plan history browsing, the task inspector (rationale/code snippet/confirm-retry-
 edit-cancel), and the spatial memory panel.
 

@@ -228,7 +228,7 @@ class CartogenAi:
         self.conversation_history = load_chat_history()
         self.dispatcher = ToolDispatcher(self)
 
-        # Session-scoped token usage totals (docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
+        # Session-scoped token usage totals (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
         # SS3.2: "no cost/usage visibility in the UI despite real, documented cost-
         # engineering work"). Not persisted across QGIS restarts or project
         # switches -- this agent instance IS the session (see _get_agent() in
@@ -280,7 +280,7 @@ class CartogenAi:
         that never reports it. Intentionally no dollar-cost estimate: accurate
         per-model pricing across 5 providers would need a pricing table that's
         guaranteed to go stale and mislead; see
-        docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
+        docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
         accuracy-over-completeness call on a different feature."""
         u = getattr(self, "session_usage", None)
         if u is None:

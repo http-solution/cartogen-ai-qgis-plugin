@@ -72,7 +72,7 @@ The full provider and service implementation remains in this private repository.
   and GitHub release record when the release gate is complete.
 - Community/public scope is documented in `cartogen-ai-community-limited/docs/COMMUNITY_SCOPE.md`.
 - Private release governance is documented in `docs/RELEASE_GOVERNANCE.md`.
-- Private commercial strategy is documented in `docs/COMMERCIAL_PRODUCT_STRATEGY.md`.
+- Private commercial strategy is documented in `docs/archive/COMMERCIAL_PRODUCT_STRATEGY.md`.
 - Commercial differentiation is based on managed operations, governance, deployment, integrations,
   onboarding, support, and service commitments — not artificial removal of core GIS capability.
 - Public and private feature-placement decisions must be recorded before a significant feature ships.
@@ -164,14 +164,14 @@ The full provider and service implementation remains in this private repository.
 - Additional profiles: agriculture, environment, public health, disaster risk, utilities,
   transport, public safety, research, real estate, and defense/intelligence.
 - Public guide: `docs/SECTOR_WORKFLOWS.md`.
-- Private strategy: `docs/SECTOR_PRODUCT_STRATEGY.md`.
-- Enterprise business-gap assessment and prioritized delivery backlog: `docs/ENTERPRISE_GROWTH_PLAN.md`.
+- Private strategy: `docs/archive/SECTOR_PRODUCT_STRATEGY.md`.
+- Enterprise business-gap assessment and prioritized delivery backlog: `docs/archive/ENTERPRISE_GROWTH_PLAN.md`.
 - Current recommendation: treat humanitarian aid mapping as the commercial beachhead and
   validate a paid Starter package before broad enterprise platform expansion.
 
 ## Private Community sustainability and funding plan
 
-- Added `docs/COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md`.
+- Added `docs/archive/COMMUNITY_SUSTAINABILITY_AND_FUNDING_PLAN.md`.
 - This plan is private-only and must not be copied into `cartogen_ai_community` without an
   explicit publication decision.
 - Recommended revenue/funding mix: sponsorship, grants, training, implementation, support,
@@ -181,7 +181,7 @@ The full provider and service implementation remains in this private repository.
 
 ## Cartogen AI Web Mapping Platform proposal
 
-- Added private-only `docs/WEB_CARTOGEN_PRODUCT_PLAN.md`.
+- Added private-only `docs/archive/WEB_CARTOGEN_PRODUCT_PLAN.md`.
 - Proposed a new browser-native collaborative mapping workspace inspired by QGIS workflows,
   not a browser port or source-code reuse of QGIS.
 - MVP focus: humanitarian operational mapping with project/data/layer management, core vector
@@ -351,7 +351,7 @@ The full provider and service implementation remains in this private repository.
 - Chat approval gate passed: Gemini plan HTTP 200 with persisted run ID, approval HTTP 201, approved task created, and queued analysis job returned.
 - Chat completion linkage gate passed: approved Gemini plan mapped to supported `create_review_output`, job completed HTTP 200, agent run became completed, and all persisted agent steps became completed.
 - Browser acceptance regression fixed: approving a plan no longer fails during layer refresh when optional schedule selectors are absent; Chrome smoke now returns task approved/job queued with no page errors.
-- PM delivery control plan added at `docs/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
+- PM delivery control plan added at `docs/archive/PROJECT_EXECUTION_PLAN.md`; future work is gated on real API/state acceptance rather than visual mockups.
 - Removed the browser's hard-coded `x-demo-organization` header; development identity is resolved server-side and strict mode can use Directus session identity.
 - Directus admin credential drift was diagnosed and corrected: `.env` admin values differed from the running container's initial admin values; the existing admin record was synchronized to `.env` and verified with a new login HTTP 200. No credentials were exposed.
 

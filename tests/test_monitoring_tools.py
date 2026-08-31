@@ -95,7 +95,7 @@ class TestWorkflowScheduler(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
     def test_rejects_interval_below_one_minute(self):
-        # Security review finding (docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md
+        # Security review finding (docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md
         # A.1): interval_minutes <= 0 was the only guard, so e.g. 0.001
         # became a ~60ms QTimer hammering the main Qt thread. Validation
         # runs before the QGIS-availability check, so this is testable

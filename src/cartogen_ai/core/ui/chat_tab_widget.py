@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Chat tab, extracted from dock_widget.py's CartogenAiDockWidget
-(docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
+(docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
 quick-suggestion chips, prompt-refinement panel, and file-attachment analysis.
 
 Signals (receiveMessageSignal/statusSignal/usageSignal/toolStepSignal/
@@ -81,8 +81,8 @@ class ChatTabWidget(QWidget):
         self.status_label.setStyleSheet("color: gray; font-size: 11px;")
         chat_layout.addWidget(self.status_label)
 
-        # Session token usage indicator (docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
-        # SS3.2, docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's sibling task). Deliberately
+        # Session token usage indicator (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
+        # SS3.2, docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's sibling task). Deliberately
         # separate from status_label (which status_label's own callers clear to "" between
         # turns via statusSignal.emit("")) -- this one should persist and accumulate across
         # the whole session, not blink in and out with each turn's status text. Hidden
@@ -111,7 +111,7 @@ class ChatTabWidget(QWidget):
         chat_layout.addLayout(chips_layout)
 
         # Prompt Refinement panel -- separate widget above the input row
-        # (docs/PROMPT_REFINEMENT_LAYER_SPEC.md §6/§11.1: decided as a
+        # (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §6/§11.1: decided as a
         # separate panel rather than inline chat bubbles, so these cards
         # never touch conversation_history or chat_persistence.py at all --
         # they're not chat messages). Hidden by default; shown only once
@@ -424,7 +424,7 @@ class ChatTabWidget(QWidget):
         agent = self._agent_provider() if self._agent_provider else None
         client = getattr(agent, "client", None) if agent is not None else None
 
-        # docs/PROMPT_REFINEMENT_LAYER_SPEC.md: an optional, opt-in step that
+        # docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md: an optional, opt-in step that
         # rewrites this text into two better-specified candidates before it
         # reaches _dispatch_message()/agent.run(). Every failure mode here
         # (disabled, too-short message, no client available) falls straight
@@ -663,7 +663,7 @@ class ChatTabWidget(QWidget):
 
         # Sending a new message means "back to work" -- hands off to the Tasks tab to
         # snap out of history-browsing mode and refresh the live plan/memory panels
-        # while this request runs (docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md: this used
+        # while this request runs (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md: this used
         # to be inline here since both tabs were one class; now Tasks owns its own state).
         self._dock.tasks_tab_widget.sync_with_agent(agent)
 

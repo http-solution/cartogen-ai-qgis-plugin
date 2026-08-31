@@ -74,7 +74,7 @@ EXCLUDE_DIRS = {
 # unlike EXCLUDE_DIRS above, these bare names ("agent", "ui") also legitimately
 # exist deeper in the tree now (src/cartogen_ai/core/agent/, .../ui/, the real
 # code after the namespace-package restructure -- see
-# docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md). A plain EXCLUDE_DIRS entry would
+# docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md). A plain EXCLUDE_DIRS entry would
 # match by bare name at every depth and silently drop the real code from the
 # release zip. These two are leftover "MOVED" stub directories at the plugin
 # root only (can't be deleted -- see their own file contents for why).

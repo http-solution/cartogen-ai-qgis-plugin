@@ -15,7 +15,7 @@ matplotlib
 folium
 
 # --- Heavier, single-feature dependency -- only needed for
-# extract_features_from_imagery (see docs/SAM_IMAGERY_EXTRACTION_SPEC.md).
+# extract_features_from_imagery (see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md).
 # Pulls in torch; expect a real download (~200MB+) plus a model checkpoint
 # downloaded separately on first use. Install this line only if you plan to
 # use imagery feature extraction -- everything above works without it.
@@ -24,6 +24,6 @@ folium
 # This group shares jinja2/markupsafe with folium (above) -- installing while
 # QGIS already has that module loaded can fail on Windows with
 # "PermissionError: [WinError 5] Access is denied" on a locked .pyd file.
-# Confirmed in real use, not hypothetical -- see SAM_IMAGERY_EXTRACTION_SPEC.md.
+# Confirmed in real use, not hypothetical -- see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md.
 # Close QGIS, install (qpip or OSGeo4W Shell), then reopen QGIS.
 ultralytics

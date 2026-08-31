@@ -119,7 +119,7 @@ model can inject into its own tool call.
 `_add_calculated_field` primitive as `field_calculator` (an in-place edit of the live,
 already-loaded layer's attribute table via `startEditing()`/`commitChanges()`), so leaving
 them ungated was an inconsistency, not a deliberate distinction. See
-`docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` for the full audit this fix came out of,
+`docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` for the full audit this fix came out of,
 including four tools this gate deliberately does *not* cover
 (`calculate_severity_index`, `calculate_presence_gap`, `calculate_population_in_need`,
 `calculate_damage_exposure_severity`) — **decided 2026-08-22**: leave ungated. They're

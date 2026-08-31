@@ -211,7 +211,7 @@ class TestListModels(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.providers.gemini.requests.get")
     def test_gemini_list_models_uses_header_auth_not_query_param(self, mock_get):
-        # docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS2.3: query-string
+        # docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS2.3: query-string
         # credentials are more likely to end up in server/proxy access logs than
         # a header, so list_models() must send the key via x-goog-api-key and
         # must NOT pass it as a '?key=' query param.
@@ -401,7 +401,7 @@ class TestRetryWithBackoff(unittest.TestCase):
 class TestOllamaRetryAndErrorHandling(unittest.TestCase):
     """ollama.py previously called requests.post directly, bypassing the
     shared retry helper every other provider client uses (docs/
-    ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.1) -- the local server is
+    docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.1) -- the local server is
     the client most likely to hit a transient failure in practice (still
     loading a model), so it's the one that most needed the retry. It also had
     a generic except-Exception handler that mislabeled a malformed-response
@@ -455,7 +455,7 @@ class TestProviderReturnContract(unittest.TestCase):
     complete() returning exactly one of two shapes: {"message": ..., "model":
     ...} on success, or {"error": ...} on failure -- nothing else, no extra
     top-level keys agent.py doesn't know to look for. This is the shared
-    contract docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.5 flagged as
+    contract docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.5 flagged as
     worth enforcing explicitly so a future provider (or a change to an
     existing one) can't silently drift from it and only be noticed when
     agent.py's loop breaks somewhere downstream. Covers all 6 provider
@@ -564,7 +564,7 @@ class TestProviderReturnContract(unittest.TestCase):
 
 
 class TestUsageExtraction(unittest.TestCase):
-    """docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2 ("no cost/usage
+    """docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2 ("no cost/usage
     visibility in the UI"): every provider's complete() now pulls a normalized
     {'input_tokens', 'output_tokens'} 'usage' dict out of the raw response when
     the provider actually reported one, via base.extract_openai_style_usage
@@ -781,7 +781,7 @@ class TestOpenRouterAnthropicCacheControl(unittest.TestCase):
 
 class TestMaxTokensCap(unittest.TestCase):
     """Only Claude's client capped output size before this (its own local
-    DEFAULT_MAX_TOKENS) -- see docs/API_COST_OPTIMIZATION_REVIEW.md section
+    DEFAULT_MAX_TOKENS) -- see docs/archive/API_COST_OPTIMIZATION_REVIEW.md section
     3: rarely an issue in practice, but a real, if uncommon, runaway-output
     cost risk with nothing standardizing it across the other 4 clients."""
 
@@ -825,7 +825,7 @@ class TestMaxTokensCap(unittest.TestCase):
         self.assertEqual(sent_payload["max_tokens"], DEFAULT_MAX_TOKENS)
 
     # An explicit max_tokens override reaches the payload for every client --
-    # needed for agent/prompt_refiner.py (docs/PROMPT_REFINEMENT_LAYER_SPEC.md
+    # needed for agent/prompt_refiner.py (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md
     # §5.2), whose refinement call needs a few hundred tokens, not
     # DEFAULT_MAX_TOKENS=8096. Each test picks a value distinct from the
     # default so a regression to "always DEFAULT_MAX_TOKENS" would fail loudly.

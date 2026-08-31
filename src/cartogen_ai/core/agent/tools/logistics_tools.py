@@ -671,7 +671,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
     "NOT re-route or exclude anything automatically -- this scores a route for a human to act on; for a genuine "
     "hard-exclude of a security-restricted area from routing itself, use difference_layers to "
     "remove that area from the road network layer before calling calculate_service_area/"
-    "travel_time_matrix, see docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md.",
+    "travel_time_matrix, see docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md.",
     {
         "type": "object",
         "properties": {

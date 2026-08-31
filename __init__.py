@@ -112,7 +112,7 @@ def classFactory(iface):
     resolves `import cartogen_ai`, which broke every `from
     cartogen_ai.core.agent... import X` call throughout the codebase.
     Confirmed live via the test suite (31 import failures) before this
-    rename -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md #3 and
+    rename -- see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md #3 and
     docs/BUG_TRACKER.md.
 
     :param iface: A QGIS interface instance.

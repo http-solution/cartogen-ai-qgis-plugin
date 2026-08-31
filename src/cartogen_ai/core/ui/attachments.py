@@ -2,8 +2,8 @@
 """
 File-attachment reading for the chat dock's "attach a file" flow.
 
-Extracted out of ui/dock_widget.py (docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's sibling
-task, tracked as part of docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2's
+Extracted out of ui/dock_widget.py (docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's sibling
+task, tracked as part of docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2's
 dock_widget.py-split recommendation) specifically because this function has zero Qt/QGIS
 dependencies -- unlike the rest of dock_widget.py, which imports `qgis.PyQt`/`qgis.core`
 unconditionally at module level with no QGIS_AVAILABLE-style fallback (see that file's
@@ -23,7 +23,7 @@ stateful Qt widget with cross-tab signal wiring, shared agent/task_manager refer
 and background-thread callbacks. Attempting that split blind, with no way to catch a
 broken signal connection or a missing attribute before it ships, is a worse outcome than
 leaving it as one file a bit longer. See the "Splitting CartogenAiDockWidget itself"
-section of docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md's own SS3.2 finding for the
+section of docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md's own SS3.2 finding for the
 scoped plan this deferral is tracked against -- it should be done in (or immediately
 verified in) a real QGIS session, not this sandbox.
 """

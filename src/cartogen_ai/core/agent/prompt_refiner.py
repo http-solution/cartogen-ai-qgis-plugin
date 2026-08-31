@@ -3,7 +3,7 @@
 Prompt Refinement Layer for Cartogen AI.
 Optional, opt-in step that rewrites a raw chat message into two better-
 specified candidates before it ever reaches agent.run() -- see
-docs/PROMPT_REFINEMENT_LAYER_SPEC.md for the full design.
+docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md for the full design.
 
 Deliberately structured like model_selector.py: small pure functions plus
 one thin API-calling function, no QGIS import anywhere in this module, so
@@ -89,7 +89,7 @@ PROMPT_REFINEMENT_MODEL_KEY = "cartogen_ai/prompt_refinement_model"
 
 
 def is_refinement_enabled() -> bool:
-    """Opt-in, default OFF -- see docs/PROMPT_REFINEMENT_LAYER_SPEC.md §8's
+    """Opt-in, default OFF -- see docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §8's
     honest cost tradeoff for why. Mirrors chat_persistence.is_persist_enabled()'s
     exact shape (QGIS_AVAILABLE guard, never raises)."""
     if not QGIS_AVAILABLE:
@@ -131,7 +131,7 @@ def should_refine(query: str, enabled: bool) -> bool:
 
 def build_refinement_messages(query: str, profile: str) -> list:
     """Short, dedicated system message -- NOT build_system_prompt() (a much
-    larger prompt, see docs/API_COST_OPTIMIZATION_REVIEW.md §0 for a
+    larger prompt, see docs/archive/API_COST_OPTIMIZATION_REVIEW.md §0 for a
     point-in-time size measurement; check len(BASE_SYSTEM_PROMPT) directly
     for the current figure rather than trusting a hardcoded number here, it
     drifts with every rule added to agent/prompts.py). Also skips the task/

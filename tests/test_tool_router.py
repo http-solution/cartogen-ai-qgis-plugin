@@ -45,7 +45,7 @@ class TestToolRouter(unittest.TestCase):
 class TestToolRouterAliasCoverage(unittest.TestCase):
     """Regression coverage for 3 real paraphrased queries that measurably
     missed the top-30 candidate set before the alias list was added -- see
-    docs/API_COST_OPTIMIZATION_REVIEW.md section 1.1. Each of these tools has
+    docs/archive/API_COST_OPTIMIZATION_REVIEW.md section 1.1. Each of these tools has
     little/no vocabulary overlap with its own name/description for how a
     real user actually phrased the request."""
 
@@ -127,7 +127,7 @@ class TestToolRouterAliasCoverage(unittest.TestCase):
 
 
 class TestToolRouterRecallRegression(unittest.TestCase):
-    """Table-driven regression test for docs/API_COST_OPTIMIZATION_REVIEW.md
+    """Table-driven regression test for docs/archive/API_COST_OPTIMIZATION_REVIEW.md
     section 0's exact measurement: 9 realistic paraphrased humanitarian
     queries (the kind of phrasing a real user types, not the tool's own
     vocabulary) checked against the tool actually expected to handle each

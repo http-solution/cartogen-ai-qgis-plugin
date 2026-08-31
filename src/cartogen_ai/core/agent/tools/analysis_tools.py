@@ -815,7 +815,7 @@ def _count_points_in_polygons(admin_layer, point_geometries):
     "per admin unit, plus a total building count in the high-severity units. Inspired by UNDP "
     "RAPIDA's rapid post-crisis assessment approach, deliberately scoped down to what's actually "
     "available here -- no seismic/hazard modeling, no social-media/night-light signal ingestion (see "
-    "docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md B.3 for that gap; this tool doesn't close it, "
+    "docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md B.3 for that gap; this tool doesn't close it, "
     "just narrows it). Change magnitude is the MEAN absolute pixel difference within each unit, not "
     "the raw sum, which would just scale with unit area/pixel count. Building exposure counts "
     "footprint centroids falling within each unit -- units the change-detection raster doesn't cover "
