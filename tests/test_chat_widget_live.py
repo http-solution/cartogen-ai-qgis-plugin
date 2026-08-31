@@ -204,6 +204,39 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertIn("map health facilities", log, "the user's own message must land in the chat log")
         self.assertIn("Loaded 3 facility layers", log, "the agent's real response must land in the chat log")
 
+    def test_preview_panel_locks_input_box_against_edits(self):
+        """Regression test for the P0 bug fixed 2026-08-31: nothing previously
+        stopped a user from editing the input box while the preview panel was
+        open, and Send this / Send my wording only both acted on a stale text
+        snapshot regardless -- an edit made here was silently discarded with
+        no warning. input_edit.setReadOnly(True) while the panel is open is
+        the fix; this drives a REAL keystroke (QTest.keyClicks), not a
+        programmatic setPlainText, to prove the box is genuinely locked for a
+        user, not just that the code happens to use the snapshot."""
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        ct.input_edit.setPlainText("map health facilities")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertTrue(ct.preview_panel.isVisible())
+        self.assertTrue(ct.input_edit.isReadOnly(), "input box must be locked while the preview is open")
+
+        before = ct.input_edit.toPlainText()
+        QTest.keyClicks(ct.input_edit, " EDITED")
+        self.assertEqual(ct.input_edit.toPlainText(), before,
+                          "a real keystroke must not change the box while it's read-only")
+
+        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        _pump(until=lambda: agent.client.calls >= 1)
+
+        self.assertFalse(ct.input_edit.isReadOnly(), "must unlock again once the panel closes")
+        log = self._chat_text(ct)
+        self.assertIn("map health facilities", log)
+        self.assertNotIn("EDITED", log, "the stale-edit text must never reach the sent message")
+
     def test_send_my_wording_only_skips_enrichment_and_its_contract(self):
         """Regression test for the bug this file's docstring describes:
         _dispatch_message(text, None) must actually mean no contract, not

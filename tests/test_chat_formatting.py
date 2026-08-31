@@ -3,8 +3,44 @@ import unittest
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
-    build_dock_stylesheet,
+    build_dock_stylesheet, format_send_error,
 )
+
+
+class TestFormatSendError(unittest.TestCase):
+    """Regression coverage for the UX audit (2026-08-31) finding that every
+    send error reached the user as raw exception text with no indication of
+    what to do about it."""
+
+    def test_401_gets_auth_hint(self):
+        msg = format_send_error("401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions")
+        self.assertIn("authentication problem", msg)
+        self.assertIn("Settings", msg)
+
+    def test_429_gets_rate_limit_hint(self):
+        msg = format_send_error("429 Too Many Requests")
+        self.assertIn("Rate limited", msg)
+
+    def test_connection_error_gets_network_hint(self):
+        msg = format_send_error("ConnectionError: Failed to establish a new connection: [Errno 111] Connection refused")
+        self.assertIn("Couldn't reach the provider", msg)
+
+    def test_unclassified_error_falls_back_to_raw_text(self):
+        msg = format_send_error("some never-seen-before provider error")
+        self.assertIn("**Error:**", msg)
+        self.assertIn("some never-seen-before provider error", msg)
+
+    def test_original_detail_is_never_hidden_even_when_classified(self):
+        # Classification is a hint layered on top, never a replacement --
+        # the raw detail must always still be present for debugging.
+        raw = "401 Client Error: Unauthorized for url: https://example.test/v1"
+        msg = format_send_error(raw)
+        self.assertIn(raw, msg)
+
+    def test_empty_error_does_not_crash(self):
+        msg = format_send_error("")
+        self.assertIsInstance(msg, str)
+        self.assertIn("no error detail", msg)
 
 
 class TestRenderMarkdown(unittest.TestCase):

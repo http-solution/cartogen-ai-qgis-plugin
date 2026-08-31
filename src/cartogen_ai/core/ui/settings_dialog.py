@@ -59,6 +59,10 @@ PROVIDERS = [
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
         "model_setting_key": "cartogen_ai/openrouter_model", "default_model": AUTO_SENTINEL,
         "key_default": "", "list_fn": _list_openrouter,
+        "key_placeholder": "sk-or-v1-...",
+        "key_help_url": "https://openrouter.ai/keys",
+        "key_tooltip": "OpenRouter has a genuinely free tier covering many models -- a good "
+                        "default if you don't already have a key with another provider.",
     },
     {
         "value": "gemini", "provider_label": "Google Gemini (Hosted)",
@@ -79,6 +83,8 @@ PROVIDERS = [
         # actual key. gemini-3.1-pro-preview is the current confirmed-working Pro tier.
         "extra_seed_models": ["gemini-3.1-pro-preview"],
         "key_default": "", "list_fn": _list_gemini,
+        "key_placeholder": "AIza...",
+        "key_help_url": "https://aistudio.google.com/apikey",
     },
     {
         # Ollama stays pinned to a concrete default (no auto-routing) -- local
@@ -88,6 +94,8 @@ PROVIDERS = [
         "key_label": "Ollama Endpoint URL:", "model_label": "Ollama Model:",
         "model_setting_key": "cartogen_ai/ollama_model", "default_model": "llama3.1",
         "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
+        "key_tooltip": "Runs fully locally -- no account or key needed. Leave this as the "
+                        "default unless your Ollama server runs somewhere else.",
     },
     {
         "value": "openai", "provider_label": "OpenAI (Hosted)",
@@ -95,6 +103,8 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/openai_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gpt-5.6",
         "key_default": "", "list_fn": _list_openai,
+        "key_placeholder": "sk-...",
+        "key_help_url": "https://platform.openai.com/api-keys",
     },
     {
         "value": "claude", "provider_label": "Claude / Anthropic (Hosted)",
@@ -102,6 +112,8 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
         "key_default": "", "list_fn": _list_claude,
+        "key_placeholder": "sk-ant-...",
+        "key_help_url": "https://console.anthropic.com/settings/keys",
     },
     {
         # Placed last, not first: docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
@@ -114,6 +126,8 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
         "key_default": "", "list_fn": _list_cartogen,
+        "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable in the "
+                        "Community edition today (see docs/PRODUCT_TIERS.md).",
     },
 ]
 
@@ -184,8 +198,25 @@ class CartogenAiSettingsDialog(QDialog):
             saved_key = CredentialManager.get_credential(pv)
             key_edit.setText(saved_key if saved_key else entry["key_default"])
             key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
+            # A user who has never used an LLM API before has no way to know
+            # what belongs in this field or where to get it -- found in the UX
+            # audit dated 2026-08-31 ("Settings gives no guidance on what an
+            # API key is or where to get one, for any of the 5 providers").
+            key_placeholder = entry.get("key_placeholder", "")
+            if key_placeholder:
+                key_edit.setPlaceholderText(key_placeholder)
+            key_tooltip = entry.get("key_tooltip", "")
+            if key_tooltip:
+                key_edit.setToolTip(key_tooltip)
             page_form.addRow(entry["key_label"], key_edit)
             self._key_edits[pv] = key_edit
+
+            key_help_url = entry.get("key_help_url")
+            if key_help_url:
+                help_label = QLabel(f'<a href="{key_help_url}">Get a key \u2192</a>')
+                help_label.setOpenExternalLinks(True)
+                help_label.setStyleSheet("color: gray; font-size: 11px;")
+                page_form.addRow("", help_label)
 
             model_combo = QComboBox()
             model_combo.setEditable(True)
