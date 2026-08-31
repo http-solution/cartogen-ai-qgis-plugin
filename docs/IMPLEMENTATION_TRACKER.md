@@ -1,9 +1,9 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-08-21, against v1.4.1 (131 tools, 691 tests — see `docs/BUG_TRACKER.md`
-for the known-baseline breakdown). Previously stamped v1.2.33, which predated the whole
-namespace-package restructure ([1.4.0]) and BUG-2026-08-21-6/-7 — re-synced here, since a
-tracker that lags the code defeats its own stated purpose.
+**Last updated:** 2026-08-31, against v1.4.4 (131 tools, 814 tests — see `docs/BUG_TRACKER.md`
+for the known-baseline breakdown). Previously stamped v1.4.1, which predated the task-register
+integration ([1.4.2]-[1.4.4]) and the 2026-08-31 UX/documentation audit fixes below — re-synced
+here, since a tracker that lags the code defeats its own stated purpose.
 
 This is the one place to look for "what's actually still open right now." Every review, audit,
 and spec doc in `docs/` up to this point is a **dated, frozen snapshot** — per `CONTRIBUTING.md`
@@ -147,6 +147,25 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
   bootstrap half of this is still unverified inside a real QGIS session — see §2 above.
 - `docs/route_optimization_prototype.py` smoke-tested for the first time against real installed
   dependencies + synthetic data; 2 real bugs found and fixed (v1.2.33) — see `BUG_TRACKER.md`.
+- **Task register wired end to end into the chat send path** (v1.4.2-v1.4.4) — file I/O modeling
+  per task, the prompt-preview panel, the requirement/slot gate, and output-contract enforcement.
+  Verified 2026-08-31 by a headless functional test (`tests/test_chat_widget_live.py`) driving
+  real Qt widgets with `QTest.mouseClick` against a real `QgsApplication` — closing the "never
+  run in a live QGIS session" gap this tracker previously flagged for that layer.
+- **2026-08-31 UX/documentation audit and fixes** — a 22-finding audit
+  (`docs/UX_DOCUMENTATION_AUDIT_2026-08-31.md`) covering documentation staleness, in-app
+  onboarding, and UI consistency. Fixed: the preview panel silently sending stale text after an
+  in-place edit (input box is now read-only while any gate panel is open); the main chat send
+  path throwing a raw provider 401 instead of a friendly message for an unconfigured API key
+  (`agent/auth.py`'s `CredentialManager.missing_credential_message`); all send errors reaching
+  the user as unclassified raw exception text (`ui/chat_formatting.format_send_error`); a
+  possible double-send race during prompt refinement; missing tooltips, an untitled gate panel,
+  and a reused destructive-action button color; the welcome message, Settings dialog, and Help
+  tab not mentioning the task-register pipeline or how to get an API key per provider; and the
+  version/tool-count staleness in this doc, `README.md`, `DOCUMENTATION.md`, and
+  `docs/PRODUCT_TIERS.md`. Not done in this pass (tracked, not forgotten): splitting
+  `CHANGELOG.md` into per-release notes, and archiving the dated one-off review docs in `docs/`
+  into a subfolder.
 
 ---
 
