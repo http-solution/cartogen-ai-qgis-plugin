@@ -248,6 +248,68 @@ memory is always-on with no user-facing control at all. If it ever captures pers
 special-category data, there is currently no way to honour an Art. 17 erasure request for it.
 Not fixed here -- flagged for a decision per `CONTRIBUTING.md` §3, tracked below.
 
+### International transfer mechanisms, by provider (F3, researched 2026-09-01)
+
+The review's F3 finding was that no transfer mechanism was documented for any provider.
+Researched from each provider's own current published terms (not assumed); this is a
+fast-changing area and an org doing a real assessment should re-verify against the live
+pages before relying on it, not just cite this table.
+
+- **OpenAI** -- DPA uses Standard Contractual Clauses (+ UK Addendum for UK data),
+  self-serve/click-through, effective 2026-01-01. API data is not used for model training
+  by default (since March 2023). Source: `https://openai.com/policies/data-processing-addendum/`.
+- **Google / Gemini** -- Google LLC is EU-US/Swiss-US/UK Data Privacy Framework-certified
+  (effective 2025-08-23) and separately offers SCCs via its Cloud DPA. **Important
+  split specific to the Gemini API this plugin calls** (`generativelanguage.googleapis.com`):
+  on the **free tier**, Google states it may use prompts/responses to improve its products
+  and that human reviewers may read them; on the **paid tier**, Google states prompts and
+  responses are *not* used to improve its products, and processing falls under the Cloud
+  Data Processing Addendum. Enabling billing on the key used with this plugin is the
+  difference between these two regimes. Sources: `https://ai.google.dev/gemini-api/terms`,
+  `https://cloud.google.com/terms/data-processing-addendum`.
+- **Anthropic / Claude** -- DPA (built on SCCs) is automatically incorporated into the
+  Commercial/API Terms of Service on acceptance; no separate signature needed for a
+  self-serve API account. If Claude is reached through a third-party platform instead of
+  Anthropic directly, that platform's own terms govern instead.
+  Source: `https://support.claude.com/en/articles/7996862-how-do-i-view-and-sign-your-data-processing-addendum-dpa`.
+- **OpenRouter** -- publishes a DPA via its Trust Portal, but by OpenRouter's own account
+  it is only mutually signed/enforceable for **Enterprise-tier** accounts; a self-serve
+  account can review it for information only, which means it is likely **not a binding
+  contract** for a typical BYOK humanitarian-org deployment -- the sharpest gap of the
+  four. Separately, OpenRouter's own account Privacy settings has independent toggles for
+  whether *free* vs. *paid* model routing may go to an upstream provider that trains on
+  the data, which is why `settings_dialog.py`'s OpenRouter key tooltip now tells the user
+  to check that setting. Sources: `https://trust.openrouter.ai/`,
+  `https://openrouter.zendesk.com/hc/en-us/articles/47828437697051`,
+  `https://openrouter.ai/docs/guides/privacy/provider-logging`.
+
+None of the above is legal advice or a substitute for the org's own DPO/counsel
+confirming a transfer mechanism actually covers the org's specific processing --
+it is what each provider currently publishes, so the org's review does not start from
+zero.
+
+### Remediation, 2026-09-01 (the review's 4 High findings)
+
+- **F2 (no privacy notice anywhere in the product) -- addressed.** The Settings dialog
+  now shows a static, provider-agnostic notice above the provider dropdown explaining
+  what is sent and to whom (Ollama excepted), and `docs/USER_GUIDE.md`'s "What happens to
+  your message before it is sent" section has a matching "Where it goes" paragraph.
+- **F3 (no documented transfer mechanism for any provider) -- documented above.**
+- **F4 (no DPA/sub-processor visibility surfaced to the deploying org) -- addressed.**
+  Each cloud provider's Settings page now shows a link to that provider's Data Processing
+  Addendum (or, for OpenRouter, its Trust Portal, labelled to flag the Enterprise-only
+  caveat above) right in the dialog, next to the existing "get a key" link.
+- **F5 (DPIA not done, but the processing pattern plausibly meets the EDPB's mandatory
+  criteria) -- screening aid added, not a completed DPIA.** See
+  `docs/DPIA_SCREENING_WORKSHEET.docx`: it pre-fills the factual, code-verifiable parts
+  (EDPB WP248's nine criteria mapped against this plugin's actual tools and data flows)
+  and leaves the risk determination and sign-off to the deploying org's DPO, which is a
+  legal judgment call this repository cannot make on the org's behalf.
+
+None of this closes the review's CRITICAL finding (global memory has no erasure path) or
+its Medium/Low/Informational findings -- those remain open, tracked in
+`docs/IMPLEMENTATION_TRACKER.md` §1.4.
+
 Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
 ## Known limitations (accepted risk, not fixed)

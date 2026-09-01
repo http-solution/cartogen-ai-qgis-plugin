@@ -98,6 +98,27 @@ engineering call per `CONTRIBUTING.md` §3 — flagged, not silently decided. Th
 offers a concrete, mostly-mechanical remediation roadmap (R1-R10) if the fixes are wanted; none
 of it has been applied to the code yet, since this round was scoped as a review, not a fix.
 
+**Remediation, 2026-09-01 — the 4 HIGH findings (F2-F5), user-requested; F1/Medium/Low/
+Informational untouched, out of this round's scope:**
+
+- **F2 (privacy notice) -- fixed.** `settings_dialog.py` shows a static provider-agnostic
+  notice above the provider dropdown; `docs/USER_GUIDE.md` has a matching "Where it goes"
+  paragraph.
+- **F3 (transfer mechanisms undocumented) -- documented.** `SECURITY.md`'s new
+  "International transfer mechanisms, by provider" subsection, researched from each
+  provider's own current published terms (not assumed) on 2026-09-01.
+- **F4 (DPA/sub-processor visibility) -- fixed.** Each cloud provider's Settings page now
+  links its DPA (or Trust Portal, for OpenRouter, labelled with its Enterprise-only
+  enforceability caveat).
+- **F5 (DPIA not performed) -- screening aid added, not a completed DPIA.**
+  `docs/DPIA_SCREENING_WORKSHEET.docx` maps EDPB WP248's nine high-risk criteria against
+  this plugin's actual tools/data flows; the risk determination and sign-off are left to
+  the org's DPO, per `CONTRIBUTING.md` §3.
+
+Still open, unchanged by this round: **F1 (CRITICAL — global memory has no erasure path)**
+and **F6-F12 (Medium/Low/Informational)** — see `docs/GDPR_COMPLIANCE_REVIEW.docx` §6 for
+all 13.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)

@@ -62,7 +62,12 @@ PROVIDERS = [
         "key_placeholder": "sk-or-v1-...",
         "key_help_url": "https://openrouter.ai/keys",
         "key_tooltip": "OpenRouter has a genuinely free tier covering many models -- a good "
-                        "default if you don't already have a key with another provider.",
+                        "default if you don't already have a key with another provider. Free "
+                        "models may route to an upstream provider that trains on prompts -- "
+                        "check your OpenRouter account's Privacy settings (separate toggles "
+                        "for free vs. paid models) before sending sensitive data.",
+        "dpa_url": "https://trust.openrouter.ai/",
+        "dpa_label": "Data processing info (self-serve; a signed DPA needs Enterprise)",
     },
     {
         "value": "gemini", "provider_label": "Google Gemini (Hosted)",
@@ -85,6 +90,12 @@ PROVIDERS = [
         "key_default": "", "list_fn": _list_gemini,
         "key_placeholder": "AIza...",
         "key_help_url": "https://aistudio.google.com/apikey",
+        "key_tooltip": "On the free tier, Google may use your prompts to improve its products "
+                        "(human reviewers can read them) -- enable billing on this key for "
+                        "Google's paid-tier terms, which exclude prompts from training, before "
+                        "sending sensitive data.",
+        "dpa_url": "https://cloud.google.com/terms/data-processing-addendum",
+        "dpa_label": "Data Processing Addendum (paid tier)",
     },
     {
         # Ollama stays pinned to a concrete default (no auto-routing) -- local
@@ -105,6 +116,8 @@ PROVIDERS = [
         "key_default": "", "list_fn": _list_openai,
         "key_placeholder": "sk-...",
         "key_help_url": "https://platform.openai.com/api-keys",
+        "dpa_url": "https://openai.com/policies/data-processing-addendum/",
+        "dpa_label": "Data Processing Addendum",
     },
     {
         "value": "claude", "provider_label": "Claude / Anthropic (Hosted)",
@@ -114,6 +127,8 @@ PROVIDERS = [
         "key_default": "", "list_fn": _list_claude,
         "key_placeholder": "sk-ant-...",
         "key_help_url": "https://console.anthropic.com/settings/keys",
+        "dpa_url": "https://support.claude.com/en/articles/7996862-how-do-i-view-and-sign-your-data-processing-addendum-dpa",
+        "dpa_label": "Data Processing Addendum (auto-incorporated into Commercial ToS)",
     },
     {
         # Placed last, not first: docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
@@ -180,6 +195,22 @@ class CartogenAiSettingsDialog(QDialog):
         top_form.addRow("Connection:", self.provider_combo)
         layout.addLayout(top_form)
 
+        # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
+        # in the product told a user what happens to data once a cloud provider is picked.
+        # Static, provider-agnostic -- each provider page below adds its own specifics
+        # (dpa_url / key_tooltip) where they differ.
+        privacy_note = QLabel(
+            "Chat text and any layer/attribute data a tool call surfaces to the model are "
+            "sent to whichever provider is selected above (Ollama excepted -- fully local, "
+            "nothing leaves this machine). Each provider's Data Processing Addendum link "
+            "below is a starting point, not a substitute for your organization's own GDPR "
+            "review before processing real beneficiary data. See docs/USER_GUIDE.md and "
+            "SECURITY.md's \"Data protection\" section."
+        )
+        privacy_note.setWordWrap(True)
+        privacy_note.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(privacy_note)
+
         # One page per provider, holding just that provider's key/URL field and
         # model combo -- only the selected provider's page is ever shown, instead
         # of all providers' rows being present in one long form and merely
@@ -217,6 +248,20 @@ class CartogenAiSettingsDialog(QDialog):
                 help_label.setOpenExternalLinks(True)
                 help_label.setStyleSheet("color: gray; font-size: 11px;")
                 page_form.addRow("", help_label)
+
+            # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F4: the
+            # deploying org needs its own Data Processing Agreement with whichever cloud
+            # provider it enables -- nothing in this codebase can provide or verify that on
+            # the org's behalf, but not pointing at it at all left the org to discover the
+            # need unprompted. Mirrors the key_help_url pattern above.
+            dpa_url = entry.get("dpa_url")
+            if dpa_url:
+                dpa_label_text = entry.get("dpa_label", "Data Processing Agreement")
+                dpa_label = QLabel(f'<a href="{dpa_url}">{dpa_label_text} \u2192</a>')
+                dpa_label.setOpenExternalLinks(True)
+                dpa_label.setStyleSheet("color: gray; font-size: 11px;")
+                dpa_label.setWordWrap(True)
+                page_form.addRow("", dpa_label)
 
             model_combo = QComboBox()
             model_combo.setEditable(True)

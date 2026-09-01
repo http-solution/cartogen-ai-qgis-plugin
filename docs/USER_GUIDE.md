@@ -72,6 +72,16 @@ it should use, and what you should end up with. When you type a request, it is
 matched against that register locally, on your machine. No API call is made to
 do the matching, and the register itself is never sent to the model.
 
+**Where it goes.** Once matched, the request text -- and any layer/attribute data a
+tool call surfaces to the model -- is sent to whichever provider you selected in
+Settings (OpenRouter, Gemini, OpenAI, or Claude), over that provider's own API, using
+your own key. Ollama is the exception: it runs entirely on your machine, so nothing
+leaves it. Settings shows each cloud provider's Data Processing Addendum link as a
+starting point, but confirming a lawful basis and transfer mechanism for the data you
+send is your organization's own responsibility, not something this plugin can
+determine for you -- see [SECURITY.md](../SECURITY.md)'s "Data protection" section
+before sending real beneficiary data.
+
 What the match is used for:
 
 **Missing information.** If the task cannot proceed without something — which
