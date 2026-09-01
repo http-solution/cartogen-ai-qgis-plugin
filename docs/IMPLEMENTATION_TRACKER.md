@@ -76,19 +76,27 @@ so far (the plugin-side provider wiring, the `service/website/` billing hardenin
 
 ### 1.4 GDPR / data-protection alignment
 
-**Added 2026-08-31**, per the 2026-08-31 UX/documentation audit's recommendation. Full detail
-in `SECURITY.md`'s new "Data protection" section. Summary: when a cloud provider (OpenRouter,
-Gemini, OpenAI, Claude) is selected, chat text and any layer/attribute data the model is given
-via tool calls leaves the user's machine to that provider — in a humanitarian GIS context this
-can include personal or special-category data (GDPR Art. 9: security-incident details,
-household identifiers, vulnerability/protection data). No GDPR alignment review has been done.
+**Added 2026-08-31**, full review completed 2026-09-01: `docs/GDPR_COMPLIANCE_REVIEW.docx` --
+13 findings against GDPR's articles, each with file:line evidence. Summary of legal framing: the
+deploying organization is the controller; each cloud provider (OpenRouter, Gemini, OpenAI,
+Claude) is a sub-processor via the org's own direct account, not via Cartogen AI -- confirmed by
+reading every provider client, all of which call that provider's own official API directly, with
+no Cartogen-operated intermediary live today (the "Cartogen AI (Hosted)" option in Settings is a
+stub pointed at an undeployed placeholder domain).
+
+**1 CRITICAL finding:** global memory notes (`agent/memory.py`) have no deletion path anywhere
+in the code -- always-on, machine-wide, indefinite retention, no `clear_global_notes()` method
+exists. See `SECURITY.md`'s Data Protection section for detail.
+
+**4 HIGH findings:** no privacy notice anywhere in the product; no documented international-
+transfer mechanism for any of the 4 cloud providers; no DPA/sub-processor visibility surfaced to
+the org; processing plausibly meets EDPB high-risk criteria and a DPIA has not been performed.
 
 **Needs:** real legal/DPO review before any EU/DG ECHO deployment processes real beneficiary
-data — lawful basis (Art. 6), special-category data (Art. 9), cross-border transfer mechanism
-per provider (Art. 44-49), and whether a DPIA (Art. 35) is required. Not an engineering call
-per `CONTRIBUTING.md` §3 — flagged here, not silently decided. Until resolved, the practical
-mitigation is recommending the local Ollama provider (or data redaction) for real beneficiary
-data, which `SECURITY.md` now states explicitly.
+data — the review's own disclaimer states plainly it is not a substitute for that. Not an
+engineering call per `CONTRIBUTING.md` §3 — flagged, not silently decided. The review's §7
+offers a concrete, mostly-mechanical remediation roadmap (R1-R10) if the fixes are wanted; none
+of it has been applied to the code yet, since this round was scoped as a review, not a fix.
 
 ---
 
