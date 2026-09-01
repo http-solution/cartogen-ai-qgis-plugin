@@ -237,6 +237,17 @@ under GDPR Art. 9. Recommended, not yet done:
   counts as personal/special-category humanitarian data is a legal judgment call per
   `CONTRIBUTING.md` §3, not an engineering one.
 
+**Full review, 2026-09-01: `docs/GDPR_COMPLIANCE_REVIEW.docx`.** A code-level review against
+each GDPR article, with file:line evidence for every claim -- not a substitute for real legal/DPO
+sign-off (see its own disclaimer), but a concrete starting point. Its single CRITICAL finding:
+`agent/memory.py`'s `SpatialMemoryManager.store_global_note()` writes agent notes into
+`QgsSettings` (machine-wide, every project, indefinitely) and **no code path anywhere deletes
+them** -- confirmed by a full-codebase search for `clear_global_notes`. Unlike project-scoped
+memory (has a "Clear Project Memory" button) and chat history (opt-in, has a toggle), global
+memory is always-on with no user-facing control at all. If it ever captures personal or
+special-category data, there is currently no way to honour an Art. 17 erasure request for it.
+Not fixed here -- flagged for a decision per `CONTRIBUTING.md` §3, tracked below.
+
 Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
 ## Known limitations (accepted risk, not fixed)
