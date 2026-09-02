@@ -706,7 +706,7 @@ def estimate_population_exposure(population_raster_layer, area_layer):
         return {"error": f"Layer '{population_raster_layer}' not found"}
     if vector is None:
         return {"error": f"Layer '{area_layer}' not found"}
-    if vector.geometryType() != QgsWkbTypes.PolygonGeometry:
+    if vector.geometryType() != QgsWkbTypes.GeometryType.PolygonGeometry:
         return {"error": "area_layer must be a polygon layer."}
 
     try:
