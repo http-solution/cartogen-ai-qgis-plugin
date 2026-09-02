@@ -36,6 +36,7 @@ class TasksTabWidget(QWidget):
         self._current_code_snippet = ""
         self._connected_task_manager = None
         self._raw_memory_context = ""
+        self._learned_item_keys = []  # combo index -> global-note key, kept in sync with the combo
 
         self.init_ui()
 
@@ -166,6 +167,28 @@ class TasksTabWidget(QWidget):
         self.memory_browser.setPlaceholderText("Project Notes & Memory...")
         tasks_layout.addWidget(self.memory_browser, stretch=1)
 
+        # Learned Preferences & Rules (self-learning mechanism 4, 2026-09-02): the
+        # browser above is read-only and shows everything; this row is specifically
+        # for un-learning a single wrong pref:*/rule:*/usage:* entry (see
+        # agent/learning.py) without wiping all project/global memory via the Clear
+        # button above. Kept as a combo + one button rather than per-row buttons in
+        # the browser itself -- QTextBrowser doesn't host interactive widgets per
+        # line, and a second list widget felt heavier than this tab needed.
+        learned_header = QHBoxLayout()
+        learned_header.addWidget(QLabel("<b>🎓 Learned Preferences & Rules</b>"))
+        learned_header.addStretch()
+        tasks_layout.addLayout(learned_header)
+
+        forget_layout = QHBoxLayout()
+        self.learned_items_combo = QComboBox()
+        self.learned_items_combo.setPlaceholderText("(no learned preferences or rules yet)")
+        self.forget_learned_btn = QPushButton("🗑 Forget Selected")
+        self.forget_learned_btn.setObjectName("dangerButton")
+        self.forget_learned_btn.clicked.connect(self._forget_selected_learned_item_clicked)
+        forget_layout.addWidget(self.learned_items_combo, stretch=1)
+        forget_layout.addWidget(self.forget_learned_btn)
+        tasks_layout.addLayout(forget_layout)
+
     def sync_with_agent(self, agent):
         """Called by ChatTabWidget._dispatch_message right before a new message is
         sent, so the live plan is what's visible while the request runs. Was inline
@@ -199,6 +222,7 @@ class TasksTabWidget(QWidget):
             self._on_live_plan_updated(agent.task_manager.get_plan())
             self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
             self._apply_memory_filter()
+            self._refresh_learned_items_combo(agent.memory_manager)
 
     def _build_task_item_widget(self, task):
         status = task.get("status", "TODO")
@@ -476,6 +500,53 @@ class TasksTabWidget(QWidget):
             agent.memory_manager.clear_project_notes()
             self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
             self._apply_memory_filter()
+
+    def _refresh_learned_items_combo(self, memory_manager):
+        """Repopulates the Forget-control combo from the memory manager's current
+        pref:*/rule:*/usage:* global notes (see agent/learning.py for what writes
+        these). Called after every sync_with_agent() and after a successful forget,
+        so the list never shows a key that's already been removed."""
+        try:
+            notes = memory_manager.get_global_notes()
+        except Exception as e:
+            print(f"[TasksTabWidget] Failed to read global notes for learned-items combo: {e}")
+            return
+        learned = {
+            k: v for k, v in notes.items()
+            if k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:")
+        }
+        self.learned_items_combo.blockSignals(True)
+        self.learned_items_combo.clear()
+        self._learned_item_keys = []
+        for key in sorted(learned):
+            value = learned[key]
+            label = f"{key}: {value}"
+            if len(label) > 90:
+                label = label[:87] + "..."
+            self.learned_items_combo.addItem(label)
+            self._learned_item_keys.append(key)
+        self.learned_items_combo.blockSignals(False)
+
+    def _forget_selected_learned_item_clicked(self):
+        idx = self.learned_items_combo.currentIndex()
+        if idx < 0 or idx >= len(self._learned_item_keys):
+            return
+        key = self._learned_item_keys[idx]
+        if not self._agent_provider:
+            return
+        agent = self._agent_provider()
+        if not (agent and hasattr(agent, "memory_manager")):
+            return
+        reply = QMessageBox.question(
+            self, "Forget Learned Item", f"Remove this learned item?\n\n{key}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        agent.memory_manager.delete_global_note(key)
+        self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
+        self._apply_memory_filter()
+        self._refresh_learned_items_combo(agent.memory_manager)
 
     def _on_memory_search_changed(self, _text):
         self._apply_memory_filter()

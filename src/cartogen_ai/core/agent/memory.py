@@ -22,6 +22,13 @@ PROJECT_MEMORY_KEY = "cartogen_ai/project_memory"
 GLOBAL_MEMORY_KEY = "cartogen_ai/global_memory"
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class SpatialMemoryManager:
     """Manages short-term and long-term memory with sidecar SQLite database storage."""
 
@@ -176,6 +183,24 @@ class SpatialMemoryManager:
                 pass
         return dict(self._in_memory_global_notes)
 
+    def delete_global_note(self, key: str) -> dict:
+        """Removes a single global note (used by the learning module's
+        pref:*/rule:*/usage:* entries, and by the memory panel's "Forget"
+        control -- store_global_note has no per-key delete counterpart today,
+        and an editable memory panel needs one: a user has to be able to
+        remove a wrong inferred preference or a stale correction rule
+        without wiping every other global note via QgsSettings by hand."""
+        self.get_global_notes()  # ensure in-memory cache is populated first
+        existed = key in self._in_memory_global_notes
+        self._in_memory_global_notes.pop(key, None)
+        if QGIS_AVAILABLE:
+            try:
+                settings = QgsSettings()
+                settings.setValue(GLOBAL_MEMORY_KEY, json.dumps(self._in_memory_global_notes))
+            except Exception as e:
+                print(f"[MemoryManager] Failed to persist global note deletion: {e}")
+        return {"success": True, "key": key, "existed": existed, "scope": "global"}
+
     def log_spatial_action(self, action: str, details: str):
         """Logs a completed spatial processing step to SQLite DB and memory."""
         entry = {"action": action, "details": details}
@@ -196,13 +221,31 @@ class SpatialMemoryManager:
         return list(self._in_memory_actions)
 
     def get_formatted_memory_context(self) -> str:
-        """Formats active memory into a markdown block for agent system prompt injection."""
+        """Formats active memory into a markdown block for agent system prompt injection.
+
+        Global notes are bucketed by key prefix (pref:/rule:/usage:) rather than
+        dumped into one flat "User Global Preferences" list -- see agent/learning.py,
+        which is what actually writes pref:*/rule:*/usage:* entries via
+        store_global_note/get_global_notes. Splitting them here gives the model (and
+        the memory panel in tasks_tab_widget.py, which renders this same string)
+        clearly labeled sections instead of a mix of raw keys. Any pre-existing
+        global note that predates this categorization (no recognized prefix) still
+        renders under "User Global Preferences" exactly as before, so nothing already
+        stored is silently hidden by this change."""
         proj_notes = self.get_project_notes()
         glob_notes = self.get_global_notes()
         actions = self.get_action_history()[-5:]
 
-        lines = ["## 🧠 SPATIAL MEMORY CONTEXT"]
-        
+        preferences = {k[len("pref:"):]: v for k, v in glob_notes.items() if k.startswith("pref:")}
+        rules = {k: v for k, v in glob_notes.items() if k.startswith("rule:")}
+        usage = {k[len("usage:"):]: v for k, v in glob_notes.items() if k.startswith("usage:")}
+        other_notes = {
+            k: v for k, v in glob_notes.items()
+            if not (k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:"))
+        }
+
+        lines = ["## \U0001f9e0 SPATIAL MEMORY CONTEXT"]
+
         if proj_notes:
             lines.append("### Project Notes:")
             for k, v in proj_notes.items():
@@ -210,9 +253,28 @@ class SpatialMemoryManager:
         else:
             lines.append("### Project Notes: (None stored)")
 
-        if glob_notes:
+        if preferences:
+            lines.append("### Learned Preferences (auto-detected -- treat as a soft default, not a hard rule):")
+            for k, v in preferences.items():
+                lines.append(f"- **{k}**: {v}")
+
+        if rules:
+            lines.append("### Correction Rules (from past user corrections -- follow these):")
+            # Sorted so the most recently added rule (highest index) reads last,
+            # i.e. most-recent-and-most-likely-relevant ends up closest to the
+            # rest of the prompt the model attends to most.
+            for k in sorted(rules, key=lambda rk: (len(rk), rk)):
+                lines.append(f"- {rules[k]}")
+
+        if usage:
+            lines.append("### Usage Patterns (most-used first, for context only -- not an instruction to keep using them):")
+            top_usage = sorted(usage.items(), key=lambda kv: _safe_int(kv[1]), reverse=True)[:5]
+            for k, v in top_usage:
+                lines.append(f"- **{k}**: used {v} times")
+
+        if other_notes:
             lines.append("### User Global Preferences:")
-            for k, v in glob_notes.items():
+            for k, v in other_notes.items():
                 lines.append(f"- **{k}**: {v}")
 
         if actions:

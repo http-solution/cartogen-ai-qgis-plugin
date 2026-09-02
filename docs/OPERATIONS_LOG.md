@@ -583,3 +583,35 @@ The full provider and service implementation remains in this private repository.
   or successfully logs in.
 - Public Community release: [v1.4.4](https://github.com/cartogenai-glitch/cartogen_ai_community/releases/tag/v1.4.4), commit `d2f1f64`, ZIP SHA-256 `5bd95da86fec598045c3336311699de50cf49df8ec0557b2f4df91795602100c`.
 - Private commercial-plugin release: [commercial-plugin-v1.4.4](https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.4.4), commit `720fb79`.
+
+## Adaptive self-learning system (v1.5.0)
+
+- Added `agent/learning.py`: passive preference detection (provider choice, 5+ samples,
+  70%+ dominant share), correction learning (text heuristic on the message after a tool
+  call), usage-pattern counters (tool/provider frequency), all layered on the existing
+  `SpatialMemoryManager` global-note store via `pref:`/`rule:`/`usage:` key prefixes.
+- Added `SpatialMemoryManager.delete_global_note()` and restructured
+  `get_formatted_memory_context()` into labeled sections (Learned Preferences /
+  Correction Rules / Usage Patterns / User Global Preferences).
+- Added a "🎓 Learned Preferences & Rules" row (combo + Forget Selected) to the
+  Tasks & Memory tab in `ui/tasks_tab_widget.py`.
+- Verification: 17 new tests in `tests/test_learning.py`, full suite re-verified clean
+  (718 tests, 1 known pre-existing sandbox DNS-resolution failure unrelated to this
+  change, 0 new failures). The `agent.py` lifecycle wiring and the UI addition have no
+  automated coverage (unconditional `qgis.PyQt` imports, same limitation as every other
+  UI/agent-lifecycle change this session) -- **not yet confirmed in a real QGIS 4.2
+  session**, run `docs/RELEASE_SMOKE_TEST.md` before relying on this in production.
+- Bundled into this release together with three rounds of QGIS 4.2/Qt6 enum-scoping
+  fixes and the dark-theme chat rendering fix that were committed earlier under the
+  unchanged `1.4.4` version (see `docs/BUG_TRACKER.md` BUG-2026-09-02-1 through -5) --
+  this is the first release cut to actually carry a version bump for that work.
+- **Scope decision:** this release includes only the self-learning feature and the
+  already-committed Qt6/dark-theme fixes. Left uncommitted and out of this release,
+  deliberately: an in-progress "hosted account" feature (`agent/account.py`,
+  `ui/account_dialog.py`, associated `settings_dialog.py`/README/USER_GUIDE hunks,
+  their tests) and unrelated scratch-file cleanup -- pre-existing work this session has
+  no context on and did not review or test.
+- Push status: this session's device-bridge shell has no GitHub credentials configured
+  (`git fetch`/`push` both fail with "could not read Password") -- committed and tagged
+  locally only (`commercial-plugin-v1.5.0`); pushing to `origin/main` and creating the
+  GitHub Release needs to be done from an environment with working GitHub auth.

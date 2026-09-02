@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.5.0] — adaptive self-learning + confirmed QGIS 4.2/Qt6 fixes
+
+- **Adaptive self-learning system.** New `agent/learning.py` layers four
+  mechanisms on top of the existing `SpatialMemoryManager` global-note store
+  (no new storage plumbing): passive preference detection (scoped to
+  connection-provider choice for this first pass, requiring 5+ samples and a
+  70%+ dominant share before acting), correction learning (a text heuristic
+  over the message right after a tool call — "that's wrong", "undo that",
+  etc. — stored as a standing rule), usage-pattern counters (tool/provider
+  frequency, surfaced to the model as context, never silently changing a UI
+  default), and a new **🎓 Learned Preferences & Rules** row in the Tasks &
+  Memory tab (dropdown + **🗑 Forget Selected**) so anything inferred is
+  visible and removable. `get_formatted_memory_context()` now buckets global
+  notes under labeled headings (Learned Preferences / Correction Rules /
+  Usage Patterns / User Global Preferences) instead of one flat list. 17 new
+  tests in `tests/test_learning.py`; the `agent.py` wiring and UI addition
+  are unverified in a live QGIS session (same structural limitation as every
+  other UI/agent-lifecycle change — see `docs/BUG_TRACKER.md` BUG-2026-09-02-5).
+- **QGIS 4.2/Qt6 enum-scoping fixes**, discovered via three rounds of live
+  crash reports during real QGIS 4.2 testing and shipped under the unchanged
+  `1.4.4` version number without a release cut — recorded here retroactively.
+  Fixed flat-vs-scoped enum access across `Qt`, `QScrollArea`,
+  `QDialogButtonBox`, `QLineEdit`, and `QPalette` (dock panel open,
+  scroll-area frames, dialog buttons, password fields, live theme palette
+  extraction) — see `docs/BUG_TRACKER.md` BUG-2026-09-02-1 through -3 for the
+  full per-symbol breakdown and verification status.
+- **Dark-theme chat rendering fix.** `chat_formatting.py`'s `render_markdown()`
+  was hardcoded to fixed light-theme colors for code blocks, inline code,
+  tables, blockquotes, and `<hr>`, disconnected from the already
+  theme-aware bubble colors — confirmed via a live screenshot showing
+  near-invisible white-on-white table text in QGIS dark theme. Colors now
+  thread through from the same theme-derived dict the chat bubbles already
+  use. Two new system-prompt rules (40, 41) address related live feedback:
+  default to creating a real map layer for mappable results instead of only
+  describing them in chat, and never silently guess a year/date a tool
+  parameter left unspecified. See BUG-2026-09-02-4.
+
 ## [1.4.4] — sector-guided mapping experience
 
 - Added sector-aware prompt guidance for humanitarian aid, engineering, urban planning, logistics, agriculture, environment, public health, disaster risk, utilities, transport, public safety, research, real estate, and defense/intelligence profiles.
