@@ -228,7 +228,7 @@ class TasksTabWidget(QWidget):
         )
         label = QLabel(html)
         label.setWordWrap(True)
-        label.setTextFormat(Qt.RichText)
+        label.setTextFormat(Qt.TextFormat.RichText)
         return label
 
     def _render_plan(self, plan_data):

@@ -25,14 +25,14 @@ def extract_theme_palette():
         return None
     p = app.palette()
     return {
-        "window": p.color(QPalette.Window).name(),
-        "alt_base": p.color(QPalette.AlternateBase).name(),
-        "base": p.color(QPalette.Base).name(),
-        "text": p.color(QPalette.WindowText).name(),
-        "highlight": p.color(QPalette.Highlight).name(),
-        "highlighted_text": p.color(QPalette.HighlightedText).name(),
-        "muted_text": p.color(QPalette.Disabled, QPalette.WindowText).name(),
-        "mid": p.color(QPalette.Mid).name(),
+        "window": p.color(QPalette.ColorRole.Window).name(),
+        "alt_base": p.color(QPalette.ColorRole.AlternateBase).name(),
+        "base": p.color(QPalette.ColorRole.Base).name(),
+        "text": p.color(QPalette.ColorRole.WindowText).name(),
+        "highlight": p.color(QPalette.ColorRole.Highlight).name(),
+        "highlighted_text": p.color(QPalette.ColorRole.HighlightedText).name(),
+        "muted_text": p.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText).name(),
+        "mid": p.color(QPalette.ColorRole.Mid).name(),
     }
 
 

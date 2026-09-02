@@ -159,6 +159,39 @@ EVAL_CASES = [
             "create_print_layout's body_text with \\n-separated bullets instead."
         ),
     },
+    {
+        "id": "visualize_by_default_not_only_on_explicit_ask",
+        "rules": [40],
+        "query": "Where are the health facilities near Sana'a?",
+        "check": (
+            "Should add a real map layer for the facilities (not just list names/coordinates "
+            "in chat text), even though the user never said the word 'layer' or 'map' -- "
+            "found live: the model would answer in prose only unless the user separately, "
+            "explicitly asked to 'create a layer'."
+        ),
+    },
+    {
+        "id": "no_guessed_year_omit_for_latest",
+        "rules": [41],
+        "query": "How is humanitarian funding split across clusters in Yemen?",
+        "check": (
+            "Must call fetch_fts_funding_data with country_iso3 only, year OMITTED (not a "
+            "guessed/hallucinated year) so the tool auto-selects the most recent plan -- found "
+            "live: the model would fill in a specific (stale) year itself instead of leaving "
+            "it blank, silently returning old data instead of the latest available."
+        ),
+    },
+    {
+        "id": "ask_when_latest_vs_historical_period_is_ambiguous",
+        "rules": [19, 41],
+        "query": "Show me the population of Aden -- I'm comparing it to a report I read a while back.",
+        "check": (
+            "Since the user hints they may need a specific past period to match an existing "
+            "report (not necessarily the latest), and picking the wrong one would materially "
+            "change a comparison, should ask which year/period before calling "
+            "fetch_worldpop_population, rather than silently defaulting to the most recent."
+        ),
+    },
 ]
 
 
