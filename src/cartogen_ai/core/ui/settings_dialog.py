@@ -40,14 +40,14 @@ def _extract_theme_palette():
         return None
     p = app.palette()
     return {
-        "window": p.color(QPalette.Window).name(),
-        "alt_base": p.color(QPalette.AlternateBase).name(),
-        "base": p.color(QPalette.Base).name(),
-        "text": p.color(QPalette.WindowText).name(),
-        "highlight": p.color(QPalette.Highlight).name(),
-        "highlighted_text": p.color(QPalette.HighlightedText).name(),
-        "muted_text": p.color(QPalette.Disabled, QPalette.WindowText).name(),
-        "mid": p.color(QPalette.Mid).name(),
+        "window": p.color(QPalette.ColorRole.Window).name(),
+        "alt_base": p.color(QPalette.ColorRole.AlternateBase).name(),
+        "base": p.color(QPalette.ColorRole.Base).name(),
+        "text": p.color(QPalette.ColorRole.WindowText).name(),
+        "highlight": p.color(QPalette.ColorRole.Highlight).name(),
+        "highlighted_text": p.color(QPalette.ColorRole.HighlightedText).name(),
+        "muted_text": p.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText).name(),
+        "mid": p.color(QPalette.ColorRole.Mid).name(),
     }
 
 # Single source of truth for every provider's UI row and behavior. Adding a
@@ -171,7 +171,7 @@ class CartogenAiSettingsDialog(QDialog):
 
             key_edit = QLineEdit()
             if pv != "ollama":
-                key_edit.setEchoMode(QLineEdit.Password)
+                key_edit.setEchoMode(QLineEdit.EchoMode.Password)
             saved_key = CredentialManager.get_credential(pv)
             key_edit.setText(saved_key if saved_key else entry["key_default"])
             key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
@@ -259,7 +259,7 @@ class CartogenAiSettingsDialog(QDialog):
         layout.addWidget(self.fetch_status_label)
 
         # Buttons
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)

@@ -29,27 +29,49 @@ def _split_table_row(line):
     return [c.strip() for c in line.strip("|").split("|")]
 
 
-def _render_table(rows):
+def _render_table(rows, text_color, border_color, row_border_color):
     """rows[0] is the header row, rows[1:] are data rows -- caller already
     verified rows[0] is followed by a valid '|---|---|' separator and
-    stripped that separator line out before calling this."""
+    stripped that separator line out before calling this. Colors come from
+    render_markdown's theme-derived locals (see its docstring) -- this
+    function has no theme context of its own."""
     header = _split_table_row(rows[0])
     th = "".join(
-        f'<th style="text-align:left;padding:4px 10px;border-bottom:2px solid #999;">{c}</th>'
+        f'<th style="text-align:left;padding:4px 10px;border-bottom:2px solid {border_color};color:{text_color};">{c}</th>'
         for c in header
     )
     trs = []
     for row_line in rows[1:]:
         cells = _split_table_row(row_line)
         tds = "".join(
-            f'<td style="padding:4px 10px;border-bottom:1px solid #ddd;">{c}</td>'
+            f'<td style="padding:4px 10px;border-bottom:1px solid {row_border_color};color:{text_color};">{c}</td>'
             for c in cells
         )
         trs.append(f"<tr>{tds}</tr>")
     return f'<table style="border-collapse:collapse;margin:6px 0;">' f"<tr>{th}</tr>{''.join(trs)}</table>"
 
 
-def render_markdown(text):
+def render_markdown(text, colors=None):
+    """colors is the same theme-derived dict derive_bubble_colors() returns
+    (text/subtle/border/agent_bg) -- threaded through so code blocks, inline
+    code, blockquotes, tables, and <hr> follow the live QGIS theme instead of
+    the fixed light-theme colors this used to hardcode (which made code blocks
+    in particular unreadable in a dark QGIS theme: a light-grey background with
+    no matching foreground color, against text meant to sit on a dark bubble).
+    Defaults to the same static light-theme values derive_bubble_colors() falls
+    back to when there's no live QApplication, so a bare render_markdown(text)
+    call -- existing tests included -- keeps working unchanged."""
+    if not colors:
+        colors = {
+            "user_bg": "#dce8f7", "agent_bg": "#eef0f2", "text": "#1c1c1c",
+            "subtle": "#666666", "border": "#d0d0d0",
+        }
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    border_color = colors.get("border", "#d0d0d0")
+    row_border_color = _blend_hex(border_color, colors.get("agent_bg", "#eef0f2"), 0.5)
+    code_bg = _blend_hex(colors.get("agent_bg", "#eef0f2"), text_color, 0.15)
+
     # 1. Pull fenced code blocks out first (and drop the language tag, e.g. ```python)
     #    so everything below never touches code content.
     code_blocks = []
@@ -80,12 +102,12 @@ def render_markdown(text):
             while j < len(lines) and _is_table_row(lines[j].strip()):
                 table_rows.append(lines[j].strip())
                 j += 1
-            out_lines.append(_render_table(table_rows))
+            out_lines.append(_render_table(table_rows, text_color, border_color, row_border_color))
             i = j
             continue
 
         if re.match(r'^-{3,}$', stripped):
-            out_lines.append('<hr style="border:none;border-top:1px solid #ccc;margin:6px 0;">')
+            out_lines.append(f'<hr style="border:none;border-top:1px solid {border_color};margin:6px 0;">')
             i += 1
             continue
 
@@ -105,8 +127,8 @@ def render_markdown(text):
                 i += 1
             inner = "<br>".join(quote_lines)
             out_lines.append(
-                '<div style="border-left:3px solid #b0b0b0;margin:6px 0;'
-                f'padding:2px 10px;color:#666;">{inner}</div>'
+                f'<div style="border-left:3px solid {border_color};margin:6px 0;'
+                f'padding:2px 10px;color:{subtle_color};">{inner}</div>'
             )
             continue
 
@@ -131,7 +153,11 @@ def render_markdown(text):
     text = "<br>".join(out_lines)
 
     # 4. Inline formatting.
-    text = re.sub(r'`([^`]+?)`', r'<code style="background-color: #e8e8e8; padding: 2px 4px; border-radius: 3px;">\1</code>', text)
+    text = re.sub(
+        r'`([^`]+?)`',
+        f'<code style="background-color: {code_bg}; color: {text_color}; padding: 2px 4px; border-radius: 3px;">\\1</code>',
+        text,
+    )
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'~~(.+?)~~', r'<s>\1</s>', text)
     text = re.sub(r'\[([^\]\[]+)\]\((https?://[^\s)]+)\)', r'<a href="\2">\1</a>', text)
@@ -140,7 +166,7 @@ def render_markdown(text):
     for idx, code in enumerate(code_blocks):
         code_html = code.strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         block = (
-            '<pre style="background-color: #e8e8e8; padding: 6px; border-radius: 4px; '
+            f'<pre style="background-color: {code_bg}; color: {text_color}; padding: 6px; border-radius: 4px; '
             f'white-space: pre-wrap;"><code>{code_html}</code></pre>'
         )
         text = text.replace(f"\x00CODEBLOCK{idx}\x00", block)

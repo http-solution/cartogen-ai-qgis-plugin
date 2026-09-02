@@ -45,7 +45,7 @@ class CartogenAiDockWidget(QDockWidget):
     def __init__(self, agent_provider=None, parent=None):
         super().__init__("Cartogen AI", parent)
         self.setObjectName("CartogenAiDockWidget")
-        self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
+        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
         self._agent_provider = agent_provider
 
         self.init_ui()
@@ -111,14 +111,14 @@ class CartogenAiDockWidget(QDockWidget):
         self.tasks_tab_widget = TasksTabWidget(dock=self)
         tasks_scroll = QScrollArea()
         tasks_scroll.setWidgetResizable(True)
-        tasks_scroll.setFrameShape(QScrollArea.NoFrame)
+        tasks_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         tasks_scroll.setWidget(self.tasks_tab_widget)
         self.tab_widget.addTab(tasks_scroll, "📋 Tasks & Notes")
 
         self.help_tab_widget = HelpTabWidget()
         help_scroll = QScrollArea()
         help_scroll.setWidgetResizable(True)
-        help_scroll.setFrameShape(QScrollArea.NoFrame)
+        help_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         help_scroll.setWidget(self.help_tab_widget)
         self.tab_widget.addTab(help_scroll, "❓ Help")
 

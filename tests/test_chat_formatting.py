@@ -65,6 +65,48 @@ class TestRenderMarkdown(unittest.TestCase):
         self.assertIn("&amp;", html)
         self.assertIn("&gt;", html)
 
+    def test_default_colors_used_when_none_supplied(self):
+        # Locks in the pre-existing static fallback (matches derive_bubble_colors'
+        # own no-palette fallback) so a bare render_markdown(text) call -- as used
+        # by any caller that hasn't been updated to pass live theme colors -- still
+        # renders deterministically: the code chip background is derived from that
+        # fallback's agent_bg/text (via _blend_hex), and the text color matches
+        # the fallback's "text" entry exactly.
+        html = render_markdown("`x = 1`")
+        expected_bg = _blend_hex("#eef0f2", "#1c1c1c", 0.15)
+        self.assertIn(f"background-color: {expected_bg}", html)
+        self.assertIn("color: #1c1c1c", html)
+
+    def test_dark_theme_colors_flow_into_code_and_table_and_blockquote(self):
+        # Regression test for a real bug: code blocks, inline code, table
+        # borders/text, <hr>, and blockquotes were hardcoded to fixed
+        # light-theme colors regardless of the live QGIS theme, making code
+        # blocks in particular unreadable in a dark theme (light-grey
+        # background, no matching foreground color). render_markdown must
+        # follow the same colors dict derive_bubble_colors() produces.
+        dark_colors = {
+            "user_bg": "#2a2a2a", "agent_bg": "#333333", "text": "#e0e0e0",
+            "subtle": "#a0a0a0", "border": "#555555",
+        }
+        inline_html = render_markdown("use `x = 1` here", dark_colors)
+        self.assertIn("#e0e0e0", inline_html)  # code text is readable against a dark bubble
+        self.assertNotIn("#e8e8e8", inline_html)  # the old fixed light-grey chip is gone
+
+        block_html = render_markdown("```python\ny = 2\n```", dark_colors)
+        self.assertIn("#e0e0e0", block_html)
+        self.assertNotIn("#e8e8e8", block_html)
+
+        table_html = render_markdown("| A | B |\n|---|---|\n| 1 | 2 |", dark_colors)
+        self.assertIn("#555555", table_html)
+        self.assertIn("#e0e0e0", table_html)
+
+        quote_html = render_markdown("> quoted", dark_colors)
+        self.assertIn("#a0a0a0", quote_html)  # subtle/muted color, not the old fixed #666
+        self.assertNotIn("color:#666", quote_html)
+
+        hr_html = render_markdown("---", dark_colors)
+        self.assertIn("#555555", hr_html)
+
 
 class TestRelativeTime(unittest.TestCase):
     def test_empty_input(self):
