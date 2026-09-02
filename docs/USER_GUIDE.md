@@ -103,6 +103,27 @@ Tasks & Memory tab shows what's stored, with a search box to filter it and a
 **🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
 unaffected).
 
+### Learning from your usage
+
+Beyond what the agent explicitly chooses to remember mid-conversation, a lighter
+layer runs automatically in the background:
+
+- **Preferences** -- if you consistently use one connection provider across enough
+  sessions, the agent notices and treats it as a soft default (it never overrides a
+  provider you've explicitly selected in Settings).
+- **Corrections** -- if you push back on a result right after a tool runs ("that's
+  wrong", "undo that", "actually I meant..."), that's captured as a standing note so
+  the same choice isn't repeated unprompted. This is a best-effort text heuristic, not
+  a guarantee -- it can miss a correction phrased unusually, or occasionally flag an
+  unrelated message that happens to use similar wording.
+- **Usage patterns** -- which tools and providers you use most is tracked as simple
+  counts and given to the agent as context, not used to silently change any UI default.
+
+All of this shows up in the Tasks & Memory tab under a new **🎓 Learned
+Preferences & Rules** row, alongside the existing memory browser. Pick any entry from
+the dropdown and click **🗑 Forget Selected** to remove it -- useful if something
+was inferred wrong, or a correction rule no longer applies.
+
 ## Destructive actions
 
 Removing a layer or running a field calculator mutation always goes through a

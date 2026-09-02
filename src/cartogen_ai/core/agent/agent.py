@@ -44,6 +44,7 @@ from .task_manager import AgentTaskManager
 from .prompts import build_system_prompt
 from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools.task_tools import bind_agent_context
+from . import learning
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
 # extraction), and never touch qgis.core/Qt objects. These are safe to run
@@ -212,6 +213,19 @@ class CartogenAi:
         # Bind active task and memory managers to task tool execution handlers
         bind_agent_context(self.task_manager, self.memory_manager)
 
+        # Usage-pattern tracking (self-learning mechanism 3, 2026-09-02): one
+        # provider-usage sample per session, since CartogenAi() is constructed
+        # once per session (see _get_agent() in plugin_main.py). Feeds both the
+        # formatted memory context surfaced to the model and
+        # learning.maybe_infer_preferences()'s passive preference detection
+        # (mechanism 1), called after tool executions below.
+        learning.record_provider_usage(self.memory_manager, provider_name)
+
+        # Last successful tool call this session -- (name, args) or None. Used by
+        # run() to attach a detected correction (mechanism 2) to the action it's
+        # actually correcting, rather than just the bare user text.
+        self._last_tool_call = None
+
         # CartogenAi() is always constructed synchronously from the main Qt
         # thread (via _get_agent() in plugin_main.py), so touching QgsProject
         # here to restore project-bound chat history is safe.
@@ -348,6 +362,9 @@ class CartogenAi:
 
                 elif res.get("success"):
                     self.memory_manager.log_spatial_action(name, str(args))
+                    learning.record_tool_usage(self.memory_manager, name)
+                    learning.maybe_infer_preferences(self.memory_manager)
+                    self._last_tool_call = (name, args)
                     created_layer_name = res.get("layer_name")
                     if created_layer_name and QgsProject is not None:
                         layers = QgsProject.instance().mapLayersByName(created_layer_name)
@@ -426,6 +443,9 @@ class CartogenAi:
             if layers:
                 source_layers = [v for k, v in args.items() if isinstance(v, str) and "layer" in k]
                 tag_layer_lineage(layers[0], name, args, source_layers)
+        learning.record_tool_usage(self.memory_manager, name)
+        learning.maybe_infer_preferences(self.memory_manager)
+        self._last_tool_call = (name, args)
         # TWO_PHASE_TOOLS are never task-management tools, so no exclusion check needed here
         # (unlike the equivalent call in _real_execute_tool's success branch).
         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
@@ -659,6 +679,18 @@ class CartogenAi:
         from .tool_router import ToolRouter
         self._apply_auto_model_selection(user_query)
         user_message = {"role": "user", "content": user_query}
+
+        # Correction detection (self-learning mechanism 2, 2026-09-02): a plain-
+        # text heuristic over this new message, checked against the last tool
+        # call this session actually made. Deliberately conservative and known-
+        # imperfect -- see learning.py's module docstring for the honest caveat
+        # (there's no ground truth for "the user meant this as a correction"
+        # short of asking them). False negatives just mean nothing extra gets
+        # remembered; false positives store an overly specific rule, which the
+        # memory panel's Forget control (tasks_tab_widget.py) lets the user remove.
+        if learning.detect_correction(user_query) and self._last_tool_call:
+            last_name, last_args = self._last_tool_call
+            learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
         system_prompt_content = build_system_prompt(self.task_manager, self.memory_manager, map_context)
         
         messages = [{"role": "system", "content": system_prompt_content}]
