@@ -920,7 +920,7 @@ def voronoi_polygons(layer_name, buffer_percent=0):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    if layer.geometryType() != QgsWkbTypes.PointGeometry:
+    if layer.geometryType() != QgsWkbTypes.GeometryType.PointGeometry:
         return {"error": "voronoi_polygons only supports point layers."}
     return _run_and_add(
         "native:voronoipolygons",
@@ -942,7 +942,7 @@ def delaunay_triangulation(layer_name):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    if layer.geometryType() != QgsWkbTypes.PointGeometry:
+    if layer.geometryType() != QgsWkbTypes.GeometryType.PointGeometry:
         return {"error": "delaunay_triangulation only supports point layers."}
     return _run_and_add(
         "native:delaunaytriangulation",
@@ -1730,7 +1730,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    if QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.PointGeometry:
+    if QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.GeometryType.PointGeometry:
         return {"error": f"'{layer_name}' is not a point layer -- obfuscate_sensitive_points only handles point geometries."}
 
     admin_layer = None
@@ -1746,7 +1746,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         admin_layer = _find_layer_by_name(admin_layer_name)
         if admin_layer is None:
             return {"error": f"Layer '{admin_layer_name}' not found"}
-        if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.PolygonGeometry:
+        if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
             return {"error": f"'{admin_layer_name}' is not a polygon layer."}
 
     out_name = output_layer_name or f"{layer_name}_obfuscated"

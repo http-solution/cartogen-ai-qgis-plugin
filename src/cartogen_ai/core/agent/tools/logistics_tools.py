@@ -571,7 +571,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
     area = _find_layer_by_name(area_layer)
     if area is None:
         return {"error": f"Layer '{area_layer}' not found"}
-    if QgsWkbTypes.geometryType(area.wkbType()) != QgsWkbTypes.PolygonGeometry:
+    if QgsWkbTypes.geometryType(area.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
         return {"error": f"'{area_layer}' must be a polygon layer."}
 
     # Reuses calculate_service_area exactly as a normal caller would -- same

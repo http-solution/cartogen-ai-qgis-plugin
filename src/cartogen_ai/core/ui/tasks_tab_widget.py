@@ -261,7 +261,7 @@ class TasksTabWidget(QWidget):
         self.task_list_widget.clear()
         for task in tasks:
             item = QListWidgetItem()
-            item.setData(Qt.UserRole, task)
+            item.setData(Qt.ItemDataRole.UserRole, task)
             widget = self._build_task_item_widget(task)
             item.setSizeHint(widget.sizeHint())
             self.task_list_widget.addItem(item)
@@ -322,7 +322,7 @@ class TasksTabWidget(QWidget):
             self.cancel_task_btn.setEnabled(False)
             return
 
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         rat = task.get("rationale") or "(No rationale provided for this step)"
         snippet = task.get("code_snippet") or "# No code snippet recorded for this step"
         status = task.get("status")
@@ -373,7 +373,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         pending_tool = task.get("pending_tool")
         pending_args = task.get("pending_args", {})
@@ -398,7 +398,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         if self._agent_provider:
             agent = self._agent_provider()
@@ -414,7 +414,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         desc = task.get("description", "")
         result = task.get("result", "")
@@ -434,7 +434,7 @@ class TasksTabWidget(QWidget):
         items = self.task_list_widget.selectedItems()
         if not items:
             return
-        task = items[0].data(Qt.UserRole) or {}
+        task = items[0].data(Qt.ItemDataRole.UserRole) or {}
         task_id = task.get("id")
         desc = task.get("description", "")
         chat_tab = self._dock.chat_tab_widget
@@ -457,9 +457,9 @@ class TasksTabWidget(QWidget):
             return
         reply = QMessageBox.question(
             self, "Clear Plan", "Archive the current plan and reset the tracker?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             agent.task_manager.clear_plan()
 
     def _clear_project_memory_clicked(self):
@@ -470,9 +470,9 @@ class TasksTabWidget(QWidget):
             return
         reply = QMessageBox.question(
             self, "Clear Project Memory", "Permanently clear all stored project notes for this project?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             agent.memory_manager.clear_project_notes()
             self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
             self._apply_memory_filter()
