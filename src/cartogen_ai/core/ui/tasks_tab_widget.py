@@ -145,8 +145,12 @@ class TasksTabWidget(QWidget):
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
+        self.clear_global_memory_btn = QPushButton("🗑 Clear Global Memory")
+        self.clear_global_memory_btn.setObjectName("dangerButton")
+        self.clear_global_memory_btn.clicked.connect(self._clear_global_memory_clicked)
         memory_header.addStretch()
         memory_header.addWidget(self.clear_memory_btn)
+        memory_header.addWidget(self.clear_global_memory_btn)
         tasks_layout.addLayout(memory_header)
 
         self.memory_search_edit = QLineEdit()
@@ -474,6 +478,23 @@ class TasksTabWidget(QWidget):
         )
         if reply == QMessageBox.Yes:
             agent.memory_manager.clear_project_notes()
+            self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
+            self._apply_memory_filter()
+
+    def _clear_global_memory_clicked(self):
+        if not self._agent_provider:
+            return
+        agent = self._agent_provider()
+        if not (agent and hasattr(agent, "memory_manager")):
+            return
+        reply = QMessageBox.question(
+            self, "Clear Global Memory",
+            "Permanently clear ALL global memory notes (preferences and any other notes "
+            "remembered across every QGIS project on this machine)?\n\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            agent.memory_manager.clear_global_notes()
             self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
             self._apply_memory_filter()
 
