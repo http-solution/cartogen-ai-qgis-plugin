@@ -119,6 +119,8 @@ Still open, unchanged by this round: **F1 (CRITICAL — global memory has no era
 and **F6-F12 (Medium/Low/Informational)** — see `docs/GDPR_COMPLIANCE_REVIEW.docx` §6 for
 all 13.
 
+**Update, 2026-09-04 — F1 now fixed (found via cross-checking this repo's GDPR review against `cartogen-ai`, the now-canonical QGIS plugin checkout):** `SpatialMemoryManager.clear_global_notes()` added, wired to a new "Clear Global Memory" button in `ui/tasks_tab_widget.py`, matching recommendation R4. Full writeup: `docs/BUG_TRACKER.md` BUG-2026-09-04-1. Ported from `cartogen-ai` commit `eee84eb`, which closed the identical finding in that repo first — the two repos diverged before this GDPR review was ever run, so the fix had to land in both independently. **F6-F12 still open, unaffected by this update.**
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
