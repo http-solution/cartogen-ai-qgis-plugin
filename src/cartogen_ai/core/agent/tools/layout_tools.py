@@ -62,7 +62,14 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     "map area captures whatever extent is currently on screen -- pass zoom_to_layer to fit a specific "
     "layer's full extent first (e.g. the national boundary layer for a country-wide sitrep map); "
     "otherwise a stale or zoomed-in canvas view produces a cropped map missing large parts of the "
-    "area of interest.",
+    "area of interest. `title` and `body_text` must only describe real, verified findings -- never "
+    "invent incidents, casualties, threat assessments, severity ratings, or other real-world claims "
+    "to make a report look complete. If you don't have verified data for what's being asked, say so "
+    "in your chat response instead of writing placeholder or invented content into this layout -- a "
+    "printed/exported layout reads as an authoritative finished document, not a draft, so anything "
+    "fabricated here is far more likely to be trusted and acted on than the same claim in chat. Every "
+    "export from this tool carries a standing disclaimer footer for exactly this reason, but that "
+    "does not excuse writing fabricated content in the first place.",
     {
         "type": "object",
         "properties": {
@@ -140,19 +147,28 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # norm. Only the landscape numbers have been confirmed against a
         # live full-Yemen export; portrait is analogous but unverified.
         portrait = page_orientation.lower() == "portrait"
+        page_width, page_height = (210, 297) if portrait else (297, 210)
         if portrait:
             map_x, map_y, map_w, map_h = 15, 26, 180, 190
             col_x, col_w = 15, 180
             legend_y, legend_h = map_y + map_h + 4, 45
             scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
-            body_y, body_h = scalebar_y + scalebar_h + 4, 13
+            # body_h shrunk from 13 to 6 (2026-09-02) to leave room for the
+            # standing disclaimer footer below -- portrait's fit here is
+            # unverified against a live export, same caveat as the rest of
+            # this branch (see the comment above this if/else).
+            body_y, body_h = scalebar_y + scalebar_h + 4, 6
             north_x, north_y = 175, scalebar_y
             title_w = 180
         else:
             map_x, map_y, map_w, map_h = 15, 26, 175, 155
             col_x, col_w = 195, 95
             legend_y, legend_h = map_y, 88
-            body_y, body_h = legend_y + legend_h + 4, 87
+            # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
+            # standing disclaimer footer below, without touching any of the
+            # map/legend/scalebar/title numbers confirmed against a live
+            # full-Yemen export.
+            body_y, body_h = legend_y + legend_h + 4, 78
             scalebar_y, scalebar_h = map_y + map_h + 3, 12
             north_x, north_y = map_x + map_w - 12, scalebar_y
             title_w = col_x + col_w - map_x
@@ -229,6 +245,16 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             layout.addLayoutItem(body_label)
             body_label.attemptMove(QgsLayoutPoint(col_x, body_y, QgsUnitTypes.LayoutMillimeters))
             body_label.attemptResize(QgsLayoutSize(col_w, body_h, QgsUnitTypes.LayoutMillimeters))
+
+        footer_label = QgsLayoutItemLabel(layout)
+        footer_label.setText("AI-generated -- verify before operational, humanitarian, or safety use.")
+        layout.addLayoutItem(footer_label)
+        footer_x = map_x
+        footer_w = (col_x + col_w) - map_x
+        footer_y = body_y + body_h + 2
+        footer_h = max(4, min(8, page_height - footer_y - 2))
+        footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, QgsUnitTypes.LayoutMillimeters))
+        footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, QgsUnitTypes.LayoutMillimeters))
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation}
 
