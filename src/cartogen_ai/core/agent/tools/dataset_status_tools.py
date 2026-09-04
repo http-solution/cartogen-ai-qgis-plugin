@@ -88,10 +88,13 @@ def set_dataset_status(layer_name, status="INGESTED", note=None):
     "backward (to mark a regression), or re-state it -- never skipping a state. The "
     "STAGED -> VALIDATED step automatically runs the existing geometry-validity check "
     "(diagnose_topology) and refuses to advance if it fails, unless override=True is passed "
-    "with a note justifying the bypass. Every other transition has no automated check yet and "
-    "requires a note explaining the manual advance. Moving backward always requires a note. "
-    "Call get_dataset_status first if unsure of the layer's current status, and set_dataset_status "
-    "first if it isn't tracked yet.",
+    "with a note justifying the bypass. The VALIDATED -> ANALYSIS_READY step runs a "
+    "schema-contract check (validate_schema) instead, but ONLY when contract_name is supplied -- "
+    "omit it and this transition behaves like any other unchecked one (a note is required). Every "
+    "other transition has no automated check yet and requires a note explaining the manual "
+    "advance. Moving backward always requires a note. Call get_dataset_status first if unsure of "
+    "the layer's current status, set_dataset_status first if it isn't tracked yet, and "
+    "list_schema_contracts to see available contract_name values.",
     {
         "type": "object",
         "properties": {
@@ -102,17 +105,18 @@ def set_dataset_status(layer_name, status="INGESTED", note=None):
             },
             "note": {"type": "string", "description": "Required for transitions with no automated check, for any backward move, and for an override."},
             "override": {"type": "boolean", "description": "Bypass a failed automated check. Requires note. Defaults to false."},
+            "contract_name": {"type": "string", "description": "Only used for VALIDATED -> ANALYSIS_READY, e.g. 'health_facilities' or 'admin2'. See list_schema_contracts."},
         },
         "required": ["layer_name", "target_status"],
     },
 )
-def advance_dataset_status(layer_name, target_status, note=None, override=False):
+def advance_dataset_status(layer_name, target_status, note=None, override=False, contract_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    result = _ds.advance_dataset_status(layer, target_status, note=note, override=override)
+    result = _ds.advance_dataset_status(layer, target_status, note=note, override=override, contract_name=contract_name)
     if "error" in result:
         return result
     return {**result, "layer_name": layer_name}

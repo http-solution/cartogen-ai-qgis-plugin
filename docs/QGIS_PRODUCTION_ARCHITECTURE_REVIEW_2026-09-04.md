@@ -533,7 +533,17 @@ instruction -- the ordered lifecycle states, a sequential advancement
 gate, and one real automated check (geometry validity, gating
 STAGED -> VALIDATED) now exist and are wired to a registered tool set,
 not just a design doc (see point 2's own entry for exact scope and what
-points 4/5/6/7/17 still need to build on top of it). Everything else
+points 4/5/6/7/17 still need to build on top of it); **point 4**
+(geometry QA) then had its overlaps/duplicates/min-area follow-on built
+immediately after, on Baron's own choice of what to build next, with
+point 2's gate updated in the same slice to actually check the new
+fields (gap detection and the semantic admin1/admin2 topology check
+remain deliberately unbuilt -- see point 4's own entry); **point 5**
+(schema contracts) then got its first two real contracts
+(`health_facilities`, `admin2`) built the same day, wired into point 2's
+gate as an opt-in check on VALIDATED -> ANALYSIS_READY (only runs when a
+`contract_name` is actually supplied -- see point 5's own entry for why
+opt-in, not automatic). Everything else
 keeps its original verdict from the initial gap-check; this paragraph is
 a change log, not a fresh recount of the whole document. Point 19's
 entry is worth reading first regardless, both for what it found and for
@@ -585,29 +595,69 @@ open).
    CRS the layer already has, with no CRS-suitability check or warning.
    `obfuscate_sensitive_points`'s docstring is the only place that even
    discusses CRS-for-operation, as unenforced prose advice.
-4. **Geometry QA beyond fixgeometries -- PARTIAL.** `diagnose_topology`
-   (`vector_tools.py:1605-1633`) exists and checks single-geometry
-   validity and zero-area polygons, feeding `fix_geometries` →
-   `native:fixgeometries`. It does not check overlaps, gaps, duplicates,
-   ring problems, or minimum-area thresholds across features. No semantic
-   topology check exists -- nothing validates that an admin2 polygon
-   spatially sits inside its claimed admin1 parent (`admin1_pcode`/
-   `admin2_pcode` cross-check returns zero hits in `humanitarian_tools.py`).
-   `diagnose_topology`'s existing pass/fail result is now the one
-   automated check wired into point 2's QA gate (STAGED -> VALIDATED) --
-   the overlaps/gaps/duplicates/semantic-topology checks this point still
-   needs would extend that same check function and the gate would pick
-   them up automatically, no state-machine changes required.
-5. **Machine-readable schema contracts -- REAL GAP.** No YAML/JSON schema
-   files, no `foreign_key`/`required_fields`/`validate_schema` symbol
-   anywhere in `src/`. The only "schema" hits are the LLM function-calling
-   JSON schema and runtime `QgsFields` objects -- column meaning is
-   inferred by the model at call time, not pre-validated against a
-   contract. Once built, a schema-contract check is a natural second
-   automated check for point 2's gate (e.g. gating STAGED -> VALIDATED
-   alongside geometry_validity, or its own ANALYSIS_READY transition) --
-   `_AUTOMATED_CHECK_TRANSITIONS` in `dataset_status.py` is where that
-   gets registered.
+4. **Geometry QA beyond fixgeometries -- PARTIAL, overlaps/duplicates/
+   min-area closed 2026-09-04.** `diagnose_topology` originally only
+   checked single-geometry validity and exact-zero-area polygons,
+   feeding `fix_geometries` → `native:fixgeometries`. Extended, same
+   session as point 2's QA gate: now also reports `duplicate_geometries`
+   (exact WKT match across features) and, for polygon layers,
+   `overlapping_feature_pairs` (real area-sharing overlap via
+   `QgsGeometry.overlaps`, not mere touching -- bbox-prefiltered with the
+   same `QgsSpatialIndex(layer.getFeatures())` pattern already used by
+   `obfuscate_sensitive_points`'s admin-unit-snap path in this file), plus
+   an optional `min_area` parameter flagging small-but-nonzero slivers
+   separately from exact zero-area ones. Point 2's gate now checks all
+   three (invalid/duplicate/overlapping), not just invalid geometries --
+   exactly the "extend the same function, gate picks it up automatically"
+   path this entry predicted. 8 new tests; this function had zero prior
+   test coverage at all (confirmed via grep across `tests/` before this
+   change) despite already being load-bearing for point 2's gate.
+   **Still PARTIAL, deliberately:** gap detection (missing coverage
+   inside a polygon layer meant to tile an area) was NOT added -- it
+   needs a reference boundary to diff against that this tool has no way
+   to infer, and a dissolve-and-look-for-interior-holes heuristic would
+   misfire as a false gap on almost any real humanitarian admin-boundary
+   layer (a coastline, an unmapped buffer zone, a deliberately excluded
+   area are real holes, not QA failures) -- left alone rather than
+   guessed at, per this project's own verify-by-execution standard (same
+   reasoning as point 13's skipped standard-deviation classification).
+   Ring problems are not handled as a separate check -- GEOS's
+   `isGeomValid()`, already run, catches self-intersecting/malformed
+   rings as invalid geometries; no evidence found that a distinct check
+   is needed on top of that. The semantic topology check (admin2 sits
+   inside claimed admin1 parent) and P-code hierarchy/uniqueness (point
+   6) remain untouched -- out of scope for this slice, which was
+   specifically "point 4's overlaps/gaps/duplicates," not point 6.
+5. **Machine-readable schema contracts -- PARTIAL, first two contracts
+   closed 2026-09-04.** Was a REAL GAP (no YAML/JSON schema files, no
+   `foreign_key`/`required_fields`/`validate_schema` symbol anywhere in
+   `src/` -- column meaning only ever inferred by the model at call
+   time). Now: `agent/schema_contracts.py` + two real JSON contract
+   files, `agent/contracts/health_facilities.json` and `admin2.json` --
+   exactly the minimal start this entry's own earlier note suggested.
+   Each contract declares required fields by an ALIAS LIST rather than
+   one fixed name (`admin2_pcode`/`adm2_pcode`/`ADM2_PCODE` all satisfy
+   the same slot, matched case-insensitively) -- deliberately, because
+   this codebase's own `calculate_severity_index`/`calculate_presence_gap`
+   already treat admin/pcode field names as caller-supplied parameters,
+   not fixed strings, since real-world naming varies by source; a
+   contract requiring one exact name would be a step backward from that.
+   Field types check against `QVariant.<name>` (the same enum vocabulary
+   `_qvariant_type_for_dtype` in `vector_tools.py` already uses), not a
+   provider-dependent `field.typeName()` string. Optional `allowed_values`
+   gives a real controlled-vocabulary/domain check (e.g.
+   `health_facilities`'s `facility_type`). Two new registered tools,
+   `list_schema_contracts`/`validate_schema`. Wired into point 2's gate
+   as the second option this entry originally named: a `schema_contract`
+   check on VALIDATED -> ANALYSIS_READY, but OPT-IN -- it only actually
+   runs when `advance_dataset_status` is called with a `contract_name`;
+   omitted, that transition falls through to the ordinary
+   note-required path rather than failing a check with nothing to check
+   against (not every dataset has a contract yet). 22 new tests. Still
+   PARTIAL: only 2 contracts exist, no `foreign_key` cross-dataset
+   concept was built, and point 6's P-code hierarchy/uniqueness remains
+   untouched -- the `admin2` contract's `admin1_pcode` field is explicitly
+   left as the future hook for that, not implemented here.
 6. **P-Code handling depth (uniqueness, hierarchy, temporal validity) --
    REAL GAP, extends an already-partially-logged item.**
    `HUMANITARIAN_CARTOGRAPHY_STANDARDS.md` §I already logs basic P-code
@@ -908,6 +958,47 @@ layer object rather than a QGIS mock) and
 full suite re-run afterward at 801 tests with the same pre-existing
 baseline (1 DNS-sandbox failure, 6 file-permission errors in
 `test_reporting_tools.py`, 14 skipped) and zero new failures.
+
+**Point 4 had its overlaps/duplicates/min-area follow-on built the same
+session, immediately after, on Baron's explicit "pick one dependent
+point to build next" -> point 4's fuller geometry QA.** `diagnose_topology`
+gained `duplicate_geometries` and (polygon layers only)
+`overlapping_feature_pairs` plus an optional `min_area` threshold; point
+2's gate was updated in the same slice to actually check the two new
+fields, not just `invalid_geometries` -- proving out the "extend the
+check function, the gate picks it up automatically" design point 2's
+own entry predicted, rather than leaving that claim untested. Gap
+detection and the semantic admin1/admin2 topology check remain
+deliberately unbuilt -- see point 4's updated entry for why gap
+detection specifically was left alone rather than guessed at. 12 new
+tests (8 for `diagnose_topology` itself -- its first test coverage of
+any kind -- plus 4 for the strengthened gate); full suite 813 tests,
+same known baseline, 0 new failures.
+
+**Point 5 had its first two schema contracts built the same session,
+immediately after, on Baron's "not yet, keep building" -- picked as the
+next dependent point without asking again, since it was already named
+as an option alongside point 4.** New `agent/schema_contracts.py` +
+`agent/contracts/health_facilities.json`/`admin2.json` (real JSON
+files, not inline Python dicts, as the review's own wording asked for).
+Fields are matched by an alias list, case-insensitively, rather than one
+fixed name -- deliberately, to match this codebase's own existing
+treatment of admin/pcode field names as caller-supplied parameters
+(`calculate_severity_index`'s `unit_name_field`, etc.) rather than fixed
+strings, since real COD-AB/geoBoundaries downloads vary
+(`ADM2_PCODE` vs. `admin2_pcode` vs. `adm2_pcode`). Wired into point
+2's gate as an OPT-IN check on VALIDATED -> ANALYSIS_READY -- runs only
+when the caller supplies `contract_name`; omitted, the transition falls
+through to the ordinary note-required path instead of failing a check
+with no contract to check against, since only two datasets have
+contracts so far. 22 new tests across `tests/test_schema_contracts.py`
+(plain fake field/feature/layer objects, real contract JSON files read
+from disk rather than mocked), `tests/test_schema_contract_tools.py`,
+and 4 gate-integration tests in `tests/test_dataset_status.py`. Full
+suite 835 tests, same known baseline, 0 new failures. Still PARTIAL:
+only 2 contracts exist, no cross-dataset `foreign_key` concept was
+built, and point 6's P-code hierarchy/uniqueness remains untouched --
+see point 5's updated entry.
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix

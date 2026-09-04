@@ -1,0 +1,22 @@
+{
+  "dataset": "health_facilities",
+  "description": "Point layer of individual health facilities used in presence-gap and severity-index analysis (see calculate_presence_gap, calculate_severity_index in agent/tools/humanitarian_tools.py).",
+  "required_fields": [
+    {
+      "aliases": ["facility_name", "name", "health_facility_name"],
+      "type": "String",
+      "description": "Facility display name."
+    },
+    {
+      "aliases": ["facility_type", "type", "health_facility_type"],
+      "type": "String",
+      "allowed_values": ["Hospital", "Health Center", "Health Centre", "Health Post", "Mobile Clinic", "Clinic"],
+      "description": "Facility category."
+    },
+    {
+      "aliases": ["admin2_pcode", "adm2_pcode", "ADM2_PCODE"],
+      "type": "String",
+      "description": "P-code of the admin2 unit this facility falls in -- the join key calculate_presence_gap/calculate_severity_index use against admin boundaries (see fetch_hdx_admin_boundaries's pcode_field)."
+    }
+  ]
+}

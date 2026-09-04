@@ -1620,17 +1620,45 @@ def get_crs(layer_name):
     }
 
 
-@register_tool("diagnose_topology", "Diagnose self-intersections, slivers, and invalid geometries in a vector layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
-def diagnose_topology(layer_name):
+@register_tool(
+    "diagnose_topology",
+    "Diagnose self-intersections, slivers, exact-duplicate geometries, and (for polygon layers) "
+    "overlapping features in a vector layer. Pass min_area to also flag polygons smaller than a "
+    "given threshold (in the layer's CRS units squared) as small_polygons, distinct from exact "
+    "zero-area slivers. Does NOT check for gaps between polygons meant to tile an area (e.g. "
+    "missing coverage inside an admin boundary) -- that needs a reference boundary to diff "
+    "against that this tool has no way to infer, and a heuristic based on dissolving the layer "
+    "and looking for interior holes would misfire as a false gap on almost any real humanitarian "
+    "admin-boundary layer (a coastline, an unmapped buffer zone, a deliberately excluded area are "
+    "all real holes, not QA failures) -- that remains open, see point 4 of "
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string"},
+            "min_area": {
+                "type": "number",
+                "description": "Optional. Flags polygons with 0 < area < min_area (in the layer's CRS units squared) as small_polygons, separate from exact zero-area slivers.",
+            },
+        },
+        "required": ["layer_name"],
+    },
+)
+def diagnose_topology(layer_name, min_area=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    is_polygon = QgsWkbTypes.geometryType(layer.wkbType()) == QgsWkbTypes.GeometryType.PolygonGeometry
+
     invalid_count = 0
     zero_area_count = 0
+    small_polygon_count = 0
     total_count = layer.featureCount()
+    wkt_to_fids = {}
+    polygon_geoms_by_fid = {}
 
     for feature in layer.getFeatures():
         geom = feature.geometry()
@@ -1641,15 +1669,68 @@ def diagnose_topology(layer_name):
             invalid_count += 1
         if geom.type() == 2 and geom.area() == 0:  # Polygon geometry with zero area
             zero_area_count += 1
+        elif geom.type() == 2 and min_area is not None and 0 < geom.area() < min_area:
+            small_polygon_count += 1
 
-    return {
+        wkt_to_fids.setdefault(geom.asWkt(), []).append(feature.id())
+        if geom.type() == 2:
+            polygon_geoms_by_fid[feature.id()] = geom
+
+    # Duplicate geometries: exact WKT match across two or more features. Counts
+    # every duplicate BEYOND the first in each group (3 identical features ->
+    # 2 duplicates), not the number of groups.
+    duplicate_count = sum(len(fids) - 1 for fids in wkt_to_fids.values() if len(fids) > 1)
+
+    # Overlapping features: real area-sharing overlap (QgsGeometry.overlaps,
+    # the same OGC predicate already surfaced as a select_by_location option),
+    # not mere touching. Spatial-index bbox prefilter is the same
+    # QgsSpatialIndex(layer.getFeatures()) + index.intersects(bbox) pattern
+    # already used by obfuscate_sensitive_points's admin_unit_snap path in
+    # this file -- .overlaps() itself is standard, long-stable GEOS-backed
+    # QgsGeometry API, but unlike .intersects()/.contains() (already
+    # exercised elsewhere in this file) it isn't independently exercised
+    # elsewhere in this codebase, so flagging that plainly rather than
+    # implying it's been proven the same way.
+    overlapping_pairs = 0
+    if is_polygon and polygon_geoms_by_fid:
+        index = QgsSpatialIndex(layer.getFeatures())
+        checked_pairs = set()
+        for fid, geom in polygon_geoms_by_fid.items():
+            for candidate_fid in index.intersects(geom.boundingBox()):
+                if candidate_fid == fid:
+                    continue
+                pair_key = tuple(sorted((fid, candidate_fid)))
+                if pair_key in checked_pairs:
+                    continue
+                checked_pairs.add(pair_key)
+                candidate_geom = polygon_geoms_by_fid.get(candidate_fid)
+                if candidate_geom is not None and geom.overlaps(candidate_geom):
+                    overlapping_pairs += 1
+
+    issues = []
+    if invalid_count > 0:
+        issues.append("Use fix_geometries tool to repair invalid geometries.")
+    if zero_area_count > 0 or small_polygon_count > 0:
+        issues.append("Review zero-area/small slivers -- fix_geometries does not remove these on its own.")
+    if duplicate_count > 0:
+        issues.append(f"{duplicate_count} duplicate geometr{'y' if duplicate_count == 1 else 'ies'} found -- consider a dissolve or manual dedup.")
+    if overlapping_pairs > 0:
+        issues.append(f"{overlapping_pairs} overlapping polygon pair(s) found -- review for digitizing errors.")
+
+    result = {
         "success": True,
         "layer_name": layer_name,
         "total_features": total_count,
         "invalid_geometries": invalid_count,
         "zero_area_slivers": zero_area_count,
-        "recommendation": "Use fix_geometries tool to repair identified issues." if (invalid_count > 0 or zero_area_count > 0) else "Geometries are clean."
+        "duplicate_geometries": duplicate_count,
+        "recommendation": " ".join(issues) if issues else "Geometries are clean.",
     }
+    if is_polygon:
+        result["overlapping_feature_pairs"] = overlapping_pairs
+    if min_area is not None:
+        result["small_polygons"] = small_polygon_count
+    return result
 
 
 @register_tool("verify_crs_compatibility", "Check if two layers share compatible Coordinate Reference Systems.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})

@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     find_nearest_features, convert_to_singlepart, simplify_geometry,
     field_statistics, select_by_location, invert_selection,
     _compute_field_statistics, zoom_to_layer, zoom_to_feature, _extent_to_canvas_crs,
-    apply_labels, get_layers,
+    apply_labels, get_layers, diagnose_topology,
 )
 
 
@@ -497,3 +497,179 @@ class TestApplyLabels(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDiagnoseTopologyExtended(unittest.TestCase):
+    """Point 4 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+    diagnose_topology used to only check single-geometry validity and
+    exact-zero-area slivers. Extended (2026-09-04, same session that built
+    point 2's QA gate) to also report exact-duplicate geometries, and, for
+    polygon layers, real area-sharing overlaps (QgsGeometry.overlaps, not
+    mere touching) and an optional min_area small-polygon threshold. Does
+    NOT add a gap check -- see the tool's own updated description for why
+    that's a deliberate, documented gap rather than an oversight.
+
+    This function had zero prior test coverage (confirmed via grep across
+    tests/ before this change) despite already being relied on by point 2's
+    QA gate -- these tests are its first, not a regression suite for an
+    existing one."""
+
+    @staticmethod
+    def _make_feature(fid, wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))", area=1.0,
+                       is_valid=True, is_empty=False, geom_type=2, bbox="bbox"):
+        geom = MagicMock()
+        geom.isEmpty.return_value = is_empty
+        geom.isGeomValid.return_value = is_valid
+        geom.type.return_value = geom_type
+        geom.area.return_value = area
+        geom.asWkt.return_value = wkt
+        geom.boundingBox.return_value = bbox
+        geom.overlaps.return_value = False
+        feature = MagicMock()
+        feature.id.return_value = fid
+        feature.geometry.return_value = geom
+        return feature, geom
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_reports_invalid_and_zero_area_as_before(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "not-polygon-sentinel"
+        f1, _ = self._make_feature(1, wkt="A", is_valid=False, area=1.0)
+        f2, _ = self._make_feature(2, wkt="B", is_valid=True, area=0.0)
+        layer = MagicMock()
+        layer.featureCount.return_value = 2
+        layer.getFeatures.return_value = [f1, f2]
+        mock_find.return_value = layer
+
+        result = diagnose_topology("layer")
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["invalid_geometries"], 1)
+        self.assertEqual(result["zero_area_slivers"], 1)
+        self.assertNotIn("overlapping_feature_pairs", result)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_duplicate_geometries_counted_beyond_the_first(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "not-polygon-sentinel"
+        same_wkt = "POLYGON((0 0,1 0,1 1,0 1,0 0))"
+        f1, _ = self._make_feature(1, wkt=same_wkt)
+        f2, _ = self._make_feature(2, wkt=same_wkt)
+        f3, _ = self._make_feature(3, wkt=same_wkt)
+        f4, _ = self._make_feature(4, wkt="DIFFERENT")
+        layer = MagicMock()
+        layer.featureCount.return_value = 4
+        layer.getFeatures.return_value = [f1, f2, f3, f4]
+        mock_find.return_value = layer
+
+        result = diagnose_topology("layer")
+
+        # 3 identical features -> 2 duplicates beyond the first; the 4th,
+        # distinct feature contributes nothing.
+        self.assertEqual(result["duplicate_geometries"], 2)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsSpatialIndex", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_overlapping_polygons_detected_via_spatial_index_and_overlaps(self, mock_find, mock_wkb, mock_index_cls):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "polygon-sentinel"
+        f1, g1 = self._make_feature(1, wkt="A")
+        f2, g2 = self._make_feature(2, wkt="B")
+        g1.overlaps.return_value = True
+        g2.overlaps.return_value = True
+        layer = MagicMock()
+        layer.featureCount.return_value = 2
+        layer.getFeatures.return_value = [f1, f2]
+        layer.wkbType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+        mock_index_cls.return_value.intersects.return_value = [1, 2]
+
+        result = diagnose_topology("layer")
+
+        self.assertEqual(result["overlapping_feature_pairs"], 1)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsSpatialIndex", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_adjacent_non_overlapping_polygons_report_zero(self, mock_find, mock_wkb, mock_index_cls):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "polygon-sentinel"
+        f1, g1 = self._make_feature(1, wkt="A")
+        f2, g2 = self._make_feature(2, wkt="B")
+        g1.overlaps.return_value = False
+        g2.overlaps.return_value = False
+        layer = MagicMock()
+        layer.featureCount.return_value = 2
+        layer.getFeatures.return_value = [f1, f2]
+        layer.wkbType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+        # Bounding boxes touch (candidates found via the index) but the
+        # actual geometries don't truly overlap -- e.g. two adjacent admin
+        # polygons sharing a border.
+        mock_index_cls.return_value.intersects.return_value = [1, 2]
+
+        result = diagnose_topology("layer")
+
+        self.assertEqual(result["overlapping_feature_pairs"], 0)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_non_polygon_layer_omits_overlap_key_entirely(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "point-sentinel"
+        f1, _ = self._make_feature(1, wkt="A", geom_type=0)
+        layer = MagicMock()
+        layer.featureCount.return_value = 1
+        layer.getFeatures.return_value = [f1]
+        mock_find.return_value = layer
+
+        result = diagnose_topology("layer")
+
+        self.assertNotIn("overlapping_feature_pairs", result)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_min_area_flags_small_but_nonzero_polygons(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "not-polygon-sentinel"
+        f1, _ = self._make_feature(1, wkt="A", area=0.5)
+        f2, _ = self._make_feature(2, wkt="B", area=50.0)
+        layer = MagicMock()
+        layer.featureCount.return_value = 2
+        layer.getFeatures.return_value = [f1, f2]
+        mock_find.return_value = layer
+
+        result = diagnose_topology("layer", min_area=1.0)
+
+        self.assertEqual(result["small_polygons"], 1)
+        self.assertEqual(result["zero_area_slivers"], 0)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_min_area_key_absent_when_not_requested(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        mock_wkb.geometryType.return_value = "not-polygon-sentinel"
+        f1, _ = self._make_feature(1, wkt="A", area=0.5)
+        layer = MagicMock()
+        layer.featureCount.return_value = 1
+        layer.getFeatures.return_value = [f1]
+        mock_find.return_value = layer
+
+        result = diagnose_topology("layer")
+
+        self.assertNotIn("small_polygons", result)
+
+    def test_degrades_gracefully_outside_qgis(self):
+        result = diagnose_topology("layer")
+        self.assertIn("error", result)
+        self.assertIn("QGIS not available", result["error"])

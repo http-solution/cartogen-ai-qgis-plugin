@@ -1,0 +1,21 @@
+{
+  "dataset": "admin2",
+  "description": "Second-level administrative boundary polygons (districts) as delivered by fetch_hdx_admin_boundaries (COD-AB) or fetch_geoboundaries -- the standard join target for presence-gap/severity-index analysis.",
+  "required_fields": [
+    {
+      "aliases": ["admin2_pcode", "adm2_pcode", "ADM2_PCODE"],
+      "type": "String",
+      "description": "OCHA/HDX P-code for this admin2 unit (see fetch_hdx_admin_boundaries's pcode_field)."
+    },
+    {
+      "aliases": ["admin2_name", "adm2_name", "ADM2_EN", "admin2_en", "name"],
+      "type": "String",
+      "description": "Admin2 unit display name."
+    },
+    {
+      "aliases": ["admin1_pcode", "adm1_pcode", "ADM1_PCODE"],
+      "type": "String",
+      "description": "Parent admin1 P-code -- point 6's still-unbuilt hierarchy check (prefix match against this field) would validate against this once it exists."
+    }
+  ]
+}
