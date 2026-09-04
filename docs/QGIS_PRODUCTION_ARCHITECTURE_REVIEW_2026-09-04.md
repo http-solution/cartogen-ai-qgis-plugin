@@ -527,11 +527,18 @@ fields on `get_layers` and a new `list_layouts` tool (map themes, a
 separate concept per point 16, are untouched); **point 13**
 (classification) gained a manual/defined-breaks mode for operational
 thresholds (a standard-deviation mode was deliberately left out -- see its
-entry). Everything else keeps its original verdict from the initial
-gap-check; this paragraph is a change log, not a fresh recount of the
-whole document. Point 19's entry is worth reading first regardless, both
-for what it found and for what it didn't resolve (the larger
-tiered-architecture question is still open).
+entry); and **point 2** (QA-gate state machine) had its first pass built
+the same day, on Baron's explicit "start the shared infrastructure"
+instruction -- the ordered lifecycle states, a sequential advancement
+gate, and one real automated check (geometry validity, gating
+STAGED -> VALIDATED) now exist and are wired to a registered tool set,
+not just a design doc (see point 2's own entry for exact scope and what
+points 4/5/6/7/17 still need to build on top of it). Everything else
+keeps its original verdict from the initial gap-check; this paragraph is
+a change log, not a fresh recount of the whole document. Point 19's
+entry is worth reading first regardless, both for what it found and for
+what it didn't resolve (the larger tiered-architecture question is still
+open).
 
 1. **Processing-first execution model -- PARTIAL.** Processing algorithms
    already are the dominant path for core vector/raster ops: most
@@ -547,11 +554,28 @@ tiered-architecture question is still open).
    prefer themselves over it (a prompt-level nudge, not an architectural
    gate).
 2. **Explicit QA-gate state machine (INGESTED→...→PUBLICATION_READY) --
-   REAL GAP.** No dataset-lifecycle state concept exists anywhere -- no
-   status field, no `@dataclass` for it, nothing preventing a tool from
-   running on data that "failed" an earlier check, because there is no
-   earlier-check result to consult. Validation today is scattered,
-   per-tool, stateless.
+   PARTIAL, first pass closed 2026-09-04.** Was a REAL GAP (no
+   dataset-lifecycle state concept existed anywhere, nothing preventing a
+   tool from running on data that "failed" an earlier check because
+   there was no earlier-check result to consult). Now: `agent/
+   dataset_status.py` implements the exact six-state ordered lifecycle
+   named in the proposal, persisted as a JSON custom property on the
+   layer (same durable-storage pattern already proven by `lineage.py` --
+   survives project save/reload for free), with three registered tools
+   (`get_dataset_status`, `set_dataset_status`, `advance_dataset_status`)
+   exposing it to the agent. The gate is real, not cosmetic: it refuses
+   to skip states, refuses a forward move across a checked transition
+   unless the check passes (override requires a note, recorded in
+   history), and refuses an unchecked forward move or any backward move
+   without a note. Exactly one transition has a real automated check
+   wired in -- STAGED -> VALIDATED runs the existing `diagnose_topology`
+   geometry-validity check (point 4's already-PARTIAL work) rather than
+   reimplementing it. Still PARTIAL, deliberately: no automated check
+   exists yet for the other five transitions, and points 5 (schema
+   contracts), 6 (P-code depth), 7 (temporal GIS), and 17 (provenance
+   sidecar) haven't been built to attach their own checks to this
+   record yet -- each remains its own real, separate gap; see their own
+   entries below.
 3. **CRS handling should be operation-aware, not a blanket rule -- REAL
    GAP, but not the conflict form described.** No hardcoded
    `32636`/`32637` exists anywhere in `agent/tools/*.py` -- so there's no
@@ -569,12 +593,21 @@ tiered-architecture question is still open).
    topology check exists -- nothing validates that an admin2 polygon
    spatially sits inside its claimed admin1 parent (`admin1_pcode`/
    `admin2_pcode` cross-check returns zero hits in `humanitarian_tools.py`).
+   `diagnose_topology`'s existing pass/fail result is now the one
+   automated check wired into point 2's QA gate (STAGED -> VALIDATED) --
+   the overlaps/gaps/duplicates/semantic-topology checks this point still
+   needs would extend that same check function and the gate would pick
+   them up automatically, no state-machine changes required.
 5. **Machine-readable schema contracts -- REAL GAP.** No YAML/JSON schema
    files, no `foreign_key`/`required_fields`/`validate_schema` symbol
    anywhere in `src/`. The only "schema" hits are the LLM function-calling
    JSON schema and runtime `QgsFields` objects -- column meaning is
    inferred by the model at call time, not pre-validated against a
-   contract.
+   contract. Once built, a schema-contract check is a natural second
+   automated check for point 2's gate (e.g. gating STAGED -> VALIDATED
+   alongside geometry_validity, or its own ANALYSIS_READY transition) --
+   `_AUTOMATED_CHECK_TRANSITIONS` in `dataset_status.py` is where that
+   gets registered.
 6. **P-Code handling depth (uniqueness, hierarchy, temporal validity) --
    REAL GAP, extends an already-partially-logged item.**
    `HUMANITARIAN_CARTOGRAPHY_STANDARDS.md` §I already logs basic P-code
@@ -582,13 +615,17 @@ tiered-architecture question is still open).
    retired P-code." Going further: `fetch_hdx_admin_boundaries` only
    detects which field *is* the P-code field -- it validates neither
    uniqueness, nor the admin2-pcode-prefix-matches-parent-admin1-pcode
-   hierarchy, nor any temporal-validity concept.
+   hierarchy, nor any temporal-validity concept. Same note as point 5:
+   a P-code depth check, once built, plugs into point 2's gate as another
+   named transition in `_AUTOMATED_CHECK_TRANSITIONS` rather than needing
+   its own status-tracking.
 7. **Temporal GIS as a core capability -- REAL GAP.** Zero hits for
    `QgsTemporalController`/`TemporalProperties` anywhere in `src/`.
    `add_incident_point` captures one freeform `date` string field only --
    no `event_start`/`event_end`/`report_date`/`last_verified`/`status`,
    and no date-range filtering tool exists. Not previously discussed in
-   `MASTER_TASK_REGISTRY.md` or `BUG_TRACKER.md`.
+   `MASTER_TASK_REGISTRY.md` or `BUG_TRACKER.md`. Same note as points 5
+   and 6 re: point 2's QA gate once a temporal-validity check exists.
 8. **Network impedance model / geometric vs. operational accessibility --
    REAL GAP, but already independently identified.**
    `calculate_service_area`/`travel_time_matrix` pass Processing only a
@@ -672,7 +709,10 @@ tiered-architecture question is still open).
     `export_tools.py`'s `_layer_provenance_entries`, which appends a
     human-readable *text* section to Word/Markdown reports -- not a
     machine-readable sidecar with QGIS version, algorithm chain, or QA
-    results.
+    results. Point 2's dataset-status record (status + history + checks,
+    already JSON, already per-layer) is a natural input to this sidecar
+    once it's built -- the QA-results half of a provenance file could be
+    read straight off it instead of being tracked twice.
 18. **AI architecture redesign (Intent Interpreter → Project Inspector →
     Spatial Planner → ... ) -- PARTIAL, mostly aspirational.** The actual
     `agent.py` `run()` loop is: build system prompt → LLM call with
@@ -845,6 +885,29 @@ subclass API, which this no-real-QGIS-install dev environment can't
 verify live -- left alone rather than guessed at, per this project's own
 verify-by-execution standard). Both closures are additive, non-breaking,
 and covered by new tests; see each point's own entry above for detail.
+
+**Point 2 has had its first pass built (2026-09-04, same session,
+on Baron's explicit "start the shared infrastructure" instruction) --
+the ordered lifecycle, the sequential gate, and one real automated check
+(geometry validity, reusing `diagnose_topology` rather than
+reimplementing it) gating STAGED -> VALIDATED.** This was deliberately
+scoped as infrastructure, not a full build-out of points 4/5/6/7/17:
+each of those still needs its own real work (overlap/gap/duplicate
+geometry checks, schema contracts, P-code hierarchy/uniqueness,
+temporal-validity fields, a provenance sidecar writer), and this session
+did not invent placeholder checks for any of them just to make the gate
+look more complete than it is -- an unchecked forward transition
+requires an explicit note justifying the manual advance instead. Each of
+those five points can now register its own check in
+`_AUTOMATED_CHECK_TRANSITIONS` (`agent/dataset_status.py`) once built,
+rather than needing its own state-tracking mechanism -- see each point's
+own entry above for the specific hook. Covered by 29 new tests across
+`tests/test_dataset_status.py` (core state machine, using a plain fake
+layer object rather than a QGIS mock) and
+`tests/test_dataset_status_tools.py` (the registered-tool wrappers);
+full suite re-run afterward at 801 tests with the same pre-existing
+baseline (1 DNS-sandbox failure, 6 file-permission errors in
+`test_reporting_tools.py`, 14 skipped) and zero new failures.
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix
