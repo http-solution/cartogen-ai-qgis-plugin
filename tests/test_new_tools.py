@@ -381,6 +381,23 @@ class TestNewTools(unittest.TestCase):
     def test_script_safety_blocks_open(self):
         self.assertIsNotNone(_validate_script_safety("def run():\n    return open('x').read()"))
 
+    def test_script_safety_blocks_filesystem_modules_that_bypass_open(self):
+        """Live-confirmed 2026-09-04 (re-review of docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md
+        Section 4 against an external sandbox-design critique): pathlib/dbm/logging/zipfile
+        each write real files to disk via a method call, not the builtin `open` name --
+        so they passed this validator completely unblocked before this test/fix, and the
+        resulting script executed successfully against the real _SAFE_BUILTINS-restricted
+        exec() environment (reproduced against an extracted copy of this exact module before
+        applying the fix). See the comment above _BLOCKED_MODULES for the full writeup."""
+        snippets = [
+            "import pathlib\ndef run():\n    pathlib.Path('x').write_text('y')",
+            "import dbm\ndef run():\n    dbm.open('x', 'c')",
+            "import logging\ndef run():\n    logging.FileHandler('x')",
+            "import zipfile\ndef run():\n    zipfile.ZipFile('x', 'w')",
+        ]
+        for snippet in snippets:
+            self.assertIsNotNone(_validate_script_safety(snippet), snippet)
+
     def test_script_safety_blocks_aliased_eval(self):
         # x = eval; x(...) doesn't call eval directly -- must still be caught
         # since the AST check now flags any Name/Attribute reference, not

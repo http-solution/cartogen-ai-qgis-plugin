@@ -56,7 +56,11 @@ Blocked modules (`_BLOCKED_MODULES`): `os`, `subprocess`, `shutil`, `sys`, `sock
 `ctypes`, `importlib`, `pty`, `multiprocessing`, `pip`, `urllib`, `requests`, `http`,
 `ftplib`, `smtplib`, `pickle`, `codecs`, `base64`, `sqlite3`, `tempfile`, `platform`,
 `threading`, `asyncio`, `pdb`, `code`, `marshal`, `shelve`, `builtins`, `gc`,
-`inspect`, `types`, `copyreg`, `runpy`.
+`inspect`, `types`, `copyreg`, `runpy`, `pathlib`, `dbm`, `logging`, `zipfile` (the last
+four added 2026-09-04 after live-reproducing that each writes a real file to disk via a
+plain method call -- `Path.write_text()`, `dbm.open(path, 'c')`,
+`logging.FileHandler(path)`, `zipfile.ZipFile(path, 'w')` -- none of which is the `open`
+builtin name already blocked above, so none tripped this list before that date).
 
 Blocked Qt classes regardless of which allowed submodule they're imported from
 (`_BLOCKED_QT_NAMES`): `QFile`, `QSaveFile`, `QTemporaryFile`, `QDir`,
