@@ -5,9 +5,10 @@ of agent/dataset_status.py (point 2 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: a dataset-lifecycle
 state machine, INGESTED -> STAGED -> VALIDATED -> ANALYSIS_READY ->
 CARTOGRAPHY_READY -> PUBLICATION_READY, tracked per-layer). See that
-module's own docstring for the full design and what's deliberately not
-built yet (schema contracts / P-code depth / temporal validity / provenance
-sidecar -- points 5, 6, 7, 17).
+module's own docstring for the full design; P-code depth (point 6), geometry
+QA (point 4), and schema contracts (point 5) are now wired in as automated
+checks, and temporal validity / provenance sidecar (points 7, 17) remain
+deliberately not built yet.
 """
 
 from .registry import register_tool
@@ -86,7 +87,10 @@ def set_dataset_status(layer_name, status="INGESTED", note=None):
     "advance_dataset_status",
     "Move a layer's QA-gate lifecycle status forward one step (e.g. STAGED -> VALIDATED), "
     "backward (to mark a regression), or re-state it -- never skipping a state. The "
-    "STAGED -> VALIDATED step automatically runs the existing geometry-validity check "
+    "INGESTED -> STAGED step automatically runs a P-code depth check (uniqueness + "
+    "parent/child hierarchy prefix-match) when the layer has P-code-shaped fields, and "
+    "auto-passes as not-applicable otherwise -- so it never blocks a non-admin-boundary layer. "
+    "The STAGED -> VALIDATED step automatically runs the existing geometry-validity check "
     "(diagnose_topology) and refuses to advance if it fails, unless override=True is passed "
     "with a note justifying the bypass. The VALIDATED -> ANALYSIS_READY step runs a "
     "schema-contract check (validate_schema) instead, but ONLY when contract_name is supplied -- "

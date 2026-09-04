@@ -25,6 +25,8 @@ from . import monitoring_tools
 from . import imagery_extraction
 from . import dataset_status_tools
 from . import schema_contract_tools
+from . import pcode_validation_tools
+from . import provenance_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -50,4 +52,6 @@ __all__ = [
     "imagery_extraction",
     "dataset_status_tools",
     "schema_contract_tools",
+    "pcode_validation_tools",
+    "provenance_tools",
 ]
