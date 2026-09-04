@@ -348,12 +348,14 @@ class CartogenAiSettingsDialog(QDialog):
                 fallback_providers.append(entry.get("provider_label", pv))
 
         if fallback_providers:
-            QMessageBox.warning(
-                self,
-                "Key stored without encryption",
+            message = (
                 "QGIS's encrypted credential store (QgsAuthManager) wasn't available, so the "
                 "API key for " + ", ".join(fallback_providers) + " was saved in plain text "
-                "instead. This still works, but the key isn't encrypted at rest.",
+                "instead. This still works, but the key isn't encrypted at rest."
             )
+            diagnostic = CredentialManager.get_auth_system_diagnostic_message()
+            if diagnostic:
+                message += "\n\n" + diagnostic
+            QMessageBox.warning(self, "Key stored without encryption", message)
 
         super().accept()
