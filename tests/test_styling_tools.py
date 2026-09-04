@@ -100,6 +100,84 @@ class TestStylingToolsDegradeOutsideQgis(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
 
+class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
+    """Point 13 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: no
+    fixed-operational-threshold classification existed at all -- apply_graduated_style
+    always went through an auto-selected Jenks/equal-interval/quantile method. breaks=
+    bypasses that entirely and builds QgsRendererRange objects directly from caller-
+    supplied boundaries."""
+
+    def _make_layer(self, values, field_name="pop_affected"):
+        field_mock = MagicMock()
+        field_mock.name.return_value = field_name
+        layer = MagicMock()
+        layer.fields.return_value = [field_mock]
+        feats = []
+        for v in values:
+            feat = MagicMock()
+            feat.__getitem__.side_effect = lambda key, v=v: v
+            feats.append(feat)
+        layer.getFeatures.return_value = feats
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRendererRange", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsStyle", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_breaks_builds_manual_ranges_from_data_min_max(
+        self, mock_find, mock_style, mock_symbol, mock_range, mock_renderer_cls, mock_wkb,
+    ):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        layer = self._make_layer([5000, 15000, 30000, 60000, 120000])
+        layer.geometryType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+        mock_renderer_instance = MagicMock()
+        mock_renderer_cls.return_value = mock_renderer_instance
+
+        res = apply_graduated_style("districts", "pop_affected", breaks=[10000, 25000, 50000, 100000])
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["classes"], 5)
+        self.assertEqual(res["classification_method"], "Manual (defined breaks)")
+        self.assertEqual(res["breaks"], [10000, 25000, 50000, 100000])
+        self.assertEqual(mock_range.call_count, 5)
+        first_call_args = mock_range.call_args_list[0][0]
+        self.assertEqual(first_call_args[0], 5000.0)
+        self.assertEqual(first_call_args[1], 10000)
+        last_call_args = mock_range.call_args_list[-1][0]
+        self.assertEqual(last_call_args[0], 100000)
+        self.assertEqual(last_call_args[1], 120000.0)
+        mock_renderer_instance.updateColorRamp.assert_called_once()
+        layer.setRenderer.assert_called_once_with(mock_renderer_instance)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_unsorted_breaks_are_sorted(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        layer = self._make_layer([1, 2, 3], field_name="field")
+        layer.geometryType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+
+        with patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True), \
+             patch("cartogen_ai.core.agent.tools.styling_tools.QgsRendererRange", create=True), \
+             patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True), \
+             patch("cartogen_ai.core.agent.tools.styling_tools.QgsStyle", create=True):
+            res = apply_graduated_style("layer", "field", breaks=[3, 1, 2])
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["breaks"], [1, 2, 3])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_empty_breaks_list_rejected(self):
+        res = apply_graduated_style("layer", "field", breaks=[])
+        self.assertIn("error", res)
+        self.assertIn("breaks", res["error"])
+
+
 class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)

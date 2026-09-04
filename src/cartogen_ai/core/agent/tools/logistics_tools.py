@@ -549,7 +549,10 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer):
     "coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population "
     "raster available (see fetch_worldpop_population). As a side effect of calling "
     "calculate_service_area internally, per-facility service-area polygons are also added to the "
-    "project, plus the combined reachable-area layer this tool builds from them.",
+    "project, plus the combined reachable-area layer this tool builds from them. Returns a MODELED "
+    "estimate -- network-based reachability against a gridded population raster, not a verified count "
+    "of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', "
+    "not as a confirmed access-gap figure.",
     {
         "type": "object",
         "properties": {
@@ -655,6 +658,15 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "gap_percent": gap_pct,
         "reachable_area_layer": reachable_name,
         "reachable_within_area_layer": reachable_within_area_name,
+        # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: this
+        # is a modeled gap (network reachability vs. a gridded population raster),
+        # not a verified count of people confirmed to lack access -- carried
+        # through from estimate_population_exposure's own estimate fields rather
+        # than restated as a plain, unqualified number.
+        "gap_population_est": gap_population,
+        "pop_source": total_pop_result.get("pop_source"),
+        "pop_reference_year": total_pop_result.get("pop_reference_year"),
+        "confidence": "estimate (modeled network reachability + gridded population raster; not field-verified)",
     }
 
 

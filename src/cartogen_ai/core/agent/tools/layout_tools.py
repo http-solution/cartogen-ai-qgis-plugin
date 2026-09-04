@@ -280,3 +280,20 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         return res_msg
     except Exception as e:
         return {"error": f"create_print_layout failed: {e}"}
+
+
+@register_tool(
+    "list_layouts",
+    "List the print layouts already in the current QGIS project by name -- lets the agent check "
+    "what layouts exist (e.g. before deciding whether to build a new one with create_print_layout "
+    "or address an existing one) instead of guessing layout names. Point 21 of "
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers layouts "
+    "only; QGIS Map Themes are a separate, not-yet-implemented concept (point 16 of the same "
+    "review), so there is nothing to list there yet.",
+    {"type": "object", "properties": {}, "required": []},
+)
+def list_layouts():
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layout_manager = QgsProject.instance().layoutManager()
+    return {"layouts": [layout.name() for layout in layout_manager.printLayouts()]}

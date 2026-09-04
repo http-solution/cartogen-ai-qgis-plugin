@@ -92,6 +92,69 @@ class TestLogisticsToolsValidation(unittest.TestCase):
         self.assertIn("ghost_demand", res["error"])
 
 
+class TestPopulationAccessGapEstimateFields(unittest.TestCase):
+    """Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+    population_access_gap's return should carry the same estimate/provenance
+    fields as estimate_population_exposure (which it composes over), not a
+    bare gap_population number restated as if it were a verified count. Mocks
+    calculate_service_area, processing.run, and raster_tools's
+    estimate_population_exposure directly rather than simulating real QGIS
+    geometry -- population_access_gap already carries its own
+    not-run-against-a-real-QGIS-session caveat in this module's docstring, and
+    this test is only about the estimate-field propagation, not the
+    geometry/network-analysis steps in between."""
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.estimate_population_exposure")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.calculate_service_area")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    def test_propagates_estimate_fields_from_population_exposure(
+        self, mock_wkb, mock_calc_service_area, mock_find, mock_processing, mock_project, mock_estimate_pop,
+    ):
+        mock_wkb.geometryType.return_value = "polygon-sentinel"
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+
+        area = MagicMock()
+        hull = MagicMock()
+        mock_find.side_effect = lambda name: {"districts": area, "Facilities_service_area_0": hull}.get(name)
+
+        mock_calc_service_area.return_value = {
+            "facility_count": 3,
+            "layers_created": ["Facilities_service_area_0"],
+        }
+
+        reachable_mock = MagicMock()
+        intersect_mock = MagicMock()
+        intersect_mock.featureCount.return_value = 10
+        mock_processing.run.side_effect = [
+            {"OUTPUT": reachable_mock},
+            {"OUTPUT": intersect_mock},
+        ]
+
+        mock_estimate_pop.side_effect = [
+            {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
+            {"success": True, "total_population": 400.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
+        ]
+
+        res = population_access_gap("Facilities", "roads", "YEM_population_2020", "districts", 1000)
+
+        self.assertTrue(res.get("success"))
+        self.assertEqual(res["total_population"], 1000.0)
+        self.assertEqual(res["reachable_population"], 400.0)
+        self.assertEqual(res["gap_population"], 600.0)
+        self.assertEqual(res["gap_population_est"], 600.0)
+        self.assertEqual(res["gap_percent"], 60.0)
+        self.assertEqual(res["pop_source"], "WorldPop")
+        self.assertEqual(res["pop_reference_year"], "2020")
+        self.assertEqual(
+            res["confidence"],
+            "estimate (modeled network reachability + gridded population raster; not field-verified)",
+        )
+
+
 class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
     """Exercises the QGIS-touching wrapper around _rank_hub_candidates with
     fake feature/geometry objects, confirming the glue code (distance calls,

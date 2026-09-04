@@ -6,11 +6,12 @@ pass. Follows the QGIS_AVAILABLE=False degrade-path convention used
 throughout the rest of the test suite."""
 import unittest
 from unittest.mock import patch, MagicMock
+import sys
 from cartogen_ai.core.agent.tools.raster_tools import (
     weighted_overlay_analysis, _compute_normalized_weights, interpolate_surface,
     elevation_profile, georeference_image, estimate_population_exposure,
     calculate_ndvi, calculate_ndwi, calculate_ndre,
-    apply_raster_stretch, _auto_raster_style,
+    apply_raster_stretch, _auto_raster_style, _describe_population_raster,
 )
 
 
@@ -258,6 +259,82 @@ class TestEstimatePopulationExposureValidation(unittest.TestCase):
 
         self.assertIn("error", res)
         self.assertIn("polygon", res["error"])
+
+
+class TestDescribePopulationRaster(unittest.TestCase):
+    """Pure Python, no QGIS needed -- point 9 of
+    docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: provenance for a
+    population raster must come only from what's actually knowable, never
+    guessed."""
+
+    def test_recognizes_worldpop_layer_naming_convention(self):
+        source, year = _describe_population_raster("YEM_population_2020")
+        self.assertEqual(source, "WorldPop")
+        self.assertEqual(year, "2020")
+
+    def test_falls_back_to_layer_name_for_non_worldpop_naming(self):
+        source, year = _describe_population_raster("custom_pop_raster")
+        self.assertEqual(source, "custom_pop_raster")
+        self.assertIsNone(year)
+
+    def test_handles_none_layer_name(self):
+        source, year = _describe_population_raster(None)
+        self.assertIsNone(source)
+        self.assertIsNone(year)
+
+
+class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
+    """Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: the
+    success return should carry explicit estimate/provenance fields
+    (pop_exposed_est, pop_source, pop_reference_year, analysis_resolution,
+    confidence) rather than a bare, unqualified total_population number --
+    verified against a real invocation with QgsZonalStatistics injected into
+    sys.modules (no qgis package is installed in this dev environment), not
+    just the pure-Python helper above in isolation."""
+
+    def _run(self, population_raster_layer):
+        fake_zonal_module = MagicMock()
+        fake_zonal_instance = MagicMock()
+        fake_zonal_module.QgsZonalStatistics = MagicMock(return_value=fake_zonal_instance)
+
+        raster = MagicMock()
+        raster.rasterUnitsPerPixelX.return_value = 100.0
+        raster.rasterUnitsPerPixelY.return_value = 100.0
+        raster.crs.return_value.authid.return_value = "EPSG:4326"
+
+        vector = MagicMock()
+        vector.geometryType.return_value = "polygon-sentinel"
+        vector.fields.return_value.indexFromName.return_value = 0
+        vector.fields.return_value.count.return_value = 0
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda f: 1000 if f == "pop_sum" else None
+        vector.getFeatures.return_value = [feat]
+
+        with patch.dict(sys.modules, {"qgis.analysis": fake_zonal_module}):
+            with patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True), \
+                 patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True) as mock_wkb, \
+                 patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name") as mock_find:
+                mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+                mock_find.side_effect = lambda name: {population_raster_layer: raster, "districts": vector}.get(name)
+                return estimate_population_exposure(population_raster_layer, "districts")
+
+    def test_worldpop_named_raster_gets_source_and_year(self):
+        res = self._run("YEM_population_2020")
+        self.assertTrue(res.get("success"))
+        self.assertEqual(res["total_population"], 1000)
+        self.assertEqual(res["pop_exposed_est"], 1000)
+        self.assertEqual(res["pop_source"], "WorldPop")
+        self.assertEqual(res["pop_reference_year"], "2020")
+        self.assertEqual(
+            res["analysis_resolution"],
+            {"pixel_width": 100.0, "pixel_height": 100.0, "crs": "EPSG:4326"},
+        )
+        self.assertEqual(res["confidence"], "estimate (gridded population raster; not field-verified)")
+
+    def test_non_worldpop_named_raster_falls_back_to_layer_name(self):
+        res = self._run("custom_pop_raster")
+        self.assertEqual(res["pop_source"], "custom_pop_raster")
+        self.assertIsNone(res["pop_reference_year"])
 
 
 class TestAutoRasterStyle(unittest.TestCase):

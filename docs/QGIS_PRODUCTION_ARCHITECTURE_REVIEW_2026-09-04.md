@@ -514,13 +514,24 @@ this, on the record).
 
 **Headline, before the point-by-point:** of the 28 items checked (27
 numbered points + the standalone project-folder-structure recommendation),
-1 is already true, 4 are partial, 21 are real gaps, and **point 19 was
-re-reviewed against the audit doc it appeared to conflict with (2026-09-04
-update): the audit's narrow conclusion holds, but re-testing the
-underlying concern found and fixed four live, working sandbox bypasses the
-same session** -- that entry is worth reading first, both for what it
-found and for what it didn't resolve (the larger tiered-architecture
-question is still open).
+1 is already true (point 25) and 4 have since been acted on (2026-09-04,
+same day as this document -- see each point's own entry below for exact
+before/after detail, not restated here): **point 19** was re-reviewed
+against the audit doc it appeared to conflict with -- the audit's narrow
+conclusion holds, but re-testing the underlying concern found and fixed
+four live, working sandbox bypasses the same session; **point 9**
+(population exposure vs. affected) was closed outright, adding explicit
+estimate/provenance fields rather than a bare number that invites
+overclaiming; **point 21** (project inspector) gained CRS/feature_count/
+fields on `get_layers` and a new `list_layouts` tool (map themes, a
+separate concept per point 16, are untouched); **point 13**
+(classification) gained a manual/defined-breaks mode for operational
+thresholds (a standard-deviation mode was deliberately left out -- see its
+entry). Everything else keeps its original verdict from the initial
+gap-check; this paragraph is a change log, not a fresh recount of the
+whole document. Point 19's entry is worth reading first regardless, both
+for what it found and for what it didn't resolve (the larger
+tiered-architecture question is still open).
 
 1. **Processing-first execution model -- PARTIAL.** Processing algorithms
    already are the dominant path for core vector/raster ops: most
@@ -589,12 +600,26 @@ question is still open).
    composite-impedance fix as unimplemented follow-up work with a
    prototype script -- so this point restates a gap this project already
    found and queued, it doesn't discover a new one.
-9. **Population exposure vs. affected -- REAL GAP.**
-   `estimate_population_exposure` and `population_access_gap` return
-   plain `total_population`/`gap_population`-style fields -- none named
-   `pop_exposed_est`/`pop_source`/`pop_reference_year`/`confidence`, and
-   no docstring distinguishes "exposed" (estimate) from "affected"
-   (verified) language.
+9. **Population exposure vs. affected -- REAL GAP, closed 2026-09-04.**
+   `estimate_population_exposure` and `population_access_gap` used to return
+   plain `total_population`/`gap_population`-style fields with no docstring
+   distinguishing "exposed" (estimate) from "affected" (verified) language.
+   Fixed: both tools' descriptions now say explicitly that the result is an
+   ESTIMATE, not a verified/affected-population figure, and both return
+   dicts gained `pop_exposed_est`/`gap_population_est` (explicit alias
+   fields, additive -- `total_population`/`gap_population` are unchanged so
+   nothing downstream breaks), `pop_source`/`pop_reference_year` (parsed
+   honestly from `fetch_worldpop_population`'s own
+   `<ISO3>_population_<year>` layer-naming convention when it matches --
+   falling back to the raw layer name rather than guessing a provider for a
+   manually-loaded or renamed raster), `analysis_resolution` (the raster's
+   real pixel size/CRS via `rasterUnitsPerPixelX/Y()`, not estimated), and a
+   `confidence` string. 6 new tests (`tests/test_raster_tools.py`,
+   `tests/test_logistics_tools.py`), full suite 764/1/6/14, same known
+   baseline, 0 new failures. Does not add `hazard_date`/`hazard_threshold`
+   -- those are hazard-specific fields neither tool has a hazard layer in
+   scope to populate honestly; left for whichever hazard-specific tool
+   would actually carry that data.
 10. **SAR/EO flood extraction -- REAL GAP, nothing exists at any level of
     sophistication.** No Sentinel-1/SAR/dB/speckle/orbit-correction code
     anywhere. What exists is `calculate_ndwi` (optical NDWI on Green/NIR
@@ -613,13 +638,21 @@ question is still open).
     An orphaned `symbology-style.db` sits at the repo root, referenced by
     no code.
 13. **Data-driven classification (no universal Jenks default) --
-    PARTIAL.** `_classify_values` (`styling_tools.py:85-116`) already
-    picks between jenks/equal_interval/quantile based on skewness and
-    cardinality -- not a blind default. But it's still a 3-method set with
-    no standard-deviation or manual/defined-breaks option, so fixed
-    operational-threshold classification (a real humanitarian need) isn't
-    supported at all. No documented policy anywhere mandates Jenks --
-    it's an implementation default only.
+    PARTIAL, manual/defined-breaks closed 2026-09-04.** `_classify_values`
+    (`styling_tools.py:85-116`) already picks between jenks/equal_interval/
+    quantile based on skewness and cardinality -- not a blind default. It
+    was still a 3-method set with no manual/defined-breaks option, so fixed
+    operational-threshold classification (a real humanitarian need) wasn't
+    supported at all. Fixed: `apply_graduated_style` gained an optional
+    `breaks` parameter that bypasses auto-classification entirely and
+    builds `QgsRendererRange` objects directly from caller-supplied
+    boundaries (data's actual min/max become the outer bounds), overriding
+    `mode` when given. 3 new tests, full suite unaffected. Does **not**
+    add a standard-deviation mode -- that needs QGIS's newer
+    `QgsClassificationMethod` subclass API, which this dev environment (no
+    real QGIS install) can't verify live, so it was left alone rather than
+    guessed at; still open if wanted. No documented policy anywhere
+    mandates Jenks -- it's an implementation default only.
 14. **QGIS Expression Engine underused -- REAL GAP.** Zero
     `QgsExpression`/`setDataDefinedProperty` usage in `layout_tools.py`/
     `styling_tools.py`. Titles and filenames are built with plain Python
@@ -702,10 +735,17 @@ question is still open).
     decision with three named options -- so this is a known open question,
     not an unnoticed gap. No snapshot/rollback mechanism exists for
     partial multi-step failure.
-21. **QGIS project inspector -- PARTIAL.** `get_layers` exists but returns
-    only `{name, type, id}` -- no CRS, feature_count, or fields in one
-    call (fields need a separate `get_attributes` call per layer). No
-    tool lists layouts or map themes for inspection at all.
+21. **QGIS project inspector -- PARTIAL, layer/layout inspection closed
+    2026-09-04.** `get_layers` used to return only `{name, type, id}` --
+    no CRS, feature_count, or fields in one call (fields needed a separate
+    `get_attributes` call per layer), and no tool listed layouts or map
+    themes at all. Fixed: `get_layers` now also returns `crs` for every
+    layer, plus `fields`/`feature_count` for layer types that actually
+    have them (a raster gets neither, rather than a false empty/zero); a
+    new `list_layouts` tool lists existing print-layout names. 5 new
+    tests, full suite unaffected. Map Themes are **not** addressed --
+    that's point 16, a separate not-yet-implemented QGIS concept, not an
+    inspection gap on top of an existing one.
 22. **Verification/observe-validate loop -- PARTIAL, the systemic version
     is a real gap.** No PLAN→EXECUTE→OBSERVE→VALIDATE→REPAIR loop exists
     in `agent.py`. The shared vector-tools helper used by
@@ -777,6 +817,34 @@ confirm-gate coverage is a logged, open policy question with three
 already-named options in the same audit doc, not an unnoticed
 inconsistency -- unlike point 19, nothing there was re-tested or changed
 this session.
+
+**Point 9 has been closed (2026-09-04, same session as the point-19
+re-review, picked as the next item to act on from this document's own
+queue).** `estimate_population_exposure`/`population_access_gap` now
+return explicit `pop_exposed_est`/`gap_population_est`,
+`pop_source`/`pop_reference_year`, `analysis_resolution`, and a
+`confidence` string instead of a bare number a report could quote as a
+confirmed affected-population figure. This was a self-contained,
+single-session fix (two functions, additive fields, no architectural
+dependency on the still-open items) -- unlike most of the remaining
+items, which either need the QA-gate/dataset-status concept points
+2/4/5/6/7/17 share, or are themselves multi-week platform changes
+(point 18).
+
+**Points 21 and 13 were closed the same session, immediately after, on
+Baron's "complete the remaining tools":** both were picked for the same
+reason as point 9 -- self-contained, additive, no dependency on the
+QA-gate/dataset-status work. Point 21 (`get_layers` gained
+crs/fields/feature_count; new `list_layouts` tool) and point 13
+(`apply_graduated_style` gained a `breaks` parameter for manual/defined-
+threshold classification) are each narrower than their full point --
+point 21 doesn't touch Map Themes (point 16, a separate unbuilt concept),
+and point 13 doesn't add a standard-deviation classification mode
+(deliberately skipped: it would need QGIS's newer `QgsClassificationMethod`
+subclass API, which this no-real-QGIS-install dev environment can't
+verify live -- left alone rather than guessed at, per this project's own
+verify-by-execution standard). Both closures are additive, non-breaking,
+and covered by new tests; see each point's own entry above for detail.
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix
