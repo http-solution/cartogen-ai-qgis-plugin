@@ -34,6 +34,38 @@ _BLOCKED_MODULES = {
     # other already-executing frames, which may hold unrestricted references.
     "inspect",
     "types", "copyreg", "runpy",
+    # Added 2026-09-04, live-confirmed (a reproduction against this exact
+    # blocklist + _SAFE_BUILTINS combination, not a theoretical concern) while
+    # re-reviewing docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md Section 4 against
+    # an external critique of this sandbox's design. None of these four names
+    # appear in os/subprocess/shutil/sys/socket -- the modules this blocklist
+    # was built around -- and none of their file-writing methods are the
+    # builtin `open` name _BLOCKED_CALLS already catches, so all four passed
+    # _validate_script_safety completely unmodified and then actually wrote a
+    # real file to disk when exec()'d through _SAFE_BUILTINS exactly as
+    # execute_pyqgis_script does it. Confirms this project's own SECURITY.md
+    # §1 disclaimer ("defense in depth against known techniques, not a
+    # formally proven sandbox... a determined attacker with unlimited
+    # creativity may find another gap") is not just a hedge -- it's what
+    # this class of denylist actually looks like in practice:
+    #   - `pathlib.Path(...).write_text()`/`.read_text()`/`.unlink()` --
+    #     arbitrary file write, read, and delete via plain method calls, no
+    #     `open()` name involved at all.
+    #   - `dbm.open(path, 'c')` -- a different name from the blocked
+    #     `open` builtin, but the same file-creation capability.
+    #   - `logging.FileHandler(path)` -- creates and writes to an arbitrary
+    #     path as an ordinary side effect of configuring a log handler.
+    #   - `zipfile.ZipFile(path, 'w')` -- arbitrary file write via an
+    #     archive-writer object instead of a bare file handle.
+    # Blocking these four specific names closes what was actually found and
+    # verified this session; it is not a claim that the module list is now
+    # complete -- the same shape of gap (any stdlib module offering
+    # file/process/network capability under a name this list didn't happen
+    # to enumerate) can recur, which is the core of the tiered-execution-model
+    # critique this re-review was checking. See docs/
+    # QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md point 19 for the full
+    # discussion of whether a denylist is the right long-term boundary at all.
+    "pathlib", "dbm", "logging", "zipfile",
 }
 # Names that must never be *reachable* at all -- not just called. Blocking
 # only direct calls (`eval(...)`) misses `x = eval; x(...)`, so every Name/

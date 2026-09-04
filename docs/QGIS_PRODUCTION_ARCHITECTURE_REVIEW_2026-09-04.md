@@ -514,10 +514,13 @@ this, on the record).
 
 **Headline, before the point-by-point:** of the 28 items checked (27
 numbered points + the standalone project-folder-structure recommendation),
-1 is already true, 4 are partial, 21 are real gaps, and **1 (point 19)
-directly conflicts with a decision this project already made and
-documented** -- that one is worth reading first since implementing it as
-proposed would silently reverse a deliberate choice, not close a gap.
+1 is already true, 4 are partial, 21 are real gaps, and **point 19 was
+re-reviewed against the audit doc it appeared to conflict with (2026-09-04
+update): the audit's narrow conclusion holds, but re-testing the
+underlying concern found and fixed four live, working sandbox bypasses the
+same session** -- that entry is worth reading first, both for what it
+found and for what it didn't resolve (the larger tiered-architecture
+question is still open).
 
 1. **Processing-first execution model -- PARTIAL.** Processing algorithms
    already are the dominant path for core vector/raster ops: most
@@ -648,22 +651,44 @@ proposed would silently reverse a deliberate choice, not close a gap.
     status to block execution -- the real execution gate is the separate,
     unrelated per-tool `confirmed: bool` pattern (see point 20).
 19. **AST-based sandboxing as the security boundary is insufficient; use
-    a 4-tier model instead -- CONFLICTS WITH A LOGGED DECISION.**
-    `docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` §4 already reviewed this
-    exact question and closed it: *"`execute_pyqgis_script` has no
-    confirmation gate -- reviewed, not a gap... already a disclosed,
-    deliberate design choice."* The project's documented position is that
-    the extensively-hardened AST denylist (`system_tools.py:14-160`,
-    written specifically against confirmed live bypass attempts) is the
-    right mitigation for this tool's shape, and that a confirm-dialog
-    would be weaker in practice since users click through unread generated
-    code. There is no allow-listed-algorithm tier or approved-
-    internal-function tier today -- `execute_pyqgis_script` is one
-    general-purpose tool among 131, not gated behind another tier -- but
-    adding one is a re-opening of an already-decided question, not an
-    unnoticed gap. Worth Baron's explicit re-review given how forcefully
-    the proposal argues this point, but not something to silently
-    implement over the top of the existing decision.
+    a 4-tier model instead -- RE-REVIEWED 2026-09-04, proposal's underlying
+    concern CONFIRMED LIVE; the audit's narrower conclusion still holds on
+    its own terms.** `docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` Section 4
+    settled a narrower question than this point actually raises: it compared
+    a confirmation dialog against the sandbox for `execute_pyqgis_script`
+    and correctly preferred the sandbox (a dialog just trains users to click
+    through unread generated code). It did not re-examine whether the
+    denylist itself is complete. Re-reviewing that specifically: reproduced,
+    against an extracted copy of `_validate_script_safety` +
+    `_SAFE_BUILTINS` run through the exact same `exec()` pattern
+    `execute_pyqgis_script` uses, that `pathlib.Path(...).write_text()`/
+    `.read_text()`, `dbm.open(path, 'c')`, `logging.FileHandler(path)`, and
+    `zipfile.ZipFile(path, 'w')` all pass `_validate_script_safety`
+    completely unblocked and then actually write a real file to disk --
+    none of the four modules were in `_BLOCKED_MODULES`, and none of their
+    file-writing calls is the `open` builtin name already on the blocklist.
+    This is a concrete, live instance of exactly the failure mode the
+    proposal describes in the abstract ("Python is far too dynamic for a
+    simple AST denylist to constitute a robust sandbox") -- not a
+    disagreement about philosophy, a verified gap in the specific
+    implementation the 2026-08-21 audit approved. **Fixed same-day**: the
+    four confirmed-bypass modules were added to `_BLOCKED_MODULES`
+    (`system_tools.py`), with a regression test
+    (`test_script_safety_blocks_filesystem_modules_that_bypass_open`,
+    `tests/test_new_tools.py`) and `SECURITY.md` updated to match; full
+    suite re-verified at 758 tests, same known 1-failure/6-error sandbox
+    baseline, 0 new failures. This closes the specific holes found, not the
+    general question -- `SECURITY.md` itself already disclaims this
+    approach as "defense in depth against known techniques, not a formally
+    proven sandbox... a determined attacker with unlimited creativity may
+    find another gap," and this re-review is direct evidence that disclaimer
+    is accurate, not just cautious hedging. The larger architectural
+    question the proposal actually raises -- whether to restructure around
+    a tiered allow-list model (declarative tools / allow-listed Processing
+    algorithms / approved internal functions / PyQGIS as a rare, isolated
+    last resort) instead of a denylist-plus-restricted-builtins sandbox at
+    all -- is a real, still-open, multi-week architecture decision, not
+    resolved by this session's patch, and remains Baron's call.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
     PUBLISH) -- PARTIAL, and the ad hoc-ness is already acknowledged.**
     Only 5 of 131 tools implement the `confirmed: bool = False`/
@@ -740,16 +765,18 @@ proposed would silently reverse a deliberate choice, not close a gap.
 
 ## C. Maintenance note
 
-**Read point 19 before acting on any of this.** It's the one place this
-proposal argues directly against a decision Baron's own project already
-made and documented (`docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` §4) --
-worth a deliberate second look given how forcefully the proposal states
-it, but implementing the 4-tier model as a drop-in replacement for the
-current AST-sandbox-as-boundary design would silently reverse that
-decision rather than close a gap nobody had considered. Point 20 has the
-same shape one level down: the ad hoc confirm-gate coverage is a logged,
-open policy question with three already-named options in the same audit
-doc, not an unnoticed inconsistency.
+**Point 19 has been re-reviewed (2026-09-04) -- see that entry above for
+the full account.** Short version: the proposal's underlying concern was
+confirmed live (four real, working sandbox bypasses found and fixed the
+same session), but that closes the specific holes found, not the larger
+architectural question of whether to move to a tiered allow-list model
+instead of a denylist-based sandbox at all -- that remains a real,
+open, multi-week decision, still Baron's call, not resolved by patching
+the four bypasses. Point 20 has a similar shape one level down: the ad hoc
+confirm-gate coverage is a logged, open policy question with three
+already-named options in the same audit doc, not an unnoticed
+inconsistency -- unlike point 19, nothing there was re-tested or changed
+this session.
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix
