@@ -301,13 +301,16 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
     "cluster (e.g. 'WASH', 'Health', 'Food Security') to tint the ramp toward that IASC cluster's "
     "commonly recognized color instead of the auto-selected Viridis/Cividis ramp -- e.g. a WASH "
     "coverage % choropleth rendered in WASH's color, for the map a field coordinator recognizes "
-    "instantly. Unrecognized cluster names fall back to the default ramp.",
+    "instantly. Unrecognized cluster names fall back to the default ramp. Pass explicit breaks "
+    "(e.g. [10000, 25000, 50000, 100000]) for a fixed, mode-independent set of class boundaries -- "
+    "for humanitarian decision maps, an operational threshold (e.g. response-capacity bands) often "
+    "matters more than a statistically 'optimal' Jenks/quantile break, and breaks overrides mode entirely when given (point 13 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).",
     {
         "type": "object",
         "properties": {
             "layer_name": {"type": "string"},
             "field": {"type": "string"},
-            "mode": {"type": "string"},
+            "mode": {"type": "string", "description": "'auto' (default), 'equal', or 'quantile'. Ignored if breaks is given."},
             "opacity": {
                 "type": "number",
                 "description": "0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap "
@@ -318,13 +321,23 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
                 "description": "Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp "
                 "toward that cluster's color instead of the auto-selected one.",
             },
+            "breaks": {
+                "type": "array",
+                "items": {"type": "number"},
+                "description": "Optional explicit class-boundary values (e.g. operational response "
+                "thresholds), sorted ascending -- when given, these define the classes directly "
+                "instead of an auto-selected classification method, overriding 'mode'. Data's actual "
+                "min/max become the outer class bounds.",
+            },
         },
         "required": ["layer_name", "field"],
     },
 )
-def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None):
+def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    if breaks is not None and len(breaks) < 1:
+        return {"error": "breaks must contain at least one boundary value."}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -333,8 +346,11 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
 
     try:
         values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+        # Computed unconditionally (cheap, pure Python) so it's available
+        # below whenever breaks is None, regardless of which ramp branch
+        # runs -- a cluster-color match still needs a real classification
+        # method/label, only the RAMP choice differs by branch.
         classification = _classify_values(values, mode)
-        method = _resolve_classification_method(classification["method"])
 
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
@@ -345,20 +361,57 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # in apply_categorized_style above, applied here for sequential).
             color_ramp = QgsGradientColorRamp(QColor("#f7f7f7"), QColor(cluster_color))
             ramp_label = f"cluster:{cluster}"
+        elif breaks is not None:
+            # No auto-selected ramp to name yet when breaks is given --
+            # a plain sequential default, since 'optimal ramp for this
+            # distribution' isn't the question breaks is answering.
+            if cluster:
+                cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
+            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis")
+            ramp_label = "Viridis"
         else:
             if cluster:
                 cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
             color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"])
             ramp_label = classification["ramp"]
 
-        renderer = QgsGraduatedSymbolRenderer.createRenderer(
-            layer,
-            field,
-            5,
-            method,
-            QgsSymbol.defaultSymbol(layer.geometryType()),
-            color_ramp,
-        )
+        if breaks is not None:
+            # Manual/defined-breaks classification (point 13 of
+            # docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md): for
+            # humanitarian decision maps an operational threshold often
+            # matters more than a statistically 'optimal' class, so this
+            # path builds QgsRendererRange objects directly from caller-
+            # supplied boundaries instead of going through
+            # QgsGraduatedSymbolRenderer.createRenderer's Jenks/equal-
+            # interval/quantile modes. Not run against a live QGIS
+            # session yet -- QgsRendererRange/updateColorRamp are stable,
+            # long-standing PyQGIS API, but flagged per this project's own
+            # convention for anything not live-verified.
+            if not values:
+                return {"error": f"No numeric values found in '{field}' to build breaks against."}
+            sorted_breaks = sorted(breaks)
+            bounds = [min(values)] + sorted_breaks + [max(values)]
+            ranges = []
+            for lower, upper in zip(bounds[:-1], bounds[1:]):
+                label = f"{lower:,.2f} - {upper:,.2f}"
+                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                ranges.append(QgsRendererRange(lower, upper, symbol, label))
+            renderer = QgsGraduatedSymbolRenderer(field, ranges)
+            renderer.updateColorRamp(color_ramp)
+            classes = len(ranges)
+            method_label = "Manual (defined breaks)"
+        else:
+            method = _resolve_classification_method(classification["method"])
+            renderer = QgsGraduatedSymbolRenderer.createRenderer(
+                layer,
+                field,
+                5,
+                method,
+                QgsSymbol.defaultSymbol(layer.geometryType()),
+                color_ramp,
+            )
+            classes = 5
+            method_label = classification["method_label"]
         if renderer is None:
             return {"error": "Failed to create graduated renderer"}
 
@@ -371,11 +424,13 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             "success": True,
             "layer_name": layer_name,
             "field": field,
-            "classes": 5,
-            "classification_method": classification["method_label"],
+            "classes": classes,
+            "classification_method": method_label,
             "color_ramp": ramp_label,
             "opacity_percent": resolved_opacity,
         }
+        if breaks is not None:
+            result["breaks"] = sorted(breaks)
         if cluster_warning:
             result["cluster_warning"] = cluster_warning
         return result

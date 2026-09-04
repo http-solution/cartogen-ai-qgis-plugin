@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     find_nearest_features, convert_to_singlepart, simplify_geometry,
     field_statistics, select_by_location, invert_selection,
     _compute_field_statistics, zoom_to_layer, zoom_to_feature, _extent_to_canvas_crs,
-    apply_labels,
+    apply_labels, get_layers,
 )
 
 
@@ -374,6 +374,52 @@ class TestZoomToFeatureByExpression(unittest.TestCase):
         self.assertEqual(res["feature_id"], 14)
         mock_canvas.setExtent.assert_called_once()
         fake_layer.selectByIds.assert_called_once_with([14])
+
+
+class TestGetLayersEnrichedFields(unittest.TestCase):
+    """Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: get_layers
+    used to return only {name, type, id}, forcing a separate get_attributes call per
+    layer for fields, and no way at all to see CRS/feature_count without yet another
+    call -- now returns crs/fields/feature_count in the same call, with fields/
+    feature_count only present for layer types that actually have them (e.g. not a
+    raster)."""
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    def test_vector_layer_includes_crs_fields_and_feature_count(self, mock_project):
+        vector_layer = MagicMock(spec=["name", "type", "crs", "fields", "featureCount"])
+        vector_layer.name.return_value = "districts"
+        vector_layer.type.return_value = "VectorLayer"
+        vector_layer.crs.return_value.authid.return_value = "EPSG:4326"
+        vector_layer.fields.return_value.names.return_value = ["admin2_name", "admin2_pcode"]
+        vector_layer.featureCount.return_value = 287
+        mock_project.instance.return_value.mapLayers.return_value = {"layer1": vector_layer}
+
+        result = get_layers()
+
+        self.assertEqual(len(result), 1)
+        entry = result[0]
+        self.assertEqual(entry["name"], "districts")
+        self.assertEqual(entry["id"], "layer1")
+        self.assertEqual(entry["crs"], "EPSG:4326")
+        self.assertEqual(entry["fields"], ["admin2_name", "admin2_pcode"])
+        self.assertEqual(entry["feature_count"], 287)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    def test_raster_layer_omits_fields_and_feature_count(self, mock_project):
+        raster_layer = MagicMock(spec=["name", "type", "crs"])
+        raster_layer.name.return_value = "population_raster"
+        raster_layer.type.return_value = "RasterLayer"
+        raster_layer.crs.return_value.authid.return_value = "EPSG:32637"
+        mock_project.instance.return_value.mapLayers.return_value = {"layer2": raster_layer}
+
+        result = get_layers()
+
+        entry = result[0]
+        self.assertEqual(entry["crs"], "EPSG:32637")
+        self.assertNotIn("fields", entry)
+        self.assertNotIn("feature_count", entry)
 
 
 class TestApplyLabels(unittest.TestCase):

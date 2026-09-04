@@ -4,6 +4,7 @@ Raster & Remote Sensing Processing Tools for Cartogen AI.
 """
 
 import os
+import re
 import tempfile
 from .registry import register_tool
 
@@ -682,12 +683,36 @@ def georeference_image(image_path, control_points, output_path, target_crs="EPSG
         return {"error": f"georeference_image failed: {e}"}
 
 
+# fetch_worldpop_population names its output layers '<ISO3>_population_<year>'
+# (see add_worldpop_population_layer_main_thread_phase in humanitarian_tools.py).
+_WORLDPOP_LAYER_NAME_RE = re.compile(r"^[A-Za-z]{3}_population_(\d{4})$")
+
+
+def _describe_population_raster(layer_name):
+    """Best-effort provenance for a population raster, derived only from what's
+    actually knowable -- never guessed. When a layer's name matches
+    fetch_worldpop_population's own naming convention exactly, we can honestly
+    say it came from WorldPop and which year it represents. Any other raster
+    (manually loaded, renamed, or from a different provider) gets its own layer
+    name as the source label and an unknown reference year -- claiming
+    'WorldPop' for a raster that might not be WorldPop data would itself be the
+    kind of overclaim point 9 of
+    docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md exists to prevent."""
+    match = _WORLDPOP_LAYER_NAME_RE.match(layer_name or "")
+    if match:
+        return "WorldPop", match.group(1)
+    return layer_name, None
+
+
 @register_tool(
     "estimate_population_exposure",
     "Sum population within each polygon of a vector layer, using an already-loaded population "
     "raster (e.g. from fetch_worldpop_population) -- e.g. 'how many people live within 5km of "
     "this facility' (combine with buffer_analysis first to build the area), or 'population per "
-    "district' (pass admin boundaries directly). Adds a 'pop_sum' field to the vector layer.",
+    "district' (pass admin boundaries directly). Adds a 'pop_sum' field to the vector layer. "
+    "Returns an ESTIMATE derived from a gridded population raster, not a verified count of people "
+    "actually present -- report results as 'estimated population within <area>', never as a "
+    "confirmed or affected-population figure, unless field data corroborates it.",
     {
         "type": "object",
         "properties": {
@@ -728,12 +753,30 @@ def estimate_population_exposure(population_raster_layer, area_layer):
             key = feat.attribute(0) if has_name_field else f"feature_{i}"
             totals[str(key)] = feat.attribute("pop_sum")
 
+        total_population = sum(v for v in totals.values() if v is not None)
+        pop_source, pop_reference_year = _describe_population_raster(population_raster_layer)
+
         return {
             "success": True,
             "area_layer": area_layer,
             "population_raster_layer": population_raster_layer,
             "totals": totals,
-            "total_population": sum(v for v in totals.values() if v is not None),
+            "total_population": total_population,
+            # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: a
+            # zonal sum of a gridded population raster is an ESTIMATE of exposure,
+            # not a verified count of people actually affected. These fields make
+            # that explicit (and give downstream reporting a real, machine-readable
+            # basis for saying so) instead of letting a bare 'total_population'
+            # number get reported as a confirmed affected-population figure.
+            "pop_exposed_est": total_population,
+            "pop_source": pop_source,
+            "pop_reference_year": pop_reference_year,
+            "analysis_resolution": {
+                "pixel_width": raster.rasterUnitsPerPixelX(),
+                "pixel_height": raster.rasterUnitsPerPixelY(),
+                "crs": raster.crs().authid() if raster.crs() else None,
+            },
+            "confidence": "estimate (gridded population raster; not field-verified)",
         }
     except Exception as e:
         return {"error": f"estimate_population_exposure failed: {e}"}

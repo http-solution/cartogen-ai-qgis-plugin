@@ -21,7 +21,7 @@ travel_time_matrix, _write_scores_to_layer). The zoom_to_layer extent-routing
 logic sits before that heavy construction, so it's tested directly."""
 import unittest
 from unittest.mock import MagicMock, patch
-from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+from cartogen_ai.core.agent.tools.layout_tools import create_print_layout, list_layouts
 
 
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
@@ -41,6 +41,36 @@ class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
         res = create_print_layout("Test Layout", zoom_to_layer="YEM_ADM1_boundary_hdx")
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
+
+    def test_list_layouts_degrades_gracefully(self):
+        res = list_layouts()
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+
+class TestListLayouts(unittest.TestCase):
+    """Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: the agent had no
+    way to check what layouts already exist in the project before create_print_layout runs."""
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_lists_existing_layout_names(self, mock_project):
+        layout_a = MagicMock()
+        layout_a.name.return_value = "Layout_SITREP"
+        layout_b = MagicMock()
+        layout_b.name.return_value = "Layout_Access"
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout_a, layout_b]
+
+        res = list_layouts()
+
+        self.assertEqual(res["layouts"], ["Layout_SITREP", "Layout_Access"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_empty_project_returns_empty_list(self, mock_project):
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = []
+        res = list_layouts()
+        self.assertEqual(res["layouts"], [])
 
 
 class TestZoomToLayerParam(unittest.TestCase):

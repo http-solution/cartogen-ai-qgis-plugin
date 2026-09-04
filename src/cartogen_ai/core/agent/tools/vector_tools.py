@@ -45,17 +45,35 @@ def _run_and_add(alg, params, new_name):
         return {"error": f"{alg} failed: {e}"}
 
 
-@register_tool("get_layers", "Get all layers in current QGIS project with name, type, and ID.", {"type": "object", "properties": {}, "required": []})
+@register_tool(
+    "get_layers",
+    "Get all layers in current QGIS project with name, type, ID, CRS, feature count, and field "
+    "names in one call -- covers most basic inspection needs (a vector layer's field names, a "
+    "rough size check via feature_count) without a separate get_attributes round trip per layer. "
+    "Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md. feature_count/fields are "
+    "omitted for layers that don't have them (e.g. a raster has no attribute table).",
+    {"type": "object", "properties": {}, "required": []},
+)
 def get_layers():
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     result = []
     for layer_id, layer in QgsProject.instance().mapLayers().items():
-        result.append({
+        crs = layer.crs() if hasattr(layer, "crs") else None
+        entry = {
             "name": layer.name(),
             "type": layer.type().name if hasattr(layer.type(), "name") else str(layer.type()),
             "id": layer_id,
-        })
+            "crs": crs.authid() if crs else None,
+        }
+        # Vector-only: a raster layer has neither an attribute table nor a
+        # feature count, so these are only added when actually present
+        # rather than reported as empty/zero.
+        if hasattr(layer, "fields"):
+            entry["fields"] = list(layer.fields().names())
+        if hasattr(layer, "featureCount"):
+            entry["feature_count"] = layer.featureCount()
+        result.append(entry)
     return result
 
 
