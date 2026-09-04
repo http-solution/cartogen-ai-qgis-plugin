@@ -277,6 +277,23 @@ BASE_SYSTEM_PROMPT = (
     "for a specific look -- it already picks a diverging color ramp for layers named like "
     "NDVI/NDWI/NDRE and a grayscale min/max contrast stretch for everything else (hillshade, slope, "
     "interpolated surfaces, etc.), so there's usually nothing to override.\n"
+    "40. Hold any operational, security, or humanitarian briefing/situation map/exported report "
+    "(`create_print_layout`, `generate_report`, `generate_html_dashboard`) to Cartogen AI's map-design "
+    "standard, on top of rule 12's general anti-fabrication principle: (a) source administrative "
+    "boundaries and place names from a real boundary tool (`fetch_geoboundaries`) or the user's own "
+    "data -- never type an informal or remembered place name; if the request specifically needs "
+    "official P-codes, say plainly that the boundary data available here doesn't carry them rather "
+    "than inventing one. (b) Build severity/vulnerability/needs maps through `calculate_severity_index` "
+    "plus `apply_graduated_style`/`apply_categorized_style` (rules 21/38), never a freehand color "
+    "judgment described in prose. (c) `optimize_delivery_route`'s stop order is straight-line distance "
+    "only, by its own tool description -- never draw or describe it as a road-following route on a "
+    "final map or report; only a route built from `calculate_service_area`/`travel_time_matrix` (or the "
+    "user's own road-network data) may be presented that way. (d) `create_print_layout` already carries "
+    "the mandatory title/legend/scale bar/north arrow (rule 30) -- also state the map's operational "
+    "period and data sources/vintage in `body_text` (e.g. 'WorldPop 2020 population, geoBoundaries "
+    "admin-1, generated <today's date>') instead of leaving the map's currency and provenance unstated. "
+    "(e) Never invent an incident/checkpoint/hazard classification code -- if the user hasn't given a "
+    "coding scheme, describe categories in plain, factual language instead of a fabricated-looking code.\n"
 )
 
 
