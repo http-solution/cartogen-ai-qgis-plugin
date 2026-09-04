@@ -1,26 +1,53 @@
 # -*- coding: utf-8 -*-
 import unittest
 from contextlib import contextmanager
-from cartogen_ai.core.agent.chat_persistence import save_chat_history, load_chat_history
+from cartogen_ai.core.agent.chat_persistence import (
+    save_chat_history, load_chat_history, load_chat_history_with_timestamps,
+    _attach_timestamps,
+)
 
 
 @contextmanager
-def _simulate_qgis_with_persist_setting(value):
-    """QGIS_AVAILABLE and QgsSettings are only bound at module level when the
-    real `qgis.core` import succeeds -- there's no qgis.core in this test
-    environment, so both are set directly on the module object to exercise
-    the opt-in gating logic without a real QGIS install."""
+def _simulate_qgis_with_persist_setting(value, project=None):
+    """QGIS_AVAILABLE, QgsSettings, and QgsProject are only bound at module
+    level when the real `qgis.core` import succeeds -- there's no qgis.core
+    in this test environment, so all three are set directly on the module
+    object to exercise the opt-in gating and save/load logic without a real
+    QGIS install. `project`, if given, is returned by QgsProject.instance()
+    -- pass a _FakeProject to exercise the actual save/restore round trip;
+    omit it for tests that only care about the opt-in gate itself."""
     import cartogen_ai.core.agent.chat_persistence as cp
 
     class _FakeSettings:
         def value(self, key, default, type=None):
             return value if key == cp.PERSIST_SETTING_KEY else default
 
+    class _FakeProjectClass:
+        _instance = project
+
+        @classmethod
+        def instance(cls):
+            return cls._instance
+
     original_available = cp.QGIS_AVAILABLE
     had_settings_attr = hasattr(cp, "QgsSettings")
     original_settings = getattr(cp, "QgsSettings", None)
+    had_project_attr = hasattr(cp, "QgsProject")
+    original_project = getattr(cp, "QgsProject", None)
+    had_helpers = hasattr(cp, "get_project_custom_property")
+    original_get = getattr(cp, "get_project_custom_property", None)
+    original_set = getattr(cp, "set_project_custom_property", None)
+
     cp.QGIS_AVAILABLE = True
     cp.QgsSettings = _FakeSettings
+    cp.QgsProject = _FakeProjectClass
+    cp.get_project_custom_property = lambda proj, key, default="": proj.custom_properties.get(key, default)
+
+    def _fake_set(proj, key, val):
+        proj.custom_properties[key] = val
+        return True
+
+    cp.set_project_custom_property = _fake_set
     try:
         yield cp
     finally:
@@ -29,6 +56,23 @@ def _simulate_qgis_with_persist_setting(value):
             cp.QgsSettings = original_settings
         else:
             del cp.QgsSettings
+        if had_project_attr:
+            cp.QgsProject = original_project
+        else:
+            del cp.QgsProject
+        if had_helpers:
+            cp.get_project_custom_property = original_get
+            cp.set_project_custom_property = original_set
+        else:
+            del cp.get_project_custom_property
+            del cp.set_project_custom_property
+
+
+class _FakeProject:
+    """Stands in for QgsProject.instance() -- just a dict-backed store, same
+    shape get_project_custom_property/set_project_custom_property expect."""
+    def __init__(self):
+        self.custom_properties = {}
 
 
 class TestChatPersistence(unittest.TestCase):
@@ -53,6 +97,130 @@ class TestChatPersistence(unittest.TestCase):
     def test_load_chat_history_skipped_when_not_opted_in(self):
         with _simulate_qgis_with_persist_setting(False) as cp:
             self.assertEqual(cp.load_chat_history(), [])
+
+
+class TestAttachTimestamps(unittest.TestCase):
+    """Pure-function tests for the merge logic behind the fix: a restored
+    chat bubble should show its real age, not "just now" -- see
+    chat_persistence.py's _attach_timestamps docstring for the live bug
+    (a stale Ollama error looking like it just happened) this addresses."""
+
+    def test_all_new_messages_get_the_same_fresh_timestamp(self):
+        history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+        result = _attach_timestamps(history, previous_entries=[])
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(e["ts"] for e in result))
+        self.assertEqual(result[0]["ts"], result[1]["ts"])
+
+    def test_previously_persisted_messages_keep_their_original_timestamp(self):
+        previous = [
+            {"role": "user", "content": "hi", "ts": "2026-01-01T00:00:00"},
+            {"role": "assistant", "content": "hello", "ts": "2026-01-01T00:00:01"},
+        ]
+        # Same two messages come back unchanged (e.g. re-saved without new turns).
+        history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+        result = _attach_timestamps(history, previous)
+        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:01")
+
+    def test_new_messages_appended_after_old_ones_get_a_fresh_timestamp(self):
+        previous = [
+            {"role": "user", "content": "hi", "ts": "2026-01-01T00:00:00"},
+            {"role": "assistant", "content": "hello", "ts": "2026-01-01T00:00:01"},
+        ]
+        history = previous_history = [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "user", "content": "what layers do I have?"},
+            {"role": "assistant", "content": "[API error] Ollama connection failed"},
+        ]
+        result = _attach_timestamps(history, previous)
+        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:01")
+        # The new turn gets a real fresh timestamp, distinct from the old ones --
+        # this is exactly what stops a stale error from looking brand new.
+        self.assertNotIn(result[2]["ts"], ("2026-01-01T00:00:00", "2026-01-01T00:00:01"))
+        self.assertEqual(result[2]["ts"], result[3]["ts"])
+
+    def test_trimmed_front_of_history_drops_the_oldest_timestamps_too(self):
+        previous = [
+            {"role": "user", "content": "msg1", "ts": "2026-01-01T00:00:00"},
+            {"role": "assistant", "content": "reply1", "ts": "2026-01-01T00:00:01"},
+            {"role": "user", "content": "msg2", "ts": "2026-01-01T00:00:02"},
+            {"role": "assistant", "content": "reply2", "ts": "2026-01-01T00:00:03"},
+        ]
+        # agent.py's _trim_history dropped the oldest pair.
+        history = [
+            {"role": "user", "content": "msg2"},
+            {"role": "assistant", "content": "reply2"},
+        ]
+        result = _attach_timestamps(history, previous)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:02")
+        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:03")
+
+    def test_duplicate_role_content_pairs_consume_timestamps_in_order(self):
+        previous = [
+            {"role": "user", "content": "ok", "ts": "2026-01-01T00:00:00"},
+            {"role": "user", "content": "ok", "ts": "2026-01-01T00:00:05"},
+        ]
+        history = [{"role": "user", "content": "ok"}, {"role": "user", "content": "ok"}]
+        result = _attach_timestamps(history, previous)
+        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:05")
+
+
+class TestSaveLoadRoundTripWithTimestamps(unittest.TestCase):
+    """End-to-end (against a fake QgsProject) coverage of the actual bug fix:
+    a message restored on a later save/load cycle keeps the timestamp it was
+    first written with, and load_chat_history() (the one that feeds straight
+    into an LLM `messages` list) never leaks the `ts` key into it."""
+
+    def test_load_chat_history_never_includes_ts(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history([{"role": "user", "content": "hi"}])
+            restored = cp.load_chat_history()
+            self.assertEqual(restored, [{"role": "user", "content": "hi"}])
+            self.assertNotIn("ts", restored[0])
+
+    def test_load_chat_history_with_timestamps_includes_ts(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history([{"role": "user", "content": "hi"}])
+            restored = cp.load_chat_history_with_timestamps()
+            self.assertEqual(len(restored), 1)
+            self.assertIn("ts", restored[0])
+            self.assertTrue(restored[0]["ts"])
+
+    def test_timestamp_survives_a_second_save_of_the_same_message(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history([{"role": "user", "content": "hi"}])
+            first_ts = cp.load_chat_history_with_timestamps()[0]["ts"]
+            # Re-saving the exact same single-message history (e.g. a no-op
+            # persistence call) must not stamp a brand-new "now" over it --
+            # that would be the same bug in a different guise.
+            cp.save_chat_history([{"role": "user", "content": "hi"}])
+            second_ts = cp.load_chat_history_with_timestamps()[0]["ts"]
+            self.assertEqual(first_ts, second_ts)
+
+    def test_a_new_turn_added_later_gets_its_own_fresh_timestamp(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}])
+            first_two = cp.load_chat_history_with_timestamps()
+            cp.save_chat_history([
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "hello"},
+                {"role": "user", "content": "what now?"},
+                {"role": "assistant", "content": "[API error] Ollama connection failed"},
+            ])
+            all_four = cp.load_chat_history_with_timestamps()
+            self.assertEqual(all_four[0]["ts"], first_two[0]["ts"])
+            self.assertEqual(all_four[1]["ts"], first_two[1]["ts"])
+            self.assertNotEqual(all_four[3]["ts"], first_two[0]["ts"])
+            self.assertNotEqual(all_four[3]["ts"], first_two[1]["ts"])
 
 
 if __name__ == "__main__":

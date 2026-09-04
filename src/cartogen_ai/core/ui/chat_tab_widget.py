@@ -46,6 +46,8 @@ class ChatTabWidget(QWidget):
         self._active_highlights = []  # keeps QgsHighlight objects alive until their timer fires
         self._active_task = None  # the running QgsTask, if any -- lets _stop_current_task cancel it
         self._pending_refinement_text = None  # original text while the refinement panel is shown
+        self._pending_restore_ts = None  # ISO ts for the message _add_message is about
+        # to render, set only while _populate_initial_chat is replaying restored history
 
         from ..agent.deps import get_dependency_warning_message
         self._dep_warning = get_dependency_warning_message()
@@ -186,19 +188,29 @@ class ChatTabWidget(QWidget):
     def _populate_initial_chat(self):
         """Shows the welcome message, or restores this project's saved conversation
         (agent/chat_persistence.py) if one exists. Called on first load, and again
-        by refresh_chat_for_project_change() whenever the active QGIS project changes."""
+        by refresh_chat_for_project_change() whenever the active QGIS project changes.
+
+        Reads load_chat_history_with_timestamps() directly rather than
+        agent.conversation_history (which deliberately has no timestamps -- see
+        chat_persistence.py's module docstring) so each restored bubble can carry
+        its real relative age via _add_message's self._pending_restore_ts, instead
+        of every restored message rendering as "just now" -- see that function's
+        comment for the live bug this fixes."""
         restored = False
         if self._agent_provider:
             try:
                 agent = self._agent_provider()
-                history = getattr(agent, "conversation_history", []) if agent else []
-                for entry in history:
-                    role = entry.get("role")
-                    content = entry.get("content")
-                    if not content or role not in ("user", "assistant") or not isinstance(content, str):
-                        continue
-                    self._dock.receiveMessageSignal.emit("user" if role == "user" else "ai", content)
-                    restored = True
+                if agent is not None:
+                    from ..agent.chat_persistence import load_chat_history_with_timestamps
+                    history = load_chat_history_with_timestamps()
+                    for entry in history:
+                        role = entry.get("role")
+                        content = entry.get("content")
+                        if not content or role not in ("user", "assistant") or not isinstance(content, str):
+                            continue
+                        self._pending_restore_ts = entry.get("ts")
+                        self._dock.receiveMessageSignal.emit("user" if role == "user" else "ai", content)
+                        restored = True
             except Exception:
                 pass
 
@@ -228,12 +240,19 @@ class ChatTabWidget(QWidget):
     def _add_message(self, role, text):
         # Theme-aware colors (see chat_formatting.derive_bubble_colors) so bubbles
         # read correctly in both light and dark QGIS themes instead of a hardcoded
-        # light-blue/light-grey pair. timestamp is "now" at render time -- accurate
-        # for live messages; restored chat history has no stored per-message
-        # timestamp to draw on (see agent/chat_persistence.py), so it shows "just
-        # now" too rather than a fabricated time, a known, accepted limitation.
+        # light-blue/light-grey pair. timestamp is "now" at render time for a live
+        # message; a restored message instead uses the real timestamp
+        # _populate_initial_chat stashed in self._pending_restore_ts right before
+        # this call, so a leftover bubble from an earlier session shows its actual
+        # age (e.g. "2h ago") instead of falsely claiming to have just happened --
+        # this was a real, live-reported bug (a stale Ollama-provider error looked
+        # like it had just occurred next to a brand-new reply from a different
+        # provider). See chat_persistence.py's _attach_timestamps for where the ts
+        # comes from.
         colors = theme_colors()
-        timestamp = _relative_time(now_iso())
+        restore_ts = getattr(self, "_pending_restore_ts", None)
+        self._pending_restore_ts = None
+        timestamp = _relative_time(restore_ts) if restore_ts else _relative_time(now_iso())
         # Table-based alignment, not a floated div -- Qt's rich-text engine
         # supports table cell alignment reliably; float-based layout is flaky.
         if role == "user":

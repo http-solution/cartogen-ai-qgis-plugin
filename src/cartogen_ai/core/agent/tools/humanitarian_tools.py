@@ -1049,7 +1049,13 @@ def _style_named_point_layer(layer):
     "every location first (search_web/gemini_grounded_search/geocode_and_enrich), then call this once with "
     "the full list. Only ever use real, verified coordinates -- never invent placeholder values. Set "
     "category per point when it's known (e.g. incident severity/type) so apply_categorized_style can later "
-    "distinguish them on the map.",
+    "distinguish them on the map. If you're plotting incidents, threats, or other security-related points "
+    "and haven't actually gathered them from a real source in this conversation (search_web/"
+    "gemini_grounded_search/geocode_and_enrich/geocode_batch, or data the user supplied directly), do not "
+    "call this tool with invented data -- say plainly in your chat response that you don't have verified "
+    "locations for that, instead of fabricating a plausible-looking dataset. A point layer feeds directly "
+    "into exported maps and reports, where fabricated content is far more likely to be trusted and acted "
+    "on than the same claim in chat.",
     {
         "type": "object",
         "properties": {
