@@ -63,5 +63,68 @@ class TestAuthAndDeps(unittest.TestCase):
         self.assertIsInstance(msg, str)
 
 
+class TestAuthSystemDiagnostic(unittest.TestCase):
+    """CredentialManager.auth_system_status()/get_auth_system_diagnostic_message()
+    -- surfaces WHY QgsAuthManager is disabled (and what to do about it)
+    instead of leaving the plaintext-fallback warning in
+    ui/settings_dialog.py unexplained. Screenshot-confirmed real-world
+    trigger: a live QGIS 4.2 session with authManager().isDisabled() True."""
+
+    def test_degrades_outside_qgis(self):
+        status = CredentialManager.auth_system_status()
+        self.assertIsNone(status["disabled"])
+        self.assertEqual(CredentialManager.get_auth_system_diagnostic_message(), "")
+
+    def test_reports_not_disabled_when_auth_manager_is_fine(self):
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = False
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+            mock_app.authManager.return_value = fake_auth_mgr
+            status = CredentialManager.auth_system_status()
+            message = CredentialManager.get_auth_system_diagnostic_message()
+
+        self.assertEqual(status, {"disabled": False})
+        self.assertEqual(message, "")
+
+    def test_reports_disabled_with_known_causes(self):
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = True
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+            mock_app.authManager.return_value = fake_auth_mgr
+            status = CredentialManager.auth_system_status()
+            message = CredentialManager.get_auth_system_diagnostic_message()
+
+        self.assertTrue(status["disabled"])
+        self.assertEqual(len(status["known_causes"]), 2)
+        for cause in status["known_causes"]:
+            self.assertIn("cause", cause)
+            self.assertIn("fix", cause)
+        # The message must make explicit that this plugin's own installer
+        # (qpip/requirements.txt) cannot fix this -- the whole reason this
+        # diagnostic exists is to correct the assumption that it could.
+        self.assertIn("qpip", message)
+        self.assertIn("1.", message)
+        self.assertIn("2.", message)
+
+    def test_none_auth_manager_is_treated_as_disabled(self):
+        # QgsApplication.authManager() returning None is a real possibility
+        # (e.g. called too early in QGIS startup) -- must be handled the
+        # same as isDisabled() True, not crash on .isDisabled() of None.
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+            mock_app.authManager.return_value = None
+            status = CredentialManager.auth_system_status()
+
+        self.assertTrue(status["disabled"])
+
+    def test_exception_querying_auth_manager_is_handled(self):
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+            mock_app.authManager.side_effect = RuntimeError("boom")
+            status = CredentialManager.auth_system_status()
+            message = CredentialManager.get_auth_system_diagnostic_message()
+
+        self.assertIsNone(status["disabled"])
+        self.assertEqual(message, "")
+
+
 if __name__ == "__main__":
     unittest.main()

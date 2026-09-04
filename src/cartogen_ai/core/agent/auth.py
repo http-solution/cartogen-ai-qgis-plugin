@@ -95,6 +95,82 @@ class CredentialManager:
         return False
 
     @staticmethod
+    def auth_system_status() -> dict:
+        """Reports whether QGIS's encrypted credential store (QgsAuthManager)
+        is disabled, and if so, the documented causes and fixes -- so a
+        plaintext-fallback save isn't left as an unexplained "wasn't
+        available" message (see used_plaintext_fallback above).
+
+        QGIS's own API gives no machine-readable reason for isDisabled()
+        (there is no authManager().disabledReason() or similar) -- so this
+        cannot diagnose WHICH cause applies on a given machine, only report
+        that it IS disabled and list the causes QGIS's own issue tracker
+        documents:
+
+        1. A network proxy configured with an authentication-config
+           (authcfg) reference disables the whole auth system at startup --
+           a regression confirmed on QGIS 3.40.4+
+           (github.com/qgis/QGIS/issues/61043), fix submitted as PR #64242.
+        2. The QCA OpenSSL backend (qca-ossl / qca-qt6-ossl) that the auth
+           database's encryption depends on is missing or failed to load --
+           the long-standing, cross-platform root cause predating this
+           specific regression (e.g. Red Hat bug 1396818, "QGIS packages
+           needs qca-ossl dependency").
+
+        Neither is fixable from inside this plugin's own package: this
+        plugin's plugin_dependencies=qpip (see metadata.txt) only installs
+        Python packages listed in requirements.txt into QGIS's Python
+        environment -- it has no mechanism to install or repair QGIS's own
+        native Qt/QCA libraries, or to change its proxy settings. Both
+        fixes happen in QGIS itself, not by installing anything for this
+        plugin."""
+        if not QGIS_AVAILABLE:
+            return {"disabled": None}
+        try:
+            auth_mgr = QgsApplication.authManager()
+            disabled = bool(auth_mgr is None or auth_mgr.isDisabled())
+        except Exception:
+            return {"disabled": None}
+        if not disabled:
+            return {"disabled": False}
+        return {
+            "disabled": True,
+            "known_causes": [
+                {
+                    "cause": "A network proxy has an authentication configuration (authcfg) set.",
+                    "fix": "Settings -> Options -> Network -> Proxy: clear any saved "
+                           "authentication configuration on the proxy entry, then restart QGIS. "
+                           "Known QGIS regression since 3.40.4 -- github.com/qgis/QGIS/issues/61043.",
+                },
+                {
+                    "cause": "The QCA OpenSSL plugin (qca-ossl / qca-qt6-ossl) is missing or failed to load.",
+                    "fix": "Repair or reinstall QGIS itself (via OSGeo4W Setup, ensure the "
+                           "QCA/OpenSSL component is selected; on the standalone Windows "
+                           "installer, a clean reinstall usually restores it). This is a QGIS "
+                           "dependency, not something a QGIS plugin package can install.",
+                },
+            ],
+        }
+
+    @staticmethod
+    def get_auth_system_diagnostic_message() -> str:
+        """Formats auth_system_status() into a short, user-facing explanation
+        for ui/settings_dialog.py's plaintext-fallback warning. Empty string
+        when the auth system isn't disabled (or QGIS/status can't be read) --
+        nothing to add to the warning in that case."""
+        status = CredentialManager.auth_system_status()
+        if not status.get("disabled"):
+            return ""
+        lines = [
+            "This isn't something Cartogen AI's own installer can fix -- it only installs "
+            "Python packages (via qpip), never QGIS's native Qt/QCA libraries or its "
+            "settings. Two documented causes:"
+        ]
+        for i, item in enumerate(status["known_causes"], start=1):
+            lines.append("%d. %s\n   Fix: %s" % (i, item["cause"], item["fix"]))
+        return "\n\n".join(lines)
+
+    @staticmethod
     def get_credential(provider: str) -> str:
         """Retrieves API key from QgsAuthManager or fallback QgsSettings."""
         if not QGIS_AVAILABLE:

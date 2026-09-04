@@ -1105,8 +1105,8 @@ including real on-disk JSON writes, cleaned up afterward, matching
 `tests/test_export_tools.py`'s existing convention for `generate_report`'s
 real Desktop writes). Full suite 882 tests, same known baseline, 0 new
 failures. Points 4 and 5 were already committed earlier this session (as
-`250f04a`); points 6 and 17 are not yet committed as of this writing --
-awaiting Baron's go-ahead.
+`250f04a`); points 6 and 17 are now committed too, as `e3bc00c`, on
+Baron's "Yes, commit all four now."
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix
