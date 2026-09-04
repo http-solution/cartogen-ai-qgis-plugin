@@ -25,6 +25,51 @@ class TestMemoryAndTasks(unittest.TestCase):
         self.assertIn("Damascus Region", ctx)
         self.assertIn("preferred_unit", ctx)
 
+    def test_delete_global_note_removes_single_key(self):
+        memory = SpatialMemoryManager()
+        memory.store_global_note("pref:units", "metric")
+        memory.store_global_note("pref:basemap", "osm")
+
+        result = memory.delete_global_note("pref:units")
+        self.assertTrue(result["success"])
+        self.assertTrue(result["existed"])
+        notes = memory.get_global_notes()
+        self.assertNotIn("pref:units", notes)
+        self.assertIn("pref:basemap", notes)
+
+    def test_delete_global_note_missing_key_reports_not_existed(self):
+        memory = SpatialMemoryManager()
+        result = memory.delete_global_note("no_such_key")
+        self.assertTrue(result["success"])
+        self.assertFalse(result["existed"])
+
+    def test_clear_global_notes_removes_everything(self):
+        """GDPR review F1 (docs/GDPR_COMPLIANCE_REVIEW.docx, cartogen-ai-community):
+        global memory previously had no bulk erasure path. This is the R4 fix --
+        clear_global_notes() must remove every global note in one call, regardless
+        of which key/prefix wrote it, unlike delete_global_note()'s single-key scope."""
+        memory = SpatialMemoryManager()
+        memory.store_global_note("pref:units", "metric")
+        memory.store_global_note("some_other_note", "written by a different tool")
+        self.assertEqual(len(memory.get_global_notes()), 2)
+
+        result = memory.clear_global_notes()
+        self.assertTrue(result["success"])
+        self.assertEqual(result["scope"], "global")
+        self.assertEqual(memory.get_global_notes(), {})
+
+    def test_clear_global_notes_does_not_touch_project_notes(self):
+        """Symmetric guard with test_spatial_memory_manager's project-scope
+        assertions -- clearing global memory must not clear project memory,
+        mirroring clear_project_notes() not touching global memory."""
+        memory = SpatialMemoryManager()
+        memory.store_project_note("study_area", "Damascus Region")
+        memory.store_global_note("pref:units", "metric")
+
+        memory.clear_global_notes()
+        self.assertEqual(memory.get_global_notes(), {})
+        self.assertEqual(memory.get_project_notes()["study_area"], "Damascus Region")
+
     def test_agent_task_manager(self):
         tm = AgentTaskManager()
         

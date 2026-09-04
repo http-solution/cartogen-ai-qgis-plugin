@@ -183,6 +183,29 @@ class SpatialMemoryManager:
                 pass
         return dict(self._in_memory_global_notes)
 
+    def clear_global_notes(self) -> dict:
+        """Clears every global note in one action -- the bulk counterpart to
+        delete_global_note()'s single-key removal. Added to close GDPR review
+        finding F1 (docs/GDPR_COMPLIANCE_REVIEW.docx, cartogen-ai-community):
+        global memory previously had no erasure path at all beyond a user
+        manually wiping QgsSettings outside the plugin. delete_global_note()
+        (added for the self-learning panel's "Forget Selected" control) only
+        ever removes one key at a time and the UI wired to it filters to
+        pref:/rule:/usage: entries -- neither closes F1's actual requirement,
+        which is a way to erase ALL global memory (any key, any writer) in one
+        action, matching clear_project_notes()'s existing scope/semantics.
+        Symmetric with clear_project_notes(): clears the in-memory cache AND
+        the QgsSettings-backed store, since a partial clear would just have
+        the note reappear on next get_global_notes() call."""
+        self._in_memory_global_notes = {}
+        if QGIS_AVAILABLE:
+            try:
+                settings = QgsSettings()
+                settings.setValue(GLOBAL_MEMORY_KEY, json.dumps({}))
+            except Exception as e:
+                print(f"[MemoryManager] Failed to clear global notes: {e}")
+        return {"success": True, "scope": "global"}
+
     def delete_global_note(self, key: str) -> dict:
         """Removes a single global note (used by the learning module's
         pref:*/rule:*/usage:* entries, and by the memory panel's "Forget"
