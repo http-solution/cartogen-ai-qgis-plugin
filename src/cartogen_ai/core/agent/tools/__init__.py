@@ -23,6 +23,7 @@ from . import reporting_tools
 from . import logistics_tools
 from . import monitoring_tools
 from . import imagery_extraction
+from . import dataset_status_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -46,4 +47,5 @@ __all__ = [
     "logistics_tools",
     "monitoring_tools",
     "imagery_extraction",
+    "dataset_status_tools",
 ]
