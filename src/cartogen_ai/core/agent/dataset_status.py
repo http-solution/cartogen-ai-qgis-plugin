@@ -17,19 +17,22 @@ parallel state store. Custom properties are serialized into the .qgz/.qgs
 project file, so a layer's dataset status survives project save/reload for
 free, the same guarantee lineage.py already relies on.
 
-Scope of this first pass (2026-09-04): the ordered state machine, a
+Scope as of this update (2026-09-04): the ordered state machine, a
 sequential advancement gate that refuses to skip states or silently
-overwrite a failed check, and exactly ONE real automated check wired in --
-geometry validity (via the existing diagnose_topology tool, point 4's
-already-PARTIAL work) gating the STAGED -> VALIDATED transition. This
-module deliberately does NOT implement schema contracts (point 5), P-code
-hierarchy/uniqueness checks (point 6), temporal-validity concepts (point
-7), or a provenance JSON sidecar writer (point 17) -- those remain real,
-separate pieces of work. Each can now attach its own result to a layer's
-"checks" record and gate its own transition (see _AUTOMATED_CHECK_TRANSITIONS
-below) instead of needing its own bespoke state-tracking -- but inventing
-placeholder checks for them here, before they exist, would be exactly the
-kind of "looks validated but isn't" gap point 2 itself describes.
+overwrite a failed check, and THREE real automated checks now wired in --
+P-code depth (uniqueness + parent/child hierarchy prefix-match, point 6's
+work, via pcode_validation.py) gating INGESTED -> STAGED; geometry validity
+(via the existing diagnose_topology tool, point 4's work) gating
+STAGED -> VALIDATED; and schema-contract validation (point 5's work, via
+schema_contracts.py) gating VALIDATED -> ANALYSIS_READY when a
+contract_name is supplied. This module deliberately does NOT implement
+temporal-validity concepts (point 7) or a provenance JSON sidecar writer
+(point 17) -- those remain real, separate pieces of work. Each can now
+attach its own result to a layer's "checks" record and gate its own
+transition (see _AUTOMATED_CHECK_TRANSITIONS below) instead of needing its
+own bespoke state-tracking -- but inventing placeholder checks for them
+here, before they exist, would be exactly the kind of "looks validated but
+isn't" gap point 2 itself describes.
 """
 
 import json
@@ -61,6 +64,16 @@ STATUS_ORDER = [
 # manual-only (requires a `note` justifying it) -- see the module docstring
 # for why no automated check is invented for the others yet.
 _AUTOMATED_CHECK_TRANSITIONS = {
+    # pcode_depth (point 6) gates INGESTED -> STAGED: P-code uniqueness and
+    # parent/child hierarchy are properties of the raw ingested data itself
+    # (is this dataset's identity/joinability sound before it's even
+    # staged for further QA), unlike geometry_validity and schema_contract
+    # below, which are about the data's shape and structure. Unlike
+    # schema_contract, this one needs no caller-supplied parameter to be
+    # "opt-in" -- it auto-detects applicability from the layer's own
+    # fields (see _run_automated_check) and reports itself not applicable,
+    # not failing, on a layer with no P-code-shaped fields at all.
+    ("INGESTED", "STAGED"): "pcode_depth",
     ("STAGED", "VALIDATED"): "geometry_validity",
     # Opt-in, not automatic: this only actually runs when the caller passes
     # a contract_name to advance_dataset_status (see that function and
@@ -202,6 +215,34 @@ def _run_automated_check(check_name, layer, contract_name=None):
         if "error" in result:
             return False, result
         return result.get("passed", False), result
+    if check_name == "pcode_depth":
+        if not hasattr(layer, "fields"):
+            # Not a vector layer with fields() at all (e.g. a raster, or a
+            # minimal test double) -- pcode depth simply isn't applicable,
+            # same as a vector layer with no P-code-shaped fields below.
+            # This check should never be what blocks a non-admin-boundary
+            # layer from reaching STAGED.
+            return True, {"applicable": False, "reason": "Layer has no fields() -- not a P-code-bearing vector layer."}
+        from .pcode_validation import check_pcode_uniqueness, check_pcode_hierarchy
+        uniqueness = check_pcode_uniqueness(layer)
+        has_uniqueness_field = "error" not in uniqueness
+        hierarchy = check_pcode_hierarchy(layer)
+        has_hierarchy_fields = "error" not in hierarchy
+        if not has_uniqueness_field and not has_hierarchy_fields:
+            # No P-code-shaped fields at all -- this layer was never
+            # claiming to be a P-code dataset, so "not applicable" passes
+            # rather than blocking every non-admin-boundary layer from
+            # ever reaching STAGED.
+            return True, {"applicable": False, "reason": "No P-code fields found on this layer."}
+        detail = {"applicable": True}
+        passed = True
+        if has_uniqueness_field:
+            detail["uniqueness"] = uniqueness
+            passed = passed and uniqueness.get("passed", False)
+        if has_hierarchy_fields:
+            detail["hierarchy"] = hierarchy
+            passed = passed and hierarchy.get("passed", False)
+        return passed, detail
     return False, {"error": f"No automated check implemented for '{check_name}'."}
 
 

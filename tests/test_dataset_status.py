@@ -20,6 +20,13 @@ from cartogen_ai.core.agent.dataset_status import (
 )
 
 
+class _FakeEmptyFields:
+    """Trivial stand-in for QgsFields with no fields at all."""
+
+    def names(self):
+        return []
+
+
 class FakeLayer:
     """Minimal stand-in for a QGIS layer: just enough customProperty storage
     for the state machine to read/write against, plus a name() and an
@@ -40,7 +47,14 @@ class FakeLayer:
         return self._name
 
     def fields(self):
-        return None
+        # A trivial real stand-in (not None) -- schema_contract/pcode_depth
+        # gate tests mock the underlying validate_layer_schema/
+        # check_pcode_* functions directly, but pcode_depth's own
+        # "not applicable" auto-detection calls layer.fields().names() for
+        # real (see _run_automated_check), so this needs to behave like an
+        # empty QgsFields, not crash like None.names() would.
+        return _FakeEmptyFields()
+
 
     def customProperty(self, key, default=""):
         return self._props.get(key, default)
@@ -305,6 +319,77 @@ class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
         self.assertIn("error", without_note)
         with_note = advance_dataset_status(layer, "ANALYSIS_READY", note="reviewed manually, no contract yet")
         self.assertTrue(with_note["success"])
+
+
+class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
+    """INGESTED -> STAGED runs a pcode_depth check (point 6): P-code
+    uniqueness + parent/child hierarchy prefix-match, via
+    agent/pcode_validation.py. Unlike the schema_contract gate, this one is
+    NOT opt-in -- it auto-detects P-code-shaped fields and passes as
+    "not applicable" when none exist, so it never blocks a non-admin-
+    boundary layer. The default FakeLayer has no fields at all
+    (fields().names() == []), which is exactly the "not applicable" case
+    exercised for real (unmocked) below; the pass/fail cases mock the
+    underlying check_pcode_* functions directly, the same way the
+    schema_contract gate tests mock validate_layer_schema."""
+
+    def test_not_applicable_when_layer_has_no_pcode_fields_passes_without_note(self):
+        layer = FakeLayer()
+        set_initial_status(layer, status="INGESTED")
+        result = advance_dataset_status(layer, "STAGED")
+        self.assertTrue(result["success"])
+        self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
+
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    def test_blocks_when_uniqueness_check_fails(self, mock_uniqueness, mock_hierarchy):
+        mock_uniqueness.return_value = {
+            "success": True, "passed": False, "pcode_field": "admin2_pcode",
+            "duplicate_pcodes": {"YE1201": [0, 2]},
+        }
+        mock_hierarchy.return_value = {"error": "Could not find both a child and parent P-code field on this layer."}
+        layer = FakeLayer()
+        set_initial_status(layer, status="INGESTED")
+        result = advance_dataset_status(layer, "STAGED")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "INGESTED")
+
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    def test_blocks_when_hierarchy_check_fails(self, mock_uniqueness, mock_hierarchy):
+        mock_uniqueness.return_value = {"error": "No P-code field found or specified."}
+        mock_hierarchy.return_value = {
+            "success": True, "passed": False,
+            "mismatches": [{"feature_id": 1, "child_pcode": "YE0902", "parent_pcode": "YE12"}],
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="INGESTED")
+        result = advance_dataset_status(layer, "STAGED")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "INGESTED")
+
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    def test_override_with_note_bypasses_a_failed_pcode_check(self, mock_uniqueness, mock_hierarchy):
+        mock_uniqueness.return_value = {"success": True, "passed": False, "duplicate_pcodes": {"YE1201": [0, 2]}}
+        mock_hierarchy.return_value = {"error": "Could not find both a child and parent P-code field on this layer."}
+        layer = FakeLayer()
+        set_initial_status(layer, status="INGESTED")
+        result = advance_dataset_status(
+            layer, "STAGED", override=True, note="known duplicate, source data confirmed correct",
+        )
+        self.assertTrue(result["success"])
+
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    def test_passes_when_both_checks_pass(self, mock_uniqueness, mock_hierarchy):
+        mock_uniqueness.return_value = {"success": True, "passed": True, "duplicate_pcodes": {}}
+        mock_hierarchy.return_value = {"success": True, "passed": True, "mismatches": []}
+        layer = FakeLayer()
+        set_initial_status(layer, status="INGESTED")
+        result = advance_dataset_status(layer, "STAGED")
+        self.assertTrue(result["success"])
+        self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
 
 
 class TestStatusOrderConstant(unittest.TestCase):

@@ -577,15 +577,20 @@ open).
    to skip states, refuses a forward move across a checked transition
    unless the check passes (override requires a note, recorded in
    history), and refuses an unchecked forward move or any backward move
-   without a note. Exactly one transition has a real automated check
-   wired in -- STAGED -> VALIDATED runs the existing `diagnose_topology`
-   geometry-validity check (point 4's already-PARTIAL work) rather than
-   reimplementing it. Still PARTIAL, deliberately: no automated check
-   exists yet for the other five transitions, and points 5 (schema
-   contracts), 6 (P-code depth), 7 (temporal GIS), and 17 (provenance
-   sidecar) haven't been built to attach their own checks to this
-   record yet -- each remains its own real, separate gap; see their own
-   entries below.
+   without a note. Three transitions now have a real automated check
+   wired in: INGESTED -> STAGED runs a P-code depth check (point 6,
+   uniqueness + hierarchy, auto-passing "not applicable" when a layer
+   isn't P-code-shaped); STAGED -> VALIDATED runs the existing
+   `diagnose_topology` geometry-validity check (point 4's work); and
+   VALIDATED -> ANALYSIS_READY runs a schema-contract check (point 5's
+   work) when a `contract_name` is supplied. Still PARTIAL, deliberately:
+   no automated check exists yet for the other three transitions, and
+   point 7 (temporal GIS) hasn't been built to attach its own check to
+   this record yet -- still a real, separate gap; see that entry below.
+   Point 17 (provenance sidecar) has since been built, but deliberately
+   reads this record rather than gating against it -- a provenance file
+   is a generated artifact a caller asks for, not a QA-gate transition;
+   see that entry below.
 3. **CRS handling should be operation-aware, not a blanket rule -- REAL
    GAP, but not the conflict form described.** No hardcoded
    `32636`/`32637` exists anywhere in `agent/tools/*.py` -- so there's no
@@ -625,9 +630,11 @@ open).
    `isGeomValid()`, already run, catches self-intersecting/malformed
    rings as invalid geometries; no evidence found that a distinct check
    is needed on top of that. The semantic topology check (admin2 sits
-   inside claimed admin1 parent) and P-code hierarchy/uniqueness (point
-   6) remain untouched -- out of scope for this slice, which was
-   specifically "point 4's overlaps/gaps/duplicates," not point 6.
+   inside claimed admin1 parent) remains untouched -- out of scope for
+   this slice, which was specifically "point 4's overlaps/gaps/
+   duplicates." P-code hierarchy/uniqueness (point 6) was a separate,
+   attribute-level check (not a spatial one) and has since been closed;
+   see that entry.
 5. **Machine-readable schema contracts -- PARTIAL, first two contracts
    closed 2026-09-04.** Was a REAL GAP (no YAML/JSON schema files, no
    `foreign_key`/`required_fields`/`validate_schema` symbol anywhere in
@@ -655,20 +662,41 @@ open).
    note-required path rather than failing a check with nothing to check
    against (not every dataset has a contract yet). 22 new tests. Still
    PARTIAL: only 2 contracts exist, no `foreign_key` cross-dataset
-   concept was built, and point 6's P-code hierarchy/uniqueness remains
-   untouched -- the `admin2` contract's `admin1_pcode` field is explicitly
-   left as the future hook for that, not implemented here.
+   concept was built. Point 6's P-code hierarchy check has since been
+   closed and now validates against exactly the `admin2` contract's
+   `admin1_pcode` field this entry originally left as a future hook.
 6. **P-Code handling depth (uniqueness, hierarchy, temporal validity) --
-   REAL GAP, extends an already-partially-logged item.**
+   PARTIAL, uniqueness + hierarchy closed 2026-09-04.**
    `HUMANITARIAN_CARTOGRAPHY_STANDARDS.md` §I already logs basic P-code
    *usage* as substantially met but flags "no check against reusing a
-   retired P-code." Going further: `fetch_hdx_admin_boundaries` only
-   detects which field *is* the P-code field -- it validates neither
-   uniqueness, nor the admin2-pcode-prefix-matches-parent-admin1-pcode
-   hierarchy, nor any temporal-validity concept. Same note as point 5:
-   a P-code depth check, once built, plugs into point 2's gate as another
-   named transition in `_AUTOMATED_CHECK_TRANSITIONS` rather than needing
-   its own status-tracking.
+   retired P-code." `fetch_hdx_admin_boundaries` only ever detected which
+   field *is* the P-code field -- it validated neither uniqueness, nor the
+   admin2-pcode-prefix-matches-parent-admin1-pcode hierarchy. Both now
+   exist: `agent/pcode_validation.py`'s `check_pcode_uniqueness` (flags
+   duplicate non-null P-codes, reports which feature ids collide) and
+   `check_pcode_hierarchy` (a pure attribute-level string-prefix check --
+   real COD-AB admin2 downloads denormalize the parent admin1 P-code onto
+   every child row as a sibling field, e.g. admin2 `YE1201` under admin1
+   `YE12`, so this is NOT a spatial containment/join check; that harder,
+   separate "semantic topology" check -- does the admin2 polygon actually
+   sit inside its claimed admin1 polygon -- remains the untouched part of
+   point 4's own scope note). Both checks use the same caller-configurable,
+   case-insensitive alias-list field matching as point 5's schema
+   contracts (`admin2_pcode`/`adm2_pcode`/`ADM2_PCODE` all match), for the
+   same reason: real-world COD-AB/geoBoundaries field naming varies by
+   source. Two new registered tools, `check_pcode_uniqueness`/
+   `check_pcode_hierarchy` (`agent/tools/pcode_validation_tools.py`).
+   Wired into point 2's gate as `pcode_depth` on INGESTED -> STAGED --
+   unlike point 5's schema-contract gate, this one is NOT opt-in: it
+   auto-detects whether the layer even has P-code-shaped fields at all
+   and passes as "not applicable" when it doesn't (or when the layer has
+   no `fields()` at all, e.g. a raster), so it can never block a
+   non-admin-boundary layer from advancing. 30 new tests (16 for the core
+   module, 9 for the tool wrappers, 5 gate-integration tests covering the
+   not-applicable/uniqueness-fail/hierarchy-fail/override/both-pass
+   paths). Still PARTIAL, deliberately: no temporal-validity concept and
+   no check against reusing a retired P-code -- both remain real,
+   separate pieces of work (see point 7 for temporal GIS more broadly).
 7. **Temporal GIS as a core capability -- REAL GAP.** Zero hits for
    `QgsTemporalController`/`TemporalProperties` anywhere in `src/`.
    `add_incident_point` captures one freeform `date` string field only --
@@ -754,15 +782,38 @@ open).
     anywhere (checked separately from the unrelated UI dark/light "theme"
     code in `ui/theme.py`, which is not this). No layer-visibility-preset
     mechanism exists for multi-product output from one project.
-17. **Deterministic provenance sidecar -- REAL GAP.** No JSON
-    provenance/processing-log writer exists. The closest thing is
-    `export_tools.py`'s `_layer_provenance_entries`, which appends a
-    human-readable *text* section to Word/Markdown reports -- not a
-    machine-readable sidecar with QGIS version, algorithm chain, or QA
-    results. Point 2's dataset-status record (status + history + checks,
-    already JSON, already per-layer) is a natural input to this sidecar
-    once it's built -- the QA-results half of a provenance file could be
-    read straight off it instead of being tracked twice.
+17. **Deterministic provenance sidecar -- CLOSED 2026-09-04.** Was a REAL
+    GAP: no JSON provenance/processing-log writer existed. The closest
+    thing, `export_tools.py`'s `_layer_provenance_entries`, only ever
+    appends a human-readable *text* section to Word/Markdown reports --
+    not a machine-readable sidecar with QGIS version, algorithm chain, or
+    QA results. Now: `agent/provenance.py`'s `build_provenance_record`
+    assembles exactly that -- QGIS version, tool-execution lineage, and
+    QA-gate status/history/checks -- as pure computation, no file I/O.
+    True to this entry's own suggestion, it reads both halves off records
+    that already exist rather than tracking either a second time: the
+    algorithm-chain half comes straight from `lineage.py`'s
+    `get_layer_lineage`, and the QA-results half straight from point 2's
+    `dataset_status.py`'s `get_dataset_status` (status + history +
+    checks, already JSON, already per-layer). Two new registered tools in
+    `agent/tools/provenance_tools.py`: `get_provenance_record` (read-only,
+    no disk write) and `write_provenance_sidecar`, which actually writes
+    the record as a real `<source_file>.provenance.json` file beside the
+    layer's own on-disk source when one resolves (a QGIS URI suffix like
+    `|layername=...` is stripped first), falling back to a Desktop file
+    named after the layer -- with an explicit `warning` in the result,
+    not a silent substitution -- for a layer with no real on-disk source
+    (a scratch/memory layer), the same fallback convention
+    `export_tools.py`'s `generate_report` already uses. Not wired into
+    point 2's `_AUTOMATED_CHECK_TRANSITIONS` -- a provenance sidecar is a
+    generated artifact a caller asks for, not a gate a layer must pass to
+    advance, so there is no transition for it to block. 17 new tests
+    across `tests/test_provenance.py` (plain fake layer, patching
+    `lineage.py`'s own module-level `QGIS_AVAILABLE` to exercise real
+    tracked lineage data through it) and `tests/test_provenance_tools.py`
+    (the registered-tool wrappers, including real on-disk JSON writes
+    cleaned up afterward, the same convention `tests/test_export_tools.py`
+    already uses for `generate_report`'s real Desktop `.docx` writes).
 18. **AI architecture redesign (Intent Interpreter → Project Inspector →
     Spatial Planner → ... ) -- PARTIAL, mostly aspirational.** The actual
     `agent.py` `run()` loop is: build system prompt → LLM call with
@@ -996,9 +1047,66 @@ contracts so far. 22 new tests across `tests/test_schema_contracts.py`
 from disk rather than mocked), `tests/test_schema_contract_tools.py`,
 and 4 gate-integration tests in `tests/test_dataset_status.py`. Full
 suite 835 tests, same known baseline, 0 new failures. Still PARTIAL:
-only 2 contracts exist, no cross-dataset `foreign_key` concept was
-built, and point 6's P-code hierarchy/uniqueness remains untouched --
-see point 5's updated entry.
+only 2 contracts exist, and no cross-dataset `foreign_key` concept was
+built. Point 6's P-code hierarchy check has since closed against exactly
+the `admin2` contract's `admin1_pcode` field -- see point 5's updated
+entry.
+
+**Point 6 had its uniqueness + hierarchy checks built the same session,
+immediately after, on Baron's explicit "Point 6: P-code depth" answer to
+"keep going toward point 6 or point 17."** New `agent/pcode_validation.py`
+(`check_pcode_uniqueness`, `check_pcode_hierarchy`) + `agent/tools/
+pcode_validation_tools.py`, using the same case-insensitive alias-list
+field matching as point 5's schema contracts, for the same reason
+(real-world COD-AB/geoBoundaries field naming varies by source). The
+hierarchy check is a pure attribute-level string-prefix check, not a
+spatial one -- real COD-AB admin2 downloads denormalize the parent
+admin1 P-code onto every child row as a sibling field, so no spatial
+join or containment logic was needed; that harder, separate "does the
+admin2 polygon actually sit inside its claimed admin1 polygon" check
+remains point 4's own untouched semantic-topology item, not this one.
+Wired into point 2's gate as `pcode_depth` on INGESTED -> STAGED --
+unlike point 5's OPT-IN schema-contract check, this one auto-detects
+whether a layer even has P-code-shaped fields and passes as "not
+applicable" when it doesn't, so it can never block a non-admin-boundary
+layer from advancing (a design correction made mid-build, after a real
+regression surfaced: a fields()-less fake layer was initially treated as
+a hard failure rather than "not applicable," which would have wrongly
+blocked every non-P-code layer's INGESTED -> STAGED advance). 30 new
+tests across `tests/test_pcode_validation.py`, `tests/
+test_pcode_validation_tools.py`, and 5 gate-integration tests in
+`tests/test_dataset_status.py`. Full suite 865 tests, same known
+baseline, 0 new failures. Still PARTIAL: no temporal-validity concept
+and no check against reusing a retired P-code -- both remain real,
+separate pieces of work.
+
+**Point 17 was closed the same session, immediately after, on Baron's
+"Not yet, keep building" answer declining to commit point 6 yet --
+continued to point 17 since it was already named as the alternative
+option in the same question ("keep going toward point 6 or point 17").**
+New `agent/provenance.py`'s `build_provenance_record` assembles a
+machine-readable provenance record (QGIS version, tool-execution
+lineage, QA-gate status/history/checks) as pure computation with no file
+I/O, reading both halves off records that already exist -- `lineage.py`'s
+tracked history and point 2's `dataset_status.py` record -- rather than
+tracking either a second time, exactly as this entry's own earlier note
+suggested. Two new tools in `agent/tools/provenance_tools.py`:
+`get_provenance_record` (read-only) and `write_provenance_sidecar`,
+which writes the record to a real `<source_file>.provenance.json` file
+beside the layer's own on-disk source when one resolves, falling back
+to a named Desktop file (with an explicit warning, not a silent
+substitution) for a scratch/memory layer with no real source -- the
+same fallback convention `export_tools.py`'s `generate_report` already
+uses. Deliberately NOT wired into point 2's `_AUTOMATED_CHECK_TRANSITIONS`
+-- a provenance sidecar is a generated artifact a caller asks for, not a
+gate a layer must pass to advance. 17 new tests across `tests/
+test_provenance.py` and `tests/test_provenance_tools.py` (the latter
+including real on-disk JSON writes, cleaned up afterward, matching
+`tests/test_export_tools.py`'s existing convention for `generate_report`'s
+real Desktop writes). Full suite 882 tests, same known baseline, 0 new
+failures. Points 4 and 5 were already committed earlier this session (as
+`250f04a`); points 6 and 17 are not yet committed as of this writing --
+awaiting Baron's go-ahead.
 
 Three points (8, 12, and the P-code half of 6) restate gaps this project
 had *already independently found and, in 8's case, already scoped a fix

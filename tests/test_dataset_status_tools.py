@@ -96,11 +96,14 @@ class TestDelegatesToCoreModule(unittest.TestCase):
         layer = self._FakeLayer()
         mock_project.instance.return_value.mapLayersByName.return_value = [layer]
 
-        set_dataset_status("test_layer", status="INGESTED")
-        # No note supplied and INGESTED -> STAGED has no automated check --
-        # the core module must refuse this, and the tool must surface that
-        # refusal rather than swallowing it.
-        result = advance_dataset_status("test_layer", "STAGED")
+        # INGESTED -> STAGED now runs the pcode_depth automated check (point
+        # 6), which auto-passes as "not applicable" on a plain fields()-less
+        # fake layer -- so that transition alone can no longer exercise a
+        # bare "no automated check, no note" refusal. Use
+        # ANALYSIS_READY -> CARTOGRAPHY_READY instead, which still has no
+        # automated check at all.
+        set_dataset_status("test_layer", status="ANALYSIS_READY")
+        result = advance_dataset_status("test_layer", "CARTOGRAPHY_READY")
         self.assertIn("error", result)
 
     @patch("cartogen_ai.core.agent.tools.dataset_status_tools.QGIS_AVAILABLE", True)
