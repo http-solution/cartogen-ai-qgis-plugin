@@ -24,7 +24,11 @@ class FakeLayer:
     """Minimal stand-in for a QGIS layer: just enough customProperty storage
     for the state machine to read/write against, plus a name() and an
     optional getFeatures() to control whether it looks like a vector layer
-    to _run_automated_check's duck-typing check."""
+    to _run_automated_check's geometry_validity duck-typing check.
+    fields() is always present (trivial) so the schema_contract duck-typing
+    check passes too -- schema-contract gate tests mock validate_layer_schema
+    itself, so what fields() actually returns doesn't matter, only that the
+    attribute exists."""
 
     def __init__(self, name="test_layer", is_vector=True):
         self._name = name
@@ -34,6 +38,9 @@ class FakeLayer:
 
     def name(self):
         return self._name
+
+    def fields(self):
+        return None
 
     def customProperty(self, key, default=""):
         return self._props.get(key, default)
@@ -189,6 +196,115 @@ class TestAdvanceDatasetStatusAutomatedGeometryCheck(unittest.TestCase):
         result = advance_dataset_status(layer, "VALIDATED")
         self.assertIn("error", result)
         self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
+
+
+class TestAdvanceDatasetStatusStrengthenedGate(unittest.TestCase):
+    """diagnose_topology was extended (2026-09-04, same session) to also
+    report duplicate_geometries and overlapping_feature_pairs -- the gate
+    now checks those too, not just invalid_geometries, per point 2's own
+    cross-reference note that point 4 extensions should be picked up
+    automatically with no state-machine change."""
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.diagnose_topology")
+    def test_blocks_on_duplicate_geometries_even_with_no_invalid_geometries(self, mock_diagnose):
+        mock_diagnose.return_value = {
+            "success": True, "invalid_geometries": 0, "zero_area_slivers": 0,
+            "duplicate_geometries": 2, "overlapping_feature_pairs": 0,
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="STAGED")
+        result = advance_dataset_status(layer, "VALIDATED")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.diagnose_topology")
+    def test_blocks_on_overlapping_feature_pairs_even_with_no_invalid_geometries(self, mock_diagnose):
+        mock_diagnose.return_value = {
+            "success": True, "invalid_geometries": 0, "zero_area_slivers": 0,
+            "duplicate_geometries": 0, "overlapping_feature_pairs": 3,
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="STAGED")
+        result = advance_dataset_status(layer, "VALIDATED")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.diagnose_topology")
+    def test_passes_when_all_three_are_clean(self, mock_diagnose):
+        mock_diagnose.return_value = {
+            "success": True, "invalid_geometries": 0, "zero_area_slivers": 0,
+            "duplicate_geometries": 0, "overlapping_feature_pairs": 0,
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="STAGED")
+        result = advance_dataset_status(layer, "VALIDATED")
+        self.assertTrue(result["success"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.diagnose_topology")
+    def test_legacy_result_missing_new_keys_defaults_to_passing_on_them(self, mock_diagnose):
+        # A diagnose_topology double that predates this extension (only
+        # reports invalid_geometries/zero_area_slivers) must not suddenly
+        # start failing the gate on keys it never claimed to report.
+        mock_diagnose.return_value = {"success": True, "invalid_geometries": 0, "zero_area_slivers": 0}
+        layer = FakeLayer()
+        set_initial_status(layer, status="STAGED")
+        result = advance_dataset_status(layer, "VALIDATED")
+        self.assertTrue(result["success"])
+
+
+class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
+    """VALIDATED -> ANALYSIS_READY runs a schema_contract check (point 5),
+    but ONLY when contract_name is supplied -- opt-in, since not every
+    dataset has a contract yet (see agent/contracts/)."""
+
+    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    def test_passes_when_contract_validates_clean(self, mock_validate):
+        mock_validate.return_value = {
+            "success": True, "passed": True, "missing_fields": [],
+            "type_mismatches": [], "value_violations": [],
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="VALIDATED")
+        result = advance_dataset_status(layer, "ANALYSIS_READY", contract_name="admin2")
+        self.assertTrue(result["success"])
+        self.assertEqual(get_dataset_status(layer)["status"], "ANALYSIS_READY")
+
+    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    def test_blocks_when_contract_fails_and_no_override(self, mock_validate):
+        mock_validate.return_value = {
+            "success": True, "passed": False, "missing_fields": ["admin1_pcode"],
+            "type_mismatches": [], "value_violations": [],
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="VALIDATED")
+        result = advance_dataset_status(layer, "ANALYSIS_READY", contract_name="admin2")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "VALIDATED")
+
+    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    def test_override_with_note_bypasses_a_failed_contract_check(self, mock_validate):
+        mock_validate.return_value = {
+            "success": True, "passed": False, "missing_fields": ["admin1_pcode"],
+            "type_mismatches": [], "value_violations": [],
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="VALIDATED")
+        result = advance_dataset_status(
+            layer, "ANALYSIS_READY", contract_name="admin2",
+            override=True, note="admin1_pcode not needed for this analysis",
+        )
+        self.assertTrue(result["success"])
+
+    def test_no_contract_name_falls_through_to_ordinary_note_requirement(self):
+        # No contract_name supplied -- this must behave exactly like any
+        # other transition with no automated check at all, not like a
+        # schema_contract check that has nothing to check against.
+        layer = FakeLayer()
+        set_initial_status(layer, status="VALIDATED")
+        without_note = advance_dataset_status(layer, "ANALYSIS_READY")
+        self.assertIn("error", without_note)
+        with_note = advance_dataset_status(layer, "ANALYSIS_READY", note="reviewed manually, no contract yet")
+        self.assertTrue(with_note["success"])
 
 
 class TestStatusOrderConstant(unittest.TestCase):

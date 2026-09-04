@@ -62,6 +62,14 @@ STATUS_ORDER = [
 # for why no automated check is invented for the others yet.
 _AUTOMATED_CHECK_TRANSITIONS = {
     ("STAGED", "VALIDATED"): "geometry_validity",
+    # Opt-in, not automatic: this only actually runs when the caller passes
+    # a contract_name to advance_dataset_status (see that function and
+    # _run_automated_check below) -- not every dataset has a schema
+    # contract yet (agent/contracts/ currently has two: health_facilities,
+    # admin2), so a layer with no matching contract still falls through to
+    # the ordinary "no automated check, note required" path rather than
+    # being blocked by a check that has nothing to check against.
+    ("VALIDATED", "ANALYSIS_READY"): "schema_contract",
 }
 
 
@@ -144,15 +152,33 @@ def set_initial_status(layer, status="INGESTED", note=None) -> dict:
     return {"success": True, "status": status}
 
 
-def _run_automated_check(check_name, layer):
+def _run_automated_check(check_name, layer, contract_name=None):
     """Runs one of the real, wired-in automated checks. Returns
-    (passed: bool, detail: dict). The only one implemented so far is
+    (passed: bool, detail: dict).
+
     geometry_validity, via the existing diagnose_topology tool (point 4) --
     reusing that check rather than re-implementing geometry validation
     here. Duck-types on getFeatures() rather than a QGIS layer-type enum
     (matching this codebase's own convention, e.g. get_layers()'s
     hasattr(layer, "fields") check) so a raster layer gets an honest
-    "not applicable" instead of diagnose_topology crashing on it."""
+    "not applicable" instead of diagnose_topology crashing on it.
+
+    diagnose_topology was extended (2026-09-04) to also report
+    duplicate_geometries and, for polygon layers, overlapping_feature_pairs
+    -- both are checked here too, not just invalid_geometries, so this gate
+    actually strengthens when that check does, with no state-machine change
+    needed (exactly what point 2's own cross-reference note in the review
+    doc says should happen). .get(..., 0) defaults on the two newer keys so
+    a caller-supplied diagnose_topology result predating this extension
+    (e.g. a test double) isn't treated as failing on keys it never claimed
+    to report; invalid_geometries keeps its original fail-closed .get(..., 1)
+    default.
+
+    schema_contract, via agent/schema_contracts.py (point 5) -- requires a
+    contract_name (advance_dataset_status only sets check_name to
+    "schema_contract" at all when one was actually supplied; see that
+    function). Duck-types on hasattr(layer, "fields") for the same reason
+    geometry_validity duck-types on getFeatures()."""
     if check_name == "geometry_validity":
         if not hasattr(layer, "getFeatures"):
             return False, {"error": "geometry_validity only applies to vector layers."}
@@ -160,12 +186,26 @@ def _run_automated_check(check_name, layer):
         result = diagnose_topology(layer.name())
         if "error" in result:
             return False, result
-        passed = result.get("invalid_geometries", 1) == 0
+        passed = (
+            result.get("invalid_geometries", 1) == 0
+            and result.get("duplicate_geometries", 0) == 0
+            and result.get("overlapping_feature_pairs", 0) == 0
+        )
         return passed, result
+    if check_name == "schema_contract":
+        if contract_name is None:
+            return False, {"error": "schema_contract check requires a contract_name."}
+        if not hasattr(layer, "fields"):
+            return False, {"error": "schema_contract only applies to vector layers with fields()."}
+        from .schema_contracts import validate_layer_schema
+        result = validate_layer_schema(layer, contract_name)
+        if "error" in result:
+            return False, result
+        return result.get("passed", False), result
     return False, {"error": f"No automated check implemented for '{check_name}'."}
 
 
-def advance_dataset_status(layer, target_status, note=None, override=False) -> dict:
+def advance_dataset_status(layer, target_status, note=None, override=False, contract_name=None) -> dict:
     """The actual QA gate. Moves a layer's tracked status by exactly one
     step in STATUS_ORDER (or re-states the current one). Refuses to:
       - advance a layer with no starting status yet (call set_initial_status first)
@@ -180,6 +220,14 @@ def advance_dataset_status(layer, target_status, note=None, override=False) -> d
         pretends a check ran when none exists)
       - move backward (e.g. VALIDATED -> STAGED, marking a regression)
         without a note explaining why
+
+    contract_name is specific to the VALIDATED -> ANALYSIS_READY transition
+    (see _AUTOMATED_CHECK_TRANSITIONS): the schema_contract check registered
+    there only actually runs when contract_name is supplied here. Not every
+    dataset has a contract yet (see agent/contracts/), so omitting it simply
+    falls through to the ordinary unchecked-transition path (a note is
+    required instead) rather than failing a check that has nothing to check
+    against.
     """
     if target_status not in STATUS_ORDER:
         return {"error": f"Unknown status '{target_status}'. Must be one of: {', '.join(STATUS_ORDER)}."}
@@ -209,8 +257,14 @@ def advance_dataset_status(layer, target_status, note=None, override=False) -> d
     check_detail = None
     if is_forward_step:
         check_name = _AUTOMATED_CHECK_TRANSITIONS.get((current, target_status))
+        if check_name == "schema_contract" and contract_name is None:
+            # Opt-in: no contract was specified for this call, so this
+            # transition is treated the same as one with no automated check
+            # at all (falls through to the "note required" branch below)
+            # rather than failing a check with nothing to check against.
+            check_name = None
         if check_name:
-            passed, check_detail = _run_automated_check(check_name, layer)
+            passed, check_detail = _run_automated_check(check_name, layer, contract_name=contract_name)
             if not passed and not override:
                 return {
                     "error": f"Automated check '{check_name}' did not pass for "
