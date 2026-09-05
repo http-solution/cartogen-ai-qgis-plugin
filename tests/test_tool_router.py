@@ -42,6 +42,37 @@ class TestToolRouter(unittest.TestCase):
         self.assertIn("get_layers", tool_names)  # Always included core tool
 
 
+class TestExecutePyqgisScriptFallbackOnly(unittest.TestCase):
+    """Point 1 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+    execute_pyqgis_script used to be unconditionally guaranteed a slot on
+    every single query regardless of relevance (an always_include entry
+    scored 1000 flat, same as genuinely-always-relevant bookkeeping tools).
+    Now it only gets that guaranteed slot as a true last resort, when
+    nothing else in the whole candidate set scored any real relevance --
+    otherwise it competes on its own natural score like every other tool."""
+
+    def setUp(self):
+        self.router = ToolRouter(TOOLS_SCHEMA)
+
+    def test_excluded_when_a_specific_tool_clearly_matches(self):
+        # Same query as test_router_filtering above -- calculate_ndvi and
+        # several other tools clearly share real vocabulary with this
+        # query, so execute_pyqgis_script should no longer ride along on
+        # an unconditional boost at a small top_k.
+        filtered = self.router.filter_relevant_tools("Calculate NDVI on Sentinel image", top_k=15)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("calculate_ndvi", names)
+        self.assertNotIn("execute_pyqgis_script", names)
+
+    def test_included_as_a_true_last_resort_when_nothing_else_matches(self):
+        # Nonsense query sharing no real vocabulary with any registered
+        # tool's name/description/aliases -- the genuine "nothing else
+        # fits" case this fallback exists to cover.
+        filtered = self.router.filter_relevant_tools("zzqxx wqvbn fltrpz", top_k=15)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("execute_pyqgis_script", names)
+
+
 class TestToolRouterAliasCoverage(unittest.TestCase):
     """Regression coverage for 3 real paraphrased queries that measurably
     missed the top-30 candidate set before the alias list was added -- see
