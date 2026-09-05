@@ -987,6 +987,59 @@ open).
     last resort) instead of a denylist-plus-restricted-builtins sandbox at
     all -- is a real, still-open, multi-week architecture decision, not
     resolved by this session's patch, and remains Baron's call.
+
+    **Second sweep, 2026-09-05, on Baron's explicit go-ahead to process the
+    flagged items too -- bounded to the denylist-completeness question, not
+    the tiered-allow-list rewrite, which remains the same open architecture
+    call as above.** Applied the identical live-reproduction technique the
+    2026-09-04 pass used (the same harness -- `_validate_script_safety` +
+    `_SAFE_BUILTINS` run through the real `exec()` pattern -- against a
+    deliberately broader candidate list of stdlib modules offering file,
+    registry, network, or process capability under names the first pass
+    hadn't enumerated) and found 20 more confirmed-live bypasses, not
+    theoretical ones:
+    - `io.open` -- literally the same function object as the builtin `open`
+      (`io.open is open` is `True`), reached via attribute access instead of
+      the bare name already on the blocklist. Wrote a real file to disk.
+    - `tarfile.open(...).addfile(...)`, `gzip.open(...)`, `bz2.open(...)`,
+      `lzma.open(...)` -- the exact same "arbitrary file write via an
+      archive/compression-writer object" shape the already-fixed `zipfile`
+      bypass was, just under 4 more module names. All 4 wrote real files.
+    - `winreg.CreateKey`/`SetValueEx` -- wrote a real Windows registry key.
+      Persistent system-state modification with zero filesystem footprint,
+      a capability class the first pass hadn't covered at all.
+    - `linecache.getline(path, n)` -- read a real line from a real file
+      (`C:\Windows\win.ini` in the live test) with no `open` name involved.
+      Confirms arbitrary file **read**, not just write, has the same blind
+      spot; `filecmp` grants the same class of file-content read/compare.
+    - `socketserver`/`poplib`/`imaplib`/`nntplib`/`xmlrpc` -- real network-
+      protocol-client/server modules, same category as the already-blocked
+      `ftplib`/`smtplib`/`http`/`urllib`/`requests`, just not individually
+      named before.
+    - `webbrowser`/`pydoc` -- can launch an external program (a browser, or
+      a pager subprocess via `pydoc.pipepager`), the same risk already
+      documented for the Qt `QDesktopServices` block, under stdlib names.
+    - `zipimport` -- loads and executes code from a zip file, the same
+      dynamic-code-loading risk as the already-blocked `importlib`/`runpy`.
+    - `venv`/`mmap` -- no legitimate use in a PyQGIS spatial script and sit
+      in the same risk family as the rest of the list; blocked for the same
+      defense-in-depth reasoning already applied to the Qt classes, even
+      without demonstrating standalone harm for each individually.
+
+    All 20 added to `_BLOCKED_MODULES` (`system_tools.py`), with one new
+    regression test covering all 20 in one pass
+    (`test_script_safety_blocks_second_wave_of_filesystem_registry_and_network_modules`,
+    `tests/test_new_tools.py`) plus a re-run of the same live harness
+    confirming every one now rejects with the expected "Blocked import"
+    error instead of executing. Full suite 1081 tests, 0 failures (0 skips
+    beyond the existing 7 known-QGIS-unavailable skips). `docs/
+    TOOLS_REFERENCE.md` regenerated -- no change, since the denylist isn't
+    part of `execute_pyqgis_script`'s public tool description. As before:
+    this closes what this sweep actually found, explicitly not a claim the
+    list is now complete -- the underlying shape of the gap (any stdlib
+    module offering file/network/process capability this list doesn't
+    happen to name) can recur again, which is precisely the tiered-allow-
+    list critique above that this sweep did not attempt to resolve.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
     PUBLISH) -- PARTIAL; the "open policy decision" this entry described
     was stale the day this review was written, corrected 2026-09-05.**

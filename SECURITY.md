@@ -60,7 +60,19 @@ Blocked modules (`_BLOCKED_MODULES`): `os`, `subprocess`, `shutil`, `sys`, `sock
 four added 2026-09-04 after live-reproducing that each writes a real file to disk via a
 plain method call -- `Path.write_text()`, `dbm.open(path, 'c')`,
 `logging.FileHandler(path)`, `zipfile.ZipFile(path, 'w')` -- none of which is the `open`
-builtin name already blocked above, so none tripped this list before that date).
+builtin name already blocked above, so none tripped this list before that date), plus
+`io`, `tarfile`, `gzip`, `bz2`, `lzma`, `winreg`, `linecache`, `filecmp`,
+`socketserver`, `poplib`, `imaplib`, `nntplib`, `xmlrpc`, `webbrowser`, `pydoc`,
+`zipimport`, `venv`, `mmap` (added 2026-09-05 in a second, broader sweep using the same
+live-reproduction technique: `io.open` is the same function object as the builtin
+`open`, just reached by attribute instead of bare name; `tarfile`/`gzip`/`bz2`/`lzma`
+are the same archive/compression-writer file-write shape as `zipfile` above;
+`winreg.CreateKey`/`SetValueEx` wrote a real registry key; `linecache.getline` read a
+real file with no `open` name involved, confirming arbitrary file *read* has the same
+blind spot as write; `socketserver`/`poplib`/`imaplib`/`nntplib`/`xmlrpc` are the same
+network-client category as `ftplib`/`smtplib` above; `webbrowser`/`pydoc` can launch an
+external program the same way `QDesktopServices` below can; `zipimport` loads code from
+a zip file the same way `importlib`/`runpy` above can).
 
 Blocked Qt classes regardless of which allowed submodule they're imported from
 (`_BLOCKED_QT_NAMES`): `QFile`, `QSaveFile`, `QTemporaryFile`, `QDir`,
