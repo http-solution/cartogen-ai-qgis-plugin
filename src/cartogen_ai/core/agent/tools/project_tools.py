@@ -6,10 +6,20 @@ QGIS Project File Tools for Cartogen AI.
 from .registry import register_tool
 
 try:
-    from qgis.core import QgsProject
+    from qgis.core import QgsProject, QgsLayerTreeModel
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
+
+
+def _new_layer_tree_model(project):
+    """QgsMapThemeCollection.createThemeFromCurrentState()/applyTheme() both
+    take a QgsLayerTreeModel|None model param -- confirmed live against a
+    real QGIS 4.2.2 install that passing None crashes the process outright
+    (a hard exit, not a catchable Python exception), even though the type
+    hint marks it nullable. Always build a real model instead -- point 16
+    of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md."""
+    return QgsLayerTreeModel(project.layerTreeRoot())
 
 
 @register_tool(
@@ -83,3 +93,78 @@ def load_project(file_path: str, confirmed: bool = False):
         return {"success": True, "file_path": file_path, "layer_count": len(project.mapLayers())}
     except Exception as e:
         return {"error": f"load_project failed: {e}"}
+
+
+@register_tool(
+    "create_map_theme",
+    "Saves the current layer visibility/style state as a named map theme, so it can be "
+    "restored later with apply_map_theme -- for producing several different map products "
+    "(e.g. 'overview', 'health facilities only', 'roads and admin boundaries') from one "
+    "project without manually toggling layer visibility every time. Point 16 of "
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.",
+    {
+        "type": "object",
+        "properties": {
+            "theme_name": {"type": "string", "description": "Name for the saved theme."},
+        },
+        "required": ["theme_name"],
+    },
+)
+def create_map_theme(theme_name: str):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    try:
+        project = QgsProject.instance()
+        themes = project.mapThemeCollection()
+        model = _new_layer_tree_model(project)
+        record = themes.createThemeFromCurrentState(project.layerTreeRoot(), model)
+        themes.insert(theme_name, record)
+        return {"success": True, "theme_name": theme_name, "existing_themes": themes.mapThemes()}
+    except Exception as e:
+        return {"error": f"create_map_theme failed: {e}"}
+
+
+@register_tool(
+    "apply_map_theme",
+    "Restores a previously saved map theme (layer visibility and style), created with "
+    "create_map_theme -- switches the project's current view between different named map "
+    "product states.",
+    {
+        "type": "object",
+        "properties": {
+            "theme_name": {"type": "string"},
+        },
+        "required": ["theme_name"],
+    },
+)
+def apply_map_theme(theme_name: str):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    project = QgsProject.instance()
+    themes = project.mapThemeCollection()
+    if not themes.hasMapTheme(theme_name):
+        return {
+            "error": f"Map theme '{theme_name}' not found.",
+            "existing_themes": themes.mapThemes(),
+        }
+    try:
+        model = _new_layer_tree_model(project)
+        themes.applyTheme(theme_name, project.layerTreeRoot(), model)
+        return {"success": True, "theme_name": theme_name}
+    except Exception as e:
+        return {"error": f"apply_map_theme failed: {e}"}
+
+
+@register_tool(
+    "list_map_themes",
+    "Lists the names of every map theme saved in the current project via create_map_theme.",
+    {"type": "object", "properties": {}},
+)
+def list_map_themes():
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    try:
+        themes = QgsProject.instance().mapThemeCollection().mapThemes()
+        return {"success": True, "themes": themes}
+    except Exception as e:
+        return {"error": f"list_map_themes failed: {e}"}
