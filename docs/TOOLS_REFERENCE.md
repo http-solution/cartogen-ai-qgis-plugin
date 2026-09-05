@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (148 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (149 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1446,6 +1446,17 @@ Write a layer's machine-readable provenance record (QGIS version, tool-execution
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `output_path` | string | no | Optional explicit file path for the sidecar. Omit to derive one from the layer's own source, or fall back to Desktop. |
+
+## qa_checklist_tools
+
+### `generate_map_product_qa_checklist`
+
+Assembles a QA checklist for one map product -- a layer, optionally paired with a print layout -- covering data readiness, cartographic completeness, disclosure/sensitivity, and export/provenance. Reads from what's already tracked (dataset_status, layout item ids, provenance) rather than re-deriving or guessing any of it. Point 26 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md -- distinct from this plugin's own docs/RELEASE_SMOKE_TEST.md, which verifies the plugin's tools work in a live QGIS session, not an individual map product's readiness.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `layout_name` | string | no | Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section. |
 
 ## schema_contract_tools
 

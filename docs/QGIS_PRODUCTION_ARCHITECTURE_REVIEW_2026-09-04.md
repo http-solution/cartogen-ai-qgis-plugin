@@ -1054,12 +1054,33 @@ open).
     what's sent to the model. No tool name, description, or prompt rule
     asserts route safety. This is the one point of the 28 where the
     proposal's concern doesn't apply to this codebase as it stands.
-26. **Automated per-map-product QA checklist -- REAL GAP, confirmed
-    distinct from `docs/RELEASE_SMOKE_TEST.md`.** That document verifies
-    the *plugin's tools* work in a real QGIS session before a release --
-    it is not per-product and has no data/cartography/disclosure/export
-    categories tied to an individual map output. No automated
-    QA-checklist generator for individual products exists.
+26. **Automated per-map-product QA checklist -- CLOSED 2026-09-05.** Was a
+    REAL GAP, confirmed distinct from `docs/RELEASE_SMOKE_TEST.md`: that
+    document verifies the *plugin's tools* work in a real QGIS session
+    before a release -- it is not per-product and has no data/cartography/
+    disclosure/export categories tied to an individual map output. No
+    automated QA-checklist generator for individual products existed. Now:
+    new `agent/tools/qa_checklist_tools.py`'s `generate_map_product_qa_checklist`
+    (layer_name, optional layout_name) assembles exactly those four
+    categories -- pure read/assembly, no new tracked state, matching point
+    17's own "read from what already exists" approach: **Data** reads
+    point 2's `dataset_status` (tracked/untracked, current status, checks);
+    **Cartography** (when `layout_name` given) reads point 15's new
+    `list_layout_items` to check the mandatory `MAP_MAIN`/`TITLE`/`LEGEND`/
+    `SCALEBAR`/`NORTH_ARROW` elements are actually present, not assumed;
+    **Export/Provenance** reads point 17's `get_provenance_record`
+    (tracked/untracked, tool-execution count, QGIS version); **Disclosure**
+    has no automated classification to read from -- point 24 (sensitivity/
+    disclosure tagging) is a real gap, not built -- so this is an honest
+    static reminder to check manually, not a guessed pass/fail from a
+    scheme that doesn't exist. 7 new tests. **Live-verified end to end**:
+    ran against a real untracked layer (correctly reported untracked/no
+    layout), then against the same layer after real `set_dataset_status`,
+    a real `buffer_analysis` call, and a real `create_print_layout` --
+    confirmed the checklist correctly picked up the real INGESTED status,
+    all 5 real layout elements present, and the real QGIS version, live.
+    Full suite 1068 tests, same known baseline, 0 new failures.
+    `docs/TOOLS_REFERENCE.md` regenerated (149 tools, 21 groups).
 27. **Deterministic agent command model (plan-then-validate-then-execute)
     -- REAL GAP, current model is ReAct-style.**
     `AgentTaskManager.create_plan` takes freeform human-readable task
