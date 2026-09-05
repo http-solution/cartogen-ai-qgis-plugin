@@ -553,19 +553,41 @@ entry is worth reading first regardless, both for what it found and for
 what it didn't resolve (the larger tiered-architecture question is still
 open).
 
-1. **Processing-first execution model -- PARTIAL.** Processing algorithms
+1. **Processing-first execution model -- PARTIAL, the description half
+   closed 2026-09-05; the routing half is a real policy call, not a
+   mechanical fix, flagged rather than changed.** Processing algorithms
    already are the dominant path for core vector/raster ops: most
    spatial-operation tools (`buffer_analysis`, `intersect_layers`,
    `union_layers`, `spatial_join`, etc.) route through a shared
    `_run_and_add` helper (`vector_tools.py:36-44`) that calls
    `processing.run(...)`. But `execute_pyqgis_script`
-   (`system_tools.py:346`) is not a rare, clearly-fenced fallback --
+   (`system_tools.py:346`) was not a rare, clearly-fenced fallback --
    `tool_router.py:96-100`'s `always_include` set hard-codes it into every
    filtered tool list the model sees, regardless of query relevance, and
-   its own description is a bare "execute arbitrary PyQGIS script" with no
+   its own description was a bare "execute arbitrary PyQGIS script" with no
    fallback framing. Several other tools' descriptions tell the model to
    prefer themselves over it (a prompt-level nudge, not an architectural
-   gate).
+   gate). **Fixed:** the tool's own description now opens with "LAST
+   RESORT ONLY -- run this only when no other registered tool covers the
+   task," plus an explicit note that its sandbox is denylist-based, not
+   formally proven -- consistent with what other tools already say to
+   steer the model away from it, now stated once at the source instead of
+   scattered as reminders in each of them. **Deliberately not changed:**
+   whether to remove it from `tool_router.py`'s `always_include` set (so
+   it competes on relevance score like every other tool instead of being
+   guaranteed visible on literally every query) -- that changes when the
+   model can even see this tool as an option at all, which cuts both ways:
+   less prominent exposure to a risky escape hatch is a real security
+   improvement, but a genuine edge case with no other matching tool could
+   become unreachable if it stops scoring into the top_k on a query that
+   shares no vocabulary with anything else registered. Untested routing
+   changes to a security-relevant tool's visibility are exactly the kind
+   of thing this project's own Hermes Charter Rule 9 flags as needing
+   Baron's call, not an engineering default -- same shape as point 19's
+   still-open tiered-allow-list question, not resolved here.
+   `docs/TOOLS_REFERENCE.md` regenerated. Full suite 1049 tests, same
+   known baseline, 0 new failures (pure description text change, no new
+   branch to test).
 2. **Explicit QA-gate state machine (INGESTED→...→PUBLICATION_READY) --
    PARTIAL, first pass closed 2026-09-04.** Was a REAL GAP (no
    dataset-lifecycle state concept existed anywhere, nothing preventing a
