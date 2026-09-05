@@ -270,8 +270,17 @@ next-steps queue always has at least one item — if everything concrete is done
 15. ~~Build point 6's P-code depth checks (uniqueness, hierarchy), wire into point 2's gate~~ — **done, 2026-09-04**, on Baron's "Point 6: P-code depth" after a tool disconnect/reconnect and the "keep going toward point 6 or point 17" question. New `agent/pcode_validation.py` (`check_pcode_uniqueness`, `check_pcode_hierarchy`) + `agent/tools/pcode_validation_tools.py`, using the same case-insensitive alias-list field matching as point 5. The hierarchy check is a pure attribute-level string-prefix check (real COD-AB data denormalizes the parent P-code onto every child row), not a spatial containment check — that remains point 4's untouched semantic-topology item. Wired into point 2's gate as `pcode_depth` on INGESTED -> STAGED, auto-passing "not applicable" when a layer has no P-code-shaped fields so it never blocks a non-admin-boundary layer. Fixed a real regression mid-build (a fields()-less fake layer was initially treated as a hard failure instead of "not applicable") and updated one older test whose "no automated check on this transition" premise the new check superseded. 30 new tests. Full suite 865/1/6/14, same known baseline, 0 new failures. Committed as `e3bc00c` alongside item 16.
 16. ~~Build point 17's provenance sidecar (QGIS version + lineage + QA-status assembled into one JSON record, written to a real file)~~ — **done, 2026-09-04**, on Baron's "Not yet, keep building" after declining to commit item 15 — continued to point 17 since it was already named as the alternative option in the same question. New `agent/provenance.py`'s `build_provenance_record` (pure computation, reads `lineage.py`'s tracked history + point 2's `dataset_status.py` record rather than tracking either twice) + `agent/tools/provenance_tools.py`'s `get_provenance_record`/`write_provenance_sidecar`. The sidecar writer sits the JSON file beside the layer's own on-disk source when one resolves, falling back to a named Desktop file (with an explicit warning) for a scratch/memory layer — the same fallback convention `generate_report` already uses. Deliberately not wired into point 2's gate — a generated artifact, not a transition a layer must pass. 17 new tests. Full suite 882/1/6/14, same known baseline, 0 new failures. Committed as `e3bc00c` alongside item 15.
 17. ~~Diagnose and improve the "QGIS auth system disabled" bottleneck Baron hit live on QGIS 4.2~~ — **done, 2026-09-04**, from Baron's own screenshots plus "consider adding any needed dependencies during the installation of the package." Confirmed via WebSearch that neither documented root cause (a QGIS 3.40.4+ proxy-authcfg regression, or a missing QCA-OpenSSL backend) can be fixed from inside this plugin's own package -- `qpip`/`requirements.txt` only installs Python packages, never QGIS's native Qt/QCA libraries or its settings. Built `agent/auth.py`'s `auth_system_status()`/`get_auth_system_diagnostic_message()` instead, wired into `ui/settings_dialog.py`'s existing plaintext-fallback warning so it names the real cause+fix instead of a generic "wasn't available" message. 5 new tests, full suite 887/1/6/14, same known baseline, 0 new failures. `auth.py`/`settings_dialog.py` both already carry the held account-feature diff (item 5) -- committing this will need per-file blob-staging, not a plain `git add`. Not yet committed — awaiting Baron's go-ahead. See Level 3b for full detail.
-18. **Decide what to do with the rest of the 27-point QGIS production-architecture review.** `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` has the full verbatim proposal plus a code-grounded gap analysis — points 2 (first pass), 4 (overlaps/duplicates/min-area), 5 (first 2 contracts), 6 (uniqueness/hierarchy), 9, 13, 17 (provenance sidecar), 19, and 21 are now closed or partially closed (see items 10-16 above); the rest keep their original verdicts (1 already true, the remainder real gaps or partial). This is easily weeks of work across a wide range of independent pieces, from a one-file schema-contract addition to a full agent-architecture redesign — needs Baron to pick what to act on and in what order; not an engineering default.
-19. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+18. **Decide what to do with the rest of the 27-point QGIS production-architecture review.** `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` has the full verbatim proposal plus a code-grounded gap analysis — points 2 (first pass), 4 (overlaps/duplicates/min-area), 5 (first 2 contracts), 6 (uniqueness/hierarchy), 9, 12 (style-library reuse, closed 2026-09-05 — see item 20 below), 13, 17 (provenance sidecar), 19, and 21 are now closed or partially closed (see items 10-16 and 20); the rest keep their original verdicts (1 already true, the remainder real gaps or partial). This is easily weeks of work across a wide range of independent pieces, from a one-file schema-contract addition to a full agent-architecture redesign — needs Baron to pick what to act on and in what order; not an engineering default.
+19. ~~Close point 12 (style-library reuse) from the 27-point review~~ — **done, 2026-09-05.**
+   Baron: "proceed with no 2" (item 18's review-followthrough), picked per this project's own
+   established selection logic (self-contained, no dependency on undecided design questions,
+   one session). New `save_layer_style`/`load_layer_style` tools in `styling_tools.py`, real
+   `QgsMapLayer.saveNamedStyle()`/`loadNamedStyle()`, `.qml` files. Live-verified against QGIS
+   4.2.2 (headless PyQGIS): applied a real graduated style, round-tripped it through a real
+   `.qml` file onto a fresh layer, confirmed the renderer type and class structure survived.
+   13 new tests, full suite 1038/0/7 skipped. See point 12's updated entry in
+   `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Not yet committed.
+20. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
@@ -312,6 +321,21 @@ Full write-ups for every ID below live in `docs/BUG_TRACKER.md` (this is the ind
 
 ### 3b. Feature-completion log (by version)
 
+- **unreleased (uncommitted, 2026-09-05)** — Point 12 of the 27-point review, style-library
+  reuse: new `save_layer_style`/`load_layer_style` tools in `agent/tools/styling_tools.py`,
+  using real `QgsMapLayer.saveNamedStyle()`/`loadNamedStyle()` against a real `.qml` file, plus
+  a `_derive_style_path` helper reusing point 17's provenance-sidecar path convention (beside
+  the layer's own source when one resolves, Desktop fallback otherwise). Scope kept to the
+  literal named gap (`.qml` save/load) — the orphaned `symbology-style.db` at the repo root
+  (confirmed this session: a real, populated `QgsStyle` database, 116 symbols + 35 color
+  ramps) would let the agent browse/apply named symbols from a library, a related but separate
+  capability, left unbuilt. 13 new tests. **Live-verified**, not just unit-tested with mocks: a
+  real headless PyQGIS session against QGIS 4.2.2 applied a real 5-class graduated style to a
+  real layer, saved it to a real `.qml` file via `save_layer_style`, loaded it onto a fresh
+  layer via `load_layer_style`, and confirmed the renderer type and class structure
+  round-tripped correctly — the same headless-session technique BUG-2026-09-05-1 used. Full
+  suite 1038 tests, same known baseline, 0 new failures. `docs/TOOLS_REFERENCE.md` regenerated
+  (143 tools). Not yet committed.
 - **unreleased (uncommitted, 2026-09-04)** — Auth-system diagnostic, from a live bug report:
   Baron hit `authManager().isDisabled()` on a real QGIS 4.2 session (screenshots: the "Key
   stored without encryption" fallback warning firing, and Options -> Authentication showing

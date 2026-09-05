@@ -3,6 +3,8 @@
 Layer Cartography & Styling Tools for Cartogen AI.
 """
 
+import os
+
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum
 
@@ -80,6 +82,37 @@ def _find_layer_by_name(name):
     if not layers:
         return None
     return layers[0]
+
+
+def _sanitize_filename(name):
+    safe = "".join(c if c.isalnum() or c in "._- " else "_" for c in str(name)).strip()
+    return safe or "layer"
+
+
+def _derive_style_path(layer, output_path):
+    """Returns (path, used_desktop_fallback) for save_layer_style. Same
+    convention as agent/tools/provenance_tools.py's _derive_sidecar_path:
+    an explicit output_path always wins; otherwise sits the .qml beside the
+    layer's own on-disk source (stripping a QGIS URI suffix like
+    "|layername=..." off a GeoPackage/etc. source first) when that source
+    resolves to a real file, falling back to Desktop (named after the
+    layer) for a scratch/memory layer with no real file to sit beside."""
+    if output_path:
+        return output_path, False
+
+    source = ""
+    try:
+        source = layer.source() or ""
+    except Exception:
+        source = ""
+    base_path = source.split("|", 1)[0] if source else ""
+    if base_path and os.path.isfile(base_path):
+        return f"{base_path}.qml", False
+
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    if not os.path.isdir(desktop):
+        desktop = os.path.expanduser("~")
+    return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.qml"), True
 
 
 def _classify_values(values, mode="auto"):
@@ -731,3 +764,84 @@ def set_layer_order(layer_names):
         return {"success": True, "order_top_to_bottom": [l.name() for l in layers]}
     except Exception as e:
         return {"error": f"set_layer_order failed: {e}"}
+
+
+@register_tool(
+    "save_layer_style",
+    "Saves a layer's current symbology (renderer, colors, classification, labeling) to a real "
+    ".qml style file on disk, so it can be reapplied later to this or another layer with "
+    "load_layer_style -- for reusing a standard color scheme/classification across multiple "
+    "layers or maps instead of rebuilding it with apply_categorized_style/apply_graduated_style "
+    "every time. Without output_path, the file is saved beside the layer's own on-disk source "
+    "(as '<source>.qml'); for a scratch/memory layer with no real source, it falls back to "
+    "Desktop instead.",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string"},
+            "output_path": {
+                "type": "string",
+                "description": "Optional explicit .qml file path. Defaults to beside the layer's own source file.",
+            },
+        },
+        "required": ["layer_name"],
+    },
+)
+def save_layer_style(layer_name, output_path=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return {"error": f"Layer '{layer_name}' not found"}
+
+    path, used_fallback = _derive_style_path(layer, output_path)
+    try:
+        message, ok = layer.saveNamedStyle(path)
+    except Exception as e:
+        return {"error": f"save_layer_style failed: {e}"}
+    if not ok:
+        return {"error": f"Failed to save style: {message}"}
+
+    result = {"success": True, "layer_name": layer_name, "path": path}
+    if used_fallback:
+        result["warning"] = (
+            "Layer has no real on-disk source (a scratch/memory layer, or one QGIS couldn't "
+            "resolve a file path for) -- saved the style to Desktop instead of beside the "
+            "source data."
+        )
+    return result
+
+
+@register_tool(
+    "load_layer_style",
+    "Loads a previously saved .qml style file (from save_layer_style, or exported manually via "
+    "QGIS's own Layer Properties -> Symbology -> Style -> Save Style) onto a layer, replacing "
+    "its current symbology -- for reusing a standard humanitarian color scheme/classification "
+    "across layers or maps instead of rebuilding it from scratch each time.",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string"},
+            "style_path": {"type": "string", "description": "Path to the .qml style file to load."},
+        },
+        "required": ["layer_name", "style_path"],
+    },
+)
+def load_layer_style(layer_name, style_path):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return {"error": f"Layer '{layer_name}' not found"}
+    if not os.path.isfile(style_path):
+        return {"error": f"Style file not found: {style_path}"}
+
+    try:
+        message, ok = layer.loadNamedStyle(style_path)
+    except Exception as e:
+        return {"error": f"load_layer_style failed: {e}"}
+    if not ok:
+        return {"error": f"Failed to load style: {message or 'unrecognized .qml file'}"}
+
+    layer.triggerRepaint()
+    return {"success": True, "layer_name": layer_name, "style_path": style_path}

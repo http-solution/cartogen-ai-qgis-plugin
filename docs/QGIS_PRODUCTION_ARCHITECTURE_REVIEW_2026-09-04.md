@@ -543,7 +543,10 @@ remain deliberately unbuilt -- see point 4's own entry); **point 5**
 (`health_facilities`, `admin2`) built the same day, wired into point 2's
 gate as an opt-in check on VALIDATED -> ANALYSIS_READY (only runs when a
 `contract_name` is actually supplied -- see point 5's own entry for why
-opt-in, not automatic). Everything else
+opt-in, not automatic). **Update, 2026-09-05:** point 12 (style-library
+reuse) closed too -- `save_layer_style`/`load_layer_style` round-trip a
+layer's symbology through a real `.qml` file, live-verified against QGIS
+4.2.2. Everything else
 keeps its original verdict from the initial gap-check; this paragraph is
 a change log, not a fresh recount of the whole document. Point 19's
 entry is worth reading first regardless, both for what it found and for
@@ -744,14 +747,33 @@ open).
 11. **QGIS Processing Models (.model3) -- REAL GAP.** Zero `.model3`
     files and zero code/doc references to the concept anywhere in the
     repo.
-12. **Style-library reuse (.qml files) -- REAL GAP, already flagged as an
-    open question.** No `.qml` files exist and no code loads a named
-    style. `apply_categorized_style`/`apply_graduated_style` build
-    symbology programmatically every call.
+12. **Style-library reuse (.qml files) -- CLOSED 2026-09-05.** Was a REAL
+    GAP, already flagged as an open question: no `.qml` files existed and
+    no code loaded a named style; `apply_categorized_style`/
+    `apply_graduated_style` built symbology programmatically every call.
     `HUMANITARIAN_CARTOGRAPHY_STANDARDS.md` §VI already flagged this exact
     open question ("not yet confirmed... authoritative symbol library").
-    An orphaned `symbology-style.db` sits at the repo root, referenced by
-    no code.
+    Now: two new registered tools in `agent/tools/styling_tools.py`,
+    `save_layer_style` (real `QgsMapLayer.saveNamedStyle()`) and
+    `load_layer_style` (real `QgsMapLayer.loadNamedStyle()`), plus a
+    `_derive_style_path` helper that sits the `.qml` beside the layer's
+    own on-disk source when one resolves, falling back to Desktop for a
+    scratch/memory layer -- the identical convention point 17's provenance
+    sidecar already established, reused rather than reinvented. Scope
+    deliberately kept to the literal gap named in this point (`.qml`
+    file save/load) -- the orphaned `symbology-style.db` at the repo root
+    (confirmed this session: a real, populated `QgsStyle`-format database,
+    116 symbols + 35 color ramps, not an empty template) would let the
+    agent browse/apply *named symbols from a library* rather than only
+    round-tripping one layer's own full style, which is a related but
+    separate capability, left unbuilt. 13 new tests
+    (`tests/test_styling_tools.py`). **Live-verified**, not just unit-
+    tested: a real headless PyQGIS session against QGIS 4.2.2 applied a
+    real 5-class graduated style, saved it to a real `.qml` file,
+    loaded it onto a fresh layer, and confirmed the renderer type and
+    class structure round-tripped correctly -- see
+    `docs/MASTER_TASK_REGISTRY.md` for the commit record. Full suite
+    1038 tests, same known baseline, 0 new failures.
 13. **Data-driven classification (no universal Jenks default) --
     PARTIAL, manual/defined-breaks closed 2026-09-04.** `_classify_values`
     (`styling_tools.py:85-116`) already picks between jenks/equal_interval/

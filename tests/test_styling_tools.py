@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.styling_tools import (
@@ -6,6 +8,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     apply_categorized_style, _geometry_sort_key, _apply_opacity,
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
+    save_layer_style, load_layer_style, _derive_style_path,
 )
 
 
@@ -351,6 +354,158 @@ class TestHotspotAnalysisValidation(unittest.TestCase):
         self.assertEqual(res["pixel_size"], 10.0)
         called_params = mock_processing.run.call_args[0][1]
         self.assertEqual(called_params["PIXEL_SIZE"], 10.0)
+
+
+class TestStyleToolsDegradeOutsideQgis(unittest.TestCase):
+    def test_save_layer_style_degrades_gracefully(self):
+        res = save_layer_style("districts")
+        self.assertIn("error", res)
+        self.assertIn("QGIS", res["error"])
+
+    def test_load_layer_style_degrades_gracefully(self):
+        res = load_layer_style("districts", "/tmp/does_not_matter.qml")
+        self.assertIn("error", res)
+        self.assertIn("QGIS", res["error"])
+
+
+class TestSaveLayerStyle(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_layer(self, mock_find):
+        mock_find.return_value = None
+        res = save_layer_style("ghost_layer")
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_explicit_output_path_used_directly(self, mock_find):
+        layer = MagicMock()
+        layer.saveNamedStyle.return_value = ("Created default style file as foo.qml", True)
+        mock_find.return_value = layer
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_path = os.path.join(tmp_dir, "custom_style.qml")
+            res = save_layer_style("districts", output_path=out_path)
+
+            self.assertTrue(res["success"])
+            self.assertEqual(res["path"], out_path)
+            self.assertNotIn("warning", res)
+            layer.saveNamedStyle.assert_called_once_with(out_path)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_qgis_save_failure_reports_the_real_message(self, mock_find):
+        layer = MagicMock()
+        layer.source.return_value = ""
+        layer.name.return_value = "districts"
+        layer.saveNamedStyle.return_value = ("permission denied", False)
+        mock_find.return_value = layer
+
+        res = save_layer_style("districts")
+
+        self.assertIn("error", res)
+        self.assertIn("permission denied", res["error"])
+
+
+class TestDeriveStylePath(unittest.TestCase):
+    def test_sits_beside_a_real_on_disk_source(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            source_path = os.path.join(tmp_dir, "districts.gpkg")
+            with open(source_path, "w") as f:
+                f.write("not a real geopackage, just needs to exist")
+            layer = MagicMock()
+            layer.source.return_value = source_path
+            layer.name.return_value = "districts"
+
+            path, used_fallback = _derive_style_path(layer, None)
+
+            self.assertEqual(path, f"{source_path}.qml")
+            self.assertFalse(used_fallback)
+
+    def test_strips_qgis_uri_suffix_before_checking_for_a_real_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            source_path = os.path.join(tmp_dir, "admin.gpkg")
+            with open(source_path, "w") as f:
+                f.write("not a real geopackage, just needs to exist")
+            layer = MagicMock()
+            layer.source.return_value = f"{source_path}|layername=admin2"
+            layer.name.return_value = "admin2"
+
+            path, used_fallback = _derive_style_path(layer, None)
+
+            self.assertEqual(path, f"{source_path}.qml")
+            self.assertFalse(used_fallback)
+
+    def test_falls_back_to_desktop_for_a_scratch_layer(self):
+        layer = MagicMock()
+        layer.source.return_value = "memory layer, no real file"
+        layer.name.return_value = "scratch points"
+
+        path, used_fallback = _derive_style_path(layer, None)
+
+        self.assertTrue(used_fallback)
+        self.assertTrue(path.endswith("scratch points.qml"))
+
+    def test_explicit_output_path_always_wins(self):
+        layer = MagicMock()
+        path, used_fallback = _derive_style_path(layer, "/explicit/path.qml")
+        self.assertEqual(path, "/explicit/path.qml")
+        self.assertFalse(used_fallback)
+        layer.source.assert_not_called()
+
+
+class TestLoadLayerStyle(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_layer(self, mock_find):
+        mock_find.return_value = None
+        res = load_layer_style("ghost_layer", "/tmp/style.qml")
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_style_file(self, mock_find):
+        mock_find.return_value = MagicMock()
+        res = load_layer_style("districts", "/tmp/does_not_exist_at_all.qml")
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_qgis_load_failure_reports_the_real_message(self, mock_find):
+        layer = MagicMock()
+        layer.loadNamedStyle.return_value = ("not a valid style file", False)
+        mock_find.return_value = layer
+
+        with tempfile.NamedTemporaryFile(suffix=".qml", delete=False) as f:
+            style_path = f.name
+        try:
+            res = load_layer_style("districts", style_path)
+            self.assertIn("error", res)
+            self.assertIn("not a valid style file", res["error"])
+            layer.triggerRepaint.assert_not_called()
+        finally:
+            os.remove(style_path)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_success_loads_style_and_repaints(self, mock_find):
+        layer = MagicMock()
+        layer.loadNamedStyle.return_value = ("", True)
+        mock_find.return_value = layer
+
+        with tempfile.NamedTemporaryFile(suffix=".qml", delete=False) as f:
+            style_path = f.name
+        try:
+            res = load_layer_style("districts", style_path)
+            self.assertTrue(res["success"])
+            self.assertEqual(res["style_path"], style_path)
+            layer.loadNamedStyle.assert_called_once_with(style_path)
+            layer.triggerRepaint.assert_called_once()
+        finally:
+            os.remove(style_path)
 
 
 if __name__ == "__main__":
