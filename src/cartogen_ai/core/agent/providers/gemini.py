@@ -14,7 +14,7 @@ def list_models(api_key):
     to models that actually support generateContent (chat).
 
     Authenticates via the x-goog-api-key header rather than a '?key=' query
-    parameter -- docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.3 flagged
+    parameter -- docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.3 flagged
     this endpoint as the one place in this file still using query-param auth
     while GeminiClient.complete()'s main chat path already used a header;
     query-string credentials are more likely to end up in server access logs,
@@ -76,7 +76,7 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
     }
     try:
         # See list_models()'s docstring above for why this uses the x-goog-api-key
-        # header instead of a '?key=' query param (docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
+        # header instead of a '?key=' query param (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
         # SS2.3) -- same endpoint family, same reasoning applies here.
         response = requests.post(url, headers={"x-goog-api-key": api_key}, json=payload, timeout=30)
         response.raise_for_status()

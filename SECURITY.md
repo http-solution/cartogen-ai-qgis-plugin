@@ -123,7 +123,7 @@ model can inject into its own tool call.
 `_add_calculated_field` primitive as `field_calculator` (an in-place edit of the live,
 already-loaded layer's attribute table via `startEditing()`/`commitChanges()`), so leaving
 them ungated was an inconsistency, not a deliberate distinction. See
-`docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` for the full audit this fix came out of,
+`docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` for the full audit this fix came out of,
 including four tools this gate deliberately does *not* cover
 (`calculate_severity_index`, `calculate_presence_gap`, `calculate_population_in_need`,
 `calculate_damage_exposure_severity`) — **decided 2026-08-22**: leave ungated. They're
@@ -213,6 +213,108 @@ security risk beyond what `type()` (already permitted) already allows.
 Run `python -m unittest discover -s tests -t . -p "test_*.py" -v` to see all of the above
 as passing, permanent regression tests (search for `# Confirmed live` / `# A1:` / `# A2:`
 / `# A3:` / `# A4:` comments in `tests/test_new_tools.py`, `tests/test_auth_and_deps.py`).
+
+## Data protection (recommendation, not yet assessed)
+
+**GDPR alignment has not been formally assessed and is recommended before any EU/DG ECHO
+deployment handling real beneficiary or operational data.** When a cloud provider
+(OpenRouter, Gemini, OpenAI, or Claude — see `docs/USER_GUIDE.md`) is selected, the chat
+message text and any layer/attribute content the model is given via tool calls (e.g.
+`get_layers`, attribute-table reads, population/incident/assessment data described back in
+chat) leaves the user's machine and is processed by that provider, most of which are
+US-based. In a humanitarian GIS context this can include personal or special-category data
+(names, household identifiers, security-incident details, vulnerability/protection data)
+under GDPR Art. 9. Recommended, not yet done:
+
+- A formal GDPR alignment review covering lawful basis (Art. 6), special-category data
+  (Art. 9) where JIAF/CVA/protection-related tools are used, cross-border transfer
+  mechanisms (Art. 44-49) for each cloud provider, and a Data Protection Impact Assessment
+  (Art. 35) if processing is judged high-risk.
+- Documenting, per provider, what data-processing agreement/SCCs (if any) apply — this is
+  outside what a QGIS plugin's own code can control or verify.
+- A user-facing recommendation (in `docs/USER_GUIDE.md` and/or the in-app Help tab) to
+  prefer the local Ollama provider, or to redact/aggregate personal and special-category
+  data before it reaches chat, when working with real beneficiary data rather than test
+  data.
+- No data minimization or redaction is currently built into the plugin's tool-calling path
+  — this is a genuine gap, not an oversight to silently "fix" here, since deciding what
+  counts as personal/special-category humanitarian data is a legal judgment call per
+  `CONTRIBUTING.md` §3, not an engineering one.
+
+**Full review, 2026-09-01: `docs/GDPR_COMPLIANCE_REVIEW.docx`.** A code-level review against
+each GDPR article, with file:line evidence for every claim -- not a substitute for real legal/DPO
+sign-off (see its own disclaimer), but a concrete starting point. Its single CRITICAL finding:
+`agent/memory.py`'s `SpatialMemoryManager.store_global_note()` writes agent notes into
+`QgsSettings` (machine-wide, every project, indefinitely) and **no code path anywhere deletes
+them** -- confirmed by a full-codebase search for `clear_global_notes`. Unlike project-scoped
+memory (has a "Clear Project Memory" button) and chat history (opt-in, has a toggle), global
+memory is always-on with no user-facing control at all. If it ever captures personal or
+special-category data, there is currently no way to honour an Art. 17 erasure request for it.
+Not fixed here -- flagged for a decision per `CONTRIBUTING.md` §3, tracked below.
+
+### International transfer mechanisms, by provider (F3, researched 2026-09-01)
+
+The review's F3 finding was that no transfer mechanism was documented for any provider.
+Researched from each provider's own current published terms (not assumed); this is a
+fast-changing area and an org doing a real assessment should re-verify against the live
+pages before relying on it, not just cite this table.
+
+- **OpenAI** -- DPA uses Standard Contractual Clauses (+ UK Addendum for UK data),
+  self-serve/click-through, effective 2026-01-01. API data is not used for model training
+  by default (since March 2023). Source: `https://openai.com/policies/data-processing-addendum/`.
+- **Google / Gemini** -- Google LLC is EU-US/Swiss-US/UK Data Privacy Framework-certified
+  (effective 2025-08-23) and separately offers SCCs via its Cloud DPA. **Important
+  split specific to the Gemini API this plugin calls** (`generativelanguage.googleapis.com`):
+  on the **free tier**, Google states it may use prompts/responses to improve its products
+  and that human reviewers may read them; on the **paid tier**, Google states prompts and
+  responses are *not* used to improve its products, and processing falls under the Cloud
+  Data Processing Addendum. Enabling billing on the key used with this plugin is the
+  difference between these two regimes. Sources: `https://ai.google.dev/gemini-api/terms`,
+  `https://cloud.google.com/terms/data-processing-addendum`.
+- **Anthropic / Claude** -- DPA (built on SCCs) is automatically incorporated into the
+  Commercial/API Terms of Service on acceptance; no separate signature needed for a
+  self-serve API account. If Claude is reached through a third-party platform instead of
+  Anthropic directly, that platform's own terms govern instead.
+  Source: `https://support.claude.com/en/articles/7996862-how-do-i-view-and-sign-your-data-processing-addendum-dpa`.
+- **OpenRouter** -- publishes a DPA via its Trust Portal, but by OpenRouter's own account
+  it is only mutually signed/enforceable for **Enterprise-tier** accounts; a self-serve
+  account can review it for information only, which means it is likely **not a binding
+  contract** for a typical BYOK humanitarian-org deployment -- the sharpest gap of the
+  four. Separately, OpenRouter's own account Privacy settings has independent toggles for
+  whether *free* vs. *paid* model routing may go to an upstream provider that trains on
+  the data, which is why `settings_dialog.py`'s OpenRouter key tooltip now tells the user
+  to check that setting. Sources: `https://trust.openrouter.ai/`,
+  `https://openrouter.zendesk.com/hc/en-us/articles/47828437697051`,
+  `https://openrouter.ai/docs/guides/privacy/provider-logging`.
+
+None of the above is legal advice or a substitute for the org's own DPO/counsel
+confirming a transfer mechanism actually covers the org's specific processing --
+it is what each provider currently publishes, so the org's review does not start from
+zero.
+
+### Remediation, 2026-09-01 (the review's 4 High findings)
+
+- **F2 (no privacy notice anywhere in the product) -- addressed.** The Settings dialog
+  now shows a static, provider-agnostic notice above the provider dropdown explaining
+  what is sent and to whom (Ollama excepted), and `docs/USER_GUIDE.md`'s "What happens to
+  your message before it is sent" section has a matching "Where it goes" paragraph.
+- **F3 (no documented transfer mechanism for any provider) -- documented above.**
+- **F4 (no DPA/sub-processor visibility surfaced to the deploying org) -- addressed.**
+  Each cloud provider's Settings page now shows a link to that provider's Data Processing
+  Addendum (or, for OpenRouter, its Trust Portal, labelled to flag the Enterprise-only
+  caveat above) right in the dialog, next to the existing "get a key" link.
+- **F5 (DPIA not done, but the processing pattern plausibly meets the EDPB's mandatory
+  criteria) -- screening aid added, not a completed DPIA.** See
+  `docs/DPIA_SCREENING_WORKSHEET.docx`: it pre-fills the factual, code-verifiable parts
+  (EDPB WP248's nine criteria mapped against this plugin's actual tools and data flows)
+  and leaves the risk determination and sign-off to the deploying org's DPO, which is a
+  legal judgment call this repository cannot make on the org's behalf.
+
+None of this closes the review's CRITICAL finding (global memory has no erasure path) or
+its Medium/Low/Informational findings -- those remain open, tracked in
+`docs/IMPLEMENTATION_TRACKER.md` §1.4.
+
+Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
 ## Known limitations (accepted risk, not fixed)
 

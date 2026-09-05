@@ -24,22 +24,81 @@
 """
 import os
 import sys
+import types
+import importlib
 
-# Make the cartogen_ai.core namespace package (src/cartogen_ai/core/, containing
-# the actual agent/ui code -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md)
-# importable. Must run before anything below imports from it -- classFactory()
-# triggers `from .plugin_main import CartogenAi`, and plugin_main.py itself
-# does `from cartogen_ai.core.agent...` at call time, so this needs to be on
-# sys.path first. UNVERIFIED IN LIVE QGIS: QGIS's own plugin loader is known
-# to add a plugin's own root directory to sys.path (that's why the pre-
-# restructure code could do bare `from agent.x import y`), but whether it
-# also needs anything extra for a src/ subdirectory to resolve hasn't been
-# tested in a real QGIS session -- run docs/RELEASE_SMOKE_TEST.md before the
-# next release to confirm this actually works, don't assume it from reasoning
-# alone.
-_SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
-if _SRC_DIR not in sys.path:
+# Make the cartogen_ai.core namespace package (src/cartogen_ai/core/) importable.
+#
+# This was a bare `sys.path.insert(0, src)` whose own comment flagged it as
+# unverified in live QGIS. It is now verified, and it was insufficient: the
+# plugin failed at runtime with "No module named 'cartogen_ai.core'".
+# Reproduced outside QGIS, three states defeat the plain insert, all producing
+# that same message:
+#
+#   1. A REGULAR package or module named cartogen_ai anywhere on sys.path wins
+#      over our PEP-420 namespace portion REGARDLESS of sys.path order, so
+#      inserting at position 0 does not help. (A stale cartogen_ai.py from the
+#      pre-restructure tree is exactly this -- see plugin_main.py's docstring.)
+#   2. A bare directory named cartogen_ai (no core/) on sys.path while our src/
+#      is absent.
+#   3. A stale cartogen_ai left in sys.modules by an earlier or failed load, or
+#      a plugin reload -- sys.modules is consulted before any path search, so
+#      the insert is never used.
+#
+# Distinguishing detail: if src/ were merely missing, the error would be
+# "No module named 'cartogen_ai'" WITHOUT the .core suffix.
+#
+# _bootstrap_namespace() handles all three and verifies by actually importing.
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+_SRC_DIR = os.path.join(_PLUGIN_DIR, "src")
+_PKG_DIR = os.path.join(_SRC_DIR, "cartogen_ai")
+
+
+def _evict_cartogen_modules():
+    for name in [n for n in list(sys.modules)
+                 if n == "cartogen_ai" or n.startswith("cartogen_ai.")]:
+        del sys.modules[name]
+
+
+def _bootstrap_namespace():
+    """Make cartogen_ai.core importable deterministically. Returns how it resolved."""
+    norm = os.path.normcase(os.path.abspath(_SRC_DIR))
+    sys.path[:] = [p for p in sys.path
+                   if os.path.normcase(os.path.abspath(p or ".")) != norm]
     sys.path.insert(0, _SRC_DIR)
+
+    existing = sys.modules.get("cartogen_ai")
+    if existing is not None:
+        have = [os.path.normcase(os.path.abspath(x))
+                for x in (getattr(existing, "__path__", None) or [])]
+        if os.path.normcase(os.path.abspath(_PKG_DIR)) not in have:
+            _evict_cartogen_modules()
+
+    importlib.invalidate_caches()
+
+    try:
+        importlib.import_module("cartogen_ai.core")
+        return "resolved-normally"
+    except ImportError:
+        # sys.modules is checked before any finder, so an explicit registration
+        # cannot be beaten by a shadowing package.
+        _evict_cartogen_modules()
+        ns = types.ModuleType("cartogen_ai")
+        ns.__path__ = [_PKG_DIR]
+        sys.modules["cartogen_ai"] = ns
+        importlib.invalidate_caches()
+        importlib.import_module("cartogen_ai.core")
+        return "forced-explicit"
+
+
+try:
+    _BOOTSTRAP_MODE = _bootstrap_namespace()
+    print(f"[CartogenAi] namespace bootstrap: {_BOOTSTRAP_MODE} ({_PKG_DIR})")
+except Exception as _e:  # pragma: no cover - diagnostic path
+    _BOOTSTRAP_MODE = f"FAILED: {_e}"
+    print(f"[CartogenAi] namespace bootstrap FAILED: {_e}")
+    print(f"[CartogenAi]   expected package dir: {_PKG_DIR}")
+    print(f"[CartogenAi]   exists: {os.path.isdir(_PKG_DIR)}")
 
 
 def classFactory(iface):
@@ -53,7 +112,7 @@ def classFactory(iface):
     resolves `import cartogen_ai`, which broke every `from
     cartogen_ai.core.agent... import X` call throughout the codebase.
     Confirmed live via the test suite (31 import failures) before this
-    rename -- see docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md #3 and
+    rename -- see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md #3 and
     docs/BUG_TRACKER.md.
 
     :param iface: A QGIS interface instance.

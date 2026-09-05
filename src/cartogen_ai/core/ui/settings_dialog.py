@@ -4,7 +4,7 @@ import threading
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
-    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox
+    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton
 )
 from qgis.core import QgsSettings
 
@@ -13,7 +13,7 @@ from ..agent.chat_persistence import PERSIST_SETTING_KEY
 from ..agent.model_selector import AUTO_SENTINEL
 from ..agent.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
-    PROMPT_REFINEMENT_ENABLED_KEY, USER_PROFILE_KEY,
+    PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
 )
 from ..agent.providers.openrouter import list_models as _list_openrouter
 from ..agent.providers.gemini import list_models as _list_gemini
@@ -59,6 +59,15 @@ PROVIDERS = [
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
         "model_setting_key": "cartogen_ai/openrouter_model", "default_model": AUTO_SENTINEL,
         "key_default": "", "list_fn": _list_openrouter,
+        "key_placeholder": "sk-or-v1-...",
+        "key_help_url": "https://openrouter.ai/keys",
+        "key_tooltip": "OpenRouter has a genuinely free tier covering many models -- a good "
+                        "default if you don't already have a key with another provider. Free "
+                        "models may route to an upstream provider that trains on prompts -- "
+                        "check your OpenRouter account's Privacy settings (separate toggles "
+                        "for free vs. paid models) before sending sensitive data.",
+        "dpa_url": "https://trust.openrouter.ai/",
+        "dpa_label": "Data processing info (self-serve; a signed DPA needs Enterprise)",
     },
     {
         "value": "gemini", "provider_label": "Google Gemini (Hosted)",
@@ -79,6 +88,14 @@ PROVIDERS = [
         # actual key. gemini-3.1-pro-preview is the current confirmed-working Pro tier.
         "extra_seed_models": ["gemini-3.1-pro-preview"],
         "key_default": "", "list_fn": _list_gemini,
+        "key_placeholder": "AIza...",
+        "key_help_url": "https://aistudio.google.com/apikey",
+        "key_tooltip": "On the free tier, Google may use your prompts to improve its products "
+                        "(human reviewers can read them) -- enable billing on this key for "
+                        "Google's paid-tier terms, which exclude prompts from training, before "
+                        "sending sensitive data.",
+        "dpa_url": "https://cloud.google.com/terms/data-processing-addendum",
+        "dpa_label": "Data Processing Addendum (paid tier)",
     },
     {
         # Ollama stays pinned to a concrete default (no auto-routing) -- local
@@ -88,6 +105,8 @@ PROVIDERS = [
         "key_label": "Ollama Endpoint URL:", "model_label": "Ollama Model:",
         "model_setting_key": "cartogen_ai/ollama_model", "default_model": "llama3.1",
         "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
+        "key_tooltip": "Runs fully locally -- no account or key needed. Leave this as the "
+                        "default unless your Ollama server runs somewhere else.",
     },
     {
         "value": "openai", "provider_label": "OpenAI (Hosted)",
@@ -95,6 +114,10 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/openai_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gpt-5.6",
         "key_default": "", "list_fn": _list_openai,
+        "key_placeholder": "sk-...",
+        "key_help_url": "https://platform.openai.com/api-keys",
+        "dpa_url": "https://openai.com/policies/data-processing-addendum/",
+        "dpa_label": "Data Processing Addendum",
     },
     {
         "value": "claude", "provider_label": "Claude / Anthropic (Hosted)",
@@ -102,9 +125,13 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
         "key_default": "", "list_fn": _list_claude,
+        "key_placeholder": "sk-ant-...",
+        "key_help_url": "https://console.anthropic.com/settings/keys",
+        "dpa_url": "https://support.claude.com/en/articles/7996862-how-do-i-view-and-sign-your-data-processing-addendum-dpa",
+        "dpa_label": "Data Processing Addendum (auto-incorporated into Commercial ToS)",
     },
     {
-        # Placed last, not first: docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
+        # Placed last, not first: docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
         # making this the default on a fresh install, but no gateway is deployed at
         # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
         # install to a provider that can't resolve would break the out-of-the-box
@@ -114,6 +141,8 @@ PROVIDERS = [
         "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
         "key_default": "", "list_fn": _list_cartogen,
+        "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable in the "
+                        "Community edition today (see docs/PRODUCT_TIERS.md).",
     },
 ]
 
@@ -145,6 +174,15 @@ class CartogenAiSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
+        account_row = QHBoxLayout()
+        account_status = QLabel("Hosted Cartogen AI account")
+        self.account_button = QPushButton("Manage account")
+        self.account_button.clicked.connect(self._open_account_dialog)
+        account_row.addWidget(account_status)
+        account_row.addStretch(1)
+        account_row.addWidget(self.account_button)
+        layout.addLayout(account_row)
+
         top_form = QFormLayout()
         self.provider_combo = QComboBox()
         for entry in PROVIDERS:
@@ -156,6 +194,22 @@ class CartogenAiSettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(index)
         top_form.addRow("Connection:", self.provider_combo)
         layout.addLayout(top_form)
+
+        # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
+        # in the product told a user what happens to data once a cloud provider is picked.
+        # Static, provider-agnostic -- each provider page below adds its own specifics
+        # (dpa_url / key_tooltip) where they differ.
+        privacy_note = QLabel(
+            "Chat text and any layer/attribute data a tool call surfaces to the model are "
+            "sent to whichever provider is selected above (Ollama excepted -- fully local, "
+            "nothing leaves this machine). Each provider's Data Processing Addendum link "
+            "below is a starting point, not a substitute for your organization's own GDPR "
+            "review before processing real beneficiary data. See docs/USER_GUIDE.md and "
+            "SECURITY.md's \"Data protection\" section."
+        )
+        privacy_note.setWordWrap(True)
+        privacy_note.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(privacy_note)
 
         # One page per provider, holding just that provider's key/URL field and
         # model combo -- only the selected provider's page is ever shown, instead
@@ -175,8 +229,39 @@ class CartogenAiSettingsDialog(QDialog):
             saved_key = CredentialManager.get_credential(pv)
             key_edit.setText(saved_key if saved_key else entry["key_default"])
             key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
+            # A user who has never used an LLM API before has no way to know
+            # what belongs in this field or where to get it -- found in the UX
+            # audit dated 2026-08-31 ("Settings gives no guidance on what an
+            # API key is or where to get one, for any of the 5 providers").
+            key_placeholder = entry.get("key_placeholder", "")
+            if key_placeholder:
+                key_edit.setPlaceholderText(key_placeholder)
+            key_tooltip = entry.get("key_tooltip", "")
+            if key_tooltip:
+                key_edit.setToolTip(key_tooltip)
             page_form.addRow(entry["key_label"], key_edit)
             self._key_edits[pv] = key_edit
+
+            key_help_url = entry.get("key_help_url")
+            if key_help_url:
+                help_label = QLabel(f'<a href="{key_help_url}">Get a key \u2192</a>')
+                help_label.setOpenExternalLinks(True)
+                help_label.setStyleSheet("color: gray; font-size: 11px;")
+                page_form.addRow("", help_label)
+
+            # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F4: the
+            # deploying org needs its own Data Processing Agreement with whichever cloud
+            # provider it enables -- nothing in this codebase can provide or verify that on
+            # the org's behalf, but not pointing at it at all left the org to discover the
+            # need unprompted. Mirrors the key_help_url pattern above.
+            dpa_url = entry.get("dpa_url")
+            if dpa_url:
+                dpa_label_text = entry.get("dpa_label", "Data Processing Agreement")
+                dpa_label = QLabel(f'<a href="{dpa_url}">{dpa_label_text} \u2192</a>')
+                dpa_label.setOpenExternalLinks(True)
+                dpa_label.setStyleSheet("color: gray; font-size: 11px;")
+                dpa_label.setWordWrap(True)
+                page_form.addRow("", dpa_label)
 
             model_combo = QComboBox()
             model_combo.setEditable(True)
@@ -225,7 +310,7 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.persist_history_checkbox)
 
-        # Roadmap feature per docs/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
+        # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
         # this shouldn't silently change every user's per-message cost
         # profile until real usage data justifies flipping the default).
@@ -237,9 +322,26 @@ class CartogenAiSettingsDialog(QDialog):
             "When on, a longer or ambiguous message shows two AI-rewritten alternatives to pick "
             "from, edit, or skip before it's sent. Off by default -- this adds one small extra "
             "API call per refined message (roughly 300-650 tokens, see "
-            "docs/API_COST_OPTIMIZATION_REVIEW.md and docs/PROMPT_REFINEMENT_LAYER_SPEC.md §8)."
+            "docs/archive/API_COST_OPTIMIZATION_REVIEW.md and docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §8)."
         )
         layout.addWidget(self.prompt_refinement_checkbox)
+
+        # Default ON, unlike the checkbox above: this one costs nothing (it
+        # renders text that has already been composed locally) and exists so
+        # that the register's enrichment -- assumed defaults, attachment
+        # handling, the task directive added to the system prompt -- is never
+        # applied to a message without the user seeing it first.
+        self.prompt_preview_checkbox = QCheckBox("Show the prompt and reasoning before sending")
+        self.prompt_preview_checkbox.setChecked(
+            bool(self.settings.value(PROMPT_PREVIEW_ENABLED_KEY, True, type=bool))
+        )
+        self.prompt_preview_checkbox.setToolTip(
+            "When on, a message that matches a task in the Humanitarian Mapping Task Register "
+            "shows the exact text that will be sent -- including any values assumed on your "
+            "behalf and what each attached file will be read as -- with the reasoning behind "
+            "it, before anything reaches the API. No extra API call. On by default."
+        )
+        layout.addWidget(self.prompt_preview_checkbox)
 
         profile_form = QFormLayout()
         self.user_profile_combo = QComboBox()
@@ -268,6 +370,11 @@ class CartogenAiSettingsDialog(QDialog):
 
         self.provider_combo.currentIndexChanged.connect(self.update_fields)
         self.update_fields()
+
+    def _open_account_dialog(self):
+        from .account_dialog import CartogenAccountDialog
+        dialog = CartogenAccountDialog(self)
+        dialog.exec()
 
     def update_fields(self):
         provider = self.provider_combo.currentData()
@@ -333,6 +440,7 @@ class CartogenAiSettingsDialog(QDialog):
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
+        self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
         fallback_providers = []

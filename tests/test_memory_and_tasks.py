@@ -180,6 +180,30 @@ class TestMemoryAndTasks(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(memory.get_project_notes(), {})
 
+    def test_clear_global_notes_removes_everything(self):
+        """GDPR review F1 (docs/GDPR_COMPLIANCE_REVIEW.docx): global memory needs a bulk
+        erasure path, not just per-key overwrite."""
+        memory = SpatialMemoryManager()
+        memory.store_global_note("preferred_unit", "meters")
+        memory.store_global_note("preferred_provider", "gemini")
+        self.assertEqual(len(memory.get_global_notes()), 2)
+
+        res = memory.clear_global_notes()
+        self.assertTrue(res["success"])
+        self.assertEqual(memory.get_global_notes(), {})
+
+    def test_clear_global_notes_does_not_touch_project_notes(self):
+        """Symmetric guard with test_spatial_memory_manager's project-scope note:
+        clearing global memory must not reach into the project-scoped store."""
+        memory = SpatialMemoryManager()
+        memory.store_project_note("study_area", "Damascus Region")
+        memory.store_global_note("preferred_unit", "meters")
+
+        memory.clear_global_notes()
+
+        self.assertEqual(memory.get_global_notes(), {})
+        self.assertIn("study_area", memory.get_project_notes())
+
 
 if __name__ == "__main__":
     unittest.main()

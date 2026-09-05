@@ -1,17 +1,19 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-08-21, against v1.4.1 (131 tools, 691 tests — see `docs/BUG_TRACKER.md`
-for the known-baseline breakdown). Previously stamped v1.2.33, which predated the whole
-namespace-package restructure ([1.4.0]) and BUG-2026-08-21-6/-7 — re-synced here, since a
-tracker that lags the code defeats its own stated purpose.
+**Last updated:** 2026-08-31, against v1.4.4 (131 tools, 814 tests — see `docs/BUG_TRACKER.md`
+for the known-baseline breakdown). Previously stamped v1.4.1, which predated the task-register
+integration ([1.4.2]-[1.4.4]) and the 2026-08-31 UX/documentation audit fixes below — re-synced
+here, since a tracker that lags the code defeats its own stated purpose.
 
 This is the one place to look for "what's actually still open right now." Every review, audit,
-and spec doc in `docs/` up to this point is a **dated, frozen snapshot** — per `CONTRIBUTING.md`
+and spec doc referenced below now lives in `docs/archive/` (moved there in the 2026-08-31
+documentation pass so `docs/`'s top level only shows living references/trackers) and is a
+**dated, frozen snapshot** — per `CONTRIBUTING.md`
 §2's own convention, those are never edited after the fact (with rare same-day correction
-addenda, like `STATUS_REVIEW_2026-08-20.md`'s own "Post-review update" note — even that doc says
+addenda, like `docs/archive/STATUS_REVIEW_2026-08-20.md`'s own "Post-review update" note — even that doc says
 so explicitly rather than silently rewriting itself). The result is the same either way: several
 of these docs now describe things that have since changed. For example,
-`TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` still references "134 tools" throughout (its own
+`docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` still references "134 tools" throughout (its own
 proposed Community/Pro split, and its "verified against the live 134-tool registry" claim) —
 true when it was written, now stale, since the registry is 131 as of this doc. This doc exists
 to be the current, living answer instead of making anyone cross-reference nine dated files to
@@ -35,7 +37,7 @@ state this as a decision rather than an open question. See §4 below.
 
 ### 1.2 ~~`ui/dock_widget.py` class split — execution~~
 
-**Resolved 2026-08-22.** Split done (see `docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md`'s
+**Resolved 2026-08-22.** Split done (see `docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md`'s
 "2026-08-22" section for the mechanical detail), offscreen-construction-verified the same day,
 and **now confirmed live in a real QGIS session by Alaa**: plugin loads, all 3 tabs work
 (chat, task selection, resize), and the new Cartogen provider entry appears correctly in
@@ -47,7 +49,7 @@ as still worth running in full before a public release, not as formally complete
 
 ### 1.3 Tier restructure — licensing path
 
-**Source:** `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` §3.
+**Source:** `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` §3.
 The proposed Community ("open source but locked")/Pro (closed code)/Enterprise structure is not
 achievable as a simple feature flag on the current GPL v2 codebase — the source doc lays out
 three real paths (re-license entirely, split into an open-core + closed-module architecture, or
@@ -59,18 +61,65 @@ gateway, tier gating mechanism, closed-source packaging) is blocked on this bein
 toward until it's resolved — starting the engineering work first would mean building against
 an unknown target.
 
-**Narrowed 2026-08-21** by `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §4. This item blocks
+**Narrowed 2026-08-21** by `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` §4. This item blocks
 *Enterprise* (RBAC/SSO/M365, closed-source packaging, license-key validation) and it blocks the
-restrictive tier model in `TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`. It does **not** block the
+restrictive tier model in `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`. It does **not** block the
 Professional tier under the already-decided open-core model: a hosted gateway sells access to a
 service, distributes no code, and needs no license key (the virtual key authenticates
 server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise still cannot.
 
 **Confirmed 2026-08-22 by Alaa:** Model A (gateway as convenience — `docs/PRODUCT_TIERS.md`/
-`docs/OPEN_CORE_REPO_STRATEGY.md`) over Model B (gateway as gate —
-`docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`). Everything built toward the Professional tier
+`docs/archive/OPEN_CORE_REPO_STRATEGY.md`) over Model B (gateway as gate —
+`docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`). Everything built toward the Professional tier
 so far (the plugin-side provider wiring, the `service/website/` billing hardening in
 §4 below) assumes Model A. Model B remains frozen/unresolved and isn't being built toward.
+
+### 1.4 GDPR / data-protection alignment
+
+**Added 2026-08-31**, full review completed 2026-09-01: `docs/GDPR_COMPLIANCE_REVIEW.docx` --
+13 findings against GDPR's articles, each with file:line evidence. Summary of legal framing: the
+deploying organization is the controller; each cloud provider (OpenRouter, Gemini, OpenAI,
+Claude) is a sub-processor via the org's own direct account, not via Cartogen AI -- confirmed by
+reading every provider client, all of which call that provider's own official API directly, with
+no Cartogen-operated intermediary live today (the "Cartogen AI (Hosted)" option in Settings is a
+stub pointed at an undeployed placeholder domain).
+
+**1 CRITICAL finding:** global memory notes (`agent/memory.py`) have no deletion path anywhere
+in the code -- always-on, machine-wide, indefinite retention, no `clear_global_notes()` method
+exists. See `SECURITY.md`'s Data Protection section for detail.
+
+**4 HIGH findings:** no privacy notice anywhere in the product; no documented international-
+transfer mechanism for any of the 4 cloud providers; no DPA/sub-processor visibility surfaced to
+the org; processing plausibly meets EDPB high-risk criteria and a DPIA has not been performed.
+
+**Needs:** real legal/DPO review before any EU/DG ECHO deployment processes real beneficiary
+data — the review's own disclaimer states plainly it is not a substitute for that. Not an
+engineering call per `CONTRIBUTING.md` §3 — flagged, not silently decided. The review's §7
+offers a concrete, mostly-mechanical remediation roadmap (R1-R10) if the fixes are wanted; none
+of it has been applied to the code yet, since this round was scoped as a review, not a fix.
+
+**Remediation, 2026-09-01 — the 4 HIGH findings (F2-F5), user-requested; F1/Medium/Low/
+Informational untouched, out of this round's scope:**
+
+- **F2 (privacy notice) -- fixed.** `settings_dialog.py` shows a static provider-agnostic
+  notice above the provider dropdown; `docs/USER_GUIDE.md` has a matching "Where it goes"
+  paragraph.
+- **F3 (transfer mechanisms undocumented) -- documented.** `SECURITY.md`'s new
+  "International transfer mechanisms, by provider" subsection, researched from each
+  provider's own current published terms (not assumed) on 2026-09-01.
+- **F4 (DPA/sub-processor visibility) -- fixed.** Each cloud provider's Settings page now
+  links its DPA (or Trust Portal, for OpenRouter, labelled with its Enterprise-only
+  enforceability caveat).
+- **F5 (DPIA not performed) -- screening aid added, not a completed DPIA.**
+  `docs/DPIA_SCREENING_WORKSHEET.docx` maps EDPB WP248's nine high-risk criteria against
+  this plugin's actual tools/data flows; the risk determination and sign-off are left to
+  the org's DPO, per `CONTRIBUTING.md` §3.
+
+Still open, unchanged by this round: **F1 (CRITICAL — global memory has no erasure path)**
+and **F6-F12 (Medium/Low/Informational)** — see `docs/GDPR_COMPLIANCE_REVIEW.docx` §6 for
+all 13.
+
+**Update, 2026-09-04 — F1 now fixed (found via cross-checking this repo's GDPR review against `cartogen-ai`, the now-canonical QGIS plugin checkout):** `SpatialMemoryManager.clear_global_notes()` added, wired to a new "Clear Global Memory" button in `ui/tasks_tab_widget.py`, matching recommendation R4. Full writeup: `docs/BUG_TRACKER.md` BUG-2026-09-04-1. Ported from `cartogen-ai` commit `eee84eb`, which closed the identical finding in that repo first — the two repos diverged before this GDPR review was ever run, so the fix had to land in both independently. **F6-F12 still open, unaffected by this update.**
 
 ---
 
@@ -94,7 +143,7 @@ so far (the plugin-side provider wiring, the `service/website/` billing hardenin
   has no corresponding optional-dependency guard, so it fails where the rest of the suite skips.
   Environmental, not a code defect — the tool returned its documented graceful-degradation error
   correctly. Recommended fix and the reasoning for flagging rather than applying it:
-  `docs/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1. **2026-08-22, on a normal (non-FUSE) local
+  `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1. **2026-08-22, on a normal (non-FUSE) local
   machine with `folium` installed:** 691 tests, 0 failures, 0 errors, 1 skipped — see
   `docs/BUG_TRACKER.md`'s 2026-08-22 baseline entry. The FUSE-specific failures don't reproduce
   outside that sandbox, and the optional-dependency guard has since been added (see
@@ -102,18 +151,18 @@ so far (the plugin-side provider wiring, the `service/website/` billing hardenin
   failing. Current baseline: **691 tests, 0 failures, 0 errors, 14 skipped.**
 - ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
   2026-08-22** — both now hold a placeholder `README.md` pointing at
-  `docs/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
+  `docs/archive/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
   directory no longer misreads as "the private repo exists."
 - **Repo rename / GitHub collaborator items** — external GitHub actions, not verifiable or
-  actionable from this sandbox. Source: `docs/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
+  actionable from this sandbox. Source: `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
 
 ## 3. Deliberately deferred (not a gap — a stated design choice)
 
-- **`docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md`** — spec-only, intentionally not built. Combining
+- **`docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md`** — spec-only, intentionally not built. Combining
   per-sector severity indices into one intersectoral estimate needs a real JIAF Mosaic Method
   human-validation workshop step that a formula can't substitute for. Revisit only if that
   workshop happens.
-- **`docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md` §3.3 (no-go zones)** — prompt-guidance-only by
+- **`docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md` §3.3 (no-go zones)** — prompt-guidance-only by
   design, not a missing tool. §3.1/§3.2 (`analyze_incident_trend`, `score_route_incident_risk`)
   are shipped.
 
@@ -121,7 +170,7 @@ so far (the plugin-side provider wiring, the `service/website/` billing hardenin
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
-Everything below was open as of `STATUS_REVIEW_2026-08-20.md` (v1.2.21) or a later round, and is
+Everything below was open as of `docs/archive/STATUS_REVIEW_2026-08-20.md` (v1.2.21) or a later round, and is
 now closed as of v1.2.33. Listed here once, briefly, so nobody re-opens it by misreading an old
 doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not repeated here.
 
@@ -147,22 +196,41 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
   bootstrap half of this is still unverified inside a real QGIS session — see §2 above.
 - `docs/route_optimization_prototype.py` smoke-tested for the first time against real installed
   dependencies + synthetic data; 2 real bugs found and fixed (v1.2.33) — see `BUG_TRACKER.md`.
+- **Task register wired end to end into the chat send path** (v1.4.2-v1.4.4) — file I/O modeling
+  per task, the prompt-preview panel, the requirement/slot gate, and output-contract enforcement.
+  Verified 2026-08-31 by a headless functional test (`tests/test_chat_widget_live.py`) driving
+  real Qt widgets with `QTest.mouseClick` against a real `QgsApplication` — closing the "never
+  run in a live QGIS session" gap this tracker previously flagged for that layer.
+- **2026-08-31 UX/documentation audit and fixes** — a 22-finding audit
+  (`docs/archive/UX_DOCUMENTATION_AUDIT_2026-08-31.md`) covering documentation staleness, in-app
+  onboarding, and UI consistency. Fixed: the preview panel silently sending stale text after an
+  in-place edit (input box is now read-only while any gate panel is open); the main chat send
+  path throwing a raw provider 401 instead of a friendly message for an unconfigured API key
+  (`agent/auth.py`'s `CredentialManager.missing_credential_message`); all send errors reaching
+  the user as unclassified raw exception text (`ui/chat_formatting.format_send_error`); a
+  possible double-send race during prompt refinement; missing tooltips, an untitled gate panel,
+  and a reused destructive-action button color; the welcome message, Settings dialog, and Help
+  tab not mentioning the task-register pipeline or how to get an API key per provider; and the
+  version/tool-count staleness in this doc, `README.md`, `DOCUMENTATION.md`, and
+  `docs/PRODUCT_TIERS.md`. Not done in this pass (tracked, not forgotten): splitting
+  `CHANGELOG.md` into per-release notes, and archiving the dated one-off review docs in `docs/`
+  into a subfolder.
 
 ---
 
-## 5. Source doc index (all frozen/historical unless noted)
+## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 
 | Doc | Status |
 |---|---|
-| `STATUS_REVIEW_2026-08-20.md` | Frozen snapshot, v1.2.21. Superseded by this tracker for "what's open." |
-| `TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` | Frozen proposal, not built. §3 licensing question is the live blocker — see §1.3 above. |
-| `ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` | Frozen review. All 4 follow-up tasks from this round are closed (§4 above). |
-| `DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` | Frozen audit. §3's decision is the live item in §1.1 above. |
-| `DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md` | Frozen plan. Execution is the live item in §1.2 above. |
-| `ROUTE_OPTIMIZATION_STRATEGY.md` | Frozen strategy doc; its own §4 was updated 2026-08-21 with real smoke-test results (not re-frozen, since that update was factual correction, not new proposal content). |
-| `JIAF_MULTISECTOR_COMPOSITE_SPEC.md` | Frozen spec, deliberately unbuilt — see §3 above. |
-| `SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` | Frozen review — repo-rename item still open, §2 above. |
-| `PRO_TIER_BUILD_PLAN_2026-08-21.md` | Frozen plan, 2026-08-21. Phased Professional-tier build plan; §4 narrows §1.3 above, §9 records findings folded into §2. |
+| `docs/archive/STATUS_REVIEW_2026-08-20.md` | Frozen snapshot, v1.2.21. Superseded by this tracker for "what's open." |
+| `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` | Frozen proposal, not built. §3 licensing question is the live blocker — see §1.3 above. Its own 2026-08-31 correction addendum flags the now-stale "134 tools" figure (not re-frozen, since that's a factual pointer to the current number, not new proposal content). |
+| `docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` | Frozen review. All 4 follow-up tasks from this round are closed (§4 above). |
+| `docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` | Frozen audit. §3's decision is the live item in §1.1 above. |
+| `docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md` | Frozen plan. Execution is the live item in §1.2 above. |
+| `docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md` | Frozen strategy doc; its own §4 was updated 2026-08-21 with real smoke-test results (not re-frozen, since that update was factual correction, not new proposal content). |
+| `docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md` | Frozen spec, deliberately unbuilt — see §3 above. |
+| `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` | Frozen review — repo-rename item still open, §2 above. |
+| `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` | Frozen plan, 2026-08-21. Phased Professional-tier build plan; §4 narrows §1.3 above, §9 records findings folded into §2. |
 | `RELEASE_SMOKE_TEST.md` | **Living checklist**, not frozen — update when tools/categories change. |
 | `BUG_TRACKER.md` | **Living tracker**, not frozen — update as bugs are found/fixed. |
 | `CHANGELOG.md` | **Living log**, not frozen — the authoritative fix/feature history. |

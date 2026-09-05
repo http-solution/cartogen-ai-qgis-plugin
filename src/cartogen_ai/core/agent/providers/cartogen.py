@@ -6,7 +6,7 @@ importing it there would invite `ui/settings_dialog.py` or `agent/agent.py` to s
 offering it as a real provider option before it's one), not exposed anywhere in
 `ui/settings_dialog.py`'s provider dropdown, and not connected to any live backend.
 
-Why this exists now: `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` (a proposal, not a
+Why this exists now: `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` (a proposal, not a
 decision) scopes a Cartogen-operated model gateway as the default connectivity path for
 its proposed Community/Pro tiers, and section 6 item 2 of that document calls out that
 `agent/providers/cartogen.py` was the one missing piece on the client side -- every other
@@ -48,7 +48,7 @@ from ..model_selector import filter_chat_model_ids
 # service/gateway/ only runs locally (see service/README.md). Now overridable via
 # QgsSettings("cartogen_ai/cartogen_gateway_url") -- see agent.py's construction of
 # this client -- with this constant as the fallback default, per
-# docs/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.4.
+# docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.4.
 GATEWAY_BASE_URL = "https://gateway.cartogen.ai/v1/chat/completions"
 
 

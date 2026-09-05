@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Imagery feature extraction via SAM-family segmentation (FastSAM), for
-Cartogen AI. See docs/SAM_IMAGERY_EXTRACTION_SPEC.md for the full design
+Cartogen AI. See docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md for the full design
 rationale -- this module implements that spec's recommended defaults
 (FastSAM only, hard reject over max_pixel_dimension, library's own default
 checkpoint cache).
@@ -56,7 +56,7 @@ def _pixel_to_map(px, py, geotransform):
     coordinate using a GDAL 6-element geotransform (origin_x, pixel_w,
     rot_x, origin_y, rot_y, pixel_h). Pure arithmetic, no GDAL/QGIS objects
     needed -- kept as its own function so it's testable without a real
-    raster (see SAM_IMAGERY_EXTRACTION_SPEC.md section 9's "can verify"
+    raster (see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md section 9's "can verify"
     list)."""
     origin_x, pixel_w, rot_x, origin_y, rot_y, pixel_h = geotransform
     map_x = origin_x + px * pixel_w + py * rot_x
@@ -137,7 +137,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
                      "jinja2/markupsafe with folium (already installed for generate_html_dashboard), "
                      "and Windows can't replace a .pyd file QGIS already has loaded -- installing while "
                      "QGIS is open can fail with 'PermissionError: [WinError 5] Access is denied' on a "
-                     "locked file (confirmed in real use, see SAM_IMAGERY_EXTRACTION_SPEC.md). Close "
+                     "locked file (confirmed in real use, see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md). Close "
                      "QGIS completely, then install via qpip on next launch or in the OSGeo4W Shell: "
                      "python -m pip install ultralytics -- then reopen QGIS."
         }

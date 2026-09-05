@@ -296,6 +296,59 @@ def render_tool_step_html(name, status, error, colors):
     )
 
 
+def format_send_error(err) -> str:
+    """Turns the raw exception text task_runner.py surfaces from a failed
+    provider/network call into an actionable chat message, without ever
+    hiding the original detail -- classification is a hint layered on top,
+    never a replacement (this plugin's whole design point is showing the
+    real error, not a black-box one). Matches on the parts that are reliably
+    present across 5 different provider SDKs/HTTP layers (a status code, or a
+    recognizable requests/urllib3 exception shape) rather than trying to
+    fully parse provider-specific JSON error bodies. Found missing in the UX
+    audit dated 2026-08-31: every send error used to reach the user as raw
+    f"**Error:** {err}", e.g. a bare "401 Client Error: Unauthorized for
+    url: ...", with no indication of what to do about it."""
+    text = str(err or "").strip() or "(no error detail was provided)"
+    lower = text.lower()
+
+    def has(*needles):
+        for n in needles:
+            if isinstance(n, int):
+                if re.search(r"(?<!\d)%d(?!\d)" % n, text):
+                    return True
+            elif n in lower:
+                return True
+        return False
+
+    if has(401, "unauthorized", "invalid api key", "incorrect api key", "invalid_api_key"):
+        hint = ("**That looks like an authentication problem.** Check the API key for your "
+                "selected provider in Settings (\u2699) -- it may be missing, expired, or "
+                "pasted incorrectly.")
+    elif has(403, "forbidden", "permission denied"):
+        hint = ("**That looks like a permissions problem.** Your API key may not have access "
+                "to the selected model, or the account behind it may need billing set up with "
+                "this provider.")
+    elif has(429, "rate limit", "rate_limit", "quota", "too many requests"):
+        hint = ("**Rate limited.** You've hit your provider's request or quota limit -- wait a "
+                "moment and try again, or switch models/providers in Settings.")
+    elif has("timed out", "timeout"):
+        hint = ("**The request timed out.** Check your network connection -- or, for Ollama, "
+                "that the local server is running -- and try again.")
+    elif has("connection", "name resolution", "network is unreachable", "connection refused",
+             "failed to establish a new connection"):
+        hint = ("**Couldn't reach the provider.** Check your network connection -- or, for "
+                "Ollama, that a local server is running at the configured endpoint.")
+    elif has(404, "model not found", "does not exist", "no longer available"):
+        hint = ("**The selected model wasn't found.** It may have been retired or renamed -- "
+                "pick a different model in Settings.")
+    else:
+        hint = None
+
+    if hint:
+        return f"{hint}\n\nDetails: {text}"
+    return f"**Error:** {text}"
+
+
 def build_dock_stylesheet(palette_dict):
     """Pure Python, no QGIS needed -- builds a QSS stylesheet for the whole
     dock widget (buttons, tabs, inputs, progress bar, group boxes, list

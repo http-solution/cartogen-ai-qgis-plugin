@@ -1,6 +1,6 @@
 # Cartogen AI — Release Smoke Test Checklist
 
-**Purpose.** Every review round in this project's history (`docs/STATUS_REVIEW_2026-08-20.md` §8.1,
+**Purpose.** Every review round in this project's history (`docs/archive/STATUS_REVIEW_2026-08-20.md` §8.1,
 and the round before it, and the round before that) has flagged the same top item: nothing in this
 sandbox can run a real QGIS session, so every tool in the registry is "correct per the code and test
 suite," never "confirmed working live." Repeating that as a recommendation every round doesn't close

@@ -6,7 +6,7 @@ Open **Cartogen AI** from the toolbar icon or the `Plugins` menu. It's a dock
 panel (drag it to float, or dock it left/right) with three tabs:
 
 - **💬 Chat** — talk to the agent.
-- **📋 Tasks & Memory** — see the current multi-step plan and stored project memory.
+- **📋 Tasks & Notes** — see the current multi-step plan and stored project memory.
 - **❓ Help** — provider list, quick tips, and example prompts, built from the same
   data as this guide so it can't drift out of sync.
 
@@ -17,7 +17,12 @@ panel (drag it to float, or dock it left/right) with three tabs:
    or **Claude**.
 3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
    key needed). The key field auto-fetches that provider's live model list when you
-   tab out of it.
+   tab out of it. Get a key from the provider you picked:
+   - OpenRouter (has a genuinely free tier covering many models — a good default if you
+     don't already have a key with another provider): https://openrouter.ai/keys
+   - Google Gemini: https://aistudio.google.com/apikey
+   - OpenAI: https://platform.openai.com/api-keys
+   - Anthropic Claude: https://console.anthropic.com/settings/keys
 4. Pick a model, or leave it on **Auto** — the agent then routes simple requests to a
    cheaper/faster model and complex multi-step requests to a stronger one
    automatically, based on the request's wording and length. (Ollama always uses
@@ -37,6 +42,92 @@ something you might share, email, or commit elsewhere, and the conversation
 travels with it if this is on. Leave it off unless you specifically want that.
 Turning it back off later doesn't remove history a project already saved while it
 was on.
+
+### Hosted Cartogen AI account
+
+If you want to use the hosted **Cartogen AI** API rather than bring your own
+provider key:
+
+1. Open Settings and click **Manage account**.
+2. Enter the Cartogen account service URL supplied by your administrator.
+3. Use **Create account** for a new account, or **Sign in** for an existing one.
+4. If the service requires activation, follow its activation email before signing in.
+5. Paste the separately assigned **Cartogen AI API key** from the account portal.
+6. Select **Cartogen AI (Hosted)** as the Connection provider and click OK in Settings.
+
+The account session and hosted API key are stored separately in QGIS's encrypted
+credential store. The plugin never saves the password in QGIS settings, and the
+hosted API key is never shown in plain text after the dialog closes. Local/BYOK
+providers remain available and do not require a Cartogen account.
+
+The account service URL must be an absolute `http://` or `https://` URL. Use HTTPS
+for any non-local deployment. The current repository contains the client and UI
+flow, but live account creation requires a deployed/configured Cartogen service.
+
+## What happens to your message before it is sent
+
+Cartogen AI carries the **Humanitarian Mapping Task Register** — 791 mapping
+tasks grouped into 35 sections, each one describing what it needs, what tools
+it should use, and what you should end up with. When you type a request, it is
+matched against that register locally, on your machine. No API call is made to
+do the matching, and the register itself is never sent to the model.
+
+**Where it goes.** Once matched, the request text -- and any layer/attribute data a
+tool call surfaces to the model -- is sent to whichever provider you selected in
+Settings (OpenRouter, Gemini, OpenAI, or Claude), over that provider's own API, using
+your own key. Ollama is the exception: it runs entirely on your machine, so nothing
+leaves it. Settings shows each cloud provider's Data Processing Addendum link as a
+starting point, but confirming a lawful basis and transfer mechanism for the data you
+send is your organization's own responsibility, not something this plugin can
+determine for you -- see [SECURITY.md](../SECURITY.md)'s "Data protection" section
+before sending real beneficiary data.
+
+What the match is used for:
+
+**Missing information.** If the task cannot proceed without something — which
+hazard, which facility type, which sector — you are asked once, before
+anything is sent. There is no default for these, because guessing a hazard
+type produces a confidently wrong map. Things the plugin can work out for
+itself (the area of interest, from the layers you have open) are not asked
+about at all.
+
+**The prompt preview.** Before the request goes anywhere, you see the exact
+text that will be sent, and why:
+
+- which task matched, and how confident the match was
+- what you will get back — a styled layer, a PDF layout, an HTML dashboard, a
+  CSV, a written report
+- any value assumed on your behalf, stated in full
+- what each attached file will be read as
+
+*Send this* sends what you see. *Send my wording only* sends your text with no
+enrichment at all, for when the matched task is simply wrong. *Cancel* puts
+the message back in the box. You can turn the preview off in Settings; it is
+on by default, because it exists so that nothing is added to your message
+without you seeing it.
+
+**Attachments.** A file you attach is classified and routed to the tool that
+can read it:
+
+| You attach | It becomes |
+|---|---|
+| a PDF situation report | its tables, extracted (text as fallback) |
+| a Word document | its tables, extracted |
+| a plain text file | text read straight into the request |
+| a photo or scanned map | segmented for features, or georeferenced |
+| a CSV/Excel 3W file | organisational presence per admin unit |
+| a CSV/Excel dataset | a layer, or a table to aggregate |
+| a shapefile, GeoJSON, GeoPackage, GeoTIFF | a layer in your project |
+
+The file is analysed when you attach it, and is also carried into your next
+message so it becomes part of the task rather than a separate question.
+
+**The output you were promised.** After the answer comes back, the tools that
+actually ran are compared against what the task said you would get. If you
+were told you would get an HTML dashboard and the step that writes it never
+ran, the plugin says so and asks for it once — never in a loop. If it still
+does not appear, you are told that plainly rather than being handed a
+description of a file that was never written.
 
 ## Chatting
 
@@ -77,7 +168,7 @@ install rather than failing silently.
 ## Multi-step requests and the Task Manager
 
 For anything involving several distinct steps, the agent creates a visible **plan** in
-the Tasks & Memory tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
+the Tasks & Notes tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
 a progress bar. Click a task to see its result, rationale, and any code it ran.
 
 Buttons available depending on the selected task's state:
@@ -99,7 +190,7 @@ browsing; sending a new message automatically snaps back to the live plan.
 
 The agent can remember facts across the conversation (and across QGIS sessions, tied
 to the current project file) via `store_project_memory`/`store_global_memory`. The
-Tasks & Memory tab shows what's stored, with a search box to filter it and a
+Tasks & Notes tab shows what's stored, with a search box to filter it and a
 **🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
 unaffected).
 

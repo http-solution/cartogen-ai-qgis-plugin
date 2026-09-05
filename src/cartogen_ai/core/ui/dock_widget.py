@@ -8,7 +8,7 @@ CartogenAiDockWidget is the outer QDockWidget: it owns the cross-tab signals, th
 agent_provider callable, and the header (title/provider switcher/settings button).
 The three tabs (Chat, Tasks & Notes, Help) are separate QWidget classes in
 chat_tab_widget.py / tasks_tab_widget.py / help_tab_widget.py --
-docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the full rationale for the split and
+docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the full rationale for the split and
 what still needs verifying in a real QGIS session (this file cannot be imported or
 run outside one -- no QGIS_AVAILABLE fallback -- so nothing here has run since the
 split; see docs/RELEASE_SMOKE_TEST.md before shipping)."""

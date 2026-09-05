@@ -57,7 +57,7 @@ def extract_openai_style_usage(data):
     dict of zeros -- when the response has no 'usage' object at all, so a
     provider/model that doesn't report usage is honestly reported as unknown
     rather than fabricated as zero cost. See
-    docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2 ("no cost/usage
+    docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2 ("no cost/usage
     visibility in the UI") -- this is the shared extraction point every
     OpenAI-compatible client's complete() calls."""
     usage = data.get("usage") if isinstance(data, dict) else None
