@@ -759,13 +759,47 @@ open).
    paths). Still PARTIAL, deliberately: no temporal-validity concept and
    no check against reusing a retired P-code -- both remain real,
    separate pieces of work (see point 7 for temporal GIS more broadly).
-7. **Temporal GIS as a core capability -- REAL GAP.** Zero hits for
+7. **Temporal GIS as a core capability -- PARTIAL, the incident-record half
+   closed 2026-09-05; `QgsTemporalController`-based map animation/playback
+   deliberately not built.** Was: zero hits for
    `QgsTemporalController`/`TemporalProperties` anywhere in `src/`.
-   `add_incident_point` captures one freeform `date` string field only --
+   `add_incident_point` captured one freeform `date` string field only --
    no `event_start`/`event_end`/`report_date`/`last_verified`/`status`,
-   and no date-range filtering tool exists. Not previously discussed in
+   and no date-range filtering tool existed. Not previously discussed in
    `MASTER_TASK_REGISTRY.md` or `BUG_TRACKER.md`. Same note as points 5
    and 6 re: point 2's QA gate once a temporal-validity check exists.
+
+   **Record-level half, 2026-09-05, on Baron's explicit go-ahead to process
+   the flagged items too.** `add_incident_point`/`add_point_layer` gain
+   optional `event_start`/`event_end`/`last_verified` fields, additive
+   alongside the pre-existing freeform `date` (not a replacement -- sources
+   giving one single date keep using `date` exactly as before). New
+   `_validate_incident_temporal(event_start, event_end)` follows the same
+   advisory-only shape as the existing `_validate_incident_coding`: when
+   both dates are given and both parse as ISO 8601, `event_end < event_start`
+   produces a warning (`temporal_warnings` on `add_incident_point`, folded
+   into the existing per-point `coding_warnings` list on `add_point_layer`,
+   since both are advisory data-quality flags on the same point) -- the
+   point is still added either way, nothing is blocked. An unparsable
+   freeform date (a source's own date format) is silently skipped, not
+   flagged, matching `_validate_incident_coding`'s restraint of never
+   penalizing data this validator can't actually check. **Deliberately not
+   built**: `report_date`/`status` (named in the original gap but not part
+   of this pass's scope), any `QgsTemporalController`-based map animation/
+   playback, and a date-range filtering tool -- all real, separate, larger
+   pieces of work than an additive field, left as open gaps rather than
+   guessed at. 15 new tests
+   (`tests/test_humanitarian_incident_coding.py`). **Live-verified against
+   real QGIS 4.2.2**: a baseline point with no temporal fields behaved
+   exactly as before (no `temporal_warnings` key at all); a valid period
+   added cleanly; an inverted period was added with a real warning naming
+   both dates; an unparsable freeform pair (`"sometime in March"`) added
+   cleanly with no false-positive warning; the real stored feature
+   attributes were read back off the live layer and matched what was
+   passed in, not just accepted by the tool; and a mixed `add_point_layer`
+   batch correctly warned on only the one point with an inverted range
+   (`"Point 1"`), not the clean one. Full suite 1103 tests, 0 new failures.
+   `docs/TOOLS_REFERENCE.md` regenerated (152 tools).
 8. **Network impedance model / geometric vs. operational accessibility --
    REAL GAP, but already independently identified.**
    `calculate_service_area`/`travel_time_matrix` pass Processing only a

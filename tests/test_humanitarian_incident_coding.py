@@ -10,7 +10,7 @@ tests/test_logistics_tools.py."""
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.humanitarian_tools import (
-    _validate_incident_coding, ACLED_EVENT_TAXONOMY, IMSMA_HAZARD_TYPES,
+    _validate_incident_coding, _validate_incident_temporal, ACLED_EVENT_TAXONOMY, IMSMA_HAZARD_TYPES,
     IMSMA_CONTAMINATION_STATUSES, add_incident_point, add_point_layer,
 )
 
@@ -79,6 +79,48 @@ class TestValidateIncidentCodingPureLogic(unittest.TestCase):
                 )
 
 
+class TestValidateIncidentTemporalPureLogic(unittest.TestCase):
+    """Point 7 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md -- optional
+    event_start/event_end/last_verified fields, additive alongside the pre-existing
+    freeform `date`. No QGIS needed -- pure validation logic, same shape as
+    _validate_incident_coding above."""
+
+    def test_no_values_given_returns_no_warnings(self):
+        self.assertEqual(_validate_incident_temporal(), [])
+
+    def test_only_start_given_returns_no_warnings(self):
+        self.assertEqual(_validate_incident_temporal(event_start="2026-03-14"), [])
+
+    def test_only_end_given_returns_no_warnings(self):
+        self.assertEqual(_validate_incident_temporal(event_end="2026-03-14"), [])
+
+    def test_start_before_end_is_clean(self):
+        self.assertEqual(_validate_incident_temporal("2026-03-10", "2026-03-14"), [])
+
+    def test_start_equals_end_is_clean(self):
+        # A single-day event given as both start and end is not an inversion.
+        self.assertEqual(_validate_incident_temporal("2026-03-14", "2026-03-14"), [])
+
+    def test_end_before_start_warns(self):
+        warnings = _validate_incident_temporal("2026-03-14", "2026-03-10")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("2026-03-14", warnings[0])
+        self.assertIn("2026-03-10", warnings[0])
+        self.assertIn("before", warnings[0])
+
+    def test_unparsable_dates_are_silently_skipped_not_flagged(self):
+        # Freeform source dates that don't parse as ISO 8601 can't be ordered
+        # -- must not raise, and must not be a false-positive warning either.
+        self.assertEqual(_validate_incident_temporal("sometime in March", "later"), [])
+        self.assertEqual(_validate_incident_temporal("March 14, 2026", "March 10, 2026"), [])
+
+    def test_datetime_style_values_still_compare_on_the_date_portion(self):
+        # A source giving full ISO datetimes, not just dates -- only the
+        # first 10 chars (YYYY-MM-DD) are parsed.
+        warnings = _validate_incident_temporal("2026-03-14T08:00:00", "2026-03-10T20:00:00")
+        self.assertEqual(len(warnings), 1)
+
+
 def _mock_incident_layer(existing_field_names):
     """A MagicMock standing in for the shared 'Incidents' QgsVectorLayer,
     reporting the given field names as present (indexFromName >= 0) and
@@ -93,7 +135,10 @@ def _mock_incident_layer(existing_field_names):
     return layer
 
 
-ALL_INCIDENT_FIELDS = {"date", "description", "severity", "event_type", "sub_event_type", "hazard_type", "contamination_status"}
+ALL_INCIDENT_FIELDS = {
+    "date", "description", "severity", "event_type", "sub_event_type", "hazard_type", "contamination_status",
+    "event_start", "event_end", "last_verified",
+}
 
 
 class TestAddIncidentPointCodingFields(unittest.TestCase):
@@ -155,6 +200,65 @@ class TestAddIncidentPointCodingFields(unittest.TestCase):
         for call in feat.setAttribute.call_args_list:
             self.assertNotEqual(call.args[0], "event_type")
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    def test_valid_temporal_fields_are_set_with_no_warnings(self, mock_project, mock_feature_cls, mock_geom, mock_point):
+        layer = _mock_incident_layer(ALL_INCIDENT_FIELDS)
+        mock_project.instance.return_value.mapLayersByName.return_value = [layer]
+        feat = mock_feature_cls.return_value
+
+        res = add_incident_point(
+            31.95, 35.93, "2026-03-14", "Test incident",
+            event_start="2026-03-10", event_end="2026-03-14", last_verified="2026-03-15",
+        )
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("temporal_warnings", res)
+        feat.setAttribute.assert_any_call("event_start", "2026-03-10")
+        feat.setAttribute.assert_any_call("event_end", "2026-03-14")
+        feat.setAttribute.assert_any_call("last_verified", "2026-03-15")
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    def test_inverted_temporal_range_still_inserts_but_warns(self, mock_project, mock_feature_cls, mock_geom, mock_point):
+        layer = _mock_incident_layer(ALL_INCIDENT_FIELDS)
+        mock_project.instance.return_value.mapLayersByName.return_value = [layer]
+
+        res = add_incident_point(
+            31.95, 35.93, "2026-03-14", "Test incident",
+            event_start="2026-03-14", event_end="2026-03-10",
+        )
+
+        self.assertTrue(res["success"])
+        self.assertIn("temporal_warnings", res)
+        self.assertIn("before", res["temporal_warnings"][0])
+        # Distinct key from coding_warnings -- an unrelated validation concern.
+        self.assertNotIn("coding_warnings", res)
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    def test_older_layer_missing_temporal_fields_skips_them_without_error(self, mock_project, mock_feature_cls, mock_geom, mock_point):
+        layer = _mock_incident_layer({"date", "description", "severity"})
+        mock_project.instance.return_value.mapLayersByName.return_value = [layer]
+        feat = mock_feature_cls.return_value
+
+        res = add_incident_point(
+            31.95, 35.93, "2026-03-14", "Test incident", event_start="2026-03-10",
+        )
+
+        self.assertTrue(res["success"])
+        for call in feat.setAttribute.call_args_list:
+            self.assertNotEqual(call.args[0], "event_start")
+
 
 class TestAddPointLayerCodingFields(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
@@ -184,6 +288,35 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
         self.assertEqual(len(res["coding_warnings"]), 1)
         self.assertIn("Point 1", res["coding_warnings"][0])
         self.assertIn("NotReal", res["coding_warnings"][0])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    def test_per_point_temporal_warnings_are_collected_with_point_index(self, mock_project, mock_feature_cls, mock_geom, mock_point):
+        field_names = (
+            "name", "description", "category", "event_type", "sub_event_type",
+            "hazard_type", "contamination_status", "event_start", "event_end", "last_verified",
+        )
+        layer = MagicMock()
+        layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
+        for f, n in zip(layer.fields.return_value, field_names):
+            f.name.return_value = n
+        layer.addFeature.return_value = True
+        mock_project.instance.return_value.mapLayersByName.return_value = [layer]
+
+        res = add_point_layer("Incidents3", [
+            {"lat": 1.0, "lon": 2.0, "name": "a", "event_start": "2026-01-01", "event_end": "2026-01-05"},
+            {"lat": 3.0, "lon": 4.0, "name": "b", "event_start": "2026-02-05", "event_end": "2026-02-01"},
+        ])
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["added"], 2)
+        self.assertIn("coding_warnings", res)
+        self.assertEqual(len(res["coding_warnings"]), 1)
+        self.assertIn("Point 1", res["coding_warnings"][0])
+        self.assertIn("before", res["coding_warnings"][0])
 
 
 if __name__ == "__main__":
