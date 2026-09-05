@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.5.0
+version=1.6.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,19 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.4.2 (2026-08-22):
+changelog=v1.6.0 (2026-09-05):
+    QA-gate/dataset-status state machine with geometry QA, P-code validation, and opt-in
+    schema contracts; GDPR compliance remediation (bulk global-memory erasure + 4 further
+    HIGH findings); the 791-task Humanitarian Mapping Task Register now drives the chat
+    send path end to end; QGIS 4.x/Qt6 enum-compat generalized into one runtime resolver.
+    Live-verified in a real QGIS 4.2.2 session (headless PyQGIS + a real chat-driven test):
+    fixed a critical QgsColorRampShaderItem import crash that silently broke all 11 raster
+    tools, and confirmed the print-layout disclaimer footer renders correctly. Also:
+    ACLED/IMSMA-style humanitarian incident coding, road-snapped delivery routes, an
+    auth-system-disabled diagnostic, and 4 execute_pyqgis_script sandbox bypasses closed.
+    See CHANGELOG.md's [1.6.0] entry for full detail.
+
+v1.4.2 (2026-08-22):
     ui/dock_widget.py's monolithic dock class split into CartogenAiDockWidget (outer dock:
     signals, header, tab wiring) plus separate ChatTabWidget/TasksTabWidget/HelpTabWidget
     classes, per docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md. Code moved verbatim, no logic

@@ -4,6 +4,84 @@
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
 
+## [1.6.0] — QA-gate infrastructure, GDPR remediation, live-verified QGIS 4.2 fixes
+
+- **Repo reconciliation.** This checkout and `cartogen-ai-community` had diverged as two
+  private clones of the same remote with mutually unpushed commits since a shared ancestor.
+  Reconciled: fast-forward pulled the already-merged `origin/main`, resolved the remaining
+  local working-tree conflicts (a duplicate `clear_global_notes()`, a duplicate `class
+  ConnectionType` stub, two silently-shadowed duplicate test methods — all found and fixed,
+  not just merged over), and reapplied the held "hosted account" feature's Qt6 enum fix
+  through the project's canonical `qgis_compat.enum_member()` helper.
+- **QA-gate / dataset-status infrastructure**, built from a 27-point QGIS-first production
+  standard review (`docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`): a real
+  `INGESTED → STAGED → VALIDATED → ANALYSIS_READY → CARTOGRAPHY_READY` state machine
+  (`agent/dataset_status.py`) that layers/tools now advance through, with automated checks
+  wired into the gate rather than left as documentation — geometry QA (duplicate/overlapping
+  features, small-polygon threshold), P-code uniqueness/hierarchy validation
+  (`agent/pcode_validation.py`, alias-list field matching for real COD-AB naming variance),
+  and opt-in schema contracts (`agent/schema_contracts.py` + `agent/contracts/*.json` for
+  health facilities and admin2 boundaries) that check field presence, type, and controlled
+  vocabularies. A machine-readable provenance sidecar (`agent/provenance.py`,
+  `write_provenance_sidecar`) assembles QGIS version, tool-lineage, and QA-gate history into
+  a `.provenance.json` written beside the layer's own source file.
+- **GDPR compliance remediation.** Closed finding F1 (global memory had no bulk erasure
+  path) with `MemoryManager.clear_global_notes()` plus a confirm-gated "Clear Global Memory"
+  UI control, and remediated four further HIGH findings (F2–F5) from the same review. The F1
+  fix had been made independently on both diverged repo lines; the reconciliation above
+  de-duplicated it rather than shipping two competing implementations.
+- **Task register wired end to end.** The 791-task/35-section Humanitarian Mapping Task
+  Register now drives the chat send path (matching, prompt enrichment, output-contract
+  routing) instead of sitting beside it as reference data — see the `[1.4.4]` entry below for
+  the register itself; this release is where dispatch actually runs through it.
+- **QGIS 4.x/Qt6 enum-compatibility, generalized.** Replaced the ~15 site-by-site hand-rolled
+  fixes with a shared runtime resolver (`agent/tools/_qgis_enum_compat.py`'s
+  `resolve_qgis_enum`) that tries the QGIS 4.x scoped form first and falls back to the QGIS
+  3.x flat form — applied across `styling_tools.py`, `raster_tools.py`, `task_runner.py`,
+  `layout_tools.py`, `export_tools.py`, and `humanitarian_tools.py`. A live QGIS 4.2.2 smoke
+  test (below) caught one class this pattern hadn't yet reached.
+- **Live-verified critical fix: `QgsColorRampShaderItem` import crash.** Found by running a
+  real headless PyQGIS session (QGIS 4.2.2's own Python, not the sandboxed no-QGIS suite,
+  after the plugin's GUI proved undriveable in this deployment environment) against a
+  purpose-built test dataset: `agent/tools/raster_tools.py`'s top-level import of
+  `QgsColorRampShaderItem` raises `ImportError` on real QGIS 4.2.2 — the class moved to
+  `QgsColorRampShader.ColorRampItem` — silently setting `QGIS_AVAILABLE = False` for the
+  whole file and degrading all 11 raster tools (hillshade, slope, aspect, zonal statistics,
+  clip, both classification tools, histogram equalization, mosaic, band composite,
+  pan-sharpening) in any real live session. Invisible to the sandboxed suite by construction.
+  Fixed with the same dual-form resolution pattern; re-verified live afterward, 14/14 smoke
+  test categories passing including two real network calls. See `docs/BUG_TRACKER.md`
+  BUG-2026-09-05-1.
+- **Live-verified GUI: the print-layout disclaimer footer.** `[1.5.0]`'s dark-theme fix and
+  BUG-2026-09-02-6's fabrication-safety footer had both shipped `fixed-unverified-pending-
+  live-session`. Directly confirmed this cycle via a real chat-driven `create_print_layout`
+  call in a live QGIS 4.2.2 session (Google Gemini (Hosted) provider): the standing
+  disclaimer footer renders correctly and legibly in landscape orientation, alongside a real
+  graduated-severity legend, scale bar, and north arrow. Portrait orientation's tighter fit
+  remains unconfirmed.
+- **Auth-system diagnostic.** From a live bug report (`authManager().isDisabled()` on a real
+  QGIS 4.2 session): `CredentialManager.auth_system_status()`/
+  `get_auth_system_diagnostic_message()` now surface the two real, documented root causes (a
+  QGIS 3.40.4+ proxy-authcfg regression, or a missing QCA-OpenSSL backend) and their fixes
+  directly in the existing plaintext-fallback warning, instead of an unexplained generic
+  message.
+- **Humanitarian incident coding.** `add_incident_point`/`add_point_layer` gained optional
+  ACLED-style (`event_type`/`sub_event_type`) and IMSMA/IMAS-style (`hazard_type`/
+  `contamination_status`) controlled-vocabulary fields alongside the existing freeform
+  `severity`/`category` — advisory validation only, an unrecognized value returns a warning
+  rather than rejecting the point.
+- **Road-snapped delivery routes.** `optimize_delivery_route` accepts an optional
+  `road_network_layer`; when given, it chains `native:shortestpathpointtopoint` across the
+  computed stop order into a real road-snapped route line instead of leaving callers to draw
+  a straight line through stops and present it as a route.
+- **Sandbox hardening.** Closed 4 live bypasses of the `execute_pyqgis_script` safety sandbox
+  found on re-review.
+- **Release packaging.** `.bak`/`.orig`/`.rej` backup files no longer ship in the release ZIP;
+  the ZIP's top-level folder name is now pinned rather than derived from the build directory
+  (a prior build had shipped under a scratch-directory name, causing QGIS to install it
+  alongside the real plugin instead of replacing it — see `docs/BUG_TRACKER.md`
+  BUG-2026-08-21-6 lineage).
+
 ## [1.5.0] — adaptive self-learning + confirmed QGIS 4.2/Qt6 fixes
 
 - **Adaptive self-learning system.** New `agent/learning.py` layers four

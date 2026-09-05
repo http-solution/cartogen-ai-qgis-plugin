@@ -615,3 +615,43 @@ The full provider and service implementation remains in this private repository.
   (`git fetch`/`push` both fail with "could not read Password") -- committed and tagged
   locally only (`commercial-plugin-v1.5.0`); pushing to `origin/main` and creating the
   GitHub Release needs to be done from an environment with working GitHub auth.
+
+## QA-gate infrastructure, GDPR remediation, live QGIS 4.2 verification (v1.6.0)
+
+- Reconciled this repo's split-brain with `cartogen-ai-community` (both private clones of
+  the same remote, diverged with mutually unpushed commits): fast-forward pulled the
+  already-merged `origin/main`, resolved the remaining local conflicts, found and fixed 3
+  merge-induced defects (duplicate `clear_global_notes()`, duplicate `class ConnectionType`
+  stub, two silently-shadowed duplicate test methods) rather than just accepting one side.
+- Built the QA-gate/dataset-status state machine, geometry-QA topology checks, P-code
+  uniqueness/hierarchy validation, opt-in schema contracts, and a provenance sidecar writer
+  -- see `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` for the full 27-point
+  review this work closes items against.
+- Closed GDPR review finding F1 (global-memory bulk erasure) and 4 further HIGH findings
+  (F2-F5).
+- Wired the 791-task Humanitarian Mapping Task Register into the actual chat send path.
+- Generalized QGIS 4.x/Qt6 enum-compatibility into one runtime resolver
+  (`agent/tools/_qgis_enum_compat.py`) instead of ~15 site-by-site hand fixes.
+- **Live QGIS 4.2.2 verification, for the first time this session had working GitHub auth
+  AND a live QGIS install:** ran a real headless PyQGIS session (this environment's GUI
+  proved undriveable -- QGIS launches and responds but its window never composites to
+  anything screen-capture/input-injection can reach) and found a genuine live-only critical
+  bug: `raster_tools.py`'s `QgsColorRampShaderItem` import crashes on real QGIS 4.2.2,
+  silently degrading all 11 raster tools -- invisible to the sandboxed suite by
+  construction. Fixed and re-verified live (14/14 smoke-test categories passing, including
+  2 real network calls). Separately, the user drove a real chat session directly and shared
+  screenshots confirming chat UI + LLM dispatch (Google Gemini Hosted) + real tool
+  execution + the Tasks_Notes tab + a real `create_print_layout` call, including live
+  confirmation that BUG-2026-09-02-6's fabrication-safety disclaimer footer actually
+  renders correctly in a real landscape print layout (previously
+  `fixed-unverified-pending-live-session` since 2026-09-02). Full detail:
+  `docs/BUG_TRACKER.md` BUG-2026-09-05-1, `docs/MASTER_TASK_REGISTRY.md`.
+- Also shipped: ACLED/IMSMA-style humanitarian incident coding, road-snapped delivery
+  routes (`optimize_delivery_route`'s optional `road_network_layer`), an
+  auth-system-disabled diagnostic surfacing real documented root causes, and 4 closed
+  `execute_pyqgis_script` sandbox bypasses found on re-review.
+- Verification: full suite 1025 tests, 0 failures, 7 skipped (same known sandbox baseline).
+  Release ZIP rebuilt and hashed -- see the commit/tag record below.
+- Push status: working GitHub auth was available this session (`git push` succeeded
+  cleanly, unlike every prior session's documented credential blocker) -- pushed to
+  `origin/main`, tagged, and the GitHub Release was created directly from this session.
