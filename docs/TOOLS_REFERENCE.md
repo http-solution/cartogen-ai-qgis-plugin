@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (146 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (148 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -419,11 +419,29 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
 
+### `list_layout_items`
+
+Lists the addressable items in a print layout -- id, type, and current text (for text items) -- so the agent can check what's actually in a layout before editing it with update_layout_item_text, instead of guessing. create_print_layout gives every item it builds a stable id (MAP_MAIN, TITLE, LEGEND, SCALEBAR, NORTH_ARROW, BODY_TEXT, FOOTER -- NORTH_ARROW/BODY_TEXT only appear when that item was actually built). Point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability, the concrete gap that point named -- full QgsLayoutAtlas per-feature pagination is a separate, not-yet-implemented capability).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+
 ### `list_layouts`
 
-List the print layouts already in the current QGIS project by name -- lets the agent check what layouts exist (e.g. before deciding whether to build a new one with create_print_layout or address an existing one) instead of guessing layout names. Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers layouts only; QGIS Map Themes are a separate, not-yet-implemented concept (point 16 of the same review), so there is nothing to list there yet.
+List the print layouts already in the current QGIS project by name -- lets the agent check what layouts exist (e.g. before deciding whether to build a new one with create_print_layout or address an existing one) instead of guessing layout names. Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers layouts only; QGIS Map Themes are a separate concept, listed by list_map_themes instead (point 16 of the same review, project_tools.py).
 
 _No parameters._
+
+### `update_layout_item_text`
+
+Updates the text of one existing item in a print layout (e.g. a stale title or summary panel) by its stable id -- without rebuilding the whole layout with create_print_layout. Use list_layout_items first to see what ids exist. Only works on text items (TITLE, BODY_TEXT, FOOTER); MAP_MAIN/LEGEND/SCALEBAR/NORTH_ARROW have no settable text. Point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `item_id` | string | yes | Stable id from list_layout_items, e.g. 'TITLE'. |
+| `text` | string | yes |  |
 
 ## Project Management
 

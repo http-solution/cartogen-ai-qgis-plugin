@@ -21,7 +21,9 @@ travel_time_matrix, _write_scores_to_layer). The zoom_to_layer extent-routing
 logic sits before that heavy construction, so it's tested directly."""
 import unittest
 from unittest.mock import MagicMock, patch
-from cartogen_ai.core.agent.tools.layout_tools import create_print_layout, list_layouts
+from cartogen_ai.core.agent.tools.layout_tools import (
+    create_print_layout, list_layouts, list_layout_items, update_layout_item_text,
+)
 
 
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
@@ -71,6 +73,110 @@ class TestListLayouts(unittest.TestCase):
         mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = []
         res = list_layouts()
         self.assertEqual(res["layouts"], [])
+
+
+class TestListLayoutItems(unittest.TestCase):
+    """Point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: create_print_layout
+    now gives every item a stable id; this tool surfaces them."""
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_layout(self, mock_project):
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = []
+        res = list_layout_items("Layout_Ghost")
+        self.assertIn("error", res)
+        self.assertIn("Layout_Ghost", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_lists_only_items_with_a_real_id_and_includes_text(self, mock_project):
+        title_item = MagicMock(spec=["id", "text"])
+        title_item.id.return_value = "TITLE"
+        title_item.text.return_value = "Health Facilities Situation Map"
+
+        map_item = MagicMock(spec=["id"])
+        map_item.id.return_value = "MAP_MAIN"
+
+        # Internal plumbing QGIS itself adds: a QgsLayoutItemPage with id() == "".
+        page_item = MagicMock(spec=["id"])
+        page_item.id.return_value = ""
+
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.items.return_value = [title_item, map_item, page_item]
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        res = list_layout_items("Layout_SITREP")
+
+        self.assertTrue(res["success"])
+        ids = {item["id"] for item in res["items"]}
+        self.assertEqual(ids, {"TITLE", "MAP_MAIN"})
+        title_entry = next(i for i in res["items"] if i["id"] == "TITLE")
+        self.assertEqual(title_entry["text"], "Health Facilities Situation Map")
+        map_entry = next(i for i in res["items"] if i["id"] == "MAP_MAIN")
+        self.assertNotIn("text", map_entry)
+
+    def test_degrades_gracefully_outside_qgis(self):
+        res = list_layout_items("Layout_SITREP")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+
+class TestUpdateLayoutItemText(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_layout(self, mock_project):
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = []
+        res = update_layout_item_text("Layout_Ghost", "TITLE", "New title")
+        self.assertIn("error", res)
+        self.assertIn("Layout_Ghost", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_item_id(self, mock_project):
+        layout = MagicMock()
+        layout.itemById.return_value = None
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+        layout.name.return_value = "Layout_SITREP"
+
+        res = update_layout_item_text("Layout_SITREP", "GHOST_ID", "text")
+
+        self.assertIn("error", res)
+        self.assertIn("GHOST_ID", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_rejects_item_with_no_settable_text(self, mock_project):
+        item = MagicMock(spec=["id"])  # no setText -- e.g. MAP_MAIN
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.itemById.return_value = item
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        res = update_layout_item_text("Layout_SITREP", "MAP_MAIN", "text")
+
+        self.assertIn("error", res)
+        self.assertIn("settable text", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_updates_text_and_refreshes(self, mock_project):
+        item = MagicMock()
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.itemById.return_value = item
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        res = update_layout_item_text("Layout_SITREP", "TITLE", "Updated Title")
+
+        self.assertTrue(res["success"])
+        item.setText.assert_called_once_with("Updated Title")
+        item.refresh.assert_called_once()
+
+    def test_degrades_gracefully_outside_qgis(self):
+        res = update_layout_item_text("Layout_SITREP", "TITLE", "text")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
 
 
 class TestZoomToLayerParam(unittest.TestCase):

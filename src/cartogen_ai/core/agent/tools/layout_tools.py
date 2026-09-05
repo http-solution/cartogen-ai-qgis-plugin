@@ -151,7 +151,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         elif canvas:
             map_item.setExtent(canvas.extent())
         layout.addLayoutItem(map_item)
-        
+        map_item.setId("MAP_MAIN")
+
         # Geometry for a two-column layout: map on the left, a fixed-width
         # legend/scalebar/summary column on the right (landscape) or stacked
         # below the map (portrait). Chosen so the right column's items never
@@ -196,6 +197,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         title_label = QgsLayoutItemLabel(layout)
         title_label.setText(title)
         layout.addLayoutItem(title_label)
+        title_label.setId("TITLE")
         title_label.attemptMove(QgsLayoutPoint(map_x, 8, LAYOUT_MM))
         title_label.attemptResize(QgsLayoutSize(title_w, 14, LAYOUT_MM))
 
@@ -210,6 +212,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         legend.setLinkedMap(map_item)
         legend.setResizeToContents(False)
         layout.addLayoutItem(legend)
+        legend.setId("LEGEND")
         legend.attemptMove(QgsLayoutPoint(col_x, legend_y, LAYOUT_MM))
         legend.attemptResize(QgsLayoutSize(col_w, legend_h, LAYOUT_MM))
 
@@ -225,6 +228,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         scalebar.setUnits(DISTANCE_KM)
         scalebar.applyDefaultSize(DISTANCE_KM)
         layout.addLayoutItem(scalebar)
+        scalebar.setId("SCALEBAR")
         scalebar.attemptMove(QgsLayoutPoint(map_x, scalebar_y, LAYOUT_MM))
         scalebar.attemptResize(QgsLayoutSize(min(90, map_w - 15), scalebar_h, LAYOUT_MM))
 
@@ -244,6 +248,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             # from the file extension, so a single-arg call is correct here.
             north_arrow.setPicturePath(default_arrow_path)
             layout.addLayoutItem(north_arrow)
+            north_arrow.setId("NORTH_ARROW")
             north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
             north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
 
@@ -258,12 +263,14 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             body_label = QgsLayoutItemLabel(layout)
             body_label.setText(body_text)
             layout.addLayoutItem(body_label)
+            body_label.setId("BODY_TEXT")
             body_label.attemptMove(QgsLayoutPoint(col_x, body_y, LAYOUT_MM))
             body_label.attemptResize(QgsLayoutSize(col_w, body_h, LAYOUT_MM))
 
         footer_label = QgsLayoutItemLabel(layout)
         footer_label.setText("AI-generated -- verify before operational, humanitarian, or safety use.")
         layout.addLayoutItem(footer_label)
+        footer_label.setId("FOOTER")
         footer_x = map_x
         footer_w = (col_x + col_w) - map_x
         footer_y = body_y + body_h + 2
@@ -302,9 +309,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
     "List the print layouts already in the current QGIS project by name -- lets the agent check "
     "what layouts exist (e.g. before deciding whether to build a new one with create_print_layout "
     "or address an existing one) instead of guessing layout names. Point 21 of "
-    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers layouts "
-    "only; QGIS Map Themes are a separate, not-yet-implemented concept (point 16 of the same "
-    "review), so there is nothing to list there yet.",
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers "
+    "layouts only; QGIS Map Themes are a separate concept, listed by list_map_themes instead "
+    "(point 16 of the same review, project_tools.py).",
     {"type": "object", "properties": {}, "required": []},
 )
 def list_layouts():
@@ -312,3 +319,90 @@ def list_layouts():
         return {"error": "QGIS not available"}
     layout_manager = QgsProject.instance().layoutManager()
     return {"layouts": [layout.name() for layout in layout_manager.printLayouts()]}
+
+
+def _find_layout_by_name(name):
+    if not QGIS_AVAILABLE:
+        return None
+    for layout in QgsProject.instance().layoutManager().printLayouts():
+        if layout.name() == name:
+            return layout
+    return None
+
+
+@register_tool(
+    "list_layout_items",
+    "Lists the addressable items in a print layout -- id, type, and current text (for text "
+    "items) -- so the agent can check what's actually in a layout before editing it with "
+    "update_layout_item_text, instead of guessing. create_print_layout gives every item it "
+    "builds a stable id (MAP_MAIN, TITLE, LEGEND, SCALEBAR, NORTH_ARROW, BODY_TEXT, FOOTER -- "
+    "NORTH_ARROW/BODY_TEXT only appear when that item was actually built). Point 15 of "
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability, the "
+    "concrete gap that point named -- full QgsLayoutAtlas per-feature pagination is a separate, "
+    "not-yet-implemented capability).",
+    {
+        "type": "object",
+        "properties": {"layout_name": {"type": "string"}},
+        "required": ["layout_name"],
+    },
+)
+def list_layout_items(layout_name: str):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layout = _find_layout_by_name(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found"}
+    items = []
+    for item in layout.items():
+        # layout.items() also yields internal plumbing (the page's own
+        # QGraphicsRectItem border, the QgsLayoutItemPage itself) that never
+        # has a real id -- confirmed live: QGraphicsRectItem has no id()
+        # method at all, QgsLayoutItemPage.id() returns "". Only surface
+        # items this tool (or the caller) actually gave a stable id to.
+        item_id = item.id() if hasattr(item, "id") else ""
+        if not item_id:
+            continue
+        entry = {"id": item_id, "type": type(item).__name__}
+        if hasattr(item, "text"):
+            try:
+                entry["text"] = item.text()
+            except Exception:
+                pass
+        items.append(entry)
+    return {"success": True, "layout_name": layout_name, "items": items}
+
+
+@register_tool(
+    "update_layout_item_text",
+    "Updates the text of one existing item in a print layout (e.g. a stale title or summary "
+    "panel) by its stable id -- without rebuilding the whole layout with create_print_layout. "
+    "Use list_layout_items first to see what ids exist. Only works on text items (TITLE, "
+    "BODY_TEXT, FOOTER); MAP_MAIN/LEGEND/SCALEBAR/NORTH_ARROW have no settable text. Point 15 "
+    "of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.",
+    {
+        "type": "object",
+        "properties": {
+            "layout_name": {"type": "string"},
+            "item_id": {"type": "string", "description": "Stable id from list_layout_items, e.g. 'TITLE'."},
+            "text": {"type": "string"},
+        },
+        "required": ["layout_name", "item_id", "text"],
+    },
+)
+def update_layout_item_text(layout_name: str, item_id: str, text: str):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layout = _find_layout_by_name(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found"}
+    item = layout.itemById(item_id)
+    if item is None:
+        return {"error": f"No item with id '{item_id}' in layout '{layout_name}'."}
+    if not hasattr(item, "setText"):
+        return {"error": f"Item '{item_id}' ({type(item).__name__}) has no settable text."}
+    try:
+        item.setText(text)
+        item.refresh()
+        return {"success": True, "layout_name": layout_name, "item_id": item_id}
+    except Exception as e:
+        return {"error": f"update_layout_item_text failed: {e}"}

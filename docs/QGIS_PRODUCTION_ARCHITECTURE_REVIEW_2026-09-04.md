@@ -844,11 +844,36 @@ open).
     `styling_tools.py`. Titles and filenames are built with plain Python
     string formatting (`f"Layout_{title.replace(' ', '_')}"`); no
     `QgsPalLayerSettings`-based expression labeling exists.
-15. **Atlas as a publication engine -- REAL GAP.** Zero `QgsLayoutAtlas`
-    references anywhere. `create_print_layout` builds one fixed layout
-    per call with no `.setId()` calls on any item -- no stable
-    MAP_MAIN/TITLE/LEGEND-style identifiers exist for the agent to
-    address individually.
+15. **Atlas as a publication engine -- PARTIAL, the concrete addressability
+    gap closed 2026-09-05; full per-feature pagination deliberately not
+    built.** Was: zero `QgsLayoutAtlas` references anywhere;
+    `create_print_layout` built one fixed layout per call with no
+    `.setId()` calls on any item -- no stable MAP_MAIN/TITLE/LEGEND-style
+    identifiers existed for the agent to address individually, which is
+    the specific gap this point names (full `QgsLayoutAtlas` per-feature
+    pagination -- one exported page per admin-unit/facility from a
+    coverage layer -- is a separate, larger feature this entry's proposal
+    also gestures at but doesn't fully specify; not built here, a real
+    scope decision left open rather than guessed at). Now: every item
+    `create_print_layout` builds gets a stable id via `.setId()` --
+    `MAP_MAIN`, `TITLE`, `LEGEND`, `SCALEBAR`, `NORTH_ARROW`, `BODY_TEXT`
+    (when `body_text` given), `FOOTER`. Two new tools actually use the
+    addressability rather than leaving it as unused plumbing:
+    `list_layout_items` (id/type/current-text per item, filtering out
+    QGIS's own internal page/frame items which have no real id -- confirmed
+    live: a bare `QGraphicsRectItem` has no `.id()` method at all, and
+    `QgsLayoutItemPage.id()` returns `""`) and `update_layout_item_text`
+    (edits one item's text by id -- e.g. fixing a stale title -- without
+    rebuilding the whole layout). 12 new tests. **Live-verified**: built a
+    real layout, confirmed all 7 items resolved with the right ids and
+    types (including `NORTH_ARROW`, which depends on a real SVG resolving
+    on disk), updated `TITLE`'s text and confirmed it persisted on
+    re-inspection, confirmed `MAP_MAIN` (no settable text) and a
+    nonexistent id both correctly error. Full suite 1061 tests, same known
+    baseline, 0 new failures. `docs/TOOLS_REFERENCE.md` regenerated (148
+    tools). Also fixed in passing: `list_layouts`' own description still
+    said Map Themes were "not-yet-implemented" -- stale the moment point
+    16 closed the same session; corrected to point at `list_map_themes`.
 16. **Map Themes (`QgsMapThemeCollection`) -- CLOSED 2026-09-05.** Was a
     REAL GAP: zero references anywhere (checked separately from the
     unrelated UI dark/light "theme" code in `ui/theme.py`, which is not
