@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     find_nearest_features, convert_to_singlepart, simplify_geometry,
     field_statistics, select_by_location, invert_selection,
     _compute_field_statistics, zoom_to_layer, zoom_to_feature, _extent_to_canvas_crs,
-    apply_labels, get_layers, diagnose_topology, _run_and_add,
+    apply_labels, get_layers, diagnose_topology, _run_and_add, buffer_analysis,
 )
 
 
@@ -731,3 +731,59 @@ class TestRunAndAddZeroResultWarning(unittest.TestCase):
         res = _run_and_add("native:intersection", {}, "result_layer")
         self.assertIn("error", res)
         self.assertIn("boom", res["error"])
+
+
+class TestBufferAnalysisCrsWarning(unittest.TestCase):
+    """Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md,
+    confirmed live against real QGIS 4.2.2: native:buffer's DISTANCE param
+    is applied in the input layer's own CRS units with no conversion --
+    buffering an EPSG:4326 (geographic) layer by 500 (meaning 500 meters)
+    actually produces a buffer 500 *degrees* wide, not ~1km."""
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_geographic_crs_gets_a_warning(self, mock_find, mock_processing, mock_project):
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = True
+        layer.crs.return_value.authid.return_value = "EPSG:4326"
+        mock_find.return_value = layer
+        output_layer = MagicMock()
+        mock_processing.run.return_value = {"OUTPUT": output_layer}
+
+        res = buffer_analysis("wgs84_points", 500)
+
+        self.assertTrue(res["success"])
+        self.assertIn("warning", res)
+        self.assertIn("EPSG:4326", res["warning"])
+        self.assertIn("DEGREES", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_projected_crs_gets_no_warning(self, mock_find, mock_processing, mock_project):
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = False
+        mock_find.return_value = layer
+        output_layer = MagicMock()
+        mock_processing.run.return_value = {"OUTPUT": output_layer}
+
+        res = buffer_analysis("utm_points", 500)
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("warning", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_reports_missing_layer(self, mock_find):
+        mock_find.return_value = None
+        res = buffer_analysis("ghost_layer", 500)
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    def test_degrades_gracefully_outside_qgis(self):
+        res = buffer_analysis("layer", 500)
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
