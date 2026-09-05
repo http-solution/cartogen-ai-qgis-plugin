@@ -323,25 +323,36 @@ def _optimize_route(distance_matrix, start_index=0):
     "optimize_delivery_route",
     "Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order "
     "should the truck visit these 8 distribution points'. Uses straight-line distance and a "
-    "standard nearest-neighbor + 2-opt heuristic (not a guaranteed globally-optimal route, and not "
-    "road-network-aware -- for real road distances, combine with travel_time_matrix). Good enough "
-    "for typical delivery planning with a modest number of stops; not a substitute for a full "
-    "commercial VRP solver with vehicle capacity/time-window constraints.",
+    "standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed "
+    "globally-optimal order, and not road-network-aware for ordering purposes). Without "
+    "road_network_layer, the result is a stop order only -- do NOT draw a straight line between "
+    "the stops and present it as a route on an operational map; it is not a routable path. Pass "
+    "road_network_layer to also build an actual road-snapped route line (via QGIS's network "
+    "analysis, same as calculate_service_area/travel_time_matrix), added to the project and safe "
+    "to render as a real route. Not a substitute for a full commercial VRP solver with vehicle "
+    "capacity/time-window constraints.",
     {
         "type": "object",
         "properties": {
             "stops_layer": {"type": "string", "description": "Point layer of stops to visit."},
             "start_stop_name": {"type": "string", "description": "Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature."},
+            "road_network_layer": {"type": "string", "description": "Optional line layer representing the road/path network. When given, a road-snapped route line (following actual roads between stops in visiting order) is built and added to the project -- required before the output may be rendered as a route on a map."},
         },
         "required": ["stops_layer"],
     },
 )
-def optimize_delivery_route(stops_layer, start_stop_name=None):
+def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_layer=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(stops_layer)
     if layer is None:
         return {"error": f"Layer '{stops_layer}' not found"}
+
+    network = None
+    if road_network_layer is not None:
+        network = _find_layer_by_name(road_network_layer)
+        if network is None:
+            return {"error": f"Layer '{road_network_layer}' not found"}
 
     try:
         feats = [f for f in layer.getFeatures() if not f.geometry().isEmpty()]
@@ -364,15 +375,85 @@ def optimize_delivery_route(stops_layer, start_stop_name=None):
         tour, total_distance = _optimize_route(distance_matrix, start_index)
         ordered_names = [names[i] for i in tour]
 
-        return {
+        result = {
             "success": True,
             "stops_layer": stops_layer,
             "stop_count": n,
             "route_order": ordered_names,
             "total_distance": round(total_distance, 2),
         }
+
+        if network is None:
+            result["warning"] = (
+                "No road_network_layer given -- total_distance is straight-line and route_order "
+                "is a stop sequence only, not a routable path. Do not render a line through these "
+                "stops as a delivery route; pass road_network_layer to build one."
+            )
+            return result
+
+        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour)
+        if route_layer_name is None:
+            result["warning"] = (
+                "Could not build a road-snapped route (stops may be too far from the network) -- "
+                "falling back to stop order only. Do not render a line through these stops as a "
+                "delivery route."
+            )
+        else:
+            result["route_layer"] = route_layer_name
+            result["road_snapped"] = True
+
+        return result
     except Exception as e:
         return {"error": f"optimize_delivery_route failed: {e}"}
+
+
+def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
+    """Chain native:shortestpathpointtopoint across each consecutive pair in
+    visiting order and merge the segments into one line layer added to the
+    project, so optimize_delivery_route's output is an actual road-snapped
+    route rather than a straight line between stops (closes the gap flagged
+    in docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md Section IV -- see
+    docs/BUG_TRACKER.md). Same unverified-live caveat as this module's other
+    native-network-analysis calls (see module docstring). Returns the new
+    layer's name, or None if no segment could be built."""
+    segment_layers = []
+    for i in range(len(tour) - 1):
+        start = geoms[tour[i]].asPoint()
+        end = geoms[tour[i + 1]].asPoint()
+        params = {
+            "INPUT": network,
+            "STRATEGY": 0,
+            "DEFAULT_SPEED": 50,
+            "TOLERANCE": 0,
+            "START_POINT": f"{start.x()},{start.y()}",
+            "END_POINT": f"{end.x()},{end.y()}",
+            "OUTPUT": "memory:",
+        }
+        try:
+            output = processing.run("native:shortestpathpointtopoint", params)
+        except Exception:
+            continue
+        segment = output.get("OUTPUT")
+        if segment is not None and segment.featureCount() > 0:
+            segment_layers.append(segment)
+
+    if not segment_layers:
+        return None
+
+    route_name = f"{stops_layer_name}_road_route"
+    if len(segment_layers) == 1:
+        route_layer = segment_layers[0]
+    else:
+        merged = processing.run(
+            "native:mergevectorlayers", {"LAYERS": segment_layers, "OUTPUT": "memory:"}
+        )
+        route_layer = merged.get("OUTPUT")
+        if route_layer is None:
+            return None
+
+    route_layer.setName(route_name)
+    QgsProject.instance().addMapLayer(route_layer)
+    return route_name
 
 
 @register_tool(

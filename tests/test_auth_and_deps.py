@@ -9,6 +9,7 @@ class TestAuthAndDeps(unittest.TestCase):
     def test_credential_manager_fallback(self):
         res = CredentialManager.save_credential("test_provider", "secret_key_123")
         # In non-QGIS test environment, fallback save returns True or False safely
+        self.assertIsInstance(res, bool)
         key = CredentialManager.get_credential("test_provider")
         self.assertIsInstance(key, str)
 

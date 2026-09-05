@@ -2,7 +2,7 @@
 import unittest
 from contextlib import contextmanager
 from cartogen_ai.core.agent.chat_persistence import (
-    save_chat_history, load_chat_history, load_chat_history_with_timestamps,
+    save_chat_history, load_chat_history,
     _attach_timestamps,
 )
 
@@ -128,7 +128,7 @@ class TestAttachTimestamps(unittest.TestCase):
             {"role": "user", "content": "hi", "ts": "2026-01-01T00:00:00"},
             {"role": "assistant", "content": "hello", "ts": "2026-01-01T00:00:01"},
         ]
-        history = previous_history = [
+        history = [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "hello"},
             {"role": "user", "content": "what layers do I have?"},

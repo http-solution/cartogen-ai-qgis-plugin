@@ -8,7 +8,7 @@ import json
 import time
 
 try:
-    from qgis.core import QgsProject
+    from qgis.core import QgsProject  # noqa: F401 -- import used only to gate QGIS_AVAILABLE
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False

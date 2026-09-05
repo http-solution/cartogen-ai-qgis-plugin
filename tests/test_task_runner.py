@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import threading
-import time
 import unittest
 from unittest.mock import MagicMock
 

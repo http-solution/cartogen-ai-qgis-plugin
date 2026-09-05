@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (131 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (141 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -199,7 +199,7 @@ Export current QGIS map canvas view to PNG image.
 
 ### `add_incident_point`
 
-Plot a single real-world incident/event as a labeled point on the map, using consistent professional styling (red marker, white-background/red-text label). Adds to a shared 'Incidents' layer, creating it on first use. Only ever call this with real, verified data -- if the coordinates or date aren't already known, use search_web/geocode_and_enrich to find them first; never invent placeholder values. Set severity when it's known (e.g. security incident classification) so apply_categorized_style/apply_graduated_symbol_style can later distinguish incident types on the map instead of every point looking identical.
+Plot a single real-world incident/event as a labeled point on the map, using consistent professional styling (red marker, white-background/red-text label). Adds to a shared 'Incidents' layer, creating it on first use. Only ever call this with real, verified data -- if the coordinates or date aren't already known, use search_web/geocode_and_enrich to find them first; never invent placeholder values. Set severity when it's known (e.g. security incident classification) so apply_categorized_style/apply_graduated_symbol_style can later distinguish incident types on the map instead of every point looking identical. For conflict/security incidents, also set event_type (+ sub_event_type) using ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard incidents, set hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and validated -- an unrecognized value comes back as a warning, not a rejected point.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -208,10 +208,14 @@ Plot a single real-world incident/event as a labeled point on the map, using con
 | `date` | string | yes | Real, verified date of the incident (e.g. '2026-03-14'). |
 | `description` | string | yes | Short, factual description of the incident. |
 | `severity` | string | no | Optional severity/category label, e.g. 'High', 'Security', 'Flood'. Free text -- use whatever classification the source data uses. |
+| `event_type` | string | no | Optional ACLED-style controlled event type: one of ['Battles', 'Protests', 'Riots', 'Explosions/Remote violence', 'Violence against civilians', 'Strategic developments']. |
+| `sub_event_type` | string | no | Optional ACLED-style sub-event type, valid within the chosen event_type. |
+| `hazard_type` | string | no | Optional IMSMA/IMAS-style explosive-hazard type: one of ['Landmine - Anti-Personnel', 'Landmine - Anti-Vehicle', 'Unexploded Ordnance (UXO)', 'Abandoned Ordnance (AXO)', 'Improvised Explosive Device (IED)', 'Cluster Munition Remnant', 'Booby Trap']. |
+| `contamination_status` | string | no | Optional IMSMA/IMAS-style contamination status: one of ['Confirmed Hazardous Area', 'Suspected Hazardous Area', 'Cleared']. |
 
 ### `add_point_layer`
 
-Create a new point layer (or append to an existing one with the same name) from a LIST of real, verified locations in a SINGLE call -- e.g. embassies, offices, facilities, or any set of named points of interest. Always prefer this over calling add_incident_point repeatedly when plotting more than one location -- one call per point will exhaust the agent's step limit on anything but a short list. Gather every location first (search_web/gemini_grounded_search/geocode_and_enrich), then call this once with the full list. Only ever use real, verified coordinates -- never invent placeholder values. Set category per point when it's known (e.g. incident severity/type) so apply_categorized_style can later distinguish them on the map.
+Create a new point layer (or append to an existing one with the same name) from a LIST of real, verified locations in a SINGLE call -- e.g. embassies, offices, facilities, or any set of named points of interest. Always prefer this over calling add_incident_point repeatedly when plotting more than one location -- one call per point will exhaust the agent's step limit on anything but a short list. Gather every location first (search_web/gemini_grounded_search/geocode_and_enrich), then call this once with the full list. Only ever use real, verified coordinates -- never invent placeholder values. Set category per point when it's known (e.g. incident severity/type) so apply_categorized_style can later distinguish them on the map. For conflict/security points, also set event_type (+ sub_event_type) using ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard points, set hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and validated -- an unrecognized value comes back as a per-point warning, not a rejected point. If you're plotting incidents, threats, or other security-related points and haven't actually gathered them from a real source in this conversation (search_web/gemini_grounded_search/geocode_and_enrich/geocode_batch, or data the user supplied directly), do not call this tool with invented data -- say plainly in your chat response that you don't have verified locations for that, instead of fabricating a plausible-looking dataset. A point layer feeds directly into exported maps and reports, where fabricated content is far more likely to be trusted and acted on than the same claim in chat.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -321,16 +325,17 @@ Rank candidate hub/warehouse/facility locations by how well they serve a set of 
 
 ### `optimize_delivery_route`
 
-Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses straight-line distance and a standard nearest-neighbor + 2-opt heuristic (not a guaranteed globally-optimal route, and not road-network-aware -- for real road distances, combine with travel_time_matrix). Good enough for typical delivery planning with a modest number of stops; not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
+Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses straight-line distance and a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order, and not road-network-aware for ordering purposes). Without road_network_layer, the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to also build an actual road-snapped route line (via QGIS's network analysis, same as calculate_service_area/travel_time_matrix), added to the project and safe to render as a real route. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `stops_layer` | string | yes | Point layer of stops to visit. |
 | `start_stop_name` | string | no | Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature. |
+| `road_network_layer` | string | no | Optional line layer representing the road/path network. When given, a road-snapped route line (following actual roads between stops in visiting order) is built and added to the project -- required before the output may be rendered as a route on a map. |
 
 ### `population_access_gap`
 
-Compute how many people, and what percentage of a population base, are BEYOND a given travel distance/time from the nearest facility -- e.g. 'X people / Y% of the population are more than 30 minutes from a functioning health facility', the standard access-to-services statistic in humanitarian gap analysis and cluster reporting. A thin composite over calculate_service_area (network-based reach per facility) and estimate_population_exposure (population sum within a polygon) rather than reimplementing either -- area_layer defines the population base to check coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population raster available (see fetch_worldpop_population). As a side effect of calling calculate_service_area internally, per-facility service-area polygons are also added to the project, plus the combined reachable-area layer this tool builds from them.
+Compute how many people, and what percentage of a population base, are BEYOND a given travel distance/time from the nearest facility -- e.g. 'X people / Y% of the population are more than 30 minutes from a functioning health facility', the standard access-to-services statistic in humanitarian gap analysis and cluster reporting. A thin composite over calculate_service_area (network-based reach per facility) and estimate_population_exposure (population sum within a polygon) rather than reimplementing either -- area_layer defines the population base to check coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population raster available (see fetch_worldpop_population). As a side effect of calling calculate_service_area internally, per-facility service-area polygons are also added to the project, plus the combined reachable-area layer this tool builds from them. Returns a MODELED estimate -- network-based reachability against a gridded population raster, not a verified count of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', not as a confirmed access-gap figure.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -403,7 +408,7 @@ Cancel a recurring workflow schedule started with schedule_recurring_workflow.
 
 ### `create_print_layout`
 
-Create a map print layout composition with title, legend, scalebar, north arrow, and an optional summary text panel -- then optionally export it. Exports at output_path if given: '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image at the given dpi (default 300, print quality). ALWAYS use this instead of hand-writing QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter code via execute_pyqgis_script, even for a richer composition than this tool's parameters look like they cover -- body_text accepts multi-line text (use \n between bullets/findings for a summary panel), and the legend/scale bar/north arrow are already included, so accepting this tool's defaults for those is strongly preferred over reimplementing the object-graph by hand. Hand-written layout code has repeatedly produced silently broken exports in live testing (a blank map area with no visible error, and real PyQGIS/Qt API mistakes, e.g. QFont.Italic and QgsLegendStyle.Item are not real attributes) that this tool doesn't have. The map area captures whatever extent is currently on screen -- pass zoom_to_layer to fit a specific layer's full extent first (e.g. the national boundary layer for a country-wide sitrep map); otherwise a stale or zoomed-in canvas view produces a cropped map missing large parts of the area of interest.
+Create a map print layout composition with title, legend, scalebar, north arrow, and an optional summary text panel -- then optionally export it. Exports at output_path if given: '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image at the given dpi (default 300, print quality). ALWAYS use this instead of hand-writing QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter code via execute_pyqgis_script, even for a richer composition than this tool's parameters look like they cover -- body_text accepts multi-line text (use \n between bullets/findings for a summary panel), and the legend/scale bar/north arrow are already included, so accepting this tool's defaults for those is strongly preferred over reimplementing the object-graph by hand. Hand-written layout code has repeatedly produced silently broken exports in live testing (a blank map area with no visible error, and real PyQGIS/Qt API mistakes, e.g. QFont.Italic and QgsLegendStyle.Item are not real attributes) that this tool doesn't have. The map area captures whatever extent is currently on screen -- pass zoom_to_layer to fit a specific layer's full extent first (e.g. the national boundary layer for a country-wide sitrep map); otherwise a stale or zoomed-in canvas view produces a cropped map missing large parts of the area of interest. `title` and `body_text` must only describe real, verified findings -- never invent incidents, casualties, threat assessments, severity ratings, or other real-world claims to make a report look complete. If you don't have verified data for what's being asked, say so in your chat response instead of writing placeholder or invented content into this layout -- a printed/exported layout reads as an authoritative finished document, not a draft, so anything fabricated here is far more likely to be trusted and acted on than the same claim in chat. Every export from this tool carries a standing disclaimer footer for exactly this reason, but that does not excuse writing fabricated content in the first place.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -413,6 +418,12 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `dpi` | integer | no | Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality). |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
+
+### `list_layouts`
+
+List the print layouts already in the current QGIS project by name -- lets the agent check what layouts exist (e.g. before deciding whether to build a new one with create_print_layout or address an existing one) instead of guessing layout names. Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (a project inspector) -- covers layouts only; QGIS Map Themes are a separate, not-yet-implemented concept (point 16 of the same review), so there is nothing to list there yet.
+
+_No parameters._
 
 ## Project Management
 
@@ -505,7 +516,7 @@ Sample a DEM raster along a line to produce a distance/elevation profile -- e.g.
 
 ### `estimate_population_exposure`
 
-Sum population within each polygon of a vector layer, using an already-loaded population raster (e.g. from fetch_worldpop_population) -- e.g. 'how many people live within 5km of this facility' (combine with buffer_analysis first to build the area), or 'population per district' (pass admin boundaries directly). Adds a 'pop_sum' field to the vector layer.
+Sum population within each polygon of a vector layer, using an already-loaded population raster (e.g. from fetch_worldpop_population) -- e.g. 'how many people live within 5km of this facility' (combine with buffer_analysis first to build the area), or 'population per district' (pass admin boundaries directly). Adds a 'pop_sum' field to the vector layer. Returns an ESTIMATE derived from a gridded population raster, not a verified count of people actually present -- report results as 'estimated population within <area>', never as a confirmed or affected-population figure, unless field data corroborates it.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -735,15 +746,16 @@ Apply categorized style renderer based on field values. Pass palette='humanitari
 
 ### `apply_graduated_style`
 
-Apply smart graduated choropleth style analyzing field distribution for optimal breaks. Pass cluster (e.g. 'WASH', 'Health', 'Food Security') to tint the ramp toward that IASC cluster's commonly recognized color instead of the auto-selected Viridis/Cividis ramp -- e.g. a WASH coverage % choropleth rendered in WASH's color, for the map a field coordinator recognizes instantly. Unrecognized cluster names fall back to the default ramp.
+Apply smart graduated choropleth style analyzing field distribution for optimal breaks. Pass cluster (e.g. 'WASH', 'Health', 'Food Security') to tint the ramp toward that IASC cluster's commonly recognized color instead of the auto-selected Viridis/Cividis ramp -- e.g. a WASH coverage % choropleth rendered in WASH's color, for the map a field coordinator recognizes instantly. Unrecognized cluster names fall back to the default ramp. Pass explicit breaks (e.g. [10000, 25000, 50000, 100000]) for a fixed, mode-independent set of class boundaries -- for humanitarian decision maps, an operational threshold (e.g. response-capacity bands) often matters more than a statistically 'optimal' Jenks/quantile break, and breaks overrides mode entirely when given (point 13 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `field` | string | yes |  |
-| `mode` | string | no |  |
+| `mode` | string | no | 'auto' (default), 'equal', or 'quantile'. Ignored if breaks is given. |
 | `opacity` | number | no | 0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap underneath stay visible) and 100 for points/lines. |
 | `cluster` | string | no | Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp toward that cluster's color instead of the auto-selected one. |
+| `breaks` | array[number] | no | Optional explicit class-boundary values (e.g. operational response thresholds), sorted ascending -- when given, these define the classes directly instead of an auto-selected classification method, overriding 'mode'. Data's actual min/max become the outer class bounds. |
 
 ### `apply_graduated_symbol_style`
 
@@ -1002,11 +1014,12 @@ Generate a Delaunay triangulation from a point layer -- a mesh of non-overlappin
 
 ### `diagnose_topology`
 
-Diagnose self-intersections, slivers, and invalid geometries in a vector layer.
+Diagnose self-intersections, slivers, exact-duplicate geometries, and (for polygon layers) overlapping features in a vector layer. Pass min_area to also flag polygons smaller than a given threshold (in the layer's CRS units squared) as small_polygons, distinct from exact zero-area slivers. Does NOT check for gaps between polygons meant to tile an area (e.g. missing coverage inside an admin boundary) -- that needs a reference boundary to diff against that this tool has no way to infer, and a heuristic based on dissolving the layer and looking for interior holes would misfire as a false gap on almost any real humanitarian admin-boundary layer (a coastline, an unmapped buffer zone, a deliberately excluded area are all real holes, not QA failures) -- that remains open, see point 4 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+| `min_area` | number | no | Optional. Flags polygons with 0 < area < min_area (in the layer's CRS units squared) as small_polygons, separate from exact zero-area slivers. |
 
 ### `difference_layers`
 
@@ -1090,7 +1103,7 @@ Get total feature count in a layer.
 
 ### `get_layers`
 
-Get all layers in current QGIS project with name, type, and ID.
+Get all layers in current QGIS project with name, type, ID, CRS, feature count, and field names in one call -- covers most basic inspection needs (a vector layer's field names, a rough size check via feature_count) without a separate get_attributes round trip per layer. Point 21 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md. feature_count/fields are omitted for layers that don't have them (e.g. a raster has no attribute table).
 
 _No parameters._
 
@@ -1303,3 +1316,92 @@ Zoom canvas to extent of layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+## dataset_status_tools
+
+### `advance_dataset_status`
+
+Move a layer's QA-gate lifecycle status forward one step (e.g. STAGED -> VALIDATED), backward (to mark a regression), or re-state it -- never skipping a state. The INGESTED -> STAGED step automatically runs a P-code depth check (uniqueness + parent/child hierarchy prefix-match) when the layer has P-code-shaped fields, and auto-passes as not-applicable otherwise -- so it never blocks a non-admin-boundary layer. The STAGED -> VALIDATED step automatically runs the existing geometry-validity check (diagnose_topology) and refuses to advance if it fails, unless override=True is passed with a note justifying the bypass. The VALIDATED -> ANALYSIS_READY step runs a schema-contract check (validate_schema) instead, but ONLY when contract_name is supplied -- omit it and this transition behaves like any other unchecked one (a note is required). Every other transition has no automated check yet and requires a note explaining the manual advance. Moving backward always requires a note. Call get_dataset_status first if unsure of the layer's current status, set_dataset_status first if it isn't tracked yet, and list_schema_contracts to see available contract_name values.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `target_status` | string | yes | One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. |
+| `note` | string | no | Required for transitions with no automated check, for any backward move, and for an override. |
+| `override` | boolean | no | Bypass a failed automated check. Requires note. Defaults to false. |
+| `contract_name` | string | no | Only used for VALIDATED -> ANALYSIS_READY, e.g. 'health_facilities' or 'admin2'. See list_schema_contracts. |
+
+### `get_dataset_status`
+
+Read a layer's tracked QA-gate lifecycle status (one of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY), its full status-change history, and any automated check results recorded against it. Returns status=null for a layer that has never been tagged -- call set_dataset_status first to start tracking it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `set_dataset_status`
+
+Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it with a starting status (defaults to INGESTED). Refuses to run on a layer that already has a tracked status -- use advance_dataset_status to move an already-tracked layer forward or back instead, so this can't accidentally erase real QA history.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
+| `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## pcode_validation_tools
+
+### `check_pcode_hierarchy`
+
+Check that each feature's child P-code (e.g. admin2_pcode) is prefixed by its own parent P-code (e.g. admin1_pcode) on the same row -- the real OCHA/HDX COD-AB convention (admin2 'YE1201' under admin1 'YE12'). This is a string-prefix check on two sibling attributes, NOT a spatial containment check -- it does not verify the admin2 polygon actually sits inside the admin1 polygon's geometry, only that the codes are structurally consistent. Auto-detects both fields from common P-code field names if not given.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `child_pcode_field` | string | no | Optional. Defaults to an admin2 P-code alias. |
+| `parent_pcode_field` | string | no | Optional. Defaults to an admin1 P-code alias. |
+
+### `check_pcode_uniqueness`
+
+Check that every P-code value in a layer is unique across its features -- flags duplicate admin-unit codes that would silently corrupt a P-code join in calculate_severity_index or calculate_presence_gap. Tries the admin2 P-code field aliases (admin2_pcode/adm2_pcode/ADM2_PCODE) automatically if pcode_field isn't given.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `pcode_field` | string | no | Optional. Field to check; auto-detected from common P-code field names if omitted. |
+
+## provenance_tools
+
+### `get_provenance_record`
+
+Read a layer's machine-readable provenance record without writing anything to disk: the QGIS version, its full tool-execution lineage (what tool chain produced/modified it, see get_layer_lineage-tracked history), and its QA-gate lifecycle status/history/checks (see get_dataset_status). Use this to inspect provenance in-conversation; use write_provenance_sidecar instead to save it as a real JSON file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `write_provenance_sidecar`
+
+Write a layer's machine-readable provenance record (QGIS version, tool-execution lineage, QA-gate status/history/checks) to a real JSON sidecar file -- named '<source_file>.provenance.json' beside the layer's own on-disk source when one can be resolved, or an explicit output_path when supplied. Falls back to a Desktop file named after the layer (with a warning in the result) for a layer with no real on-disk source, e.g. a scratch/memory layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `output_path` | string | no | Optional explicit file path for the sidecar. Omit to derive one from the layer's own source, or fall back to Desktop. |
+
+## schema_contract_tools
+
+### `list_schema_contracts`
+
+List the machine-readable dataset schema contracts available to validate_schema (currently health_facilities and admin2 -- see agent/contracts/*.json). Each contract declares required fields (by acceptable name aliases, since real-world admin/pcode field names vary by source), expected field types, and optional controlled-vocabulary domains.
+
+_No parameters._
+
+### `validate_schema`
+
+Check a vector layer's fields -- presence, type, and any controlled-vocabulary values -- against a named schema contract (see list_schema_contracts for available names). Field matching is case-insensitive and checks a contract's full alias list, not one fixed name, so e.g. 'ADM2_PCODE' from a COD-AB download and 'admin2_pcode' from a hand-built layer both satisfy the same required field. Returns missing_fields/type_mismatches/value_violations and an overall passed flag -- never blocks anything by itself, but feeds advance_dataset_status's VALIDATED -> ANALYSIS_READY gate when a contract_name is supplied there.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `contract_name` | string | yes | e.g. 'health_facilities' or 'admin2'. See list_schema_contracts. |

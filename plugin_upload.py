@@ -8,7 +8,6 @@ import fnmatch
 import os
 import re
 import shutil
-import sys
 import zipfile
 
 PLUGIN_NAME = "cartogen_ai"
@@ -180,7 +179,7 @@ def package_plugin():
 
     shutil.copyfile(versioned_filename, root_filename)
 
-    print(f"\n[Release] Success!")
+    print("\n[Release] Success!")
     print(f"  Versioned archive: {versioned_filename}")
     print(f"  Latest bundle:     {root_filename}")
     return versioned_filename

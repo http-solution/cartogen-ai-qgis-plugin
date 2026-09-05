@@ -59,7 +59,6 @@ requests", clarified via AskUserQuestion -- user selected all four):
    preference or a stale correction rule.
 """
 
-import json
 import re
 import time
 

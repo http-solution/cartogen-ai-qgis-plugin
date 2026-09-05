@@ -4,7 +4,7 @@ Agent Task & Memory Tools for Cartogen AI.
 Exposes tool functions allowing the LLM to manage task plans, preview safety checks, and memory.
 """
 
-from typing import List, Optional
+from typing import List
 from .registry import register_tool
 
 # References to active agent instance components will be bound dynamically or via runtime lookup

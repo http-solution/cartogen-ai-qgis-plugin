@@ -4,8 +4,6 @@ Authentication and Credential Security Manager for Cartogen AI.
 Uses QGIS native QgsAuthManager (encrypted keyring storage) with fallback to QgsSettings.
 """
 
-import traceback
-
 try:
     from qgis.core import QgsApplication, QgsAuthMethodConfig, QgsSettings
     QGIS_AVAILABLE = True

@@ -11,7 +11,7 @@ try:
     from qgis.core import (
         QgsProject, QgsPrintLayout, QgsLayoutItemMap, QgsLayoutItemLegend,
         QgsLayoutItemScaleBar, QgsLayoutItemLabel, QgsLayoutItemPicture,
-        QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsPageSize, QgsLayoutExporter,
+        QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsLayoutExporter,
         QgsApplication, QgsCoordinateTransform
     )
     from qgis.utils import iface
@@ -268,8 +268,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         footer_w = (col_x + col_w) - map_x
         footer_y = body_y + body_h + 2
         footer_h = max(4, min(8, page_height - footer_y - 2))
-        footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, QgsUnitTypes.LayoutMillimeters))
-        footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, QgsUnitTypes.LayoutMillimeters))
+        footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, LAYOUT_MM))
+        footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, LAYOUT_MM))
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation}
 

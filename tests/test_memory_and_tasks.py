@@ -43,11 +43,17 @@ class TestMemoryAndTasks(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertFalse(result["existed"])
 
-    def test_clear_global_notes_removes_everything(self):
+    def test_clear_global_notes_removes_everything_across_key_prefixes(self):
         """GDPR review F1 (docs/GDPR_COMPLIANCE_REVIEW.docx, cartogen-ai-community):
         global memory previously had no bulk erasure path. This is the R4 fix --
         clear_global_notes() must remove every global note in one call, regardless
-        of which key/prefix wrote it, unlike delete_global_note()'s single-key scope."""
+        of which key/prefix wrote it, unlike delete_global_note()'s single-key scope.
+
+        Named distinctly from test_clear_global_notes_removes_everything below --
+        both were independently added to close the same GDPR finding on two
+        branches and merged into this file together; kept side by side (covering
+        different key shapes) rather than deleting either, since the duplicate
+        name would otherwise have silently shadowed this one (see BUG_TRACKER)."""
         memory = SpatialMemoryManager()
         memory.store_global_note("pref:units", "metric")
         memory.store_global_note("some_other_note", "written by a different tool")
@@ -58,10 +64,13 @@ class TestMemoryAndTasks(unittest.TestCase):
         self.assertEqual(result["scope"], "global")
         self.assertEqual(memory.get_global_notes(), {})
 
-    def test_clear_global_notes_does_not_touch_project_notes(self):
+    def test_clear_global_notes_does_not_touch_project_notes_with_prefixed_keys(self):
         """Symmetric guard with test_spatial_memory_manager's project-scope
         assertions -- clearing global memory must not clear project memory,
-        mirroring clear_project_notes() not touching global memory."""
+        mirroring clear_project_notes() not touching global memory. See the
+        naming note on test_clear_global_notes_removes_everything_across_key_prefixes
+        above -- kept alongside test_clear_global_notes_does_not_touch_project_notes
+        rather than deleted."""
         memory = SpatialMemoryManager()
         memory.store_project_note("study_area", "Damascus Region")
         memory.store_global_note("pref:units", "metric")

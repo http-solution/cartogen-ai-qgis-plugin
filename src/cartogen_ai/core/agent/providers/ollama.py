@@ -1,6 +1,6 @@
 import json
 import requests
-from .base import BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, extract_openai_style_usage
+from .base import BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry
 
 
 def _server_root(endpoint_url):

@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.error
 from .registry import register_tool
 from ._cache_utils import TTLCache
+from ._qgis_enum_compat import resolve_qgis_enum
 
 # Session-scoped cache for repeated identical lookups -- HDX/OSM/geoBoundaries
 # data doesn't change minute-to-minute, so a re-query with the same arguments
@@ -28,8 +29,13 @@ try:
     )
     from qgis.PyQt.QtGui import QColor
     QGIS_AVAILABLE = True
+    # QGIS 4.x/Qt6 scopes this under QgsTextBackgroundSettings.ShapeType.
+    # ShapeRectangle; QGIS 3.x/Qt5 exposes it flat. Resolved once here rather
+    # than assuming one form -- see _qgis_enum_compat.py.
+    _SHAPE_RECTANGLE = resolve_qgis_enum(QgsTextBackgroundSettings, "ShapeType", "ShapeRectangle")
 except ImportError:
     QGIS_AVAILABLE = False
+    _SHAPE_RECTANGLE = None
 
 
 @register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query.", {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]})
@@ -916,6 +922,61 @@ def fetch_worldpop_population(iso3: str, year: str = None):
 
 INCIDENT_LAYER_NAME = "Incidents"
 
+# Two optional controlled incident-coding vocabularies, alongside (not
+# replacing) the existing freeform severity/category fields -- per
+# docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md Section V's gap ("no controlled/
+# authorized incident-coding vocabulary"). Baron's decision, 2026-09-04: support
+# both rather than picking one. Values are validated but not enforced -- an
+# unrecognized value is returned as a warning, not a hard error, so a caller
+# passing a still-freeform label doesn't lose the whole insert.
+
+# ACLED's own published 6-category event taxonomy with its per-event
+# sub-event list (25 sub-events total across all 6 categories).
+ACLED_EVENT_TAXONOMY = {
+    "Battles": ["Government regains territory", "Non-state actor overtakes territory", "Armed clash"],
+    "Protests": ["Excessive force against protesters", "Protest with intervention", "Peaceful protest"],
+    "Riots": ["Violent demonstration", "Mob violence"],
+    "Explosions/Remote violence": [
+        "Chemical weapon", "Air/drone strike", "Suicide bomb",
+        "Shelling/artillery/missile attack", "Remote explosive/landmine/IED", "Grenade",
+    ],
+    "Violence against civilians": ["Sexual violence", "Attack", "Abduction/forced disappearance"],
+    "Strategic developments": [
+        "Agreement", "Arrests", "Change to group/activity", "Disrupted weapons use",
+        "Headquarters or base established", "Looting/property destruction",
+        "Non-violent transfer of territory", "Other",
+    ],
+}
+
+# IMSMA/IMAS-style explosive-hazard classification: hazard type per IMAS
+# 04.10, contamination status per IMAS 08.10 (Confirmed/Suspected Hazardous
+# Area, Cleared).
+IMSMA_HAZARD_TYPES = [
+    "Landmine - Anti-Personnel", "Landmine - Anti-Vehicle", "Unexploded Ordnance (UXO)",
+    "Abandoned Ordnance (AXO)", "Improvised Explosive Device (IED)", "Cluster Munition Remnant",
+    "Booby Trap",
+]
+IMSMA_CONTAMINATION_STATUSES = ["Confirmed Hazardous Area", "Suspected Hazardous Area", "Cleared"]
+
+
+def _validate_incident_coding(event_type=None, sub_event_type=None, hazard_type=None, contamination_status=None):
+    """Checks the four optional controlled-vocabulary values against the
+    ACLED-style and IMSMA-style lists above. Returns a list of warning
+    strings (empty if everything given is valid or nothing was given) --
+    never raises, since these are advisory fields layered on top of the
+    pre-existing freeform severity/category fields."""
+    warnings = []
+    if event_type is not None and event_type not in ACLED_EVENT_TAXONOMY:
+        warnings.append(f"event_type '{event_type}' is not one of ACLED's 6 event types: {list(ACLED_EVENT_TAXONOMY)}")
+    elif event_type is not None and sub_event_type is not None:
+        if sub_event_type not in ACLED_EVENT_TAXONOMY[event_type]:
+            warnings.append(f"sub_event_type '{sub_event_type}' is not a valid ACLED sub-event of '{event_type}': {ACLED_EVENT_TAXONOMY[event_type]}")
+    if hazard_type is not None and hazard_type not in IMSMA_HAZARD_TYPES:
+        warnings.append(f"hazard_type '{hazard_type}' is not one of the IMSMA-style hazard types: {IMSMA_HAZARD_TYPES}")
+    if contamination_status is not None and contamination_status not in IMSMA_CONTAMINATION_STATUSES:
+        warnings.append(f"contamination_status '{contamination_status}' is not one of {IMSMA_CONTAMINATION_STATUSES}")
+    return warnings
+
 
 def _style_incident_layer(layer):
     """Hardcoded professional cartography: red point marker, white-background/
@@ -936,7 +997,7 @@ def _style_incident_layer(layer):
 
     background = QgsTextBackgroundSettings()
     background.setEnabled(True)
-    background.setType(QgsTextBackgroundSettings.ShapeRectangle)
+    background.setType(_SHAPE_RECTANGLE)
     background.setFillColor(QColor("white"))
     text_format.setBackground(background)
 
@@ -953,7 +1014,10 @@ def _style_incident_layer(layer):
     "known, use search_web/geocode_and_enrich to find them first; never invent placeholder values. Set "
     "severity when it's known (e.g. security incident classification) so apply_categorized_style/"
     "apply_graduated_symbol_style can later distinguish incident types on the map instead of every point "
-    "looking identical.",
+    "looking identical. For conflict/security incidents, also set event_type (+ sub_event_type) using "
+    "ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard incidents, "
+    "set hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and "
+    "validated -- an unrecognized value comes back as a warning, not a rejected point.",
     {
         "type": "object",
         "properties": {
@@ -962,11 +1026,19 @@ def _style_incident_layer(layer):
             "date": {"type": "string", "description": "Real, verified date of the incident (e.g. '2026-03-14')."},
             "description": {"type": "string", "description": "Short, factual description of the incident."},
             "severity": {"type": "string", "description": "Optional severity/category label, e.g. 'High', 'Security', 'Flood'. Free text -- use whatever classification the source data uses."},
+            "event_type": {"type": "string", "description": f"Optional ACLED-style controlled event type: one of {list(ACLED_EVENT_TAXONOMY)}."},
+            "sub_event_type": {"type": "string", "description": "Optional ACLED-style sub-event type, valid within the chosen event_type."},
+            "hazard_type": {"type": "string", "description": f"Optional IMSMA/IMAS-style explosive-hazard type: one of {IMSMA_HAZARD_TYPES}."},
+            "contamination_status": {"type": "string", "description": f"Optional IMSMA/IMAS-style contamination status: one of {IMSMA_CONTAMINATION_STATUSES}."},
         },
         "required": ["lat", "lon", "date", "description"],
     },
 )
-def add_incident_point(lat: float, lon: float, date: str, description: str, severity: str = None):
+def add_incident_point(
+    lat: float, lon: float, date: str, description: str, severity: str = None,
+    event_type: str = None, sub_event_type: str = None,
+    hazard_type: str = None, contamination_status: str = None,
+):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -983,7 +1055,9 @@ def add_incident_point(lat: float, lon: float, date: str, description: str, seve
         layer = existing[0]
     else:
         layer = QgsVectorLayer(
-            "Point?crs=EPSG:4326&field=date:string(50)&field=description:string(255)&field=severity:string(50)",
+            "Point?crs=EPSG:4326&field=date:string(50)&field=description:string(255)&field=severity:string(50)"
+            "&field=event_type:string(50)&field=sub_event_type:string(80)"
+            "&field=hazard_type:string(50)&field=contamination_status:string(50)",
             INCIDENT_LAYER_NAME, "memory",
         )
         if not layer.isValid():
@@ -995,11 +1069,15 @@ def add_incident_point(lat: float, lon: float, date: str, description: str, seve
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
     feat.setAttribute("date", str(date))
     feat.setAttribute("description", str(description))
-    # Older Incidents layers created before this field existed won't have it --
-    # skip rather than raise, matching this layer's overall "reuse whatever's
-    # already there" behavior above.
-    if severity is not None and layer.fields().indexFromName("severity") >= 0:
-        feat.setAttribute("severity", str(severity))
+    # Older Incidents layers created before these fields existed won't have
+    # them -- skip rather than raise, matching this layer's overall "reuse
+    # whatever's already there" behavior above.
+    for field_name, value in (
+        ("severity", severity), ("event_type", event_type), ("sub_event_type", sub_event_type),
+        ("hazard_type", hazard_type), ("contamination_status", contamination_status),
+    ):
+        if value is not None and layer.fields().indexFromName(field_name) >= 0:
+            feat.setAttribute(field_name, str(value))
 
     layer.startEditing()
     added = layer.addFeature(feat)
@@ -1008,13 +1086,17 @@ def add_incident_point(lat: float, lon: float, date: str, description: str, seve
 
     if not added:
         return {"error": "Failed to add incident feature to layer."}
-    return {
+    result = {
         "success": True, "layer_name": INCIDENT_LAYER_NAME, "lat": lat, "lon": lon, "date": date,
         "message": (
             f"Point added to '{INCIDENT_LAYER_NAME}' and is live on the map. Report this success plainly -- "
             "do not claim a tool/backend error occurred, and do not give the user a manual script."
         ),
     }
+    coding_warnings = _validate_incident_coding(event_type, sub_event_type, hazard_type, contamination_status)
+    if coding_warnings:
+        result["coding_warnings"] = coding_warnings
+    return result
 
 
 def _style_named_point_layer(layer):
@@ -1031,7 +1113,7 @@ def _style_named_point_layer(layer):
 
     background = QgsTextBackgroundSettings()
     background.setEnabled(True)
-    background.setType(QgsTextBackgroundSettings.ShapeRectangle)
+    background.setType(_SHAPE_RECTANGLE)
     background.setFillColor(QColor(255, 255, 255, 200))
     text_format.setBackground(background)
 
@@ -1049,7 +1131,11 @@ def _style_named_point_layer(layer):
     "every location first (search_web/gemini_grounded_search/geocode_and_enrich), then call this once with "
     "the full list. Only ever use real, verified coordinates -- never invent placeholder values. Set "
     "category per point when it's known (e.g. incident severity/type) so apply_categorized_style can later "
-    "distinguish them on the map. If you're plotting incidents, threats, or other security-related points "
+    "distinguish them on the map. For conflict/security points, also set event_type (+ sub_event_type) using "
+    "ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard points, set "
+    "hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and "
+    "validated -- an unrecognized value comes back as a per-point warning, not a rejected point. If you're "
+    "plotting incidents, threats, or other security-related points "
     "and haven't actually gathered them from a real source in this conversation (search_web/"
     "gemini_grounded_search/geocode_and_enrich/geocode_batch, or data the user supplied directly), do not "
     "call this tool with invented data -- say plainly in your chat response that you don't have verified "
@@ -1071,6 +1157,10 @@ def _style_named_point_layer(layer):
                         "name": {"type": "string"},
                         "description": {"type": "string"},
                         "category": {"type": "string", "description": "Optional severity/type label, e.g. 'High', 'Security', 'Flood'. Free text."},
+                        "event_type": {"type": "string", "description": f"Optional ACLED-style controlled event type: one of {list(ACLED_EVENT_TAXONOMY)}."},
+                        "sub_event_type": {"type": "string", "description": "Optional ACLED-style sub-event type, valid within the chosen event_type."},
+                        "hazard_type": {"type": "string", "description": f"Optional IMSMA/IMAS-style explosive-hazard type: one of {IMSMA_HAZARD_TYPES}."},
+                        "contamination_status": {"type": "string", "description": f"Optional IMSMA/IMAS-style contamination status: one of {IMSMA_CONTAMINATION_STATUSES}."},
                     },
                     "required": ["lat", "lon", "name"],
                 },
@@ -1090,7 +1180,9 @@ def add_point_layer(layer_name: str, points: list):
         layer = existing[0]
     else:
         layer = QgsVectorLayer(
-            "Point?crs=EPSG:4326&field=name:string(255)&field=description:string(500)&field=category:string(50)",
+            "Point?crs=EPSG:4326&field=name:string(255)&field=description:string(500)&field=category:string(50)"
+            "&field=event_type:string(50)&field=sub_event_type:string(80)"
+            "&field=hazard_type:string(50)&field=contamination_status:string(50)",
             layer_name, "memory",
         )
         if not layer.isValid():
@@ -1098,9 +1190,10 @@ def add_point_layer(layer_name: str, points: list):
         QgsProject.instance().addMapLayer(layer)
         _style_named_point_layer(layer)
 
-    has_category_field = layer.fields().indexFromName("category") >= 0
+    field_names = [f.name() for f in layer.fields()]
     added = 0
     errors = []
+    coding_warnings = []
     layer.startEditing()
     for i, pt in enumerate(points):
         try:
@@ -1117,10 +1210,16 @@ def add_point_layer(layer_name: str, points: list):
         feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
         feat.setAttribute("name", str(pt.get("name", "")))
         feat.setAttribute("description", str(pt.get("description", "")))
-        # Older layers created before this field existed won't have it -- skip
-        # rather than raise, matching the reused-existing-layer path above.
-        if has_category_field and pt.get("category") is not None:
-            feat.setAttribute("category", str(pt["category"]))
+        # Older layers created before these fields existed won't have them --
+        # skip rather than raise, matching the reused-existing-layer path above.
+        for field_name in ("category", "event_type", "sub_event_type", "hazard_type", "contamination_status"):
+            if field_name in field_names and pt.get(field_name) is not None:
+                feat.setAttribute(field_name, str(pt[field_name]))
+        point_warnings = _validate_incident_coding(
+            pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
+        )
+        if point_warnings:
+            coding_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
         if layer.addFeature(feat):
             added += 1
         else:
@@ -1131,6 +1230,8 @@ def add_point_layer(layer_name: str, points: list):
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
     if errors:
         result["errors"] = errors
+    if coding_warnings:
+        result["coding_warnings"] = coding_warnings
     if added > 0:
         result["message"] = (
             f"Layer '{layer_name}' now has {added}/{len(points)} point(s) added and is live on the map. "

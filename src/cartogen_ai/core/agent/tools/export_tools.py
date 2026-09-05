@@ -7,6 +7,7 @@ import os
 import json
 import tempfile
 from .registry import register_tool
+from ._qgis_enum_compat import resolve_qgis_enum
 
 try:
     from qgis.core import (
@@ -15,9 +16,15 @@ try:
     )
     from qgis.utils import iface
     QGIS_AVAILABLE = True
+    # QGIS 4.x/Qt6 scopes this under QgsVectorFileWriter.WriterError.NoError;
+    # QGIS 3.x/Qt5 exposes it flat as QgsVectorFileWriter.NoError. Resolved
+    # once at import time rather than assuming one form -- see
+    # _qgis_enum_compat.py.
+    _VFW_NO_ERROR = resolve_qgis_enum(QgsVectorFileWriter, "WriterError", "NoError")
 except ImportError:
     QGIS_AVAILABLE = False
     iface = None
+    _VFW_NO_ERROR = None
 
 
 def _find_layer_by_name(name):
@@ -45,7 +52,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
             QgsCoordinateTransformContext(),
             options,
         )
-        if error != QgsVectorFileWriter.NoError:
+        if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
         return {"success": True, "output_path": output_path}
     except Exception as e:
@@ -398,7 +405,7 @@ def _write_layer_geojson_wgs84(layer, output_path):
         error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
             layer, output_path, QgsCoordinateTransformContext(), options,
         )
-        if error != QgsVectorFileWriter.NoError:
+        if error != _VFW_NO_ERROR:
             return {"error": f"GeoJSON export failed: {message} (code {error})"}
         return {"success": True}
     except Exception as e:

@@ -7,7 +7,7 @@ edit-cancel), and the spatial memory panel.
 statusSignal (used by _copy_code_snippet) stays defined on the parent
 CartogenAiDockWidget -- reached via self._dock, same pattern as chat_tab_widget.py."""
 
-from qgis.PyQt.QtCore import Qt, pyqtSlot
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextBrowser,
     QListWidget, QListWidgetItem, QGroupBox, QComboBox, QProgressBar, QLineEdit,

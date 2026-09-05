@@ -8,7 +8,6 @@ and global user memory (via QgsSettings).
 import os
 import json
 import sqlite3
-import traceback
 
 try:
     from qgis.core import QgsProject, QgsSettings
@@ -168,27 +167,6 @@ class SpatialMemoryManager:
             except Exception as e:
                 print(f"[MemoryManager] Failed to persist global note: {e}")
         return {"success": True, "key": key, "value": value, "scope": "global"}
-
-    def clear_global_notes(self) -> dict:
-        """Clears every global note in one action -- the bulk counterpart to
-        store_global_note()'s single-key writes. Added to close GDPR review finding F1
-        (docs/GDPR_COMPLIANCE_REVIEW.docx): global memory had store_global_note()/
-        get_global_notes() but no erasure path at all, unlike clear_project_notes()'s
-        existing project-scope equivalent. Symmetric with clear_project_notes(): clears
-        the in-memory cache and the QgsSettings-backed store together, since a partial
-        clear would just have the note reappear on the next get_global_notes() call.
-        (Ported from cartogen-ai, commit eee84eb, where this same finding was fixed
-        first -- this repo's memory.py predates that repo's self-learning system, so it
-        has no per-key delete_global_note()/pref:/rule:/usage: key scheme to reconcile;
-        this is a plain bulk clear.)"""
-        self._in_memory_global_notes = {}
-        if QGIS_AVAILABLE:
-            try:
-                settings = QgsSettings()
-                settings.setValue(GLOBAL_MEMORY_KEY, json.dumps({}))
-            except Exception as e:
-                print(f"[MemoryManager] Failed to clear global notes: {e}")
-        return {"success": True, "scope": "global"}
 
     def get_global_notes(self) -> dict:
         """Retrieves all global notes across QGIS sessions."""
