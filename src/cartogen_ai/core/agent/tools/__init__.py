@@ -28,6 +28,7 @@ from . import schema_contract_tools
 from . import pcode_validation_tools
 from . import provenance_tools
 from . import qa_checklist_tools
+from . import sensitivity_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -56,4 +57,5 @@ __all__ = [
     "pcode_validation_tools",
     "provenance_tools",
     "qa_checklist_tools",
+    "sensitivity_tools",
 ]

@@ -1052,15 +1052,52 @@ open).
     `fit_confidence` (strong/moderate/weak, tied only to R²) and
     `imagery_extraction.py`'s raw 0-1 detection-confidence score --
     isolated scalars, not a project-wide epistemic-status system.
-24. **Sensitivity/disclosure classification -- REAL GAP, and narrower
-    than assumed.** No PUBLIC/INTERNAL/RESTRICTED/SENSITIVE layer tagging
-    or pre-export gate exists anywhere. `export_layer` exports any named
-    layer unconditionally with no sensitivity check. The only related
-    tool, `obfuscate_sensitive_points`, is explicit opt-in/advisory, never
-    automatic. The one logged GDPR finding (F1, now closed in both repos
-    as of today) was about the plugin's own stored notes/preferences
-    lacking bulk erasure -- unrelated to map-layer/geodata sensitivity
-    classification.
+24. **Sensitivity/disclosure classification -- CLOSED 2026-09-05, deliberately
+    advisory, not a blocking gate.** Was a REAL GAP: no PUBLIC/INTERNAL/
+    RESTRICTED/SENSITIVE layer tagging or pre-export gate existed anywhere.
+    `export_layer` exported any named layer unconditionally with no
+    sensitivity check; the only related tool, `obfuscate_sensitive_points`,
+    was explicit opt-in, never automatic. Now: new `agent/sensitivity.py`
+    (pure logic) + `agent/tools/sensitivity_tools.py` (registered
+    `set_layer_sensitivity`/`get_layer_sensitivity`) let a layer be tagged
+    PUBLIC/INTERNAL/RESTRICTED/SENSITIVE with an optional free-text reason,
+    stored via `layer.setCustomProperty("cartogen_ai/sensitivity", ...)` --
+    the same durable-property mechanism QGIS itself uses, so it survives a
+    real project save/reload. `export_tools.py`'s shared `_write_vector`
+    helper (used by both `export_layer` and `export_to_csv`) now checks the
+    tag and adds `result["warning"]` naming the level and reason for
+    RESTRICTED/SENSITIVE layers -- explicitly worded "Advisory only: the
+    export already completed, nothing was blocked."
+
+    **Deliberately not an export-blocking gate.** An automated classifier
+    doesn't exist (there's no ML/heuristic step that infers sensitivity from
+    field names or content -- only what's explicitly set is tracked, and
+    `get_layer_sensitivity` returns `level: null` for anything untagged,
+    distinct from PUBLIC), and this system has no way to distinguish "never
+    classified" from "reviewed and cleared." Hard-blocking every unclassified
+    export on a codebase with zero existing tagged layers would brick every
+    current workflow on day one for a check nobody has populated yet. A
+    human calling `export_layer` on a beneficiary list they tagged SENSITIVE
+    themselves is not a mistake an automated block should second-guess --
+    it's advisory precisely because the tagging is manual and the person
+    doing the export already knows what they're exporting. If usage later
+    shows people tag layers and then export past the warning by habit, a
+    blocking mode is a natural follow-on -- but that's a product decision
+    for after real usage data exists, not a default to ship unasked (this is
+    the same restraint as point 3's and point 22's warn-don't-block choices).
+
+    New `tests/test_sensitivity_tools.py` (8 tests) + `TestWriteVectorSensitivityWarning`
+    added to `tests/test_export_tools.py` (3 tests) -- 11 new tests, full
+    suite 1080 tests, 0 new failures. **Live-verified against real QGIS
+    4.2.2**: built a real point layer, exported it untagged (no warning),
+    tagged it `SENSITIVE` with a real reason string, exported it again --
+    got back the real advisory warning containing both the level and the
+    exact reason text, confirmed the CSV was genuinely written to disk (not
+    blocked), then wrote the whole project to a real `.qgz`, reloaded it
+    into a fresh `QgsProject`, and confirmed the tag survived the round-trip
+    unchanged. The one logged GDPR finding (F1, closed 2026-09-05 in both
+    repos) was about the plugin's own stored notes/preferences lacking bulk
+    erasure -- unrelated to this map-layer/geodata sensitivity classification.
 25. **"Safe route" terminology -- ALREADY TRUE, already appropriately
     hedged.** `score_route_incident_risk`'s actual docstring never claims
     a route is "safe" -- it says explicitly it "does NOT re-route or

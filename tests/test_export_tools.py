@@ -6,9 +6,11 @@ timestamp) in generated reports, instead of leaving it invisible to a report's
 actual audience (often not QGIS users, e.g. a fund-allocation committee)."""
 import os
 import unittest
+from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.export_tools import (
     generate_report, generate_spatial_report, _layer_provenance_entries, _format_lineage_entry,
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
+    _write_vector, export_layer, export_to_csv,
 )
 
 
@@ -324,6 +326,56 @@ class TestGenerateHtmlDashboardConnectivityNote(unittest.TestCase):
         self.assertTrue(res.get("success"), res)
         self.assertIn("connectivity_note", res)
         self.assertIn("internet access", res["connectivity_note"])
+
+
+class TestWriteVectorSensitivityWarning(unittest.TestCase):
+    """Point 24 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+    _write_vector (the shared helper behind export_layer/export_to_csv) now
+    adds an advisory warning -- never blocks -- when the layer being
+    exported is tagged RESTRICTED/SENSITIVE via set_layer_sensitivity."""
+
+    def _run_write_vector(self, layer):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+
+        fake_writer = MagicMock()
+        fake_writer.SaveVectorOptions.return_value = MagicMock()
+
+        with patch.object(export_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(export_tools_mod, "QgsVectorFileWriter", fake_writer, create=True), \
+             patch.object(export_tools_mod, "QgsCoordinateTransformContext", MagicMock(), create=True), \
+             patch.object(export_tools_mod, "_VFW_NO_ERROR", 0):
+            fake_writer.writeAsVectorFormatV2.return_value = (0, "")
+            return _write_vector(layer, "/tmp/out.gpkg", "GPKG")
+
+    def test_sensitive_layer_gets_a_warning_but_still_succeeds(self):
+        layer = MagicMock()
+        layer.customProperty.return_value = '{"level": "SENSITIVE", "reason": "beneficiary GPS"}'
+
+        res = self._run_write_vector(layer)
+
+        self.assertTrue(res["success"])
+        self.assertIn("output_path", res)
+        self.assertIn("warning", res)
+        self.assertIn("SENSITIVE", res["warning"])
+        self.assertIn("beneficiary GPS", res["warning"])
+
+    def test_untagged_layer_gets_no_warning(self):
+        layer = MagicMock()
+        layer.customProperty.return_value = ""
+
+        res = self._run_write_vector(layer)
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("warning", res)
+
+    def test_public_tagged_layer_gets_no_warning(self):
+        layer = MagicMock()
+        layer.customProperty.return_value = '{"level": "PUBLIC", "reason": null}'
+
+        res = self._run_write_vector(layer)
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("warning", res)
 
 
 if __name__ == "__main__":

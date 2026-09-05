@@ -8,6 +8,7 @@ import json
 import tempfile
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum
+from .. import sensitivity as _sens
 
 try:
     from qgis.core import (
@@ -54,7 +55,14 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
         )
         if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
-        return {"success": True, "output_path": output_path}
+        result = {"success": True, "output_path": output_path}
+        # Point 24 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+        # advisory only, never blocks -- see agent/sensitivity.py's own
+        # docstring for why a hard export-blocking gate isn't built here.
+        warning = _sens.export_warning_for(layer)
+        if warning:
+            result["warning"] = warning
+        return result
     except Exception as e:
         return {"error": f"_write_vector failed: {e}"}
 
