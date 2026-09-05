@@ -9,7 +9,7 @@ delegation tests patch QGIS_AVAILABLE True and QgsProject, following the
 same convention used throughout tests/test_layout_tools.py,
 tests/test_raster_tools.py, etc."""
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from cartogen_ai.core.agent.tools.dataset_status_tools import (
     get_dataset_status,

@@ -35,8 +35,6 @@ except ImportError:
             BlockingQueuedConnection = 1
 
         BlockingQueuedConnection = 1
-        class ConnectionType:
-            BlockingQueuedConnection = 1
     class QThread:
         @staticmethod
         def currentThread():

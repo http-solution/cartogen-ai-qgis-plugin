@@ -8,8 +8,17 @@ from qgis.core import QgsSettings
 
 from ..agent.account import CartogenAccountClient, DEFAULT_ACCOUNT_BASE_URL
 from ..agent.auth import CredentialManager
+from ..agent.qgis_compat import enum_member
 
 ACCOUNT_URL_KEY = "cartogen_ai/account_base_url"
+
+# QGIS 4.x/Qt6 requires these reached through their enum type
+# (QLineEdit.EchoMode.Password, QDialogButtonBox.StandardButton.Close);
+# QGIS 3.x/Qt5 exposes them flat. Resolved once here via the same
+# enum_member() helper the rest of the codebase uses for this, rather than
+# hardcoding one form -- see agent/qgis_compat.py.
+_ECHO_PASSWORD = enum_member("Password", QLineEdit)
+_BUTTONBOX_CLOSE = enum_member("Close", QDialogButtonBox)
 
 
 class CartogenAccountDialog(QDialog):
@@ -41,11 +50,11 @@ class CartogenAccountDialog(QDialog):
         self.email_edit.setPlaceholderText("name@example.org")
         form.addRow("Email:", self.email_edit)
         self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setEchoMode(_ECHO_PASSWORD)
         self.password_edit.setPlaceholderText("At least 12 characters")
         form.addRow("Password:", self.password_edit)
         self.application_key_edit = QLineEdit(CredentialManager.get_credential("cartogen"))
-        self.application_key_edit.setEchoMode(QLineEdit.Password)
+        self.application_key_edit.setEchoMode(_ECHO_PASSWORD)
         self.application_key_edit.setPlaceholderText("Assigned cg_live_… key")
         form.addRow("Cartogen AI API key:", self.application_key_edit)
         self.first_name_edit = QLineEdit()
@@ -73,7 +82,7 @@ class CartogenAccountDialog(QDialog):
         actions.addWidget(self.signout_button)
         layout.addLayout(actions)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons = QDialogButtonBox(_BUTTONBOX_CLOSE)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 

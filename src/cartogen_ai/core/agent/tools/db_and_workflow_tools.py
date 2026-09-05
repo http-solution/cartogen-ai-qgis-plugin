@@ -4,8 +4,6 @@ PostGIS Database Integration and Workflow Persistence Tools for Cartogen AI.
 Enforces read-only DB role execution guards for SQL queries and provides workflow saving/loading.
 """
 
-import json
-import os
 import re
 from .registry import register_tool
 

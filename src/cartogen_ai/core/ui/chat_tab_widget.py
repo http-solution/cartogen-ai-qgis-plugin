@@ -17,7 +17,7 @@ import os
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
-    QPushButton, QTextEdit, QGroupBox, QApplication,
+    QPushButton, QTextEdit, QGroupBox,
 )
 
 from .chat_formatting import (

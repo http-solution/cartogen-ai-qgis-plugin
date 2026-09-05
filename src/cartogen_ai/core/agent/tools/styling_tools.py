@@ -4,12 +4,13 @@ Layer Cartography & Styling Tools for Cartogen AI.
 """
 
 from .registry import register_tool
+from ._qgis_enum_compat import resolve_qgis_enum
 
 try:
     from qgis.core import (
         QgsProject, QgsCategorizedSymbolRenderer, QgsRendererCategory,
         QgsGraduatedSymbolRenderer, QgsRendererRange, QgsSymbol,
-        QgsStyle, QgsColorRampLegendNode, QgsHeatmapRenderer,
+        QgsStyle, QgsHeatmapRenderer,
         QgsSingleSymbolRenderer, QgsWkbTypes, QgsMapLayer, QgsRasterLayer,
         QgsGradientColorRamp,
     )
@@ -118,12 +119,16 @@ def _classify_values(values, mode="auto"):
 def _resolve_classification_method(method_name):
     """Maps _classify_values' QGIS-independent method name to the real
     QgsGraduatedSymbolRenderer enum -- kept separate so _classify_values
-    itself never needs QGIS to be importable."""
+    itself never needs QGIS to be importable. Resolves both the QGIS 4.x/Qt6
+    scoped form (QgsGraduatedSymbolRenderer.Mode.Jenks) and the QGIS 3.x/Qt5
+    flat form (QgsGraduatedSymbolRenderer.Jenks) via resolve_qgis_enum,
+    rather than assuming one -- see _qgis_enum_compat.py."""
+    jenks = resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Jenks")
     return {
-        "jenks": QgsGraduatedSymbolRenderer.Jenks,
-        "equal_interval": QgsGraduatedSymbolRenderer.EqualInterval,
-        "quantile": QgsGraduatedSymbolRenderer.Quantile,
-    }.get(method_name, QgsGraduatedSymbolRenderer.Jenks)
+        "jenks": jenks,
+        "equal_interval": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "EqualInterval"),
+        "quantile": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Quantile"),
+    }.get(method_name, jenks)
 
 
 # Lower value = drawn on top. Points and lines are small features that a

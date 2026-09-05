@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 from .registry import register_tool
+from ._qgis_enum_compat import resolve_qgis_enum
 
 try:
     from qgis.core import (
@@ -16,8 +17,19 @@ try:
     )
     import processing
     QGIS_AVAILABLE = True
+    # QGIS 4.x/Qt6 nests these under a named sub-enum; QGIS 3.x/Qt5 exposes
+    # them flat on the class itself. Resolved once here rather than assuming
+    # one form -- see _qgis_enum_compat.py.
+    _RBS_MIN = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Min")
+    _RBS_MAX = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Max")
+    _STRETCH_MINMAX = resolve_qgis_enum(QgsContrastEnhancement, "ContrastEnhancementAlgorithm", "StretchToMinimumMaximum")
+    _RAMP_INTERPOLATED = resolve_qgis_enum(QgsColorRampShader, "Type", "Interpolated")
 except ImportError:
     QGIS_AVAILABLE = False
+    _RBS_MIN = None
+    _RBS_MAX = None
+    _STRETCH_MINMAX = None
+    _RAMP_INTERPOLATED = None
 
 
 def _find_layer_by_name(name):
@@ -883,7 +895,7 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
         provider = layer.dataProvider()
         computed_min = computed_max = None
         if min_value is None or max_value is None:
-            stats = provider.bandStatistics(band, QgsRasterBandStats.Min | QgsRasterBandStats.Max)
+            stats = provider.bandStatistics(band, _RBS_MIN | _RBS_MAX)
             computed_min, computed_max = stats.minimumValue, stats.maximumValue
         resolved_min = min_value if min_value is not None else computed_min
         resolved_max = max_value if max_value is not None else computed_max
@@ -906,7 +918,7 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
             enhancement = QgsContrastEnhancement(provider.dataType(band))
             enhancement.setMinimumValue(resolved_min)
             enhancement.setMaximumValue(resolved_max)
-            enhancement.setContrastEnhancementAlgorithm(QgsContrastEnhancement.StretchToMinimumMaximum)
+            enhancement.setContrastEnhancementAlgorithm(_STRETCH_MINMAX)
             renderer.setContrastEnhancement(enhancement)
             layer.setRenderer(renderer)
         else:
@@ -916,7 +928,7 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
                 return {"error": f"'{ramp_name}' is not a known QGIS color ramp name."}
 
             shader = QgsColorRampShader(resolved_min, resolved_max)
-            shader.setColorRampType(QgsColorRampShader.Interpolated)
+            shader.setColorRampType(_RAMP_INTERPOLATED)
             n_steps = 10
             items = []
             for i in range(n_steps + 1):

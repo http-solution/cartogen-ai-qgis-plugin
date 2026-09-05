@@ -12,7 +12,6 @@ import urllib.parse
 from .registry import register_tool
 
 try:
-    from qgis.core import QgsProject, QgsRasterLayer
     from qgis.utils import iface
     QGIS_AVAILABLE = True
 except ImportError:

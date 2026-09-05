@@ -3,9 +3,9 @@ import unittest
 from unittest.mock import patch, MagicMock
 import cartogen_ai.core.agent.agent as agent_mod
 from cartogen_ai.core.agent.agent import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
-from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, save_workflow_preset, _enforce_db_read_only
+from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, _enforce_db_read_only
 from cartogen_ai.core.agent.tools.vector_tools import (
-    diagnose_topology, verify_crs_compatibility, spatial_join, remove_layer, field_calculator,
+    spatial_join, remove_layer, field_calculator,
     calculate_area, calculate_length,
     _prefetch_url_to_temp, join_by_attribute, _is_safe_url, load_tabular_data_as_layer,
     _detect_geometry_fields, _sniff_csv_header, _sniff_excel_header, _validate_wgs84_coordinates,
@@ -620,7 +620,6 @@ class TestNewTools(unittest.TestCase):
         # the one that was checked. A real local server + a real redirect
         # response is used here specifically because a mock of urlopen()
         # can't demonstrate whether the redirect hop itself gets re-checked.
-        import os
         import threading
         from http.server import BaseHTTPRequestHandler, HTTPServer
         import cartogen_ai.core.agent.tools.vector_tools as vt
@@ -665,7 +664,6 @@ class TestNewTools(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_prefetch_url_to_temp_enforces_size_cap_and_cleans_up(self):
-        import os
         import threading
         from http.server import BaseHTTPRequestHandler, HTTPServer
         import cartogen_ai.core.agent.tools.vector_tools as vt

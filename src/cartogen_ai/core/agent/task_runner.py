@@ -5,12 +5,18 @@ Executes non-blocking background LLM requests while keeping the QGIS GUI fully r
 """
 
 import traceback
+from .tools._qgis_enum_compat import resolve_qgis_enum
 
 try:
     from qgis.core import QgsTask, QgsApplication
     QGIS_TASK_AVAILABLE = True
+    # QGIS 4.x/Qt6 scopes this under QgsTask.Flag.CanCancel; QGIS 3.x/Qt5
+    # exposes it flat. Resolved once here rather than assuming one form --
+    # see tools/_qgis_enum_compat.py.
+    _TASK_CAN_CANCEL = resolve_qgis_enum(QgsTask, "Flag", "CanCancel")
 except ImportError:
     QGIS_TASK_AVAILABLE = False
+    _TASK_CAN_CANCEL = None
     class QgsTask:
         pass
 
@@ -20,7 +26,7 @@ class AgentQgsTask(QgsTask):
 
     def __init__(self, description: str, agent, user_text: str, on_complete=None, on_status=None, map_context=None, on_tool_step=None):
         if QGIS_TASK_AVAILABLE:
-            super().__init__(description, QgsTask.CanCancel)
+            super().__init__(description, _TASK_CAN_CANCEL)
         self.agent = agent
         self.user_text = user_text
         self.on_complete = on_complete

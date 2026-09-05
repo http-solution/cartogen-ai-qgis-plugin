@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _rank_hub_candidates, optimal_hub_siting, calculate_service_area, travel_time_matrix,
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
-    score_route_incident_risk,
+    score_route_incident_risk, _build_road_snapped_route,
 )
 
 
@@ -376,6 +376,132 @@ class TestOptimizeDeliveryRouteValidation(unittest.TestCase):
 
         self.assertIn("error", res)
         self.assertIn("nonexistent", res["error"])
+
+
+def _stop_layer(names):
+    """Builds a MagicMock point layer with `names` as its first-field values,
+    at distinct integer coordinates 0,1,2... along the x-axis, matching the
+    feat.geometry()/attribute(0) shape optimize_delivery_route reads."""
+    layer = MagicMock()
+    feats = []
+    for i, name in enumerate(names):
+        feat = MagicMock()
+        geom = MagicMock()
+        geom.isEmpty.return_value = False
+        geom.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+        # distance() is called pairwise for every (i, j); a simple constant
+        # keeps the TSP heuristic deterministic without needing real geometry.
+        geom.distance.side_effect = lambda other, i=i: abs(i - names.index(names[0]))
+        feat.geometry.return_value = geom
+        feat.fields.return_value.count.return_value = 1
+        feat.attribute.return_value = name
+        feats.append(feat)
+    layer.getFeatures.return_value = feats
+    return layer
+
+
+class TestOptimizeDeliveryRouteRoadSnapping(unittest.TestCase):
+    """Covers the 2026-09-04 road-snapped-route upgrade: optimize_delivery_route
+    now accepts an optional road_network_layer and, when given, builds a real
+    routable line via native:shortestpathpointtopoint instead of leaving the
+    output as a straight-line stop order (docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md
+    Section IV)."""
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_without_road_network_returns_straight_line_warning(self, mock_find):
+        mock_find.return_value = _stop_layer(["a", "b", "c"])
+
+        res = optimize_delivery_route("stops")
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("route_layer", res)
+        self.assertIn("warning", res)
+        self.assertIn("straight-line", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_unknown_road_network_layer_reports_missing(self, mock_find):
+        def side_effect(name):
+            return _stop_layer(["a", "b"]) if name == "stops" else None
+        mock_find.side_effect = side_effect
+
+        res = optimize_delivery_route("stops", road_network_layer="ghost_roads")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_roads", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_with_road_network_builds_and_registers_route_layer(self, mock_find, mock_processing, mock_project):
+        def side_effect(name):
+            return {"stops": _stop_layer(["a", "b", "c"]), "roads": MagicMock()}.get(name)
+        mock_find.side_effect = side_effect
+
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        res = optimize_delivery_route("stops", road_network_layer="roads")
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("warning", res)
+        self.assertEqual(res.get("route_layer"), "stops_road_route")
+        self.assertTrue(res.get("road_snapped"))
+        # Two segments (3 stops -> 2 legs) get merged into one output layer.
+        mock_processing.run.assert_any_call("native:mergevectorlayers", unittest.mock.ANY)
+        mock_project.instance.return_value.addMapLayer.assert_called()
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_road_network_present_but_no_segment_buildable_falls_back_with_warning(self, mock_find, mock_processing, mock_project):
+        def side_effect(name):
+            return {"stops": _stop_layer(["a", "b"]), "roads": MagicMock()}.get(name)
+        mock_find.side_effect = side_effect
+        mock_processing.run.side_effect = Exception("network too far from points")
+
+        res = optimize_delivery_route("stops", road_network_layer="roads")
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("route_layer", res)
+        self.assertIn("warning", res)
+        self.assertIn("Could not build", res["warning"])
+
+
+class TestBuildRoadSnappedRoute(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_single_leg_skips_merge_step(self, mock_processing, mock_project):
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        name = _build_road_snapped_route("stops", MagicMock(), geoms, [0, 1])
+
+        self.assertEqual(name, "stops_road_route")
+        mock_processing.run.assert_called_once()  # only the point-to-point call, no merge
+        segment.setName.assert_called_once_with("stops_road_route")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_returns_none_when_every_segment_fails(self, mock_processing):
+        mock_processing.run.side_effect = Exception("boom")
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        name = _build_road_snapped_route("stops", MagicMock(), geoms, [0, 1])
+
+        self.assertIsNone(name)
 
 
 class TestScoreRouteIncidentRiskDegradesOutsideQgis(unittest.TestCase):
