@@ -331,15 +331,135 @@ def _find_layout_by_name(name):
 
 
 @register_tool(
+    "export_layout_atlas",
+    "Exports one file PER FEATURE of a coverage layer from an existing print layout -- e.g. one "
+    "PDF per district, one PNG per health facility catchment -- using QgsLayoutAtlas. This is the "
+    "full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md; "
+    "list_layout_items/update_layout_item_text (the other half) address items within ONE layout, "
+    "this generates MANY layouts (one per feature). Only works on a layout built by "
+    "create_print_layout, since it re-points that layout's MAP_MAIN item to follow the atlas -- "
+    "there is no addressable map item on a hand-built layout to atlas-drive. Each output file is "
+    "named from filename_field's value on that feature (e.g. a district-name field), sanitized for "
+    "use as a filename; a non-unique or empty field value across features will silently overwrite "
+    "an earlier output with the same name, so pick a field that's actually unique per feature "
+    "(a P-code, not a display name that repeats).",
+    {
+        "type": "object",
+        "properties": {
+            "layout_name": {"type": "string", "description": "An existing layout built by create_print_layout."},
+            "coverage_layer_name": {"type": "string", "description": "The layer whose features drive one output page each, e.g. an admin-boundary layer."},
+            "output_directory": {"type": "string", "description": "Directory to write the per-feature files into. Created if it doesn't exist."},
+            "filename_field": {"type": "string", "description": "Field on coverage_layer_name whose value names each output file. Should be unique per feature."},
+            "output_format": {"type": "string", "description": "'pdf' (default), 'png', 'jpg', or 'jpeg'."},
+            "dpi": {"type": "integer", "description": "Export resolution in DPI. Defaults to 300 (print quality)."},
+        },
+        "required": ["layout_name", "coverage_layer_name", "output_directory", "filename_field"],
+    },
+)
+def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_directory: str,
+                         filename_field: str, output_format: str = "pdf", dpi: int = 300):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+
+    layout = _find_layout_by_name(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found"}
+
+    coverage_layer = _find_layer_by_name(coverage_layer_name)
+    if coverage_layer is None:
+        return {"error": f"Layer '{coverage_layer_name}' not found"}
+
+    if coverage_layer.fields().indexOf(filename_field) == -1:
+        available = [f.name() for f in coverage_layer.fields()]
+        return {"error": f"Field '{filename_field}' not found on '{coverage_layer_name}'. Available fields: {available}"}
+
+    # Requires the MAP_MAIN id create_print_layout always assigns -- a
+    # hand-built layout (via execute_pyqgis_script, which this tool's own
+    # description on create_print_layout already discourages) has no
+    # equivalent addressable map item to atlas-drive.
+    map_item = layout.itemById("MAP_MAIN")
+    if map_item is None or not hasattr(map_item, "setAtlasDriven"):
+        return {"error": f"Layout '{layout_name}' has no MAP_MAIN map item -- only layouts built by create_print_layout can be atlas-exported."}
+
+    output_format = output_format.lower().lstrip(".")
+    if output_format not in ("pdf", "png", "jpg", "jpeg"):
+        return {"error": f"Unsupported output_format '{output_format}' -- use pdf, png, jpg, or jpeg."}
+
+    try:
+        os.makedirs(output_directory, exist_ok=True)
+    except OSError as e:
+        return {"error": f"Could not create output_directory '{output_directory}': {e}"}
+
+    try:
+        atlas = layout.atlas()
+        atlas.setCoverageLayer(coverage_layer)
+        atlas.setEnabled(True)
+        # QgsExpression field-reference syntax -- a bare field name in
+        # double quotes -- not a Python f-string escape; matches the same
+        # quoting every other tool in this codebase uses when it builds an
+        # expression string from a caller-supplied field name (see
+        # buffer_analysis, calculate_area).
+        expr_ok, expr_err = atlas.setFilenameExpression(f'"{filename_field}"')
+        if not expr_ok:
+            return {"error": f"Invalid filename expression for field '{filename_field}': {expr_err}"}
+        map_item.setAtlasDriven(True)
+
+        if output_format == "pdf":
+            settings = QgsLayoutExporter.PdfExportSettings()
+        else:
+            settings = QgsLayoutExporter.ImageExportSettings()
+        settings.dpi = dpi
+
+        # No QgsLayoutExporter overload accepts (atlas, imageSettings) --
+        # confirmed live, raises TypeError. exportToPdfs(atlas, ...) exists
+        # but only for PDF. Manual atlas.first()/.next() iteration plus the
+        # ordinary per-page exportToPdf/exportToImage overload works for
+        # BOTH formats identically, confirmed live -- used uniformly here
+        # rather than branching between a static atlas-aware call for PDF
+        # and a manual loop only for images.
+        output_files = []
+        atlas.beginRender()
+        try:
+            has_feature = atlas.first()
+            if not has_feature and atlas.count() == 0:
+                return {"error": f"Coverage layer '{coverage_layer_name}' has no features -- nothing to export."}
+            while has_feature:
+                raw_name = atlas.currentFilename() or f"page_{len(output_files) + 1}"
+                safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in raw_name).strip() or f"page_{len(output_files) + 1}"
+                out_path = os.path.join(output_directory, f"{safe_name}.{output_format}")
+                exporter = QgsLayoutExporter(layout)
+                if output_format == "pdf":
+                    result = exporter.exportToPdf(out_path, settings)
+                else:
+                    result = exporter.exportToImage(out_path, settings)
+                if result != QgsLayoutExporter.Success:
+                    return {"error": f"Atlas export failed on feature '{raw_name}' (QgsLayoutExporter result code {result})."}
+                output_files.append(out_path)
+                has_feature = atlas.next()
+        finally:
+            atlas.endRender()
+
+        return {
+            "success": True,
+            "layout_name": layout_name,
+            "coverage_layer_name": coverage_layer_name,
+            "feature_count": len(output_files),
+            "output_directory": output_directory,
+            "output_files": output_files,
+        }
+    except Exception as e:
+        return {"error": f"export_layout_atlas failed: {e}"}
+
+
+@register_tool(
     "list_layout_items",
     "Lists the addressable items in a print layout -- id, type, and current text (for text "
     "items) -- so the agent can check what's actually in a layout before editing it with "
     "update_layout_item_text, instead of guessing. create_print_layout gives every item it "
     "builds a stable id (MAP_MAIN, TITLE, LEGEND, SCALEBAR, NORTH_ARROW, BODY_TEXT, FOOTER -- "
     "NORTH_ARROW/BODY_TEXT only appear when that item was actually built). Point 15 of "
-    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability, the "
-    "concrete gap that point named -- full QgsLayoutAtlas per-feature pagination is a separate, "
-    "not-yet-implemented capability).",
+    "docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability -- full "
+    "QgsLayoutAtlas per-feature pagination is a separate capability, export_layout_atlas).",
     {
         "type": "object",
         "properties": {"layout_name": {"type": "string"}},
