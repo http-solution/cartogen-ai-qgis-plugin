@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (141 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (143 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -804,6 +804,24 @@ Compute a kernel density estimation surface from a point layer -- a real statist
 | `radius` | number | yes | Kernel search radius in the layer's map units. Larger = smoother, less localized. |
 | `pixel_size` | number | no | Output raster cell size in map units. Defaults to radius/10. |
 | `weight_field` | string | no | Optional numeric field to weight points by (e.g. severity) instead of treating every point equally. |
+
+### `load_layer_style`
+
+Loads a previously saved .qml style file (from save_layer_style, or exported manually via QGIS's own Layer Properties -> Symbology -> Style -> Save Style) onto a layer, replacing its current symbology -- for reusing a standard humanitarian color scheme/classification across layers or maps instead of rebuilding it from scratch each time.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `style_path` | string | yes | Path to the .qml style file to load. |
+
+### `save_layer_style`
+
+Saves a layer's current symbology (renderer, colors, classification, labeling) to a real .qml style file on disk, so it can be reapplied later to this or another layer with load_layer_style -- for reusing a standard color scheme/classification across multiple layers or maps instead of rebuilding it with apply_categorized_style/apply_graduated_style every time. Without output_path, the file is saved beside the layer's own on-disk source (as '<source>.qml'); for a scratch/memory layer with no real source, it falls back to Desktop instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `output_path` | string | no | Optional explicit .qml file path. Defaults to beside the layer's own source file. |
 
 ### `set_layer_order`
 
