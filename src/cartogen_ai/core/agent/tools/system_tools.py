@@ -66,6 +66,50 @@ _BLOCKED_MODULES = {
     # QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md point 19 for the full
     # discussion of whether a denylist is the right long-term boundary at all.
     "pathlib", "dbm", "logging", "zipfile",
+    # Added 2026-09-05, a systematic sweep of this exact same gap shape (a
+    # capability-bearing stdlib module this list hadn't happened to name
+    # yet), each confirmed by actually running it through this file's real
+    # _validate_script_safety + _SAFE_BUILTINS exec() path, not assumed:
+    #   - `io.open` is the SAME function as the builtin `open` -- literally
+    #     `import io; io.open is open` is True -- but reached via attribute
+    #     access (`io.open(...)`) rather than the bare name `open`, so it
+    #     wrote a real file to disk completely unblocked by _BLOCKED_CALLS'
+    #     bare-name check on 'open'.
+    #   - `tarfile.open(path, "w").addfile(...)`, `gzip.open(path, "wb")`,
+    #     `bz2.open(...)`, `lzma.open(...)` all wrote real archive/compressed
+    #     files to disk -- the exact same "arbitrary file write via an
+    #     archive-writer object" shape as the already-blocked `zipfile`,
+    #     just under different module names.
+    #   - `winreg.CreateKey`/`SetValueEx` wrote a real Windows registry key
+    #     -- persistent system-state modification with no filesystem
+    #     footprint at all, a capability class this list hadn't covered.
+    #   - `linecache.getline(path, n)` read a real line from a real file
+    #     (`C:\Windows\win.ini` in the live test) with no `open` name
+    #     involved -- confirms arbitrary file READ is exploitable through
+    #     the same blind spot as the already-covered file WRITE gaps;
+    #     `filecmp` grants the same class of file-content read/compare.
+    #   - `socketserver`, `poplib`, `imaplib`, `nntplib`, `xmlrpc` are real
+    #     network-protocol-client/server modules, the same category already
+    #     blocked via `ftplib`/`smtplib`/`http`/`urllib`/`requests`, just
+    #     not individually enumerated before.
+    #   - `webbrowser`/`pydoc` can launch an external program (a browser, or
+    #     a pager subprocess via `pydoc.pipepager`) -- the same "launch an
+    #     arbitrary local program" risk already documented for
+    #     `QDesktopServices` below, under stdlib names instead of a Qt one.
+    #   - `zipimport` loads and executes code from a zip file -- the same
+    #     dynamic-code-loading risk already blocked via `importlib`/`runpy`.
+    #   - `venv`/`mmap` have no legitimate use in a PyQGIS spatial script
+    #     (environment creation; raw memory-mapped file access) and sit in
+    #     the same risk family as the rest of this list -- blocked for the
+    #     same defense-in-depth reason as the Qt classes below, even without
+    #     a standalone live repro for each individually.
+    # As before: this closes what was actually found this sweep, not a claim
+    # of completeness -- see point 19's review-doc entry for the standing
+    # denylist-vs-allowlist architecture question this doesn't resolve.
+    "io", "tarfile", "gzip", "bz2", "lzma", "winreg",
+    "linecache", "filecmp",
+    "socketserver", "poplib", "imaplib", "nntplib", "xmlrpc",
+    "webbrowser", "pydoc", "zipimport", "venv", "mmap",
 }
 # Names that must never be *reachable* at all -- not just called. Blocking
 # only direct calls (`eval(...)`) misses `x = eval; x(...)`, so every Name/

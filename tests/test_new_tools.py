@@ -398,6 +398,44 @@ class TestNewTools(unittest.TestCase):
         for snippet in snippets:
             self.assertIsNotNone(_validate_script_safety(snippet), snippet)
 
+    def test_script_safety_blocks_second_wave_of_filesystem_registry_and_network_modules(self):
+        """Live-confirmed 2026-09-05 (a systematic sweep of the exact same gap shape
+        the pathlib/dbm/logging/zipfile fix above closed, per point 19's "not a claim
+        of completeness" note): each of these executed successfully -- a real file
+        write, a real Windows registry key write, or a real file read -- against the
+        actual _SAFE_BUILTINS-restricted exec() path before this fix, reproduced with
+        a harness that calls this module's own _validate_script_safety + exec()
+        exactly as execute_pyqgis_script does. `io.open` is literally the same
+        function object as the builtin `open` (`io.open is open` is True) but reached
+        via attribute access, invisible to the bare-name check on 'open'.
+        socketserver/poplib/imaplib/nntplib/xmlrpc are the same network-protocol-
+        client category already blocked via ftplib/smtplib; webbrowser/pydoc can
+        launch an external program the same way the already-blocked QDesktopServices
+        can; zipimport loads code from a zip file the same way importlib/runpy can.
+        See the comment above _BLOCKED_MODULES for the full per-module writeup."""
+        snippets = [
+            "import io\ndef run():\n    io.open('x', 'w').write('y')",
+            "import tarfile, io as _io\ndef run():\n    tarfile.open('x', 'w')",
+            "import gzip\ndef run():\n    gzip.open('x', 'wb')",
+            "import bz2\ndef run():\n    bz2.open('x', 'wb')",
+            "import lzma\ndef run():\n    lzma.open('x', 'wb')",
+            "import winreg\ndef run():\n    winreg.CreateKey(winreg.HKEY_CURRENT_USER, 'x')",
+            "import linecache\ndef run():\n    return linecache.getline('C:\\\\Windows\\\\win.ini', 1)",
+            "import filecmp\ndef run():\n    return filecmp.cmp('a', 'b')",
+            "import socketserver\ndef run():\n    pass",
+            "import poplib\ndef run():\n    pass",
+            "import imaplib\ndef run():\n    pass",
+            "import nntplib\ndef run():\n    pass",
+            "import xmlrpc.client\ndef run():\n    pass",
+            "import webbrowser\ndef run():\n    pass",
+            "import pydoc\ndef run():\n    pass",
+            "import zipimport\ndef run():\n    pass",
+            "import venv\ndef run():\n    pass",
+            "import mmap\ndef run():\n    pass",
+        ]
+        for snippet in snippets:
+            self.assertIsNotNone(_validate_script_safety(snippet), snippet)
+
     def test_script_safety_blocks_aliased_eval(self):
         # x = eval; x(...) doesn't call eval directly -- must still be caught
         # since the AST check now flags any Name/Attribute reference, not
