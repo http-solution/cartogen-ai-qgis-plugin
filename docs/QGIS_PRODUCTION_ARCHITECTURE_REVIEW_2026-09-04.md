@@ -800,10 +800,28 @@ open).
     per call with no `.setId()` calls on any item -- no stable
     MAP_MAIN/TITLE/LEGEND-style identifiers exist for the agent to
     address individually.
-16. **Map Themes (`QgsMapThemeCollection`) -- REAL GAP.** Zero references
-    anywhere (checked separately from the unrelated UI dark/light "theme"
-    code in `ui/theme.py`, which is not this). No layer-visibility-preset
-    mechanism exists for multi-product output from one project.
+16. **Map Themes (`QgsMapThemeCollection`) -- CLOSED 2026-09-05.** Was a
+    REAL GAP: zero references anywhere (checked separately from the
+    unrelated UI dark/light "theme" code in `ui/theme.py`, which is not
+    this); no layer-visibility-preset mechanism existed for multi-product
+    output from one project. Now: three new registered tools in
+    `agent/tools/project_tools.py` -- `create_map_theme` (saves current
+    layer visibility/style as a named theme via
+    `QgsMapThemeCollection.createThemeFromCurrentState`), `apply_map_theme`
+    (restores one via `.applyTheme`), and `list_map_themes`. **A real bug
+    was found and avoided before it shipped**, not just tested around: the
+    real QGIS API for both `createThemeFromCurrentState`/`applyTheme`
+    types their `model` parameter as `QgsLayerTreeModel|None`, but passing
+    `None` **segfaults the process outright** on a real QGIS 4.2.2 install
+    -- a hard exit, not a catchable Python exception, confirmed via direct
+    reproduction in a live headless PyQGIS session before any tool code
+    was written. Fixed by always constructing a real `QgsLayerTreeModel`
+    (`_new_layer_tree_model` helper) rather than passing `None`, with a
+    comment explaining why. 12 new tests. **Live-verified**: created two
+    themes with different real layer-visibility states, applied one, and
+    confirmed the target layer's real visibility flag flipped correctly;
+    confirmed the missing-theme error path too. Full suite 1049 tests,
+    same known baseline, 0 new failures.
 17. **Deterministic provenance sidecar -- CLOSED 2026-09-04.** Was a REAL
     GAP: no JSON provenance/processing-log writer existed. The closest
     thing, `export_tools.py`'s `_layer_provenance_entries`, only ever

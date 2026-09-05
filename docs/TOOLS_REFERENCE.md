@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (143 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (146 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -426,6 +426,28 @@ List the print layouts already in the current QGIS project by name -- lets the a
 _No parameters._
 
 ## Project Management
+
+### `apply_map_theme`
+
+Restores a previously saved map theme (layer visibility and style), created with create_map_theme -- switches the project's current view between different named map product states.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `theme_name` | string | yes |  |
+
+### `create_map_theme`
+
+Saves the current layer visibility/style state as a named map theme, so it can be restored later with apply_map_theme -- for producing several different map products (e.g. 'overview', 'health facilities only', 'roads and admin boundaries') from one project without manually toggling layer visibility every time. Point 16 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `theme_name` | string | yes | Name for the saved theme. |
+
+### `list_map_themes`
+
+Lists the names of every map theme saved in the current project via create_map_theme.
+
+_No parameters._
 
 ### `load_project`
 
