@@ -11,6 +11,7 @@ import math
 import urllib.request
 import urllib.parse
 import urllib.error
+from datetime import date
 from .registry import register_tool
 from ._cache_utils import TTLCache
 from ._qgis_enum_compat import resolve_qgis_enum
@@ -978,6 +979,28 @@ def _validate_incident_coding(event_type=None, sub_event_type=None, hazard_type=
     return warnings
 
 
+def _validate_incident_temporal(event_start=None, event_end=None):
+    """Point 7 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: add_incident_point/
+    add_point_layer previously captured one freeform `date` string with no way to express a
+    duration (an incident lasting days, a hazard active over a period) or record when the data
+    was last confirmed. event_start/event_end/last_verified are additive fields alongside the
+    existing `date`, not a replacement -- `date` stays freeform for whatever single-date sources
+    already use. Only checks ordering when both are given AND both parse as ISO 8601 (YYYY-MM-DD
+    or longer) -- these fields stay freeform strings like `date` already is, so an unparsable
+    value (a source's own date format) is silently skipped, not rejected; this is advisory
+    warning, same restraint as _validate_incident_coding above, never a hard error."""
+    warnings = []
+    if event_start and event_end:
+        try:
+            start = date.fromisoformat(str(event_start)[:10])
+            end = date.fromisoformat(str(event_end)[:10])
+        except ValueError:
+            return warnings
+        if end < start:
+            warnings.append(f"event_end ({event_end}) is before event_start ({event_start})")
+    return warnings
+
+
 def _style_incident_layer(layer):
     """Hardcoded professional cartography: red point marker, white-background/
     red-text label. Keeping this fixed in plugin code (rather than letting the
@@ -1017,7 +1040,11 @@ def _style_incident_layer(layer):
     "looking identical. For conflict/security incidents, also set event_type (+ sub_event_type) using "
     "ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard incidents, "
     "set hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and "
-    "validated -- an unrecognized value comes back as a warning, not a rejected point.",
+    "validated -- an unrecognized value comes back as a warning, not a rejected point. If the incident spans "
+    "a period rather than one instant (e.g. a hazard active over days, a multi-day event), also set "
+    "event_start/event_end alongside the existing date field -- additive, not a replacement, so date stays "
+    "freeform for single-date sources. last_verified records when the data was last confirmed, separate "
+    "from when the incident itself occurred.",
     {
         "type": "object",
         "properties": {
@@ -1030,6 +1057,9 @@ def _style_incident_layer(layer):
             "sub_event_type": {"type": "string", "description": "Optional ACLED-style sub-event type, valid within the chosen event_type."},
             "hazard_type": {"type": "string", "description": f"Optional IMSMA/IMAS-style explosive-hazard type: one of {IMSMA_HAZARD_TYPES}."},
             "contamination_status": {"type": "string", "description": f"Optional IMSMA/IMAS-style contamination status: one of {IMSMA_CONTAMINATION_STATUSES}."},
+            "event_start": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) the incident/hazard started, when it spans a period rather than one day."},
+            "event_end": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) the incident/hazard ended, when it spans a period rather than one day."},
+            "last_verified": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this data was last confirmed accurate -- distinct from when the incident occurred."},
         },
         "required": ["lat", "lon", "date", "description"],
     },
@@ -1038,6 +1068,7 @@ def add_incident_point(
     lat: float, lon: float, date: str, description: str, severity: str = None,
     event_type: str = None, sub_event_type: str = None,
     hazard_type: str = None, contamination_status: str = None,
+    event_start: str = None, event_end: str = None, last_verified: str = None,
 ):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1057,7 +1088,8 @@ def add_incident_point(
         layer = QgsVectorLayer(
             "Point?crs=EPSG:4326&field=date:string(50)&field=description:string(255)&field=severity:string(50)"
             "&field=event_type:string(50)&field=sub_event_type:string(80)"
-            "&field=hazard_type:string(50)&field=contamination_status:string(50)",
+            "&field=hazard_type:string(50)&field=contamination_status:string(50)"
+            "&field=event_start:string(30)&field=event_end:string(30)&field=last_verified:string(30)",
             INCIDENT_LAYER_NAME, "memory",
         )
         if not layer.isValid():
@@ -1075,6 +1107,7 @@ def add_incident_point(
     for field_name, value in (
         ("severity", severity), ("event_type", event_type), ("sub_event_type", sub_event_type),
         ("hazard_type", hazard_type), ("contamination_status", contamination_status),
+        ("event_start", event_start), ("event_end", event_end), ("last_verified", last_verified),
     ):
         if value is not None and layer.fields().indexFromName(field_name) >= 0:
             feat.setAttribute(field_name, str(value))
@@ -1096,6 +1129,9 @@ def add_incident_point(
     coding_warnings = _validate_incident_coding(event_type, sub_event_type, hazard_type, contamination_status)
     if coding_warnings:
         result["coding_warnings"] = coding_warnings
+    temporal_warnings = _validate_incident_temporal(event_start, event_end)
+    if temporal_warnings:
+        result["temporal_warnings"] = temporal_warnings
     return result
 
 
@@ -1134,7 +1170,9 @@ def _style_named_point_layer(layer):
     "distinguish them on the map. For conflict/security points, also set event_type (+ sub_event_type) using "
     "ACLED's controlled taxonomy when the source classification maps to it; for explosive-hazard points, set "
     "hazard_type (+ contamination_status) using the IMSMA/IMAS-style vocabulary. Both are optional and "
-    "validated -- an unrecognized value comes back as a per-point warning, not a rejected point. If you're "
+    "validated -- an unrecognized value comes back as a per-point warning, not a rejected point. If a point "
+    "spans a period rather than one instant, also set event_start/event_end (additive alongside any date-like "
+    "field in description); last_verified records when the data was last confirmed. If you're "
     "plotting incidents, threats, or other security-related points "
     "and haven't actually gathered them from a real source in this conversation (search_web/"
     "gemini_grounded_search/geocode_and_enrich/geocode_batch, or data the user supplied directly), do not "
@@ -1161,6 +1199,9 @@ def _style_named_point_layer(layer):
                         "sub_event_type": {"type": "string", "description": "Optional ACLED-style sub-event type, valid within the chosen event_type."},
                         "hazard_type": {"type": "string", "description": f"Optional IMSMA/IMAS-style explosive-hazard type: one of {IMSMA_HAZARD_TYPES}."},
                         "contamination_status": {"type": "string", "description": f"Optional IMSMA/IMAS-style contamination status: one of {IMSMA_CONTAMINATION_STATUSES}."},
+                        "event_start": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this point's event/hazard started."},
+                        "event_end": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this point's event/hazard ended."},
+                        "last_verified": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this point's data was last confirmed accurate."},
                     },
                     "required": ["lat", "lon", "name"],
                 },
@@ -1182,7 +1223,8 @@ def add_point_layer(layer_name: str, points: list):
         layer = QgsVectorLayer(
             "Point?crs=EPSG:4326&field=name:string(255)&field=description:string(500)&field=category:string(50)"
             "&field=event_type:string(50)&field=sub_event_type:string(80)"
-            "&field=hazard_type:string(50)&field=contamination_status:string(50)",
+            "&field=hazard_type:string(50)&field=contamination_status:string(50)"
+            "&field=event_start:string(30)&field=event_end:string(30)&field=last_verified:string(30)",
             layer_name, "memory",
         )
         if not layer.isValid():
@@ -1193,7 +1235,10 @@ def add_point_layer(layer_name: str, points: list):
     field_names = [f.name() for f in layer.fields()]
     added = 0
     errors = []
-    coding_warnings = []
+    # Both ACLED/IMSMA coding warnings and event_start/event_end ordering
+    # warnings land here -- kept as one per-point aggregate list rather than
+    # two, since both are advisory data-quality flags on the same point.
+    data_quality_warnings = []
     layer.startEditing()
     for i, pt in enumerate(points):
         try:
@@ -1212,14 +1257,18 @@ def add_point_layer(layer_name: str, points: list):
         feat.setAttribute("description", str(pt.get("description", "")))
         # Older layers created before these fields existed won't have them --
         # skip rather than raise, matching the reused-existing-layer path above.
-        for field_name in ("category", "event_type", "sub_event_type", "hazard_type", "contamination_status"):
+        for field_name in (
+            "category", "event_type", "sub_event_type", "hazard_type", "contamination_status",
+            "event_start", "event_end", "last_verified",
+        ):
             if field_name in field_names and pt.get(field_name) is not None:
                 feat.setAttribute(field_name, str(pt[field_name]))
         point_warnings = _validate_incident_coding(
             pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
         )
+        point_warnings = point_warnings + _validate_incident_temporal(pt.get("event_start"), pt.get("event_end"))
         if point_warnings:
-            coding_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
+            data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
         if layer.addFeature(feat):
             added += 1
         else:
@@ -1230,8 +1279,8 @@ def add_point_layer(layer_name: str, points: list):
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
     if errors:
         result["errors"] = errors
-    if coding_warnings:
-        result["coding_warnings"] = coding_warnings
+    if data_quality_warnings:
+        result["coding_warnings"] = data_quality_warnings
     if added > 0:
         result["message"] = (
             f"Layer '{layer_name}' now has {added}/{len(points)} point(s) added and is live on the map. "
