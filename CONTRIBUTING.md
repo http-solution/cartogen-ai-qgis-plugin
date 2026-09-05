@@ -1,7 +1,7 @@
 # Contributing to Cartogen AI
 
 This is a short document about *how* this codebase is written, not a generic PR-process guide. It
-exists because `docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` §4 named two habits as this
+exists because `docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` §4 named two habits as this
 project's single strongest asset — stronger than any individual feature — and flagged them as
 fragile precisely because they're emergent conventions, not enforced rules. Writing them down is
 the cheapest possible insurance against losing them as more people touch this code.
@@ -34,7 +34,7 @@ already says that.
 
 This project's docs are full of sentences like "not yet built," "roadmap only," "unverified against
 a live response in this environment." That's not hedging — it's the reason `docs/PRODUCT_TIERS.md`
-and `docs/STATUS_REVIEW_2026-08-20.md` can be trusted as an accurate picture of the product instead
+and `docs/archive/STATUS_REVIEW_2026-08-20.md` can be trusted as an accurate picture of the product instead
 of aspirational marketing that quietly drifted away from the real codebase.
 
 This discipline belongs in code, not just docs. `agent/providers/cartogen.py`'s module docstring is
@@ -88,7 +88,7 @@ This repo is a single source tree — there's no second copy to keep in sync (an
 this project maintained a dual-tree setup; see `CHANGELOG.md`'s `[1.4.0]` entry). It is also, by
 design, the *only* codebase for the Community edition. Pro and Enterprise (see
 `docs/PRODUCT_TIERS.md`) are not built as tiers inside this repo — they're planned for a separate
-private repo that syncs from this one (`docs/OPEN_CORE_REPO_STRATEGY.md`). **Do not add
+private repo that syncs from this one (`docs/archive/OPEN_CORE_REPO_STRATEGY.md`). **Do not add
 tier-check or license-gating logic here** — that's out of scope for this repo by design, not
 just unbuilt yet.
 
@@ -96,7 +96,7 @@ just unbuilt yet.
 
 `CARTOGEN_AI_FEATURE_LIST.md`, `CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`,
 `CHANGELOG.md`'s past entries, and dated review/audit/spec docs (filenames ending in a date, e.g.
-`docs/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — they're a
+`docs/archive/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — they're a
 historical record, not living documentation. If something in one of them is now wrong or
 superseded, add a new dated doc or a `docs/IMPLEMENTATION_TRACKER.md` entry that supersedes it;
 don't edit the old one to match current reality. This includes not "fixing" old identifier names

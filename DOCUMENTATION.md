@@ -1,17 +1,17 @@
 # Cartogen AI — Full Project Documentation
 
-**Version:** 1.4.1 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) · **QGIS:** 3.0 – 4.99
+**Version:** 1.4.4 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) · **QGIS:** 3.0 – 4.99
 **Repository:** this file (`cartogen-ai`, public, Community edition) — consolidated single-tree
 successor to an earlier dual-tree setup (see `CHANGELOG.md`'s `[1.4.0]` entry)
 **Author / maintainer:** Alaa Alshoubaki ([alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com))
-**Document generated:** 2026-08-21, against commit `e5682c2` on `main`
+**Document last synced:** 2026-08-31, against v1.4.4 (see `CHANGELOG.md`'s `[1.4.2]`-`[1.4.4]` entries and `docs/USER_GUIDE.md` for the task-register-driven prompt-preview/slot-gate/output-contract pipeline this section below did not previously mention)
 
 This is a single, consolidated reference for the whole project — what it is, how it's built, what's
 shipped versus roadmap, how it's licensed, and how an AI coding agent (or a human) should work in
 this codebase. It pulls together (in full detail, not just summary) the content of `README.md`,
 `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, `LICENSE_AUDIT.md`, `CARTOGEN_AI_PRD.md`,
-`CARTOGEN_AI_FEATURE_LIST.md`, `docs/PRODUCT_TIERS.md`, `docs/OPEN_CORE_REPO_STRATEGY.md`,
-`docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md`, `docs/BUG_TRACKER.md`, `docs/IMPLEMENTATION_TRACKER.md`,
+`CARTOGEN_AI_FEATURE_LIST.md`, `docs/PRODUCT_TIERS.md`, `docs/archive/OPEN_CORE_REPO_STRATEGY.md`,
+`docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md`, `docs/BUG_TRACKER.md`, `docs/IMPLEMENTATION_TRACKER.md`,
 `docs/USER_GUIDE.md`, and `docs/TOOLS_REFERENCE.md`. Those individual files remain the
 living/authoritative sources for their own topics — this document is a snapshot consolidation, not
 a replacement for them; if this file and one of those disagree in the future, the individual doc is
@@ -66,6 +66,14 @@ authors, decision-makers) who need to ask questions of a map without learning QG
 - **File attachments** — PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be loaded as
   full real layers (not just a preview), with automatic point-geometry detection for coordinate
   columns.
+- **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
+  matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
+  it's sent (Settings: "Show the prompt and reasoning before sending", on by default); stops to
+  ask only when a detail genuinely can't be safely guessed (e.g. hazard or facility type,
+  `agent/prompt_refiner.py`'s `analyze_request`); and checks the response against what the task
+  promised (`agent/output_router.py`), with one automatic, disclosed follow-up if a promised
+  dashboard, export, or chart didn't actually get produced. Full detail in
+  `docs/USER_GUIDE.md`.
 - **Native web search grounding** on Gemini and OpenAI, with automatic model fallback if a
   configured model is retired.
 - **Stop button** — cancel an in-progress request cooperatively instead of waiting it out.
@@ -172,7 +180,7 @@ This repo stays the single, public, GPL v2 Community codebase — it does **not*
 multi-edition codebase with tier-gating logic inside it. See [§3.3](#33-open-core-two-repo-strategy)
 for the full public/private repo architecture this implies.
 
-> **Note on a competing, not-yet-decided proposal:** `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`
+> **Note on a competing, not-yet-decided proposal:** `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`
 > (dated 2026-08-20, frozen) sketches a different split — Community (77 of 134 tools, connectivity
 > capped, "open source" branded but source **locked**), Pro (full registry, same cap, **closed**
 > source), Enterprise (full registry, all connectivity, closed source). Its "locked"/"closed" source
@@ -219,7 +227,8 @@ cartogen-ai/                          (repo root — this is the QGIS plugin fol
 ├── branding/                         Brand guidelines and logo assets
 ├── .github/workflows/                CI (tests.yml) + sync-to-private.yml (inactive scaffold)
 ├── LICENSE, LICENSE_AUDIT.md, SECURITY.md, CONTRIBUTING.md, CLAUDE.md
-└── CHANGELOG.md                      Full version history
+├── CHANGELOG.md                      Version history, [1.4.0] onward
+└── CHANGELOG_ARCHIVE.md              Frozen: [1.3.0] and earlier
 ```
 
 This is a single tree — there is no second copy to keep in sync. (An earlier version of this
@@ -254,7 +263,7 @@ layout can't coexist with the namespace split — it would give the public repo 
 a private repo's `cartogen_ai.pro`/`.enterprise` to attach alongside it under a shared top-level
 name. The old root-level `agent/`/`ui/`/`cartogen_ai.py` no longer exist at the repo root at all
 (moved out via same-filesystem rename during the restructure — see
-`docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md` §3 for the full mechanical detail, including a real bug
+`docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md` §3 for the full mechanical detail, including a real bug
 this surfaced: a file literally named `cartogen_ai.py` at the repo root collided with the
 `cartogen_ai` namespace package itself, since a regular module anywhere on `sys.path` always wins
 over a namespace-package portion. Fixed by renaming it to `plugin_main.py` — full incident writeup
@@ -269,7 +278,7 @@ the hosted Cloud Connect Gateway client, RBAC/SSO integration, M365/SharePoint/P
 any capability that depends on backend infrastructure or is deliberately not given away for free.
 The private repo is **not a fork** of this one — it builds on this repo as an upstream core.
 
-This resolves a licensing tension `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` §3 flagged and
+This resolves a licensing tension `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` §3 flagged and
 explicitly did not settle: under the two-repo model, Community stays genuinely open GPL v2 in the
 public repo — only the *additional* Pro/Enterprise code, which doesn't exist in the Community
 product at all, lives under separate (not-yet-decided) proprietary terms in the private repo.
@@ -736,7 +745,7 @@ tier-check or license-gating logic here** — out of scope for this repo by desi
 
 `CARTOGEN_AI_FEATURE_LIST.md`, `CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`,
 `CHANGELOG.md`'s past entries, and dated review/audit/spec docs (filenames ending in a date, e.g.
-`docs/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — a historical
+`docs/archive/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — a historical
 record, not living documentation. If something in one is now wrong or superseded, add a new dated
 doc or an `docs/IMPLEMENTATION_TRACKER.md` entry that supersedes it; don't edit the old one to match
 current reality. This includes not "fixing" old identifier names in them (e.g. `QgisAiAgent`) even
@@ -849,7 +858,7 @@ be regenerated to match.
 > - `docs/` — see the table in `README.md`. `docs/USER_GUIDE.md` and `docs/TOOLS_REFERENCE.md` are
 >   living references; `docs/IMPLEMENTATION_TRACKER.md` and `docs/BUG_TRACKER.md` are living
 >   trackers you should update when you close or find something; dated docs
->   (`docs/STATUS_REVIEW_2026-08-20.md` and similar) are frozen snapshots — see below.
+>   (`docs/archive/STATUS_REVIEW_2026-08-20.md` and similar) are frozen snapshots — see below.
 > - `service/` — a standalone hosted-gateway/monetization prototype for the planned Pro tier. Not
 >   part of the QGIS plugin; not built or tested by the CI workflow.
 > - `metadata.txt` — QGIS plugin manifest, including an embedded `changelog=` field. Its historical
@@ -906,7 +915,7 @@ be regenerated to match.
 > Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are three editions, but **not** three
 > variants of this one codebase — this repo is, and stays, the single public Community codebase.
 > Pro/Enterprise are planned to be built in a *separate private repo* that consumes this one as an
-> upstream core (one-way sync, decided but not yet built — see `docs/OPEN_CORE_REPO_STRATEGY.md`).
+> upstream core (one-way sync, decided but not yet built — see `docs/archive/OPEN_CORE_REPO_STRATEGY.md`).
 > **Don't add tier-check/licensing-gate logic to this repo** — that kind of logic belongs in the
 > private repo once it exists, not here. If you're ever asked to add tier-gating directly to this
 > codebase, that's a sign the request conflicts with the decided architecture — flag it rather than
@@ -1040,8 +1049,9 @@ count on a full suite run is real signal to investigate.
 | BUG-2026-08-21-2 | 2026-08-21 | v1.2.33 | low | Route optimization prototype script missing a `scikit-learn` dependency line. |
 | BUG-2026-08-21-1 | 2026-08-21 | v1.2.33 | medium | Route optimization prototype script called `ox.graph_from_bbox` with bbox arguments in the wrong order for the installed `osmnx` version. |
 
-Full history before `docs/BUG_TRACKER.md` existed: see `CHANGELOG.md`, every version from v1.0.0
-forward.
+Full history before `docs/BUG_TRACKER.md` existed: see `CHANGELOG.md` (`[1.4.0]` onward) and
+`CHANGELOG_ARCHIVE.md` (`[1.3.0]` and earlier, including v1.0.0), split in the 2026-08-31
+documentation pass.
 
 ---
 
@@ -1063,7 +1073,7 @@ the single place to check instead of cross-referencing every dated review doc).
    sandbox that can't import or visually verify Qt-dependent code — needs a real QGIS session, not
    a decision from anyone.
 3. **Tier restructure licensing path.** The proposed Community ("locked source")/Pro
-   (closed)/Enterprise structure in `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` is not achievable
+   (closed)/Enterprise structure in `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` is not achievable
    as a simple feature flag on the current GPL v2 codebase. Needs real legal counsel, then a
    business decision — not something to build toward until resolved.
 
@@ -1078,9 +1088,9 @@ the single place to check instead of cross-referencing every dated review doc).
 
 ### 12.3 Deliberately deferred (a stated design choice, not a gap)
 
-- `docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md` — spec-only; needs a real JIAF Mosaic Method
+- `docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md` — spec-only; needs a real JIAF Mosaic Method
   human-validation workshop a formula can't substitute for.
-- `docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md` §3.3 (no-go zones) — prompt-guidance-only by design.
+- `docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md` §3.3 (no-go zones) — prompt-guidance-only by design.
 
 ### 12.4 Recently resolved (for traceability)
 
@@ -1103,26 +1113,27 @@ real bugs found and fixed; the full MultiTier namespace-package restructure comp
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
 | [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
-| [docs/OPEN_CORE_REPO_STRATEGY.md](docs/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
-| [docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
-| [docs/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/PROMPT_REFINEMENT_LAYER_SPEC.md) | Optional interactive prompt-refinement step before agent processing (shipped) |
-| [docs/ROUTE_OPTIMIZATION_STRATEGY.md](docs/ROUTE_OPTIMIZATION_STRATEGY.md) | Closing the accuracy gap in routing tools, plus a standalone OSMnx/NetworkX prototype |
-| [docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Roadmap spec: incident trends, route-vs-incident risk scoring, no-go zones |
-| [docs/AUTO_REPORTING_RECIPE.md](docs/AUTO_REPORTING_RECIPE.md) | Zero-new-code recipe: scheduled program-update workflow composition |
-| [docs/CVA_MARKET_ACCESS_RECIPE.md](docs/CVA_MARKET_ACCESS_RECIPE.md) | Zero-new-code recipe: market-access distance analysis for cash/voucher assistance |
-| [docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Roadmap spec: intersectoral severity estimate, grounded in JIAF 2.0's Mosaic Method |
+| [docs/archive/OPEN_CORE_REPO_STRATEGY.md](docs/archive/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
+| [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
+| [docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md) | Optional interactive prompt-refinement step before agent processing (shipped) |
+| [docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md](docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md) | Closing the accuracy gap in routing tools, plus a standalone OSMnx/NetworkX prototype |
+| [docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Roadmap spec: incident trends, route-vs-incident risk scoring, no-go zones |
+| [docs/archive/AUTO_REPORTING_RECIPE.md](docs/archive/AUTO_REPORTING_RECIPE.md) | Zero-new-code recipe: scheduled program-update workflow composition |
+| [docs/archive/CVA_MARKET_ACCESS_RECIPE.md](docs/archive/CVA_MARKET_ACCESS_RECIPE.md) | Zero-new-code recipe: market-access distance analysis for cash/voucher assistance |
+| [docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Roadmap spec: intersectoral severity estimate, grounded in JIAF 2.0's Mosaic Method |
 | [SECURITY.md](SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
-| [docs/STATUS_REVIEW_2026-08-20.md](docs/STATUS_REVIEW_2026-08-20.md) | Frozen full-codebase status review |
-| [docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Frozen proposal, not decided/shipped |
-| [docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Frozen specialist product/engineering/UX review |
+| [docs/archive/STATUS_REVIEW_2026-08-20.md](docs/archive/STATUS_REVIEW_2026-08-20.md) | Frozen full-codebase status review |
+| [docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Frozen proposal, not decided/shipped |
+| [docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Frozen specialist product/engineering/UX review |
 | [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist for a real QGIS session before each release |
-| [docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Frozen audit of preview/confirm gate coverage |
-| [docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | Frozen plan for the dock widget class split |
+| [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Frozen audit of preview/confirm gate coverage |
+| [docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | Frozen plan for the dock widget class split |
 | [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Living** — start here for "what's open right now" |
 | [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | **Living** — in-repo bug tracker |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Codebase conventions: comment discipline, honest status labeling, testing |
 | [CLAUDE.md](CLAUDE.md) | AI-coding-agent orientation (reproduced in full in [§9](#9-ai-agent-instructions-claudemd-full-text)) |
-| [CHANGELOG.md](CHANGELOG.md) | **Living** — full version history |
+| [CHANGELOG.md](CHANGELOG.md) | **Living** — version history, `[1.4.0]` onward |
+| [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md) | Frozen -- `[1.3.0]` and earlier, relocated verbatim in the 2026-08-31 documentation pass |
 | [LICENSE](LICENSE) | GNU GPL v2 |
 | [LICENSE_AUDIT.md](LICENSE_AUDIT.md) | Dependency/API license compliance audit |
 | [CARTOGEN_AI_PRD.md](CARTOGEN_AI_PRD.md) | Frozen engineering PRD/roadmap |

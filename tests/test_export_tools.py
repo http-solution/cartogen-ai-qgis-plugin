@@ -297,7 +297,7 @@ class TestGenerateHtmlDashboardValidation(unittest.TestCase):
 class TestGenerateHtmlDashboardConnectivityNote(unittest.TestCase):
     """The CDN/offline caveat used to live only in the tool's own description
     (paid on every call where ToolRouter merely selects this tool as a
-    candidate, invoked or not -- see docs/API_COST_OPTIMIZATION_REVIEW.md
+    candidate, invoked or not -- see docs/archive/API_COST_OPTIMIZATION_REVIEW.md
     section 2.3). Moved into the result instead, since it's only actually
     needed on the call where the tool runs. Mocks just enough of the QGIS
     layer-reading path (_find_layer_by_name, _write_layer_geojson_wgs84) to

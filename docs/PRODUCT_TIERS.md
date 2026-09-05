@@ -5,8 +5,10 @@ requirements) and `CARTOGEN_AI_FEATURE_LIST.md` (implementation reality matrix) 
 exists to keep the *business* framing (pricing tiers, target clients, verticals) equally honest about
 what's actually shipped versus what's planned, since those two things drift apart easily otherwise.
 
-**Last updated:** 2026-08-15. Every "Shipped today" claim below was checked against the live codebase
-(125-tool registry, `agent/`, `ui/`) at that date, not carried forward from an earlier draft.
+**Last updated:** 2026-08-31. Every "Shipped today" claim below was checked against the live codebase
+(131-tool registry, `agent/`, `ui/`) at that date, not carried forward from an earlier draft. (Was
+stamped "125-tool registry" through 2026-08-15 -- stale; the registry has been 131 since the
+duplicate-registration cleanup noted in `docs/IMPLEMENTATION_TRACKER.md` §4.)
 
 ---
 
@@ -32,11 +34,11 @@ below.
 public, GPL v2 Community codebase — it does not become a multi-edition codebase with tier-gating
 logic inside it. Professional and Enterprise are planned to be built in a *separate, private* repo
 that consumes this one as an upstream core, not forked from or merged into it. See
-`docs/OPEN_CORE_REPO_STRATEGY.md` for the decided (not yet built) repo/sync/distribution plan —
+`docs/archive/OPEN_CORE_REPO_STRATEGY.md` for the decided (not yet built) repo/sync/distribution plan —
 that document also resolves the licensing tension flagged just below.
 
 > **2026-08-20 — proposal under consideration, not yet decided or merged:**
-> `docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` sketches a different split — **Community** (77 of
+> `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` sketches a different split — **Community** (77 of
 > 134 tools, connectivity capped to Local LLM + a Cartogen-operated API gateway, "open source"
 > branded but source **locked**), **Pro** (full 134-tool registry, same connectivity cap, **closed**
 > source), and **Enterprise** (full 134-tool registry, all connectivity options including direct BYOK
@@ -143,7 +145,7 @@ business tier or the RBAC/SSO/M365 requirements listed here.
 
 | Vertical | Real, shipped differentiators | Aspirational (not shipped) |
 |---|---|---|
-| **Humanitarian & crisis response** | Native HDX, OSM Overpass, geoBoundaries, HDX COD-AB (P-codes), OCHA FTS, WorldPop integrations; `calculate_severity_index`, `calculate_presence_gap`, `obfuscate_sensitive_points`, `load_3w_data` — a genuinely deep, verified tool set for this vertical specifically (see `docs/HUMANITARIAN_GIS_FEATURE_REVIEW.md`). This is the strongest, most accurate claim in the whole positioning document. | None identified — this vertical's claims hold up well against the actual code. |
+| **Humanitarian & crisis response** | Native HDX, OSM Overpass, geoBoundaries, HDX COD-AB (P-codes), OCHA FTS, WorldPop integrations; `calculate_severity_index`, `calculate_presence_gap`, `obfuscate_sensitive_points`, `load_3w_data` — a genuinely deep, verified tool set for this vertical specifically (see `docs/archive/HUMANITARIAN_GIS_FEATURE_REVIEW.md`). This is the strongest, most accurate claim in the whole positioning document. | None identified — this vertical's claims hold up well against the actual code. |
 | **Defense & intelligence** | Offline-first (Ollama) execution; fail-closed read-only SQL enforcement (`SECURITY.md` §2); an AST-based execution sandbox for model-generated PyQGIS (`SECURITY.md` §1) with a documented, adversarially-tested threat model — a real, differentiated security story. | The framing implies this is an *Enterprise-tier* selling point, but as noted above these protections are actually available in the free Community tier today. Nothing about the current security architecture is defense-specific (no classification handling, no air-gapped deployment tooling, no compliance certifications) — it's general-purpose defense-in-depth, valuable to this vertical but not built *for* it. |
 | **Local government & urban planning** | `zonal_statistics`, `estimate_population_exposure` (WorldPop), `create_print_layout`, the full raster/vector geoprocessing suite. | No municipal-specific tooling (zoning-code-aware analysis, permit workflow integration, cadastral-specific tools) exists — the fit is via general-purpose GIS capability, not purpose-built features for this vertical. |
 

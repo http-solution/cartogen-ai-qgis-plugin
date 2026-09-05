@@ -25,7 +25,7 @@ REQUIRED_PACKAGES = {
 }
 
 # ultralytics (SAM-family imagery extraction, see
-# docs/SAM_IMAGERY_EXTRACTION_SPEC.md) is deliberately NOT added to
+# docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md) is deliberately NOT added to
 # REQUIRED_PACKAGES above: it pulls in torch, a meaningfully heavier install
 # (~200MB+ plus a model checkpoint on first use) than anything in that list,
 # and most users never touch imagery extraction. Surfacing it in the

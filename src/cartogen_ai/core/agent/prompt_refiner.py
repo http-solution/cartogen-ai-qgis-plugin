@@ -3,7 +3,7 @@
 Prompt Refinement Layer for Cartogen AI.
 Optional, opt-in step that rewrites a raw chat message into two better-
 specified candidates before it ever reaches agent.run() -- see
-docs/PROMPT_REFINEMENT_LAYER_SPEC.md for the full design.
+docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md for the full design.
 
 Deliberately structured like model_selector.py: small pure functions plus
 one thin API-calling function, no QGIS import anywhere in this module, so
@@ -77,12 +77,19 @@ _DEFAULT_REFINEMENT_MAX_TOKENS = 400
 # cheap-tier pick pick_model_for_complexity would choose for a "simple"
 # query when it's unset.
 PROMPT_REFINEMENT_ENABLED_KEY = "cartogen_ai/prompt_refinement_enabled"
+# Unlike refinement, this one defaults ON. Refinement costs an extra API call,
+# so opting in is the right default; the preview costs nothing -- it is a local
+# render of text that has already been composed -- and its whole purpose is
+# that the user sees what is about to be sent on their behalf. Defaulting it
+# off would mean the enrichment happens silently, which is the failure this
+# feature exists to prevent.
+PROMPT_PREVIEW_ENABLED_KEY = "cartogen_ai/prompt_preview_enabled"
 USER_PROFILE_KEY = "cartogen_ai/user_profile"
 PROMPT_REFINEMENT_MODEL_KEY = "cartogen_ai/prompt_refinement_model"
 
 
 def is_refinement_enabled() -> bool:
-    """Opt-in, default OFF -- see docs/PROMPT_REFINEMENT_LAYER_SPEC.md §8's
+    """Opt-in, default OFF -- see docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §8's
     honest cost tradeoff for why. Mirrors chat_persistence.is_persist_enabled()'s
     exact shape (QGIS_AVAILABLE guard, never raises)."""
     if not QGIS_AVAILABLE:
@@ -91,6 +98,18 @@ def is_refinement_enabled() -> bool:
         return bool(QgsSettings().value(PROMPT_REFINEMENT_ENABLED_KEY, False, type=bool))
     except Exception:
         return False
+
+
+def is_prompt_preview_enabled() -> bool:
+    """Whether to show the composed prompt before sending it. Default True --
+    see PROMPT_PREVIEW_ENABLED_KEY. Outside QGIS there is no settings store and
+    no UI to show it in, so False."""
+    if not QGIS_AVAILABLE:
+        return False
+    try:
+        return bool(QgsSettings().value(PROMPT_PREVIEW_ENABLED_KEY, True, type=bool))
+    except Exception:
+        return True
 
 
 def get_user_profile() -> str:
@@ -112,7 +131,7 @@ def should_refine(query: str, enabled: bool) -> bool:
 
 def build_refinement_messages(query: str, profile: str) -> list:
     """Short, dedicated system message -- NOT build_system_prompt() (a much
-    larger prompt, see docs/API_COST_OPTIMIZATION_REVIEW.md §0 for a
+    larger prompt, see docs/archive/API_COST_OPTIMIZATION_REVIEW.md §0 for a
     point-in-time size measurement; check len(BASE_SYSTEM_PROMPT) directly
     for the current figure rather than trusting a hardcoded number here, it
     drifts with every rule added to agent/prompts.py). Also skips the task/
@@ -187,3 +206,148 @@ def refine(query: str, profile: str, client, max_tokens: int = _DEFAULT_REFINEME
         return {"error": "invalid refinement response"}
 
     return parsed
+
+
+# --------------------------------------------------------------------------
+# Task-register integration (Humanitarian Mapping Task Register, 791 tasks).
+#
+# Added alongside refine() rather than inside it: refine() is exercised by an
+# existing test suite and by dock_widget.send_message, and its contract must
+# not change. analyze_request() is the new entry point; callers that do not
+# use it see no behavioural difference at all.
+#
+# Stage 1 is local (task_matcher, no API call). Stage 2 -- the disambiguation
+# call -- is only worth making when stage 1 reports ambiguous, and remains the
+# caller's decision, because only the caller knows whether a client is
+# available and whether the user has refinement switched on.
+# --------------------------------------------------------------------------
+
+def _empty_analysis(query):
+    """The shape analyze_request() returns when nothing matched or something
+    went wrong. Same keys every time, so no caller needs a `.get` guard on the
+    happy path -- and `user_message` is the untouched query, so sending it is
+    exactly today's behaviour."""
+    text = (query or "").strip()
+    return {"task": None, "score": 0.0, "ambiguous": False, "missing": [],
+            "unresolved": [], "defaults": {}, "question": "",
+            "directive": "", "contract": None, "blocking": False, "attachments": [],
+            "user_message": text, "optimum_prompt": text,
+            "reasoning": [], "expected_output": ""}
+
+
+def compose_optimum_prompt(user_message, directive):
+    """Exactly what the model will receive, as one reviewable block.
+
+    Two pieces, both real: the user turn as it will be sent, and the addendum
+    that is added to the system prompt (agent/prompts._format_map_context
+    renders it under REGISTERED TASK CONTEXT). Showing anything the model will
+    not see, or hiding anything it will, would make the preview a decoration
+    rather than a disclosure -- so this function does no formatting beyond
+    labelling the two parts.
+    """
+    if not directive:
+        return user_message
+    return ("Message sent as you:\n%s\n\n"
+            "Added to the system prompt:\n%s" % (user_message, directive))
+
+
+def analyze_request(query, context=None, attachments=None):
+    """Local, offline analysis of a request against the task register.
+
+    Returns, and never raises:
+        {
+          "task":       entry | None,      matched register task
+          "score":      float,
+          "ambiguous":  bool,              True -> a stage-2 call is worthwhile
+          "missing":    [slot, ...],       still unanswered
+          "unresolved": [slot, ...],       missing AND unsafe to default
+          "defaults":   {slot: value},     what would be assumed
+          "question":   str,               the single consolidated ask ("" if none)
+          "directive":  str,               inject into the prompt
+          "contract":   {...} | None,      what to do with the response
+          "attachments":    [ {...}, ... ],  what each attached file will become
+          "user_message":   str,            the exact user turn that will be sent
+          "optimum_prompt": str,            user turn + system addendum, verbatim
+          "reasoning":      [str, ...],     why it is being sent that way
+          "expected_output": str,           the artifact the user will get
+        }
+
+    `attachments` is a list of file paths the user has attached. Each is
+    classified by agent/file_io and reported back -- a PDF, a picture and a
+    text file each take a different route into the same answer, and the user
+    is told which.
+
+    `context` is whatever the host already knows, e.g. what QGIS can answer
+    without asking: {"aoi": "current canvas extent", "admin_level": "admin2"}.
+    """
+    try:
+        from . import task_matcher as tmatch
+        from . import task_register as reg_module
+    except Exception as e:  # pragma: no cover - diagnostic path
+        print("[PromptRefiner] task register unavailable: %s" % e)
+        return _empty_analysis(query)
+
+    try:
+        verdict = tmatch.classify(query)
+        entry = verdict["best"]
+        # `context` is whatever the host has: either explicit slot values, or
+        # the raw map summary from agent/map_context. Translate the latter into
+        # slot answers so the user is never asked for something QGIS already
+        # knows; explicit values win over anything inferred from the project.
+        slot_ctx = dict(tmatch.slot_context_from_map(context))
+        if isinstance(context, dict):
+            slot_ctx.update({k: v for k, v in context.items()
+                             if k in reg_module.SLOT_QUESTIONS and v})
+        missing = tmatch.missing_slots(entry, query, slot_ctx)
+        filled = tmatch.defaults(missing)
+        plan = tmatch.attachment_plan(entry, attachments)
+        directive = tmatch.task_directive(entry, filled, query)
+        user_message = tmatch.compose_user_message(query, filled, plan)
+        return {
+            "task":       entry,
+            "score":      verdict["score"],
+            "ambiguous":  verdict["ambiguous"],
+            "missing":    missing,
+            "unresolved": tmatch.unresolvable(missing),
+            "blocking":   bool(tmatch.unresolvable(missing)),
+            "defaults":   filled,
+            "question":   tmatch.clarify_question(entry, missing),
+            "directive":  directive,
+            "contract":   tmatch.output_contract(entry, query),
+            "attachments":     plan,
+            "user_message":    user_message,
+            "optimum_prompt":  compose_optimum_prompt(user_message, directive),
+            "reasoning":       tmatch.reasoning(entry, verdict["score"], filled, plan, query),
+            "expected_output": tmatch.expected_output(entry, query),
+        }
+    except Exception as e:  # pragma: no cover - never break the send path
+        print("[PromptRefiner] analyze_request failed: %s" % e)
+        return _empty_analysis(query)
+
+
+def build_disambiguation_messages(query, candidates):
+    """Stage 2: only for when analyze_request() reported ambiguous.
+
+    Sends just the shortlisted task ids and labels -- never the register, which
+    is ~40 KB and would dwarf every other prompt this plugin sends.
+    """
+    listing = "; ".join("%s = %s" % (e["id"], e["text"]) for e, _ in candidates[:5])
+    system = (
+        "Pick which task the user means. Candidates: " + listing + ". "
+        'Respond as JSON only: {"task_id": "..."} using exactly one of the ids above, '
+        'or {"task_id": null} if none fit.'
+    )
+    return [{"role": "system", "content": system},
+            {"role": "user", "content": query}]
+
+
+def parse_disambiguation_response(raw_content):
+    """Task id from a stage-2 response, or None. Never raises."""
+    try:
+        data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    tid = data.get("task_id")
+    return tid if isinstance(tid, str) and tid else None

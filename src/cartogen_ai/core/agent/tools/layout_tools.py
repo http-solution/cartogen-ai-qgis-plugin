@@ -15,9 +15,24 @@ try:
         QgsApplication, QgsCoordinateTransform
     )
     from qgis.utils import iface
+    try:
+        from qgis.core import Qgis
+    except ImportError:
+        Qgis = None
+    from ..qgis_compat import enum_member
+
+    # Qt6 (QGIS 4.0) requires QGIS sip enums to be reached through their enum
+    # type. QgsUnitTypes is the awkward case: these members were available
+    # unscoped on QGIS 3, while current API docs give the canonical types as
+    # Qgis.LayoutUnit / Qgis.DistanceUnit -- so no single spelling is safe to
+    # hard-code across both majors. Resolved once here, at import.
+    LAYOUT_MM = enum_member("LayoutMillimeters", QgsUnitTypes, Qgis)
+    DISTANCE_KM = enum_member("DistanceKilometers", QgsUnitTypes, Qgis)
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
+    LAYOUT_MM = None
+    DISTANCE_KM = None
     iface = None
 
 
@@ -110,9 +125,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # Handle page orientation
         page = layout.pageCollection().pages()[0]
         if page_orientation.lower() == "portrait":
-            page.setPageSize(QgsLayoutSize(210, 297, QgsUnitTypes.LayoutMillimeters))
+            page.setPageSize(QgsLayoutSize(210, 297, LAYOUT_MM))
         else:
-            page.setPageSize(QgsLayoutSize(297, 210, QgsUnitTypes.LayoutMillimeters))
+            page.setPageSize(QgsLayoutSize(297, 210, LAYOUT_MM))
 
         layout_manager.addLayout(layout)
 
@@ -173,16 +188,16 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             north_x, north_y = map_x + map_w - 12, scalebar_y
             title_w = col_x + col_w - map_x
 
-        map_item.attemptMove(QgsLayoutPoint(map_x, map_y, QgsUnitTypes.LayoutMillimeters))
-        map_item.attemptResize(QgsLayoutSize(map_w, map_h, QgsUnitTypes.LayoutMillimeters))
+        map_item.attemptMove(QgsLayoutPoint(map_x, map_y, LAYOUT_MM))
+        map_item.attemptResize(QgsLayoutSize(map_w, map_h, LAYOUT_MM))
 
         # Title Label -- spans the full page width (map + side column) as a
         # masthead, rather than only over the map.
         title_label = QgsLayoutItemLabel(layout)
         title_label.setText(title)
         layout.addLayoutItem(title_label)
-        title_label.attemptMove(QgsLayoutPoint(map_x, 8, QgsUnitTypes.LayoutMillimeters))
-        title_label.attemptResize(QgsLayoutSize(title_w, 14, QgsUnitTypes.LayoutMillimeters))
+        title_label.attemptMove(QgsLayoutPoint(map_x, 8, LAYOUT_MM))
+        title_label.attemptResize(QgsLayoutSize(title_w, 14, LAYOUT_MM))
 
         # Legend Item -- resizeToContents defaults to True, which always
         # expands the item to its full natural content width regardless of
@@ -195,8 +210,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         legend.setLinkedMap(map_item)
         legend.setResizeToContents(False)
         layout.addLayoutItem(legend)
-        legend.attemptMove(QgsLayoutPoint(col_x, legend_y, QgsUnitTypes.LayoutMillimeters))
-        legend.attemptResize(QgsLayoutSize(col_w, legend_h, QgsUnitTypes.LayoutMillimeters))
+        legend.attemptMove(QgsLayoutPoint(col_x, legend_y, LAYOUT_MM))
+        legend.attemptResize(QgsLayoutSize(col_w, legend_h, LAYOUT_MM))
 
         # Scalebar Item -- a fixed 1000m/segment setting only makes sense at
         # whatever single zoom level it was tuned for; at a full-country
@@ -207,11 +222,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # instead of a value hand-tuned for one specific zoom level.
         scalebar = QgsLayoutItemScaleBar(layout)
         scalebar.setLinkedMap(map_item)
-        scalebar.setUnits(QgsUnitTypes.DistanceKilometers)
-        scalebar.applyDefaultSize(QgsUnitTypes.DistanceKilometers)
+        scalebar.setUnits(DISTANCE_KM)
+        scalebar.applyDefaultSize(DISTANCE_KM)
         layout.addLayoutItem(scalebar)
-        scalebar.attemptMove(QgsLayoutPoint(map_x, scalebar_y, QgsUnitTypes.LayoutMillimeters))
-        scalebar.attemptResize(QgsLayoutSize(min(90, map_w - 15), scalebar_h, QgsUnitTypes.LayoutMillimeters))
+        scalebar.attemptMove(QgsLayoutPoint(map_x, scalebar_y, LAYOUT_MM))
+        scalebar.attemptResize(QgsLayoutSize(min(90, map_w - 15), scalebar_h, LAYOUT_MM))
 
         # North Arrow Picture Item
         north_arrow = QgsLayoutItemPicture(layout)
@@ -229,8 +244,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             # from the file extension, so a single-arg call is correct here.
             north_arrow.setPicturePath(default_arrow_path)
             layout.addLayoutItem(north_arrow)
-            north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, QgsUnitTypes.LayoutMillimeters))
-            north_arrow.attemptResize(QgsLayoutSize(12, 12, QgsUnitTypes.LayoutMillimeters))
+            north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
+            north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
 
         # Optional summary/sitrep panel -- placed below the legend, same
         # column width, so long lines wrap within the page instead of
@@ -243,8 +258,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             body_label = QgsLayoutItemLabel(layout)
             body_label.setText(body_text)
             layout.addLayoutItem(body_label)
-            body_label.attemptMove(QgsLayoutPoint(col_x, body_y, QgsUnitTypes.LayoutMillimeters))
-            body_label.attemptResize(QgsLayoutSize(col_w, body_h, QgsUnitTypes.LayoutMillimeters))
+            body_label.attemptMove(QgsLayoutPoint(col_x, body_y, LAYOUT_MM))
+            body_label.attemptResize(QgsLayoutSize(col_w, body_h, LAYOUT_MM))
 
         footer_label = QgsLayoutItemLabel(layout)
         footer_label.setText("AI-generated -- verify before operational, humanitarian, or safety use.")

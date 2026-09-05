@@ -19,7 +19,7 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.4.2 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.4.4 · GNU GPL v2 · QGIS 3.0–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
@@ -47,6 +47,12 @@ black-box answer.
   interactive HTML situation dashboard export for non-QGIS audiences, geoprivacy obfuscation
   for sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
+- **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
+  matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
+  it's sent; stops to ask only when a detail genuinely can't be safely guessed (e.g. hazard or
+  facility type); and checks the response against what the task promised, with one automatic,
+  disclosed follow-up if a promised dashboard, export, or chart didn't actually get produced.
+  See [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 - **Task Manager**: multi-step requests get a visible plan with progress tracking,
   retry, and edit-and-resend for failed steps.
 - **File attachments**: PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be
@@ -110,7 +116,12 @@ OSGeo4W Shell), then reopen QGIS.
 
 1. Open the **Cartogen AI** panel (toolbar icon or `Plugins` menu).
 2. Click the ⚙ settings icon, pick a provider, and paste an API key (or point at a
-   local Ollama server — no key needed).
+   local Ollama server — no key needed). Get a key from the provider you picked:
+   - OpenRouter (has a genuinely free tier): https://openrouter.ai/keys
+   - Google Gemini: https://aistudio.google.com/apikey
+   - OpenAI: https://platform.openai.com/api-keys
+   - Anthropic Claude: https://console.anthropic.com/settings/keys
+   - Ollama needs no key — just a local server endpoint URL.
 3. Type a request, e.g. *"List all layers in the project"* or *"Calculate the area for
    the active layer"*. See the in-app **Help** tab for more examples, or
    [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for a full walkthrough.
@@ -122,25 +133,25 @@ OSGeo4W Shell), then reopen QGIS.
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
 | [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
-| [docs/OPEN_CORE_REPO_STRATEGY.md](docs/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
-| [docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the above: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
-| [docs/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
-| [docs/ROUTE_OPTIMIZATION_STRATEGY.md](docs/ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
-| [docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |
-| [docs/AUTO_REPORTING_RECIPE.md](docs/AUTO_REPORTING_RECIPE.md) | Recipe (zero new code): composing existing tools into a scheduled program-update workflow |
-| [docs/CVA_MARKET_ACCESS_RECIPE.md](docs/CVA_MARKET_ACCESS_RECIPE.md) | Recipe (zero new code): market-access distance analysis for cash/voucher assistance feasibility, and its honest limits |
-| [docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Spec (roadmap, not shipped): combining per-sector severity indices into one intersectoral estimate, grounded in JIAF 2.0's real Mosaic Method |
+| [docs/archive/OPEN_CORE_REPO_STRATEGY.md](docs/archive/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
+| [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the above: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
+| [docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
+| [docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md](docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
+| [docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |
+| [docs/archive/AUTO_REPORTING_RECIPE.md](docs/archive/AUTO_REPORTING_RECIPE.md) | Recipe (zero new code): composing existing tools into a scheduled program-update workflow |
+| [docs/archive/CVA_MARKET_ACCESS_RECIPE.md](docs/archive/CVA_MARKET_ACCESS_RECIPE.md) | Recipe (zero new code): market-access distance analysis for cash/voucher assistance feasibility, and its honest limits |
+| [docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Spec (roadmap, not shipped): combining per-sector severity indices into one intersectoral estimate, grounded in JIAF 2.0's real Mosaic Method |
 | [SECURITY.md](SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
-| [docs/STATUS_REVIEW_2026-08-20.md](docs/STATUS_REVIEW_2026-08-20.md) | Full-codebase status review: architecture, tool registry, security, docs, open items, next steps |
-| [docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Proposal (not decided/shipped): Community/Pro/Full-Direct-Connect tiers gated on tool set + Local LLM/Cartogen API gateway connectivity |
-| [docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Specialist product/software-engineering/UI-UX review with concrete recommendations, grounded in `agent/providers/` and `ui/` |
+| [docs/archive/STATUS_REVIEW_2026-08-20.md](docs/archive/STATUS_REVIEW_2026-08-20.md) | Full-codebase status review: architecture, tool registry, security, docs, open items, next steps |
+| [docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Proposal (not decided/shipped): Community/Pro/Full-Direct-Connect tiers gated on tool set + Local LLM/Cartogen API gateway connectivity |
+| [docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Specialist product/software-engineering/UI-UX review with concrete recommendations, grounded in `agent/providers/` and `ui/` |
 | [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
-| [docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Audit of which destructive tools have the preview/confirm safety gate and which don't, with an open product decision on 4 humanitarian analysis tools |
-| [docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | What was extracted from `ui/dock_widget.py` (file-attachment reading) vs. deliberately deferred (the tab-boundary class split) and why, with a concrete plan for whenever it's done in a verifiable (real QGIS) environment |
+| [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Audit of which destructive tools have the preview/confirm safety gate and which don't, with an open product decision on 4 humanitarian analysis tools |
+| [docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | What was extracted from `ui/dock_widget.py` (file-attachment reading) vs. deliberately deferred (the tab-boundary class split) and why, with a concrete plan for whenever it's done in a verifiable (real QGIS) environment |
 | [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item from the dated review/audit/spec docs below, kept current as things resolve |
 | [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline so it's never mistaken for a regression |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How this codebase is written: comment discipline, honest status labeling, testing conventions |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [CHANGELOG.md](CHANGELOG.md) | Version history, `[1.4.0]` onward -- see [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md) for `[1.3.0]` and earlier |
 | [LICENSE](LICENSE) | GNU GPL v2 |
 
 ## Development

@@ -8,6 +8,15 @@ stated job is to track *shipped reality* — this is a draft for a decision, not
 about the product. Once a direction is picked, the relevant parts should be merged into
 `PRODUCT_TIERS.md` and this file retired or marked historical.
 
+**Correction addendum (2026-08-31, later pass):** this document's "134 tools" figure (used
+throughout, including the proposed 77/57 Community/Pro split and the "verified against the
+live 134-tool registry" claim in §6) is now stale -- the registry is **131 tools** as of
+2026-08-31 (see `docs/TOOLS_REFERENCE.md`, auto-generated from the live registry). Per this
+project's frozen-doc convention (`CONTRIBUTING.md` §2), the body below is left exactly as
+originally written rather than silently rewritten to match current reality -- the 77/57 split
+was this proposal's own reasoning at the time, not a fact to retroactively correct. See
+`docs/IMPLEMENTATION_TRACKER.md` §1.3 for what's actually still open on this proposal.
+
 ## 0. Reading the request — now a 3-way split with a source-availability axis added
 
 The request has evolved across three rounds of this proposal. Restating the latest instruction in

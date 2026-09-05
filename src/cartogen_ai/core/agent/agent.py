@@ -23,6 +23,17 @@ except ImportError:
     def pyqtSlot(*args, **kwargs):
         return lambda fn: fn
     class Qt:
+        # Mirrors the Qt6 shape the real code now uses. The plugin reaches enum
+        # members through their enum type (Qt.ConnectionType.X) because Qt6
+        # requires it, so this stub has to expose the nested type too -- not
+        # just the flat name -- or every no-QGIS path that builds a
+        # ToolDispatcher raises AttributeError. Caught by the test suite:
+        # 21 tests in test_new_tools.py failed on
+        # "type object 'Qt' has no attribute 'ConnectionType'".
+        # The flat alias is kept so any older call site still resolves.
+        class ConnectionType:
+            BlockingQueuedConnection = 1
+
         BlockingQueuedConnection = 1
         class ConnectionType:
             BlockingQueuedConnection = 1
@@ -233,7 +244,7 @@ class CartogenAi:
         self.conversation_history = load_chat_history()
         self.dispatcher = ToolDispatcher(self)
 
-        # Session-scoped token usage totals (docs/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
+        # Session-scoped token usage totals (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
         # SS3.2: "no cost/usage visibility in the UI despite real, documented cost-
         # engineering work"). Not persisted across QGIS restarts or project
         # switches -- this agent instance IS the session (see _get_agent() in
@@ -285,7 +296,7 @@ class CartogenAi:
         that never reports it. Intentionally no dollar-cost estimate: accurate
         per-model pricing across 5 providers would need a pricing table that's
         guaranteed to go stale and mislead; see
-        docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
+        docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
         accuracy-over-completeness call on a different feature."""
         u = getattr(self, "session_usage", None)
         if u is None:

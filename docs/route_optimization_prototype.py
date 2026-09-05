@@ -4,7 +4,7 @@
 Route optimization prototype -- constrained shortest path for post-disaster /
 humanitarian logistics, using OSMnx + NetworkX + GeoPandas + rasterio.
 
-See docs/ROUTE_OPTIMIZATION_STRATEGY.md section 4 for full context. Read that
+See docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 4 for full context. Read that
 section before reading this file -- it explains WHY this uses a different
 stack than Cartogen AI's shipped tools (agent/tools/logistics_tools.py, which
 use QGIS's own native Network Analysis processing algorithms).
@@ -92,7 +92,7 @@ except ImportError:
 
 # Base speed (km/h) by OSM highway class -- a starting default table, meant to
 # be REPLACED by real calibrated values once historical GPS data is available
-# (see ROUTE_OPTIMIZATION_STRATEGY.md section 3, item 2: derive real
+# (see docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 3, item 2: derive real
 # per-segment speeds from GPS traces rather than trusting this table long-term).
 _DEFAULT_SPEED_KMH_BY_HIGHWAY = {
     "motorway": 90, "trunk": 80, "primary": 60, "secondary": 50,
@@ -261,7 +261,7 @@ def find_constrained_route(G, origin, destination):
     build_constrained_graph() computed, and returns both the route and a
     breakdown against the UNPENALIZED base travel time so you can see how
     much the surface/slope penalties actually changed the outcome -- useful
-    for the validation comparison ROUTE_OPTIMIZATION_STRATEGY.md section 3
+    for the validation comparison docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 3
     describes."""
     orig_node = ox.distance.nearest_nodes(G, X=origin[0], Y=origin[1])
     dest_node = ox.distance.nearest_nodes(G, X=destination[0], Y=destination[1])

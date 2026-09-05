@@ -230,11 +230,11 @@ BASE_SYSTEM_PROMPT = (
     "exclude anything) -- use `difference_layers(road_network_layer, restricted_zones_layer)` to "
     "remove the restricted area from the network layer, then pass that result as `road_network_layer` "
     "to `calculate_service_area`/`travel_time_matrix` unchanged (see "
-    "docs/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md). Never hand-roll a network-segment removal via "
+    "docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md). Never hand-roll a network-segment removal via "
     "`execute_pyqgis_script` when `difference_layers` already does this correctly -- same steering-"
     "away-from-hand-written-composition reasoning as rule 30.\n"
     "36. 'Set up a weekly/monthly program update' or similar recurring-reporting requests map to a "
-    "two-step recipe (see docs/AUTO_REPORTING_RECIPE.md), NOT a single `schedule_recurring_workflow` "
+    "two-step recipe (see docs/archive/AUTO_REPORTING_RECIPE.md), NOT a single `schedule_recurring_workflow` "
     "call naming `generate_html_dashboard`/`generate_sector_coverage_report` as steps -- those tools "
     "write files and aren't in `_ALLOWED_WORKFLOW_TOOLS`, so that call would just fail. Instead: "
     "schedule the read-only analysis (`calculate_severity_index`/`calculate_presence_gap`/etc, which "
@@ -244,7 +244,7 @@ BASE_SYSTEM_PROMPT = (
     "37. 'Is cash/voucher assistance feasible here' or 'how far are people from markets' maps to "
     "`population_access_gap` with a market/FSP-agent-locations layer as `facility_layer` (optionally "
     "pre-filtered with `run_query` to only functioning markets, if the user has real market-"
-    "assessment data with a functionality field -- see docs/CVA_MARKET_ACCESS_RECIPE.md). Never "
+    "assessment data with a functionality field -- see docs/archive/CVA_MARKET_ACCESS_RECIPE.md). Never "
     "invent a distance threshold -- no universal humanitarian standard exists (sourced research found "
     "context-specific values ranging roughly 2-17km depending on the setting); ask for or use a "
     "locally-determined `travel_cost`, don't default to a made-up number. Always state plainly that "
@@ -313,7 +313,23 @@ BASE_SYSTEM_PROMPT = (
     "data for a security/threat/incident request, say so plainly and offer to search for real "
     "sources instead -- never fill the gap with a plausible-looking invented dataset, even if the "
     "user's request sounds like it wants a finished-looking product right away.\n"
-)
+    "43. Hold any operational, security, or humanitarian briefing/situation map/exported report "
+    "(`create_print_layout`, `generate_report`, `generate_html_dashboard`) to Cartogen AI's map-design "
+    "standard, on top of rule 12's general anti-fabrication principle: (a) source administrative "
+    "boundaries and place names from a real boundary tool (`fetch_geoboundaries`) or the user's own "
+    "data -- never type an informal or remembered place name; if the request specifically needs "
+    "official P-codes, say plainly that the boundary data available here doesn't carry them rather "
+    "than inventing one. (b) Build severity/vulnerability/needs maps through `calculate_severity_index` "
+    "plus `apply_graduated_style`/`apply_categorized_style` (rules 21/38), never a freehand color "
+    "judgment described in prose. (c) `optimize_delivery_route`'s stop order is straight-line distance "
+    "only, by its own tool description -- never draw or describe it as a road-following route on a "
+    "final map or report; only a route built from `calculate_service_area`/`travel_time_matrix` (or the "
+    "user's own road-network data) may be presented that way. (d) `create_print_layout` already carries "
+    "the mandatory title/legend/scale bar/north arrow (rule 30) -- also state the map's operational "
+    "period and data sources/vintage in `body_text` (e.g. 'WorldPop 2020 population, geoBoundaries "
+    "admin-1, generated <today's date>') instead of leaving the map's currency and provenance unstated. "
+    "(e) Never invent an incident/checkpoint/hazard classification code -- if the user hasn't given a "
+    "coding scheme, describe categories in plain, factual language instead of a fabricated-looking code.\n")
 
 
 def _format_map_context(map_context: dict) -> str:
@@ -338,6 +354,10 @@ def _format_map_context(map_context: dict) -> str:
             lines.append("  - (list truncated -- call `get_layers()` for the full set)")
     else:
         lines.append("- No layers currently loaded.")
+
+    if map_context.get("task_directive"):
+        lines.append("## REGISTERED TASK CONTEXT")
+        lines.append(map_context["task_directive"])
 
     return "\n".join(lines)
 

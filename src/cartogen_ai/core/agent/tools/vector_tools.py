@@ -1391,7 +1391,7 @@ def _add_calculated_field(layer, field_name, expression_text):
     "operation as field_calculator (in-place attribute mutation on the live layer).",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
 def calculate_area(layer_name, confirmed: bool = False):
-    # docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md: this calls the exact same
+    # docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md: this calls the exact same
     # _add_calculated_field primitive as field_calculator (layer.startEditing()
     # / changeAttributeValue() / commitChanges() on the live, already-loaded
     # layer) -- field_calculator gates that operation behind confirmation, so

@@ -171,6 +171,135 @@ class CredentialManager:
         return "\n\n".join(lines)
 
     @staticmethod
+    def save_secure_credential(name: str, secret: str) -> bool:
+        """Persist a credential only through QGIS encrypted auth storage."""
+        return CredentialManager._save_auth_secret(name, secret)
+
+    @staticmethod
+    def save_account_session(session_cookie: str) -> bool:
+        """Persist the Cartogen session cookie only in QGIS encrypted auth storage."""
+        return CredentialManager._save_auth_secret("account_session", session_cookie)
+
+    @staticmethod
+    def get_account_session() -> str:
+        return CredentialManager._get_auth_secret("account_session")
+
+    @staticmethod
+    def clear_account_session() -> None:
+        CredentialManager._delete_auth_secret("account_session")
+
+    @staticmethod
+    def _save_auth_secret(name: str, secret: str) -> bool:
+        if not secret or not secret.strip() or not QGIS_AVAILABLE:
+            return False
+        try:
+            auth_mgr = QgsApplication.authManager()
+            if not auth_mgr or auth_mgr.isDisabled():
+                return False
+            settings = QgsSettings()
+            setting = f"{CredentialManager.AUTH_KEY_PREFIX}{name}"
+            config = QgsAuthMethodConfig("Basic")
+            existing = settings.value(setting, "")
+            if existing:
+                config.setId(existing)
+            config.setName(f"Cartogen AI ({name})")
+            config.setConfig("username", "cartogen-account")
+            config.setConfig("password", secret.strip())
+            save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(auth_mgr, "saveAuthenticationConfig", None)
+            if not save_fn or not save_fn(config):
+                return False
+            settings.setValue(setting, config.id())
+            return True
+        except Exception as e:
+            print(f"[CredentialManager] secure account session save failed: {e}")
+            return False
+
+    @staticmethod
+    def _get_auth_secret(name: str) -> str:
+        if not QGIS_AVAILABLE:
+            return ""
+        try:
+            settings = QgsSettings()
+            auth_id = settings.value(f"{CredentialManager.AUTH_KEY_PREFIX}{name}", "")
+            if not auth_id:
+                return ""
+            auth_mgr = QgsApplication.authManager()
+            if not auth_mgr or auth_mgr.isDisabled():
+                return ""
+            config = QgsAuthMethodConfig()
+            if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
+                return config.config("password") or ""
+        except Exception as e:
+            print(f"[CredentialManager] secure account session load failed: {e}")
+        return ""
+
+    @staticmethod
+    def _delete_auth_secret(name: str) -> None:
+        if not QGIS_AVAILABLE:
+            return
+        try:
+            settings = QgsSettings()
+            setting = f"{CredentialManager.AUTH_KEY_PREFIX}{name}"
+            auth_id = settings.value(setting, "")
+            auth_mgr = QgsApplication.authManager()
+            if auth_id and auth_mgr and not auth_mgr.isDisabled():
+                remove_fn = getattr(auth_mgr, "removeAuthenticationConfig", None)
+                if remove_fn:
+                    remove_fn(auth_id)
+            settings.remove(setting)
+        except Exception as e:
+            print(f"[CredentialManager] secure account session delete failed: {e}")
+
+    _MISSING_KEY_MESSAGE = (
+        "**No API key configured for the selected provider.** Open **Settings** "
+        "(the ⚙ gear icon, top right) to pick a provider and add its API key "
+        "-- or switch to Ollama to run fully locally with no key needed."
+    )
+
+    @classmethod
+    def missing_credential_message(cls, provider: str = None, client=None) -> str:
+        """Returns a friendly, actionable chat message if there's no usable
+        credential to send a request with, or None if it's fine to proceed.
+        Meant to be checked BEFORE a request goes out, so the user sees this
+        instead of the provider's raw 401.
+
+        Prefers checking the real client object when one is given (pass the
+        agent's actual `.client`): every provider client except Ollama's
+        stores its key as `self.api_key` (see providers/openrouter.py,
+        providers/gemini.py, etc.); Ollama has no such attribute at all (it
+        uses `self.endpoint_url` instead, and needs no key). An object with
+        no `api_key` attribute -- Ollama's client, or one this check doesn't
+        recognize, including any test double -- is left alone rather than
+        guessed about: this is a UX nicety, not a security gate, so silence
+        is the safe default when unsure.
+
+        With no client given, falls back to reading the configured provider
+        setting and saved credential directly -- used by the welcome-message
+        nudge, which may run before any agent has been constructed yet.
+        Outside QGIS there is no real settings store (and no UI to show the
+        message in), so this always returns None there -- same
+        QGIS_AVAILABLE-guard shape as agent/prompt_refiner.py's
+        is_prompt_preview_enabled(), never raises."""
+        if client is not None:
+            if not hasattr(client, "api_key"):
+                return None
+            return None if client.api_key else cls._MISSING_KEY_MESSAGE
+
+        if not QGIS_AVAILABLE:
+            return None
+        try:
+            settings = QgsSettings()
+            if provider is None:
+                provider = settings.value("cartogen_ai/provider", "openrouter")
+            if provider == "ollama":
+                return None
+            if CredentialManager.get_credential(provider):
+                return None
+        except Exception:
+            return None
+        return cls._MISSING_KEY_MESSAGE
+
+    @staticmethod
     def get_credential(provider: str) -> str:
         """Retrieves API key from QgsAuthManager or fallback QgsSettings."""
         if not QGIS_AVAILABLE:
