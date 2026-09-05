@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (149 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (151 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1474,3 +1474,23 @@ Check a vector layer's fields -- presence, type, and any controlled-vocabulary v
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `contract_name` | string | yes | e.g. 'health_facilities' or 'admin2'. See list_schema_contracts. |
+
+## sensitivity_tools
+
+### `get_layer_sensitivity`
+
+Reads a layer's current sensitivity/disclosure classification, if any was set via set_layer_sensitivity. Returns level=null if never tagged -- not the same as PUBLIC, just unclassified.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `set_layer_sensitivity`
+
+Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. Use for a layer containing individual beneficiary locations, protection incident details, or anything else that shouldn't be shared broadly. export_layer/export_to_csv check this and add an advisory warning (not a block -- the export still completes) when exporting a RESTRICTED/SENSITIVE layer. No automated classification exists -- only what's explicitly set here is tracked.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
+| `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
