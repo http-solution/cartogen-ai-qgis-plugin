@@ -909,17 +909,34 @@ open).
     tests, full suite unaffected. Map Themes are **not** addressed --
     that's point 16, a separate not-yet-implemented QGIS concept, not an
     inspection gap on top of an existing one.
-22. **Verification/observe-validate loop -- PARTIAL, the systemic version
-    is a real gap.** No PLAN→EXECUTE→OBSERVE→VALIDATE→REPAIR loop exists
-    in `agent.py`. The shared vector-tools helper used by
-    `intersect_layers`/`union_layers`/`spatial_join` returns only
+22. **Verification/observe-validate loop -- PARTIAL, the flagship example
+    closed 2026-09-05, the systemic version remains a real gap.** No
+    PLAN→EXECUTE→OBSERVE→VALIDATE→REPAIR loop exists in `agent.py`. Was:
+    the shared vector-tools helper (`_run_and_add`) used by
+    `intersect_layers`/`union_layers`/`spatial_join` and ~15 other tools
+    (buffer, dissolve, clip, difference, etc.) returned only
     `{"success": True, "layer_name": ...}` with no feature-count or
     zero-result check -- the proposal's flagship "zero-result
-    intersection" example is specifically unhandled. That said, scattered
-    per-tool self-validation does exist (`logistics_tools.py` checks
-    `featureCount() == 0` in two places; `join_by_attribute` warns on
-    non-unique join fields) -- so result-sanity checking exists piecemeal,
-    just not as a systemic agent-level mechanism.
+    intersection" example was specifically unhandled. Now: fixed once in
+    the shared helper itself (the same "extend the shared function, every
+    caller picks it up automatically" shape point 4's `diagnose_topology`
+    extension already used) -- `_run_and_add` now reports `feature_count`
+    on any output that has one, and an explicit `warning` when it's zero,
+    telling the caller not to report an empty result as success without
+    checking the inputs. Purely additive (no existing key changed), so no
+    caller needed updating. 4 new tests (`_run_and_add` had zero direct
+    test coverage before this, same gap point 4 found in
+    `diagnose_topology`). **Live-verified**, not just mocked: a real
+    headless PyQGIS session against QGIS 4.2.2 intersected two genuinely
+    non-overlapping polygons (real 0-feature result, warning fired) and
+    two genuinely overlapping ones (real 1-feature result, no false-
+    positive warning). Full suite 1042 tests, same known baseline, 0 new
+    failures. Scattered per-tool self-validation also still exists
+    (`logistics_tools.py` checks `featureCount() == 0` in two places;
+    `join_by_attribute` warns on non-unique join fields) -- and the
+    systemic PLAN→EXECUTE→OBSERVE→VALIDATE→REPAIR agent-level loop this
+    point also describes remains unbuilt, a genuinely separate,
+    architecture-level piece of work (see point 18).
 23. **Confidence/uncertainty reporting (OBSERVED/DERIVED/MODELED/...) --
     REAL GAP.** No such taxonomy or "DATA CONFIDENCE" layout summary
     exists. What exists is narrow and tool-specific: `forecast_trend`'s

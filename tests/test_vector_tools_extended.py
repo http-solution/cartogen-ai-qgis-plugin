@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     find_nearest_features, convert_to_singlepart, simplify_geometry,
     field_statistics, select_by_location, invert_selection,
     _compute_field_statistics, zoom_to_layer, zoom_to_feature, _extent_to_canvas_crs,
-    apply_labels, get_layers, diagnose_topology,
+    apply_labels, get_layers, diagnose_topology, _run_and_add,
 )
 
 
@@ -673,3 +673,61 @@ class TestDiagnoseTopologyExtended(unittest.TestCase):
         result = diagnose_topology("layer")
         self.assertIn("error", result)
         self.assertIn("QGIS not available", result["error"])
+
+
+class TestRunAndAddZeroResultWarning(unittest.TestCase):
+    """Point 22 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
+    _run_and_add is the shared helper behind ~18 vector tools (intersect,
+    union, spatial_join, buffer, dissolve, clip, etc.) -- a spatial op that
+    runs without error but produces an empty output previously looked
+    identical to a real result. These are the first direct tests of this
+    function (previously zero coverage, same gap point 4's diagnose_topology
+    extension found in that function before its own fix)."""
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    def test_zero_features_adds_warning_and_count(self, mock_processing, mock_project):
+        output_layer = MagicMock()
+        output_layer.featureCount.return_value = 0
+        mock_processing.run.return_value = {"OUTPUT": output_layer}
+
+        res = _run_and_add("native:intersection", {}, "result_layer")
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["feature_count"], 0)
+        self.assertIn("warning", res)
+        self.assertIn("0 features", res["warning"])
+        mock_project.instance.return_value.addMapLayer.assert_called_once_with(output_layer)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    def test_nonzero_features_reports_count_without_warning(self, mock_processing, mock_project):
+        output_layer = MagicMock()
+        output_layer.featureCount.return_value = 42
+        mock_processing.run.return_value = {"OUTPUT": output_layer}
+
+        res = _run_and_add("native:intersection", {}, "result_layer")
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["feature_count"], 42)
+        self.assertNotIn("warning", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    def test_output_without_feature_count_is_unaffected(self, mock_processing, mock_project):
+        # e.g. a raster-producing algorithm run through the same helper.
+        output_layer = MagicMock(spec=["setName"])
+        mock_processing.run.return_value = {"OUTPUT": output_layer}
+
+        res = _run_and_add("gdal:some_raster_alg", {}, "result_layer")
+
+        self.assertTrue(res["success"])
+        self.assertNotIn("feature_count", res)
+        self.assertNotIn("warning", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    def test_processing_exception_still_reports_a_clean_error(self, mock_processing):
+        mock_processing.run.side_effect = Exception("boom")
+        res = _run_and_add("native:intersection", {}, "result_layer")
+        self.assertIn("error", res)
+        self.assertIn("boom", res["error"])
