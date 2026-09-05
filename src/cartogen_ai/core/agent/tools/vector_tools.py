@@ -34,13 +34,41 @@ def _find_layer_by_name(name):
 
 
 def _run_and_add(alg, params, new_name):
+    """Shared Processing-run-and-register helper behind ~18 vector tools
+    (intersect_layers, union_layers, spatial_join, buffer_analysis,
+    dissolve, clip, difference, etc.). Point 22 of
+    docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md flagged this
+    function by name as the flagship unhandled case: a spatial operation
+    that runs without error but produces an empty output layer (e.g. two
+    layers that don't actually overlap) previously returned a bare
+    {"success": True} identical to a real result, with nothing surfacing
+    the zero-feature outcome to the caller. Fixed once here rather than in
+    each of the ~18 call sites, so every one of them picks it up
+    automatically -- the same "extend the shared function" fix shape
+    point 4's diagnose_topology extension already used."""
     try:
         output = processing.run(alg, params)
         new_layer = output["OUTPUT"]
         if hasattr(new_layer, "setName"):
             new_layer.setName(new_name)
             QgsProject.instance().addMapLayer(new_layer)
-        return {"success": True, "layer_name": new_name}
+        result = {"success": True, "layer_name": new_name}
+        if hasattr(new_layer, "featureCount"):
+            try:
+                count = int(new_layer.featureCount())
+            except (TypeError, ValueError):
+                count = None
+            if count is not None:
+                result["feature_count"] = count
+                if count == 0:
+                    result["warning"] = (
+                        f"'{new_name}' was created but has 0 features -- the operation ran "
+                        "without error but produced an empty result (e.g. no overlap "
+                        "between the inputs, or every feature was filtered out). Do not "
+                        "report this as a successful result without checking the inputs "
+                        "first."
+                    )
+        return result
     except Exception as e:
         return {"error": f"{alg} failed: {e}"}
 
