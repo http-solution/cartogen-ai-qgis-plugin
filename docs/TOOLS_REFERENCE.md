@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (151 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (152 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -419,9 +419,22 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
 
+### `export_layout_atlas`
+
+Exports one file PER FEATURE of a coverage layer from an existing print layout -- e.g. one PDF per district, one PNG per health facility catchment -- using QgsLayoutAtlas. This is the full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md; list_layout_items/update_layout_item_text (the other half) address items within ONE layout, this generates MANY layouts (one per feature). Only works on a layout built by create_print_layout, since it re-points that layout's MAP_MAIN item to follow the atlas -- there is no addressable map item on a hand-built layout to atlas-drive. Each output file is named from filename_field's value on that feature (e.g. a district-name field), sanitized for use as a filename; a non-unique or empty field value across features will silently overwrite an earlier output with the same name, so pick a field that's actually unique per feature (a P-code, not a display name that repeats).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes | An existing layout built by create_print_layout. |
+| `coverage_layer_name` | string | yes | The layer whose features drive one output page each, e.g. an admin-boundary layer. |
+| `output_directory` | string | yes | Directory to write the per-feature files into. Created if it doesn't exist. |
+| `filename_field` | string | yes | Field on coverage_layer_name whose value names each output file. Should be unique per feature. |
+| `output_format` | string | no | 'pdf' (default), 'png', 'jpg', or 'jpeg'. |
+| `dpi` | integer | no | Export resolution in DPI. Defaults to 300 (print quality). |
+
 ### `list_layout_items`
 
-Lists the addressable items in a print layout -- id, type, and current text (for text items) -- so the agent can check what's actually in a layout before editing it with update_layout_item_text, instead of guessing. create_print_layout gives every item it builds a stable id (MAP_MAIN, TITLE, LEGEND, SCALEBAR, NORTH_ARROW, BODY_TEXT, FOOTER -- NORTH_ARROW/BODY_TEXT only appear when that item was actually built). Point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability, the concrete gap that point named -- full QgsLayoutAtlas per-feature pagination is a separate, not-yet-implemented capability).
+Lists the addressable items in a print layout -- id, type, and current text (for text items) -- so the agent can check what's actually in a layout before editing it with update_layout_item_text, instead of guessing. create_print_layout gives every item it builds a stable id (MAP_MAIN, TITLE, LEGEND, SCALEBAR, NORTH_ARROW, BODY_TEXT, FOOTER -- NORTH_ARROW/BODY_TEXT only appear when that item was actually built). Point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md (stable item addressability -- full QgsLayoutAtlas per-feature pagination is a separate capability, export_layout_atlas).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

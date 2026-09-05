@@ -854,9 +854,9 @@ open).
     `styling_tools.py`. Titles and filenames are built with plain Python
     string formatting (`f"Layout_{title.replace(' ', '_')}"`); no
     `QgsPalLayerSettings`-based expression labeling exists.
-15. **Atlas as a publication engine -- PARTIAL, the concrete addressability
-    gap closed 2026-09-05; full per-feature pagination deliberately not
-    built.** Was: zero `QgsLayoutAtlas` references anywhere;
+15. **Atlas as a publication engine -- CLOSED 2026-09-05 (addressability the
+    same day; full per-feature pagination in a second pass the same day).**
+    Was: zero `QgsLayoutAtlas` references anywhere;
     `create_print_layout` built one fixed layout per call with no
     `.setId()` calls on any item -- no stable MAP_MAIN/TITLE/LEGEND-style
     identifiers existed for the agent to address individually, which is
@@ -884,6 +884,47 @@ open).
     tools). Also fixed in passing: `list_layouts`' own description still
     said Map Themes were "not-yet-implemented" -- stale the moment point
     16 closed the same session; corrected to point at `list_map_themes`.
+
+    **Full-atlas half, 2026-09-05, on Baron's explicit go-ahead to process
+    the flagged items too.** New `export_layout_atlas` (`layout_tools.py`)
+    uses real `QgsLayoutAtlas`: one output file per feature of a given
+    coverage layer, named from a caller-chosen field's value (sanitized for
+    filesystem safety), driving the same `MAP_MAIN` item `create_print_layout`
+    already gives every layout a stable id for. Only works on a layout built
+    by `create_print_layout` -- it re-points that layout's `MAP_MAIN` to
+    follow the atlas, and a hand-built layout has no equivalent addressable
+    map item. **Two real API gaps found live, not assumed, before writing
+    the tool**: `QgsLayoutExporter.exportToPdf(atlas, path, settings)` (the
+    static atlas-aware overload) produces one combined multi-page PDF, not
+    one file per feature -- `exportToPdfs` (plural) is the actual per-file
+    PDF entry point; and there is **no atlas-aware `exportToImage` overload
+    at all** for raster formats (confirmed live: passing a `QgsLayoutAtlas`
+    to `exportToImage`, static or instance, raises `TypeError` -- "no
+    overloaded call matches"). Both are worked around uniformly with manual
+    `atlas.beginRender()`/`.first()`/`.next()`/`.endRender()` iteration
+    driving the ordinary per-page `exportToPdf`/`exportToImage` overload,
+    which is confirmed live to work identically for both formats -- one
+    code path instead of branching between a static atlas call for PDF and
+    a manual loop only for images. 10 new tests (mocked degrade/routing
+    paths -- `tests/test_layout_tools.py`). **Live-verified against real
+    QGIS 4.2.2**: built a 3-feature polygon coverage layer and a real
+    `create_print_layout` layout, then (a) a bad-field-name call correctly
+    errored before touching the atlas; (b) a hand-built layout with no
+    `MAP_MAIN` correctly errored; (c) a real PDF atlas export produced 3
+    real, non-trivial PDF files on disk named from a unique P-code field
+    (`D001.pdf`/`D002.pdf`/`D003.pdf`); (d) a real PNG atlas export using a
+    field containing a `/` (`"Beta/Bravo"`) correctly sanitized it to
+    `Beta_Bravo.png` rather than writing outside `output_directory` or
+    crashing on an invalid path, and all 3 PNGs were real, non-trivial
+    files (~26 KB each, not empty/corrupt) despite GDAL printing a benign
+    "PNG driver does not support update access to existing datasets"
+    stderr diagnostic on each write -- confirmed cosmetic, not a functional
+    failure, since every export still returned `Success` and every file
+    was real; (e) `list_layout_items` on the same layout after the atlas
+    export still correctly resolved `MAP_MAIN`/`TITLE`/`LEGEND`/`SCALEBAR`,
+    confirming atlas-driving `MAP_MAIN` didn't break the layout's own
+    addressability from point 15's first half. Full suite 1091 tests, 0
+    new failures. `docs/TOOLS_REFERENCE.md` regenerated (152 tools).
 16. **Map Themes (`QgsMapThemeCollection`) -- CLOSED 2026-09-05.** Was a
     REAL GAP: zero references anywhere (checked separately from the
     unrelated UI dark/light "theme" code in `ui/theme.py`, which is not

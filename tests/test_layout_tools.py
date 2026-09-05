@@ -23,6 +23,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.tools.layout_tools import (
     create_print_layout, list_layouts, list_layout_items, update_layout_item_text,
+    export_layout_atlas,
 )
 
 
@@ -238,6 +239,232 @@ class TestZoomToLayerParam(unittest.TestCase):
         mock_canvas.refresh.assert_called_once()
         map_item_instance = mock_map_item_cls.return_value
         map_item_instance.setExtent.assert_called_once_with(transformed_extent)
+
+
+class TestExportLayoutAtlas(unittest.TestCase):
+    """The full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md
+    -- one output file per coverage-layer feature via QgsLayoutAtlas, live-verified against real
+    QGIS 4.2.2 (real PDF/PNG files written, filename sanitization, MAP_MAIN-less layouts
+    correctly rejected). These are the mocked degrade/routing tests; see the live-verification
+    note in the point 15 review-doc entry for the real-QGIS evidence."""
+
+    def test_degrades_gracefully_outside_qgis(self):
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_layout(self, mock_project):
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = []
+        res = export_layout_atlas("Layout_Ghost", "districts", "C:/tmp/atlas", "pcode")
+        self.assertIn("error", res)
+        self.assertIn("Layout_Ghost", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_coverage_layer(self, mock_project, mock_find_layer):
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+        mock_find_layer.return_value = None
+
+        res = export_layout_atlas("Layout_SITREP", "ghost_layer", "C:/tmp/atlas", "pcode")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_missing_field(self, mock_project, mock_find_layer):
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        field_a, field_b = MagicMock(), MagicMock()
+        field_a.name.return_value = "district_pcode"
+        field_b.name.return_value = "district_name"
+        fields_mock = MagicMock()
+        fields_mock.indexOf.return_value = -1
+        fields_mock.__iter__.return_value = iter([field_a, field_b])
+        layer.fields.return_value = fields_mock
+        mock_find_layer.return_value = layer
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "ghost_field")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_field", res["error"])
+        self.assertIn("district_pcode", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_no_map_main_item(self, mock_project, mock_find_layer):
+        # A hand-built layout (not from create_print_layout) has no MAP_MAIN --
+        # itemById returns None, matching real QGIS behavior for an unknown id.
+        layout = MagicMock()
+        layout.name.return_value = "HandBuilt"
+        layout.itemById.return_value = None
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        res = export_layout_atlas("HandBuilt", "districts", "C:/tmp/atlas", "pcode")
+
+        self.assertIn("error", res)
+        self.assertIn("MAP_MAIN", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_rejects_unsupported_output_format(self, mock_project, mock_find_layer):
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.itemById.return_value = MagicMock(spec=["setAtlasDriven"])
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode", output_format="tiff")
+
+        self.assertIn("error", res)
+        self.assertIn("tiff", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.os.makedirs")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutExporter", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_invalid_filename_expression(self, mock_project, mock_find_layer, mock_exporter_cls, mock_makedirs):
+        atlas = MagicMock()
+        atlas.setFilenameExpression.return_value = (False, "parser error")
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.atlas.return_value = atlas
+        layout.itemById.return_value = MagicMock(spec=["setAtlasDriven"])
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode")
+
+        self.assertIn("error", res)
+        self.assertIn("parser error", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.os.makedirs")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutExporter", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_reports_empty_coverage_layer(self, mock_project, mock_find_layer, mock_exporter_cls, mock_makedirs):
+        atlas = MagicMock()
+        atlas.setFilenameExpression.return_value = (True, "")
+        atlas.first.return_value = False
+        atlas.count.return_value = 0
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.atlas.return_value = atlas
+        layout.itemById.return_value = MagicMock(spec=["setAtlasDriven"])
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode")
+
+        self.assertIn("error", res)
+        self.assertIn("no features", res["error"])
+        atlas.endRender.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.os.makedirs")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutExporter", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_successful_pdf_export_iterates_all_features_and_sanitizes_filenames(
+        self, mock_project, mock_find_layer, mock_exporter_cls, mock_makedirs,
+    ):
+        atlas = MagicMock()
+        atlas.setFilenameExpression.return_value = (True, "")
+        # Two features, then done. currentFilename() has a real "/" that must
+        # not become a raw path separator in the output file path.
+        atlas.first.return_value = True
+        atlas.next.side_effect = [True, False]
+        atlas.currentFilename.side_effect = ["D001", "Beta/Bravo", "unused"]
+
+        map_item = MagicMock(spec=["setAtlasDriven"])
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.atlas.return_value = atlas
+        layout.itemById.return_value = map_item
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        mock_exporter_instance = mock_exporter_cls.return_value
+        mock_exporter_instance.exportToPdf.return_value = mock_exporter_cls.Success
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode", output_format="pdf")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["feature_count"], 2)
+        self.assertEqual(len(res["output_files"]), 2)
+        self.assertIn("D001.pdf", res["output_files"][0])
+        # "/" sanitized to "_", not left as a path separator mid-filename.
+        self.assertIn("Beta_Bravo.pdf", res["output_files"][1])
+        self.assertNotIn("Beta/Bravo", res["output_files"][1])
+        atlas.setCoverageLayer.assert_called_once_with(layer)
+        atlas.setEnabled.assert_called_once_with(True)
+        map_item.setAtlasDriven.assert_called_once_with(True)
+        atlas.beginRender.assert_called_once()
+        atlas.endRender.assert_called_once()
+        self.assertEqual(mock_exporter_instance.exportToPdf.call_count, 2)
+
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools.os.makedirs")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsLayoutExporter", create=True)
+    @patch("cartogen_ai.core.agent.tools.layout_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.layout_tools.QgsProject", create=True)
+    def test_export_failure_mid_loop_still_ends_render_and_reports_error(
+        self, mock_project, mock_find_layer, mock_exporter_cls, mock_makedirs,
+    ):
+        atlas = MagicMock()
+        atlas.setFilenameExpression.return_value = (True, "")
+        atlas.first.return_value = True
+        atlas.currentFilename.return_value = "D001"
+
+        map_item = MagicMock(spec=["setAtlasDriven"])
+        layout = MagicMock()
+        layout.name.return_value = "Layout_SITREP"
+        layout.atlas.return_value = atlas
+        layout.itemById.return_value = map_item
+        mock_project.instance.return_value.layoutManager.return_value.printLayouts.return_value = [layout]
+
+        layer = MagicMock()
+        layer.fields.return_value.indexOf.return_value = 0
+        mock_find_layer.return_value = layer
+
+        mock_exporter_instance = mock_exporter_cls.return_value
+        # Distinct sentinel from Success so the failure branch is unambiguous.
+        mock_exporter_instance.exportToPdf.return_value = "SomeFailureCode"
+
+        res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode", output_format="pdf")
+
+        self.assertIn("error", res)
+        self.assertIn("D001", res["error"])
+        atlas.endRender.assert_called_once()
 
 
 if __name__ == "__main__":
