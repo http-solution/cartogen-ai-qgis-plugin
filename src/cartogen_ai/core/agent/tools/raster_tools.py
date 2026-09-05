@@ -13,8 +13,9 @@ try:
     from qgis.core import (
         QgsProject, QgsRasterLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
         QgsSingleBandPseudoColorRenderer, QgsContrastEnhancement, QgsRasterShader,
-        QgsColorRampShader, QgsColorRampShaderItem, QgsRasterBandStats, QgsStyle,
+        QgsColorRampShader, QgsRasterBandStats, QgsStyle,
     )
+    import qgis.core as _qgis_core_module
     import processing
     QGIS_AVAILABLE = True
     # QGIS 4.x/Qt6 nests these under a named sub-enum; QGIS 3.x/Qt5 exposes
@@ -24,12 +25,23 @@ try:
     _RBS_MAX = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Max")
     _STRETCH_MINMAX = resolve_qgis_enum(QgsContrastEnhancement, "ContrastEnhancementAlgorithm", "StretchToMinimumMaximum")
     _RAMP_INTERPOLATED = resolve_qgis_enum(QgsColorRampShader, "Type", "Interpolated")
+    # QGIS 4.x moved this from a standalone qgis.core.QgsColorRampShaderItem
+    # class to a nested QgsColorRampShader.ColorRampItem -- confirmed live
+    # against a real QGIS 4.2.2 install, where the old top-level import
+    # raises ImportError at module load, silently taking every tool in this
+    # file down to QGIS_AVAILABLE=False (invisible to the sandboxed test
+    # suite, which has no real QGIS to catch it). Resolved once here rather
+    # than assuming one form, same pattern as the enum members above.
+    _COLOR_RAMP_SHADER_ITEM = getattr(QgsColorRampShader, "ColorRampItem", None) or getattr(
+        _qgis_core_module, "QgsColorRampShaderItem", None
+    )
 except ImportError:
     QGIS_AVAILABLE = False
     _RBS_MIN = None
     _RBS_MAX = None
     _STRETCH_MINMAX = None
     _RAMP_INTERPOLATED = None
+    _COLOR_RAMP_SHADER_ITEM = None
 
 
 def _find_layer_by_name(name):
@@ -934,7 +946,7 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
             for i in range(n_steps + 1):
                 fraction = i / n_steps
                 value = resolved_min + fraction * (resolved_max - resolved_min)
-                items.append(QgsColorRampShaderItem(value, ramp.color(fraction), f"{value:.2f}"))
+                items.append(_COLOR_RAMP_SHADER_ITEM(value, ramp.color(fraction), f"{value:.2f}"))
             shader.setColorRampItemList(items)
             raster_shader = QgsRasterShader()
             raster_shader.setRasterShaderFunction(shader)
