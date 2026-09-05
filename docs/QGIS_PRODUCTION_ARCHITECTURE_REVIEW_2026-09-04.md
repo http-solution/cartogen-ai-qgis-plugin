@@ -801,16 +801,77 @@ open).
    (`"Point 1"`), not the clean one. Full suite 1103 tests, 0 new failures.
    `docs/TOOLS_REFERENCE.md` regenerated (152 tools).
 8. **Network impedance model / geometric vs. operational accessibility --
-   REAL GAP, but already independently identified.**
-   `calculate_service_area`/`travel_time_matrix` pass Processing only a
-   flat `DEFAULT_SPEED` (50 km/h) with no speed field, direction field, or
-   turn cost; `optimize_delivery_route`'s stop-ordering runs on raw
-   straight-line distance. `score_route_incident_risk` only scores
-   proximity for a human to read and explicitly does not re-route.
-   `docs/ROUTE_OPTIMIZATION_STRATEGY.md` already specifies this exact
-   composite-impedance fix as unimplemented follow-up work with a
-   prototype script -- so this point restates a gap this project already
-   found and queued, it doesn't discover a new one.
+   PARTIAL, the already-scoped "highest-value, lowest-risk" fix closed
+   2026-09-05; turn cost and the composite-impedance/VRP items remain real,
+   larger gaps, unbuilt on purpose.** Was: `calculate_service_area`/
+   `travel_time_matrix` passed Processing only a flat `DEFAULT_SPEED`
+   (50 km/h) with no speed field, direction field, or turn cost;
+   `optimize_delivery_route`'s stop-ordering runs on raw straight-line
+   distance. `score_route_incident_risk` only scores proximity for a human
+   to read and explicitly does not re-route. `docs/ROUTE_OPTIMIZATION_STRATEGY.md`
+   (frozen 2026-08-21, now at `docs/archive/`) already specified this exact
+   composite-impedance fix as unimplemented follow-up work with a prototype
+   script -- so this point restated a gap this project already found and
+   queued, it didn't discover a new one.
+
+   **Closed the doc's own §2 item 1, 2026-09-05, on Baron's explicit
+   go-ahead to process the flagged items too.** Re-reading the frozen
+   strategy doc (rather than guessing point 8's scope from scratch) found
+   it had already done the scoping work: §2 item 1 names wiring up
+   `SPEED_FIELD`/`DIRECTION_FIELD` as "the highest-value, lowest-risk
+   change available... a parameter addition to an existing
+   `processing.run()` call, not a new algorithm... recommend as a small,
+   independent follow-up," explicitly distinct from the larger items in the
+   same section (composite impedance precomputation, a real network-aware
+   multi-stop tool, full VRP via OR-Tools) that the doc itself calls "a
+   materially bigger ask" needing its own spec. That framing demoted this
+   from "Tier 3, needs a scope call" to "already scoped, just needs
+   building." `calculate_service_area`/`travel_time_matrix` both gain
+   optional `speed_field`/`direction_field` (+ `value_forward`/
+   `value_backward`/`value_both` overrides, defaulting to OSM's own
+   standard `oneway`-tag convention since `fetch_osm_features` is this
+   codebase's primary road-network source) via a new shared
+   `_network_direction_speed_params` helper; `travel_time_matrix` also
+   gains the `strategy`/`default_speed` params `calculate_service_area`
+   already had (previously hardcoded to `STRATEGY: 0`), so both tools now
+   share the same shortest/fastest capability. A missing field name is
+   validated and rejected before any `processing.run()` call, matching this
+   session's established convention (e.g. `export_layout_atlas`'s
+   `filename_field` check). 17 new tests
+   (`tests/test_logistics_tools.py`). **Live-verified against real QGIS
+   4.2.2** -- and this module's own docstring previously said it had never
+   been run against a real QGIS session; that's now been done and the
+   docstring corrected to say so: (1) a real one-way road (a single segment
+   tagged `oneway=yes`) correctly blocked the reverse-direction route in
+   `travel_time_matrix` -- undirected, both directions returned a real
+   1000.0 cost; with `direction_field` set, the forward direction still
+   returned 1000.0 but the reverse direction came back `None` (unreachable);
+   (2) a real differential-speed test showed `strategy='fastest'` producing
+   different, individually-correct travel times with vs. without
+   `speed_field` on the identical 500m segment -- 0.01h at the flat
+   `default_speed=50` vs. 0.05h at the segment's real `speed_field=10`,
+   matching hand-computed expected values exactly; (3) bad field-name
+   inputs correctly rejected before touching `processing.run()` on both
+   tools. **A real, pre-existing bug found and logged while live-verifying,
+   not fixed as part of this change** (out of scope for a "small,
+   independent" parameter addition): `calculate_service_area` fails on a
+   small/degenerate synthetic road network (a 1-2 segment collinear or
+   L-shaped test graph) with either a convex-hull geometry-type error or an
+   "invalid geometry" error from `native:serviceareafrompoint` itself,
+   reproduced identically with zero new parameters -- succeeds cleanly on a
+   more realistic 5-segment grid network with the exact same code path. See
+   BUG-2026-09-05-2 in `docs/BUG_TRACKER.md`. Full suite 1117 tests, 0 new
+   failures. `docs/TOOLS_REFERENCE.md` regenerated (152 tools). **Still
+   real, larger gaps, deliberately not built** (§2 items 2-4 of the
+   strategy doc, and turn cost, named there as materially bigger asks
+   needing their own scoping): composite-impedance precomputation
+   (surface + damage + slope blended into one cost field), a real
+   network-aware multi-stop tool combining `travel_time_matrix` with the
+   existing TSP heuristic, true vehicle-capacity/time-window VRP via
+   OR-Tools, and turn-cost/turn-penalty support (QGIS's native algorithms
+   don't expose a turn-cost parameter at all, confirmed via the same live
+   parameter-definitions probe used to find `SPEED_FIELD`/`DIRECTION_FIELD`
+   -- not something this fix could have wired up even if it were in scope).
 9. **Population exposure vs. affected -- REAL GAP, closed 2026-09-04.**
    `estimate_population_exposure` and `population_access_gap` used to return
    plain `total_population`/`gap_population`-style fields with no docstring

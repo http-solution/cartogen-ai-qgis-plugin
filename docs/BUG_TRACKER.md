@@ -20,7 +20,9 @@ confirmed via a real test run or live check) / `wontfix` (with rationale).
 
 ## Open bugs
 
-**None currently known.** Every real code defect found during this project's review history
+**BUG-2026-09-05-2** | 2026-09-05 | medium | open | `calculate_service_area` (`agent/tools/logistics_tools.py`) fails on a small/degenerate synthetic road network, confirmed live against real QGIS 4.2.2 while verifying point 8's `speed_field`/`direction_field` addition (unrelated to that change -- reproduces identically with zero new parameters passed, on the pre-existing code path). Two distinct live-reproduced failure shapes depending on the network's exact shape: a single-segment (2-point, collinear) network fails with `"Could not add feature with geometry type LineString to layer of type Polygon"` from the `native:convexhull` step; a 2-segment L-shaped network instead fails with `"...has invalid geometry. Please fix the geometry or change the 'Invalid features filtering' option..."` from `native:serviceareafrompoint` itself. A 5-segment small grid network (still synthetic, not a real road dataset) succeeds cleanly with the exact same tool code and parameters. Root cause not yet isolated -- plausibly `native:serviceareafrompoint`'s `OUTPUT_LINES` sink auto-detecting a geometry type from too few features, or the reachable-network output containing a genuinely self-intersecting/degenerate geometry that only a real, larger network avoids by construction. Workaround: works correctly on realistic multi-segment road networks (real-world usage is very unlikely to hit a 1-2 segment "network"); not blocking for that reason. `travel_time_matrix` does not exhibit this -- it was live-verified successfully on both the collinear 2-point network and a realistic one.
+
+Every other real code defect found during this project's review history
 (across all rounds through v1.2.33) was fixed in the same session it was found, verified via
 a real test run or direct execution, and recorded in `CHANGELOG.md` — see that file for the
 full fix history (e.g. the gemini.py header-auth fix in v1.2.28, the two real bugs found and

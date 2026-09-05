@@ -11,7 +11,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _rank_hub_candidates, optimal_hub_siting, calculate_service_area, travel_time_matrix,
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
-    score_route_incident_risk, _build_road_snapped_route,
+    score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
 )
 
 
@@ -90,6 +90,211 @@ class TestLogisticsToolsValidation(unittest.TestCase):
         res = optimal_hub_siting("candidates", "ghost_demand")
         self.assertIn("error", res)
         self.assertIn("ghost_demand", res["error"])
+
+
+class TestNetworkDirectionSpeedParams(unittest.TestCase):
+    """Point 8 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, per
+    docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 2 item 1 -- wiring
+    SPEED_FIELD/DIRECTION_FIELD through to the real processing algorithms
+    instead of always using a flat DEFAULT_SPEED with no direction awareness."""
+
+    def _network(self, existing_fields):
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in existing_fields else -1
+        return network
+
+    def test_no_fields_given_returns_empty_extra_params(self):
+        extra, error = _network_direction_speed_params(self._network([]))
+        self.assertEqual(extra, {})
+        self.assertIsNone(error)
+
+    def test_speed_field_present_is_wired_through(self):
+        extra, error = _network_direction_speed_params(self._network(["speed_kmh"]), speed_field="speed_kmh")
+        self.assertIsNone(error)
+        self.assertEqual(extra["SPEED_FIELD"], "speed_kmh")
+
+    def test_speed_field_missing_reports_error(self):
+        extra, error = _network_direction_speed_params(self._network([]), speed_field="ghost_field")
+        self.assertIsNone(extra)
+        self.assertIn("ghost_field", error)
+
+    def test_direction_field_present_sets_default_osm_values(self):
+        extra, error = _network_direction_speed_params(self._network(["oneway"]), direction_field="oneway")
+        self.assertIsNone(error)
+        self.assertEqual(extra["DIRECTION_FIELD"], "oneway")
+        self.assertEqual(extra["VALUE_FORWARD"], "yes")
+        self.assertEqual(extra["VALUE_BACKWARD"], "-1")
+        self.assertEqual(extra["VALUE_BOTH"], "no")
+        self.assertEqual(extra["DEFAULT_DIRECTION"], 2)
+
+    def test_direction_field_missing_reports_error(self):
+        extra, error = _network_direction_speed_params(self._network([]), direction_field="ghost_field")
+        self.assertIsNone(extra)
+        self.assertIn("ghost_field", error)
+
+    def test_direction_field_values_are_overridable(self):
+        extra, error = _network_direction_speed_params(
+            self._network(["dir"]), direction_field="dir",
+            value_forward="F", value_backward="B", value_both="T",
+        )
+        self.assertIsNone(error)
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("F", "B", "T"))
+
+    def test_both_fields_present_combine(self):
+        extra, error = _network_direction_speed_params(
+            self._network(["speed_kmh", "oneway"]), speed_field="speed_kmh", direction_field="oneway",
+        )
+        self.assertIsNone(error)
+        self.assertIn("SPEED_FIELD", extra)
+        self.assertIn("DIRECTION_FIELD", extra)
+
+
+class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
+        network = MagicMock()
+        network.fields.return_value.indexOf.return_value = -1
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        res = calculate_service_area("facilities", "roads", 1000, speed_field="ghost_field")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_field", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_speed_and_direction_fields_reach_processing_run_and_result(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params):
+            if alg_id == "native:serviceareafrompoint":
+                self.assertEqual(params["SPEED_FIELD"], "speed_kmh")
+                self.assertEqual(params["DIRECTION_FIELD"], "oneway")
+                self.assertEqual(params["STRATEGY"], 1)  # 'fastest'
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area(
+            "facilities", "roads", 30, strategy="fastest", speed_field="speed_kmh", direction_field="oneway",
+        )
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["speed_field"], "speed_kmh")
+        self.assertEqual(res["direction_field"], "oneway")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_no_fields_given_omits_them_from_params_and_result(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params):
+            if alg_id == "native:serviceareafrompoint":
+                self.assertNotIn("SPEED_FIELD", params)
+                self.assertNotIn("DIRECTION_FIELD", params)
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertNotIn("speed_field", res)
+        self.assertNotIn("direction_field", res)
+
+
+class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    def test_rejects_unknown_strategy(self):
+        res = travel_time_matrix("origins", "destinations", "roads", strategy="teleport")
+        self.assertIn("error", res)
+        self.assertIn("strategy", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_bad_direction_field_errors_before_touching_processing(self, mock_find):
+        network = MagicMock()
+        network.fields.return_value.indexOf.return_value = -1
+        mock_find.side_effect = lambda name: {
+            "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
+        }.get(name)
+
+        res = travel_time_matrix("origins", "destinations", "roads", direction_field="ghost_field")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_field", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_default_strategy_is_shortest_and_fields_reach_processing_run(self, mock_find, mock_processing):
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
+        mock_find.side_effect = lambda name: {
+            "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
+        }.get(name)
+
+        result_layer = MagicMock()
+        result_layer.fields.return_value = []
+        result_layer.getFeatures.return_value = []
+
+        def run_side_effect(alg_id, params):
+            self.assertEqual(alg_id, "native:shortestpathpointtolayer")
+            self.assertEqual(params["STRATEGY"], 0)  # default 'shortest'
+            self.assertEqual(params["SPEED_FIELD"], "speed_kmh")
+            self.assertEqual(params["DIRECTION_FIELD"], "oneway")
+            return {"OUTPUT": result_layer}
+        mock_processing.run.side_effect = run_side_effect
+
+        res = travel_time_matrix("origins", "destinations", "roads", speed_field="speed_kmh", direction_field="oneway")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["strategy"], "shortest")
+        self.assertEqual(res["speed_field"], "speed_kmh")
+        self.assertEqual(res["direction_field"], "oneway")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_fastest_strategy_sets_strategy_1(self, mock_find, mock_processing):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {
+            "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
+        }.get(name)
+
+        result_layer = MagicMock()
+        result_layer.fields.return_value = []
+        result_layer.getFeatures.return_value = []
+
+        def run_side_effect(alg_id, params):
+            self.assertEqual(params["STRATEGY"], 1)
+            return {"OUTPUT": result_layer}
+        mock_processing.run.side_effect = run_side_effect
+
+        res = travel_time_matrix("origins", "destinations", "roads", strategy="fastest")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["strategy"], "fastest")
 
 
 class TestPopulationAccessGapEstimateFields(unittest.TestCase):
