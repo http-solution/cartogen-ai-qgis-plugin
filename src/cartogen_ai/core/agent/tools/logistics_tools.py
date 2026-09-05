@@ -7,9 +7,16 @@ service-area and travel-matrix tools rely on QGIS's native Network Analysis
 processing algorithms (native:serviceareafrompoint, native:shortestpathpointtolayer)
 -- unlike the rest of this codebase's processing.run() calls (native:clip,
 native:intersection, etc., which are exercised constantly and well-documented),
-these are less commonly used and this plugin's dev environment has no real QGIS
-install to verify them live against, so treat their exact parameter names as
-best-effort until confirmed against a real QGIS session.
+these are less commonly used. Confirmed live against real QGIS 4.2.2 as of
+2026-09-05 (see point 8 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md):
+SPEED_FIELD/DIRECTION_FIELD/STRATEGY all behave as documented, including a
+real one-way-road test (a segment tagged forward-only correctly blocked the
+reverse route) and a real differential-speed test (the same segment produced
+different travel times with vs. without a speed_field). travel_time_matrix
+worked cleanly on every network tried; calculate_service_area has a known,
+open edge-case bug on small/degenerate synthetic networks -- see
+BUG-2026-09-05-2 in docs/BUG_TRACKER.md -- not reproduced on a realistic
+multi-segment network.
 
 population_access_gap chains calculate_service_area with
 raster_tools.estimate_population_exposure (native:mergevectorlayers,
@@ -30,6 +37,42 @@ try:
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
+
+
+def _network_direction_speed_params(network, speed_field=None, direction_field=None,
+                                     value_forward="yes", value_backward="-1", value_both="no"):
+    """Wires speed_field/direction_field through to native:serviceareafrompoint/
+    native:shortestpathpointtolayer's real SPEED_FIELD/DIRECTION_FIELD parameters
+    -- point 8 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, §2 item 1 of
+    docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md ("the highest-value, lowest-risk change
+    available... a parameter addition to an existing processing.run() call, not a new
+    algorithm"). Both params previously went entirely unused -- every route was computed
+    on a flat DEFAULT_SPEED with no way to make one-way streets one-way or give some
+    segments a different speed than others. value_forward/value_backward/value_both
+    default to OSM's own standard `oneway` tag values (a way digitized in the forward
+    direction is "yes"=forward-only, "-1"=backward-only, "no"/absent=both directions),
+    since fetch_osm_features (humanitarian_tools.py) is this codebase's primary road-
+    network source -- overridable for a direction_field with different encoding.
+    DEFAULT_DIRECTION is fixed at "Both directions" (index 2) so a feature with no
+    matching direction_field value still routes rather than being silently excluded.
+    Returns (extra_params, error) -- error is a caller-facing string when a given field
+    name doesn't actually exist on the network layer, matching the same
+    validate-before-processing.run() convention this session's other new tools use (e.g.
+    export_layout_atlas's filename_field check)."""
+    extra = {}
+    if speed_field:
+        if network.fields().indexOf(speed_field) == -1:
+            return None, f"speed_field '{speed_field}' not found on the road network layer."
+        extra["SPEED_FIELD"] = speed_field
+    if direction_field:
+        if network.fields().indexOf(direction_field) == -1:
+            return None, f"direction_field '{direction_field}' not found on the road network layer."
+        extra["DIRECTION_FIELD"] = direction_field
+        extra["VALUE_FORWARD"] = value_forward
+        extra["VALUE_BACKWARD"] = value_backward
+        extra["VALUE_BOTH"] = value_both
+        extra["DEFAULT_DIRECTION"] = 2
+    return extra, None
 
 
 def _find_layer_by_name(name):
@@ -463,7 +506,12 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
     "warehouse serve within 30km by road'. Produces, per facility, both the reachable road network "
     "and an approximate coverage polygon (convex hull around it). Requires a real line layer "
     "representing the road network -- for simple straight-line/as-the-crow-flies coverage, use "
-    "buffer_analysis instead.",
+    "buffer_analysis instead. Without speed_field, every road segment is treated as one flat "
+    "default_speed regardless of surface or condition, which overstates reachability on unpaved/"
+    "damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from "
+    "OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic "
+    "area. direction_field makes one-way roads one-way instead of assuming every segment is "
+    "traversable both directions.",
     {
         "type": "object",
         "properties": {
@@ -471,12 +519,19 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
             "road_network_layer": {"type": "string", "description": "Line layer representing the road/path network."},
             "travel_cost": {"type": "number", "description": "Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'."},
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
-            "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
+            "default_speed": {"type": "number", "description": "Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50."},
+            "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'."},
+            "direction_field": {"type": "string", "description": "Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways."},
+            "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
+            "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
+            "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
         },
         "required": ["facility_layer", "road_network_layer", "travel_cost"],
     },
 )
-def calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy="shortest", default_speed=50):
+def calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy="shortest", default_speed=50,
+                            speed_field=None, direction_field=None,
+                            value_forward="yes", value_backward="-1", value_both="no"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if travel_cost <= 0:
@@ -491,6 +546,12 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         return {"error": f"Layer '{road_network_layer}' not found"}
     if facilities is None:
         return {"error": f"Layer '{facility_layer}' not found"}
+
+    extra_params, field_error = _network_direction_speed_params(
+        network, speed_field, direction_field, value_forward, value_backward, value_both
+    )
+    if field_error:
+        return {"error": field_error}
 
     try:
         strategy_val = 1 if strategy == "fastest" else 0
@@ -510,6 +571,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 "TRAVEL_COST2": travel_cost,
                 "OUTPUT_LINES": "memory:",
             }
+            params.update(extra_params)
             output = processing.run("native:serviceareafrompoint", params)
             lines_layer = output.get("OUTPUT_LINES")
             if lines_layer is None or lines_layer.featureCount() == 0:
@@ -533,36 +595,58 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         if served_count == 0:
             return {"error": "Could not build a service area for any facility -- check the facility points are near the road network."}
 
-        return {
+        result = {
             "success": True,
             "facility_count": served_count,
             "travel_cost": travel_cost,
             "strategy": strategy,
             "layers_created": layers_created,
         }
+        if speed_field:
+            result["speed_field"] = speed_field
+        if direction_field:
+            result["direction_field"] = direction_field
+        return result
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}
 
 
 @register_tool(
     "travel_time_matrix",
-    "Calculate shortest-path road-network distance from each origin point to each destination "
+    "Calculate road-network distance or travel time from each origin point to each destination "
     "point -- e.g. delivery distance from each warehouse to each distribution site. Returns a "
-    "matrix of distances (network CRS units, usually meters) keyed by origin then destination. "
-    "Requires a line layer representing the road network, not straight-line distance.",
+    "matrix of costs (network CRS units for strategy='shortest', hours for strategy='fastest') "
+    "keyed by origin then destination. Requires a line layer representing the road network, not "
+    "straight-line distance. Without speed_field, every segment is treated as one flat "
+    "default_speed regardless of surface or condition -- when the network layer has a per-segment "
+    "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
+    "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
+    "traversable both directions.",
     {
         "type": "object",
         "properties": {
             "origins_layer": {"type": "string", "description": "Point layer of origin locations (e.g. warehouses)."},
             "destinations_layer": {"type": "string", "description": "Point layer of destination locations (e.g. distribution sites)."},
             "road_network_layer": {"type": "string", "description": "Line layer representing the road/path network."},
+            "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
+            "default_speed": {"type": "number", "description": "Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50."},
+            "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects the matrix when strategy='fastest'."},
+            "direction_field": {"type": "string", "description": "Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways."},
+            "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
+            "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
+            "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
         },
         "required": ["origins_layer", "destinations_layer", "road_network_layer"],
     },
 )
-def travel_time_matrix(origins_layer, destinations_layer, road_network_layer):
+def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, strategy="shortest", default_speed=50,
+                        speed_field=None, direction_field=None,
+                        value_forward="yes", value_backward="-1", value_both="no"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    strategy = (strategy or "shortest").lower()
+    if strategy not in ("shortest", "fastest"):
+        return {"error": "strategy must be 'shortest' or 'fastest'."}
     origins = _find_layer_by_name(origins_layer)
     destinations = _find_layer_by_name(destinations_layer)
     network = _find_layer_by_name(road_network_layer)
@@ -573,24 +657,32 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer):
     if network is None:
         return {"error": f"Layer '{road_network_layer}' not found"}
 
+    extra_params, field_error = _network_direction_speed_params(
+        network, speed_field, direction_field, value_forward, value_backward, value_both
+    )
+    if field_error:
+        return {"error": field_error}
+
     try:
         origin_features = [f for f in origins.getFeatures() if not f.geometry().isEmpty()]
         if not origin_features:
             return {"error": f"'{origins_layer}' has no usable point features."}
 
+        strategy_val = 1 if strategy == "fastest" else 0
         matrix = {}
         for i, origin_feat in enumerate(origin_features):
             origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
             point = origin_feat.geometry().asPoint()
             params = {
                 "INPUT": network,
-                "STRATEGY": 0,
-                "DEFAULT_SPEED": 50,
+                "STRATEGY": strategy_val,
+                "DEFAULT_SPEED": default_speed,
                 "TOLERANCE": 0,
                 "START_POINT": f"{point.x()},{point.y()}",
                 "END_POINTS": destinations,
                 "OUTPUT": "memory:",
             }
+            params.update(extra_params)
             output = processing.run("native:shortestpathpointtolayer", params)
             result_layer = output.get("OUTPUT")
             if result_layer is None:
@@ -609,12 +701,18 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer):
 
         if not matrix:
             return {"error": "Could not compute any routes -- check the origin/destination points are near the road network."}
-        return {
+        result = {
             "success": True,
             "origins_layer": origins_layer,
             "destinations_layer": destinations_layer,
+            "strategy": strategy,
             "matrix": matrix,
         }
+        if speed_field:
+            result["speed_field"] = speed_field
+        if direction_field:
+            result["direction_field"] = direction_field
+        return result
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}
 

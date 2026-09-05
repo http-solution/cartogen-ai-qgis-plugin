@@ -295,7 +295,7 @@ Search Humanitarian Data Exchange (HDX) for datasets by query.
 
 ### `calculate_service_area`
 
-Calculate the reachable road-network area around one or more facilities (warehouse, clinic, distribution point) within a given travel distance or time -- e.g. 'what area can this warehouse serve within 30km by road'. Produces, per facility, both the reachable road network and an approximate coverage polygon (convex hull around it). Requires a real line layer representing the road network -- for simple straight-line/as-the-crow-flies coverage, use buffer_analysis instead.
+Calculate the reachable road-network area around one or more facilities (warehouse, clinic, distribution point) within a given travel distance or time -- e.g. 'what area can this warehouse serve within 30km by road'. Produces, per facility, both the reachable road network and an approximate coverage polygon (convex hull around it). Requires a real line layer representing the road network -- for simple straight-line/as-the-crow-flies coverage, use buffer_analysis instead. Without speed_field, every road segment is treated as one flat default_speed regardless of surface or condition, which overstates reachability on unpaved/damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic area. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -303,7 +303,12 @@ Calculate the reachable road-network area around one or more facilities (warehou
 | `road_network_layer` | string | yes | Line layer representing the road/path network. |
 | `travel_cost` | number | yes | Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'. |
 | `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
-| `default_speed` | number | no | Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50. |
+| `default_speed` | number | no | Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50. |
+| `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'. |
+| `direction_field` | string | no | Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways. |
+| `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
+| `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
+| `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
 
 ### `location_allocation`
 
@@ -365,13 +370,20 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate shortest-path road-network distance from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of distances (network CRS units, usually meters) keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (network CRS units for strategy='shortest', hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `origins_layer` | string | yes | Point layer of origin locations (e.g. warehouses). |
 | `destinations_layer` | string | yes | Point layer of destination locations (e.g. distribution sites). |
 | `road_network_layer` | string | yes | Line layer representing the road/path network. |
+| `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
+| `default_speed` | number | no | Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50. |
+| `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects the matrix when strategy='fastest'. |
+| `direction_field` | string | no | Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways. |
+| `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
+| `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
+| `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
 
 ## Monitoring & Scheduling
 
