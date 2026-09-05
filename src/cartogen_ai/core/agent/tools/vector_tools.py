@@ -134,7 +134,27 @@ def run_query(layer_name, expression):
     return {"success": True, "message": f"Filter applied to '{layer_name}'", "count": layer.featureCount()}
 
 
-@register_tool("buffer_analysis", "Create a buffer polygon layer around features.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "distance": {"type": "number"}}, "required": ["layer_name", "distance"]})
+@register_tool(
+    "buffer_analysis",
+    "Create a buffer polygon layer around features. `distance` is interpreted in the layer's "
+    "OWN CRS units, not automatically converted -- meters for a typical projected/UTM CRS, but "
+    "DEGREES for a geographic CRS (e.g. EPSG:4326/WGS84). Buffering a WGS84 layer by 500 "
+    "expecting 500 meters actually buffers by 500 degrees (most of the way around the globe), "
+    "not a small error but a silently nonsensical result. If the target layer's CRS is "
+    "geographic, reproject it to an appropriate projected/UTM CRS first (or check "
+    "get_layers()'s crs field before calling this).",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string"},
+            "distance": {
+                "type": "number",
+                "description": "Buffer distance in the layer's own CRS units (meters for a projected CRS, degrees for a geographic one -- see this tool's own description).",
+            },
+        },
+        "required": ["layer_name", "distance"],
+    },
+)
 def buffer_analysis(layer_name, distance):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -158,7 +178,26 @@ def buffer_analysis(layer_name, distance):
         new_name = f"{layer_name}_buffer_{distance}"
         new_layer.setName(new_name)
         QgsProject.instance().addMapLayer(new_layer)
-        return {"success": True, "layer_name": new_name}
+        result = {"success": True, "layer_name": new_name}
+        # Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md,
+        # confirmed live against real QGIS 4.2.2: native:buffer's DISTANCE is
+        # applied in the input layer's own CRS units with no conversion --
+        # buffering an EPSG:4326 point by 500 (meaning 500 meters) actually
+        # produced a buffer 1000 degrees wide (500 on each side), not ~1km.
+        # No computed-UTM-from-AOI reprojection exists to silently "fix" this
+        # (a real, separate feature -- not invented here), so this is an
+        # honest warning, not a guessed correction.
+        try:
+            if layer.crs().isGeographic():
+                result["warning"] = (
+                    f"'{layer_name}' is in a geographic CRS ({layer.crs().authid()}), so "
+                    f"distance={distance} was applied in DEGREES, not meters -- the output is "
+                    "very likely not the buffer you intended. Reproject the layer to a "
+                    "projected/UTM CRS first, then re-run this with a distance in meters."
+                )
+        except Exception:
+            pass
+        return result
     except Exception as e:
         return {"error": f"Buffer analysis failed: {e}"}
 

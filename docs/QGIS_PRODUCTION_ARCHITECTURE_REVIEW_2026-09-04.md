@@ -616,15 +616,42 @@ open).
    reads this record rather than gating against it -- a provenance file
    is a generated artifact a caller asks for, not a QA-gate transition;
    see that entry below.
-3. **CRS handling should be operation-aware, not a blanket rule -- REAL
-   GAP, but not the conflict form described.** No hardcoded
+3. **CRS handling should be operation-aware, not a blanket rule --
+   PARTIAL, buffer_analysis's warning closed 2026-09-05.** No hardcoded
    `32636`/`32637` exists anywhere in `agent/tools/*.py` -- so there's no
-   "hardcoded Levant UTM" to correct -- but there's also no computed-UTM-
+   "hardcoded Levant UTM" to correct -- and there's still no computed-UTM-
    from-AOI logic at all (`grep -rn "utm"` returns only 2 unrelated
-   comment mentions). `buffer_analysis` runs `native:buffer` in whatever
-   CRS the layer already has, with no CRS-suitability check or warning.
-   `obfuscate_sensitive_points`'s docstring is the only place that even
-   discusses CRS-for-operation, as unenforced prose advice.
+   comment mentions) -- deliberately not built (see below). `buffer_analysis`
+   ran `native:buffer` in whatever CRS the layer already had, with no
+   CRS-suitability check or warning. **Confirmed live, not assumed:**
+   `$area`/`$length` (used by `calculate_area`/`calculate_length`) turned
+   out to already be ellipsoidal-aware and correct regardless of CRS --
+   a real ~1km×1km square in EPSG:4326 evaluated to 1,003,754 m² via a
+   plain `layer.createExpressionContext()`, no explicit ellipsoid
+   configuration needed, so those two tools needed no fix (verified before
+   assuming a bug existed, not after). `buffer_analysis` is a different,
+   real bug: `native:buffer`'s `DISTANCE` parameter is applied in the
+   input layer's own CRS units with no conversion -- confirmed live,
+   buffering an EPSG:4326 point by 500 (meaning 500 meters) produced a
+   buffer 1000 degrees wide (500 on each side), not ~1km, a silently
+   nonsensical result. No other tool in the codebase passes a raw
+   `DISTANCE` to Processing this way (`grep -n '"DISTANCE":'` across
+   `agent/tools/*.py` returns exactly this one call site), so the fix is
+   scoped to this tool alone. Fixed with an honest warning, not a guessed
+   auto-fix: `buffer_analysis` now checks `layer.crs().isGeographic()`
+   and returns an explicit `warning` naming the CRS and telling the
+   caller to reproject first, plus a strengthened tool/parameter
+   description stating the units caveat up front. Deliberately does
+   **not** auto-reproject to a computed UTM zone and buffer there instead
+   -- that's a real, bigger design decision (which CRS to pick, whether
+   to return the result in the original CRS or the working one) this
+   session didn't decide unilaterally, matching the same "warn honestly,
+   don't invent unverifiable behavior" restraint as point 4's declined
+   gap-detection and point 13's declined standard-deviation mode. 4 new
+   tests. Full suite 1053 tests, same known baseline, 0 new failures.
+   `docs/TOOLS_REFERENCE.md` regenerated. `obfuscate_sensitive_points`'s
+   docstring remains the only other place that discusses CRS-for-operation,
+   as unenforced prose advice -- untouched, out of scope for this slice.
 4. **Geometry QA beyond fixgeometries -- PARTIAL, overlaps/duplicates/
    min-area closed 2026-09-04.** `diagnose_topology` originally only
    checked single-geometry validity and exact-zero-area polygons,

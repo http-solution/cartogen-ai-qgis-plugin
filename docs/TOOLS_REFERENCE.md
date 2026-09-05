@@ -988,12 +988,12 @@ Apply text labels to a vector layer, either from a single field (target_field) o
 
 ### `buffer_analysis`
 
-Create a buffer polygon layer around features.
+Create a buffer polygon layer around features. `distance` is interpreted in the layer's OWN CRS units, not automatically converted -- meters for a typical projected/UTM CRS, but DEGREES for a geographic CRS (e.g. EPSG:4326/WGS84). Buffering a WGS84 layer by 500 expecting 500 meters actually buffers by 500 degrees (most of the way around the globe), not a small error but a silently nonsensical result. If the target layer's CRS is geographic, reproject it to an appropriate projected/UTM CRS first (or check get_layers()'s crs field before calling this).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `distance` | number | yes |  |
+| `distance` | number | yes | Buffer distance in the layer's own CRS units (meters for a projected CRS, degrees for a geographic one -- see this tool's own description). |
 
 ### `calculate_area`
 
