@@ -553,9 +553,8 @@ entry is worth reading first regardless, both for what it found and for
 what it didn't resolve (the larger tiered-architecture question is still
 open).
 
-1. **Processing-first execution model -- PARTIAL, the description half
-   closed 2026-09-05; the routing half is a real policy call, not a
-   mechanical fix, flagged rather than changed.** Processing algorithms
+1. **Processing-first execution model -- CLOSED 2026-09-05 (both halves;
+   Baron explicitly asked for the flagged routing half too).** Processing algorithms
    already are the dominant path for core vector/raster ops: most
    spatial-operation tools (`buffer_analysis`, `intersect_layers`,
    `union_layers`, `spatial_join`, etc.) route through a shared
@@ -572,22 +571,33 @@ open).
    task," plus an explicit note that its sandbox is denylist-based, not
    formally proven -- consistent with what other tools already say to
    steer the model away from it, now stated once at the source instead of
-   scattered as reminders in each of them. **Deliberately not changed:**
-   whether to remove it from `tool_router.py`'s `always_include` set (so
-   it competes on relevance score like every other tool instead of being
-   guaranteed visible on literally every query) -- that changes when the
-   model can even see this tool as an option at all, which cuts both ways:
-   less prominent exposure to a risky escape hatch is a real security
-   improvement, but a genuine edge case with no other matching tool could
-   become unreachable if it stops scoring into the top_k on a query that
-   shares no vocabulary with anything else registered. Untested routing
-   changes to a security-relevant tool's visibility are exactly the kind
-   of thing this project's own Hermes Charter Rule 9 flags as needing
-   Baron's call, not an engineering default -- same shape as point 19's
-   still-open tiered-allow-list question, not resolved here.
-   `docs/TOOLS_REFERENCE.md` regenerated. Full suite 1049 tests, same
-   known baseline, 0 new failures (pure description text change, no new
-   branch to test).
+   scattered as reminders in each of them. **Routing half, closed
+   2026-09-05 on Baron's explicit go-ahead:** rather than a binary
+   remove/keep on `tool_router.py`'s `always_include` set (the risk this
+   entry originally flagged -- a genuine edge case with no other matching
+   tool could become unreachable if the tool simply stopped scoring into
+   the `top_k`), implemented a bounded middle ground:
+   `execute_pyqgis_script` now scores normally like every other tool
+   (name/description/alias matching) and only gets the guaranteed slot as
+   a true last resort, when nothing else in the whole candidate set scored
+   any real relevance at all. On a query that clearly matches something
+   real, it competes on its own natural score instead of an unconditional
+   synthetic boost, so genuinely-relevant tools aren't crowded out and the
+   model isn't nudged toward arbitrary code execution by default; on a
+   query sharing no vocabulary with anything registered, it's still
+   guaranteed available, so the original safety-net intent isn't lost
+   either. **A real bug was found and fixed in this exact mechanism
+   before it shipped:** the first implementation checked whether "anything
+   else matched" by looking at every other tool's score including the
+   *other* `always_include` core tools (`get_layers`, `create_plan`,
+   etc.) -- but those carry a synthetic 1000 regardless of query content,
+   so that check was true on literally every query, silently keeping
+   `execute_pyqgis_script` excluded from the true-fallback case too. Caught
+   by the new regression test itself failing on a genuinely nonsense query
+   before this was pushed, not discovered live. 2 new tests, stability-
+   checked across 15 repeated runs against the shuffled-tie-break scoring
+   (no flakiness). Full suite 1070 tests, same known baseline, 0 new
+   failures. `docs/TOOLS_REFERENCE.md` regenerated.
 2. **Explicit QA-gate state machine (INGESTED→...→PUBLICATION_READY) --
    PARTIAL, first pass closed 2026-09-04.** Was a REAL GAP (no
    dataset-lifecycle state concept existed anywhere, nothing preventing a

@@ -93,12 +93,19 @@ class ToolRouter:
         query_lower = user_query.lower()
         query_words = set(re.findall(r'\w+', query_lower))
 
-        # Always include core agent/task/memory tools
+        # Always include core agent/task/memory tools. execute_pyqgis_script is
+        # handled separately below (point 1 of
+        # docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md): unlike these
+        # genuinely-always-relevant bookkeeping tools, it's an arbitrary-code
+        # last resort that was previously guaranteed a slot on every single
+        # query regardless of relevance, undermining its own "rare, clearly-
+        # fenced fallback" framing.
         always_include = {
             "get_layers", "get_attributes", "create_plan", "update_task",
             "set_task_preview", "store_project_memory", "store_global_memory",
-            "execute_pyqgis_script", "generate_spatial_report"
+            "generate_spatial_report"
         }
+        _FALLBACK_TOOL = "execute_pyqgis_script"
 
         # Shuffled so ties (most commonly many tools scoring 0) break
         # differently on every call instead of Python's stable sort always
@@ -138,6 +145,40 @@ class ToolRouter:
                     score += _ALIAS_MATCH_SCORE
 
             scored_tools.append((score, tool_obj))
+
+        # execute_pyqgis_script scored normally above, like every other
+        # non-core tool -- it only gets a guaranteed slot here as a true
+        # last resort, when nothing else in the whole candidate set scored
+        # any real relevance at all (a query sharing no vocabulary with any
+        # registered tool). On a query that matched something real, it
+        # competes on its own natural score instead of an unconditional
+        # synthetic boost, so genuinely-relevant tools aren't crowded out
+        # and the model isn't nudged toward arbitrary code execution by
+        # default. Confirmed live-code-execution capability doesn't
+        # silently vanish either way: on a real match, several other
+        # tools' own descriptions already steer the model back to
+        # execute_pyqgis_script if truly needed (see e.g. layout_tools.py/
+        # styling_tools.py's "don't hand-write X via execute_pyqgis_script"
+        # framing) -- this only changes whether it's guaranteed *visible*,
+        # not whether the model can still ask for it by name if it somehow
+        # already knows to.
+        # Excludes always_include too, not just the fallback tool itself --
+        # those are synthetic 1000-scores unrelated to whether this
+        # specific query matched anything real, and would otherwise make
+        # "nothing else matched" false on every single query (confirmed by
+        # this exact bug shipping to a failing test before this fix: a
+        # nonsense query with zero real relevance still had get_layers/
+        # create_plan/etc.'s synthetic 1000 in `other_scores`).
+        other_scores = [
+            score for score, tool in scored_tools
+            if tool.get("function", {}).get("name") not in always_include | {_FALLBACK_TOOL}
+        ]
+        nothing_else_matched = not other_scores or max(other_scores) <= 0
+        if nothing_else_matched:
+            scored_tools = [
+                (1000, tool) if tool.get("function", {}).get("name") == _FALLBACK_TOOL else (score, tool)
+                for score, tool in scored_tools
+            ]
 
         # Sort by score descending and take top_k
         scored_tools.sort(key=lambda x: x[0], reverse=True)
