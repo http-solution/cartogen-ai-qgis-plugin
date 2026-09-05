@@ -978,18 +978,25 @@ open).
     all -- is a real, still-open, multi-week architecture decision, not
     resolved by this session's patch, and remains Baron's call.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
-    PUBLISH) -- PARTIAL, and the ad hoc-ness is already acknowledged.**
-    Only 5 of 131 tools implement the `confirmed: bool = False`/
+    PUBLISH) -- PARTIAL; the "open policy decision" this entry described
+    was stale the day this review was written, corrected 2026-09-05.**
+    Only 5 of 131(now 149) tools implement the `confirmed: bool = False`/
     PREVIEW_REQUIRED gate (`load_project`, `remove_layer`,
     `calculate_area`/`calculate_length`/`field_calculator`). No
-    READ/CREATE/MODIFY/DELETE/PUBLISH taxonomy exists in code.
-    `docs/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` §3 already logs this as
-    reactive (one bug fixed an inconsistency between two tools sharing a
-    mutation primitive) and leaves several similar humanitarian tools
-    *deliberately* ungated pending an open, already-logged policy
-    decision with three named options -- so this is a known open question,
-    not an unnoticed gap. No snapshot/rollback mechanism exists for
-    partial multi-step failure.
+    READ/CREATE/MODIFY/DELETE/PUBLISH taxonomy exists in code -- that part
+    is a genuine real gap, unchanged. But this entry's framing of the
+    4-humanitarian-tools gating question as "an open, already-logged
+    policy decision with three named options" was wrong the moment this
+    review was written on 2026-09-04: `docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md`
+    §3's three options were resolved **2026-08-22**, nearly two weeks
+    earlier -- Option 1 (leave the four humanitarian tools ungated:
+    idempotent, lower real-harm than a geometry-mutating op, not worth the
+    added friction) was formally adopted, documented in `SECURITY.md` §5
+    and `docs/IMPLEMENTATION_TRACKER.md` §1.1/§4. This review's own
+    author evidently didn't cross-check `IMPLEMENTATION_TRACKER.md`
+    before writing this entry. No snapshot/rollback mechanism exists for
+    partial multi-step failure -- that part of the original finding
+    stands, unaddressed, a real (if narrow) remaining gap.
 21. **QGIS project inspector -- PARTIAL, layer/layout inspection closed
     2026-09-04.** `get_layers` used to return only `{name, type, id}` --
     no CRS, feature_count, or fields in one call (fields needed a separate
