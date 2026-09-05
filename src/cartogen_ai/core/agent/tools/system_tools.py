@@ -375,7 +375,15 @@ def geocode_batch(location_names: list):
     return {"success": True, "results": results}
 
 
-@register_tool("execute_pyqgis_script", "Execute arbitrary PyQGIS script. Must define run() function returning result.", {"type": "object", "properties": {"script": {"type": "string"}}, "required": ["script"]})
+@register_tool(
+    "execute_pyqgis_script",
+    "LAST RESORT ONLY -- run this only when no other registered tool covers the task; check "
+    "the rest of the tool list first. Runs inside a denylist-based safety sandbox (blocked "
+    "modules/builtins; see SECURITY.md), not a formally proven one, so it is not a safe "
+    "default path just because it's available. Execute arbitrary PyQGIS script; must define a "
+    "run() function returning the result.",
+    {"type": "object", "properties": {"script": {"type": "string"}}, "required": ["script"]},
+)
 def execute_pyqgis_script(script: str):
     import traceback
 
