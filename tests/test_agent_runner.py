@@ -5,6 +5,7 @@ from cartogen_ai.core.agent.prompts import build_system_prompt
 from cartogen_ai.core.agent.memory import SpatialMemoryManager
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 import cartogen_ai.core.agent.agent as agent_mod
+from cartogen_ai.core.agent.transactions import TurnTransactionLog
 
 
 class TestAgentRunner(unittest.TestCase):
@@ -50,6 +51,11 @@ def _make_bare_agent(client):
     agent.task_manager.get_plan.return_value = None
     agent.memory_manager = MagicMock()
     agent._auto_model_provider = None
+    # run() resets this unconditionally at the top of every call (point 20's
+    # transaction log, see agent/transactions.py) -- a bare __new__()'d agent
+    # needs one too, even though these tests patch _execute_tool itself and
+    # never exercise the log's actual recording.
+    agent._transaction_log = TurnTransactionLog()
     return agent
 
 
@@ -109,6 +115,57 @@ class TestToolStepCallback(unittest.TestCase):
              patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers", tool_step_callback=broken_callback)
         self.assertEqual(final_text, "All done.")
+
+
+
+class TestExecuteToolTransactionRecording(unittest.TestCase):
+    """_execute_tool (agent.py) wraps every tool call with a before/after
+    live-layer-id snapshot and records it into self._transaction_log --
+    point 20's transaction log (see agent/transactions.py). This exercises
+    that wrapper directly, independent of run()'s loop."""
+
+    def _make_agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent._transaction_log = TurnTransactionLog()
+        return agent
+
+    def test_records_operation_type_and_result(self):
+        agent = self._make_agent()
+        with patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch",
+                           lambda self, name, args: {"success": True, "layers": []}), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: set()):
+            result = agent._execute_tool("get_layers", "{}")
+
+        self.assertEqual(result, {"success": True, "layers": []})
+        entries = agent._transaction_log.summary()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["name"], "get_layers")
+        self.assertEqual(entries[0]["operation_type"], "READ")
+        self.assertTrue(entries[0]["success"])
+
+    def test_new_layer_after_a_create_tool_is_recorded_as_undoable(self):
+        agent = self._make_agent()
+        layer_ids = iter([{"a"}, {"a", "b"}])  # before, then after
+        with patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch",
+                           lambda self, name, args: {"success": True, "layer_name": "buf_1"}), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: next(layer_ids)):
+            agent._execute_tool("buffer_analysis", "{}")
+
+        entry = agent._transaction_log.last_undoable()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry["name"], "buffer_analysis")
+        self.assertEqual(entry["undo"]["layer_ids"], ["b"])
+
+    def test_unknown_tool_name_records_none_operation_type(self):
+        agent = self._make_agent()
+        with patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch",
+                           lambda self, name, args: {"error": "Unknown tool: bogus_tool"}), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: set()):
+            agent._execute_tool("bogus_tool", "{}")
+
+        entries = agent._transaction_log.summary()
+        self.assertIsNone(entries[0]["operation_type"])
+        self.assertFalse(entries[0]["success"])
 
 
 if __name__ == "__main__":
