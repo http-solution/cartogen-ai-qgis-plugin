@@ -1177,25 +1177,60 @@ open).
     happen to name) can recur again, which is precisely the tiered-allow-
     list critique above that this sweep did not attempt to resolve.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
-    PUBLISH) -- PARTIAL; the "open policy decision" this entry described
-    was stale the day this review was written, corrected 2026-09-05.**
-    Only 5 of 131(now 149) tools implement the `confirmed: bool = False`/
-    PREVIEW_REQUIRED gate (`load_project`, `remove_layer`,
-    `calculate_area`/`calculate_length`/`field_calculator`). No
-    READ/CREATE/MODIFY/DELETE/PUBLISH taxonomy exists in code -- that part
-    is a genuine real gap, unchanged. But this entry's framing of the
-    4-humanitarian-tools gating question as "an open, already-logged
-    policy decision with three named options" was wrong the moment this
-    review was written on 2026-09-04: `docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md`
-    §3's three options were resolved **2026-08-22**, nearly two weeks
-    earlier -- Option 1 (leave the four humanitarian tools ungated:
-    idempotent, lower real-harm than a geometry-mutating op, not worth the
-    added friction) was formally adopted, documented in `SECURITY.md` §5
-    and `docs/IMPLEMENTATION_TRACKER.md` §1.1/§4. This review's own
-    author evidently didn't cross-check `IMPLEMENTATION_TRACKER.md`
-    before writing this entry. No snapshot/rollback mechanism exists for
-    partial multi-step failure -- that part of the original finding
-    stands, unaddressed, a real (if narrow) remaining gap.
+    PUBLISH) -- the taxonomy half CLOSED 2026-09-07; the rollback half
+    PARTIAL, narrowed but still real.** The "4-humanitarian-tools gating"
+    framing was already corrected 2026-09-05 (see below) -- this update
+    covers the other two sub-findings.
+
+    Taxonomy (closed): new `agent/tool_operations.py` hand-classifies all
+    156 registered tools into READ/CREATE/MODIFY/DELETE/PUBLISH, verified
+    against each tool's actual source (addMapLayer/removeMapLayer/
+    addAttribute/setCustomProperty/file-write call sites), not guessed
+    from names -- e.g. `execute_read_only_sql` is CREATE despite its name
+    (it adds the query result as a new layer), `run_query` is MODIFY not
+    READ (`setSubsetString` persists a filter onto the layer), and
+    `execute_pyqgis_script` is classified DELETE as the ceiling of what
+    arbitrary code could do, not a typical-call estimate -- the AST
+    sandbox (point 19) remains the real control, this label is
+    informational only. New `get_tool_operation_type`/
+    `list_tools_by_operation_type` tools expose it to the agent itself.
+    `tests/test_tool_operations.py` asserts the dict's keys exactly match
+    `TOOL_REGISTRY` in both directions, so a future unclassified tool
+    fails the suite instead of going unnoticed.
+
+    Rollback (narrowed, not closed): new `agent/transactions.py`'s
+    `TurnTransactionLog` records every tool call made during one
+    `agent.run()` turn (reset at the start of each new one) and offers
+    undo for exactly one sub-case: a call that added a genuinely new
+    layer to the project, detected empirically by diffing the live
+    project's layer-id set before/after the call rather than trusting the
+    static CREATE label -- this also correctly handles
+    `add_point_layer`/`add_incident_point`'s documented "create OR append
+    to an existing layer" ambiguity, since an append produces no new
+    layer id and is correctly reported as not undoable. New
+    `get_turn_transaction_log`/`undo_last_operation` tools expose this,
+    the latter gated by the identical `confirmed: bool = False` ->
+    `PREVIEW_REQUIRED` pattern `remove_layer` already uses. **Still a
+    real, open gap, not silently closed:** no rollback exists for any
+    in-place MODIFY (`field_calculator`, `calculate_area`/
+    `calculate_length`, the four composite-index tools' optional
+    `output_field` write, any `apply_*_style` call, `run_query`'s filter,
+    `set_dataset_status`/`set_layer_sensitivity`) or for a DELETE call
+    itself (`remove_layer`, `load_project`) -- both would need a real
+    before/after snapshot taken *before* the mutating call, a materially
+    larger piece of engineering than this session's scope, left flagged
+    rather than guessed at (same shape as point 18's
+    PLAN->EXECUTE->OBSERVE->VALIDATE->REPAIR loop or point 19's tiered
+    allow-list question). The log is also in-memory/per-turn only -- it
+    never reaches back into an earlier message in the conversation.
+    `docs/TOOLS_REFERENCE.md` regenerated (156 tools). 48 new tests
+    across `tests/test_tool_operations.py`, `tests/test_transactions.py`,
+    `tests/test_tool_operations_tools.py`, and
+    `tests/test_transaction_tools.py`; full suite otherwise unaffected
+    (1161 tests, same known baseline: the DNS-dependent
+    `test_is_safe_url_accepts_public_host` and the 6 FUSE-mount
+    `PermissionError` cleanup errors in `test_reporting_tools.py`, 0 new
+    failures). Not yet committed -- awaiting Baron's go-ahead.
 21. **QGIS project inspector -- PARTIAL, layer/layout inspection closed
     2026-09-04.** `get_layers` used to return only `{name, type, id}` --
     no CRS, feature_count, or fields in one call (fields needed a separate

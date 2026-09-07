@@ -53,6 +53,9 @@ from .task_manager import AgentTaskManager
 from .prompts import build_system_prompt
 from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools.task_tools import bind_agent_context
+from .tools.transaction_tools import bind_transaction_log
+from . import tool_operations
+from .transactions import TurnTransactionLog
 from . import learning
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
@@ -221,6 +224,12 @@ class CartogenAi:
 
         # Bind active task and memory managers to task tool execution handlers
         bind_agent_context(self.task_manager, self.memory_manager)
+
+        # Turn-scoped operation log + best-effort undo (point 20 of the QGIS
+        # production-architecture review) -- reset at the start of every run()
+        # call, see transactions.py's own docstring for exactly what it covers.
+        self._transaction_log = TurnTransactionLog()
+        bind_transaction_log(self._transaction_log)
 
         # Usage-pattern tracking (self-learning mechanism 3, 2026-09-02): one
         # provider-usage sample per session, since CartogenAi() is constructed
@@ -396,7 +405,36 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _live_layer_ids(self):
+        """The live QgsProject's current layer ids, for transactions.py's
+        before/after diff. Empty set with no error when QGIS isn't available
+        or no project is open -- callers treat that as "nothing new ever
+        detected", not a failure."""
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return set()
+        try:
+            return set(QgsProject.instance().mapLayers().keys())
+        except Exception:
+            return set()
+
     def _execute_tool(self, name, arguments):
+        """Single entry point for every tool call in run()'s loop, regardless
+        of which of the three dispatch paths below actually executes it --
+        wrapping here (rather than duplicating the same before/after capture
+        in _real_execute_tool AND _execute_two_phase_tool) is what lets
+        transactions.py's TurnTransactionLog see every call uniformly,
+        including the four fetch_* tools that only add their layer via
+        _execute_two_phase_tool's separate main-thread callback."""
+        layer_ids_before = self._live_layer_ids()
+        result = self._execute_tool_dispatch(name, arguments)
+        layer_ids_after = self._live_layer_ids()
+        operation_type = tool_operations.get_tool_operation_type(name)
+        self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after)
+        return result
+
+    def _execute_tool_dispatch(self, name, arguments):
         if name in NETWORK_ONLY_TOOLS:
             return self._real_execute_tool(name, arguments)
         if name in TWO_PHASE_TOOLS:
@@ -686,6 +724,9 @@ class CartogenAi:
         in try/except so a UI-side rendering bug can never break the actual
         agent loop -- worst case is a missed visual update, not a failed turn."""
         from .tool_router import ToolRouter
+        # New turn -- undo must never reach back into a previous one (see
+        # transactions.py's docstring).
+        self._transaction_log.reset()
         self._apply_auto_model_selection(user_query)
         user_message = {"role": "user", "content": user_query}
 

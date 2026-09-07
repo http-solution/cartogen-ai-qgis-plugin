@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (152 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (156 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1522,3 +1522,37 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `layer_name` | string | yes |  |
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
+
+## tool_operations_tools
+
+### `get_tool_operation_type`
+
+Look up which operation-type category (READ, CREATE, MODIFY, DELETE, or PUBLISH) a registered Cartogen AI tool falls into -- e.g. before deciding whether a planned call is safe to make without asking first. Returns an error if the name isn't a registered tool.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `tool_name` | string | yes | Exact registered tool name, e.g. 'remove_layer'. |
+
+### `list_tools_by_operation_type`
+
+List every registered tool classified under one operation-type category (READ, CREATE, MODIFY, DELETE, or PUBLISH). Use this to see, for example, every tool that can write an external file (PUBLISH) or remove/replace project state (DELETE).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `operation_type` | string | yes | One of READ, CREATE, MODIFY, DELETE, PUBLISH. |
+
+## transaction_tools
+
+### `get_turn_transaction_log`
+
+List every tool call made so far during THIS turn (this one user request), each tagged with its operation type and, when it added a new layer, whether it can be undone with undo_last_operation. Use this before undo_last_operation to see what's actually available to undo -- it does not reach back into earlier turns/messages, only the current one.
+
+_No parameters._
+
+### `undo_last_operation`
+
+Reverse the most recent undoable tool call made THIS turn -- currently, this only ever means removing a layer that a call added (see get_turn_transaction_log to check what qualifies first). It cannot undo an in-place edit (e.g. field_calculator, a style change, run_query's filter) or a previous removal/project load -- those are a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `confirmed` | boolean | no | Set true only after the user has confirmed the undo. |
