@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (156 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (158 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -148,6 +148,19 @@ Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
 | `output_path` | string | yes |  |
 | `format` | string | yes |  |
 
+### `export_temporal_animation_frames`
+
+Render one PNG frame per time step from a layer with start/end period fields already in the project -- e.g. control-area polygons over 2016-2026 -- by filtering the layer to each frame's date and exporting the current map canvas view, so the frames can be assembled into a GIF/video outside QGIS (e.g. with ffmpeg) for a native, non-HTML animation. This is the QGIS-native sibling of generate_temporal_dashboard's HTML output -- use this one when a video/GIF file is wanted instead of (or in addition to) a shareable web page. The canvas view/extent is NOT changed between frames (so the animation doesn't visually jump) -- pan/zoom to the desired extent yourself before calling this. Optionally applies a categorized style once via category_field before rendering frames. The layer's filter is restored to what it was before the call once done, even on failure.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `start_field` | string | yes | Date/text field holding when each feature's period began. |
+| `end_field` | string | no | Optional date/text field holding when the period ended. A feature with no value here stays visible from its start onward. |
+| `category_field` | string | no | Optional field to categorize/color the layer by (e.g. controlling faction) before rendering frames -- applied once via apply_categorized_style. |
+| `output_dir` | string | no | Directory to write frame_0001.png, frame_0002.png, etc. Defaults to a new temp directory. |
+| `step_days` | integer | no | Days between frames. Defaults to 30. |
+
 ### `export_to_csv`
 
 Export layer attribute table to CSV file.
@@ -186,6 +199,17 @@ Generate a markdown report to present insights in chat. Optionally pass source_l
 | `title` | string | yes |  |
 | `insights` | string | yes |  |
 | `source_layers` | array[string] | no | Optional layer names to append a provenance/lineage section for. |
+
+### `generate_temporal_dashboard`
+
+Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or more vector layers already in the project -- e.g. control-area polygons or incident points for several armed groups/factions over a multi-year period, each with its own period/date, plus a play/pause + date slider the viewer drags or plays through to watch status/control change over time. This is the temporal, reusable-for-any-multi-period-status-dataset sibling of generate_html_dashboard -- use THIS tool (not that one) whenever the data has a time dimension a viewer should be able to scrub through (e.g. 'from 2016 to 2026'), and generate_html_dashboard for a plain, non-animated situation map. At least one layer must set start_field. Give every temporal layer a category_field (e.g. the controlling faction/group name) so features are colored by category -- without it every feature in that layer gets the same color, which defeats the point of an animated status map. A layer with no start_field is rendered as an always-visible reference layer alongside the animated ones (e.g. a fixed country outline). Point-geometry layers (e.g. incidents) render as colored circle markers, not plain icons. Beyond the single-point-in-time slider, the dashboard also gets: a separate from/to date-range control that narrows what the slider ever shows and what the play button loops through; an automatic checkbox filter panel listing every distinct value of any layer's location_field (e.g. governorate/admin1 name), letting the viewer hide specific locations regardless of date; and, when any layer sets category_field, an automatic stacked bar chart (via Chart.js, from a CDN) showing how many status/control changes started in each calendar month, broken down by category and kept in sync with the location filter and date range -- modeled on a real reference dashboard Baron shared (a Power BI conflict-monitoring report with a map, location filters, a date range, and a synced trend chart). Each layer is reprojected to WGS84 automatically. Vector layers only. The viewer needs internet access at view time (see the result's connectivity_note -- this is now true even for a dashboard with no chart, since Chart.js is always loaded). IMPORTANT: use your own knowledge of the data's field names to pass human-readable popup_labels for any coded/abbreviated field, exactly as for generate_html_dashboard. This tool never invents data of its own -- it only animates/charts whatever start_field/end_field/category_field/location_field values are actually present on the layer(s) you point it at.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layers` | array[object] | yes | One or more layers. At least one must set start_field. |
+| `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
+| `output_path` | string | no | Where to save the HTML file. Defaults to a temp file. |
+| `step_days` | integer | no | Slider step size / play-button advance, in days. Defaults to 30. |
 
 ### `print_map`
 

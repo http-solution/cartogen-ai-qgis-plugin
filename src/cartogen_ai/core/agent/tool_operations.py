@@ -117,6 +117,8 @@ TOOL_OPERATION_TYPES = {
     # Returns a markdown string only -- no file write, no project mutation.
     "generate_spatial_report": READ,
     "generate_html_dashboard": PUBLISH,
+    "generate_temporal_dashboard": PUBLISH,
+    "export_temporal_animation_frames": PUBLISH,
 
     # -- humanitarian_tools.py --
     "search_hdx_datasets": READ,
