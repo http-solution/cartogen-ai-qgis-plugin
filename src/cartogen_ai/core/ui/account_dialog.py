@@ -63,6 +63,25 @@ class CartogenAccountDialog(QDialog):
         form.addRow("Last name (registration):", self.last_name_edit)
         layout.addLayout(form)
 
+        # BUG-2026-09-08-2 fix (2026-09-08): GDPR F2/addendum -- this dialog collects real
+        # personal data (email/name/password) with no privacy notice anywhere before today.
+        # Short, static, and honest about what this plugin does and doesn't control: it
+        # sends the fields to the configured service and doesn't itself retain email/name,
+        # but has no visibility into that service's own retention/deletion practice --
+        # see docs/GDPR_HOSTED_ACCOUNT_ADDENDUM_2026-09-08.md for the full inventory.
+        self.privacy_notice_label = QLabel(
+            "Privacy notice: creating an account or signing in sends your email, name, and "
+            "password to the Cartogen service at the URL above, to create or authenticate "
+            "your account there. This plugin does not store your email or name -- only an "
+            "encrypted session token, once you're signed in -- and never logs your password. "
+            "How that service itself stores, retains, or lets you delete your account data is "
+            "outside this plugin's control; check with whoever operates it. \"Sign out\" "
+            "removes the session token stored on this machine."
+        )
+        self.privacy_notice_label.setWordWrap(True)
+        self.privacy_notice_label.setStyleSheet("color: palette(mid); font-size: 90%;")
+        layout.addWidget(self.privacy_notice_label)
+
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
