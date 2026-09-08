@@ -95,6 +95,8 @@ decisions from earlier in the project (not code defects, not new): whether
 incident-reporting-code vocabulary to standardize on. Both remain open exactly as before — not
 re-litigated here, just noted as still-pending per the existing queue.
 
+**Correction, 2026-09-08, later (during "solve the pending tasks" pass):** the paragraph above is wrong -- verified against a closer read of `docs/MASTER_TASK_REGISTRY.md`'s own Level 2 queue (not just the older 2026-09-03 journal entry that first raised these two items) plus the live code directly: **both decisions were already made by Baron on 2026-09-04 and are already implemented and committed.** `optimize_delivery_route` builds a real road-snapped route via `native:shortestpathpointtopoint` when given `road_network_layer`, and otherwise returns an explicit warning instead of a silent straight line (confirmed present in `agent/tools/logistics_tools.py`). `add_incident_point`/`add_point_layer` support both ACLED-style (`event_type`/`sub_event_type`) and IMSMA/IMAS-style (`hazard_type`/`contamination_status`) controlled fields via `_validate_incident_coding()` (confirmed present in `agent/tools/humanitarian_tools.py`). There is nothing left pending here -- this was an analysis error in the paragraph above, not a real open item; left uncorrected in place would have wasted Baron's attention re-deciding something already decided.
+
 ---
 
 ## 4. Security review
