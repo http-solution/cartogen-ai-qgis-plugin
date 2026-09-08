@@ -8,6 +8,29 @@ class TestCartogenAccountClient(unittest.TestCase):
     def test_normalize_base_url_removes_api_suffix_and_slash(self):
         self.assertEqual(normalize_account_base_url('https://example.test/api/'), 'https://example.test')
 
+    def test_normalize_base_url_rejects_plain_http_for_real_hosts(self):
+        # BUG-2026-09-08-1: the account dialog tells the user their password is sent
+        # only over HTTPS -- plain http must be rejected for any non-loopback host.
+        with self.assertRaises(ValueError):
+            normalize_account_base_url('http://cartogen.example.com')
+
+    def test_normalize_base_url_allows_plain_http_for_localhost_dev(self):
+        # Local development against the default http://localhost:3000 must keep working.
+        self.assertEqual(
+            normalize_account_base_url('http://localhost:3000/api'),
+            'http://localhost:3000',
+        )
+        self.assertEqual(
+            normalize_account_base_url('http://127.0.0.1:3000'),
+            'http://127.0.0.1:3000',
+        )
+
+    def test_normalize_base_url_still_accepts_https_for_real_hosts(self):
+        self.assertEqual(
+            normalize_account_base_url('https://cartogen.example.com/api/'),
+            'https://cartogen.example.com',
+        )
+
     @patch('cartogen_ai.core.agent.account.requests.Session.request')
     def test_register_returns_activation_state_without_exposing_secret(self, request):
         request.return_value = Mock(status_code=202, ok=True, json=lambda: {
