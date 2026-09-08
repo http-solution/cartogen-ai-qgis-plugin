@@ -9,11 +9,7 @@ this document does not make. Per Cartogen's operating rules, this is not legal a
 `docs/GDPR_COMPLIANCE_REVIEW.docx` proper, alongside refreshing that document's stale
 `cartogen-ai-community`/`01d853f` framing (see `docs/CODE_REVIEW_2026-09-08.md` section 5).
 
-This addendum exists to close the informational half of `BUG-2026-09-08-2`: the standing
-review document was written 2026-09-01 against a version of the codebase that did not yet
-have this feature, so it never assessed it. The *decision* half of that bug (extend the
-official review, or defer/disable the feature) is still Baron's call -- see "Open decision"
-at the end.
+This addendum exists to close the informational half of `BUG-2026-09-08-2`: **correction, 2026-09-08** -- this paragraph originally said the review predated the feature; verified against `git log` and that's wrong. `agent/account.py` was added 2026-08-28 (`e045cb2`), before the review's own 2026-09-01 date -- the feature already existed when the review was written. What actually happened is a scope gap, not a timing gap: the review's own file list and Section 3.2/3.3 discussion cover only the inert `providers/cartogen.py` LLM-provider stub (a different "hosted" surface -- the Settings dropdown's provider option, not this account/login feature), and never mention `account.py`/`account_dialog.py` at all. The *decision* half of that bug (extend the official review, or defer/disable the feature) is still Baron's call -- see "Open decision" at the end.
 
 ## 1. What the feature is
 
