@@ -557,6 +557,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         strategy_val = 1 if strategy == "fastest" else 0
         layers_created = []
         served_count = 0
+        skipped = []
         for i, feat in enumerate(facilities.getFeatures()):
             geom = feat.geometry()
             if geom is None or geom.isEmpty():
@@ -572,7 +573,25 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 "OUTPUT_LINES": "memory:",
             }
             params.update(extra_params)
-            output = processing.run("native:serviceareafrompoint", params)
+            # BUG-2026-09-05-2 fix (2026-09-08): both processing.run() calls below used to
+            # sit inside one try/except that spans the whole facility loop, so a single
+            # facility hitting the known small/degenerate-network edge case (a collinear
+            # 1-segment network's convex hull degenerating to a LineString that a Polygon-
+            # typed sink then refuses, or a 2-segment L-shaped network making
+            # native:serviceareafrompoint itself raise on invalid intermediate geometry)
+            # aborted the ENTIRE multi-facility request, discarding results already computed
+            # for every other facility. Each stage is now isolated per facility: a failure is
+            # recorded and that facility is skipped (or, if only the hull step fails, its
+            # already-built reachable-network lines are still kept), so the rest of the batch
+            # still comes back. This does not change the underlying QGIS behavior on a
+            # 1-2 segment synthetic network (not reproducible against real QGIS from this
+            # session -- see docs/BUG_TRACKER.md) -- it stops that known edge case from
+            # taking down unrelated facilities in the same call.
+            try:
+                output = processing.run("native:serviceareafrompoint", params)
+            except Exception as e:
+                skipped.append({"facility_index": i, "stage": "serviceareafrompoint", "reason": str(e)})
+                continue
             lines_layer = output.get("OUTPUT_LINES")
             if lines_layer is None or lines_layer.featureCount() == 0:
                 continue
@@ -582,8 +601,12 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             QgsProject.instance().addMapLayer(lines_layer)
             layers_created.append(lines_name)
 
-            hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
-            hull_layer = hull.get("OUTPUT")
+            hull_layer = None
+            try:
+                hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
+                hull_layer = hull.get("OUTPUT")
+            except Exception as e:
+                skipped.append({"facility_index": i, "stage": "convexhull", "reason": str(e)})
             if hull_layer is not None:
                 hull_name = f"{facility_layer}_service_area_{i}"
                 hull_layer.setName(hull_name)
@@ -606,6 +629,13 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             result["speed_field"] = speed_field
         if direction_field:
             result["direction_field"] = direction_field
+        if skipped:
+            result["warnings"] = (
+                f"{len(skipped)} facility(ies) could not be fully processed -- see 'skipped' for "
+                "detail. Known limitation on very small/degenerate road networks "
+                "(BUG-2026-09-05-2); real road datasets are very unlikely to hit this."
+            )
+            result["skipped"] = skipped
         return result
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}

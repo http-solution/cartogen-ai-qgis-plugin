@@ -223,6 +223,105 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
         self.assertNotIn("direction_field", res)
 
 
+class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
+    """BUG-2026-09-05-2: a small/degenerate road network can make either
+    native:serviceareafrompoint or native:convexhull raise for one facility --
+    that must no longer abort the whole multi-facility call. Mocked reproduction
+    of the two exact error shapes recorded in docs/BUG_TRACKER.md; this sandbox has
+    no live QGIS to re-run the original real-QGIS reproduction against, so this
+    covers the fix's logic, not a live re-verification of the underlying QGIS
+    behavior itself."""
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_convexhull_failure_on_one_facility_keeps_its_lines_and_the_other_facility(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params):
+            if alg_id == "native:serviceareafrompoint":
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                # First facility's reachable network is collinear -- convexhull's own
+                # Polygon-typed sink refuses the resulting LineString, exactly as
+                # BUG-2026-09-05-2 recorded against real QGIS.
+                if params["INPUT"] is lines_layer and not hasattr(run_side_effect, "_called_once"):
+                    run_side_effect._called_once = True
+                    raise RuntimeError(
+                        "Could not add feature with geometry type LineString to layer of type Polygon"
+                    )
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["facility_count"], 2)
+        self.assertIn("skipped", res)
+        self.assertEqual(len(res["skipped"]), 1)
+        self.assertEqual(res["skipped"][0]["stage"], "convexhull")
+        self.assertIn("warnings", res)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_serviceareafrompoint_failure_on_one_facility_does_not_abort_the_other(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+        calls = {"count": 0}
+
+        def run_side_effect(alg_id, params):
+            if alg_id == "native:serviceareafrompoint":
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    # L-shaped 2-segment network -- native:serviceareafrompoint itself
+                    # raises on invalid intermediate geometry, per BUG-2026-09-05-2.
+                    raise RuntimeError(
+                        "Feature has invalid geometry. Please fix the geometry or change "
+                        "the 'Invalid features filtering' option."
+                    )
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["facility_count"], 1)
+        self.assertEqual(res["skipped"][0]["stage"], "serviceareafrompoint")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_all_facilities_failing_still_reports_a_clean_error(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
+
+        def run_side_effect(alg_id, params):
+            raise RuntimeError("invalid geometry")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertIn("error", res)
+        self.assertNotIn("success", res)
+
+
 class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_rejects_unknown_strategy(self):
