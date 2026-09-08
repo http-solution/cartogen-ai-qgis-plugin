@@ -135,6 +135,35 @@ _BLOCKED_DUNDER_ATTRS = {
     "__builtins__", "__import__", "__loader__", "__spec__", "__reduce__",
     "__reduce_ex__", "__code__", "__closure__", "__getattribute__",
     "format", "format_map",
+    # Added 2026-09-08, live-confirmed during a full independent code review (a real
+    # reproduction against this exact denylist + _SAFE_BUILTINS combination, not a
+    # theoretical concern, same as every prior sweep above): a script can reach the
+    # REAL, unrestricted `builtins` module -- completely bypassing _SAFE_BUILTINS below
+    # -- via exception-traceback frame-walking, with no import and no name this list
+    # already caught:
+    #     try:
+    #         raise ValueError()
+    #     except ValueError as e:
+    #         f = e.__traceback__.tb_frame
+    #         while f.f_back is not None:
+    #             f = f.f_back
+    #         real_builtins = f.f_globals["__builtins__"]  # the REAL module/dict
+    # `f_back`/`f_globals`/`tb_frame` are ordinary attribute names on frame/traceback
+    # objects that this list did not previously enumerate, and `__builtins__` here is a
+    # string dict KEY (f.f_globals['__builtins__']), not an ast.Attribute node, so the
+    # existing `__builtins__` entry above (which only catches `.` attribute access)
+    # never sees it either. Blocking `f_globals`/`f_back` closes the technique at its
+    # first step -- a script can no longer reach ANY frame's globals at all, regardless
+    # of how the frame was obtained, so the remaining names below (gi_frame/cr_frame/
+    # ag_frame/tb_frame/tb_next/__traceback__, the various ways to obtain a frame or
+    # traceback object in the first place) are blocked too, as defense in depth, along
+    # with f_locals/f_builtins/f_code (the same class of introspection surface on a
+    # frame once one is reached). As with every prior sweep, this closes the specific
+    # technique found this review -- not a claim that frame/interpreter introspection
+    # is now exhaustively covered. See docs/CODE_REVIEW_2026-09-08.md Sec 4.1 and
+    # BUG_TRACKER.md NEW-2026-09-08-1 for the full writeup and live PoC.
+    "f_back", "f_globals", "f_locals", "f_builtins", "f_code",
+    "gi_frame", "cr_frame", "ag_frame", "tb_frame", "tb_next", "__traceback__",
 }
 # Qt classes with file, process, network, or dynamic-library capability --
 # confirmed live that QDirIterator (from `qgis.PyQt.QtCore`, a module that
