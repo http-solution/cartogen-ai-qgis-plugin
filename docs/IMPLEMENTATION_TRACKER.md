@@ -121,6 +121,24 @@ all 13.
 
 **Update, 2026-09-04 — F1 now fixed (found via cross-checking this repo's GDPR review against `cartogen-ai`, the now-canonical QGIS plugin checkout):** `SpatialMemoryManager.clear_global_notes()` added, wired to a new "Clear Global Memory" button in `ui/tasks_tab_widget.py`, matching recommendation R4. Full writeup: `docs/BUG_TRACKER.md` BUG-2026-09-04-1. Ported from `cartogen-ai` commit `eee84eb`, which closed the identical finding in that repo first — the two repos diverged before this GDPR review was ever run, so the fix had to land in both independently. **F6-F12 still open, unaffected by this update.**
 
+**Update, 2026-09-08 -- two new HIGH findings, discovered during a full 5-dimension code
+review of the `cartogen-ai-community` line and independently confirmed to apply here
+unchanged (same shared history; `account.py`/`account_dialog.py` are identical between the
+two repos):** (1) the Hosted-Account login dialog (`ui/account_dialog.py`) tells the user
+their password "is sent only over HTTPS," but `agent/account.py`'s
+`normalize_account_base_url()` accepts plain `http` (default is even
+`http://localhost:3000`) with nothing enforcing the on-screen claim. (2) That same
+Hosted-Account feature (added 2026-08-28, confirmed via `git log` in this repo too --
+before this GDPR review's 2026-09-01 date) was never actually assessed by the review: its
+own scope and file list cover only the inert `providers/cartogen.py` LLM-provider stub,
+and "password" never appears in `docs/GDPR_COMPLIANCE_REVIEW.docx` here either. Full
+write-ups: `docs/BUG_TRACKER.md` BUG-2026-09-08-1/-2, and full detail in
+`cartogen-ai-community/docs/CODE_REVIEW_2026-09-08.md` (written against that checkout, but
+both findings independently verified to reproduce here since this repo is where the code
+actually lives now -- `cartogen-ai` is currently 15+ commits and two feature-phases ahead
+of `cartogen-ai-community`, per the 2026-09-08 folder-reconciliation check). Neither finding
+has been fixed yet -- awaiting Baron's go-ahead to change code, per Hermes Charter Rule 8.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
