@@ -15,12 +15,24 @@ import requests
 
 DEFAULT_ACCOUNT_BASE_URL = "http://localhost:3000"
 
+# BUG-2026-09-08-1 fix (2026-09-08): account_dialog.py tells the user their password
+# "is sent only over HTTPS," but nothing enforced that claim -- normalize_account_base_url()
+# accepted any http(s) URL, including the http:// default. Plain HTTP is now rejected unless
+# the host is a local-development loopback address, so a real deployment can't silently send
+# credentials in the clear while the UI still claims HTTPS-only.
+_LOCAL_DEV_HOSTNAMES = {"localhost", "127.0.0.1", "::1"}
+
 
 def normalize_account_base_url(value):
     value = str(value or DEFAULT_ACCOUNT_BASE_URL).strip()
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("Cartogen account URL must be an absolute HTTP(S) URL")
+    if parsed.scheme == "http" and parsed.hostname not in _LOCAL_DEV_HOSTNAMES:
+        raise ValueError(
+            "Cartogen account URL must use HTTPS (plain HTTP is only allowed for "
+            "localhost/127.0.0.1 during local development)"
+        )
     path = parsed.path.rstrip("/")
     for suffix in ("/api", "/auth"):
         if path.endswith(suffix):
