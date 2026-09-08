@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **THIS IS THE CANONICAL QGIS PLUGIN REPO (confirmed 2026-09-08).** A sibling checkout, `C:\Cartogen-AI-Core\cartogen-ai-community`, exists but is now stale -- its full commit history is an ancestor of this repo's (confirmed via `git merge-base --is-ancestor`). The two were merged into this repo's `main` on 2026-09-05 (`764afce`), and this repo has since pulled well ahead: a 15-commit "27-point QGIS architecture review" plus a two-phase animated temporal-dashboard feature (`609ee10`, 2026-09-08). Do all QGIS-plugin development work here, not in `cartogen-ai-community`. Some older Obsidian notes and this repo's own docs may still say otherwise from before this date -- treat this note and a fresh `git log`/`git merge-base` check as the source of truth over anything older.
+
 Orientation for Claude Code (or any AI coding agent) working in this repo. Read this before
 making changes — it points at the conventions this project actually enforces, not generic advice.
 
