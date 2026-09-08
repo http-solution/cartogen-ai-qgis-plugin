@@ -203,6 +203,10 @@ next-steps queue always has at least one item — if everything concrete is done
 
 > **Update, same day, later — the GUI half got done after all, cooperatively:** this environment's screen-capture/input-injection pipeline genuinely cannot render or reliably interact with QGIS's window (confirmed rigorously: process responsive, window correctly positioned/visible per Win32, no hidden modal dialog per a full window enumeration, software-OpenGL forced — screenshots stayed solid black regardless). Rather than keep guessing blind, Baron drove the live session directly and shared screenshots for verification. Real evidence obtained: (1) a real Google Gemini (Hosted) chat response loaded `test_points_export.csv` (from the BUG-2026-09-05-1 headless session) into the live project as a real "Health Facilities" layer with real WKT-parsed geometry and a real 5-class graduated Viridis style by `severity` — confirms chat UI + LLM dispatch + real tool execution all work end-to-end; (2) the Tasks_Notes tab renders correctly and honestly shows "No active plan yet" for a single-tool request (not a bug — task_manager's plan view is for genuinely multi-step requests); (3) a real `create_print_layout` call produced an actual layout in QGIS's Layout Manager with a real map, graduated legend, scale bar, north arrow, and — confirmed via direct screenshot of the Layout Designer — the BUG-2026-09-02-6 standing disclaimer footer, fully legible and correctly positioned in landscape orientation (portrait still unconfirmed); (4) the chat's "prompt that will be sent" preview card showed real task-register matching (task 28.15, confidence 0.17) and real tool-ordering reasoning, confirming that pipeline runs live too. Updated BUG-2026-09-02-6's status accordingly (see Level 3a and `docs/BUG_TRACKER.md`). Remaining gap: portrait-orientation layout fit, and the deeper `docs/RELEASE_SMOKE_TEST.md` checklist rows not touched this pass (destructive-action confirm gate live, scheduled-workflow live, etc.).
 
+> **Update, cross-session, 2026-09-07 — new feature request, not from the 27-point review, direct from Baron:** "the new idea/featur is animated dashboard from several views from the map like the status of fighting groups from 2016-2026 in Syria and the controls areas." Scoped via three questions (data source: capability now, real data later; output: both HTML and QGIS-native; scope: reusable tool, not Syria-specific) and built as `generate_temporal_dashboard`/`export_temporal_animation_frames` in `agent/tools/export_tools.py` — full detail in Level 3b's 2026-09-07 entry. 35 new tests, full suite 1196 tests, same known baseline, 0 new failures. Not yet committed — awaiting Baron's go-ahead, same as everything else in this registry.
+
+> **Update, same day, later — Baron asked to see it run, then shared a screenshot of a real, live Microsoft Power BI Syria-conflict dashboard ("is something like this"):** the reference showed four concrete gaps against the phase-1 build: a synced trend chart below the map, a location filter panel, point markers colored by category (phase 1 rendered points as plain default icons, not colored), and a two-handle date-range filter in addition to the existing play/pause animation. Asked which to add and why (UX-reference-only vs. eventual real-data target) — Baron: all four, and "eventually load real data like this" (real-data intent noted, but the standing capability-now/no-fabricated-Syria-data scoping from earlier the same day is unchanged — still placeholder-only). Built all four into `_build_temporal_dashboard_html`: point-geometry temporal layers now render as real `folium.CircleMarker`s (confirmed via live inspection that folium's generated `pointToLayer` merges `style_function`'s output into the marker via `Object.assign`, so the existing per-feature color logic just works, unifying the toggle code path with polygons' `.setStyle()`); a location-filter checkbox panel (built from a new `location_field` per-layer option); a Chart.js v4 (CDN, `4.5.1`) stacked-bar trend chart aggregating feature counts by month/category, synced to the current date-range and location-filter selection; and a date-range filter as two plain `<input type=range>` sliders (deliberately, over a fancier dual-handle widget, to avoid a new JS dependency) that clamp the existing play-slider's bounds and wrap the play-loop within the selected range. Found and fixed a real security gap while adding the chart: the chart's caller-controlled data (location/category names) was being embedded via plain `json.dumps()`, which doesn't escape a literal `</script>` sequence and could break out of its own `<script>` tag — added `_json_for_inline_script()` (escapes `</` to `<\/`) and applied it to both new inline-JS data embeddings; `json.dumps`'s own `ensure_ascii=True` default was verified (live) to already handle the separate U+2028/U+2029 JS-line-terminator issue, so no extra handling was needed there. Also found and fixed a latent bug the new `marker_radius` schema field exposed: `layer.get("marker_radius", 6)` silently returns `None`, not `6`, whenever the tool wrapper's prepared-layer dict carries an explicit `"marker_radius": None` (which it always does when a caller omits the field) — changed to `layer.get("marker_radius") or 6`. 21 new tests (`TestMonthBucketLabel`, `TestResolveFeatureLocations`, `TestResolveTemporalColorsSortedOrder`, `TestBuildTrendChartData`, `TestBuildTemporalDashboardHtmlNewFeatures` incl. the script-breakout regression test), full suite re-verified after the marker_radius fix: `tests.test_temporal_dashboard` 56/56 passing, full suite 1217 tests, same known baseline (1 DNS-dependent failure, 6 FUSE `PermissionError` cleanup errors), 0 new failures; pyflakes clean (same 2 pre-existing/accepted `style_function` redefinition warnings, no new ones). `docs/TOOLS_REFERENCE.md` regenerated (158 tools, updated description/schema for `generate_temporal_dashboard`). Still not committed — this is materially different code from phase 1's own not-yet-approved commit, so it needs its own fresh go-ahead from Baron, not a carry-over of any earlier approval.
+
 ### Next steps queue (ordered — work the top item first, unless Baron redirects)
 
 1. ~~Get Baron's explicit go-ahead to commit the two fixes above~~ — **done, 2026-09-04.**
@@ -554,6 +558,83 @@ Full write-ups for every ID below live in `docs/BUG_TRACKER.md` (this is the ind
 
 ### 3b. Feature-completion log (by version)
 
+- **unreleased (uncommitted, 2026-09-07)** — New feature, from Baron directly (not a
+  27-point-review item): "animated dashboard from several views ... like the status of
+  fighting groups from 2016-2026 in Syria and the control areas". Built as a generic,
+  reusable "animate a multi-period status/control dataset" capability per Baron's own three
+  scoping answers -- (1) capability now, placeholder/synthetic data only, no fabricated
+  Syria-conflict dataset (2) both an HTML output and a QGIS-native output (3) reusable tool,
+  not hardcoded to Syria. Two new tools in `agent/tools/export_tools.py`:
+  `generate_temporal_dashboard` (Leaflet/Folium HTML with a hand-rolled play/pause + date
+  slider that shows/hides each feature per its own `start_field`/`end_field` window --
+  deliberately per-feature, not per-layer, since `folium.plugins.TimestampedGeoJson`'s
+  `duration` is one global value for the whole layer and can't give two factions' areas in
+  the same layer their own independent periods) and `export_temporal_animation_frames`
+  (QGIS-native: loops `layer.setSubsetString()` + `canvas.saveAsImage()` per computed frame
+  date, restores the original filter afterward, canvas extent left untouched between frames
+  so the animation doesn't jump; returns individual PNGs plus an honest note that QGIS itself
+  doesn't encode video -- an `ffmpeg` command is suggested as a follow-up). Shared pure
+  helpers (`_categorical_color_map`, `_date_to_epoch_ms`, `_resolve_temporal_colors`,
+  `_resolve_temporal_bounds`, `_compute_animation_frame_epochs`,
+  `_temporal_subset_expression`) plus a `_resolve_popup_kwargs` extraction refactored out of
+  the existing `_build_dashboard_html` so both dashboard builders share one popup-field
+  implementation instead of duplicating it. Per-feature color/window baked into each
+  feature's own GeoJSON properties (`__cartogen_start_ms`/`__cartogen_end_ms`/
+  `__cartogen_color`) so the client-side slider JS never has to recompute a ColorBrewer/
+  branca scale in JavaScript -- verified end-to-end with a real folium render: confirmed via
+  `node --check` that the generated `<script>` blocks are syntactically valid, and by direct
+  inspection of the rendered HTML that the injected slider script (which references the
+  Leaflet `L.geoJson(...)` layer variables folium generates) sits *before* those variables'
+  own `<script>` block in document order -- correctly handled by deferring the first frame
+  update to `DOMContentLoaded` rather than running it inline, so it never references a
+  not-yet-defined variable. Both tools classified `PUBLISH` in `agent/tool_operations.py`
+  (point 20's taxonomy). 35 new tests in `tests/test_temporal_dashboard.py` (pure-logic
+  helpers need no QGIS/folium mock; `_build_temporal_dashboard_html` skips if folium isn't
+  installed like the existing dashboard tests; the two registered tools' QGIS-touching
+  wrappers use the same `@patch(...QGIS_AVAILABLE, True)` mocking convention already
+  established by `test_export_tools.py`). Full suite 1196 tests, same known baseline (1
+  DNS-dependent failure, 6 FUSE `PermissionError` cleanup errors), 0 new failures.
+  `docs/TOOLS_REFERENCE.md` regenerated (158 tools). Real data was never fabricated anywhere
+  in this feature or its tests -- all Syria-flavored fixtures use generic placeholder names
+  ("Faction A/B/C") and made-up dates, consistent with rule 42/BUG-2026-09-02-6's standing
+  anti-fabrication principle; real control-area data, if/when Baron supplies or points the
+  agent at it, flows into these same tools unchanged. Not yet committed — awaiting Baron's
+  go-ahead.
+- **unreleased (uncommitted, 2026-09-07, phase 2)** — Same feature, extended same day after
+  Baron shared a screenshot of a real, live Microsoft Power BI Syria-conflict dashboard as a
+  reference ("is something like this") and asked (via two follow-up questions) for all four
+  of: point markers colored by category, a location filter panel, a synced Chart.js trend
+  chart, and a date-range filter alongside the existing play/pause animation --
+  `_build_temporal_dashboard_html` gained `location_field`/`marker_radius` per-layer options,
+  a `folium.CircleMarker`-based point renderer (verified live that folium's generated
+  `pointToLayer` correctly merges `style_function` output into marker options via
+  `Object.assign`, so per-feature coloring already in place for polygons just works for
+  points too), an HTML checkbox location-filter panel, a Chart.js v4 (`4.5.1` via CDN)
+  stacked-bar trend chart (`_build_trend_chart_data` buckets each feature into the calendar
+  month its `start_field` falls in, per-category, optionally split `by_location`; category
+  colors assigned in *sorted*, not first-seen, order so map and chart legends match for the
+  common single-layer case), and two plain range-input sliders for the date-range filter
+  (chosen over a dual-handle widget to avoid a new JS dependency; the play-slider's own
+  bounds stay fixed but its playhead clamps into the selected range, and the play-loop wraps
+  within it once a range is set). Security fix found and applied during this work: added
+  `_json_for_inline_script()` (escapes literal `</` to `<\/`) and used it for both new
+  inline-JS data embeddings (`__cartogenChartData`/`__cartogenCategoryColors`), closing a
+  real script-tag-breakout gap that plain `json.dumps()` of caller-controlled location/
+  category names would otherwise have left open; `json.dumps`'s `ensure_ascii=True` default
+  was confirmed (live) to already escape U+2028/U+2029 separately, so nothing extra was
+  needed there. Bug fix found and applied: `layer.get("marker_radius", 6)` silently returned
+  `None` instead of the intended default whenever the wrapper's prepared dict held an
+  explicit `"marker_radius": None` (always true when a caller omits the field) -- changed to
+  `layer.get("marker_radius") or 6`. 21 new tests in `tests/test_temporal_dashboard.py`
+  (56 total in that file). Full suite re-verified after all phase-2 changes: 1217 tests,
+  same known baseline (1 DNS-dependent failure, 6 FUSE `PermissionError` cleanup errors), 0
+  new failures; pyflakes clean (same 2 pre-existing/accepted warnings). `generate_temporal_
+  dashboard`'s registered description/schema updated to document all four additions;
+  `docs/TOOLS_REFERENCE.md` regenerated. Still placeholder-data-only, per the standing
+  anti-fabrication principle and Baron's own "capability now, data later" scoping from
+  earlier the same day -- his "eventually load real data like this" answer was about future
+  intent, not a change to that scope. Not yet committed -- this is materially different code
+  from phase 1's own not-yet-approved commit and needs its own fresh go-ahead.
 - **unreleased (uncommitted, 2026-09-05)** — Point 12 of the 27-point review, style-library
   reuse: new `save_layer_style`/`load_layer_style` tools in `agent/tools/styling_tools.py`,
   using real `QgsMapLayer.saveNamedStyle()`/`loadNamedStyle()` against a real `.qml` file, plus
