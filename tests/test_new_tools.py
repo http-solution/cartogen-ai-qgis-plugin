@@ -436,6 +436,71 @@ class TestNewTools(unittest.TestCase):
         for snippet in snippets:
             self.assertIsNotNone(_validate_script_safety(snippet), snippet)
 
+    def test_script_safety_blocks_frame_traceback_introspection_escape(self):
+        """Live-confirmed 2026-09-08 (full independent code review): a script can
+        reach the REAL, unrestricted `builtins` module -- completely bypassing
+        _SAFE_BUILTINS -- by walking an exception traceback's frame chain, with no
+        blocked import and no name this validator previously checked. Reproduced
+        against an extracted copy of this exact module before the fix: this exact
+        script passed _validate_script_safety (returned None) and, run through the
+        real _SAFE_BUILTINS-restricted exec() path exactly as execute_pyqgis_script
+        does it, successfully wrote a real file to disk. `f_back`/`f_globals`/
+        `tb_frame` are ordinary frame/traceback attribute names, and
+        `f.f_globals['__builtins__']` is a string dict KEY, not an ast.Attribute
+        node -- neither was covered by the existing `__builtins__` attribute check.
+        See the 2026-09-08 comment above _BLOCKED_DUNDER_ATTRS for the full writeup,
+        and docs/CODE_REVIEW_2026-09-08.md Sec 4.1 / BUG_TRACKER.md
+        NEW-2026-09-08-1 for the original review finding."""
+        full_escape_chain = (
+            "def run():\n"
+            "    try:\n"
+            "        raise ValueError('trigger')\n"
+            "    except ValueError as e:\n"
+            "        f = e.__traceback__.tb_frame\n"
+            "        while f.f_back is not None:\n"
+            "            f = f.f_back\n"
+            "        real_builtins = f.f_globals['__builtins__']\n"
+            "        ns = real_builtins if isinstance(real_builtins, dict) else real_builtins.__dict__\n"
+            "        return ns['open']\n"
+        )
+        self.assertIsNotNone(_validate_script_safety(full_escape_chain), full_escape_chain)
+
+        # Each individual new attribute name, blocked on its own regardless of
+        # receiver -- matches how every other entry in _BLOCKED_DUNDER_ATTRS is
+        # tested elsewhere in this file.
+        for attr in (
+            "f_back", "f_globals", "f_locals", "f_builtins", "f_code",
+            "gi_frame", "cr_frame", "ag_frame", "tb_frame", "tb_next",
+            "__traceback__",
+        ):
+            snippet = f"def run():\n    x = 1\n    return x.{attr}"
+            self.assertIsNotNone(_validate_script_safety(snippet), snippet)
+
+    def test_execute_pyqgis_script_rejects_frame_traceback_escape_end_to_end(self):
+        """Same PoC as above, run through execute_pyqgis_script itself (not just
+        the validator function directly) -- confirms the fix actually protects the
+        real tool entry point, not just the unit-tested internal helper."""
+        script = (
+            "def run():\n"
+            "    try:\n"
+            "        raise ValueError('trigger')\n"
+            "    except ValueError as e:\n"
+            "        f = e.__traceback__.tb_frame\n"
+            "        while f.f_back is not None:\n"
+            "            f = f.f_back\n"
+            "        real_builtins = f.f_globals['__builtins__']\n"
+            "        ns = real_builtins if isinstance(real_builtins, dict) else real_builtins.__dict__\n"
+            "        real_open = ns['open']\n"
+            "        real_open('/tmp/should_never_be_created_by_this_test.txt', 'w').write('pwned')\n"
+            "        return 'escaped'\n"
+        )
+        res = execute_pyqgis_script(script)
+        self.assertIn("error", res)
+        self.assertIn("rejected for safety", res["error"])
+        self.assertNotEqual(res.get("result"), "escaped")
+        import os
+        self.assertFalse(os.path.exists("/tmp/should_never_be_created_by_this_test.txt"))
+
     def test_script_safety_blocks_aliased_eval(self):
         # x = eval; x(...) doesn't call eval directly -- must still be caught
         # since the AST check now flags any Name/Attribute reference, not
