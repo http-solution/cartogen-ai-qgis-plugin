@@ -31,6 +31,7 @@ from . import qa_checklist_tools
 from . import sensitivity_tools
 from . import tool_operations_tools
 from . import transaction_tools
+from . import confidence_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -62,4 +63,5 @@ __all__ = [
     "sensitivity_tools",
     "tool_operations_tools",
     "transaction_tools",
+    "confidence_tools",
 ]

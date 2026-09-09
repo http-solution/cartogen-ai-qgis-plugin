@@ -241,6 +241,10 @@ TOOL_OPERATION_TYPES = {
     "set_layer_sensitivity": MODIFY,
     "get_layer_sensitivity": READ,
 
+    # -- confidence_tools.py --
+    "set_layer_confidence": MODIFY,
+    "get_layer_confidence": READ,
+
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
     "apply_graduated_style": MODIFY,

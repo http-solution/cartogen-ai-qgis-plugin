@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (158 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (160 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1426,6 +1426,26 @@ Zoom canvas to extent of layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+## confidence_tools
+
+### `get_layer_confidence`
+
+Reads a layer's current confidence/epistemic-status classification, if any was set via set_layer_confidence. Returns level=null if never tagged -- not the same as UNKNOWN, just unclassified.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `set_layer_confidence`
+
+Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly recorded, e.g. a surveyed facility location), DERIVED (computed from observed data with no modeling assumptions, e.g. a buffer or spatial join), MODELED (built from a model with real assumptions, e.g. a service area or population-exposure estimate), INFERRED (a conclusion drawn beyond what the data directly shows), or UNKNOWN (provenance genuinely unclear). Use this on any layer whose confidence level matters for how a reader should trust it -- especially anything that will be exported or printed. No automated classification exists -- only what's explicitly set here is tracked.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
+| `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
 
 ## dataset_status_tools
 
