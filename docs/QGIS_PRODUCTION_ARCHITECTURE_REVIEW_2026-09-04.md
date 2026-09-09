@@ -1084,6 +1084,12 @@ open).
     fields are bookkeeping on a task object with no code that reads task
     status to block execution -- the real execution gate is the separate,
     unrelated per-tool `confirmed: bool` pattern (see point 20).
+
+    **Written up as a decision doc, not built, 2026-09-09** -- needs a
+    live-LLM evaluation this sandbox can't run and overlaps materially with
+    point 27's plan-validation question, so the two are documented
+    together. See `docs/IMPLEMENTATION_TRACKER.md` §1.5 for the full
+    options/tradeoffs writeup and what it would take to actually decide.
 19. **AST-based sandboxing as the security boundary is insufficient; use
     a 4-tier model instead -- RE-REVIEWED 2026-09-04, proposal's underlying
     concern CONFIRMED LIVE; the audit's narrower conclusion still holds on
@@ -1418,11 +1424,22 @@ open).
     because the model creates a plan and then calls tools independently
     of it. There is no upfront structured-plan-then-validate pipeline
     anywhere.
+
+    **Written up as a decision doc, not built, 2026-09-09** -- same
+    live-LLM-validation blocker as point 18 above, plus a real latency/
+    friction-vs-safety tradeoff on every request, not just high-risk ones.
+    See `docs/IMPLEMENTATION_TRACKER.md` §1.6.
 28. **Standard project folder architecture (data/00_raw, 10_staging, ...
     with immutable raw data) -- REAL GAP.** The plugin imposes zero
     folder-layout opinion -- it operates entirely on whatever
     `QgsProject.instance()` has open. No raw/staging/processed separation
     or immutability enforcement exists anywhere.
+
+    **Written up as a decision doc, not built, 2026-09-09** -- a real
+    workflow-affecting product opinion, and this product's actual users
+    frequently already work inside an org-mandated data structure they
+    don't control, which the proposal itself doesn't address. See
+    `docs/IMPLEMENTATION_TRACKER.md` §1.7.
 
 ## C. Maintenance note
 
