@@ -147,6 +147,102 @@ has been fixed yet -- awaiting Baron's go-ahead to change code, per Hermes Chart
 
 **Update, 2026-09-08, later still -- Baron: "Ship, extend GDPR review":** implemented the Hosted-Account feature's disposition decision. (1) Added an in-app privacy notice (`privacy_notice_label`) to `ui/account_dialog.py`, shown before registration/login -- the concrete UI gap the addendum flagged. (2) Extended `docs/GDPR_COMPLIANCE_REVIEW.docx` directly (edited `word/document.xml`, following the docx skill's edit-existing-document approach, then validated with `validate.py` and a rendered-PDF visual check against the original's exact styling) to formally cover the feature: Finding F14 (MEDIUM, transparency gap now closed, deletion/export and retention gaps remain), Recommendation R11, two new Section 4 data-inventory rows (Hosted-Account email/name/password, and the session token separately since it behaves differently under every column), three new Appendix -- Files Reviewed entries, and an Executive Summary extension note plus updated finding count (thirteen to fourteen). (3) Also corrected the addendum's own inaccurate claim (verified via `git log --diff-filter=A --follow` on `agent/account.py`) that the standing review predated the feature -- `account.py` was added 2026-08-28, before the review's own 2026-09-01 date; what actually happened is a scope gap (the review's file list never covered it), not a timing gap, and the addendum now says so. `docs/BUG_TRACKER.md`'s BUG-2026-09-08-2 entry moved from Open to Fixed accordingly. Full suite re-verified clean after the code change: 1225 tests, same 1 known DNS-dependent failure, 0 errors, 0 other new failures. What is explicitly NOT closed by this work, and stays tracked rather than silently dropped: no in-app account-deletion/export path for this feature's data (R11 -- today it's server-side only, no self-service UI), and no documented retention policy for whatever operates the configured `base_url` -- both are organizational/server-side facts this codebase has no visibility into, not code defects to fix here.
 
+### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
+
+**Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
+The proposal describes a multi-stage agent pipeline -- Intent Interpreter, Project Inspector,
+Spatial Planner, and further stages -- replacing today's single-loop model. The actual `agent.py`
+`run()` loop today is: build system prompt -> LLM call with router-filtered tools -> dispatch tool
+calls -> loop. No standalone parameter-validator or risk-classifier stage exists; each tool
+validates its own args inline, and no automatic project-snapshot/inspector step runs before
+planning. Since the point was first reviewed, real adjacent work has landed without restructuring
+the core loop: point 20 (§4 above, item 34 in `docs/MASTER_TASK_REGISTRY.md`) added a
+READ/CREATE/MODIFY/DELETE/PUBLISH operation taxonomy and a per-turn undo log as an *informational
+and safety layer on top of* the existing loop, and point 22 added zero-result warnings inside
+individual tools -- real improvements, neither of which is the staged pipeline this point
+describes.
+
+**Why this needs a decision, not code.** The proposed pipeline is a different agent architecture,
+not a bug fix or a parameter addition -- it would change how every tool call is initiated, and
+either adds new LLM calls (real cost/latency on every request) or new deterministic stages
+(behavior an LLM currently handles implicitly moves into code, which can be wrong in new ways an
+LLM wasn't). Whether it actually improves task success/reliability over the current ReAct-style
+loop needs a live-LLM evaluation comparing both against real tasks -- this sandbox has no live LLM
+to run that comparison, so building it blind risks months of rearchitecture on an unvalidated
+premise. This overlaps materially with point 27 below (a validated pre-execution plan is
+essentially this proposal's "Planner" stage) -- worth deciding together, not independently, so a
+choice on one doesn't box in the other.
+
+**Options, not recommending one:**
+- (a) Leave as-is. The current loop plus this session's additive layers (taxonomy/transactions,
+  zero-result warnings, `tool_router.py`'s relevance filtering) is a real, shipping system;
+  a full rewrite is unproven to actually improve outcomes for this product's actual usage.
+- (b) Build one narrow, isolated first stage -- e.g. just a deterministic Project Inspector
+  snapshot run before planning, the most self-contained piece -- and measure its effect before
+  committing to the rest.
+- (c) Commit to the full staged pipeline as described, scoped as its own multi-week
+  rearchitecture project with its own spec doc, not squeezed into an existing session.
+
+**Needs:** Baron's decision on whether to pursue this at all, and at what scope; if pursued, a
+live-LLM evaluation harness comparing before/after doesn't exist yet and would need building first.
+
+### 1.6 Point 27 -- Deterministic plan-then-validate-then-execute command model
+
+**Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 27.
+`AgentTaskManager.create_plan` takes freeform human-readable task description strings, not a typed
+step schema, and is an optional tool the LLM may call for UI progress display -- not a
+pre-execution gate. `auto_advance_if_unambiguous` exists specifically because the model creates a
+plan and then calls tools independently of it, not because the plan constrains execution. There is
+no upfront structured-plan-then-validate pipeline anywhere.
+
+**Why this needs a decision, not code -- same underlying blocker as point 18 above, and the same
+overlap.** A structured plan schema (`task`, `aoi`, `inputs`, an ordered `workflow:` step list,
+declared `outputs:`) needs to be something the LLM can reliably and consistently populate; this
+sandbox has no live LLM to validate that against real queries versus the model silently degrading
+back to unstructured tool-calling around a schema it half-fills. There's also a real product
+tradeoff distinct from point 18's: a validation gate before every execution adds latency/friction
+to *every* request, including trivial ones ("what layers are loaded"), which has to be weighed
+against the safety benefit for the requests that actually warrant it.
+
+**Options, not recommending one:**
+- (a) Leave as-is.
+- (b) Build the plan schema as a validation gate only for a narrow, already-defined high-risk
+  class of calls -- point 20's own DELETE/PUBLISH operation types -- rather than every request,
+  so routine reads/creates see no added friction.
+- (c) Full deterministic plan-then-validate-then-execute pipeline as described.
+
+**Needs:** Baron's decision, ideally made alongside point 18's since they're two angles on the
+same underlying proposal.
+
+### 1.7 Point 28 -- Standard project folder architecture (data/00_raw, 10_staging, ... immutable raw data)
+
+**Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 28.
+The plugin imposes zero folder structure on a QGIS project today -- files live wherever the user
+puts them; no immutable-raw-data convention exists anywhere in the code or docs.
+
+**Why this needs a decision, not code.** This is explicitly a workflow-affecting product opinion,
+not a gap to close. Imposing a folder taxonomy means either actively creating/enforcing it (a real
+behavior change existing users and projects would need to adopt, and this plugin has no authority
+to enforce a folder layout outside its own writes) or merely documenting a suggested convention
+with no enforcement (much lower value, easy to ignore, arguably not worth a tracked decision at
+all). This is squarely a "how should this product want its users to work" call --
+`CLAUDE.md`'s own "when you're not sure whether to just fix something" section assigns exactly
+this kind of tradeoff to a human, not an agent. It's also worth naming a real-world constraint
+the proposal doesn't address: this product's actual users (humanitarian GIS analysts) frequently
+already work inside an org-mandated data structure they don't control (e.g. OCHA's own field
+conventions) -- a second, different structure imposed from inside a QGIS plugin could add friction
+without the standing to actually replace what the org already requires.
+
+**Options, not recommending one:**
+- (a) Don't build. Most target users already work within a data structure imposed by their own
+  organization; a plugin-imposed alternative adds friction without authority to enforce it.
+- (b) Document only -- a recommended convention in `docs/USER_GUIDE.md`, no code, no enforcement.
+- (c) Build an opt-in scaffolding tool (e.g. a `create_project_folder_structure` tool the user
+  calls only if they want the convention) -- imposes nothing on anyone who doesn't ask for it.
+
+**Needs:** Baron's decision on whether this convention is worth adopting for this product's actual
+user base at all, and if so, at what enforcement level.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
