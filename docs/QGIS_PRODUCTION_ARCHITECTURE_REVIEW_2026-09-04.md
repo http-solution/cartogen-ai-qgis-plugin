@@ -1271,11 +1271,57 @@ open).
     point also describes remains unbuilt, a genuinely separate,
     architecture-level piece of work (see point 18).
 23. **Confidence/uncertainty reporting (OBSERVED/DERIVED/MODELED/...) --
-    REAL GAP.** No such taxonomy or "DATA CONFIDENCE" layout summary
-    exists. What exists is narrow and tool-specific: `forecast_trend`'s
-    `fit_confidence` (strong/moderate/weak, tied only to R²) and
-    `imagery_extraction.py`'s raw 0-1 detection-confidence score --
+    PARTIAL, layer-level tagging closed 2026-09-09; the layout-level "DATA
+    CONFIDENCE" summary deliberately not built.** Was a REAL GAP: no such
+    taxonomy existed anywhere. What existed was narrow and tool-specific:
+    `forecast_trend`'s `fit_confidence` (strong/moderate/weak, tied only to
+    R²) and `imagery_extraction.py`'s raw 0-1 detection-confidence score --
     isolated scalars, not a project-wide epistemic-status system.
+
+    **Closed the layer-tagging half, 2026-09-09, on Baron's explicit
+    request.** Built to the exact same shape as point 24's sensitivity
+    tagging, deliberately -- new `agent/confidence.py` (pure logic) +
+    `agent/tools/confidence_tools.py` (registered
+    `set_layer_confidence`/`get_layer_confidence`) let a layer be tagged
+    with the reviewer's own stated 5-level taxonomy -- **OBSERVED, DERIVED,
+    MODELED, INFERRED, UNKNOWN** (the proposal's worked examples also used
+    "REPORTED" and "ESTIMATED" for specific illustrative layers, but its
+    own core list names only these five, so those two are treated as
+    illustrative phrasing, not additional enum values, the same way point
+    24 used the proposal's literal PUBLIC/INTERNAL/RESTRICTED/SENSITIVE
+    list rather than inventing terms) -- with an optional free-text reason,
+    stored via `layer.setCustomProperty("cartogen_ai/confidence", ...)`,
+    the same durable-property mechanism point 24 uses, so it survives a
+    real project save/reload. No automated classification exists: a layer
+    is only ever as confident as whoever calls `set_layer_confidence` says
+    it is -- genuinely automating this (e.g. every analytical tool
+    self-reporting its own output's confidence level) would need per-tool
+    epistemic judgment calls this module doesn't make unilaterally (is a
+    buffer's output DERIVED or MODELED? is a join OBSERVED if both inputs
+    were?). 7 new tests (`tests/test_confidence_tools.py`, mirroring
+    `tests/test_sensitivity_tools.py`). Also classified both new tools in
+    point 20's `tool_operations.py` taxonomy (`set_layer_confidence` ->
+    MODIFY, `get_layer_confidence` -> READ), required by that point's own
+    completeness test. **Live-verified against real QGIS 4.2.2**: tagged a
+    real layer `MODELED` with a real reason, read it back correctly,
+    confirmed a bad level string is rejected before touching the layer,
+    confirmed an untagged layer returns `level: null` (distinct from
+    `UNKNOWN`, an explicit classification), and confirmed the tag survives
+    a real project save to `.qgz` and reload into a fresh `QgsProject`
+    unchanged. Full suite 1232 tests, 0 new failures. `docs/
+    TOOLS_REFERENCE.md` regenerated (160 tools, 25 groups).
+
+    **Deliberately not built:** the proposal's "final layout could even
+    expose a 'DATA CONFIDENCE: MEDIUM' summary broken out by layer" --
+    that's a layout-level aggregation/rollup feature (reading every
+    referenced layer's confidence tag and rendering a summary), a separate
+    and larger piece of work than the tagging primitive itself, the same
+    "tag first, aggregate later" split point 24 took with the QA checklist
+    (see point 26's updated entry). The natural integration point, if
+    built, is `generate_map_product_qa_checklist` (point 26) gaining a
+    Confidence category alongside Disclosure, both reading their
+    respective tag from the layers a layout references -- left as a
+    self-contained follow-up, not guessed at here.
 24. **Sensitivity/disclosure classification -- CLOSED 2026-09-05, deliberately
     advisory, not a blocking gate.** Was a REAL GAP: no PUBLIC/INTERNAL/
     RESTRICTED/SENSITIVE layer tagging or pre-export gate existed anywhere.
@@ -1348,10 +1394,14 @@ open).
     `SCALEBAR`/`NORTH_ARROW` elements are actually present, not assumed;
     **Export/Provenance** reads point 17's `get_provenance_record`
     (tracked/untracked, tool-execution count, QGIS version); **Disclosure**
-    has no automated classification to read from -- point 24 (sensitivity/
-    disclosure tagging) is a real gap, not built -- so this is an honest
-    static reminder to check manually, not a guessed pass/fail from a
-    scheme that doesn't exist. 7 new tests. **Live-verified end to end**:
+    was a static manual-check reminder at the time this point closed, since
+    point 24 (sensitivity/disclosure tagging) hadn't been built yet that
+    same day -- now that point 24 is closed, this checklist's Disclosure
+    category could read `get_layer_sensitivity` the same way the other
+    three categories read their own point's tool, instead of staying a
+    static reminder; left as a small, self-contained follow-up rather than
+    silently reopening this point's own scope. 7 new tests. **Live-verified
+    end to end**:
     ran against a real untracked layer (correctly reported untracked/no
     layout), then against the same layer after real `set_dataset_status`,
     a real `buffer_analysis` call, and a real `create_print_layout` --
