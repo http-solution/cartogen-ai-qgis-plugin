@@ -13,10 +13,14 @@ SPEED_FIELD/DIRECTION_FIELD/STRATEGY all behave as documented, including a
 real one-way-road test (a segment tagged forward-only correctly blocked the
 reverse route) and a real differential-speed test (the same segment produced
 different travel times with vs. without a speed_field). travel_time_matrix
-worked cleanly on every network tried; calculate_service_area has a known,
-open edge-case bug on small/degenerate synthetic networks -- see
-BUG-2026-09-05-2 in docs/BUG_TRACKER.md -- not reproduced on a realistic
-multi-segment network.
+worked cleanly on every network tried; calculate_service_area has a known
+edge-case bug on small/degenerate synthetic networks -- see BUG-2026-09-05-2
+in docs/BUG_TRACKER.md -- not reproduced on a realistic multi-segment
+network. A fix for both documented failure shapes was implemented 2026-09-10
+(GeometrySkipInvalid context for serviceareafrompoint;
+_degenerate_hull_fallback for the convexhull LineString/Polygon-sink case)
+but is not yet live-QGIS-verified -- see the bug tracker entry before
+assuming this is fully closed.
 
 population_access_gap chains calculate_service_area with
 raster_tools.estimate_population_exposure (native:mergevectorlayers,
@@ -31,7 +35,10 @@ from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
 
 try:
-    from qgis.core import QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer
+    from qgis.core import (
+        QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
+        QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext, QgsProcessing,
+    )
     from qgis.PyQt.QtGui import QColor
     import processing
     QGIS_AVAILABLE = True
@@ -529,6 +536,65 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
         "required": ["facility_layer", "road_network_layer", "travel_cost"],
     },
 )
+def _degenerate_hull_fallback(lines_layer, travel_cost):
+    """BUG-2026-09-05-2 root cause (isolated 2026-09-10, reasoned from QGIS's own
+    documented Processing/GEOS behaviour -- no live QGIS available in this session
+    to additionally confirm live): native:convexhull's OUTPUT sink is declared as a
+    fixed Polygon geometry type regardless of what the input actually produces. The
+    convex hull of a set of collinear points (a straight 1-segment road, or a
+    reachable-network that happens to reduce to one straight line) is geometrically
+    a line, not an area -- QgsGeometry.convexHull() correctly returns that as a
+    LineString (or a Point, for a single coincident point), and the algorithm's own
+    Polygon-typed sink then refuses to write it, which is exactly the recorded
+    "Could not add feature with geometry type LineString to layer of type Polygon"
+    error. native:convexhull has no parameter to accept a non-Polygon result, so
+    this is not fixable by changing our call's parameters -- it has to be computed
+    ourselves instead of delegating to that algorithm.
+
+    Recomputes the hull directly via QgsGeometry.unaryUnion()/.convexHull() on the
+    same input features. If that result is already a polygon (should not normally
+    happen here, since native:convexhull would have succeeded in that case, but
+    handled defensively), it is used as-is. If it is degenerate (a line or a
+    point), it is buffered by a small fraction of the travel cost so the caller
+    gets a thin but valid, well-formed polygon representing that degenerate
+    service area instead of no hull at all. Returns None (never raises) if the
+    input has no usable geometry or the hull computation itself fails -- callers
+    should treat that exactly as the pre-fix behaviour: an unrecoverable skip for
+    the convexhull stage.
+    """
+    try:
+        geoms = [
+            f.geometry() for f in lines_layer.getFeatures()
+            if f.geometry() is not None and not f.geometry().isEmpty()
+        ]
+        if not geoms:
+            return None
+        combined = QgsGeometry.unaryUnion(geoms)
+        if combined is None or combined.isEmpty():
+            return None
+        hull = combined.convexHull()
+        if hull is None or hull.isEmpty():
+            return None
+        if hull.type() != QgsWkbTypes.PolygonGeometry:
+            # Degenerate hull (collinear points): buffer it into a thin polygon
+            # rather than fabricating an arbitrary area shape. The buffer distance
+            # is a small fraction of travel_cost so it stays visually negligible
+            # relative to the service area's own scale, in the same CRS units as
+            # the network layer.
+            hull = hull.buffer(max(travel_cost * 0.001, 0.01), 8)
+            if hull is None or hull.isEmpty() or hull.type() != QgsWkbTypes.PolygonGeometry:
+                return None
+        layer = QgsVectorLayer(f"Polygon?crs={lines_layer.crs().authid()}", "service_area_hull", "memory")
+        provider = layer.dataProvider()
+        feat = QgsFeature()
+        feat.setGeometry(hull)
+        provider.addFeature(feat)
+        layer.updateExtents()
+        return layer
+    except Exception:
+        return None
+
+
 def calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy="shortest", default_speed=50,
                             speed_field=None, direction_field=None,
                             value_forward="yes", value_backward="-1", value_both="no"):
@@ -583,12 +649,24 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             # for every other facility. Each stage is now isolated per facility: a failure is
             # recorded and that facility is skipped (or, if only the hull step fails, its
             # already-built reachable-network lines are still kept), so the rest of the batch
-            # still comes back. This does not change the underlying QGIS behavior on a
-            # 1-2 segment synthetic network (not reproducible against real QGIS from this
-            # session -- see docs/BUG_TRACKER.md) -- it stops that known edge case from
-            # taking down unrelated facilities in the same call.
+            # still comes back.
+            #
+            # BUG-2026-09-05-2 further fix (2026-09-10): the two failure shapes themselves
+            # are now addressed, not just isolated. (1) serviceareafrompoint's own
+            # "invalid geometry" abort: pass a QgsProcessingContext with
+            # GeometrySkipInvalid so the algorithm skips an invalid input feature
+            # internally, exactly the remedy its own error message names ("change the
+            # 'Invalid features filtering' option") -- reasoned from QGIS's documented
+            # Processing API, not independently re-run against live QGIS this session
+            # (no live/headless QGIS available in this environment -- see docs/BUG_TRACKER.md).
+            # (2) the convexhull LineString/Polygon-sink failure: see
+            # _degenerate_hull_fallback's own docstring for the isolated root cause and fix,
+            # which *is* provable without live QGIS since it follows from convex-hull
+            # geometry (collinear points) rather than from QGIS-specific runtime behaviour.
+            context = QgsProcessingContext()
+            context.setInvalidGeometryCheck(QgsProcessing.GeometrySkipInvalid)
             try:
-                output = processing.run("native:serviceareafrompoint", params)
+                output = processing.run("native:serviceareafrompoint", params, context=context)
             except Exception as e:
                 skipped.append({"facility_index": i, "stage": "serviceareafrompoint", "reason": str(e)})
                 continue
@@ -606,7 +684,10 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
                 hull_layer = hull.get("OUTPUT")
             except Exception as e:
-                skipped.append({"facility_index": i, "stage": "convexhull", "reason": str(e)})
+                if "LineString" in str(e) and "Polygon" in str(e):
+                    hull_layer = _degenerate_hull_fallback(lines_layer, travel_cost)
+                if hull_layer is None:
+                    skipped.append({"facility_index": i, "stage": "convexhull", "reason": str(e)})
             if hull_layer is not None:
                 hull_name = f"{facility_layer}_service_area_{i}"
                 hull_layer.setName(hull_name)
