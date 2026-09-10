@@ -165,8 +165,12 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    def test_speed_and_direction_fields_reach_processing_run_and_result(self, mock_find, mock_processing, mock_project):
+    def test_speed_and_direction_fields_reach_processing_run_and_result(
+        self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
         network = MagicMock()
         network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
@@ -175,7 +179,7 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
         lines_layer.featureCount.return_value = 1
         hull_layer = MagicMock()
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             if alg_id == "native:serviceareafrompoint":
                 self.assertEqual(params["SPEED_FIELD"], "speed_kmh")
                 self.assertEqual(params["DIRECTION_FIELD"], "oneway")
@@ -197,8 +201,12 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    def test_no_fields_given_omits_them_from_params_and_result(self, mock_find, mock_processing, mock_project):
+    def test_no_fields_given_omits_them_from_params_and_result(
+        self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
         network = MagicMock()
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
 
@@ -206,7 +214,7 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
         lines_layer.featureCount.return_value = 1
         hull_layer = MagicMock()
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             if alg_id == "native:serviceareafrompoint":
                 self.assertNotIn("SPEED_FIELD", params)
                 self.assertNotIn("DIRECTION_FIELD", params)
@@ -230,13 +238,30 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     of the two exact error shapes recorded in docs/BUG_TRACKER.md; this sandbox has
     no live QGIS to re-run the original real-QGIS reproduction against, so this
     covers the fix's logic, not a live re-verification of the underlying QGIS
-    behavior itself."""
+    behavior itself.
+
+    2026-09-10: both failure shapes now have an actual fix attempted, not just
+    isolation -- see logistics_tools._degenerate_hull_fallback and the
+    QgsProcessingContext/GeometrySkipInvalid wiring in calculate_service_area
+    itself. The first test below (unchanged from 2026-09-08) still exercises the
+    isolation-only safety net: QgsGeometry/QgsVectorLayer/QgsFeature are not
+    mocked in this sandbox, so _degenerate_hull_fallback's own NameError is
+    caught by its blanket except-clause and it returns None here, same
+    end-to-end outcome as before the fallback existed. The new tests further
+    below (TestDegenerateHullFallback, and
+    test_convexhull_failure_recovers_via_degenerate_hull_fallback) mock those
+    QGIS geometry classes directly to verify the fallback's actual logic and its
+    wiring into calculate_service_area."""
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    def test_convexhull_failure_on_one_facility_keeps_its_lines_and_the_other_facility(self, mock_find, mock_processing, mock_project):
+    def test_convexhull_failure_on_one_facility_keeps_its_lines_and_the_other_facility(
+        self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
         network = MagicMock()
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
 
@@ -244,7 +269,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
         lines_layer.featureCount.return_value = 1
         hull_layer = MagicMock()
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             if alg_id == "native:serviceareafrompoint":
                 return {"OUTPUT_LINES": lines_layer}
             if alg_id == "native:convexhull":
@@ -272,8 +297,12 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    def test_serviceareafrompoint_failure_on_one_facility_does_not_abort_the_other(self, mock_find, mock_processing, mock_project):
+    def test_serviceareafrompoint_failure_on_one_facility_does_not_abort_the_other(
+        self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
         network = MagicMock()
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
 
@@ -282,7 +311,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
         hull_layer = MagicMock()
         calls = {"count": 0}
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             if alg_id == "native:serviceareafrompoint":
                 calls["count"] += 1
                 if calls["count"] == 1:
@@ -307,12 +336,16 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    def test_all_facilities_failing_still_reports_a_clean_error(self, mock_find, mock_processing, mock_project):
+    def test_all_facilities_failing_still_reports_a_clean_error(
+        self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
         network = MagicMock()
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             raise RuntimeError("invalid geometry")
         mock_processing.run.side_effect = run_side_effect
 
@@ -320,6 +353,227 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
 
         self.assertIn("error", res)
         self.assertNotIn("success", res)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._degenerate_hull_fallback")
+    def test_convexhull_failure_recovers_via_degenerate_hull_fallback(
+        self, mock_fallback, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
+    ):
+        """2026-09-10 fix: when native:convexhull raises the recorded LineString-
+        into-Polygon-sink error, _degenerate_hull_fallback is invoked and, if it
+        returns a usable layer, that facility is fully served -- no 'skipped'
+        entry, hull layer registered like any successful facility. Mocks the
+        fallback itself directly since its own internals (QgsGeometry etc.) are
+        covered separately by TestDegenerateHullFallback."""
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        recovered_hull_layer = MagicMock()
+        mock_fallback.return_value = recovered_hull_layer
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                raise RuntimeError(
+                    "Could not add feature with geometry type LineString to layer of type Polygon"
+                )
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        mock_fallback.assert_called_once_with(lines_layer, 1000)
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["facility_count"], 1)
+        self.assertNotIn("skipped", res)
+        mock_project.instance.return_value.addMapLayer.assert_any_call(recovered_hull_layer)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_serviceareafrompoint_gets_a_geometry_skip_invalid_context(
+        self, mock_find, mock_processing_enum, mock_context_cls, mock_processing, mock_project
+    ):
+        """2026-09-10 fix: serviceareafrompoint's own 'invalid geometry' abort is
+        the exact failure the error message names its own remedy for ('change
+        the Invalid features filtering option') -- confirm calculate_service_area
+        actually asks for that remedy via QgsProcessingContext.setInvalidGeometryCheck
+        rather than just isolating the failure after the fact."""
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+        mock_context_instance = mock_context_cls.return_value
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                self.assertIs(context, mock_context_instance)
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        mock_context_instance.setInvalidGeometryCheck.assert_called_once_with(
+            mock_processing_enum.GeometrySkipInvalid
+        )
+
+
+class TestDegenerateHullFallback(unittest.TestCase):
+    """Direct unit tests for _degenerate_hull_fallback, the 2026-09-10
+    BUG-2026-09-05-2 fix helper. Mocks QgsGeometry/QgsWkbTypes/QgsVectorLayer/
+    QgsFeature directly (they are real QGIS classes not otherwise exercised by
+    this sandbox's degrade-path tests) to verify the actual geometry-handling
+    logic, not just that calculate_service_area calls this function."""
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    def test_degenerate_line_hull_is_buffered_into_a_polygon(
+        self, mock_qgsgeometry, mock_wkbtypes, mock_vectorlayer_cls, mock_feature_cls
+    ):
+        from cartogen_ai.core.agent.tools.logistics_tools import _degenerate_hull_fallback
+
+        feat = MagicMock()
+        feat.geometry.return_value.isEmpty.return_value = False
+        lines_layer = MagicMock()
+        lines_layer.getFeatures.return_value = [feat]
+        lines_layer.crs.return_value.authid.return_value = "EPSG:4326"
+
+        combined = MagicMock()
+        combined.isEmpty.return_value = False
+        mock_qgsgeometry.unaryUnion.return_value = combined
+
+        degenerate_hull = MagicMock()
+        degenerate_hull.isEmpty.return_value = False
+        combined.convexHull.return_value = degenerate_hull
+
+        buffered_polygon = MagicMock()
+        buffered_polygon.isEmpty.return_value = False
+        buffered_polygon.type.return_value = mock_wkbtypes.PolygonGeometry
+        degenerate_hull.buffer.return_value = buffered_polygon
+
+        # First .type() check (on the raw hull) says it's NOT a polygon --
+        # trigger the buffer path; the buffered result's .type() (checked again
+        # after buffering) says it now IS one.
+        degenerate_hull.type.return_value = "not-a-polygon-type"
+
+        result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
+
+        combined.convexHull.assert_called_once()
+        degenerate_hull.buffer.assert_called_once()
+        mock_vectorlayer_cls.assert_called_once_with("Polygon?crs=EPSG:4326", "service_area_hull", "memory")
+        mock_feature_cls.return_value.setGeometry.assert_called_once_with(buffered_polygon)
+        self.assertIsNotNone(result)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    def test_hull_already_polygon_is_used_without_buffering(
+        self, mock_qgsgeometry, mock_wkbtypes, mock_vectorlayer_cls, mock_feature_cls
+    ):
+        from cartogen_ai.core.agent.tools.logistics_tools import _degenerate_hull_fallback
+
+        feat = MagicMock()
+        feat.geometry.return_value.isEmpty.return_value = False
+        lines_layer = MagicMock()
+        lines_layer.getFeatures.return_value = [feat]
+        lines_layer.crs.return_value.authid.return_value = "EPSG:4326"
+
+        combined = MagicMock()
+        combined.isEmpty.return_value = False
+        mock_qgsgeometry.unaryUnion.return_value = combined
+
+        polygon_hull = MagicMock()
+        polygon_hull.isEmpty.return_value = False
+        polygon_hull.type.return_value = mock_wkbtypes.PolygonGeometry
+        combined.convexHull.return_value = polygon_hull
+
+        result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
+
+        polygon_hull.buffer.assert_not_called()
+        self.assertIsNotNone(result)
+
+    def test_no_usable_geometry_returns_none(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _degenerate_hull_fallback
+
+        empty_geom = MagicMock()
+        empty_geom.isEmpty.return_value = True
+        feat = MagicMock()
+        feat.geometry.return_value = empty_geom
+        lines_layer = MagicMock()
+        lines_layer.getFeatures.return_value = [feat]
+
+        result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
+
+        self.assertIsNone(result)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    def test_exception_during_hull_computation_returns_none_not_raises(self, mock_qgsgeometry):
+        from cartogen_ai.core.agent.tools.logistics_tools import _degenerate_hull_fallback
+
+        feat = MagicMock()
+        feat.geometry.return_value.isEmpty.return_value = False
+        lines_layer = MagicMock()
+        lines_layer.getFeatures.return_value = [feat]
+        mock_qgsgeometry.unaryUnion.side_effect = RuntimeError("boom")
+
+        result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
+
+        self.assertIsNone(result)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    def test_buffer_still_degenerate_returns_none(
+        self, mock_qgsgeometry, mock_wkbtypes, mock_vectorlayer_cls, mock_feature_cls
+    ):
+        """Extreme edge case: even the buffered result fails to become a real
+        polygon (e.g. a zero-length degenerate geometry). Must not fabricate a
+        layer from it."""
+        from cartogen_ai.core.agent.tools.logistics_tools import _degenerate_hull_fallback
+
+        feat = MagicMock()
+        feat.geometry.return_value.isEmpty.return_value = False
+        lines_layer = MagicMock()
+        lines_layer.getFeatures.return_value = [feat]
+
+        combined = MagicMock()
+        combined.isEmpty.return_value = False
+        mock_qgsgeometry.unaryUnion.return_value = combined
+
+        degenerate_hull = MagicMock()
+        degenerate_hull.isEmpty.return_value = False
+        degenerate_hull.type.return_value = "not-a-polygon-type"
+        combined.convexHull.return_value = degenerate_hull
+
+        still_bad_buffer = MagicMock()
+        still_bad_buffer.isEmpty.return_value = True
+        degenerate_hull.buffer.return_value = still_bad_buffer
+
+        result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
+
+        self.assertIsNone(result)
+        mock_vectorlayer_cls.assert_not_called()
 
 
 class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
@@ -357,7 +611,7 @@ class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
         result_layer.fields.return_value = []
         result_layer.getFeatures.return_value = []
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             self.assertEqual(alg_id, "native:shortestpathpointtolayer")
             self.assertEqual(params["STRATEGY"], 0)  # default 'shortest'
             self.assertEqual(params["SPEED_FIELD"], "speed_kmh")
@@ -385,7 +639,7 @@ class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
         result_layer.fields.return_value = []
         result_layer.getFeatures.return_value = []
 
-        def run_side_effect(alg_id, params):
+        def run_side_effect(alg_id, params, context=None):
             self.assertEqual(params["STRATEGY"], 1)
             return {"OUTPUT": result_layer}
         mock_processing.run.side_effect = run_side_effect
