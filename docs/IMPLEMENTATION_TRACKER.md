@@ -340,6 +340,45 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
 
 ---
 
+## 4a. Cross-repo sync check, 2026-09-10 — `cartogen-ai-community` does NOT need syncing
+
+Resolved the open question ("does `cartogen-ai-community`'s checkout need syncing to the
+now-shared `origin/main` tip?") left by the 2026-09-05 repository-split-brain reconciliation.
+
+`cartogen-ai-community`'s local `main` (`aa3ac95`) has 3 commits not present in `cartogen-ai`'s
+history: `99079e3` ("add `clear_global_notes()`"), `80aca72` ("mark this repo as stale, point to
+`cartogen-ai` as canonical"), `aa3ac95` ("record full 5-dimension code review"). Checked each for
+content-equivalence rather than assuming the repos are in sync:
+
+- `99079e3` — already independently ported into `cartogen-ai`. `clear_global_notes()` exists in
+  this repo's own `agent/memory.py` (line 185), closed here first as `eee84eb` (2026-09-04, this
+  repo's BUG-2026-09-04-2) and ported to `cartogen-ai-community` afterward as that repo's own
+  BUG-2026-09-04-1. Already fully documented above (§9 in `MASTER_TASK_REGISTRY.md`'s queue) as
+  closed in both repos. No action needed.
+- `80aca72` — a docs-only commit in `cartogen-ai-community` marking that repo stale and pointing
+  to `cartogen-ai` as canonical. Nothing to port; this is the terminal state, not a change this
+  repo needs.
+- `aa3ac95` — `cartogen-ai-community`'s own 5-dimension review (mockup/bug/uncompleted/
+  security/GDPR) of *its own* code. `cartogen-ai` already has its own independent, equivalent
+  review of *this* repo's code: `docs/CODE_REVIEW_2026-09-08.md`, referenced above at line 142.
+  These are parallel reviews of two different codebases, not one review that needs propagating.
+
+**Conclusion: no sync action needed in either repo.** `cartogen-ai-community`'s unmerged commits'
+content is already accounted for on this side.
+
+**Factual correction (not a rewrite — commit `80aca72` is immutable history, so noting the
+correction here instead):** `80aca72`'s commit message states "This repo's full commit history is
+an ancestor of cartogen-ai's (confirmed via `git merge-base --is-ancestor`)." Independently
+re-ran that exact check this session (`git merge-base --is-ancestor _community_check/main HEAD`
+from within `cartogen-ai`, `_community_check` remote pointed at the `cartogen-ai-community`
+checkout): **exit code 1 — not an ancestor.** `git merge-base` gives the actual common ancestor as
+`dd4dacf`, three commits behind `cartogen-ai-community`'s `aa3ac95`. The claim in that commit
+message is factually inaccurate as literal git ancestry — most likely because the fix in `99079e3`
+was hand-ported into `cartogen-ai` as a separate, differently-hashed commit (`eee84eb`) rather than
+merged/cherry-picked, so the two histories were never going to share that commit object even though
+the *content* matches. No functional consequence (nothing is lost or needs redoing), but the
+"is an ancestor" phrasing should not be trusted at face value if anyone re-reads that commit later.
+
 ## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 
 | Doc | Status |
