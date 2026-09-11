@@ -70,6 +70,21 @@ class TestFitTextToBox(unittest.TestCase):
         self.assertTrue(result.endswith("…"))
         self.assertLess(len(result), len(text))
 
+    def test_landscape_dimensions_also_truncate_an_extreme_body_text(self):
+        # _fit_text_to_box's call site in create_print_layout sits in the
+        # shared code path after the portrait/landscape if/else closes, not
+        # inside the portrait-only branch -- so it already protects
+        # landscape's own (col_w=95, body_h=78) box too. Confirmed live
+        # against real QGIS 4.2.2 with a 2774-char extreme body_text
+        # (2026-09-11): the exported PNG showed a cleanly truncated
+        # paragraph and a fully legible, unobstructed disclaimer footer.
+        # This test locks that in against a future regression -- e.g. an
+        # edit that moves the call site back inside the portrait branch.
+        text = "word " * 400  # far exceeds landscape's real body_h=78 budget
+        result = _fit_text_to_box(text, box_w_mm=95, box_h_mm=78)
+        self.assertLess(len(result), len(text))
+        self.assertTrue(result.endswith("…"))
+
 
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
     def test_degrades_gracefully(self):

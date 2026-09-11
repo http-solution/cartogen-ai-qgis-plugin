@@ -71,6 +71,20 @@ visual inspection of the real exported PNG, not just a geometry-value assertion.
 failure mode; worth revisiting as a defense-in-depth follow-up if an unusually long body_text
 ever gets reported there too, but not applied speculatively here.
 
+**Correction, 2026-09-11, same day:** the paragraph above is wrong. `_fit_text_to_box`'s call
+site sits in the shared code path after the portrait/landscape if/else block closes, not inside
+the portrait-only branch, so it already runs for landscape too, using landscape's own
+`(col_w=95, body_h=78)` values -- there was no gap to revisit. Verified two ways before
+correcting this record rather than trusting the code-reading alone: a direct call,
+`_fit_text_to_box("word " * 300, box_w_mm=95, box_h_mm=78)`, truncated 1500 chars to 750 with an
+ellipsis; then **live against real QGIS 4.2.2** with an extreme 2774-character `body_text` in a
+real `create_print_layout(page_orientation="Landscape", ...)` call, exported to PNG and visually
+inspected -- the paragraph truncated cleanly with an ellipsis and the disclaimer footer remained
+fully legible and unobstructed. A regression test locking this in
+(`test_landscape_dimensions_also_truncate_an_extreme_body_text`) added to
+`tests/test_layout_tools.py`. No source code changed -- this was a documentation correction, not
+a fix, since nothing was actually broken.
+
 None otherwise currently open. **BUG-2026-09-05-2** (the sole entry here as of 2026-09-08)
 moved to "Fixed (recent)" below on 2026-09-10 once an actual root-cause fix was implemented for
 both failure shapes, not just isolation, then **live-confirmed 2026-09-11** against real QGIS

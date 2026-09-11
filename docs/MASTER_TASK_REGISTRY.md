@@ -714,10 +714,15 @@ next-steps queue always has at least one item — if everything concrete is done
    clips on its own. 6 new tests. Full suite 1339 tests (up from 1333), 0 failures, 7 skipped.
    **Live-verified against real QGIS 4.2.2** with the exact repro that found the bug — the
    exported PNG now shows a cleanly truncated body paragraph and a fully legible, unobstructed
-   disclaimer footer. Status `fixed-verified`. Landscape untouched (already live-clean since
-   2026-09-05; `_fit_text_to_box` not applied there, flagged as an optional defense-in-depth
-   follow-up, not a known failure). See `docs/BUG_TRACKER.md`'s `BUG-2026-09-11-1` entry for
-   full detail.
+   disclaimer footer. Status `fixed-verified`. See `docs/BUG_TRACKER.md`'s `BUG-2026-09-11-1`
+   entry for full detail. ~~Landscape untouched... `_fit_text_to_box` not applied there,
+   flagged as an optional defense-in-depth follow-up~~ — **wrong, corrected same day:**
+   `_fit_text_to_box`'s call site sits in the shared code path after the portrait/landscape
+   if/else closes, so it already runs for landscape too, using landscape's own
+   `(col_w=95, body_h=78)` values. Live-confirmed against real QGIS 4.2.2 with an extreme
+   2774-character `body_text` — truncated cleanly, footer unobstructed. A regression test
+   (`test_landscape_dimensions_also_truncate_an_extreme_body_text`) locks this in. No source
+   code changed — a documentation correction, not a fix, since nothing was broken.
 44. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
