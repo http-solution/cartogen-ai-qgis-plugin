@@ -671,7 +671,40 @@ next-steps queue always has at least one item — if everything concrete is done
    `~/.claude/plans/idempotent-popping-haven.md` — all four workstreams now
    closed; only "Release mechanics" (version bump to 1.7.0, release zip
    rebuild) remains before v1.7.0 ships.
-41. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+41. ~~v1.7.0 release mechanics: version bump to 1.7.0, release zip rebuild~~
+   — **done, 2026-09-11.** `metadata.txt`/`pyproject.toml`/`CHANGELOG.md`/`README.md`
+   updated, `dist/cartogen_ai_v1.7.0.zip` built via `plugin_upload.py`, committed as `1eb6c27`
+   and pushed to `origin/main`. **Not done, unlike v1.6.0's precedent:** no
+   `commercial-plugin-v1.7.0` git tag or GitHub Release object cut yet — a separate, explicitly
+   deferred follow-up (see queue item 42).
+42. ~~Post-release live-QGIS verification: full `RELEASE_SMOKE_TEST.md`
+   checklist rows + `BUG-2026-09-05-2` live confirmation~~ — **done, 2026-09-11**, live against
+   real QGIS 4.2.2 (`python-qgis.bat`, real `QgsApplication`). Four items closed: (1)
+   `BUG-2026-09-05-2` — all three cases (collinear 1-segment network, L-shaped 2-segment
+   network, 5-segment grid regression guard) succeeded with no crash and no silently skipped
+   facility; status now `fixed-verified`. (2) The destructive-action confirmation gate —
+   confirmed live against a real layer mutation, not mocked: a simulated model directly
+   injecting `"confirmed": true` into its own tool-call arguments was correctly stripped by
+   `agent.py`'s dispatch-level schema filtering (`PREVIEW_REQUIRED`, zero mutation on the real
+   layer); a real `user_confirmed=True` call (simulating an actual UI confirm-click) executed
+   correctly and the field was genuinely created. (3) `schedule_recurring_workflow` — a real
+   1-minute-interval `QTimer` fired after 60.4s of real wall-clock time inside a genuine Qt
+   event loop (not a mock/fast-forward), producing a real change summary and incrementing
+   `run_count`; `stop_recurring_workflow` genuinely stopped it (confirmed via a further 3s
+   window with zero additional ticks). (4) Portrait-orientation layout fit — **a real,
+   previously-unverified bug found and logged, not fixed**: `BUG-2026-09-11-1`
+   (`docs/BUG_TRACKER.md`), `create_print_layout`'s portrait `body_h` (6mm, ~1 line) silently
+   overflows into the safety-critical disclaimer footer for any realistic multi-line
+   `body_text` — exactly the usage the tool's own schema description encourages
+   ("body_text accepts multi-line text"). Confirmed via a real `QgsLayoutExporter.exportToImage`
+   PNG, visually inspected. Root cause is a vertical-space-allocation tradeoff among
+   map/legend/scalebar/body in portrait mode, not a one-line mechanical fix — flagged for a
+   product decision rather than guessed at, per this project's own convention. Landscape was
+   not re-tested this pass (its much larger `body_h=78` makes the same overflow unlikely for
+   realistic content, per the code's existing 2026-09-05 live confirmation, but that specific
+   claim wasn't re-verified here). No source code changed this pass — `docs/BUG_TRACKER.md`
+   is the only file touched.
+43. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
