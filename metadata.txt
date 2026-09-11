@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.7.0
+version=1.7.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,16 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.7.0 (2026-09-11):
+changelog=v1.7.1 (2026-09-11):
+    Patch release: fixed BUG-2026-09-11-1, found and live-verified the same day v1.7.0
+    shipped. create_print_layout's portrait orientation had a body-text box only sized for
+    ~1 line, and QgsLayoutItemLabel doesn't clip -- longer body_text silently overflowed into
+    the safety-critical disclaimer footer. The footer is now pinned to a fixed page-bottom
+    position, and a new _fit_text_to_box() truncates body_text to what the box can actually
+    hold before rendering. Live-verified against real QGIS 4.2.2 with the exact repro that
+    found the bug. See CHANGELOG.md's [1.7.1] entry and docs/BUG_TRACKER.md for full detail.
+
+v1.7.0 (2026-09-11):
     Security & Logistics release, scoped for a humanitarian org (UN/NGO) deployment/pilot.
     GDPR F6-F9 closure: persistent project-memory writes (sidecar file + embedded project
     property) now opt-in/default-off, matching chat history's existing pattern; new "My Data"
