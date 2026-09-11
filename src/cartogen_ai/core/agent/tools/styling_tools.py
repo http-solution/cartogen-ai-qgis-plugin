@@ -14,7 +14,7 @@ try:
         QgsGraduatedSymbolRenderer, QgsRendererRange, QgsSymbol,
         QgsStyle, QgsHeatmapRenderer,
         QgsSingleSymbolRenderer, QgsWkbTypes, QgsMapLayer, QgsRasterLayer,
-        QgsGradientColorRamp,
+        QgsGradientColorRamp, QgsRuleBasedRenderer, QgsExpression,
     )
     from qgis.PyQt.QtGui import QColor
     import processing
@@ -554,6 +554,116 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         }
     except Exception as e:
         return {"error": f"apply_graduated_symbol_style failed: {e}"}
+
+
+@register_tool(
+    "apply_rule_based_style",
+    "Apply a rule-based renderer keyed to a controlled vocabulary of field values -- e.g. route/"
+    "facility status (open/constrained/closed) -- with a FIXED color per value, rather than an "
+    "auto-assigned qualitative palette (apply_categorized_style) or an auto-classified continuous "
+    "gradient (apply_graduated_style). Use this when the categories carry a specific operational "
+    "meaning that needs a caller-chosen color per value, not an auto-picked one. Any field value "
+    "not matching one of the given rules automatically renders in a neutral gray 'Unknown / No "
+    "data' class -- do not add your own catch-all rule, and never let an unassessed/missing "
+    "status look the same as a real class.",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string"},
+            "field": {"type": "string"},
+            "rules": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": "string", "description": "The exact field value this rule matches."},
+                        "label": {"type": "string", "description": "Legend label. Defaults to the value itself."},
+                        "color_hex": {"type": "string", "description": "e.g. '#2E7D32'."},
+                    },
+                    "required": ["value", "color_hex"],
+                },
+                "description": "One entry per controlled-vocabulary value, e.g. "
+                "[{\"value\": \"open\", \"label\": \"Open\", \"color_hex\": \"#2E7D32\"}, "
+                "{\"value\": \"closed\", \"label\": \"Closed\", \"color_hex\": \"#B3261E\"}].",
+            },
+        },
+        "required": ["layer_name", "field", "rules"],
+    },
+)
+def apply_rule_based_style(layer_name, field, rules):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    if not rules:
+        return {"error": "rules must contain at least one entry."}
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return {"error": f"Layer '{layer_name}' not found"}
+    if field not in [f.name() for f in layer.fields()]:
+        return {"error": f"Field '{field}' not found in '{layer_name}'"}
+
+    try:
+        col_ref = QgsExpression.quotedColumnRef(field)
+
+        # QgsRuleBasedRenderer(symbol) is the documented PyQGIS-cookbook
+        # pattern for building the first rule -- it wraps that symbol in a
+        # root rule with one child, which is then edited in place; every
+        # further rule is cloned from that first child rather than
+        # constructed via QgsRuleBasedRenderer.Rule(...) directly, since the
+        # clone-and-edit path is the same one the cookbook itself uses and
+        # avoids guessing at that constructor's exact keyword-argument shape.
+        first_spec = rules[0]
+        first_symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+        first_symbol.setColor(QColor(first_spec["color_hex"]))
+        renderer = QgsRuleBasedRenderer(first_symbol)
+        root_rule = renderer.rootRule()
+        first_rule = root_rule.children()[0]
+        first_rule.setFilterExpression(f"{col_ref} = {QgsExpression.quotedValue(str(first_spec['value']))}")
+        first_rule.setLabel(first_spec.get("label") or str(first_spec["value"]))
+
+        for spec in rules[1:]:
+            symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+            symbol.setColor(QColor(spec["color_hex"]))
+            rule = first_rule.clone()
+            rule.setSymbol(symbol)
+            rule.setFilterExpression(f"{col_ref} = {QgsExpression.quotedValue(str(spec['value']))}")
+            rule.setLabel(spec.get("label") or str(spec["value"]))
+            root_rule.appendChild(rule)
+
+        # Catch-all: a QGIS rule-based renderer leaves any feature matching
+        # no rule simply unrendered by default -- an explicit ELSE rule
+        # makes an unassessed/missing status a visible, distinct class
+        # instead of an invisible gap in the map. filterExpression("ELSE")
+        # matches how QGIS Desktop's own "Add rule" dialog labels an else
+        # rule's filter column; setIsElse(True) is what actually restricts
+        # it to unmatched features at real render time -- live-confirmed via
+        # an actual QgsMapRendererCustomPainterJob paint (not just
+        # symbolsForFeature(), which by design can report a feature as
+        # matching more than one rule -- rule-based rendering supports a
+        # feature legitimately matching several non-else rules at once, so
+        # an else rule also appearing in that query-time list does not mean
+        # it double-paints; the real per-pixel render output is the only
+        # trustworthy signal here, and it renders each segment in exactly
+        # its one correct color).
+        else_symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+        else_symbol.setColor(QColor("#B0B7BD"))
+        else_rule = first_rule.clone()
+        else_rule.setSymbol(else_symbol)
+        else_rule.setFilterExpression("ELSE")
+        else_rule.setLabel("Unknown / No data")
+        else_rule.setIsElse(True)
+        root_rule.appendChild(else_rule)
+
+        layer.setRenderer(renderer)
+        layer.triggerRepaint()
+        return {
+            "success": True,
+            "layer_name": layer_name,
+            "field": field,
+            "rules_applied": len(rules),
+            "classes": len(rules) + 1,
+        }
+    except Exception as e:
+        return {"error": f"apply_rule_based_style failed: {e}"}
 
 
 @register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})

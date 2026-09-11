@@ -261,6 +261,7 @@ TOOL_OPERATION_TYPES = {
     "apply_categorized_style": MODIFY,
     "apply_graduated_style": MODIFY,
     "apply_graduated_symbol_style": MODIFY,
+    "apply_rule_based_style": MODIFY,
     "apply_heatmap_style": MODIFY,
     "hotspot_analysis": CREATE,
     "change_layer_color": MODIFY,
@@ -269,6 +270,9 @@ TOOL_OPERATION_TYPES = {
     "set_layer_order": MODIFY,
     "save_layer_style": PUBLISH,
     "load_layer_style": MODIFY,
+
+    # -- cartographic_advisory_tools.py --
+    "recommend_visualization_method": READ,
 
     # -- system_tools.py --
     "search_web": READ,

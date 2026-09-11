@@ -8,7 +8,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     apply_categorized_style, _geometry_sort_key, _apply_opacity,
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
-    save_layer_style, load_layer_style, _derive_style_path,
+    save_layer_style, load_layer_style, _derive_style_path, apply_rule_based_style,
 )
 
 
@@ -179,6 +179,146 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
         res = apply_graduated_style("layer", "field", breaks=[])
         self.assertIn("error", res)
         self.assertIn("breaks", res["error"])
+
+
+class TestApplyRuleBasedStyle(unittest.TestCase):
+    """v1.8.0 workstream 1: apply_rule_based_style, for a fixed-vocabulary
+    field (e.g. route/facility status) needing a caller-chosen color per
+    value plus a mandatory 'Unknown / No data' catch-all class."""
+
+    def test_degrades_gracefully_outside_qgis(self):
+        res = apply_rule_based_style("layer", "status", [{"value": "open", "color_hex": "#2E7D32"}])
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_rejects_empty_rules(self):
+        res = apply_rule_based_style("layer", "status", [])
+        self.assertIn("error", res)
+        self.assertIn("rules", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_layer(self, mock_find):
+        mock_find.return_value = None
+        res = apply_rule_based_style("layer", "status", [{"value": "open", "color_hex": "#2E7D32"}])
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_reports_missing_field(self, mock_find):
+        field_mock = MagicMock()
+        field_mock.name.return_value = "other_field"
+        layer = MagicMock()
+        layer.fields.return_value = [field_mock]
+        mock_find.return_value = layer
+        res = apply_rule_based_style("layer", "status", [{"value": "open", "color_hex": "#2E7D32"}])
+        self.assertIn("error", res)
+        self.assertIn("Field 'status'", res["error"])
+
+    def _make_status_layer(self):
+        field_mock = MagicMock()
+        field_mock.name.return_value = "status"
+        layer = MagicMock()
+        layer.fields.return_value = [field_mock]
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRuleBasedRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_builds_one_rule_per_value_plus_catch_all(
+        self, mock_find, mock_color, mock_symbol_cls, mock_renderer_cls, mock_expr,
+    ):
+        layer = self._make_status_layer()
+        mock_find.return_value = layer
+
+        mock_expr.quotedColumnRef.return_value = '"status"'
+        mock_expr.quotedValue.side_effect = lambda v: f"'{v}'"
+
+        first_rule = MagicMock()
+        root_rule = MagicMock()
+        root_rule.children.return_value = [first_rule]
+        renderer_instance = MagicMock()
+        renderer_instance.rootRule.return_value = root_rule
+        mock_renderer_cls.return_value = renderer_instance
+
+        cloned_rules = [MagicMock(), MagicMock()]  # "closed" value rule, then the catch-all
+        first_rule.clone.side_effect = cloned_rules
+
+        rules = [
+            {"value": "open", "label": "Open", "color_hex": "#2E7D32"},
+            {"value": "closed", "label": "Closed", "color_hex": "#B3261E"},
+        ]
+        res = apply_rule_based_style("route_layer", "status", rules)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["rules_applied"], 2)
+        self.assertEqual(res["classes"], 3)  # 2 rules + catch-all
+        first_rule.setFilterExpression.assert_called_once_with("\"status\" = 'open'")
+        first_rule.setLabel.assert_called_once_with("Open")
+        cloned_rules[0].setFilterExpression.assert_called_once_with("\"status\" = 'closed'")
+        cloned_rules[0].setLabel.assert_called_once_with("Closed")
+        cloned_rules[1].setIsElse.assert_called_once_with(True)
+        cloned_rules[1].setLabel.assert_called_once_with("Unknown / No data")
+        # "ELSE" matches how QGIS Desktop's own "Add rule" dialog labels an
+        # else rule's filter column -- setIsElse(True) is what actually
+        # restricts it to unmatched features at render time (confirmed via
+        # a real QgsMapRendererCustomPainterJob paint against QGIS 4.2.2:
+        # "" and "ELSE" both rendered every segment correctly).
+        cloned_rules[1].setFilterExpression.assert_called_once_with("ELSE")
+        self.assertEqual(root_rule.appendChild.call_count, 2)
+        layer.setRenderer.assert_called_once_with(renderer_instance)
+        layer.triggerRepaint.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRuleBasedRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_label_defaults_to_value_when_omitted(
+        self, mock_find, mock_color, mock_symbol_cls, mock_renderer_cls, mock_expr,
+    ):
+        layer = self._make_status_layer()
+        mock_find.return_value = layer
+        mock_expr.quotedColumnRef.return_value = '"status"'
+        mock_expr.quotedValue.side_effect = lambda v: f"'{v}'"
+
+        first_rule = MagicMock()
+        root_rule = MagicMock()
+        root_rule.children.return_value = [first_rule]
+        renderer_instance = MagicMock()
+        renderer_instance.rootRule.return_value = root_rule
+        mock_renderer_cls.return_value = renderer_instance
+        first_rule.clone.return_value = MagicMock()  # the catch-all only, for this single-rule input
+
+        res = apply_rule_based_style("route_layer", "status", [{"value": "open", "color_hex": "#2E7D32"}])
+
+        self.assertTrue(res.get("success"), res)
+        first_rule.setLabel.assert_called_once_with("open")
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRuleBasedRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_exception_inside_renderer_construction_returns_error_dict(
+        self, mock_find, mock_color, mock_symbol_cls, mock_renderer_cls, mock_expr,
+    ):
+        layer = self._make_status_layer()
+        mock_find.return_value = layer
+        mock_expr.quotedColumnRef.return_value = '"status"'
+        mock_expr.quotedValue.side_effect = lambda v: f"'{v}'"
+        mock_renderer_cls.side_effect = RuntimeError("boom")
+
+        res = apply_rule_based_style("route_layer", "status", [{"value": "open", "color_hex": "#2E7D32"}])
+        self.assertIn("error", res)
+        self.assertIn("boom", res["error"])
 
 
 class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
