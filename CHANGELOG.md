@@ -4,6 +4,33 @@
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
 
+## [1.8.1] — Patch: dashboard OSM-blocked basemap + canvas not following new layers
+
+Direct live user report, not from a planned workstream.
+
+- **Dashboard basemap blocked by OpenStreetMap.** `generate_html_dashboard`/
+  `generate_temporal_dashboard` (`agent/tools/export_tools.py`) both called bare `folium.Map()`,
+  which defaults to raw, unthrottled, uncached `tile.openstreetmap.org` requests with no custom
+  User-Agent — exactly the pattern OpenStreetMap's own tile usage policy blocks for bulk/
+  embedded-app use. Switched both to `tiles="cartodbpositron"`, folium's standard permissively-
+  licensed alternative built for exactly this "embed a basemap in your own generated page" case.
+  Confirmed directly that the generated HTML no longer references `tile.openstreetmap.org` at
+  all, for either dashboard builder.
+- **Canvas doesn't follow new/changed layers.** New `zoom_to_layers()` (`ui/canvas_highlight.py`)
+  wired into `ChatTabWidget._after_successful_response` — moves the canvas to the union extent of
+  whatever layer(s) a turn's response mentions, once per turn, alongside the existing highlight-
+  flash behavior. A real bug caught live before shipping: the first version also skipped any
+  layer whose extent was "empty" (zero width/height) alongside a genuinely null extent — live-
+  confirmed against real QGIS 4.2.2 that a single-point layer's extent is legitimate but
+  registers as empty (a point has no area), so that check silently dropped every single-point
+  layer, one of the most common layer types this plugin creates. Corrected to match the existing
+  single-layer `zoom_to_layer` tool's own behavior.
+
+8 new tests. Full suite 1406 tests, 0 failures. Live-verified against real QGIS 4.2.2 with a real
+`QgsMapCanvas` (not mocked): a single-point layer moved the canvas off a deliberately stale
+extent, two layers produced a real union extent, and a cross-CRS layer produced a correctly-
+transformed extent.
+
 ## [1.8.0] — Cartographic Intelligence: visualization selection, real QA gate, isochrone bands
 
 Adapts an external "QGIS Cartographic Intelligence Standard for AI Agents" document to this
