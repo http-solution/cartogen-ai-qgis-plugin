@@ -4,6 +4,28 @@
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
 
+## [1.7.1] — Patch: portrait print-layout body/footer overlap fixed
+
+- **`BUG-2026-09-11-1` fixed, same day it was found.** `create_print_layout`'s portrait
+  orientation had a `body_h` sized for roughly one line of text, but `QgsLayoutItemLabel`
+  doesn't clip overflowing content — any `body_text` longer than that silently overflowed
+  downward into the standing disclaimer footer, exactly the multi-line "bullets/findings"
+  usage the tool's own schema description encourages. Found live against real QGIS 4.2.2 via
+  a real `QgsLayoutExporter` PNG export, visually inspected.
+- Two changes in `agent/tools/layout_tools.py`: the disclaimer footer is now pinned to a fixed
+  distance from the page bottom instead of being derived from `body_y+body_h`, so its position
+  no longer depends on how much `body_text` overflows; new `_fit_text_to_box()` (pure Python,
+  calibrated from a real live render) truncates `body_text` — by whole words, with an ellipsis
+  — to what the box can actually hold before it's ever handed to the label. This is the real
+  fix: since the label itself never clips, only bounding the text content guarantees no
+  overflow regardless of exactly how generous the mm budget turns out to be.
+- 6 new tests. Full suite 1339 tests (up from 1333), 0 failures, 7 skipped. Live-verified
+  against real QGIS 4.2.2 with the exact repro that found the bug — the exported PNG now shows
+  a cleanly truncated body paragraph and a fully legible, unobstructed disclaimer footer.
+- Landscape untouched — already live-confirmed clean (2026-09-05); the same truncation guard
+  isn't applied there yet, flagged as an optional defense-in-depth follow-up, not a known
+  failure.
+
 ## [1.7.0] — Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing
 
 Scoped for a humanitarian org (UN/NGO) deployment/pilot with an Oct 15, 2026 target — data
