@@ -33,6 +33,7 @@ from . import tool_operations_tools
 from . import transaction_tools
 from . import confidence_tools
 from . import data_export_tools
+from . import processing_allowlist_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -66,4 +67,5 @@ __all__ = [
     "transaction_tools",
     "confidence_tools",
     "data_export_tools",
+    "processing_allowlist_tools",
 ]

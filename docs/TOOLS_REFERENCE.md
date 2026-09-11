@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (161 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (162 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -936,7 +936,7 @@ Set a layer's overall opacity (0-100). Use this to make an area/polygon layer se
 
 ### `execute_pyqgis_script`
 
-LAST RESORT ONLY -- run this only when no other registered tool covers the task; check the rest of the tool list first. Runs inside a denylist-based safety sandbox (blocked modules/builtins; see SECURITY.md), not a formally proven one, so it is not a safe default path just because it's available. Execute arbitrary PyQGIS script; must define a run() function returning the result.
+LAST RESORT ONLY -- run this only when no other registered tool covers the task; check the rest of the tool list first, including run_allowlisted_processing_algorithm if the task is achievable via a single Processing algorithm -- that tool never executes Python code at all, so it's meaningfully safer than this one whenever it applies. Runs inside a denylist-based safety sandbox (blocked modules/builtins; see SECURITY.md), not a formally proven one, so it is not a safe default path just because it's available. Execute arbitrary PyQGIS script; must define a run() function returning the result.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1509,6 +1509,18 @@ Check that every P-code value in a layer is unique across its features -- flags 
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `pcode_field` | string | no | Optional. Field to check; auto-detected from common P-code field names if omitted. |
+
+## processing_allowlist_tools
+
+### `run_allowlisted_processing_algorithm`
+
+Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over execute_pyqgis_script when the task is achievable via a single Processing algorithm that isn't already covered by a dedicated tool. Safer than execute_pyqgis_script: this never runs Python code at all, only calls the named algorithm with the given parameters, so there is no code-execution surface to sandbox. Only algorithms already used elsewhere in this codebase are allowed -- an unlisted algorithm id is rejected outright, not run. Output is always kept in-memory as a new project layer (auto-named), never written to a file path -- use a dedicated export tool (export_layer, export_to_csv) afterward if a file is actually needed. Don't specify an OUTPUT/OUTPUT_LINES parameter yourself -- it's set automatically and any value you give is ignored. Any string parameter value matching a currently-loaded layer's name is automatically resolved to that layer; every other value is passed through as-is.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:contraststretch', 'gdal:merge', 'gdal:pansharpening', 'gdal:rastercalculator', 'native:aspect', 'native:buffer', 'native:centroids', 'native:clip', 'native:convexhull', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:tininterpolation', 'qgis:zonalstatistics', 'saga:kmeansclassificationforgrid', 'saga:supervisedclassificationforgrids'] |
+| `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
+| `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted. |
 
 ## provenance_tools
 
