@@ -872,6 +872,55 @@ open).
    don't expose a turn-cost parameter at all, confirmed via the same live
    parameter-definitions probe used to find `SPEED_FIELD`/`DIRECTION_FIELD`
    -- not something this fix could have wired up even if it were in scope).
+
+   **§2 items 2 and 3 closed 2026-09-11, v1.7.0 workstream 4 (composite
+   impedance + network-aware multi-stop routing) -- true VRP via OR-Tools
+   and turn-cost/turn-penalty support remain the still-real, deliberately
+   unbuilt gaps.** New tool `build_composite_impedance_field`
+   (`agent/tools/impedance_tools.py`) blends OSM `highway`-class baseline
+   speed, OSM `surface` penalty, an optional 0.0-1.0 `damage_field`
+   (passability), and an optional DEM-derived endpoint-slope penalty into
+   one `impedance_cost` field in the same km/h unit convention
+   `speed_field` already expects -- feeds straight into
+   `calculate_service_area`/`travel_time_matrix` with no changes needed on
+   either tool, matching the strategy doc's own stated integration path.
+   All validation (missing `damage_field`) runs before any mutation of the
+   layer, so a rejected call leaves no partial `output_field` behind.
+   `optimize_delivery_route` now builds a real road-network distance matrix
+   (new `_build_network_distance_matrix`, `native:shortestpathpointtopoint`'s
+   `cost` output per ordered pair) when `road_network_layer` is given,
+   *before* running the existing nearest-neighbor + 2-opt heuristic --
+   previously that parameter only affected the final drawn route line, not
+   the stop order itself. New `network_aware_ordering` field on the result
+   makes which mode ran explicit.
+
+   **A real API assumption corrected mid-build, not guessed at:**
+   `travel_time_matrix` was the first candidate distance source for the new
+   matrix, but live-probing showed its destination-side matrix keys (when
+   called with the stops layer as both origins and destinations) are
+   internal coordinate strings from `shortestpathpointtolayer`'s output --
+   confirmed live they don't match the origin-side keys or any of the stop
+   layer's own attributes, so there's no reliable way to map a destination
+   key back to a specific stop by name. `native:shortestpathpointtopoint`'s
+   `cost` field has no such ambiguity (one exact pair per call, indices line
+   up by construction) and was used instead.
+
+   32 new tests (17 `tests/test_impedance_tools.py`, 15 new across
+   `tests/test_logistics_tools.py`). **Live-verified against real QGIS
+   4.2.2**: (1) a 3-segment network (paved primary, damaged gravel track,
+   untagged default) produced exactly the hand-computed blended speeds --
+   60.0/2.25/30.0 km/h; (2) an invalid `damage_field` was rejected with no
+   `output_field` mutation on the layer; (3) a synthetic GDAL DEM with a
+   steep vs. flat segment produced a real, correctly-ordered slope penalty
+   (60.0 km/h flat vs. 12.0 km/h steep); (4) a depot/2-stop network with a
+   river crossable only at one bridge produced two genuinely different
+   visiting orders -- straight-line order visited the geometrically-closer
+   stop first, network-aware order correctly visited the road-closer stop
+   first once the bridge detour's real cost was accounted for. Full suite
+   1333 tests, 0 new failures. `docs/TOOLS_REFERENCE.md` regenerated (163
+   tools). **Still real, deliberately unbuilt**: true vehicle-capacity/
+   time-window VRP via OR-Tools, and turn-cost/turn-penalty support (no
+   QGIS native parameter exists for it at all, as already confirmed live).
 9. **Population exposure vs. affected -- REAL GAP, closed 2026-09-04.**
    `estimate_population_exposure` and `population_access_gap` used to return
    plain `total_population`/`gap_population`-style fields with no docstring

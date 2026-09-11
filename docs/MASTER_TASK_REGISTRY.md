@@ -207,6 +207,8 @@ next-steps queue always has at least one item — if everything concrete is done
 
 > **Update, same day, later — Baron asked to see it run, then shared a screenshot of a real, live Microsoft Power BI Syria-conflict dashboard ("is something like this"):** the reference showed four concrete gaps against the phase-1 build: a synced trend chart below the map, a location filter panel, point markers colored by category (phase 1 rendered points as plain default icons, not colored), and a two-handle date-range filter in addition to the existing play/pause animation. Asked which to add and why (UX-reference-only vs. eventual real-data target) — Baron: all four, and "eventually load real data like this" (real-data intent noted, but the standing capability-now/no-fabricated-Syria-data scoping from earlier the same day is unchanged — still placeholder-only). Built all four into `_build_temporal_dashboard_html`: point-geometry temporal layers now render as real `folium.CircleMarker`s (confirmed via live inspection that folium's generated `pointToLayer` merges `style_function`'s output into the marker via `Object.assign`, so the existing per-feature color logic just works, unifying the toggle code path with polygons' `.setStyle()`); a location-filter checkbox panel (built from a new `location_field` per-layer option); a Chart.js v4 (CDN, `4.5.1`) stacked-bar trend chart aggregating feature counts by month/category, synced to the current date-range and location-filter selection; and a date-range filter as two plain `<input type=range>` sliders (deliberately, over a fancier dual-handle widget, to avoid a new JS dependency) that clamp the existing play-slider's bounds and wrap the play-loop within the selected range. Found and fixed a real security gap while adding the chart: the chart's caller-controlled data (location/category names) was being embedded via plain `json.dumps()`, which doesn't escape a literal `</script>` sequence and could break out of its own `<script>` tag — added `_json_for_inline_script()` (escapes `</` to `<\/`) and applied it to both new inline-JS data embeddings; `json.dumps`'s own `ensure_ascii=True` default was verified (live) to already handle the separate U+2028/U+2029 JS-line-terminator issue, so no extra handling was needed there. Also found and fixed a latent bug the new `marker_radius` schema field exposed: `layer.get("marker_radius", 6)` silently returns `None`, not `6`, whenever the tool wrapper's prepared-layer dict carries an explicit `"marker_radius": None` (which it always does when a caller omits the field) — changed to `layer.get("marker_radius") or 6`. 21 new tests (`TestMonthBucketLabel`, `TestResolveFeatureLocations`, `TestResolveTemporalColorsSortedOrder`, `TestBuildTrendChartData`, `TestBuildTemporalDashboardHtmlNewFeatures` incl. the script-breakout regression test), full suite re-verified after the marker_radius fix: `tests.test_temporal_dashboard` 56/56 passing, full suite 1217 tests, same known baseline (1 DNS-dependent failure, 6 FUSE `PermissionError` cleanup errors), 0 new failures; pyflakes clean (same 2 pre-existing/accepted `style_function` redefinition warnings, no new ones). `docs/TOOLS_REFERENCE.md` regenerated (158 tools, updated description/schema for `generate_temporal_dashboard`). Still not committed — this is materially different code from phase 1's own not-yet-approved commit, so it needs its own fresh go-ahead from Baron, not a carry-over of any earlier approval.
 
+> **Update, cross-session, 2026-09-11 — a new major release request, not from the 27-point review, direct from the user: "one major release before 15 Oct 2026, huge improvement in security / logistic measures":** scoped via three clarifying questions (security focus: sandbox hardening + destructive-action safety gaps + GDPR compliance closure, all three; logistics scope: composite impedance + real multi-stop routing; deadline driver: a specific deployment) plus a follow-up (a humanitarian org UN/NGO deployment/pilot) — that last answer set the priority order (GDPR/safety first, sandbox second, logistics third, since a DPO/security review looks at the first two directly). Wrote and got approval on a 4-workstream v1.7.0 "Security & Logistics" plan (`~/.claude/plans/idempotent-popping-haven.md`), grounded entirely in gaps this repo's own docs had already found and left open (`docs/GDPR_COMPLIANCE_REVIEW.docx` F6-F9, this review's points 19/20, `docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md` §2 items 2-3) — nothing invented from scratch. All four workstreams built and live-verified this session: Workstream 1 (GDPR F6-F9: opt-in gate on persistent project-memory writes + a "My Data" export feature), Workstream 2 (undo/rollback for a priority subset of MODIFY/DELETE tools via a new snapshot registry), Workstream 3 (sandbox Tier 2: `run_allowlisted_processing_algorithm`, a 36-id allow-list), Workstream 4 (logistics: `build_composite_impedance_field` + network-aware `optimize_delivery_route`) — see queue items 37-40 for full detail on each. `load_project` undo, MODIFY tools outside Workstream 2's priority subset, true OR-Tools VRP, and turn-cost/turn-penalty support were explicitly named out of scope for this release, not silently dropped. Only "Release mechanics" (version bump 1.6.0 → 1.7.0, release-zip rebuild) remains before v1.7.0 is ready to ship.
+
 ### Next steps queue (ordered — work the top item first, unless Baron redirects)
 
 1. ~~Get Baron's explicit go-ahead to commit the two fixes above~~ — **done, 2026-09-04.**
@@ -606,7 +608,7 @@ next-steps queue always has at least one item — if everything concrete is done
    `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Plan:
    `~/.claude/plans/idempotent-popping-haven.md`. Workstreams 3-4 (sandbox
    Tier 2 allow-list, logistics composite impedance + network-aware routing)
-   still pending.
+   done — see points 39-40.
 39. ~~v1.7.0 "Security & Logistics" release, Workstream 3: sandbox Tier 2
    allow-list (point 19's larger question)~~ — **done, 2026-09-11.** New
    `agent/tools/processing_allowlist_tools.py`'s
@@ -632,9 +634,44 @@ next-steps queue always has at least one item — if everything concrete is done
    question. See point 19's updated entry in
    `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Plan:
    `~/.claude/plans/idempotent-popping-haven.md`. Workstream 4 (logistics
-   composite impedance + network-aware routing) still pending — the last
-   one before this release is complete.
-40. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+   composite impedance + network-aware routing) done — see point 40, the
+   last one before this release is complete.
+40. ~~v1.7.0 "Security & Logistics" release, Workstream 4: logistics
+   composite impedance + network-aware multi-stop routing (strategy doc §2
+   items 2-3)~~ — **done, 2026-09-11 — all four v1.7.0 workstreams now
+   complete.** New tool `build_composite_impedance_field`
+   (`agent/tools/impedance_tools.py`): blends OSM `highway` baseline speed,
+   `surface` penalty, an optional 0.0-1.0 `damage_field`, and an optional
+   DEM-derived endpoint-slope penalty into one `impedance_cost` field, same
+   km/h convention `speed_field` already expects on
+   `calculate_service_area`/`travel_time_matrix` — no changes needed on
+   either. `optimize_delivery_route` now builds a real road-network
+   distance matrix (new `_build_network_distance_matrix`, using
+   `native:shortestpathpointtopoint`'s `cost` field per ordered pair)
+   *before* running its existing nearest-neighbor + 2-opt heuristic when
+   `road_network_layer` is given, so stop *order* itself is now
+   road-network-aware, not just the final drawn route line. **A real API
+   assumption corrected mid-build**: `travel_time_matrix` was tried first
+   as the distance source, but its destination-side matrix keys (stops
+   layer as both origins/destinations) turned out to be internal
+   coordinate strings with no reliable mapping back to stop names —
+   confirmed live; `shortestpathpointtopoint`'s unambiguous per-pair `cost`
+   was used instead. 32 new tests. Full suite 1333/0/7 skipped.
+   **Live-verified against real QGIS 4.2.2**: hand-computed blended speeds
+   matched exactly on a 3-segment network (60.0/2.25/30.0 km/h); invalid
+   `damage_field` rejected with zero mutation; a synthetic GDAL DEM
+   produced a correct steep-vs-flat slope penalty (12.0 vs. 60.0 km/h); a
+   depot/2-stop/one-bridge river scenario produced genuinely different
+   straight-line vs. network-aware visiting orders, matching the plan's own
+   named verification target exactly. `docs/TOOLS_REFERENCE.md`
+   regenerated (163 tools, 28 groups). Still real, deliberately unbuilt:
+   true VRP via OR-Tools, turn-cost/turn-penalty support (no QGIS native
+   parameter exists for it). See point 8's updated entry in
+   `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Plan:
+   `~/.claude/plans/idempotent-popping-haven.md` — all four workstreams now
+   closed; only "Release mechanics" (version bump to 1.7.0, release zip
+   rebuild) remains before v1.7.0 ships.
+41. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

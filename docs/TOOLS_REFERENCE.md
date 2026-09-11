@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (162 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (163 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -357,13 +357,18 @@ Rank candidate hub/warehouse/facility locations by how well they serve a set of 
 
 ### `optimize_delivery_route`
 
-Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses straight-line distance and a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order, and not road-network-aware for ordering purposes). Without road_network_layer, the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to also build an actual road-snapped route line (via QGIS's network analysis, same as calculate_service_area/travel_time_matrix), added to the project and safe to render as a real route. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
+Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without road_network_layer, ordering uses straight-line distance and the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to make the ordering itself road-network-aware (real road distance between every pair of stops, not straight-line) and to build an actual road-snapped route line, added to the project and safe to render as a real route. speed_field/direction_field (same meaning as calculate_service_area's) only affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `stops_layer` | string | yes | Point layer of stops to visit. |
 | `start_stop_name` | string | no | Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature. |
-| `road_network_layer` | string | no | Optional line layer representing the road/path network. When given, a road-snapped route line (following actual roads between stops in visiting order) is built and added to the project -- required before the output may be rendered as a route on a map. |
+| `road_network_layer` | string | no | Optional line layer representing the road/path network. When given, visiting order uses real road-network distance (not straight-line) and a road-snapped route line is built and added to the project -- required before the output may be rendered as a route on a map. |
+| `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects ordering when road_network_layer is given. |
+| `direction_field` | string | no | Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Only affects ordering when road_network_layer is given. |
+| `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
+| `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
+| `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
 
 ### `population_access_gap`
 
@@ -1488,6 +1493,21 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## impedance_tools
+
+### `build_composite_impedance_field`
+
+Builds a single blended per-segment speed field on a road network layer -- combining OSM highway-class baseline speed, OSM surface-condition penalty, an optional damage/passability field, and an optional DEM-derived slope penalty into one number in km/h. Feeds directly into calculate_service_area/travel_time_matrix/optimize_delivery_route's existing speed_field parameter -- run this first, then pass output_field's name as speed_field to those tools with strategy='fastest' for realistic routing that avoids unpaved/damaged/steep roads instead of treating every segment as equally fast. Requires highway_field/surface_field to already exist on the layer (e.g. from fetch_osm_features) -- a layer without them still gets a flat default speed with no penalties, not an error.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `road_network_layer` | string | yes | Line layer representing the road/path network. |
+| `highway_field` | string | no | Field holding the OSM highway=* class (e.g. 'primary', 'track'). Defaults to 'highway'. |
+| `surface_field` | string | no | Field holding the OSM surface=* value (e.g. 'paved', 'gravel'). Defaults to 'surface'. |
+| `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=impassable, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
+| `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
+| `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 
 ## pcode_validation_tools
 
