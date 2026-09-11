@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.8.0
+version=1.8.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,18 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.8.0 (2026-09-12):
+changelog=v1.8.1 (2026-09-12):
+    Patch release, direct live user report: an exported dashboard's basemap showed a
+    blocked/unavailable OpenStreetMap tile message, and the QGIS canvas doesn't follow layers
+    the agent just created/modified after a request finishes. Fixed: generate_html_dashboard/
+    generate_temporal_dashboard switched from raw OpenStreetMap tiles (blocked by OSM's own
+    bulk-use tile policy) to CartoDB Positron; a new zoom_to_layers() now moves the canvas to
+    the combined extent of whatever layer(s) a turn's response mentions, once per turn. A real
+    bug (single-point layers being silently skipped) was caught and fixed live before shipping.
+    Live-verified against real QGIS 4.2.2. See CHANGELOG.md's [1.8.1] entry and
+    docs/BUG_TRACKER.md's BUG-2026-09-12-1 for full detail.
+
+v1.8.0 (2026-09-12):
     Cartographic Intelligence release: adapts an external "QGIS Cartographic Intelligence
     Standard for AI Agents" document to this plugin's own architecture, as an integration/
     gap-closure pass on real existing infrastructure. New recommend_visualization_method
