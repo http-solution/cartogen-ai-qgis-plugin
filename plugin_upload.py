@@ -87,7 +87,10 @@ EXCLUDE_DIRS = {
 EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
 EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
-# plugin and shouldn't ship in the release package.
+# plugin and shouldn't ship in the release package. The 4 frozen doc names below
+# now live under docs/archive/ (moved 2026-09-12, a repo-organization pass) --
+# this matches on os.walk()'s basename regardless of directory, so the move
+# didn't require a functional change here, just this comment update.
 EXCLUDE_FILES = {
     "IMPLEMENTATION_TASK_LIST.md", "LICENSE_AUDIT.md", "CARTOGEN_AI_PRD.md",
     "CARTOGEN_AI_FEATURE_LIST.md", "pytest.ini", "plugin_upload.py",

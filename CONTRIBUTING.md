@@ -94,9 +94,10 @@ just unbuilt yet.
 
 ## 6. Frozen historical docs
 
-`CARTOGEN_AI_FEATURE_LIST.md`, `CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`,
-`CHANGELOG.md`'s past entries, and dated review/audit/spec docs (filenames ending in a date, e.g.
-`docs/archive/STATUS_REVIEW_2026-08-20.md`) are deliberately left untouched after the fact — they're a
+`docs/archive/CARTOGEN_AI_FEATURE_LIST.md`, `docs/archive/CARTOGEN_AI_PRD.md`,
+`docs/archive/IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s past entries, and dated review/
+audit/spec docs (filenames ending in a date, e.g. `docs/archive/STATUS_REVIEW_2026-08-20.md`)
+are deliberately left untouched after the fact — they're a
 historical record, not living documentation. If something in one of them is now wrong or
 superseded, add a new dated doc or a `docs/IMPLEMENTATION_TRACKER.md` entry that supersedes it;
 don't edit the old one to match current reality. This includes not "fixing" old identifier names

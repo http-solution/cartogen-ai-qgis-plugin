@@ -34,12 +34,32 @@ black-box answer.
 > This repository is the single public Cartogen AI Community codebase. See the
 > [changelog](CHANGELOG.md) for the consolidation history.
 
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [What it does](#what-it-does)
+- [Editions](#editions)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Documentation](#documentation)
+  - [Getting started](#getting-started)
+  - [Security & compliance](#security--compliance)
+  - [Engineering & process](#engineering--process)
+  - [Product & humanitarian standards](#product--humanitarian-standards)
+  - [Roadmap, specs & dated reviews (archive)](#roadmap-specs--dated-reviews-archive)
+  - [Project reference](#project-reference)
+- [Contributing](#contributing)
+- [Development](#development)
+- [Support](#support)
+
+</details>
+
 ## What it does
 
 - **Multi-provider**: OpenRouter, Google Gemini, OpenAI, Anthropic Claude, or a local
   Ollama server — switch anytime, bring your own API key (OpenRouter has a free tier;
   Ollama is free and fully local).
-- **131 tools** covering vector and raster geoprocessing, styling and labeling, print
+- **165 tools** covering vector and raster geoprocessing, styling and labeling, print
   layouts, exports, humanitarian data (HDX / OpenStreetMap / geoBoundaries / building
   footprints), satellite imagery search, database queries, trend forecasting, humanitarian
   severity/needs indexing (JIAF/INFORM-style composite scoring for fund-allocation
@@ -128,32 +148,75 @@ OSGeo4W Shell), then reopen QGIS.
 
 ## Documentation
 
+`docs/` also has its own [index](docs/README.md) with the same grouping, for anyone browsing
+the folder directly on GitHub.
+
+### Getting started
+
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 165 tools, auto-generated from the live registry |
+
+### Security & compliance
+
+| Doc | Covers |
+|---|---|
+| [SECURITY.md](SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
+| [docs/GDPR_COMPLIANCE_REVIEW.docx](docs/GDPR_COMPLIANCE_REVIEW.docx) | GDPR compliance review |
+| [docs/DPIA_SCREENING_WORKSHEET.docx](docs/DPIA_SCREENING_WORKSHEET.docx) | Data Protection Impact Assessment screening worksheet |
+| [docs/GDPR_HOSTED_ACCOUNT_ADDENDUM_2026-09-08.md](docs/GDPR_HOSTED_ACCOUNT_ADDENDUM_2026-09-08.md) | GDPR addendum specific to the planned hosted-account (Professional tier) data flows |
+
+### Engineering & process
+
+| Doc | Covers |
+|---|---|
+| [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item from the dated review/audit/spec docs, kept current as things resolve |
+| [docs/MASTER_TASK_REGISTRY.md](docs/MASTER_TASK_REGISTRY.md) | The full humanitarian mapping task register plus engineering task history |
+| [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline so it's never mistaken for a regression |
+| [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
+| [docs/RELEASE_GOVERNANCE.md](docs/RELEASE_GOVERNANCE.md) | Who can cut a release and the steps a release must follow |
+| [docs/OPERATIONS_LOG.md](docs/OPERATIONS_LOG.md) | Dated operational narrative — incidents, sandbox quirks, decisions made in the moment |
+| [docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md](docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) | 27-point production-readiness architecture review |
+| [docs/CODE_REVIEW_2026-09-08.md](docs/CODE_REVIEW_2026-09-08.md) | Dated code review with concrete findings |
+
+### Product & humanitarian standards
+
+| Doc | Covers |
+|---|---|
 | [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
+| [docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md](docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md) | Cartographic design/QA standards the agent's styling and layout tools follow |
+| [docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md](docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
+
+### Roadmap, specs & dated reviews (archive)
+
+Frozen historical documents — accurate to when they were written, never edited after the fact
+(see [CLAUDE.md](CLAUDE.md)). Corrections live in newer docs that supersede them, not in-place
+edits. See [docs/archive/README.md](docs/archive/README.md) for the full, one-line-each index of
+every archived file; a few of particular note:
+
+| Doc | Covers |
+|---|---|
 | [docs/archive/OPEN_CORE_REPO_STRATEGY.md](docs/archive/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
 | [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the above: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
-| [docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
-| [docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md](docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
-| [docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |
-| [docs/archive/AUTO_REPORTING_RECIPE.md](docs/archive/AUTO_REPORTING_RECIPE.md) | Recipe (zero new code): composing existing tools into a scheduled program-update workflow |
-| [docs/archive/CVA_MARKET_ACCESS_RECIPE.md](docs/archive/CVA_MARKET_ACCESS_RECIPE.md) | Recipe (zero new code): market-access distance analysis for cash/voucher assistance feasibility, and its honest limits |
-| [docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Spec (roadmap, not shipped): combining per-sector severity indices into one intersectoral estimate, grounded in JIAF 2.0's real Mosaic Method |
-| [SECURITY.md](SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
 | [docs/archive/STATUS_REVIEW_2026-08-20.md](docs/archive/STATUS_REVIEW_2026-08-20.md) | Full-codebase status review: architecture, tool registry, security, docs, open items, next steps |
-| [docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Proposal (not decided/shipped): Community/Pro/Full-Direct-Connect tiers gated on tool set + Local LLM/Cartogen API gateway connectivity |
-| [docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Specialist product/software-engineering/UI-UX review with concrete recommendations, grounded in `agent/providers/` and `ui/` |
-| [docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md](docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
-| [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
 | [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Audit of which destructive tools have the preview/confirm safety gate and which don't, with an open product decision on 4 humanitarian analysis tools |
-| [docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | What was extracted from `ui/dock_widget.py` (file-attachment reading) vs. deliberately deferred (the tab-boundary class split) and why, with a concrete plan for whenever it's done in a verifiable (real QGIS) environment |
-| [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item from the dated review/audit/spec docs below, kept current as things resolve |
-| [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline so it's never mistaken for a regression |
+| [docs/archive/DOCUMENTATION.md](docs/archive/DOCUMENTATION.md) | Earlier, superseded full-repo documentation pass |
+
+### Project reference
+
+| Doc | Covers |
+|---|---|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How this codebase is written: comment discipline, honest status labeling, testing conventions |
 | [CHANGELOG.md](CHANGELOG.md) | Version history, `[1.4.0]` onward -- see [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md) for `[1.3.0]` and earlier |
 | [LICENSE](LICENSE) | GNU GPL v2 |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — it's short and specific to this codebase, not a generic
+PR-process doc. It covers comment discipline (explain *why*, not *what*), honest status labeling
+for anything unverified in a non-QGIS sandbox, and the testing conventions the suite expects.
+Issues and PRs go through [github.com/cartogenai-glitch/CARTOGEN-AI](https://github.com/cartogenai-glitch/CARTOGEN-AI).
 
 ## Development
 

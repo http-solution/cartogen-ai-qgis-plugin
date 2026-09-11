@@ -45,11 +45,13 @@ most for an AI agent working here:
    doc.** If something can't be verified in this sandbox (most things touching live QGIS or a
    real LLM API response), say so explicitly rather than implying it works.
 
-Also: **frozen historical docs are never edited after the fact.** `CARTOGEN_AI_FEATURE_LIST.md`,
-`CARTOGEN_AI_PRD.md`, `IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s past entries, and any
-dated review/spec doc are accurate to when they were written — including old identifier names
-after a rebrand. If something in one is now wrong, add a new entry/doc that supersedes it; don't
-rewrite history.
+Also: **frozen historical docs are never edited after the fact.** `docs/archive/CARTOGEN_AI_FEATURE_LIST.md`,
+`docs/archive/CARTOGEN_AI_PRD.md`, `docs/archive/IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s
+past entries, and any dated review/spec doc in `docs/archive/` are accurate to when they were
+written — including old identifier names after a rebrand. If something in one is now wrong, add
+a new entry/doc that supersedes it; don't rewrite history. (These 3 files, plus
+`docs/archive/DOCUMENTATION.md` and `docs/archive/LICENSE_AUDIT.md`, moved from the repo root
+into `docs/archive/` in a 2026-09-12 repo-organization pass — content unchanged, only location.)
 
 ## Running things
 
