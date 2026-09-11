@@ -20,8 +20,32 @@ confirmed via a real test run or live check) / `wontfix` (with rationale).
 
 ## Open bugs
 
-None currently. **BUG-2026-09-11-1** and **BUG-2026-09-12-1** (below) were both found and fixed
-the same day, both live against real QGIS 4.2.2 -- see those entries for the full history.
+None currently. **BUG-2026-09-11-1**, **BUG-2026-09-12-1**, and **BUG-2026-09-12-2** (below)
+were all found and fixed the same day -- see those entries for the full history.
+
+**BUG-2026-09-12-2** | found 2026-09-12 (caught verifying the v1.8.2 release zip before
+announcing it) | fixed-verified, shipping in v1.8.3 | medium | `plugin_upload.py`'s
+`EXCLUDE_FILES` set matches a file by basename regardless of directory (`os.walk()`'s `file`,
+no path check). Before the same-day repo-organization pass, `IMPLEMENTATION_TASK_LIST.md`,
+`LICENSE_AUDIT.md`, `CARTOGEN_AI_PRD.md`, and `CARTOGEN_AI_FEATURE_LIST.md` lived at the repo
+root and were correctly excluded there (internal dev docs, not meant to ship). That pass moved
+all 5 of them (the 4 above, plus `DOCUMENTATION.md`) into `docs/archive/` -- a directory that is
+NOT excluded and whose other ~29 files ship normally -- and the comment above `EXCLUDE_FILES`
+claimed the move "didn't require a functional change here" since the match is basename-only.
+That claim was wrong: those same 4 basenames kept matching inside `docs/archive/` too, so
+`cartogen_ai_v1.8.2.zip` (already built and its GitHub Release already published) silently
+shipped without them, while their sibling `DOCUMENTATION.md` (never in `EXCLUDE_FILES`) shipped
+fine. Caught live, minutes after publishing, by running `unzip -l` against the built zip and
+diffing it against `docs/archive/`'s real contents -- not by any test (there is no test coverage
+over the release zip's file list). Does not affect plugin functionality: confirmed via a real
+QGIS 4.2.2 headless import of the extracted zip (`__init__.py` imports cleanly, `classFactory`
+present, `TOOL_REGISTRY` reports the full 165 tools) that the plugin installs and runs
+correctly even with the 4 files missing -- this was a shipped-content-completeness bug, not a
+functional/crash bug. Fixed by removing those 4 basenames from `EXCLUDE_FILES` (`DOCUMENTATION.md`
+never needed an entry, so none of the 5 moved docs are listed there anymore); rebuilt the zip and
+re-ran the same real-QGIS import check, plus a fresh `unzip -l` confirming all 5 files now
+present and non-trivial (>1KB) on disk after extraction. Full suite still 1406 tests, 0 failures
+(no `src/` behavior touched, packaging script only).
 
 **BUG-2026-09-12-1** | found 2026-09-12 (live user report) | unreleased | high | Two related
 issues reported live: (1) an exported `generate_html_dashboard`/`generate_temporal_dashboard`'s

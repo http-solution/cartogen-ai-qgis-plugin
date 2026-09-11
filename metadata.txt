@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.8.2
+version=1.8.3
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,19 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.8.2 (2026-09-12):
+changelog=v1.8.3 (2026-09-12):
+    Patch release: fixed BUG-2026-09-12-2, found and fixed the same day v1.8.2 shipped, caught
+    while verifying the v1.8.2 release zip installs cleanly. plugin_upload.py's EXCLUDE_FILES
+    matches by basename regardless of directory -- 4 of the 5 docs moved into docs/archive/ in
+    v1.8.2's repo-organization pass (IMPLEMENTATION_TASK_LIST.md, LICENSE_AUDIT.md,
+    CARTOGEN_AI_PRD.md, CARTOGEN_AI_FEATURE_LIST.md) were still excluded from the release zip as
+    a leftover from when they lived at the repo root, so they silently didn't ship. Did not
+    affect plugin functionality -- confirmed via a real QGIS 4.2.2 headless import of the
+    extracted zip that it installs and runs correctly regardless. Fixed by removing those 4
+    entries from EXCLUDE_FILES; rebuilt and re-verified all 5 moved docs now ship. See
+    CHANGELOG.md's [1.8.3] entry and docs/BUG_TRACKER.md's BUG-2026-09-12-2 for full detail.
+
+v1.8.2 (2026-09-12):
     Documentation-only release: no code, tool, or behavior changes. Moved 5 frozen historical
     docs (CARTOGEN_AI_FEATURE_LIST.md, CARTOGEN_AI_PRD.md, DOCUMENTATION.md,
     IMPLEMENTATION_TASK_LIST.md, LICENSE_AUDIT.md) from the repo root into docs/archive/ (git mv,
