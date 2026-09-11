@@ -166,7 +166,7 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_speed_and_direction_fields_reach_processing_run_and_result(
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
@@ -202,7 +202,7 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_no_fields_given_omits_them_from_params_and_result(
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
@@ -257,7 +257,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_convexhull_failure_on_one_facility_keeps_its_lines_and_the_other_facility(
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
@@ -298,7 +298,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_serviceareafrompoint_failure_on_one_facility_does_not_abort_the_other(
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
@@ -337,7 +337,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_all_facilities_failing_still_reports_a_clean_error(
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
@@ -358,7 +358,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     @patch("cartogen_ai.core.agent.tools.logistics_tools._degenerate_hull_fallback")
     def test_convexhull_failure_recovers_via_degenerate_hull_fallback(
@@ -400,7 +400,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_serviceareafrompoint_gets_a_geometry_skip_invalid_context(
         self, mock_find, mock_processing_enum, mock_context_cls, mock_processing, mock_project
@@ -431,7 +431,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
 
         self.assertTrue(res.get("success"), res)
         mock_context_instance.setInvalidGeometryCheck.assert_called_once_with(
-            mock_processing_enum.GeometrySkipInvalid
+            mock_processing_enum.InvalidGeometryCheck.GeometrySkipInvalid
         )
 
 
@@ -467,7 +467,7 @@ class TestDegenerateHullFallback(unittest.TestCase):
 
         buffered_polygon = MagicMock()
         buffered_polygon.isEmpty.return_value = False
-        buffered_polygon.type.return_value = mock_wkbtypes.PolygonGeometry
+        buffered_polygon.type.return_value = mock_wkbtypes.GeometryType.PolygonGeometry
         degenerate_hull.buffer.return_value = buffered_polygon
 
         # First .type() check (on the raw hull) says it's NOT a polygon --
@@ -504,7 +504,7 @@ class TestDegenerateHullFallback(unittest.TestCase):
 
         polygon_hull = MagicMock()
         polygon_hull.isEmpty.return_value = False
-        polygon_hull.type.return_value = mock_wkbtypes.PolygonGeometry
+        polygon_hull.type.return_value = mock_wkbtypes.GeometryType.PolygonGeometry
         combined.convexHull.return_value = polygon_hull
 
         result = _degenerate_hull_fallback(lines_layer, travel_cost=1000)
