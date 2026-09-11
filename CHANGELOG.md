@@ -26,6 +26,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
   isn't applied there yet, flagged as an optional defense-in-depth follow-up, not a known
   failure.
 
+  **Correction, 2026-09-11, same day (documentation only, no code change — kept per this
+  project's frozen-changelog convention rather than edited in place):** the line above is
+  wrong. `_fit_text_to_box()`'s call site sits in the shared code path after the
+  portrait/landscape `if`/`else` block closes, not inside the portrait-only branch, so it
+  already ran for landscape too, using landscape's own `(col_w=95, body_h=78)` values, from the
+  moment this release shipped — there was no gap to revisit. Verified live against real QGIS
+  4.2.2 with an extreme 2774-character `body_text`: truncated cleanly with an ellipsis, footer
+  fully legible and unobstructed. A regression test
+  (`test_landscape_dimensions_also_truncate_an_extreme_body_text`) locks this in going forward.
+
 ## [1.7.0] — Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing
 
 Scoped for a humanitarian org (UN/NGO) deployment/pilot with an Oct 15, 2026 target — data
