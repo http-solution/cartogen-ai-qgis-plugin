@@ -377,26 +377,34 @@ def _optimize_route(distance_matrix, start_index=0):
 @register_tool(
     "optimize_delivery_route",
     "Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order "
-    "should the truck visit these 8 distribution points'. Uses straight-line distance and a "
-    "standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed "
-    "globally-optimal order, and not road-network-aware for ordering purposes). Without "
-    "road_network_layer, the result is a stop order only -- do NOT draw a straight line between "
-    "the stops and present it as a route on an operational map; it is not a routable path. Pass "
-    "road_network_layer to also build an actual road-snapped route line (via QGIS's network "
-    "analysis, same as calculate_service_area/travel_time_matrix), added to the project and safe "
-    "to render as a real route. Not a substitute for a full commercial VRP solver with vehicle "
-    "capacity/time-window constraints.",
+    "should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + "
+    "2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without "
+    "road_network_layer, ordering uses straight-line distance and the result is a stop order "
+    "only -- do NOT draw a straight line between the stops and present it as a route on an "
+    "operational map; it is not a routable path. Pass road_network_layer to make the ordering "
+    "itself road-network-aware (real road distance between every pair of stops, not straight-line) "
+    "and to build an actual road-snapped route line, added to the project and safe to render as a "
+    "real route. speed_field/direction_field (same meaning as calculate_service_area's) only "
+    "affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP "
+    "solver with vehicle capacity/time-window constraints.",
     {
         "type": "object",
         "properties": {
             "stops_layer": {"type": "string", "description": "Point layer of stops to visit."},
             "start_stop_name": {"type": "string", "description": "Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature."},
-            "road_network_layer": {"type": "string", "description": "Optional line layer representing the road/path network. When given, a road-snapped route line (following actual roads between stops in visiting order) is built and added to the project -- required before the output may be rendered as a route on a map."},
+            "road_network_layer": {"type": "string", "description": "Optional line layer representing the road/path network. When given, visiting order uses real road-network distance (not straight-line) and a road-snapped route line is built and added to the project -- required before the output may be rendered as a route on a map."},
+            "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects ordering when road_network_layer is given."},
+            "direction_field": {"type": "string", "description": "Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Only affects ordering when road_network_layer is given."},
+            "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
+            "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
+            "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
         },
         "required": ["stops_layer"],
     },
 )
-def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_layer=None):
+def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_layer=None,
+                             speed_field=None, direction_field=None,
+                             value_forward="yes", value_backward="-1", value_both="no"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(stops_layer)
@@ -404,10 +412,16 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return {"error": f"Layer '{stops_layer}' not found"}
 
     network = None
+    extra_params = {}
     if road_network_layer is not None:
         network = _find_layer_by_name(road_network_layer)
         if network is None:
             return {"error": f"Layer '{road_network_layer}' not found"}
+        extra_params, field_error = _network_direction_speed_params(
+            network, speed_field, direction_field, value_forward, value_backward, value_both
+        )
+        if field_error:
+            return {"error": field_error}
 
     try:
         feats = [f for f in layer.getFeatures() if not f.geometry().isEmpty()]
@@ -425,7 +439,11 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             start_index = names.index(start_stop_name)
 
         n = len(geoms)
-        distance_matrix = [[geoms[i].distance(geoms[j]) for j in range(n)] for i in range(n)]
+        network_aware = network is not None
+        if network_aware:
+            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params)
+        else:
+            distance_matrix = [[geoms[i].distance(geoms[j]) for j in range(n)] for i in range(n)]
 
         tour, total_distance = _optimize_route(distance_matrix, start_index)
         ordered_names = [names[i] for i in tour]
@@ -436,6 +454,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "stop_count": n,
             "route_order": ordered_names,
             "total_distance": round(total_distance, 2),
+            "network_aware_ordering": network_aware,
         }
 
         if network is None:
@@ -460,6 +479,61 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return result
     except Exception as e:
         return {"error": f"optimize_delivery_route failed: {e}"}
+
+
+def _build_network_distance_matrix(network, geoms, extra_params=None):
+    """Real road-network point-to-point distance between every ordered pair
+    of stops, via native:shortestpathpointtopoint's own 'cost' output
+    field -- confirmed live this is the robust way to get this, not
+    travel_time_matrix: calling that tool with the stops layer as both
+    origins and destinations DOES work (same layer object twice is fine),
+    but its destination-side matrix keys come from an internal
+    coordinate-string field on shortestpathpointtolayer's output, not any
+    of the stop layer's own attributes -- confirmed live they don't match
+    the origin-side keys' naming at all, so there's no reliable way to map
+    a destination key back to a specific stop by name. Point-to-point's
+    'cost' field has no such ambiguity: each call names its one exact
+    start/end pair, so indices line up by construction.
+
+    O(n^2) processing.run() calls for n stops -- optimize_delivery_route's
+    own tool description already frames this as suited to a route-sized
+    stop list ("not a substitute for a full commercial VRP solver"), not
+    hundreds of stops, so this is an acceptable cost for the gap it closes
+    (real road distance driving the visiting ORDER, not just the final
+    drawn line).
+
+    Unreachable/failed pairs get float('inf') so _optimize_route naturally
+    routes around them (nearest-neighbor never picks an infinite-cost hop
+    while a finite one is available) instead of crashing on a missing
+    matrix entry."""
+    n = len(geoms)
+    matrix = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            start = geoms[i].asPoint()
+            end = geoms[j].asPoint()
+            params = {
+                "INPUT": network,
+                "STRATEGY": 0,
+                "DEFAULT_SPEED": 50,
+                "TOLERANCE": 0,
+                "START_POINT": f"{start.x()},{start.y()}",
+                "END_POINT": f"{end.x()},{end.y()}",
+                "OUTPUT": "memory:",
+            }
+            if extra_params:
+                params.update(extra_params)
+            try:
+                output = processing.run("native:shortestpathpointtopoint", params)
+                result_layer = output.get("OUTPUT")
+                feats = list(result_layer.getFeatures()) if result_layer is not None else []
+                cost = feats[0]["cost"] if feats else None
+                matrix[i][j] = float(cost) if cost is not None else float("inf")
+            except Exception:
+                matrix[i][j] = float("inf")
+    return matrix
 
 
 def _build_road_snapped_route(stops_layer_name, network, geoms, tour):

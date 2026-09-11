@@ -12,6 +12,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
     score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
+    _build_network_distance_matrix,
 )
 
 
@@ -1028,6 +1029,156 @@ class TestOptimizeDeliveryRouteRoadSnapping(unittest.TestCase):
         self.assertNotIn("route_layer", res)
         self.assertIn("warning", res)
         self.assertIn("Could not build", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_network_aware_ordering_flag_true_with_road_network(self, mock_find, mock_processing, mock_project):
+        def side_effect(name):
+            return {"stops": _stop_layer(["a", "b", "c"]), "roads": MagicMock()}.get(name)
+        mock_find.side_effect = side_effect
+
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        res = optimize_delivery_route("stops", road_network_layer="roads")
+
+        self.assertTrue(res["network_aware_ordering"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_network_aware_ordering_flag_false_without_road_network(self, mock_find):
+        mock_find.return_value = _stop_layer(["a", "b", "c"])
+
+        res = optimize_delivery_route("stops")
+
+        self.assertFalse(res["network_aware_ordering"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_speed_and_direction_fields_reach_the_distance_matrix_build(self, mock_find, mock_processing, mock_project):
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
+
+        def side_effect(name):
+            return {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        mock_find.side_effect = side_effect
+
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        res = optimize_delivery_route(
+            "stops", road_network_layer="roads", speed_field="speed_kmh", direction_field="oneway",
+        )
+
+        self.assertTrue(res["success"])
+        # The distance-matrix build (native:shortestpathpointtopoint) must have
+        # received the resolved speed/direction params on at least one call.
+        matrix_calls = [c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint"]
+        self.assertTrue(matrix_calls)
+        self.assertEqual(matrix_calls[0].args[1].get("SPEED_FIELD"), "speed_kmh")
+        self.assertEqual(matrix_calls[0].args[1].get("DIRECTION_FIELD"), "oneway")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
+        network = MagicMock()
+        network.fields.return_value.indexOf.return_value = -1
+
+        def side_effect(name):
+            return {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        mock_find.side_effect = side_effect
+
+        res = optimize_delivery_route("stops", road_network_layer="roads", speed_field="ghost_field")
+
+        self.assertIn("error", res)
+        self.assertIn("ghost_field", res["error"])
+
+
+class TestBuildNetworkDistanceMatrix(unittest.TestCase):
+    """Direct unit tests for _build_network_distance_matrix -- the 2026-09-11
+    v1.7.0 workstream 4 addition: real road-network distance driving
+    optimize_delivery_route's visiting-order decision, not just the final
+    drawn line. Deliberately uses native:shortestpathpointtopoint's own
+    'cost' output field rather than travel_time_matrix, which was
+    confirmed live to key its destination-side matrix by an internal
+    coordinate string, not by any of the stop layer's own attributes."""
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_reads_the_real_cost_field(self, mock_processing):
+        result_feat = MagicMock()
+        result_feat.__getitem__.side_effect = lambda key: 1234.5 if key == "cost" else None
+        result_layer = MagicMock()
+        result_layer.getFeatures.return_value = [result_feat]
+        mock_processing.run.return_value = {"OUTPUT": result_layer}
+
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        matrix = _build_network_distance_matrix(MagicMock(), geoms)
+
+        self.assertEqual(matrix[0][1], 1234.5)
+        self.assertEqual(matrix[1][0], 1234.5)
+
+    def test_diagonal_is_always_zero_no_processing_call(self):
+        geoms = [MagicMock()]
+        geoms[0].asPoint.return_value = MagicMock(x=lambda: 0.0, y=lambda: 0.0)
+
+        matrix = _build_network_distance_matrix(MagicMock(), geoms)
+
+        self.assertEqual(matrix, [[0.0]])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_unreachable_pair_becomes_infinity_not_a_crash(self, mock_processing):
+        result_layer = MagicMock()
+        result_layer.getFeatures.return_value = []  # no path found -- empty result
+        mock_processing.run.return_value = {"OUTPUT": result_layer}
+
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        matrix = _build_network_distance_matrix(MagicMock(), geoms)
+
+        self.assertEqual(matrix[0][1], float("inf"))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_processing_run_exception_becomes_infinity_not_a_crash(self, mock_processing):
+        mock_processing.run.side_effect = Exception("boom")
+
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        matrix = _build_network_distance_matrix(MagicMock(), geoms)
+
+        self.assertEqual(matrix[0][1], float("inf"))
+        self.assertEqual(matrix[1][0], float("inf"))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_extra_params_are_merged_into_every_call(self, mock_processing):
+        result_layer = MagicMock()
+        result_layer.getFeatures.return_value = []
+        mock_processing.run.return_value = {"OUTPUT": result_layer}
+
+        geoms = [MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        _build_network_distance_matrix(MagicMock(), geoms, extra_params={"SPEED_FIELD": "speed_kmh"})
+
+        for call in mock_processing.run.call_args_list:
+            self.assertEqual(call.args[1].get("SPEED_FIELD"), "speed_kmh")
 
 
 class TestBuildRoadSnappedRoute(unittest.TestCase):

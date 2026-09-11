@@ -253,6 +253,10 @@ TOOL_OPERATION_TYPES = {
     # category as the ~18 vector-tools functions it's a generalized form of.
     "run_allowlisted_processing_algorithm": CREATE,
 
+    # -- impedance_tools.py -- writes a field onto the existing road network
+    # layer in place, same category as field_calculator/calculate_area.
+    "build_composite_impedance_field": MODIFY,
+
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
     "apply_graduated_style": MODIFY,
