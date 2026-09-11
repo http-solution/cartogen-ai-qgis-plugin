@@ -1182,6 +1182,57 @@ open).
     module offering file/network/process capability this list doesn't
     happen to name) can recur again, which is precisely the tiered-allow-
     list critique above that this sweep did not attempt to resolve.
+
+    **A real Tier 2 slice built, 2026-09-11 -- v1.7.0 "Security &
+    Logistics" release, workstream 3, scoped for a UN/NGO deployment/pilot
+    by Oct 15, 2026 (plan approved via EnterPlanMode).** The full tiered
+    rewrite this point's "larger question" describes -- Tier 1 declarative
+    tools / Tier 2 allow-listed Processing algorithms / Tier 3 approved
+    internal functions / Tier 4 PyQGIS as a rare last resort -- remains a
+    real, multi-week decision, not attempted here. What was buildable in
+    scope: the single most valuable Tier 2 slice on its own. New
+    `agent/tools/processing_allowlist_tools.py`'s
+    `run_allowlisted_processing_algorithm(alg_id, params)`: runs exactly
+    one Processing algorithm from a hard-coded allow-list
+    (`_processing_allowlist.py`, 36 algorithm ids, every one derived by
+    grepping this codebase's own existing `processing.run()` call sites
+    across `vector_tools.py`/`raster_tools.py`/`logistics_tools.py`/
+    `styling_tools.py` -- including both shared helpers' callers,
+    `vector_tools._run_and_add`'s ~18 and `raster_tools._run_raster_and_add`'s
+    13 -- not a new judgment call about what's "safe") with a
+    caller-supplied flat params dict. **Never executes Python code at
+    all** -- no `eval`/`exec`, so there is no denylist surface to bypass in
+    the first place, meaningfully narrower than `execute_pyqgis_script`'s
+    sandbox above for the common "one Processing algorithm, no dedicated
+    tool" case. Any `OUTPUT`/`OUTPUT_LINES`-shaped param key is forced to
+    `"memory:"` regardless of what's supplied (confirmed live a caller
+    could otherwise direct output to an arbitrary file path) and injected
+    if omitted entirely; a string param matching a loaded layer's name is
+    resolved to that layer object, everything else passes through as a
+    plain JSON primitive -- no path for a nested object or code to reach
+    `processing.run()`. `execute_pyqgis_script`'s own description now
+    names this tool as the preferred path when it applies, without
+    changing that tool's sandbox in any way.
+
+    **A real bug caught live before shipping, not assumed:** confirmed
+    against QGIS 4.2.2 that `processing.run()` does NOT default a missing
+    `OUTPUT` parameter -- it fails outright ("no value specified for
+    parameter OUTPUT"). Initial implementation only forced `OUTPUT` when
+    the caller supplied one; fixed to inject a default when omitted
+    entirely too, live-confirmed against a real `native:centroids` call
+    that previously failed and now succeeds. 15 new tests
+    (`tests/test_processing_allowlist_tools.py`). Full suite 1307 tests, 0
+    new failures. **Live-verified against real QGIS 4.2.2, three cases**:
+    a real `native:buffer` call succeeded with layer-name resolution
+    working and a malicious `OUTPUT` file path genuinely ignored (no file
+    written); a non-allow-listed algorithm (`native:deletecolumn`) was
+    rejected with the real field it would have deleted confirmed still
+    present; a real `native:centroids` zero-feature call correctly
+    reported both the custom layer name and the zero-result warning.
+    `docs/TOOLS_REFERENCE.md` regenerated (162 tools, 27 groups).
+    `SECURITY.md` §1a documents the new tier. The larger tiered-rewrite
+    question remains open, unresolved by this addition -- flagged, not
+    guessed at.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
     PUBLISH) -- the taxonomy half CLOSED 2026-09-07; the rollback half
     PARTIAL, a priority subset closed 2026-09-11, the remainder still

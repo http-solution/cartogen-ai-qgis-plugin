@@ -249,6 +249,10 @@ TOOL_OPERATION_TYPES = {
     # export_layer/export_to_csv above.
     "export_stored_data": PUBLISH,
 
+    # -- processing_allowlist_tools.py -- adds a new in-memory layer, same
+    # category as the ~18 vector-tools functions it's a generalized form of.
+    "run_allowlisted_processing_algorithm": CREATE,
+
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
     "apply_graduated_style": MODIFY,

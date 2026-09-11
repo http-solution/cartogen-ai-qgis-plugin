@@ -607,7 +607,34 @@ next-steps queue always has at least one item — if everything concrete is done
    `~/.claude/plans/idempotent-popping-haven.md`. Workstreams 3-4 (sandbox
    Tier 2 allow-list, logistics composite impedance + network-aware routing)
    still pending.
-39. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+39. ~~v1.7.0 "Security & Logistics" release, Workstream 3: sandbox Tier 2
+   allow-list (point 19's larger question)~~ — **done, 2026-09-11.** New
+   `agent/tools/processing_allowlist_tools.py`'s
+   `run_allowlisted_processing_algorithm(alg_id, params)`: runs exactly one
+   Processing algorithm from a hard-coded, code-derived allow-list
+   (`_processing_allowlist.py`, 36 ids, grepped from every existing
+   `processing.run()` call site across 4 tool files including both shared
+   helpers' callers). Never executes Python code at all — no denylist
+   surface to bypass. `OUTPUT`/`OUTPUT_LINES` forced to `"memory:"`
+   regardless of caller input, injected if omitted. `execute_pyqgis_script`
+   now names it as the preferred path when it applies. **A real bug caught
+   live**: `processing.run()` doesn't default a missing `OUTPUT` param —
+   fixed to inject one when omitted entirely, confirmed against a real
+   `native:centroids` call that previously failed outright. 15 new tests.
+   Full suite 1307/0/7 skipped. **Live-verified against real QGIS 4.2.2**:
+   a real `native:buffer` call with layer resolution + a malicious `OUTPUT`
+   path genuinely ignored; a non-allow-listed algorithm rejected with the
+   field it would have deleted confirmed untouched; a real zero-feature
+   `native:centroids` call correctly warned. `docs/TOOLS_REFERENCE.md`
+   regenerated (162 tools, 27 groups). `SECURITY.md` §1a documents it. The
+   full tiered-rewrite question (removing the denylist sandbox entirely)
+   remains open — this closes one real slice of it, not the whole
+   question. See point 19's updated entry in
+   `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Plan:
+   `~/.claude/plans/idempotent-popping-haven.md`. Workstream 4 (logistics
+   composite impedance + network-aware routing) still pending — the last
+   one before this release is complete.
+40. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

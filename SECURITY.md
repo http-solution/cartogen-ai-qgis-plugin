@@ -87,6 +87,39 @@ inherently a harder security boundary than OS-level process isolation would be; 
 determined attacker with unlimited creativity may find another gap. Treat this as
 raising the bar significantly, not as an absolute guarantee — see Limitations below.
 
+### 1a. Allow-listed Processing algorithm runner — a Tier 2 alternative to the sandbox
+
+`agent/tools/processing_allowlist_tools.py` — `run_allowlisted_processing_algorithm`,
+added 2026-09-11 as part of the v1.7.0 release, is a real slice of the tiered
+allow-list architecture point 19 of
+`docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` describes (declarative tools
+/ allow-listed Processing algorithms / approved internal functions / PyQGIS as a rare
+last resort), sitting between this codebase's ~150 declarative tools and
+`execute_pyqgis_script`'s sandbox above. It runs exactly one Processing algorithm from
+a hard-coded allow-list (`agent/tools/_processing_allowlist.py`, 36 algorithm ids,
+every one derived from this codebase's own existing `processing.run()` call sites, not
+a new judgment call about what's "safe") with a caller-supplied flat params dict —
+**it never executes Python code at all**, so there is no `eval`/`exec`/denylist
+surface to sandbox in the first place. Three narrower protections on top of the
+allow-list itself:
+
+- An unlisted `alg_id` is rejected before `processing.run()` is ever called.
+- Any params key matching `OUTPUT`/`OUTPUT_LINES` (case-insensitive) is forced to
+  `"memory:"` regardless of what value is supplied — confirmed live that a caller
+  could otherwise direct output to an arbitrary file path — and one is injected if
+  omitted entirely (confirmed live that Processing does not default a missing
+  `OUTPUT` itself, it fails outright).
+- Only JSON-primitive param values are ever accepted (strings, numbers, booleans) —
+  a string matching a currently-loaded layer's name is resolved to that layer object,
+  everything else passes through literally; there is no path for a nested object or
+  code to reach `processing.run()`.
+
+`execute_pyqgis_script`'s own description now names this tool as the preferred path
+when a single Processing algorithm covers the task, without changing that tool's own
+sandbox in any way — this is a new, narrower, safer option offered alongside it, not
+a replacement. The larger tiered-allow-list question point 19 also raises (restructuring
+away from the denylist sandbox entirely) remains open, unresolved by this addition.
+
 ### 2. Read-only SQL enforcement
 `agent/tools/db_and_workflow_tools.py` — `execute_read_only_sql` has two layers:
 
