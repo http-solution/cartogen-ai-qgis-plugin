@@ -35,6 +35,7 @@ from . import confidence_tools
 from . import data_export_tools
 from . import processing_allowlist_tools
 from . import impedance_tools
+from . import cartographic_advisory_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -70,4 +71,5 @@ __all__ = [
     "data_export_tools",
     "processing_allowlist_tools",
     "impedance_tools",
+    "cartographic_advisory_tools",
 ]

@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (163 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (165 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -875,6 +875,16 @@ Apply heatmap renderer to point layer.
 | `layer_name` | string | yes |  |
 | `field` | string | no |  |
 
+### `apply_rule_based_style`
+
+Apply a rule-based renderer keyed to a controlled vocabulary of field values -- e.g. route/facility status (open/constrained/closed) -- with a FIXED color per value, rather than an auto-assigned qualitative palette (apply_categorized_style) or an auto-classified continuous gradient (apply_graduated_style). Use this when the categories carry a specific operational meaning that needs a caller-chosen color per value, not an auto-picked one. Any field value not matching one of the given rules automatically renders in a neutral gray 'Unknown / No data' class -- do not add your own catch-all rule, and never let an unassessed/missing status look the same as a real class.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes |  |
+| `rules` | array[object] | yes | One entry per controlled-vocabulary value, e.g. [{"value": "open", "label": "Open", "color_hex": "#2E7D32"}, {"value": "closed", "label": "Closed", "color_hex": "#B3261E"}]. |
+
 ### `auto_arrange_layer_order`
 
 Reorders every top-level layer in the project by geometry type so small features stay visible: points on top, then lines, then polygons, then rasters at the bottom. Call this after adding or styling multiple overlapping layers -- e.g. point markers plus an area/boundary polygon -- so the polygon's fill doesn't bury the points underneath it. This is the usual fix when a map with several layers looks 'messy' or a small icon layer has disappeared under a larger area layer.
@@ -1431,6 +1441,18 @@ Zoom canvas to extent of layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+## cartographic_advisory_tools
+
+### `recommend_visualization_method`
+
+Recommends which styling tool fits a layer/field's actual data semantics -- geometry type, field type, cardinality, and distribution -- before you style it, instead of guessing the renderer or defaulting to whichever tool was used last. ADVISORY ONLY: returns a recommendation and rationale, never applies any styling itself -- you still call the recommended tool (or a different one, if you have good reason) yourself. Use this before any apply_*_style call on a field you haven't already styled by in this conversation, especially before a choropleth on a polygon layer, since the single most common real-world misuse is coloring raw counts instead of a rate/density.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | no | Optional. Omit for a reference/location-only map with no field to style by. |
+| `intended_message` | string | no | Optional free-text hint, e.g. 'show which districts have the worst access gap' or 'show route status'. Used only to explain a recommendation more specifically -- never to override what the data itself actually supports. |
 
 ## confidence_tools
 

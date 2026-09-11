@@ -723,7 +723,54 @@ next-steps queue always has at least one item — if everything concrete is done
    2774-character `body_text` — truncated cleanly, footer unobstructed. A regression test
    (`test_landscape_dimensions_also_truncate_an_extreme_body_text`) locks this in. No source
    code changed — a documentation correction, not a fix, since nothing was broken.
-44. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+44. ~~v1.8.0 "Cartographic Intelligence" release, Workstream 1:
+   `recommend_visualization_method` + `apply_rule_based_style`~~ — **done, 2026-09-12.**
+   External "QGIS Cartographic Intelligence Standard for AI Agents" document adapted to this
+   codebase per user request, via 3 parallel research passes finding a meaningful slice already
+   built (`_classify_values`'s skewness-driven classification-method auto-selection = point 13;
+   `_compute_severity_index` = the standard's own "documented composite index" ask;
+   `dataset_status.py`'s unused `CARTOGRAPHY_READY→PUBLICATION_READY` transition = the real slot
+   for a blocking cartographic QA gate). Scoped via 3 clarifying questions: the standard's
+   visualization-selection gap becomes a new advisory tool (never auto-applies, matching rule
+   19's "state the default" convention); its rigid MapBrief object becomes a conversational
+   prompt rule instead (workstream 5, not yet built); ships as a full 5-workstream v1.8.0 plan
+   (`~/.claude/plans/idempotent-popping-haven.md`).
+
+   New `agent/tools/cartographic_advisory_tools.py`'s `recommend_visualization_method(layer_name,
+   field?, intended_message?)` — inspects real geometry type/field type/cardinality/distribution
+   (reusing `_classify_values`, not reimplementing it) and returns a recommendation + rationale +
+   warnings, never applies styling itself. Flags the single most common real-world misuse
+   directly: a raw-count-shaped field on a polygon layer gets an explicit warning about
+   choropleth-coloring counts instead of a normalized rate. New `apply_rule_based_style` in
+   `styling_tools.py` — a real `QgsRuleBasedRenderer` (previously imported nowhere in this
+   file), for fixed-vocabulary fields (e.g. route/facility status) needing a caller-chosen color
+   per value plus a mandatory "Unknown / No data" catch-all class.
+
+   **A real false claim caught and corrected before it shipped, not after:** initial live
+   verification via `symbolsForFeature()` showed the catch-all rule matching every feature
+   alongside its own class, which looked like a real bug -- a `filterExpression("ELSE")` change
+   was applied and initially believed to fix it. Re-verifying via an actual
+   `QgsMapRendererCustomPainterJob` paint (not just the query API) showed **both** `""` and
+   `"ELSE"` render every segment in exactly its correct color -- `symbolsForFeature()` was a
+   false positive, since rule-based rendering legitimately supports a feature matching multiple
+   non-else rules at once by design, and that query API doesn't reflect the else-suppression
+   that only applies at real paint time. Kept `"ELSE"` for GUI consistency (matches QGIS
+   Desktop's own convention) but corrected every comment/test that had claimed a live-confirmed
+   bug, rather than leave a false claim standing. This is exactly the failure mode this
+   project's own "verify live, don't guess" discipline exists to catch -- caught here before any
+   commit, not after a release shipped believing something was fixed that never needed fixing.
+
+   39 new tests (7 `apply_rule_based_style`, 32 `cartographic_advisory_tools`). Full suite 1379
+   tests (up from 1340), 0 failures, 7 skipped. **Live-verified against real QGIS 4.2.2**: a real
+   4-segment route-status line layer rendered all 4 classes (open/constrained/closed/unassessed)
+   in their exactly correct colors via a real paint job; `recommend_visualization_method` on real
+   layers correctly recommended `apply_graduated_style` for a rate field (no warning),
+   `apply_graduated_style` with a raw-count warning for a count field, `apply_categorized_style`
+   for a nominal field, `apply_rule_based_style` for a low-cardinality line status field, and
+   nothing for a reference-only polygon layer with no field. `docs/TOOLS_REFERENCE.md`
+   regenerated (165 tools, 29 groups). Workstreams 2-5 (QA-checklist sensitivity wiring, a real
+   blocking cartographic QA gate, isochrone/access-band styling, new prompt rules) still pending.
+45. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
