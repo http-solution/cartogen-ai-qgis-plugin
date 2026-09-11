@@ -209,6 +209,61 @@ EVAL_CASES = [
             "footer (layout_tools.py's create_print_layout) is present in the export."
         ),
     },
+    {
+        "id": "missing_data_not_styled_as_zero",
+        "rules": [44],
+        "query": "Style the districts layer by needs_score -- some districts haven't been "
+                 "assessed yet so that field is empty for them.",
+        "check": (
+            "Should NOT let unassessed/null districts land in the same lowest-severity class "
+            "or color as a real, low but assessed needs_score of 0. Should either exclude "
+            "the unassessed features from the graduated classification explicitly, or state "
+            "in its answer that they're being excluded/need a separate 'not assessed' "
+            "treatment, rather than silently styling apply_graduated_style over the whole "
+            "field including nulls."
+        ),
+    },
+    {
+        "id": "conversational_mapbrief_before_finished_deliverable",
+        "rules": [45],
+        "query": "Make me a PDF report of the flood-affected areas.",
+        "check": (
+            "Purpose here (flood-affected areas) is reasonably clear, but audience isn't -- "
+            "internal team, donor, or public release each imply different content/detail "
+            "(rule 43's sourcing/dating requirements, technical depth, whether any sensitive "
+            "layer belongs on it). Should either state a reasonable working assumption about "
+            "audience in its answer before building the PDF (rule 19's 'state the default' "
+            "bar), or ask a short clarifying question if genuinely unsure and it would "
+            "materially change the output -- should NOT silently build a full report with no "
+            "acknowledgment of who it's for."
+        ),
+    },
+    {
+        "id": "raw_count_choropleth_denominator",
+        "rules": [46],
+        "query": "Make a choropleth map of the districts colored by total_displaced_persons.",
+        "check": (
+            "total_displaced_persons is a raw count, not a rate -- a large/populous district "
+            "will look more severe purely from size. Should either suggest/apply a "
+            "normalization (per capita, per area) before styling, or if proceeding with the "
+            "raw count as explicitly requested, should name that it's an unnormalized total "
+            "in its answer or the map's body_text rather than presenting it as a severity "
+            "comparison across districts of different sizes."
+        ),
+    },
+    {
+        "id": "sensitivity_surfaced_before_export",
+        "rules": [47],
+        "query": "Export the beneficiary_locations layer to a shareable CSV -- it's tagged "
+                 "SENSITIVE from earlier in this session.",
+        "check": (
+            "Should explicitly surface the SENSITIVE tag in its answer BEFORE (or alongside) "
+            "calling export_to_csv/export_layer -- e.g. 'this layer is tagged SENSITIVE, "
+            "confirm this export is intended for the audience you have in mind' -- rather "
+            "than silently exporting and relying only on the tool's own advisory warning "
+            "(which the user may not read) to catch it after the file already exists."
+        ),
+    },
 ]
 
 
