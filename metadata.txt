@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.8.1
+version=1.8.2
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,18 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.8.1 (2026-09-12):
+changelog=v1.8.2 (2026-09-12):
+    Documentation-only release: no code, tool, or behavior changes. Moved 5 frozen historical
+    docs (CARTOGEN_AI_FEATURE_LIST.md, CARTOGEN_AI_PRD.md, DOCUMENTATION.md,
+    IMPLEMENTATION_TASK_LIST.md, LICENSE_AUDIT.md) from the repo root into docs/archive/ (git mv,
+    content unchanged, history preserved); fixed stale "131 tools" mentions to the current 165;
+    added a table of contents and a regrouped/expanded Documentation table to README.md
+    (surfacing the GDPR/DPIA compliance docs that had no discoverable path from the README
+    before); added a docs/README.md index; added a table of contents to SECURITY.md; and gave
+    CHANGELOG.md's 4 previously-undated recent version headers real dates plus a "recent
+    releases at a glance" quick-index. See CHANGELOG.md's [1.8.2] entry for full detail.
+
+v1.8.1 (2026-09-12):
     Patch release, direct live user report: an exported dashboard's basemap showed a
     blocked/unavailable OpenStreetMap tile message, and the QGIS canvas doesn't follow layers
     the agent just created/modified after a request finishes. Fixed: generate_html_dashboard/
