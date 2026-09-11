@@ -810,7 +810,29 @@ next-steps queue always has at least one item — if everything concrete is done
    "blocking quality gate" the external cartographic standard asked for, built entirely on real
    existing infrastructure rather than a parallel gate system. Workstreams 4-5 of the v1.8.0 plan
    still pending.
-47. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+47. ~~v1.8.0 "Cartographic Intelligence" release, Workstream 4:
+   isochrone/access-band styling~~ — **done, 2026-09-12.** `calculate_service_area`'s
+   `travel_cost` now accepts a list (e.g. `[15, 30, 60]`) as well as a single number —
+   builds one combined, `travel_cost_band`-tagged polygon layer per facility (one ring per
+   band value) instead of requiring N separate calls plus manual styling, then auto-styles it
+   by calling the existing `apply_graduated_style` directly (reused, not duplicated). New
+   `_merge_band_hulls()` combines each band's hull output into one memory layer feature-by-
+   feature (not a `native:mergevectorlayers` Processing call — these hull layers start with no
+   fields to reconcile, so building the combined layer directly is simpler for the small
+   per-facility feature count involved). The pre-existing single-value path is completely
+   unchanged — same layer names, same result shape, same behavior, confirmed by an explicit
+   regression test and by the live scalar-path re-check below. Also fixed a stale doc claim in
+   the module's own docstring (`BUG-2026-09-05-2` was still described as "not yet live-QGIS-
+   verified" — corrected to `fixed-verified`, matching this session's earlier live confirmation).
+   17 new tests. Full suite 1398 tests (up from 1394), 0 failures. **Live-verified against real
+   QGIS 4.2.2** on a real 5-segment grid network: a real `travel_cost=[300, 600, 900]` call
+   produced one real merged layer with exactly 3 distinct `travel_cost_band` values, a real
+   `QgsGraduatedSymbolRenderer` with 3 classes, and — the real geometry sanity check — hull area
+   grew monotonically with each larger band (300→360m², 600→1441m², 900→348579m²); the scalar
+   path on the same network produced byte-for-byte the same result shape/layer names as before
+   this workstream. Workstream 5 (new prompt rules, conversational MapBrief) is the last one
+   remaining before v1.8.0's release mechanics.
+48. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
