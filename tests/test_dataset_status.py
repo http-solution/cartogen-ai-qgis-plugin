@@ -392,6 +392,102 @@ class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
         self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
 
 
+class TestAdvanceDatasetStatusMapQaGate(unittest.TestCase):
+    """v1.8.0 workstream 3: CARTOGRAPHY_READY -> PUBLICATION_READY runs a
+    map_qa check (generate_map_product_qa_checklist), but ONLY when
+    layout_name is supplied -- opt-in, the same shape as the
+    schema_contract gate above, since not every map product has a print
+    layout to check."""
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.generate_map_product_qa_checklist")
+    def test_passes_when_layout_complete_and_layer_not_sensitive(self, mock_checklist):
+        mock_checklist.return_value = {
+            "success": True, "layer_name": "districts",
+            "categories": {
+                "cartography": {"mandatory_elements_missing": []},
+                "disclosure": {"level": None},
+            },
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        result = advance_dataset_status(layer, "PUBLICATION_READY", layout_name="Layout_SITREP")
+        self.assertTrue(result["success"])
+        self.assertEqual(get_dataset_status(layer)["status"], "PUBLICATION_READY")
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.generate_map_product_qa_checklist")
+    def test_blocks_when_mandatory_layout_element_missing(self, mock_checklist):
+        mock_checklist.return_value = {
+            "success": True, "layer_name": "districts",
+            "categories": {
+                "cartography": {"mandatory_elements_missing": ["scale bar"]},
+                "disclosure": {"level": None},
+            },
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        result = advance_dataset_status(layer, "PUBLICATION_READY", layout_name="Layout_partial")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "CARTOGRAPHY_READY")
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.generate_map_product_qa_checklist")
+    def test_blocks_when_layer_tagged_sensitive(self, mock_checklist):
+        mock_checklist.return_value = {
+            "success": True, "layer_name": "beneficiaries",
+            "categories": {
+                "cartography": {"mandatory_elements_missing": []},
+                "disclosure": {"level": "SENSITIVE"},
+            },
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        result = advance_dataset_status(layer, "PUBLICATION_READY", layout_name="Layout_SITREP")
+        self.assertIn("error", result)
+        self.assertEqual(get_dataset_status(layer)["status"], "CARTOGRAPHY_READY")
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.generate_map_product_qa_checklist")
+    def test_restricted_level_also_blocks(self, mock_checklist):
+        mock_checklist.return_value = {
+            "success": True, "layer_name": "beneficiaries",
+            "categories": {
+                "cartography": {"mandatory_elements_missing": []},
+                "disclosure": {"level": "RESTRICTED"},
+            },
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        result = advance_dataset_status(layer, "PUBLICATION_READY", layout_name="Layout_SITREP")
+        self.assertIn("error", result)
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.generate_map_product_qa_checklist")
+    def test_override_with_note_bypasses_a_failed_map_qa_check(self, mock_checklist):
+        mock_checklist.return_value = {
+            "success": True, "layer_name": "beneficiaries",
+            "categories": {
+                "cartography": {"mandatory_elements_missing": []},
+                "disclosure": {"level": "SENSITIVE"},
+            },
+        }
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        result = advance_dataset_status(
+            layer, "PUBLICATION_READY", layout_name="Layout_SITREP",
+            override=True, note="Disclosure reviewed and approved for this authorized audience",
+        )
+        self.assertTrue(result["success"])
+        self.assertEqual(get_dataset_status(layer)["status"], "PUBLICATION_READY")
+
+    def test_no_layout_name_falls_through_to_ordinary_note_requirement(self):
+        # No layout_name supplied -- must behave exactly like any other
+        # transition with no automated check at all, not like a map_qa
+        # check that has nothing to check against.
+        layer = FakeLayer()
+        set_initial_status(layer, status="CARTOGRAPHY_READY")
+        without_note = advance_dataset_status(layer, "PUBLICATION_READY")
+        self.assertIn("error", without_note)
+        with_note = advance_dataset_status(layer, "PUBLICATION_READY", note="reviewed manually, no layout yet")
+        self.assertTrue(with_note["success"])
+
+
 class TestStatusOrderConstant(unittest.TestCase):
     def test_status_order_matches_review_doc(self):
         self.assertEqual(

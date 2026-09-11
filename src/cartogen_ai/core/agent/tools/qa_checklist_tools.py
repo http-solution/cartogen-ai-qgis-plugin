@@ -17,7 +17,20 @@ v1.8.0 workstream 2: the disclosure section used to be a static reminder
 ("no automated classification exists yet") even though point 24's real
 classification (agent/sensitivity.py, set_layer_sensitivity/
 get_layer_sensitivity) already existed -- this checklist simply never
-read it. Fixed by reading the layer's real sensitivity tag directly."""
+read it. Fixed by reading the layer's real sensitivity tag directly.
+
+v1.8.0 workstream 3: two more informational categories, both reading
+already-live state rather than tracking anything new -- classification_
+sanity (does the layer have anything other than QGIS's own default
+single-symbol renderer, on a layer that also has a numeric field a
+choropleth/graduated style could apply to) and export_integrity (when an
+output_path is given, does that exported file actually exist on disk with
+real content). Neither of these two blocks dataset_status.py's
+CARTOGRAPHY_READY -> PUBLICATION_READY gate -- only the existing
+cartography/disclosure sections do (see that module's _AUTOMATED_CHECK_
+TRANSITIONS entry for "map_qa")."""
+
+import os
 
 from .registry import register_tool
 from .. import sensitivity as _sens
@@ -26,7 +39,7 @@ from .provenance_tools import get_provenance_record
 from .layout_tools import list_layout_items
 
 try:
-    from qgis.core import QgsProject
+    from qgis.core import QgsProject, QgsSingleSymbolRenderer
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
@@ -67,11 +80,15 @@ _MANDATORY_LAYOUT_ELEMENTS = {
                 "type": "string",
                 "description": "Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section.",
             },
+            "output_path": {
+                "type": "string",
+                "description": "Optional exported file path (e.g. create_print_layout's own output_path) to verify it actually exists on disk with real content. Omit to skip the export-integrity section.",
+            },
         },
         "required": ["layer_name"],
     },
 )
-def generate_map_product_qa_checklist(layer_name, layout_name=None):
+def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -146,5 +163,57 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None):
         }
     else:
         categories["export_provenance"] = {"tracked": False, "note": prov_res.get("error", "Provenance unavailable.")}
+
+    # v1.8.0 workstream 3: informational only, does not gate the
+    # CARTOGRAPHY_READY -> PUBLICATION_READY advance. Cannot reliably
+    # distinguish "still QGIS's random single-symbol default" from "a
+    # single symbol was deliberately chosen" (both are the same renderer
+    # type) -- framed as a question worth checking, not a definitive
+    # pass/fail, matching this project's own convention against overclaiming
+    # certainty it doesn't have.
+    # Does any feature have a real int/float value in some field -- avoids
+    # relying on QVariant type-name strings, which vary in exact spelling
+    # across QGIS versions.
+    has_numeric_field = False
+    if hasattr(layer, "getFeatures"):
+        try:
+            has_numeric_field = any(
+                isinstance(feat.attribute(idx), (int, float))
+                for feat in layer.getFeatures()
+                for idx in range(feat.fields().count())
+            )
+        except Exception:
+            has_numeric_field = False
+
+    renderer = layer.renderer() if hasattr(layer, "renderer") else None
+    try:
+        is_default_shaped_renderer = isinstance(renderer, QgsSingleSymbolRenderer) if renderer is not None else False
+    except Exception:
+        # Never let this informational-only check break the whole
+        # checklist -- e.g. QgsSingleSymbolRenderer unavailable for any
+        # reason degrades to "no concern found" rather than a crash.
+        is_default_shaped_renderer = False
+    if is_default_shaped_renderer and has_numeric_field:
+        categories["classification_sanity"] = {
+            "note": (
+                "This layer renders with a single symbol (QGIS's own default for an unstyled "
+                "layer) but has at least one numeric field -- worth checking whether a "
+                "categorized/graduated/rule-based style would communicate the data better. "
+                "Not a definitive failure: a single symbol may have been deliberately chosen. "
+                "Call recommend_visualization_method to check."
+            ),
+        }
+    else:
+        categories["classification_sanity"] = {"note": "No concern found -- either not a single-symbol renderer, or no numeric field to style by."}
+
+    if output_path:
+        exists = os.path.isfile(output_path)
+        size = os.path.getsize(output_path) if exists else 0
+        categories["export_integrity"] = {
+            "output_path": output_path,
+            "exists": exists,
+            "size_bytes": size,
+            "passed": exists and size > 0,
+        }
 
     return {"success": True, "layer_name": layer_name, "categories": categories}
