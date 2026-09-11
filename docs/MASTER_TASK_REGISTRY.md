@@ -579,7 +579,35 @@ next-steps queue always has at least one item — if everything concrete is done
    Plan: `~/.claude/plans/idempotent-popping-haven.md`. Workstreams 2-4 (undo/rollback,
    sandbox Tier 2 allow-list, logistics composite impedance + network-aware routing)
    still pending.
-38. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+38. ~~v1.7.0 "Security & Logistics" release, Workstream 2: undo/rollback for a
+   priority subset of MODIFY/DELETE tools (point 20)~~ — **done, 2026-09-11.**
+   New `agent/tools/_snapshot_registry.py` (explicit `{tool_name: (snapshot_fn,
+   restore_fn)}`, not a generic snapshotter) covers `remove_layer`,
+   `field_calculator`/`calculate_area`/`calculate_length`,
+   `apply_categorized_style`/`apply_graduated_style`/`apply_graduated_symbol_style`,
+   and `set_dataset_status`/`set_layer_sensitivity`/`set_layer_confidence`/
+   `run_query` — the priority subset, not the full named list.
+   `agent.py`'s `_execute_tool` snapshots before dispatch;
+   `transactions.py`'s `record()` and `transaction_tools.py`'s
+   `undo_last_operation` extended to use it. **A real bug caught live before
+   shipping**: the plan's own stated design (hold a Python reference to the
+   removed layer) is wrong — `QgsProject.removeMapLayer()` destroys the C++
+   object immediately, confirmed live (a held reference becomes a dead SIP
+   wrapper). `layer.clone()` taken *before* removal is the real fix,
+   confirmed live to survive and be re-addable with real data intact. Also
+   confirmed live: `exportNamedStyle()`/`importNamedStyle()` need a real
+   `QDomDocument`, not a bare string. 28 new tests. Full suite 1292/0/7
+   skipped. **Live-verified end to end, all six cases** (remove_layer,
+   field_calculator new-field, field_calculator overwrite, style change,
+   sensitivity tag, run_query filter) against real QGIS 4.2.2.
+   `docs/TOOLS_REFERENCE.md` regenerated (161 tools, 26 groups). Still open:
+   `load_project` and every MODIFY tool outside the priority subset — a real,
+   separate follow-up. See point 20's updated entry in
+   `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. Plan:
+   `~/.claude/plans/idempotent-popping-haven.md`. Workstreams 3-4 (sandbox
+   Tier 2 allow-list, logistics composite impedance + network-aware routing)
+   still pending.
+39. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

@@ -157,3 +157,105 @@ class TestUndoLastOperationConfirmedWithQgis(unittest.TestCase):
 
         self.assertFalse(second["success"])
         self.assertIn("Nothing undoable", second["message"])
+
+
+class TestUndoLastOperationViaSnapshot(unittest.TestCase):
+    """v1.7.0: the priority-subset MODIFY/DELETE undo kinds
+    (_snapshot_registry.py), dispatched through _undo_via_snapshot rather
+    than the remove_layers-specific path above."""
+
+    def setUp(self):
+        self.log = TurnTransactionLog()
+        bind_transaction_log(self.log)
+
+    def tearDown(self):
+        bind_transaction_log(None)
+
+    def _record_snapshot_entry(self, tool_name="field_calculator", kind="restore_field"):
+        snapshot = {"kind": kind, "layer_id": "x", "field_name": "score", "field_existed": True, "values": {1: "old"}}
+        return self.log.record(tool_name, "MODIFY", {"success": True}, set(), set(), snapshot=snapshot)
+
+    def test_unconfirmed_call_returns_preview_required(self):
+        self._record_snapshot_entry()
+        result = undo_last_operation(confirmed=False)
+        self.assertEqual(result["status"], "PREVIEW_REQUIRED")
+        self.assertIn("field_calculator", result["rationale"])
+
+    def test_confirmed_without_qgis_returns_error(self):
+        self._record_snapshot_entry()
+        result = undo_last_operation(confirmed=True)
+        self.assertIn("error", result)
+        self.assertIn("QGIS not available", result["error"])
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_confirmed_calls_the_matching_restore_fn_and_marks_undone(self, mock_get_restore_fn):
+        entry = self._record_snapshot_entry()
+        mock_restore = MagicMock(return_value=True)
+        mock_get_restore_fn.return_value = mock_restore
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["undone_tool"], "field_calculator")
+        mock_get_restore_fn.assert_called_once_with("restore_field", "field_calculator")
+        mock_restore.assert_called_once()
+        self.assertTrue(self.log.summary()[entry["index"]]["undone"])
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_restore_fn_returning_false_reports_error_and_does_not_mark_undone(self, mock_get_restore_fn):
+        entry = self._record_snapshot_entry()
+        mock_get_restore_fn.return_value = MagicMock(return_value=False)
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertIn("error", result)
+        self.assertFalse(self.log.summary()[entry["index"]]["undone"])
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_no_restore_fn_available_reports_error(self, mock_get_restore_fn):
+        self._record_snapshot_entry(tool_name="some_unregistered_tool")
+        mock_get_restore_fn.return_value = None
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertIn("error", result)
+        self.assertIn("some_unregistered_tool", result["error"])
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_style_kind_dispatches_correctly(self, mock_get_restore_fn):
+        self._record_snapshot_entry(tool_name="apply_categorized_style", kind="restore_style")
+        mock_restore = MagicMock(return_value=True)
+        mock_get_restore_fn.return_value = mock_restore
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertTrue(result["success"])
+        mock_get_restore_fn.assert_called_once_with("restore_style", "apply_categorized_style")
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_property_kind_dispatches_correctly(self, mock_get_restore_fn):
+        self._record_snapshot_entry(tool_name="run_query", kind="restore_property")
+        mock_restore = MagicMock(return_value=True)
+        mock_get_restore_fn.return_value = mock_restore
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertTrue(result["success"])
+        mock_get_restore_fn.assert_called_once_with("restore_property", "run_query")
+
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.transaction_tools.get_restore_fn")
+    def test_layer_kind_dispatches_correctly(self, mock_get_restore_fn):
+        self._record_snapshot_entry(tool_name="remove_layer", kind="restore_layer")
+        mock_restore = MagicMock(return_value=True)
+        mock_get_restore_fn.return_value = mock_restore
+
+        result = undo_last_operation(confirmed=True)
+
+        self.assertTrue(result["success"])
+        mock_get_restore_fn.assert_called_once_with("restore_layer", "remove_layer")

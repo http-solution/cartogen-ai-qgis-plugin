@@ -1605,7 +1605,7 @@ _No parameters._
 
 ### `undo_last_operation`
 
-Reverse the most recent undoable tool call made THIS turn -- currently, this only ever means removing a layer that a call added (see get_turn_transaction_log to check what qualifies first). It cannot undo an in-place edit (e.g. field_calculator, a style change, run_query's filter) or a previous removal/project load -- those are a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
+Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to check what qualifies first). Covers: a call that added a new layer (removes it); remove_layer (restores the removed layer and its data); field_calculator/calculate_area/calculate_length (restores the field's prior values, or deletes it if it didn't exist before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style (restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query (restores the prior value). It cannot undo load_project or any other in-place edit not in that list -- a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

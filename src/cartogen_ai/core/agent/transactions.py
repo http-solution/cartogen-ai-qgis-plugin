@@ -33,25 +33,26 @@ than it is:
   (see vector_tools.remove_layer) -- it never removes anything without
   the same explicit confirmation any other destructive tool call needs.
 
-What this module deliberately does NOT do -- the real, still-open part
-of point 20's gap, left unaddressed rather than silently declared closed:
+v1.7.0, 2026-09-11: a priority subset of MODIFY/DELETE tools also now
+undoable, via agent/tools/_snapshot_registry.py -- see that module's own
+docstring for exactly which tools and why. agent.py's _execute_tool calls
+the registered snapshot_fn (if any) for the tool being called BEFORE
+dispatching it, and passes the result into record() below; record() uses
+it in preference to the new-layer-id-diff mechanism when both a snapshot
+and new layer ids happen to be present (in practice they never are, since
+CREATE-classified tools that add layers aren't in the snapshot registry).
 
-- No rollback exists for a MODIFY call: field_calculator, calculate_area/
-  calculate_length, the four analysis_tools.py composite-index tools'
-  optional output_field write, apply_*_style, run_query's subset filter,
-  set_dataset_status/set_layer_sensitivity, and every other in-place edit
-  are not undoable through this mechanism. Undoing those would need a
-  real before/after snapshot of the specific field(s)/property touched on
-  every single MODIFY call -- a much larger piece of engineering (one
-  snapshot strategy per tool shape, not a generic diff) that is
-  legitimately a separate, larger decision, the same shape as point 18's
-  PLAN->EXECUTE->OBSERVE->VALIDATE->REPAIR loop or point 19's tiered
-  allow-list question -- flagged here, not guessed at.
-- No rollback exists for a DELETE call (remove_layer, load_project) --
-  by the time either of those succeeds, the removed layer/prior project
-  state is already gone from QGIS's own memory; recovering it would need
-  a full project snapshot taken *before* every destructive call, not
-  after, which this turn-scoped log does not attempt.
+What this module still deliberately does NOT do -- the real, still-open
+remainder of point 20's gap, left unaddressed rather than silently
+declared closed:
+
+- No rollback exists for load_project, or for any MODIFY tool not in
+  _snapshot_registry.py's priority subset (advance_dataset_status, the
+  four analysis_tools.py composite-index tools' optional output_field
+  write, and any other in-place edit not explicitly listed there). Each
+  would need its own snapshot strategy designed and verified the same way
+  the priority subset's were -- a real, separate follow-up, not guessed at
+  here.
 - This is in-memory and per-agent-instance only. It does not survive a
   QGIS restart, and it is deliberately cleared at the start of every new
   run() call -- undo only ever reaches back into the CURRENT turn, never
@@ -75,7 +76,7 @@ class TurnTransactionLog:
         back into a previous turn (see module docstring)."""
         self._entries = []
 
-    def record(self, name, operation_type, result, layer_ids_before, layer_ids_after):
+    def record(self, name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=None):
         """Adds one entry for a completed tool call.
 
         layer_ids_before/layer_ids_after: the live QgsProject's layer id
@@ -83,10 +84,25 @@ class TurnTransactionLog:
         isn't available -- every new-layer id then comes back empty and
         nothing is ever offered as undoable, which is the correct
         no-QGIS behavior, not a bug).
+
+        snapshot: the dict _snapshot_registry.py's snapshot_fn returned for
+        this tool (taken by agent.py BEFORE dispatch), or None if the tool
+        has no registered snapshot function or the snapshot_fn itself found
+        nothing to snapshot (e.g. layer not found). Preferred over the
+        new-layer-id-diff mechanism when both are present -- in practice
+        they never both fire on the same call, since CREATE-classified
+        tools that add layers aren't in the snapshot registry.
         """
         success = isinstance(result, dict) and bool(result.get("success"))
         error = result.get("error") if isinstance(result, dict) and "error" in result else None
         new_layer_ids = sorted(set(layer_ids_after) - set(layer_ids_before)) if success else []
+
+        if success and snapshot is not None:
+            undo = {**snapshot, "tool_name": name}
+        elif new_layer_ids:
+            undo = {"kind": "remove_layers", "layer_ids": new_layer_ids}
+        else:
+            undo = None
 
         entry = {
             "index": len(self._entries),
@@ -94,7 +110,7 @@ class TurnTransactionLog:
             "operation_type": operation_type,
             "success": success,
             "error": error,
-            "undo": {"kind": "remove_layers", "layer_ids": new_layer_ids} if new_layer_ids else None,
+            "undo": undo,
             "undone": False,
         }
         self._entries.append(entry)

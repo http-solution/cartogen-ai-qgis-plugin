@@ -54,6 +54,7 @@ from .prompts import build_system_prompt
 from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
+from .tools._snapshot_registry import get_snapshot_fn
 from . import tool_operations
 from .transactions import TurnTransactionLog
 from . import learning
@@ -426,12 +427,24 @@ class CartogenAi:
         in _real_execute_tool AND _execute_two_phase_tool) is what lets
         transactions.py's TurnTransactionLog see every call uniformly,
         including the four fetch_* tools that only add their layer via
-        _execute_two_phase_tool's separate main-thread callback."""
+        _execute_two_phase_tool's separate main-thread callback.
+
+        v1.7.0: also takes a _snapshot_registry.py snapshot BEFORE dispatch,
+        for the priority subset of MODIFY/DELETE tools that module covers --
+        must happen before the call runs, since the whole point is capturing
+        state the call is about to overwrite/remove. A tool with no
+        registered snapshot function, or whose snapshot_fn finds nothing to
+        snapshot (e.g. layer not found), gets snapshot=None, which record()
+        already treats as "fall back to the existing new-layer-diff
+        mechanism" -- no different from before this change for every other
+        tool."""
         layer_ids_before = self._live_layer_ids()
+        snapshot_fn = get_snapshot_fn(name)
+        snapshot = snapshot_fn(arguments) if snapshot_fn else None
         result = self._execute_tool_dispatch(name, arguments)
         layer_ids_after = self._live_layer_ids()
         operation_type = tool_operations.get_tool_operation_type(name)
-        self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after)
+        self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=snapshot)
         return result
 
     def _execute_tool_dispatch(self, name, arguments):
