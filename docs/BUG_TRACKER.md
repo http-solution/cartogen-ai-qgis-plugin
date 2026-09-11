@@ -20,8 +20,48 @@ confirmed via a real test run or live check) / `wontfix` (with rationale).
 
 ## Open bugs
 
-None currently. **BUG-2026-09-11-1** (below) was found and fixed the same day, both live
-against real QGIS 4.2.2 -- see that entry for the full history.
+None currently. **BUG-2026-09-11-1** and **BUG-2026-09-12-1** (below) were both found and fixed
+the same day, both live against real QGIS 4.2.2 -- see those entries for the full history.
+
+**BUG-2026-09-12-1** | found 2026-09-12 (live user report) | unreleased | high | Two related
+issues reported live: (1) an exported `generate_html_dashboard`/`generate_temporal_dashboard`'s
+background basemap showed a blocked/unavailable tile message instead of real map tiles; (2)
+after the agent creates or modifies layers, the QGIS canvas keeps whatever extent it already had
+-- the result is never actually visible without the user manually zooming ("the map lose[s]
+focus to the current layer"). Root causes and fixes, both live-verified:
+
+1. **Dashboard basemap.** `_build_dashboard_html`/`_build_temporal_dashboard_html`
+   (`agent/tools/export_tools.py`) both call bare `folium.Map()`, which defaults to
+   `tiles="OpenStreetMap"` -- raw `tile.openstreetmap.org` requests, client-side, on every
+   open/reload of the exported HTML, with no custom User-Agent and no caching. OpenStreetMap's
+   own tile usage policy explicitly prohibits this pattern (bulk/embedded-app use with no
+   distinguishing User-Agent or local caching) and blocks misbehaving clients. Fixed by switching
+   both call sites to `tiles="cartodbpositron"`, folium's standard permissively-licensed
+   alternative built for exactly this "embed a basemap in your own generated page" case --
+   confirmed directly (no QGIS needed, both dashboard builders are pure Python over
+   already-extracted GeoJSON) that the generated HTML now embeds `cartocdn.com` tile URLs and no
+   longer contains `tile.openstreetmap.org` at all, for both dashboard builders.
+2. **Canvas doesn't follow new/changed layers.** New `zoom_to_layers(iface, layers)`
+   (`ui/canvas_highlight.py`) wired into `ChatTabWidget._after_successful_response` (runs once
+   per turn, on the main thread, alongside the existing `flash_layer_extent` highlight call, over
+   the same `find_mentioned_layers`-matched layer set) -- moves the canvas to the UNION extent of
+   every layer the turn's response mentions, instead of leaving the previous extent in place. **A
+   real bug caught live before it shipped, not after:** the first version also skipped any layer
+   whose `extent().isEmpty()` was true, alongside `isNull()` -- live-confirmed against real QGIS
+   4.2.2 that a single-point layer's extent is a legitimate, non-null extent with `isEmpty()=True`
+   (zero width/height, since a point has no area), so that check silently dropped every
+   single-point layer -- one of the most common layer types this plugin creates (facilities,
+   incidents, points of interest), exactly backwards from the fix being built. Corrected to only
+   skip on `isNull()` (a genuinely empty layer), matching `vector_tools.py`'s existing
+   `zoom_to_layer` tool, which never checked either flag. Live-verified against a real
+   `QgsMapCanvas` (not a mock -- `iface` itself is only populated inside the real interactive GUI,
+   so this wraps a real canvas behind a minimal stand-in exposing just `.mapCanvas()`): a real
+   single-point layer moved the canvas off a deliberately stale extent; two real layers produced
+   a real union extent containing both; a real WGS84 layer against a UTM-33N canvas produced a
+   correctly-transformed extent (confirmed by magnitude -- meters, not degrees), confirming the
+   real `QgsCoordinateTransform` path actually ran. 8 new tests (`tests/test_canvas_highlight.py`).
+   Full suite 1406 tests (up from 1398), 0 failures. `docs/generate_tools_reference.py` not
+   affected -- no new registered tool, a UI-layer behavior change only.
 
 **BUG-2026-09-11-1** | found 2026-09-11 | unreleased | medium | `create_print_layout`
 (`agent/tools/layout_tools.py`), portrait orientation only. **Root cause, confirmed live

@@ -857,10 +857,19 @@ class ChatTabWidget(QWidget):
         try:
             from qgis.core import QgsProject
             from qgis.utils import iface
-            from .canvas_highlight import flash_layer_extent, find_mentioned_layers
+            from .canvas_highlight import flash_layer_extent, find_mentioned_layers, zoom_to_layers
 
             layers = list(QgsProject.instance().mapLayers().values())
             matched = find_mentioned_layers(response_text or "", layers)
+
+            # Real user report: after the agent creates/modifies layers, the
+            # canvas view keeps whatever extent it already had -- the result
+            # is never actually visible without the user manually zooming.
+            # Runs once per turn (not once per tool call) against the same
+            # layers already resolved for the highlight flash below, so
+            # "what the canvas shows" and "what got highlighted" always
+            # agree with each other.
+            zoom_to_layers(iface, matched)
 
             def _on_expired(highlight):
                 if highlight in self._active_highlights:

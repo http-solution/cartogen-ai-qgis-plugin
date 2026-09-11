@@ -869,7 +869,27 @@ next-steps queue always has at least one item — if everything concrete is done
    scope this release" list (bivariate choropleth, flow/OD maps, small-multiples/change-map
    compositor, uncertainty-rendering, standard-deviation classification, a rigid MapBrief object,
    sensitivity-suppression methods) — named, not silently dropped.
-49. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+49. ~~`BUG-2026-09-12-1` fix: dashboard OSM-blocked basemap + canvas not
+   following new layers~~ — **done, 2026-09-12, same day it was reported.** Direct live user
+   report, not from the v1.8.0 plan: an exported dashboard's basemap showed a blocked/unavailable
+   OpenStreetMap tile message, and the QGIS canvas doesn't follow layers the agent just
+   created/modified ("the map lose[s] focus to the current layer"). Both fixed: (1)
+   `_build_dashboard_html`/`_build_temporal_dashboard_html` (`agent/tools/export_tools.py`)
+   switched from bare `folium.Map()` (defaults to raw, unthrottled, uncached
+   `tile.openstreetmap.org` requests -- exactly what OSM's own tile usage policy blocks) to
+   `tiles="cartodbpositron"`, confirmed directly that the generated HTML no longer references
+   `tile.openstreetmap.org` at all. (2) New `zoom_to_layers()` (`ui/canvas_highlight.py`) wired
+   into `ChatTabWidget._after_successful_response`, moving the canvas to the union extent of
+   whatever layer(s) the turn's response mentions, once per turn. **A real bug caught live before
+   shipping**: the first version also skipped any layer with `extent().isEmpty()==True`, which
+   silently dropped every single-point layer (a legitimate, non-null, zero-area extent) --
+   corrected to only skip on `isNull()`, matching the existing single-layer `zoom_to_layer` tool.
+   8 new tests. Full suite 1406 tests (up from 1398), 0 failures. **Live-verified against real
+   QGIS 4.2.2**, including a real `QgsMapCanvas` (not mocked): a single-point layer moved the
+   canvas off a deliberately stale extent, two layers produced a real union extent, and a
+   cross-CRS layer produced a correctly-transformed extent. See `docs/BUG_TRACKER.md`'s
+   `BUG-2026-09-12-1` entry for full detail.
+50. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

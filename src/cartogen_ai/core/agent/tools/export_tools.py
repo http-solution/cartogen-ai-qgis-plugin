@@ -389,7 +389,19 @@ def _build_dashboard_html(layers, title=None):
                 all_lats.append(lat)
                 all_lons.append(lon)
 
-    m = folium.Map()
+    # folium's own default tiles="OpenStreetMap" points straight at
+    # tile.openstreetmap.org with no custom User-Agent and no caching --
+    # every open/reload of the exported HTML hits OSM's production tile
+    # servers directly from the viewer's browser. OSM's own tile usage
+    # policy explicitly prohibits exactly this pattern (bulk/embedded-app
+    # use with no distinguishing User-Agent or local caching) and their
+    # servers block misbehaving clients -- reported live as the dashboard's
+    # basemap showing a blocked/unavailable tile message instead of real
+    # map tiles. CartoDB Positron is folium's standard permissively-licensed
+    # alternative, built for exactly this "embed a basemap in your own
+    # generated page" case -- also a lighter, less label-heavy basemap that
+    # doesn't compete with the thematic overlay layers on top of it.
+    m = folium.Map(tiles="cartodbpositron")
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
@@ -748,7 +760,12 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30):
                 all_lats.append(lat)
                 all_lons.append(lon)
 
-    m = folium.Map()
+    # See _build_dashboard_html's identical fix, same file: folium's default
+    # tiles="OpenStreetMap" hits tile.openstreetmap.org directly with no
+    # User-Agent/caching, which OSM's own tile usage policy blocks for
+    # exactly this bulk/embedded-app pattern -- reported live as the
+    # dashboard's basemap showing a blocked tile message.
+    m = folium.Map(tiles="cartodbpositron")
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
