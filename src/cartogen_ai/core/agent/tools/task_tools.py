@@ -19,6 +19,17 @@ def bind_agent_context(task_manager, memory_manager):
     _MEMORY_MANAGER = memory_manager
 
 
+def get_memory_manager():
+    """Public accessor for the same SpatialMemoryManager instance
+    bind_agent_context bound above -- lets other tool modules (e.g.
+    data_export_tools.py, GDPR review findings F7/F8) reuse the one live
+    instance with its real in-memory cache, rather than each constructing
+    their own SpatialMemoryManager() (which would start with an empty cache
+    and only see whatever's on disk, not what this session actually holds
+    in memory this turn -- see memory.py's persist-opt-in gating, point F6)."""
+    return _MEMORY_MANAGER
+
+
 @register_tool("create_plan", "Create a multi-step execution plan for complex spatial tasks.", {"type": "object", "properties": {"title": {"type": "string"}, "task_descriptions": {"type": "array", "items": {"type": "string"}}}, "required": ["title", "task_descriptions"]})
 def create_plan(title: str, task_descriptions: List[str]):
     if _TASK_MANAGER is None:

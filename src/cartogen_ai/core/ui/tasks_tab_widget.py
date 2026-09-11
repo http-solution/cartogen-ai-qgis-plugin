@@ -11,7 +11,7 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextBrowser,
     QListWidget, QListWidgetItem, QGroupBox, QComboBox, QProgressBar, QLineEdit,
-    QMessageBox, QApplication,
+    QMessageBox, QApplication, QFileDialog,
 )
 
 from .chat_formatting import _relative_time
@@ -157,7 +157,21 @@ class TasksTabWidget(QWidget):
         self.clear_global_memory_btn = QPushButton("🗑 Clear Global Memory")
         self.clear_global_memory_btn.setObjectName("dangerButton")
         self.clear_global_memory_btn.clicked.connect(self._clear_global_memory_clicked)
+        # GDPR review findings F7 (no structured export/portability) and F8 (no
+        # consolidated "what does Cartogen AI know about me" view) -- one JSON
+        # export covering project memory, global memory, and chat history (see
+        # agent/data_export.py) closes both, per the review's own recommendation
+        # to do them together since all three touch the same data sources.
+        self.export_data_btn = QPushButton("💾 Export My Data")
+        self.export_data_btn.setObjectName("secondaryButton")
+        self.export_data_btn.setToolTip(
+            "Export everything Cartogen AI has stored for this project and this machine -- project "
+            "memory, global memory, and chat history (if chat history saving is enabled) -- as one "
+            "JSON file."
+        )
+        self.export_data_btn.clicked.connect(self._export_stored_data_clicked)
         memory_header.addStretch()
+        memory_header.addWidget(self.export_data_btn)
         memory_header.addWidget(self.clear_memory_btn)
         memory_header.addWidget(self.clear_global_memory_btn)
         tasks_layout.addLayout(memory_header)
@@ -497,6 +511,32 @@ class TasksTabWidget(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             agent.task_manager.clear_plan()
+
+    def _export_stored_data_clicked(self):
+        if not self._agent_provider:
+            return
+        agent = self._agent_provider()
+        if not (agent and hasattr(agent, "memory_manager")):
+            return
+        output_path, _ = QFileDialog.getSaveFileName(
+            self, "Export My Data", "cartogen_data_export.json", "JSON files (*.json)",
+        )
+        if not output_path:
+            return
+        try:
+            from ..agent import data_export, chat_persistence
+            project_notes = agent.memory_manager.get_project_notes()
+            global_notes = agent.memory_manager.get_global_notes()
+            chat_history = chat_persistence.load_chat_history_with_timestamps()
+            document = data_export.build_export_document(project_notes, global_notes, chat_history)
+            ok = data_export.write_export_document(document, output_path)
+        except Exception as e:
+            QMessageBox.warning(self, "Export My Data", f"Export failed: {e}")
+            return
+        if ok:
+            QMessageBox.information(self, "Export My Data", f"Exported to:\n{output_path}")
+        else:
+            QMessageBox.warning(self, "Export My Data", f"Failed to write export file to:\n{output_path}")
 
     def _clear_project_memory_clicked(self):
         if not self._agent_provider:

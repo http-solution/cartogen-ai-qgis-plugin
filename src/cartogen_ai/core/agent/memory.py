@@ -19,6 +19,31 @@ except ImportError:
 
 PROJECT_MEMORY_KEY = "cartogen_ai/project_memory"
 GLOBAL_MEMORY_KEY = "cartogen_ai/global_memory"
+PERSIST_PROJECT_MEMORY_KEY = "cartogen_ai/persist_project_memory"
+
+
+def is_project_memory_persist_enabled() -> bool:
+    """Whether project-scoped memory notes should be written to the two
+    persistent, shareable locations (the sidecar SQLite file next to the
+    .qgz, and the QgsProject custom property embedded inside the .qgz
+    itself) -- opt-in, default OFF, mirroring chat_persistence.py's
+    is_persist_enabled(). GDPR review finding F6
+    (docs/GDPR_COMPLIANCE_REVIEW.docx): unlike chat history, project memory
+    was previously written unconditionally to both locations with no way to
+    turn it off, even though the same "a .qgz/sidecar file is a shareable
+    artifact" risk applies identically -- a user who shares just the .qgz
+    still shares the notes embedded in it; a user who copies the whole
+    project folder additionally shares the separate .sqlite file, likely
+    without realizing it's a second copy of the same data. The in-memory
+    cache this session uses is unaffected by this setting -- it's needed
+    for the agent to function within the current session regardless, and
+    never leaves the running process."""
+    if not QGIS_AVAILABLE:
+        return False
+    try:
+        return bool(QgsSettings().value(PERSIST_PROJECT_MEMORY_KEY, False, type=bool))
+    except Exception:
+        return False
 
 
 def _safe_int(value, default=0):
@@ -79,8 +104,15 @@ class SpatialMemoryManager:
             print(f"[MemoryManager] SQLite init failed: {e}")
 
     def store_project_note(self, key: str, value: str) -> dict:
-        """Stores a note in the active project scope and sidecar SQLite DB."""
+        """Stores a note in the active project scope. Always kept in the
+        in-memory cache for this session; only written to the two
+        persistent, shareable locations (sidecar SQLite DB, QgsProject
+        custom property) when is_project_memory_persist_enabled() -- see
+        that function's docstring for why (GDPR review finding F6)."""
         self._in_memory_project_notes[key] = value
+
+        if not is_project_memory_persist_enabled():
+            return {"success": True, "key": key, "value": value, "scope": "project", "persisted": False}
 
         # Persist in SQLite sidecar DB
         try:
@@ -104,7 +136,7 @@ class SpatialMemoryManager:
             except Exception as e:
                 print(f"[MemoryManager] Failed to persist project note: {e}")
 
-        return {"success": True, "key": key, "value": value, "scope": "project", "db_path": self._db_path}
+        return {"success": True, "key": key, "value": value, "scope": "project", "db_path": self._db_path, "persisted": True}
 
     def clear_project_notes(self) -> dict:
         """Clears all project-scoped notes from every storage location store_project_note
@@ -131,7 +163,19 @@ class SpatialMemoryManager:
         return {"success": True, "scope": "project"}
 
     def get_project_notes(self) -> dict:
-        """Retrieves all project notes from SQLite sidecar and project custom properties."""
+        """Retrieves all project notes: the in-memory cache always, plus the
+        persistent sidecar SQLite/QgsProject-property stores when
+        is_project_memory_persist_enabled() -- mirroring
+        chat_persistence.py's load_chat_history(), reading previously-saved
+        persistent data is gated the same way writing it is, so turning
+        persistence off also stops surfacing whatever was saved under the
+        old always-on behavior or from an earlier session where it was on.
+        This does not delete that on-disk data -- see clear_project_notes()
+        for that, which still clears all three locations unconditionally
+        regardless of this setting."""
+        if not is_project_memory_persist_enabled():
+            return dict(self._in_memory_project_notes)
+
         try:
             conn = sqlite3.connect(self._db_path)
             cursor = conn.cursor()

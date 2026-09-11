@@ -147,6 +147,36 @@ has been fixed yet -- awaiting Baron's go-ahead to change code, per Hermes Chart
 
 **Update, 2026-09-08, later still -- Baron: "Ship, extend GDPR review":** implemented the Hosted-Account feature's disposition decision. (1) Added an in-app privacy notice (`privacy_notice_label`) to `ui/account_dialog.py`, shown before registration/login -- the concrete UI gap the addendum flagged. (2) Extended `docs/GDPR_COMPLIANCE_REVIEW.docx` directly (edited `word/document.xml`, following the docx skill's edit-existing-document approach, then validated with `validate.py` and a rendered-PDF visual check against the original's exact styling) to formally cover the feature: Finding F14 (MEDIUM, transparency gap now closed, deletion/export and retention gaps remain), Recommendation R11, two new Section 4 data-inventory rows (Hosted-Account email/name/password, and the session token separately since it behaves differently under every column), three new Appendix -- Files Reviewed entries, and an Executive Summary extension note plus updated finding count (thirteen to fourteen). (3) Also corrected the addendum's own inaccurate claim (verified via `git log --diff-filter=A --follow` on `agent/account.py`) that the standing review predated the feature -- `account.py` was added 2026-08-28, before the review's own 2026-09-01 date; what actually happened is a scope gap (the review's file list never covered it), not a timing gap, and the addendum now says so. `docs/BUG_TRACKER.md`'s BUG-2026-09-08-2 entry moved from Open to Fixed accordingly. Full suite re-verified clean after the code change: 1225 tests, same 1 known DNS-dependent failure, 0 errors, 0 other new failures. What is explicitly NOT closed by this work, and stays tracked rather than silently dropped: no in-app account-deletion/export path for this feature's data (R11 -- today it's server-side only, no self-service UI), and no documented retention policy for whatever operates the configured `base_url` -- both are organizational/server-side facts this codebase has no visibility into, not code defects to fix here.
 
+**Update, 2026-09-11 -- Baron: v1.7.0 "Security & Logistics" release, workstream 1 (GDPR
+F6/F7/F8), scoped for a UN/NGO deployment/pilot by Oct 15, 2026.** Read the review's exact
+F6-F13 text via python-docx (not assumed) to scope precisely. (1) **F6 (project memory
+always-on, undisclosed, duplicated to a sidecar file) -- addressed.** New
+`memory.is_project_memory_persist_enabled()` (opt-in, default OFF, mirrors
+`chat_persistence.is_persist_enabled()` exactly) gates `store_project_note`'s two
+persistent/shareable write targets (the sidecar `.sqlite`, the `QgsProject` custom property)
+and `get_project_notes`'s reads from them -- the in-memory cache stays always-on and
+always-readable regardless, since the agent needs it within a session. New Settings checkbox
+"Save project notes/memory in the project file and sidecar database", same pattern as the
+existing chat-history toggle. 6 new tests in `tests/test_memory_and_tasks.py`. (2) **F7 (no
+structured export) and F8 (no consolidated access view) -- addressed together**, per the
+review's own recommendation since both touch the same three sources (project memory, global
+memory, chat history) and both are already JSON internally. New `agent/data_export.py` (pure
+logic, Qt/qgis-free, mirrors `ui/chat_formatting.py`'s testability pattern) assembles one JSON
+document; new `agent/tools/data_export_tools.py`'s `export_stored_data` tool and a new
+"💾 Export My Data" button in the Tasks & Notes panel (next to Clear Project/Global Memory)
+both surface it. Needed cross-module access to the live `SpatialMemoryManager` instance
+`agent.py` already binds into `task_tools.py`'s `_MEMORY_MANAGER` -- added a small public
+`task_tools.get_memory_manager()` accessor rather than reaching into that private global
+directly or standing up a second, empty `SpatialMemoryManager()` instance (which would only
+see whatever's on disk, not what the live session actually holds in memory). Classified the
+new tool `PUBLISH` in `tool_operations.py`, matching `export_layer`/`export_to_csv`'s existing
+classification (point 20's completeness test enforces this). (3) **F9 (erasure can't reach
+previously-distributed file copies) -- documented, not code**, added to `SECURITY.md`'s Data
+Protection section: an inherent property of local-file architecture, not a defect. (4) **F10
+(plaintext credential fallback)** confirmed already adequately mitigated per the review itself
+-- no action. F11/F12 are organizational, not code; F13 is a stated strength. See
+`SECURITY.md`'s "Remediation, 2026-09-11" entry for the short version.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
