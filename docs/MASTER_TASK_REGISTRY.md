@@ -704,7 +704,21 @@ next-steps queue always has at least one item — if everything concrete is done
    realistic content, per the code's existing 2026-09-05 live confirmation, but that specific
    claim wasn't re-verified here). No source code changed this pass — `docs/BUG_TRACKER.md`
    is the only file touched.
-43. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+43. ~~`BUG-2026-09-11-1` fix: portrait `create_print_layout` body/footer
+   overlap~~ — **done, 2026-09-11, same day it was found.** Two changes in
+   `agent/tools/layout_tools.py`: portrait's disclaimer footer is now pinned to a fixed
+   distance from the page bottom instead of being derived from `body_y+body_h` (so its position
+   no longer depends on how much `body_text` overflows); new `_fit_text_to_box()` — pure
+   Python, calibrated from this session's own live render — truncates `body_text` to what the
+   box can actually hold before handing it to `QgsLayoutItemLabel`, since that label never
+   clips on its own. 6 new tests. Full suite 1339 tests (up from 1333), 0 failures, 7 skipped.
+   **Live-verified against real QGIS 4.2.2** with the exact repro that found the bug — the
+   exported PNG now shows a cleanly truncated body paragraph and a fully legible, unobstructed
+   disclaimer footer. Status `fixed-verified`. Landscape untouched (already live-clean since
+   2026-09-05; `_fit_text_to_box` not applied there, flagged as an optional defense-in-depth
+   follow-up, not a known failure). See `docs/BUG_TRACKER.md`'s `BUG-2026-09-11-1` entry for
+   full detail.
+44. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

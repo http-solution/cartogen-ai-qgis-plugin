@@ -23,8 +23,52 @@ import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.tools.layout_tools import (
     create_print_layout, list_layouts, list_layout_items, update_layout_item_text,
-    export_layout_atlas,
+    export_layout_atlas, _fit_text_to_box,
 )
+
+
+class TestFitTextToBox(unittest.TestCase):
+    """BUG-2026-09-11-1: QgsLayoutItemLabel doesn't clip overflowing content
+    to its own box -- _fit_text_to_box is the guard against that, so these
+    are pure-Python and need no QGIS install."""
+
+    def test_short_text_returned_unchanged(self):
+        text = "Short summary."
+        self.assertEqual(_fit_text_to_box(text, box_w_mm=180, box_h_mm=6), text)
+
+    def test_long_text_is_truncated_with_ellipsis(self):
+        text = "word " * 200  # far exceeds any realistic box budget
+        result = _fit_text_to_box(text, box_w_mm=180, box_h_mm=6)
+        self.assertLess(len(result), len(text))
+        self.assertTrue(result.endswith("…"))
+
+    def test_truncation_breaks_on_a_whole_word_boundary(self):
+        text = "word " * 200
+        result = _fit_text_to_box(text, box_w_mm=180, box_h_mm=6)
+        # Never cuts mid-word -- the char before the ellipsis is a full
+        # "word" token, not a partial fragment like "wor".
+        self.assertTrue(result[:-1].strip().endswith("word") or result == "…")
+
+    def test_larger_box_allows_more_text_before_truncating(self):
+        text = "word " * 200
+        small = _fit_text_to_box(text, box_w_mm=180, box_h_mm=6)
+        large = _fit_text_to_box(text, box_w_mm=180, box_h_mm=30)
+        self.assertGreater(len(large), len(small))
+
+    def test_degenerate_zero_height_box_still_returns_at_least_one_line_budget(self):
+        # max(1, ...) floor -- a box_h_mm of 0 (or negative, from a bad
+        # caller) must not crash or return an empty/zero-char result.
+        result = _fit_text_to_box("A short line.", box_w_mm=180, box_h_mm=0)
+        self.assertEqual(result, "A short line.")
+
+    def test_very_long_single_word_has_no_space_to_break_on(self):
+        # rsplit(" ", 1) on a string with no space returns the whole string
+        # unchanged -- confirm this degrades to "truncate at the char
+        # boundary anyway" rather than raising.
+        text = "a" * 5000
+        result = _fit_text_to_box(text, box_w_mm=180, box_h_mm=6)
+        self.assertTrue(result.endswith("…"))
+        self.assertLess(len(result), len(text))
 
 
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
