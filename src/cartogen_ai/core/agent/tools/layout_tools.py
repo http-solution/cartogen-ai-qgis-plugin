@@ -45,6 +45,35 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+# Calibrated from a real live render (QGIS 4.2.2, python-qgis.bat,
+# QgsLayoutExporter.exportToImage, PNG visually inspected 2026-09-11,
+# BUG-2026-09-11-1): QgsLayoutItemLabel's default font rendered one line at
+# roughly 6mm tall and fit roughly 110 characters within a 180mm-wide box.
+# Deliberately conservative (errs toward truncating a little early) -- not a
+# generic font-metrics API call, since QgsLayoutItemLabel exposes no cheap
+# way to query its actual print-DPI rendered size before drawing.
+_LABEL_LINE_HEIGHT_MM = 6.0
+_LABEL_CHARS_PER_MM_WIDTH = 110 / 180.0
+
+
+def _fit_text_to_box(text, box_w_mm, box_h_mm):
+    """Truncates text to what a QgsLayoutItemLabel-sized box can actually
+    hold, by whole words, appending an ellipsis if truncated. Exists because
+    QgsLayoutItemLabel does not clip content to its own box -- confirmed
+    live (BUG-2026-09-11-1): body_text longer than the box's line budget
+    silently overflowed downward into the standing disclaimer footer below
+    it, in portrait orientation specifically. A larger box budget alone
+    doesn't fix this for an unbounded caller-supplied string; bounding the
+    actual text content does, regardless of exactly how generous the box
+    turns out to be in either orientation."""
+    max_lines = max(1, int(box_h_mm // _LABEL_LINE_HEIGHT_MM))
+    max_chars = max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars].rsplit(" ", 1)[0]
+    return truncated + "…"
+
+
 def _extent_to_canvas_crs(canvas, extent, source_crs):
     """Transforms extent from source_crs into the canvas's own destination
     CRS -- see the identical helper in vector_tools.py (zoom_to_layer/
@@ -167,13 +196,31 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         if portrait:
             map_x, map_y, map_w, map_h = 15, 26, 180, 190
             col_x, col_w = 15, 180
-            legend_y, legend_h = map_y + map_h + 4, 45
+            # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
+            # fund a realistic body_h below -- still ample for the handful of
+            # categories a humanitarian export's legend typically carries.
+            legend_y, legend_h = map_y + map_h + 4, 35
             scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
-            # body_h shrunk from 13 to 6 (2026-09-02) to leave room for the
-            # standing disclaimer footer below -- portrait's fit here is
-            # unverified against a live export, same caveat as the rest of
-            # this branch (see the comment above this if/else).
-            body_y, body_h = scalebar_y + scalebar_h + 4, 6
+            # Footer pinned to a FIXED distance from the page bottom, not
+            # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
+            # (real QgsLayoutExporter.exportToImage PNG, visually inspected):
+            # QgsLayoutItemLabel does not clip content to its own box, so the
+            # old body_h=6 (roughly one line) meant ANY body_text longer than
+            # that silently overflowed down and visually overlapped the
+            # safety-critical disclaimer footer -- exactly the multi-line
+            # "bullets/findings" usage this tool's own schema description
+            # encourages. Pinning the footer here first, then giving body_h
+            # whatever real room remains above it (instead of a tiny
+            # hardcoded constant), fixes both: the footer always sits at the
+            # same predictable page position regardless of body_text length,
+            # and body gets a realistic multi-line budget. Does not fully
+            # eliminate overflow for an extreme body_text (the label still
+            # doesn't clip) -- see BUG-2026-09-11-1 for that residual caveat.
+            footer_h = 8
+            footer_margin = 6
+            footer_y = page_height - footer_h - footer_margin
+            body_y = scalebar_y + scalebar_h + 4
+            body_h = max(6, footer_y - body_y - 4)
             north_x, north_y = 175, scalebar_y
             title_w = 180
         else:
@@ -188,6 +235,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             scalebar_y, scalebar_h = map_y + map_h + 3, 12
             north_x, north_y = map_x + map_w - 12, scalebar_y
             title_w = col_x + col_w - map_x
+            # Landscape's footer position is still derived from body_y+body_h
+            # (unlike portrait's fixed pinning above) -- body_h=78 here is
+            # generous enough that this has been live-confirmed not to
+            # collide (2026-09-05 real chat-driven session), so left as-is
+            # rather than changing a path that's already been verified live.
+            footer_y = body_y + body_h + 2
+            footer_h = max(4, min(8, page_height - footer_y - 2))
 
         map_item.attemptMove(QgsLayoutPoint(map_x, map_y, LAYOUT_MM))
         map_item.attemptResize(QgsLayoutSize(map_w, map_h, LAYOUT_MM))
@@ -261,7 +315,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # than introducing an unverified enum reference.
         if body_text:
             body_label = QgsLayoutItemLabel(layout)
-            body_label.setText(body_text)
+            body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)
             body_label.setId("BODY_TEXT")
             body_label.attemptMove(QgsLayoutPoint(col_x, body_y, LAYOUT_MM))
@@ -273,8 +327,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         footer_label.setId("FOOTER")
         footer_x = map_x
         footer_w = (col_x + col_w) - map_x
-        footer_y = body_y + body_h + 2
-        footer_h = max(4, min(8, page_height - footer_y - 2))
+        # footer_y/footer_h are already set above (portrait: pinned to a
+        # fixed page-bottom distance; landscape: derived from body_y+body_h,
+        # unchanged) -- not recomputed here so portrait's fix above actually
+        # takes effect instead of being immediately overwritten by the old
+        # body-derived formula.
         footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, LAYOUT_MM))
         footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, LAYOUT_MM))
 

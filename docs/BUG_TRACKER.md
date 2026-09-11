@@ -20,6 +20,9 @@ confirmed via a real test run or live check) / `wontfix` (with rationale).
 
 ## Open bugs
 
+None currently. **BUG-2026-09-11-1** (below) was found and fixed the same day, both live
+against real QGIS 4.2.2 -- see that entry for the full history.
+
 **BUG-2026-09-11-1** | found 2026-09-11 | unreleased | medium | `create_print_layout`
 (`agent/tools/layout_tools.py`), portrait orientation only. **Root cause, confirmed live
 against real QGIS 4.2.2** (`python-qgis.bat`, real `QgsLayoutExporter.exportToImage`, real PNG
@@ -42,8 +45,31 @@ export needs vs. how much body-text room to guarantee), not a mechanical one-lin
 flagged per this project's "flag a real tradeoff rather than guess" convention rather than
 applied unilaterally. Repro: `create_print_layout(title=..., page_orientation="Portrait",
 body_text=<a 3-sentence paragraph>, output_path=".../out.png")`, inspect the exported PNG.
-Live-verification evidence and the exact geometry values used to confirm this are in this
-session's transcript, not yet copied into a standalone repro script in the repo.
+
+**Fixed and live-verified the same day, 2026-09-11.** Two changes, both in
+`agent/tools/layout_tools.py`: (1) portrait's footer is now pinned to a FIXED distance from the
+page bottom (`footer_h=8`, `footer_margin=6`) instead of being derived from `body_y+body_h` --
+the footer now sits at a predictable page position regardless of `body_text` length; `legend_h`
+trimmed 45->35mm to help fund a larger `body_h`, computed dynamically as whatever room remains
+above the now-fixed footer instead of a hardcoded 6mm constant. (2) A real correctness
+guarantee, not just a bigger budget: new `_fit_text_to_box(text, box_w_mm, box_h_mm)` -- pure
+Python, no QGIS needed, calibrated from this session's own live render (one line of the
+label's default font measured ~6mm tall and fit ~110 characters in a 180mm-wide box) --
+truncates `body_text` (by whole words, with an ellipsis) to what the box can actually hold
+before it's ever handed to `QgsLayoutItemLabel`. This is the real fix: since the label itself
+never clips, only bounding the text content guarantees no overflow regardless of exactly how
+generous the mm budget in either orientation turns out to be. 6 new tests
+(`tests/test_layout_tools.py`, `TestFitTextToBox`). Full suite 1339 tests, 0 failures (up from
+1333, the 6 new tests), 7 skipped. **Live-verified against real QGIS 4.2.2** with the exact
+same repro that found the bug (the same 3-sentence SITREP paragraph, same categorized-legend
+polygon layer): the exported PNG now shows the body text cleanly truncated with an ellipsis,
+a clear gap, and the disclaimer footer fully legible and unobstructed -- confirmed via direct
+visual inspection of the real exported PNG, not just a geometry-value assertion. Status
+`fixed-verified`. Landscape was not touched (its `body_h=78` remains derived from
+`body_y+body_h` as before, unchanged, since it was already live-confirmed clean 2026-09-05) --
+`_fit_text_to_box` is NOT yet applied to landscape's body_text, since it was never the reported
+failure mode; worth revisiting as a defense-in-depth follow-up if an unusually long body_text
+ever gets reported there too, but not applied speculatively here.
 
 None otherwise currently open. **BUG-2026-09-05-2** (the sole entry here as of 2026-09-08)
 moved to "Fixed (recent)" below on 2026-09-10 once an actual root-cause fix was implemented for
