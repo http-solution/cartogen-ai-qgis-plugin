@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.8.2](#v1-8-2) | 2026-09-12 | Docs-only: repo reorganization and documentation polish pass |
 | [1.8.1](#v1-8-1) | 2026-09-12 | Patch: dashboard OSM-blocked basemap + canvas not following new layers |
 | [1.8.0](#v1-8-0) | 2026-09-12 | Cartographic Intelligence: visualization selection, real QA gate, isochrone bands |
 | [1.7.1](#v1-7-1) | 2026-09-11 | Patch: portrait print-layout body/footer overlap fixed |
@@ -14,6 +15,36 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-8-2"></a>
+## [1.8.2] — 2026-09-12 — Docs-only: repo reorganization and documentation polish pass
+
+No code, tool, or behavior changes. Prompted by a request to make the repo read as professional
+for three audiences at once: external GitHub contributors, a humanitarian-org (UN/NGO)
+due-diligence reviewer, and general internal tidiness — while keeping every existing technical
+detail, not stripping it down.
+
+- **5 frozen historical docs moved into `docs/archive/`** — `CARTOGEN_AI_FEATURE_LIST.md`,
+  `CARTOGEN_AI_PRD.md`, `DOCUMENTATION.md`, `IMPLEMENTATION_TASK_LIST.md`, `LICENSE_AUDIT.md`
+  (`git mv`, content unchanged, full history preserved). Every live reference updated; the moved
+  `DOCUMENTATION.md`'s own ~27 internal relative links fixed for its new location.
+- **Stale tool counts fixed.** "131 tools" → 165 in `README.md`, `docs/PRODUCT_TIERS.md`, and
+  `docs/RELEASE_SMOKE_TEST.md` — left untouched wherever a document was explicitly describing a
+  dated historical snapshot rather than making a present-tense claim.
+- **`README.md`** gained a table of contents and a regrouped, expanded Documentation table
+  (Getting started / Security & compliance / Engineering & process / Product & humanitarian
+  standards / Roadmap & archive / Project reference) — surfacing 9 previously-untabled files,
+  including the GDPR compliance review and DPIA screening worksheet that had no discoverable
+  path from the README before. Also gained a dedicated Contributing section.
+- **New `docs/README.md`** index, reusing the same category grouping, for anyone browsing the
+  `docs/` folder directly on GitHub; notes the two dev scripts' purpose inline so their presence
+  reads as intentional.
+- **`docs/archive/README.md`** gained a one-line-per-file index of all 33 archived documents.
+- **`SECURITY.md`** gained a table of contents over its 19 sections.
+- **`CHANGELOG.md`** — the 4 previously-undated `[1.7.0]`–`[1.8.1]` headers now carry real
+  dates, plus this "Recent releases at a glance" quick-index.
+
+Full suite unchanged: 1406 tests, 0 failures (comment/doc-only changes touch no `src/` behavior).
 
 <a id="v1-8-1"></a>
 ## [1.8.1] — 2026-09-12 — Patch: dashboard OSM-blocked basemap + canvas not following new layers
