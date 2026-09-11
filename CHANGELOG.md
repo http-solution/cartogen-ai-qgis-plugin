@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.8.3](#v1-8-3) | 2026-09-12 | Patch: release zip was silently missing 4 relocated archive docs |
 | [1.8.2](#v1-8-2) | 2026-09-12 | Docs-only: repo reorganization and documentation polish pass |
 | [1.8.1](#v1-8-1) | 2026-09-12 | Patch: dashboard OSM-blocked basemap + canvas not following new layers |
 | [1.8.0](#v1-8-0) | 2026-09-12 | Cartographic Intelligence: visualization selection, real QA gate, isochrone bands |
@@ -15,6 +16,29 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-8-3"></a>
+## [1.8.3] — 2026-09-12 — Patch: release zip was silently missing 4 relocated archive docs
+
+Fixed `BUG-2026-09-12-2`, found and fixed the same day v1.8.2 shipped — caught while verifying
+that the v1.8.2 release zip installs cleanly in QGIS, before announcing it.
+
+- **Release zip was missing content.** `plugin_upload.py`'s `EXCLUDE_FILES` matches a file by
+  basename regardless of directory. `IMPLEMENTATION_TASK_LIST.md`, `LICENSE_AUDIT.md`,
+  `CARTOGEN_AI_PRD.md`, and `CARTOGEN_AI_FEATURE_LIST.md` were correctly excluded there when
+  they lived at the repo root (internal dev docs). v1.8.2's repo-organization pass moved all 5
+  of those docs (the 4 above, plus `DOCUMENTATION.md`) into `docs/archive/` — a directory that
+  is *not* excluded and whose other ~29 files ship normally — but the same 4 stale basenames
+  kept matching there too, so `cartogen_ai_v1.8.2.zip` silently shipped without them while their
+  sibling `DOCUMENTATION.md` (never in `EXCLUDE_FILES`) shipped fine. Did not affect plugin
+  functionality: confirmed via a real QGIS 4.2.2 headless import of the extracted v1.8.2 zip
+  that `__init__.py` imports cleanly, `classFactory` is present, and all 165 tools register —
+  this was a shipped-content-completeness bug, not a functional one. Fixed by removing those 4
+  entries from `EXCLUDE_FILES`; rebuilt the zip and re-verified (fresh `unzip -l` plus another
+  real-QGIS import) that all 5 moved docs are now present and non-trivial after extraction.
+
+Full suite unchanged: 1406 tests, 0 failures (packaging-script fix only, no `src/` behavior
+touched).
 
 <a id="v1-8-2"></a>
 ## [1.8.2] — 2026-09-12 — Docs-only: repo reorganization and documentation polish pass

@@ -87,13 +87,22 @@ EXCLUDE_DIRS = {
 EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
 EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
-# plugin and shouldn't ship in the release package. The 4 frozen doc names below
-# now live under docs/archive/ (moved 2026-09-12, a repo-organization pass) --
-# this matches on os.walk()'s basename regardless of directory, so the move
-# didn't require a functional change here, just this comment update.
+# plugin and shouldn't ship in the release package.
+#
+# IMPLEMENTATION_TASK_LIST.md, LICENSE_AUDIT.md, CARTOGEN_AI_PRD.md, and
+# CARTOGEN_AI_FEATURE_LIST.md used to be listed here -- they lived at the repo
+# root before the 2026-09-12 repo-organization pass moved them into
+# docs/archive/. A prior comment claimed the move "didn't require a functional
+# change" because this set matches by basename regardless of directory -- that
+# was wrong, and it was a real, shipped bug: docs/archive/ is not an excluded
+# directory and its other ~29 files ship normally in the release zip, but these
+# 4 basenames kept matching there too, so they silently vanished from
+# cartogen_ai_v1.8.2.zip while their sibling DOCUMENTATION.md (never listed
+# here) shipped fine. Caught live by unzip -l against the built zip. Removed
+# from this set so all 5 moved docs ship consistently with the rest of
+# docs/archive/.
 EXCLUDE_FILES = {
-    "IMPLEMENTATION_TASK_LIST.md", "LICENSE_AUDIT.md", "CARTOGEN_AI_PRD.md",
-    "CARTOGEN_AI_FEATURE_LIST.md", "pytest.ini", "plugin_upload.py",
+    "pytest.ini", "plugin_upload.py",
     "API open router.txt", "CLAUDE.md",
     # Leftover stub from consolidating this repo out of the old dual-tree
     # setup -- see the file's own docstring. Not git-tracked; safe to delete
