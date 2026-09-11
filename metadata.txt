@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.7.1
+version=1.8.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,24 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.7.1 (2026-09-11):
+changelog=v1.8.0 (2026-09-12):
+    Cartographic Intelligence release: adapts an external "QGIS Cartographic Intelligence
+    Standard for AI Agents" document to this plugin's own architecture, as an integration/
+    gap-closure pass on real existing infrastructure. New recommend_visualization_method
+    (advisory tool -- inspects real geometry/field/distribution and recommends a styling
+    tool, never applies one itself) and apply_rule_based_style (a real QgsRuleBasedRenderer,
+    for fixed-vocabulary fields like route status, with a mandatory "Unknown / No data"
+    catch-all class). generate_map_product_qa_checklist now reads real layer sensitivity
+    tags instead of a static stub, plus two new informational checks (classification
+    sanity, export integrity). dataset_status.py's previously-unused CARTOGRAPHY_READY ->
+    PUBLICATION_READY transition now has a real, opt-in, overridable blocking QA gate.
+    calculate_service_area's travel_cost accepts a list for a real isochrone/access-band
+    map, auto-styled in one call. Four new behavioral prompt rules (missing-data-not-zero,
+    a conversational MapBrief before finished deliverables, choropleth denominator
+    honesty, sensitivity surfaced before export). Live-verified against real QGIS 4.2.2
+    throughout. See CHANGELOG.md's [1.8.0] entry for full detail.
+
+v1.7.1 (2026-09-11):
     Patch release: fixed BUG-2026-09-11-1, found and live-verified the same day v1.7.0
     shipped. create_print_layout's portrait orientation had a body-text box only sized for
     ~1 line, and QgsLayoutItemLabel doesn't clip -- longer body_text silently overflowed into

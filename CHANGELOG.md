@@ -4,6 +4,57 @@
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
 
+## [1.8.0] — Cartographic Intelligence: visualization selection, real QA gate, isochrone bands
+
+Adapts an external "QGIS Cartographic Intelligence Standard for AI Agents" document to this
+plugin's own architecture, as an integration/gap-closure pass on real existing infrastructure
+(`_classify_values`'s skewness-driven classification, `_compute_severity_index`'s composite-index
+engine, `dataset_status.py`'s QA-gate state machine, `sensitivity.py`/`confidence.py`'s
+classification tags) rather than a from-scratch build. Plan:
+`~/.claude/plans/idempotent-popping-haven.md`.
+
+- **Visualization selection.** New `recommend_visualization_method(layer_name, field?,
+  intended_message?)` — inspects a layer/field's real geometry type, field type, cardinality,
+  and distribution, and returns a recommended styling tool + rationale + warnings. Advisory
+  only: never applies styling itself, matching the existing "state the default, don't stop to
+  ask" convention. Flags the single most common real-world misuse directly — a raw-count-shaped
+  field on a polygon layer gets an explicit warning about choropleth-coloring counts instead of
+  a normalized rate. New `apply_rule_based_style` — a real `QgsRuleBasedRenderer` (previously
+  unused in this codebase), for fixed-vocabulary fields (e.g. route/facility status) needing a
+  caller-chosen color per value plus a mandatory "Unknown / No data" catch-all class.
+- **Real sensitivity in the QA checklist.** `generate_map_product_qa_checklist`'s disclosure
+  section used to be a static "no automated classification exists yet" stub even after
+  `set_layer_sensitivity`/`get_layer_sensitivity` shipped — it simply never read them. Now reads
+  the real tag, reason, and export warning. Two new informational categories:
+  `classification_sanity` (flags a single-symbol-rendered layer with a numeric field worth a
+  second look) and `export_integrity` (confirms an exported file actually exists on disk with
+  real content).
+- **A real blocking cartographic QA gate.** `dataset_status.py`'s `CARTOGRAPHY_READY →
+  PUBLICATION_READY` transition — previously the only transition with zero automated checks of
+  any kind — now has a real, opt-in `map_qa` check: blocks the advance if a mandatory print-layout
+  element is missing or the layer is tagged RESTRICTED/SENSITIVE, with the same
+  `override=True` + mandatory-note bypass every other check in this state machine already uses.
+- **Isochrone / access-band styling.** `calculate_service_area`'s `travel_cost` now accepts a
+  list (e.g. `[15, 30, 60]`) as well as a single number — builds one combined,
+  `travel_cost_band`-tagged polygon layer per facility instead of requiring N separate calls,
+  auto-styled with a graduated renderer in the same call. The pre-existing single-value path is
+  completely unchanged.
+- **New behavioral rules.** Missing/suppressed/not-assessed values must never land in the same
+  class as a real zero; establish purpose/audience/sensitivity before a finished cartographic
+  deliverable (a conversational MapBrief, not a rigid pre-flight form); a raw-count choropleth
+  must be normalized or have its denominator named explicitly; a RESTRICTED/SENSITIVE layer's
+  tag must be surfaced in chat before an export touching it, not left only to the QA gate.
+
+Full suite: 1398 tests, 0 failures. Live-verified against real QGIS 4.2.2 throughout, including
+real rendered-pixel checks (a rule-based route-status layer, a multi-band isochrone map with
+monotonically growing hull area per band) and a real blocking-gate test (a SENSITIVE-tagged
+layer correctly blocked, then correctly advanced via override).
+
+Explicitly out of scope this release (named, not dropped): bivariate choropleth, flow/OD maps, a
+small-multiples/change-map compositor, uncertainty-*rendering* (confidence tags exist, drawing
+them doesn't yet), a standard-deviation classification mode, a rigid structured MapBrief object,
+and a minimum-count/k-anonymity suppression method for `sensitivity_tools.py`.
+
 ## [1.7.1] — Patch: portrait print-layout body/footer overlap fixed
 
 - **`BUG-2026-09-11-1` fixed, same day it was found.** `create_print_layout`'s portrait

@@ -319,13 +319,13 @@ Search Humanitarian Data Exchange (HDX) for datasets by query.
 
 ### `calculate_service_area`
 
-Calculate the reachable road-network area around one or more facilities (warehouse, clinic, distribution point) within a given travel distance or time -- e.g. 'what area can this warehouse serve within 30km by road'. Produces, per facility, both the reachable road network and an approximate coverage polygon (convex hull around it). Requires a real line layer representing the road network -- for simple straight-line/as-the-crow-flies coverage, use buffer_analysis instead. Without speed_field, every road segment is treated as one flat default_speed regardless of surface or condition, which overstates reachability on unpaved/damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic area. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
+Calculate the reachable road-network area around one or more facilities (warehouse, clinic, distribution point) within a given travel distance or time -- e.g. 'what area can this warehouse serve within 30km by road'. Produces, per facility, both the reachable road network and an approximate coverage polygon (convex hull around it). Requires a real line layer representing the road network -- for simple straight-line/as-the-crow-flies coverage, use buffer_analysis instead. Without speed_field, every road segment is treated as one flat default_speed regardless of surface or condition, which overstates reachability on unpaved/damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic area. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. Pass travel_cost as a LIST (e.g. [15, 30, 60]) instead of a single number for a real isochrone/access-band map: builds one combined polygon layer per facility with a travel_cost_band field, one ring per value, auto-styled with a graduated renderer -- a single call instead of one per band plus manual styling.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `facility_layer` | string | yes | Point layer with the facility/facilities to calculate service areas for. |
 | `road_network_layer` | string | yes | Line layer representing the road/path network. |
-| `travel_cost` | number | yes | Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'. |
+| `travel_cost` | any | yes | Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'. Pass a single number for one service area, or a list of ascending values (e.g. [15, 30, 60]) for a multi-band isochrone/access map -- one combined, auto-styled polygon layer per facility instead of separate calls. |
 | `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
 | `default_speed` | number | no | Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'. |
@@ -1488,7 +1488,7 @@ Exports everything Cartogen AI has stored for this project and this machine -- p
 
 ### `advance_dataset_status`
 
-Move a layer's QA-gate lifecycle status forward one step (e.g. STAGED -> VALIDATED), backward (to mark a regression), or re-state it -- never skipping a state. The INGESTED -> STAGED step automatically runs a P-code depth check (uniqueness + parent/child hierarchy prefix-match) when the layer has P-code-shaped fields, and auto-passes as not-applicable otherwise -- so it never blocks a non-admin-boundary layer. The STAGED -> VALIDATED step automatically runs the existing geometry-validity check (diagnose_topology) and refuses to advance if it fails, unless override=True is passed with a note justifying the bypass. The VALIDATED -> ANALYSIS_READY step runs a schema-contract check (validate_schema) instead, but ONLY when contract_name is supplied -- omit it and this transition behaves like any other unchecked one (a note is required). Every other transition has no automated check yet and requires a note explaining the manual advance. Moving backward always requires a note. Call get_dataset_status first if unsure of the layer's current status, set_dataset_status first if it isn't tracked yet, and list_schema_contracts to see available contract_name values.
+Move a layer's QA-gate lifecycle status forward one step (e.g. STAGED -> VALIDATED), backward (to mark a regression), or re-state it -- never skipping a state. The INGESTED -> STAGED step automatically runs a P-code depth check (uniqueness + parent/child hierarchy prefix-match) when the layer has P-code-shaped fields, and auto-passes as not-applicable otherwise -- so it never blocks a non-admin-boundary layer. The STAGED -> VALIDATED step automatically runs the existing geometry-validity check (diagnose_topology) and refuses to advance if it fails, unless override=True is passed with a note justifying the bypass. The VALIDATED -> ANALYSIS_READY step runs a schema-contract check (validate_schema) instead, but ONLY when contract_name is supplied -- omit it and this transition behaves like any other unchecked one (a note is required). The CARTOGRAPHY_READY -> PUBLICATION_READY step runs a map-QA check (generate_map_product_qa_checklist) when layout_name is supplied -- refuses to advance if the layout is missing a mandatory element (map/title/legend/scale bar/north arrow) or the layer is tagged RESTRICTED/SENSITIVE, unless override=True is passed with a note justifying the bypass. Omit layout_name and this transition behaves like any other unchecked one. Every other transition has no automated check yet and requires a note explaining the manual advance. Moving backward always requires a note. Call get_dataset_status first if unsure of the layer's current status, set_dataset_status first if it isn't tracked yet, and list_schema_contracts to see available contract_name values.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1497,6 +1497,7 @@ Move a layer's QA-gate lifecycle status forward one step (e.g. STAGED -> VALIDAT
 | `note` | string | no | Required for transitions with no automated check, for any backward move, and for an override. |
 | `override` | boolean | no | Bypass a failed automated check. Requires note. Defaults to false. |
 | `contract_name` | string | no | Only used for VALIDATED -> ANALYSIS_READY, e.g. 'health_facilities' or 'admin2'. See list_schema_contracts. |
+| `layout_name` | string | no | Only used for CARTOGRAPHY_READY -> PUBLICATION_READY -- the print layout built for this map product (from create_print_layout). |
 
 ### `get_dataset_status`
 
@@ -1593,6 +1594,7 @@ Assembles a QA checklist for one map product -- a layer, optionally paired with 
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `layout_name` | string | no | Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section. |
+| `output_path` | string | no | Optional exported file path (e.g. create_print_layout's own output_path) to verify it actually exists on disk with real content. Omit to skip the export-integrity section. |
 
 ## schema_contract_tools
 
