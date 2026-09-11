@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.6.0
+version=1.7.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,22 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.6.0 (2026-09-05):
+changelog=v1.7.0 (2026-09-11):
+    Security & Logistics release, scoped for a humanitarian org (UN/NGO) deployment/pilot.
+    GDPR F6-F9 closure: persistent project-memory writes (sidecar file + embedded project
+    property) now opt-in/default-off, matching chat history's existing pattern; new "My Data"
+    export assembles project memory + global memory + chat history into one JSON document.
+    Undo/rollback now covers a priority subset of MODIFY/DELETE tools (remove_layer,
+    field_calculator/calculate_area/calculate_length, style changes, dataset-status/
+    sensitivity/confidence/run_query) via a new snapshot registry. New sandbox Tier 2:
+    run_allowlisted_processing_algorithm runs one Processing algorithm from a hard-coded
+    36-id allow-list, never executing arbitrary code. Logistics: build_composite_impedance_field
+    blends highway class/surface/damage/slope into one speed field feeding the existing
+    speed_field parameter; optimize_delivery_route's stop ordering is now road-network-aware
+    (not just the final drawn route) when a road network is given. Live-verified against real
+    QGIS 4.2.2 throughout. See CHANGELOG.md's [1.7.0] entry for full detail.
+
+v1.6.0 (2026-09-05):
     QA-gate/dataset-status state machine with geometry QA, P-code validation, and opt-in
     schema contracts; GDPR compliance remediation (bulk global-memory erasure + 4 further
     HIGH findings); the 791-task Humanitarian Mapping Task Register now drives the chat
