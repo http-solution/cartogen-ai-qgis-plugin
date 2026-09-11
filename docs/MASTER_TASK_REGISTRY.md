@@ -558,7 +558,28 @@ next-steps queue always has at least one item — if everything concrete is done
    plugin. Cross-referenced from each point's own entry in
    `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md`. No tests to
    run (no code changed).
-37. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+37. ~~v1.7.0 "Security & Logistics" release, Workstream 1: GDPR F6/F7/F8 closure~~ —
+   **done, 2026-09-11, on Baron's explicit request for a major release by Oct 15, 2026,
+   scoped for a UN/NGO deployment/pilot (plan approved via EnterPlanMode).** F6: new
+   `memory.is_project_memory_persist_enabled()` (opt-in, default OFF, mirrors
+   `chat_persistence.is_persist_enabled()`) gates project memory's two persistent/
+   shareable write targets (sidecar `.sqlite`, `QgsProject` custom property); new
+   matching Settings checkbox. F7+F8: new `agent/data_export.py` (pure logic) +
+   `agent/tools/data_export_tools.py`'s `export_stored_data` tool + a new "💾 Export My
+   Data" button assemble project memory/global memory/chat history into one JSON file.
+   New `task_tools.get_memory_manager()` public accessor reuses the live
+   `SpatialMemoryManager` instance already bound there rather than standing up a second,
+   empty one. F9 documented (not a code defect); F10 already adequately mitigated. 15
+   new tests. Full suite 1254/0/7 skipped. **Live-verified against real QGIS 4.2.2**:
+   default-OFF confirmed (a real `store_project_note` call left the real `QgsProject`
+   custom property empty), toggling the setting on produced a real write to it, and
+   `export_stored_data` produced a real JSON file with real project/global memory
+   content. `docs/TOOLS_REFERENCE.md` regenerated (161 tools, 26 groups). Full detail:
+   `docs/IMPLEMENTATION_TRACKER.md` §1.4, `SECURITY.md`'s "Remediation, 2026-09-11" entry.
+   Plan: `~/.claude/plans/idempotent-popping-haven.md`. Workstreams 2-4 (undo/rollback,
+   sandbox Tier 2 allow-list, logistics composite impedance + network-aware routing)
+   still pending.
+38. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

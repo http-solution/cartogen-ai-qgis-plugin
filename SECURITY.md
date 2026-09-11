@@ -326,6 +326,30 @@ None of this closes the review's CRITICAL finding (global memory has no erasure 
 its Medium/Low/Informational findings -- those remain open, tracked in
 `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
+### Remediation, 2026-09-11 (F6/F7/F8, part of the v1.7.0 security/logistics release)
+
+- **F6 (project memory always-on, undisclosed, duplicated to a sidecar file) --
+  addressed.** Extended the same opt-in pattern chat history already had
+  (`Settings > Save chat history in the project file`) to project-scoped memory notes:
+  a new `Settings > Save project notes/memory in the project file and sidecar database`
+  toggle, default OFF, gates writes to the sidecar `.sqlite` file and the embedded
+  `QgsProject` custom property. The in-memory cache used within a session is unaffected
+  (never leaves the running process).
+- **F7 (no structured data export) and F8 (no consolidated access view) -- addressed
+  together, per the review's own recommendation.** New "💾 Export My Data" button (Tasks
+  & Notes panel, next to Clear Project/Global Memory) and a matching `export_stored_data`
+  agent tool assemble project memory, global memory, and chat history (if enabled) into
+  one JSON file.
+- **F9 (erasure can't reach previously-distributed file copies) -- documented, not a code
+  fix.** This is an inherent property of local-file architecture: "Clear Project Memory"
+  and the chat-history opt-out act on the live project state going forward only. An
+  org's erasure process must separately account for any `.qgz`/sidecar `.sqlite` copies
+  already saved, emailed, or committed to version control before the clear action.
+- **F10 (plaintext credential fallback)** was already reviewed as adequately mitigated
+  (explicit warning, tested) -- no further action.
+
+Full detail: `docs/IMPLEMENTATION_TRACKER.md` §1.4.
+
 Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
 ## Known limitations (accepted risk, not fixed)

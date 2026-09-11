@@ -245,6 +245,10 @@ TOOL_OPERATION_TYPES = {
     "set_layer_confidence": MODIFY,
     "get_layer_confidence": READ,
 
+    # -- data_export_tools.py -- writes a new file to disk, same category as
+    # export_layer/export_to_csv above.
+    "export_stored_data": PUBLISH,
+
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
     "apply_graduated_style": MODIFY,

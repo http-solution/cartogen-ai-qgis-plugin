@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
-from cartogen_ai.core.agent.memory import SpatialMemoryManager
+from unittest.mock import patch, MagicMock
+from cartogen_ai.core.agent.memory import SpatialMemoryManager, is_project_memory_persist_enabled
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 
 
@@ -212,6 +213,80 @@ class TestMemoryAndTasks(unittest.TestCase):
 
         self.assertEqual(memory.get_global_notes(), {})
         self.assertIn("study_area", memory.get_project_notes())
+
+
+class TestProjectMemoryPersistenceOptIn(unittest.TestCase):
+    """GDPR review finding F6 (docs/GDPR_COMPLIANCE_REVIEW.docx): project-scoped
+    memory notes used to be written unconditionally to two persistent, shareable
+    locations (sidecar SQLite file, QgsProject custom property) with no opt-in,
+    unlike chat_persistence.py's already-opt-in chat history. Mirrors
+    tests/test_chat_persistence.py's own convention for is_persist_enabled()."""
+
+    def test_is_project_memory_persist_enabled_false_outside_qgis(self):
+        self.assertFalse(is_project_memory_persist_enabled())
+
+    @patch("cartogen_ai.core.agent.memory.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.memory.QgsSettings", create=True)
+    def test_is_project_memory_persist_enabled_reads_setting(self, mock_settings_cls):
+        mock_settings_cls.return_value.value.return_value = True
+        self.assertTrue(is_project_memory_persist_enabled())
+
+    @patch("cartogen_ai.core.agent.memory.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.memory.QgsSettings", create=True)
+    def test_is_project_memory_persist_enabled_defaults_false(self, mock_settings_cls):
+        mock_settings_cls.return_value.value.return_value = False
+        self.assertFalse(is_project_memory_persist_enabled())
+
+    @patch("cartogen_ai.core.agent.memory.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.memory.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.memory.QgsSettings", create=True)
+    def test_store_project_note_skips_disk_writes_when_persist_disabled(self, mock_settings_cls, mock_project_cls):
+        mock_settings_cls.return_value.value.return_value = False
+        mock_project_cls.instance.return_value.fileName.return_value = ""
+
+        memory = SpatialMemoryManager()
+        result = memory.store_project_note("study_area", "Damascus Region")
+
+        self.assertTrue(result["success"])
+        self.assertFalse(result["persisted"])
+        # Still readable from the in-memory cache regardless of the setting.
+        self.assertEqual(memory.get_project_notes()["study_area"], "Damascus Region")
+        # The persistent QgsProject custom-property write must NOT have happened.
+        mock_project_cls.instance.return_value.setCustomProperty.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.memory.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.memory.set_project_custom_property", create=True)
+    @patch("cartogen_ai.core.agent.memory.get_project_custom_property", create=True)
+    @patch("cartogen_ai.core.agent.memory.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.memory.QgsSettings", create=True)
+    def test_store_project_note_writes_property_when_persist_enabled(
+        self, mock_settings_cls, mock_project_cls, mock_get_prop, mock_set_prop
+    ):
+        mock_settings_cls.return_value.value.return_value = True
+        mock_project_cls.instance.return_value.fileName.return_value = ""
+        mock_get_prop.return_value = "{}"
+
+        memory = SpatialMemoryManager()
+        result = memory.store_project_note("study_area", "Damascus Region")
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["persisted"])
+        mock_set_prop.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.memory.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.memory.get_project_custom_property", create=True)
+    @patch("cartogen_ai.core.agent.memory.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.memory.QgsSettings", create=True)
+    def test_get_project_notes_does_not_read_property_when_persist_disabled(
+        self, mock_settings_cls, mock_project_cls, mock_get_prop
+    ):
+        mock_settings_cls.return_value.value.return_value = False
+        mock_project_cls.instance.return_value.fileName.return_value = ""
+
+        memory = SpatialMemoryManager()
+        memory.get_project_notes()
+
+        mock_get_prop.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (160 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (161 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1446,6 +1446,16 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `layer_name` | string | yes |  |
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
+
+## data_export_tools
+
+### `export_stored_data`
+
+Exports everything Cartogen AI has stored for this project and this machine -- project memory notes, global memory notes/preferences, and chat history (if chat history saving is enabled in Settings) -- into one structured JSON file. Use this when the user asks what data the plugin has stored, wants a copy of their conversation/notes, or needs a data-portability export. Chat history is included only if the user has opted into 'Save chat history in the project file' -- this tool does not change that setting or read history that was never saved.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `output_path` | string | yes | Full file path to write the JSON export to, e.g. 'C:/Users/me/Desktop/cartogen_data_export.json'. |
 
 ## dataset_status_tools
 

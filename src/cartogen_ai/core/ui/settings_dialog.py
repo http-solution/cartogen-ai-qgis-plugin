@@ -9,6 +9,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import QgsSettings
 
 from ..agent.chat_persistence import PERSIST_SETTING_KEY
+from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
 from ..agent.model_selector import AUTO_SENTINEL
 from ..agent.prompt_refiner import (
@@ -310,6 +311,22 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.persist_history_checkbox)
 
+        # GDPR review finding F6 (docs/GDPR_COMPLIANCE_REVIEW.docx): project-scoped
+        # memory notes had no equivalent opt-in at all -- always written to a sidecar
+        # .sqlite file next to the project and a QgsProject custom property embedded
+        # in the .qgz, both shareable artifacts, same risk as chat history above.
+        self.persist_project_memory_checkbox = QCheckBox("Save project notes/memory in the project file and sidecar database")
+        self.persist_project_memory_checkbox.setChecked(
+            bool(self.settings.value(PERSIST_PROJECT_MEMORY_KEY, False, type=bool))
+        )
+        self.persist_project_memory_checkbox.setToolTip(
+            "When on, project-scoped AI memory notes are saved inside this project's .qgz file and a "
+            "sidecar .sqlite database next to it, so they're still there next time you open it. Both "
+            "files may be shared, emailed, or committed elsewhere -- the notes travel with them. "
+            "Turning this off does not remove notes already saved from before this was disabled."
+        )
+        layout.addWidget(self.persist_project_memory_checkbox)
+
         # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
         # this shouldn't silently change every user's per-message cost
@@ -439,6 +456,7 @@ class CartogenAiSettingsDialog(QDialog):
         provider = self.provider_combo.currentData()
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
+        self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
