@@ -83,6 +83,14 @@ _AUTOMATED_CHECK_TRANSITIONS = {
     # the ordinary "no automated check, note required" path rather than
     # being blocked by a check that has nothing to check against.
     ("VALIDATED", "ANALYSIS_READY"): "schema_contract",
+    # v1.8.0 workstream 3: opt-in exactly like schema_contract above -- only
+    # actually runs when the caller passes a layout_name to
+    # advance_dataset_status. This is the real slot the external
+    # "QGIS Cartographic Intelligence Standard" document's blocking quality
+    # gates belong in: a genuine automated check gating the one transition
+    # (CARTOGRAPHY_READY -> PUBLICATION_READY) that had zero automated
+    # checks of any kind before this, rather than a parallel gate system.
+    ("CARTOGRAPHY_READY", "PUBLICATION_READY"): "map_qa",
 }
 
 
@@ -165,7 +173,7 @@ def set_initial_status(layer, status="INGESTED", note=None) -> dict:
     return {"success": True, "status": status}
 
 
-def _run_automated_check(check_name, layer, contract_name=None):
+def _run_automated_check(check_name, layer, contract_name=None, layout_name=None):
     """Runs one of the real, wired-in automated checks. Returns
     (passed: bool, detail: dict).
 
@@ -191,7 +199,21 @@ def _run_automated_check(check_name, layer, contract_name=None):
     contract_name (advance_dataset_status only sets check_name to
     "schema_contract" at all when one was actually supplied; see that
     function). Duck-types on hasattr(layer, "fields") for the same reason
-    geometry_validity duck-types on getFeatures()."""
+    geometry_validity duck-types on getFeatures().
+
+    map_qa, via agent/tools/qa_checklist_tools.py's
+    generate_map_product_qa_checklist (point 26, extended for v1.8.0
+    workstream 3) -- requires a layout_name for the same opt-in reason
+    schema_contract requires a contract_name. Fails the transition when
+    either a mandatory print-layout element (MAP_MAIN/TITLE/LEGEND/
+    SCALEBAR/NORTH_ARROW) is missing, or the layer is tagged RESTRICTED/
+    SENSITIVE -- both real, reused signals the checklist already computes,
+    not a new judgment call invented here. A SENSITIVE layer isn't
+    permanently blocked: the same override=True + mandatory-note path
+    every other failing check here already uses covers "yes, this
+    disclosure is genuinely intended," recorded in history so the bypass
+    is auditable, matching this module's own existing design rather than
+    a bespoke sensitivity-specific override flow."""
     if check_name == "geometry_validity":
         if not hasattr(layer, "getFeatures"):
             return False, {"error": "geometry_validity only applies to vector layers."}
@@ -243,10 +265,29 @@ def _run_automated_check(check_name, layer, contract_name=None):
             detail["hierarchy"] = hierarchy
             passed = passed and hierarchy.get("passed", False)
         return passed, detail
+    if check_name == "map_qa":
+        if layout_name is None:
+            return False, {"error": "map_qa check requires a layout_name."}
+        from .tools.qa_checklist_tools import generate_map_product_qa_checklist
+        result = generate_map_product_qa_checklist(layer.name(), layout_name=layout_name)
+        if "error" in result:
+            return False, result
+        categories = result.get("categories", {})
+        cartography = categories.get("cartography", {})
+        missing = cartography.get("mandatory_elements_missing", [])
+        disclosure = categories.get("disclosure", {})
+        sensitivity_blocked = disclosure.get("level") in ("RESTRICTED", "SENSITIVE")
+        passed = not missing and not sensitivity_blocked
+        return passed, {
+            "layout_name": layout_name,
+            "mandatory_elements_missing": missing,
+            "sensitivity_level": disclosure.get("level"),
+            "sensitivity_blocked": sensitivity_blocked,
+        }
     return False, {"error": f"No automated check implemented for '{check_name}'."}
 
 
-def advance_dataset_status(layer, target_status, note=None, override=False, contract_name=None) -> dict:
+def advance_dataset_status(layer, target_status, note=None, override=False, contract_name=None, layout_name=None) -> dict:
     """The actual QA gate. Moves a layer's tracked status by exactly one
     step in STATUS_ORDER (or re-states the current one). Refuses to:
       - advance a layer with no starting status yet (call set_initial_status first)
@@ -269,6 +310,12 @@ def advance_dataset_status(layer, target_status, note=None, override=False, cont
     falls through to the ordinary unchecked-transition path (a note is
     required instead) rather than failing a check that has nothing to check
     against.
+
+    layout_name is the same opt-in shape for CARTOGRAPHY_READY ->
+    PUBLICATION_READY's map_qa check (v1.8.0 workstream 3): only supplied
+    when this map product actually has a print layout to check, otherwise
+    this transition falls through to the ordinary note-required path
+    exactly like every other unchecked transition.
     """
     if target_status not in STATUS_ORDER:
         return {"error": f"Unknown status '{target_status}'. Must be one of: {', '.join(STATUS_ORDER)}."}
@@ -304,8 +351,13 @@ def advance_dataset_status(layer, target_status, note=None, override=False, cont
             # at all (falls through to the "note required" branch below)
             # rather than failing a check with nothing to check against.
             check_name = None
+        if check_name == "map_qa" and layout_name is None:
+            # Same opt-in shape as schema_contract above.
+            check_name = None
         if check_name:
-            passed, check_detail = _run_automated_check(check_name, layer, contract_name=contract_name)
+            passed, check_detail = _run_automated_check(
+                check_name, layer, contract_name=contract_name, layout_name=layout_name,
+            )
             if not passed and not override:
                 return {
                     "error": f"Automated check '{check_name}' did not pass for "

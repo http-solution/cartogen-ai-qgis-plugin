@@ -784,7 +784,33 @@ next-steps queue always has at least one item — if everything concrete is done
    reason makes the checklist report the real level, reason, and warning text; re-tagging PUBLIC
    correctly drops the warning. See `agent/tools/qa_checklist_tools.py`. Workstreams 3-5 of the
    v1.8.0 plan still pending.
-46. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+46. ~~v1.8.0 "Cartographic Intelligence" release, Workstream 3: a real
+   blocking cartographic QA gate~~ — **done, 2026-09-12.** Extends
+   `dataset_status.py`'s already-existing, previously-unused `CARTOGRAPHY_READY→PUBLICATION_READY`
+   transition with a real opt-in automated check ("map_qa"), mirroring `VALIDATED→ANALYSIS_READY`'s
+   existing `schema_contract` opt-in shape exactly: only runs when a `layout_name` is supplied to
+   `advance_dataset_status`, otherwise falls through to the ordinary note-required path. When
+   opted in, calls `generate_map_product_qa_checklist` (workstream 2's version) and blocks the
+   advance if a mandatory layout element is missing (map/title/legend/scale bar/north arrow) or
+   the layer is tagged RESTRICTED/SENSITIVE — the same `override=True` + mandatory-note bypass
+   every other failing check in this state machine already uses covers "yes, this disclosure is
+   genuinely intended," recorded in history for auditability, not a bespoke new override flow.
+   Also extended `generate_map_product_qa_checklist` itself with two more informational
+   categories, neither of which gates the advance: `classification_sanity` (flags a
+   single-symbol-rendered layer that also has a numeric field worth a second look — framed as a
+   question, not a definitive failure, since a single symbol may be deliberate) and
+   `export_integrity` (when an `output_path` is given, confirms the exported file actually exists
+   on disk with real content). 27 new tests (6 `test_dataset_status.py` map_qa gate tests, 7 new
+   `qa_checklist_tools` tests for the two categories). Full suite 1394 tests (up from 1381), 0
+   failures. **Live-verified against real QGIS 4.2.2**: a real complete print layout + a
+   non-sensitive layer advanced cleanly; tagging the same layer SENSITIVE made the real gate
+   block the advance with the real reason named; `override=True` with a note advanced it anyway;
+   the full checklist against the same real layer/layout showed the real
+   `classification_sanity`/`disclosure` sections populated correctly. This is the actual
+   "blocking quality gate" the external cartographic standard asked for, built entirely on real
+   existing infrastructure rather than a parallel gate system. Workstreams 4-5 of the v1.8.0 plan
+   still pending.
+47. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
