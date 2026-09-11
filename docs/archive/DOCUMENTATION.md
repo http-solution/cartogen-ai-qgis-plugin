@@ -1,6 +1,6 @@
 # Cartogen AI — Full Project Documentation
 
-**Version:** 1.4.4 · **License:** GNU GPL v2 (see [LICENSE](LICENSE)) · **QGIS:** 3.0 – 4.99
+**Version:** 1.4.4 · **License:** GNU GPL v2 (see [LICENSE](../../LICENSE)) · **QGIS:** 3.0 – 4.99
 **Repository:** this file (`cartogen-ai`, public, Community edition) — consolidated single-tree
 successor to an earlier dual-tree setup (see `CHANGELOG.md`'s `[1.4.0]` entry)
 **Author / maintainer:** Alaa Alshoubaki ([alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com))
@@ -402,7 +402,7 @@ excluded from auto-advance in the Task Manager.
 | **Total** | **131** | |
 
 For the complete per-tool reference (parameters, return shapes, flags), see
-[docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md).
+[docs/TOOLS_REFERENCE.md](../TOOLS_REFERENCE.md).
 
 ### 4.1 Tool routing
 
@@ -552,7 +552,7 @@ months. For damage assessment against a specific before/after image pair, use
 
 ## 6. Security
 
-Full detail lives in [SECURITY.md](SECURITY.md) — reproduced here in full since it's part of the
+Full detail lives in [SECURITY.md](../../SECURITY.md) — reproduced here in full since it's part of the
 "complete documentation" this file consolidates. Every claim below has a file:line reference in the
 real `SECURITY.md` so it can be checked against the code directly, not trusted on its own.
 
@@ -673,7 +673,7 @@ integration), not code licensing. See [§8 Licensing](#8-licensing) for the full
 
 ## 7. Development & Contributing Conventions
 
-Full detail in [CONTRIBUTING.md](CONTRIBUTING.md). This section reproduces it in full since it's
+Full detail in [CONTRIBUTING.md](../../CONTRIBUTING.md). This section reproduces it in full since it's
 central to how this codebase — and any AI agent working in it — actually operates.
 
 ### 7.1 Comments explain *why*, not *what*
@@ -759,7 +759,7 @@ after a rebrand.
 
 The Cartogen AI plugin source code is released under the **GNU General Public License v2 (GPL v2) or
 later**, in compliance with the QGIS Plugin Architecture Guidelines and PyQGIS's own GPL v2
-licensing. See [LICENSE](LICENSE) for the full legal text (also reproduced in §8.4 below).
+licensing. See [LICENSE](../../LICENSE) for the full legal text (also reproduced in §8.4 below).
 
 A proprietary/all-rights-reserved license was considered for a period (2026-08-11), specifically to
 weigh commercializing the plugin's code directly. That path was deliberately not taken: PyQGIS
@@ -816,7 +816,7 @@ All external REST APIs are queried over HTTPS without linking binary code:
 ### 8.4 Full GPL v2 license text
 
 The complete, verbatim text of the GNU General Public License, Version 2, June 1991, under which
-this project is licensed, is available in [LICENSE](LICENSE) at the repository root. It is not
+this project is licensed, is available in [LICENSE](../../LICENSE) at the repository root. It is not
 reproduced a second time in this file to avoid two copies of a legal text silently drifting out of
 sync — `LICENSE` is the single source of truth for the license text itself; this documentation file
 covers how that license applies to this specific project (§8.1–8.3 above).
@@ -1013,7 +1013,7 @@ multi-layer join assistant (**implemented** — `join_by_attribute`).
 
 ## 11. Known Issues & Bug Tracker
 
-Full detail in [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) (living document). Summary as of this
+Full detail in [docs/BUG_TRACKER.md](../BUG_TRACKER.md) (living document). Summary as of this
 document's generation date:
 
 ### 11.1 Open bugs
@@ -1057,7 +1057,7 @@ documentation pass.
 
 ## 12. Project Status — What's Open Right Now
 
-Full detail in [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) (living document —
+Full detail in [docs/IMPLEMENTATION_TRACKER.md](../IMPLEMENTATION_TRACKER.md) (living document —
 the single place to check instead of cross-referencing every dated review doc).
 
 ### 12.1 Items needing a human decision (not an engineering call)
@@ -1110,31 +1110,31 @@ real bugs found and fixed; the full MultiTier namespace-package restructure comp
 
 | Doc | Covers |
 |---|---|
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
-| [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
-| [docs/archive/OPEN_CORE_REPO_STRATEGY.md](docs/archive/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
-| [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
-| [docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md](docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md) | Optional interactive prompt-refinement step before agent processing (shipped) |
-| [docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md](docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md) | Closing the accuracy gap in routing tools, plus a standalone OSMnx/NetworkX prototype |
-| [docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Roadmap spec: incident trends, route-vs-incident risk scoring, no-go zones |
-| [docs/archive/AUTO_REPORTING_RECIPE.md](docs/archive/AUTO_REPORTING_RECIPE.md) | Zero-new-code recipe: scheduled program-update workflow composition |
-| [docs/archive/CVA_MARKET_ACCESS_RECIPE.md](docs/archive/CVA_MARKET_ACCESS_RECIPE.md) | Zero-new-code recipe: market-access distance analysis for cash/voucher assistance |
-| [docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Roadmap spec: intersectoral severity estimate, grounded in JIAF 2.0's Mosaic Method |
-| [SECURITY.md](SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
-| [docs/archive/STATUS_REVIEW_2026-08-20.md](docs/archive/STATUS_REVIEW_2026-08-20.md) | Frozen full-codebase status review |
-| [docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Frozen proposal, not decided/shipped |
-| [docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Frozen specialist product/engineering/UX review |
-| [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist for a real QGIS session before each release |
-| [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Frozen audit of preview/confirm gate coverage |
-| [docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | Frozen plan for the dock widget class split |
-| [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Living** — start here for "what's open right now" |
-| [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | **Living** — in-repo bug tracker |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Codebase conventions: comment discipline, honest status labeling, testing |
-| [CLAUDE.md](CLAUDE.md) | AI-coding-agent orientation (reproduced in full in [§9](#9-ai-agent-instructions-claudemd-full-text)) |
-| [CHANGELOG.md](CHANGELOG.md) | **Living** — version history, `[1.4.0]` onward |
-| [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md) | Frozen -- `[1.3.0]` and earlier, relocated verbatim in the 2026-08-31 documentation pass |
-| [LICENSE](LICENSE) | GNU GPL v2 |
+| [docs/USER_GUIDE.md](../USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
+| [docs/TOOLS_REFERENCE.md](../TOOLS_REFERENCE.md) | All 131 tools, auto-generated from the live registry |
+| [docs/PRODUCT_TIERS.md](../PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
+| [docs/archive/OPEN_CORE_REPO_STRATEGY.md](OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
+| [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
+| [docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md](PROMPT_REFINEMENT_LAYER_SPEC.md) | Optional interactive prompt-refinement step before agent processing (shipped) |
+| [docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md](ROUTE_OPTIMIZATION_STRATEGY.md) | Closing the accuracy gap in routing tools, plus a standalone OSMnx/NetworkX prototype |
+| [docs/archive/ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Roadmap spec: incident trends, route-vs-incident risk scoring, no-go zones |
+| [docs/archive/AUTO_REPORTING_RECIPE.md](AUTO_REPORTING_RECIPE.md) | Zero-new-code recipe: scheduled program-update workflow composition |
+| [docs/archive/CVA_MARKET_ACCESS_RECIPE.md](CVA_MARKET_ACCESS_RECIPE.md) | Zero-new-code recipe: market-access distance analysis for cash/voucher assistance |
+| [docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md](JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Roadmap spec: intersectoral severity estimate, grounded in JIAF 2.0's Mosaic Method |
+| [SECURITY.md](../../SECURITY.md) | Threat model, protections, adversarial testing results, known limitations |
+| [docs/archive/STATUS_REVIEW_2026-08-20.md](STATUS_REVIEW_2026-08-20.md) | Frozen full-codebase status review |
+| [docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Frozen proposal, not decided/shipped |
+| [docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md](ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md) | Frozen specialist product/engineering/UX review |
+| [docs/RELEASE_SMOKE_TEST.md](../RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist for a real QGIS session before each release |
+| [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Frozen audit of preview/confirm gate coverage |
+| [docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md](DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md) | Frozen plan for the dock widget class split |
+| [docs/IMPLEMENTATION_TRACKER.md](../IMPLEMENTATION_TRACKER.md) | **Living** — start here for "what's open right now" |
+| [docs/BUG_TRACKER.md](../BUG_TRACKER.md) | **Living** — in-repo bug tracker |
+| [CONTRIBUTING.md](../../CONTRIBUTING.md) | Codebase conventions: comment discipline, honest status labeling, testing |
+| [CLAUDE.md](../../CLAUDE.md) | AI-coding-agent orientation (reproduced in full in [§9](#9-ai-agent-instructions-claudemd-full-text)) |
+| [CHANGELOG.md](../../CHANGELOG.md) | **Living** — version history, `[1.4.0]` onward |
+| [CHANGELOG_ARCHIVE.md](../../CHANGELOG_ARCHIVE.md) | Frozen -- `[1.3.0]` and earlier, relocated verbatim in the 2026-08-31 documentation pass |
+| [LICENSE](../../LICENSE) | GNU GPL v2 |
 | [LICENSE_AUDIT.md](LICENSE_AUDIT.md) | Dependency/API license compliance audit |
 | [CARTOGEN_AI_PRD.md](CARTOGEN_AI_PRD.md) | Frozen engineering PRD/roadmap |
 | [CARTOGEN_AI_FEATURE_LIST.md](CARTOGEN_AI_FEATURE_LIST.md) | Frozen implementation-reality matrix |

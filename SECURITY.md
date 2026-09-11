@@ -6,6 +6,31 @@ findings — not just a list of intentions), and the limitations that are honest
 still open. It is written to be checked against the code, not trusted on its own —
 file:line references are given throughout so any claim here can be verified directly.
 
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Threat model](#threat-model)
+- [Protections](#protections)
+  - [1. PyQGIS script execution sandbox](#1-pyqgis-script-execution-sandbox)
+  - [1a. Allow-listed Processing algorithm runner — a Tier 2 alternative to the sandbox](#1a-allow-listed-processing-algorithm-runner--a-tier-2-alternative-to-the-sandbox)
+  - [2. Read-only SQL enforcement](#2-read-only-sql-enforcement)
+  - [3. SSRF guard on fetched URLs](#3-ssrf-guard-on-fetched-urls)
+  - [4. Credential storage](#4-credential-storage)
+  - [5. Destructive-action confirmation gate](#5-destructive-action-confirmation-gate)
+  - [6. Prompt-injection guidance](#6-prompt-injection-guidance)
+  - [7. Chat history persistence is opt-in](#7-chat-history-persistence-is-opt-in)
+  - [8. Recurring monitoring scheduler](#8-recurring-monitoring-scheduler)
+  - [9. Prompt Refinement Layer — external-call awareness](#9-prompt-refinement-layer--external-call-awareness)
+- [Testing performed](#testing-performed)
+- [Data protection (recommendation, not yet assessed)](#data-protection-recommendation-not-yet-assessed)
+  - [International transfer mechanisms, by provider](#international-transfer-mechanisms-by-provider-f3-researched-2026-09-01)
+  - [Remediation, 2026-09-01](#remediation-2026-09-01-the-reviews-4-high-findings)
+  - [Remediation, 2026-09-11](#remediation-2026-09-11-f6f7f8-part-of-the-v170-securitylogistics-release)
+- [Known limitations (accepted risk, not fixed)](#known-limitations-accepted-risk-not-fixed)
+- [Licensing note](#licensing-note)
+
+</details>
+
 ## Threat model
 
 The plugin runs an LLM in a tool-calling loop against a real QGIS project. Two things

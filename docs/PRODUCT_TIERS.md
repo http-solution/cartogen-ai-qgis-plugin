@@ -1,7 +1,7 @@
 # Cartogen AI — Editions & Business Model
 
-**Status:** Product/business positioning document. Distinct from `CARTOGEN_AI_PRD.md` (engineering
-requirements) and `CARTOGEN_AI_FEATURE_LIST.md` (implementation reality matrix) — this document
+**Status:** Product/business positioning document. Distinct from `docs/archive/CARTOGEN_AI_PRD.md` (engineering
+requirements) and `docs/archive/CARTOGEN_AI_FEATURE_LIST.md` (implementation reality matrix) — this document
 exists to keep the *business* framing (pricing tiers, target clients, verticals) equally honest about
 what's actually shipped versus what's planned, since those two things drift apart easily otherwise.
 
@@ -9,6 +9,11 @@ what's actually shipped versus what's planned, since those two things drift apar
 (131-tool registry, `agent/`, `ui/`) at that date, not carried forward from an earlier draft. (Was
 stamped "125-tool registry" through 2026-08-15 -- stale; the registry has been 131 since the
 duplicate-registration cleanup noted in `docs/IMPLEMENTATION_TRACKER.md` §4.)
+
+**Tool-count correction, 2026-09-12:** the registry has grown to 165 tools since 2026-08-31 (see
+`docs/TOOLS_REFERENCE.md` for the current, auto-generated count) -- this note fixes only the
+number, not a full re-verification of every other claim in this document against the current
+codebase, which hasn't been done as part of this pass.
 
 ---
 
@@ -21,13 +26,13 @@ Cartogen AI is structured as three tiers, aimed at progressively larger/more ins
 3. **Enterprise** (custom SLA) — the institutional partner (major crisis-response networks, defense,
    large public-sector agencies).
 
-**Only the Community tier exists today.** Everything this plugin currently does — all 131 tools, every
+**Only the Community tier exists today.** Everything this plugin currently does — all 165 tools, every
 provider integration, every security protection in `SECURITY.md` — is Community-tier functionality,
 shipped under GPL v2, with no backend service, no billing system, no accounts, and no per-tier feature
 gating anywhere in the code. Professional and Enterprise below describe target packaging for
 capabilities that would need to be built; none of their headline features (a hosted gateway, RBAC,
 SSO, SharePoint/Power BI push) exist in the repository as of this writing. Where a described capability
-overlaps with something already planned in `CARTOGEN_AI_PRD.md`'s roadmap, that's cross-referenced
+overlaps with something already planned in `docs/archive/CARTOGEN_AI_PRD.md`'s roadmap, that's cross-referenced
 below.
 
 **Where the code for Professional/Enterprise will actually live:** this repo stays the single,
@@ -69,7 +74,7 @@ austere or off-grid environments.
   imagery search) still need connectivity when actually invoked; offline-first means "the AI reasoning
   loop itself needs no cloud," not "every tool works with no network ever."
 - **GPL v2, free to use and modify** (`LICENSE`), no account or license key of any kind.
-- **The full 125-tool registry**, not a limited/gated subset — including the humanitarian-specific
+- **The full 165-tool registry**, not a limited/gated subset — including the humanitarian-specific
   tooling (severity indexing, geoprivacy obfuscation, 3W/4W presence-gap analysis) this document's
   vertical framing leans on.
 - **Bring-your-own API key** for OpenRouter, Gemini, OpenAI, or Claude when a user *does* have
@@ -104,7 +109,7 @@ would need to pay $20/month — the actual paid value would have to come entirel
 API key/billing relationship for you," which means the Cloud Connect Gateway is not an enhancement to
 the plugin but a prerequisite for this tier having any paid value proposition at all.
 
-**Where this connects to the existing PRD roadmap:** `CARTOGEN_AI_PRD.md` §5.1 already flags "live,
+**Where this connects to the existing PRD roadmap:** `docs/archive/CARTOGEN_AI_PRD.md` §5.1 already flags "live,
 synced data connections" (PostgreSQL, Google Sheets, CSV) as a portable idea from the Atlas competitive
 review, scoped for Phase 2. A hosted gateway is a related but distinct piece of infrastructure (model
 access, not data access) and isn't currently represented in that roadmap — worth adding explicitly if
@@ -133,7 +138,7 @@ Enterprise differentiator. Everything that *would* need to be Enterprise-exclusi
 enclaves, M365 push) requires backend infrastructure that doesn't exist. This tier is the largest gap
 between the business framing and the current codebase of the three.
 
-**Where this connects to the existing PRD roadmap:** `CARTOGEN_AI_PRD.md` §6 Phase 4 already lists
+**Where this connects to the existing PRD roadmap:** `docs/archive/CARTOGEN_AI_PRD.md` §6 Phase 4 already lists
 "Team GeoPackage memory synchronization" (explicitly flagged as needing a concurrency/conflict-resolution
 model before implementation) and "Headless QGIS Server AI agent integration" — both are Enterprise-shaped
 capabilities in spirit (multi-user, server-side) but neither was previously connected to a concrete

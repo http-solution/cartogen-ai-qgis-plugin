@@ -3,8 +3,20 @@
 **[1.3.0] and earlier moved to `CHANGELOG_ARCHIVE.md`** in the 2026-08-31 documentation pass -- this file had grown to 2,146 lines covering every version since `[0.1.2]`, most of it from the very early, rapid `[1.2.x]` patch cycle. The split point is `[1.4.0]`, this project's own documented milestone (the dual-tree-to-single-tree consolidation --
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
+**Recent releases at a glance:**
 
-## [1.8.1] — Patch: dashboard OSM-blocked basemap + canvas not following new layers
+| Version | Date | Summary |
+|---|---|---|
+| [1.8.1](#v1-8-1) | 2026-09-12 | Patch: dashboard OSM-blocked basemap + canvas not following new layers |
+| [1.8.0](#v1-8-0) | 2026-09-12 | Cartographic Intelligence: visualization selection, real QA gate, isochrone bands |
+| [1.7.1](#v1-7-1) | 2026-09-11 | Patch: portrait print-layout body/footer overlap fixed |
+| [1.7.0](#v1-7-0) | 2026-09-11 | Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing |
+
+The detailed narrative entries below are unchanged -- this table is purely an additive index on
+top of them.
+
+<a id="v1-8-1"></a>
+## [1.8.1] — 2026-09-12 — Patch: dashboard OSM-blocked basemap + canvas not following new layers
 
 Direct live user report, not from a planned workstream.
 
@@ -31,7 +43,8 @@ Direct live user report, not from a planned workstream.
 extent, two layers produced a real union extent, and a cross-CRS layer produced a correctly-
 transformed extent.
 
-## [1.8.0] — Cartographic Intelligence: visualization selection, real QA gate, isochrone bands
+<a id="v1-8-0"></a>
+## [1.8.0] — 2026-09-12 — Cartographic Intelligence: visualization selection, real QA gate, isochrone bands
 
 Adapts an external "QGIS Cartographic Intelligence Standard for AI Agents" document to this
 plugin's own architecture, as an integration/gap-closure pass on real existing infrastructure
@@ -82,7 +95,8 @@ small-multiples/change-map compositor, uncertainty-*rendering* (confidence tags 
 them doesn't yet), a standard-deviation classification mode, a rigid structured MapBrief object,
 and a minimum-count/k-anonymity suppression method for `sensitivity_tools.py`.
 
-## [1.7.1] — Patch: portrait print-layout body/footer overlap fixed
+<a id="v1-7-1"></a>
+## [1.7.1] — 2026-09-11 — Patch: portrait print-layout body/footer overlap fixed
 
 - **`BUG-2026-09-11-1` fixed, same day it was found.** `create_print_layout`'s portrait
   orientation had a `body_h` sized for roughly one line of text, but `QgsLayoutItemLabel`
@@ -114,7 +128,8 @@ and a minimum-count/k-anonymity suppression method for `sensitivity_tools.py`.
   fully legible and unobstructed. A regression test
   (`test_landscape_dimensions_also_truncate_an_extreme_body_text`) locks this in going forward.
 
-## [1.7.0] — Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing
+<a id="v1-7-0"></a>
+## [1.7.0] — 2026-09-11 — Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing
 
 Scoped for a humanitarian org (UN/NGO) deployment/pilot with an Oct 15, 2026 target — data
 protection and operational safety first, sandbox architecture second, logistics third. All four
