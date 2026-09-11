@@ -4,6 +4,64 @@
 see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated verbatim, not rewritten, per this project's convention that past changelog entries are a historical record (`CONTRIBUTING.md` §2) -- only the file they live in changed.
 
 
+## [1.7.0] — Security & Logistics: GDPR export, undo/rollback, sandbox Tier 2, network-aware routing
+
+Scoped for a humanitarian org (UN/NGO) deployment/pilot with an Oct 15, 2026 target — data
+protection and operational safety first, sandbox architecture second, logistics third. All four
+workstreams are grounded in gaps this repo's own docs had already found and left open, not
+invented from scratch: `docs/GDPR_COMPLIANCE_REVIEW.docx` (F6–F9),
+`docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` (points 8, 19, 20),
+`docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md` (§2 items 2–3). Plan:
+`~/.claude/plans/idempotent-popping-haven.md`.
+
+- **GDPR F6–F9 closure.** `agent/memory.py`'s persistent project-memory writes (the sidecar
+  `<project>_spatial_memory.sqlite` file and the embedded `QgsProject` custom property — both a
+  second, easy-to-miss copy that travels with the project) are now gated behind the same
+  opt-in, default-off settings-dialog toggle `chat_persistence.py` already uses for chat
+  history; the in-memory cache stays always-on since the agent needs it within a session. New
+  "My Data" export (`agent/data_export.py`, `export_stored_data` tool, and a button in the
+  Notes/Memory panel) assembles project memory + global memory + chat history into one JSON
+  document a user can save — closing F7/F8's "no consolidated view of what the agent knows
+  about me" gap. F9 (erasure can't reach previously-distributed file copies) documented in
+  `SECURITY.md` as an inherent property of local files, not a code defect.
+- **Undo/rollback for a priority subset of MODIFY/DELETE tools.** New
+  `agent/tools/_snapshot_registry.py` — an explicit, auditable `{tool_name: (snapshot_fn,
+  restore_fn)}` registry, snapshotted before dispatch and consumed by `undo_last_operation` —
+  covers `remove_layer`; `field_calculator`/`calculate_area`/`calculate_length`; the three
+  `apply_*_style` tools; and `set_dataset_status`/`set_layer_sensitivity`/
+  `set_layer_confidence`/`run_query`. A real bug caught live before shipping: the original
+  design (hold a Python reference to a removed layer) is wrong —
+  `QgsProject.removeMapLayer()` destroys the underlying C++ object immediately; fixed via
+  `layer.clone()` taken before removal. `load_project` undo and MODIFY tools outside this
+  priority subset are explicitly out of scope for this release, not silently dropped.
+- **Sandbox Tier 2: a real allow-listed Processing path.** New
+  `run_allowlisted_processing_algorithm(alg_id, params)`
+  (`agent/tools/processing_allowlist_tools.py`) validates `alg_id` against a hard-coded,
+  code-derived 36-id allow-list (grepped from every `processing.run()` call already trusted
+  across this codebase) and calls `processing.run()` directly with a constrained params
+  contract — never executes arbitrary code, so it adds no new sandbox-bypass surface.
+  `execute_pyqgis_script`'s description now names this as the preferred path for "run one
+  Processing algorithm" requests. The full tiered-allow-list rewrite (point 19's larger
+  question) remains open; this closes one real, valuable slice of it.
+- **Logistics: composite impedance + network-aware multi-stop routing.** New
+  `build_composite_impedance_field` (`agent/tools/impedance_tools.py`) blends OSM
+  `highway`-class baseline speed, `surface` penalty, an optional 0.0–1.0 `damage_field`
+  (passability), and an optional DEM-derived endpoint-slope penalty into one `impedance_cost`
+  field — feeds directly into `calculate_service_area`/`travel_time_matrix`'s existing
+  `speed_field` parameter, no changes needed on either tool. `optimize_delivery_route` now
+  builds a real road-network distance matrix (`native:shortestpathpointtopoint`'s `cost`
+  output per ordered pair — `travel_time_matrix` was tried first but its destination-side
+  matrix keys turned out unmappable back to stop names, confirmed live) before running its
+  existing nearest-neighbor + 2-opt heuristic, so stop *order* is now road-network-aware, not
+  just the final drawn route line. True VRP via OR-Tools and turn-cost/turn-penalty support
+  remain real, deliberately unbuilt gaps (QGIS's native algorithms expose no turn-cost
+  parameter at all).
+
+All four workstreams live-verified against real QGIS 4.2.2. Full suite 1333 tests, 0 failures.
+`docs/TOOLS_REFERENCE.md` regenerated (163 tools). See
+`docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` and `docs/MASTER_TASK_REGISTRY.md`
+items 37–40 for full per-workstream detail.
+
 ## [1.6.0] — QA-gate infrastructure, GDPR remediation, live-verified QGIS 4.2 fixes
 
 - **Repo reconciliation.** This checkout and `cartogen-ai-community` had diverged as two
