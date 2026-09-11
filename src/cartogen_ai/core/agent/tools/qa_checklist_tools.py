@@ -8,14 +8,19 @@ equivalent of which existed anywhere).
 
 Pure assembly, no new tracked state: reads dataset_status (point 2) for
 data readiness, list_layout_items (point 15) for cartographic
-completeness, and get_provenance_record (point 17) for export/provenance
--- the same "read from what already exists rather than tracking it a
-second time" approach point 17's own provenance sidecar used. Disclosure/
-sensitivity has no automated classification to read from yet (point 24 of
-the same review is a real gap, not built), so that section is an honest
-static reminder, not a guessed pass/fail."""
+completeness, sensitivity.py (point 24) for disclosure classification,
+and get_provenance_record (point 17) for export/provenance -- the same
+"read from what already exists rather than tracking it a second time"
+approach point 17's own provenance sidecar used.
+
+v1.8.0 workstream 2: the disclosure section used to be a static reminder
+("no automated classification exists yet") even though point 24's real
+classification (agent/sensitivity.py, set_layer_sensitivity/
+get_layer_sensitivity) already existed -- this checklist simply never
+read it. Fixed by reading the layer's real sensitivity tag directly."""
 
 from .registry import register_tool
+from .. import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
 from .layout_tools import list_layout_items
@@ -108,17 +113,29 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None):
             "note": "No layout_name given -- skipped. Pass the print layout built for this product to check mandatory elements.",
         }
 
-    # Point 24 (sensitivity/disclosure classification) is a real gap, not
-    # built -- this is an honest static reminder, not a guessed pass/fail
-    # from a classification scheme that doesn't exist.
-    categories["disclosure"] = {
-        "note": (
-            "No automated sensitivity/disclosure classification exists yet (PUBLIC/INTERNAL/"
-            "RESTRICTED/SENSITIVE tagging -- point 24 of the architecture review). Manually "
-            "confirm this layer doesn't need obfuscate_sensitive_points or an export review "
-            "before sharing."
-        ),
-    }
+    # v1.8.0 workstream 2: reads the layer's real sensitivity tag (point 24,
+    # agent/sensitivity.py) instead of a static "no classification exists"
+    # reminder -- that classification has existed since point 24 shipped,
+    # this checklist just never read it until now.
+    sensitivity_record = _sens.get_layer_sensitivity(layer)
+    level = sensitivity_record.get("level")
+    if level is None:
+        categories["disclosure"] = {
+            "tracked": False,
+            "level": None,
+            "note": (
+                "This layer has no sensitivity classification set (set_layer_sensitivity). "
+                "Not the same as PUBLIC -- unclassified. Confirm this layer doesn't need "
+                "obfuscate_sensitive_points or a sensitivity tag before sharing."
+            ),
+        }
+    else:
+        categories["disclosure"] = {
+            "tracked": True,
+            "level": level,
+            "reason": sensitivity_record.get("reason"),
+            "warning": _sens.export_warning_for(layer) or None,
+        }
 
     prov_res = get_provenance_record(layer_name)
     if prov_res.get("success"):

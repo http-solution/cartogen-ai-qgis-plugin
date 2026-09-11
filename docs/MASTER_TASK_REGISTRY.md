@@ -770,7 +770,21 @@ next-steps queue always has at least one item — if everything concrete is done
    nothing for a reference-only polygon layer with no field. `docs/TOOLS_REFERENCE.md`
    regenerated (165 tools, 29 groups). Workstreams 2-5 (QA-checklist sensitivity wiring, a real
    blocking cartographic QA gate, isochrone/access-band styling, new prompt rules) still pending.
-45. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+45. ~~v1.8.0 "Cartographic Intelligence" release, Workstream 2: wire real
+   sensitivity into the QA checklist~~ — **done, 2026-09-12.**
+   `generate_map_product_qa_checklist`'s disclosure section had been a static "no automated
+   classification exists yet" stub since point 26 shipped (2026-09-05) — but point 24's real
+   classification (`agent/sensitivity.py`, `set_layer_sensitivity`/`get_layer_sensitivity`)
+   already existed by then; the checklist simply never read it. Fixed by calling
+   `sensitivity.get_layer_sensitivity(layer)`/`sensitivity.export_warning_for(layer)` directly
+   (reused, not reinvented) and reporting the real tag, reason, and export warning instead of
+   the stub text. 2 new tests, 1 existing test corrected for the new response shape. Full suite
+   1381 tests (up from 1379), 0 failures. **Live-verified against real QGIS 4.2.2**: an untagged
+   layer correctly reports `tracked: False`/`level: None`; tagging it SENSITIVE with a real
+   reason makes the checklist report the real level, reason, and warning text; re-tagging PUBLIC
+   correctly drops the warning. See `agent/tools/qa_checklist_tools.py`. Workstreams 3-5 of the
+   v1.8.0 plan still pending.
+46. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so

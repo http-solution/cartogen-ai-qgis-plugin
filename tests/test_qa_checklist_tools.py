@@ -45,8 +45,57 @@ class TestGenerateMapProductQaChecklist(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertFalse(res["categories"]["data"]["tracked"])
         self.assertIn("note", res["categories"]["cartography"])
-        self.assertIn("point 24", res["categories"]["disclosure"]["note"])
+        # A plain MagicMock layer's customProperty() returns a MagicMock,
+        # not a real stored JSON string -- agent/sensitivity.py's own
+        # get_layer_sensitivity() (real, unmocked here) correctly reads
+        # that as "never tagged" (level=None), the same as a real untagged
+        # layer would.
+        self.assertFalse(res["categories"]["disclosure"]["tracked"])
+        self.assertIsNone(res["categories"]["disclosure"]["level"])
         self.assertFalse(res["categories"]["export_provenance"]["tracked"])
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.get_provenance_record")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.get_dataset_status")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools._sens")
+    def test_sensitive_layer_reports_real_tag_and_warning(self, mock_sens, mock_status, mock_prov, mock_find):
+        # v1.8.0 workstream 2: the disclosure section used to be a static
+        # "no classification exists" stub even after set_layer_sensitivity
+        # shipped -- this checklist simply never read it. Confirms it now
+        # does, and surfaces the real export_warning_for() text.
+        mock_find.return_value = MagicMock()
+        mock_status.return_value = {"success": True, "status": None, "history": [], "checks": {}}
+        mock_prov.return_value = {"success": False, "error": "boom"}
+        mock_sens.get_layer_sensitivity.return_value = {"level": "SENSITIVE", "reason": "individual beneficiary GPS coordinates"}
+        mock_sens.export_warning_for.return_value = "This layer is tagged 'SENSITIVE' (individual beneficiary GPS coordinates) -- confirm this export is intended."
+
+        res = generate_map_product_qa_checklist("districts")
+
+        disclosure = res["categories"]["disclosure"]
+        self.assertTrue(disclosure["tracked"])
+        self.assertEqual(disclosure["level"], "SENSITIVE")
+        self.assertEqual(disclosure["reason"], "individual beneficiary GPS coordinates")
+        self.assertIn("confirm this export is intended", disclosure["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.get_provenance_record")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.get_dataset_status")
+    @patch("cartogen_ai.core.agent.tools.qa_checklist_tools._sens")
+    def test_public_tagged_layer_has_no_warning(self, mock_sens, mock_status, mock_prov, mock_find):
+        mock_find.return_value = MagicMock()
+        mock_status.return_value = {"success": True, "status": None, "history": [], "checks": {}}
+        mock_prov.return_value = {"success": False, "error": "boom"}
+        mock_sens.get_layer_sensitivity.return_value = {"level": "PUBLIC", "reason": None}
+        mock_sens.export_warning_for.return_value = ""
+
+        res = generate_map_product_qa_checklist("districts")
+
+        disclosure = res["categories"]["disclosure"]
+        self.assertTrue(disclosure["tracked"])
+        self.assertEqual(disclosure["level"], "PUBLIC")
+        self.assertIsNone(disclosure["warning"])
 
     @patch("cartogen_ai.core.agent.tools.qa_checklist_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.qa_checklist_tools._find_layer_by_name")
