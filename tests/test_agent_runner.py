@@ -167,6 +167,48 @@ class TestExecuteToolTransactionRecording(unittest.TestCase):
         self.assertIsNone(entries[0]["operation_type"])
         self.assertFalse(entries[0]["success"])
 
+    def test_snapshot_fn_is_called_before_dispatch_for_a_registered_tool(self):
+        """v1.7.0: _snapshot_registry.py's snapshot_fn must run BEFORE the
+        tool actually executes -- the whole point is capturing state the
+        call is about to overwrite. Confirms the snapshot's result also
+        flows through to the recorded entry's undo dict."""
+        agent = self._make_agent()
+        call_order = []
+        fake_snapshot = {"kind": "restore_field", "layer_id": "x"}
+
+        def fake_snapshot_fn(arguments):
+            call_order.append("snapshot")
+            return fake_snapshot
+
+        def fake_dispatch(self, name, args):
+            call_order.append("dispatch")
+            return {"success": True}
+
+        with patch.object(agent_mod, "get_snapshot_fn", lambda name: fake_snapshot_fn if name == "field_calculator" else None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch", fake_dispatch), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: set()):
+            agent._execute_tool("field_calculator", {"layer_name": "x", "new_field": "y", "confirmed": True})
+
+        self.assertEqual(call_order, ["snapshot", "dispatch"])
+        entry = agent._transaction_log.summary()[0]
+        self.assertEqual(entry["undo"]["kind"], "restore_field")
+        self.assertEqual(entry["undo"]["tool_name"], "field_calculator")
+
+    def test_no_registered_snapshot_fn_falls_back_to_layer_diff(self):
+        """A tool with no _snapshot_registry.py entry (the common case) must
+        behave exactly as before this feature existed -- undo determined by
+        the new-layer-id diff, snapshot=None passed through record()."""
+        agent = self._make_agent()
+        layer_ids = iter([{"a"}, {"a", "b"}])
+        with patch.object(agent_mod, "get_snapshot_fn", lambda name: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch",
+                           lambda self, name, args: {"success": True, "layer_name": "buf_1"}), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: next(layer_ids)):
+            agent._execute_tool("buffer_analysis", "{}")
+
+        entry = agent._transaction_log.last_undoable()
+        self.assertEqual(entry["undo"], {"kind": "remove_layers", "layer_ids": ["b"]})
+
 
 if __name__ == "__main__":
     unittest.main()

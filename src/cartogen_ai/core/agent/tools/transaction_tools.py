@@ -11,6 +11,7 @@ name-to-function dispatch.
 """
 
 from .registry import register_tool
+from ._snapshot_registry import get_restore_fn
 
 try:
     from qgis.core import QgsProject
@@ -48,12 +49,15 @@ def get_turn_transaction_log():
 
 @register_tool(
     "undo_last_operation",
-    "Reverse the most recent undoable tool call made THIS turn -- currently, this only ever "
-    "means removing a layer that a call added (see get_turn_transaction_log to check what "
-    "qualifies first). It cannot undo an in-place edit (e.g. field_calculator, a style change, "
-    "run_query's filter) or a previous removal/project load -- those are a real, separate, "
-    "still-open gap, not something this tool silently skips without saying so. "
-    "Destructive action requiring UI confirmation.",
+    "Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to "
+    "check what qualifies first). Covers: a call that added a new layer (removes it); "
+    "remove_layer (restores the removed layer and its data); field_calculator/calculate_area/"
+    "calculate_length (restores the field's prior values, or deletes it if it didn't exist "
+    "before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style "
+    "(restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/"
+    "run_query (restores the prior value). It cannot undo load_project or any other in-place "
+    "edit not in that list -- a real, separate, still-open gap, not something this tool silently "
+    "skips without saying so. Destructive action requiring UI confirmation.",
     {
         "type": "object",
         "properties": {
@@ -76,7 +80,16 @@ def undo_last_operation(confirmed: bool = False):
                        "get_turn_transaction_log).",
         }
 
-    layer_ids = entry["undo"]["layer_ids"]
+    undo = entry["undo"]
+    kind = undo.get("kind")
+
+    if kind == "remove_layers":
+        return _undo_remove_layers(entry, undo, confirmed)
+    return _undo_via_snapshot(entry, undo, confirmed)
+
+
+def _undo_remove_layers(entry, undo, confirmed):
+    layer_ids = undo["layer_ids"]
     if not confirmed:
         return {
             "status": "PREVIEW_REQUIRED",
@@ -115,3 +128,39 @@ def undo_last_operation(confirmed: bool = False):
             "(removed some other way since) -- nothing to undo for those."
         )
     return result
+
+
+def _undo_via_snapshot(entry, undo, confirmed):
+    """v1.7.0: the priority-subset MODIFY/DELETE undo kinds
+    (_snapshot_registry.py -- restore_layer/restore_field/restore_style/
+    restore_property), all sharing this same preview/confirm/restore
+    shape, unlike remove_layers' layer-id-list-specific one above."""
+    kind = undo.get("kind", "change")
+    label = kind.replace("restore_", "") if kind else "change"
+    if not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "undo_last_operation",
+            "arguments": {"confirmed": True},
+            "rationale": f"Undo '{entry['name']}': reverse its {label} from this turn.",
+            "message": f"Confirmation required before undoing '{entry['name']}'.",
+        }
+
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+
+    restore_fn = get_restore_fn(kind, undo.get("tool_name"))
+    if restore_fn is None:
+        return {"error": f"No restore mechanism available for '{entry['name']}'."}
+
+    if not restore_fn(undo):
+        return {"error": f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
+
+    _TRANSACTION_LOG.mark_undone(entry["index"])
+    return {
+        "success": True,
+        "undone_tool": entry["name"],
+        "message": f"Undid '{entry['name']}'.",
+    }

@@ -1184,7 +1184,8 @@ open).
     list critique above that this sweep did not attempt to resolve.
 20. **Transaction/rollback classification (READ/CREATE/MODIFY/DELETE/
     PUBLISH) -- the taxonomy half CLOSED 2026-09-07; the rollback half
-    PARTIAL, narrowed but still real.** The "4-humanitarian-tools gating"
+    PARTIAL, a priority subset closed 2026-09-11, the remainder still
+    real.** The "4-humanitarian-tools gating"
     framing was already corrected 2026-09-05 (see below) -- this update
     covers the other two sub-findings.
 
@@ -1236,7 +1237,72 @@ open).
     (1161 tests, same known baseline: the DNS-dependent
     `test_is_safe_url_accepts_public_host` and the 6 FUSE-mount
     `PermissionError` cleanup errors in `test_reporting_tools.py`, 0 new
-    failures). Not yet committed -- awaiting Baron's go-ahead.
+    failures). Committed as `3d5491b`.
+
+    **Rollback, priority subset closed, 2026-09-11 -- v1.7.0 "Security &
+    Logistics" release, workstream 2, scoped for a UN/NGO deployment/pilot
+    by Oct 15, 2026 (plan approved via EnterPlanMode).** New
+    `agent/tools/_snapshot_registry.py`: an explicit `{tool_name:
+    (snapshot_fn, restore_fn)}` registry (not one generic reflection-based
+    snapshotter, matching this codebase's existing preference for explicit
+    per-tool logic), covering `remove_layer` (DELETE), `field_calculator`/
+    `calculate_area`/`calculate_length` (MODIFY, field-write),
+    `apply_categorized_style`/`apply_graduated_style`/
+    `apply_graduated_symbol_style` (MODIFY, style), and
+    `set_dataset_status`/`set_layer_sensitivity`/`set_layer_confidence`/
+    `run_query` (MODIFY, single-property overwrite) -- the priority subset
+    chosen for humanitarian-field-safety impact and technical tractability,
+    not the full named list (see "still open" below). `agent.py`'s
+    `_execute_tool` calls the registered `snapshot_fn` (if any) BEFORE
+    dispatching the call; `transactions.py`'s `record()` uses that snapshot
+    for the entry's `undo` in preference to the new-layer-diff mechanism
+    when both are present (in practice never simultaneously, since
+    CREATE-classified tools aren't in the snapshot registry).
+    `transaction_tools.py`'s `undo_last_operation` now dispatches to the
+    matching `restore_fn` for these new undo kinds, alongside its original
+    `remove_layers` handling.
+
+    **A real, load-bearing bug caught live before shipping, not assumed:**
+    the plan's own stated design for `remove_layer` undo ("retain the
+    Python object reference... undo re-adds the exact same object") is
+    **wrong** -- confirmed live against QGIS 4.2.2 that
+    `QgsProject.removeMapLayer()` destroys the underlying C++ object
+    immediately, not deferred, so a plain Python reference held before
+    removal becomes a dead SIP wrapper the instant removal happens
+    (`RuntimeError: wrapped C/C++ object... has been deleted` on any
+    access, including re-adding it). `layer.clone()` called *before*
+    removal instead produces a genuinely independent C++ object that
+    survives the original's destruction -- confirmed live with real
+    feature data intact and a successful re-add. Two more QGIS API details
+    resolved by live-testing rather than guessed: `QgsMapLayer.exportNamedStyle()`/
+    `.importNamedStyle()` both require a real `QDomDocument` argument (a
+    no-arg call raises `TypeError`), not a bare string as might be assumed
+    from the method names.
+
+    28 new tests (`tests/test_snapshot_registry.py`, plus additions to
+    `tests/test_agent_runner.py`/`tests/test_transactions.py`/
+    `tests/test_transaction_tools.py`). Full suite 1292 tests, 0 new
+    failures. **Live-verified end to end against real QGIS 4.2.2, all six
+    cases**: `remove_layer` + undo restored a real layer with real feature
+    data intact; `field_calculator` adding a genuinely new field + undo
+    deleted that field entirely; `field_calculator` overwriting an
+    existing field's values + undo restored the real prior values;
+    `apply_categorized_style` + undo reverted the renderer type back to
+    the original; `set_layer_sensitivity` + undo cleared the tag back to
+    untagged; `run_query` + undo cleared the subset filter, restoring all
+    features. `docs/TOOLS_REFERENCE.md` regenerated (161 tools, 26
+    groups; `undo_last_operation`'s description updated to name the new
+    coverage).
+
+    **Still open, not silently closed:** `load_project` (undo would mean
+    re-opening whatever project was open before, needing its own design
+    for the "current project was new/unsaved" edge case) and every MODIFY
+    tool not in the priority subset above (`advance_dataset_status`, the
+    four `analysis_tools.py` composite-index tools' optional `output_field`
+    write, and any other in-place edit). Each would need its own snapshot
+    strategy designed and live-verified the same way the priority subset's
+    were -- a real, separate follow-up, not guessed at here. The log
+    remains in-memory/per-turn only, same standing limitation as before.
 21. **QGIS project inspector -- PARTIAL, layer/layout inspection closed
     2026-09-04.** `get_layers` used to return only `{name, type, id}` --
     no CRS, feature_count, or fields in one call (fields needed a separate
