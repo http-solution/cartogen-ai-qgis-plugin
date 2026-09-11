@@ -232,6 +232,117 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
         self.assertNotIn("direction_field", res)
 
 
+class TestCalculateServiceAreaMultiBand(unittest.TestCase):
+    """v1.8.0 workstream 4: travel_cost as a list builds one combined,
+    auto-styled isochrone/access-band polygon layer per facility (one ring
+    per band value) instead of requiring N separate calls."""
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    def test_rejects_empty_list(self):
+        res = calculate_service_area("facilities", "roads", [])
+        self.assertIn("error", res)
+        self.assertIn("travel_cost", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    def test_rejects_non_positive_value_in_list(self):
+        res = calculate_service_area("facilities", "roads", [10, -5, 20])
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.apply_graduated_style")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_builds_one_merged_layer_per_facility_and_auto_styles_it(
+        self, mock_find, _mock_qgis_enum, _mock_context_cls, mock_processing, mock_project,
+        mock_vector_layer_cls, mock_field_cls, mock_qvariant, mock_feature_cls, mock_apply_graduated,
+    ):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        # Two bands -> two lines_layer/hull_layer pairs.
+        def make_lines_and_hull(band):
+            lines_layer = MagicMock()
+            lines_layer.featureCount.return_value = 1
+            hull_layer = MagicMock()
+            hull_feat = MagicMock()
+            hull_feat.geometry.return_value = MagicMock(isEmpty=lambda: False)
+            hull_layer.getFeatures.return_value = [hull_feat]
+            return lines_layer, hull_layer
+
+        pairs = {15.0: make_lines_and_hull(15.0), 30.0: make_lines_and_hull(30.0)}
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                band = params["TRAVEL_COST2"]
+                return {"OUTPUT_LINES": pairs[band][0]}
+            if alg_id == "native:convexhull":
+                # INPUT is whichever lines_layer was just passed in -- find its band.
+                lines_layer = params["INPUT"]
+                for band, (ll, hl) in pairs.items():
+                    if ll is lines_layer:
+                        return {"OUTPUT": hl}
+                raise AssertionError("unmatched lines_layer")
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        merged_layer_mock = MagicMock()
+        mock_vector_layer_cls.return_value = merged_layer_mock
+
+        res = calculate_service_area("facilities", "roads", [15, 30])
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["travel_cost"], [15.0, 30.0])
+        self.assertIn("facilities_service_area_bands_0", res["layers_created"])
+        # Two band hulls, one feature each -> addFeatures called with 2 features.
+        add_features_calls = merged_layer_mock.dataProvider().addFeatures.call_args_list
+        self.assertEqual(len(add_features_calls), 1)
+        self.assertEqual(len(add_features_calls[0][0][0]), 2)
+        # Auto-styled via the real apply_graduated_style, on the merged layer's name and field.
+        mock_apply_graduated.assert_called_once_with("facilities_service_area_bands_0", "travel_cost_band")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.apply_graduated_style")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_scalar_travel_cost_never_calls_auto_style(
+        self, mock_find, _mock_qgis_enum, _mock_context_cls, mock_processing, mock_project, mock_apply_graduated,
+    ):
+        # Regression guard: the pre-existing single-band path must be
+        # completely unaffected by the multi-band addition -- no merge, no
+        # auto-styling call, exact original layer-naming behavior.
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["travel_cost"], 1000)
+        self.assertEqual(res["layers_created"], ["facilities_service_area_lines_0", "facilities_service_area_0"])
+        mock_apply_graduated.assert_not_called()
+
+
 class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
     """BUG-2026-09-05-2: a small/degenerate road network can make either
     native:serviceareafrompoint or native:convexhull raise for one facility --

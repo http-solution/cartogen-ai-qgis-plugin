@@ -13,14 +13,13 @@ SPEED_FIELD/DIRECTION_FIELD/STRATEGY all behave as documented, including a
 real one-way-road test (a segment tagged forward-only correctly blocked the
 reverse route) and a real differential-speed test (the same segment produced
 different travel times with vs. without a speed_field). travel_time_matrix
-worked cleanly on every network tried; calculate_service_area has a known
-edge-case bug on small/degenerate synthetic networks -- see BUG-2026-09-05-2
-in docs/BUG_TRACKER.md -- not reproduced on a realistic multi-segment
-network. A fix for both documented failure shapes was implemented 2026-09-10
+worked cleanly on every network tried; calculate_service_area's
+degenerate-small-network edge case (BUG-2026-09-05-2) was fixed 2026-09-10
 (GeometrySkipInvalid context for serviceareafrompoint;
 _degenerate_hull_fallback for the convexhull LineString/Polygon-sink case)
-but is not yet live-QGIS-verified -- see the bug tracker entry before
-assuming this is fully closed.
+and live-verified against real QGIS 4.2.2 on 2026-09-11 (collinear
+1-segment, L-shaped 2-segment, and a realistic 5-segment grid regression
+guard all pass) -- status `fixed-verified` in docs/BUG_TRACKER.md.
 
 population_access_gap chains calculate_service_area with
 raster_tools.estimate_population_exposure (native:mergevectorlayers,
@@ -39,12 +38,14 @@ try:
     from qgis.core import (
         QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
         QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext,
+        QgsField,
     )
     try:
         from qgis.core import Qgis
     except ImportError:
         Qgis = None
     from qgis.PyQt.QtGui import QColor
+    from qgis.PyQt.QtCore import QVariant
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -659,13 +660,25 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
     "damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from "
     "OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic "
     "area. direction_field makes one-way roads one-way instead of assuming every segment is "
-    "traversable both directions.",
+    "traversable both directions. Pass travel_cost as a LIST (e.g. [15, 30, 60]) instead of a "
+    "single number for a real isochrone/access-band map: builds one combined polygon layer per "
+    "facility with a travel_cost_band field, one ring per value, auto-styled with a graduated "
+    "renderer -- a single call instead of one per band plus manual styling.",
     {
         "type": "object",
         "properties": {
             "facility_layer": {"type": "string", "description": "Point layer with the facility/facilities to calculate service areas for."},
             "road_network_layer": {"type": "string", "description": "Line layer representing the road/path network."},
-            "travel_cost": {"type": "number", "description": "Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'."},
+            "travel_cost": {
+                "description": "Maximum travel distance (network CRS units, usually meters) or time in hours "
+                "if strategy='fastest'. Pass a single number for one service area, or a list of ascending "
+                "values (e.g. [15, 30, 60]) for a multi-band isochrone/access map -- one combined, "
+                "auto-styled polygon layer per facility instead of separate calls.",
+                "anyOf": [
+                    {"type": "number"},
+                    {"type": "array", "items": {"type": "number"}},
+                ],
+            },
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
             "default_speed": {"type": "number", "description": "Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50."},
             "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'."},
@@ -682,8 +695,23 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                             value_forward="yes", value_backward="-1", value_both="no"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if travel_cost <= 0:
-        return {"error": "travel_cost must be positive."}
+    # v1.8.0 workstream 4: travel_cost as a list builds a real isochrone/
+    # access-band map (one combined, auto-styled polygon layer per facility)
+    # instead of requiring N separate calls plus manual styling. The
+    # single-value path below is otherwise completely unchanged from its
+    # already-live-verified behavior -- multi_band only ever adds new
+    # branches, it never alters what a scalar travel_cost does.
+    is_multi_band = isinstance(travel_cost, (list, tuple))
+    if is_multi_band:
+        if not travel_cost:
+            return {"error": "travel_cost list must contain at least one value."}
+        travel_costs = sorted(float(v) for v in travel_cost)
+        if travel_costs[0] <= 0:
+            return {"error": "travel_cost must be positive."}
+    else:
+        if travel_cost <= 0:
+            return {"error": "travel_cost must be positive."}
+        travel_costs = [travel_cost]
     strategy = (strategy or "shortest").lower()
     if strategy not in ("shortest", "fastest"):
         return {"error": "strategy must be 'shortest' or 'fastest'."}
@@ -747,55 +775,82 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             if geom is None or geom.isEmpty():
                 continue
             point = geom.asPoint()
-            params = {
-                "INPUT": network,
-                "STRATEGY": strategy_val,
-                "DEFAULT_SPEED": default_speed,
-                "TOLERANCE": 0,
-                "START_POINT": f"{point.x()},{point.y()}",
-                "TRAVEL_COST2": travel_cost,
-                "OUTPUT_LINES": "memory:",
-            }
-            params.update(extra_params)
-            try:
-                output = processing.run("native:serviceareafrompoint", params, context=context)
-            except Exception as e:
-                skipped.append({"facility_index": i, "stage": "serviceareafrompoint", "reason": str(e)})
-                continue
-            lines_layer = output.get("OUTPUT_LINES")
-            if lines_layer is None or lines_layer.featureCount() == 0:
-                continue
 
-            lines_name = f"{facility_layer}_service_area_lines_{i}"
-            lines_layer.setName(lines_name)
-            QgsProject.instance().addMapLayer(lines_layer)
-            layers_created.append(lines_name)
+            band_hulls = []  # (band_value, hull_layer) -- only populated/used when is_multi_band
+            facility_served = False
+            for band in travel_costs:
+                params = {
+                    "INPUT": network,
+                    "STRATEGY": strategy_val,
+                    "DEFAULT_SPEED": default_speed,
+                    "TOLERANCE": 0,
+                    "START_POINT": f"{point.x()},{point.y()}",
+                    "TRAVEL_COST2": band,
+                    "OUTPUT_LINES": "memory:",
+                }
+                params.update(extra_params)
+                try:
+                    output = processing.run("native:serviceareafrompoint", params, context=context)
+                except Exception as e:
+                    skipped.append({"facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint", "reason": str(e)})
+                    continue
+                lines_layer = output.get("OUTPUT_LINES")
+                if lines_layer is None or lines_layer.featureCount() == 0:
+                    continue
 
-            hull_layer = None
-            try:
-                hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
-                hull_layer = hull.get("OUTPUT")
-            except Exception as e:
-                # Match native:convexhull's Polygon-typed-sink rejection on its own
-                # constant wording ("...to layer of type Polygon") rather than the
-                # source geometry type name -- live-confirmed against real QGIS 4.2.2
-                # that this rejection's source-type name varies by exactly how the
-                # reachable network degenerates (LineString for a collinear road,
-                # GeometryCollection for other degenerate shapes; _degenerate_hull_fallback's
-                # own docstring further documents a single-Point case) -- an earlier
-                # version of this guard matched only "LineString"/"Point" and missed the
-                # GeometryCollection variant found live.
-                if "to layer of type Polygon" in str(e):
-                    hull_layer = _degenerate_hull_fallback(lines_layer, travel_cost)
-                if hull_layer is None:
-                    skipped.append({"facility_index": i, "stage": "convexhull", "reason": str(e)})
-            if hull_layer is not None:
-                hull_name = f"{facility_layer}_service_area_{i}"
-                hull_layer.setName(hull_name)
-                QgsProject.instance().addMapLayer(hull_layer)
-                layers_created.append(hull_name)
+                lines_name = (
+                    f"{facility_layer}_service_area_lines_{i}" if not is_multi_band
+                    else f"{facility_layer}_service_area_lines_{i}_band_{band:g}"
+                )
+                lines_layer.setName(lines_name)
+                QgsProject.instance().addMapLayer(lines_layer)
+                layers_created.append(lines_name)
+                # Matches the original single-band semantics exactly: a
+                # facility/band counts as "served" once its lines layer is
+                # built, regardless of whether hull-building below succeeds
+                # -- the hull is a bonus output, not the served/skipped
+                # criterion.
+                facility_served = True
 
-            served_count += 1
+                hull_layer = None
+                try:
+                    hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
+                    hull_layer = hull.get("OUTPUT")
+                except Exception as e:
+                    # Match native:convexhull's Polygon-typed-sink rejection on its own
+                    # constant wording ("...to layer of type Polygon") rather than the
+                    # source geometry type name -- live-confirmed against real QGIS 4.2.2
+                    # that this rejection's source-type name varies by exactly how the
+                    # reachable network degenerates (LineString for a collinear road,
+                    # GeometryCollection for other degenerate shapes; _degenerate_hull_fallback's
+                    # own docstring further documents a single-Point case) -- an earlier
+                    # version of this guard matched only "LineString"/"Point" and missed the
+                    # GeometryCollection variant found live.
+                    if "to layer of type Polygon" in str(e):
+                        hull_layer = _degenerate_hull_fallback(lines_layer, band)
+                    if hull_layer is None:
+                        skipped.append({"facility_index": i, "travel_cost": band, "stage": "convexhull", "reason": str(e)})
+
+                if hull_layer is not None:
+                    if is_multi_band:
+                        band_hulls.append((band, hull_layer))
+                    else:
+                        hull_name = f"{facility_layer}_service_area_{i}"
+                        hull_layer.setName(hull_name)
+                        QgsProject.instance().addMapLayer(hull_layer)
+                        layers_created.append(hull_name)
+
+            if is_multi_band and band_hulls:
+                merged_name = f"{facility_layer}_service_area_bands_{i}"
+                merged_layer = _merge_band_hulls(band_hulls, merged_name)
+                if merged_layer is not None:
+                    QgsProject.instance().addMapLayer(merged_layer)
+                    layers_created.append(merged_name)
+                    from .styling_tools import apply_graduated_style
+                    apply_graduated_style(merged_name, "travel_cost_band")
+
+            if facility_served:
+                served_count += 1
 
         if served_count == 0:
             return {"error": "Could not build a service area for any facility -- check the facility points are near the road network."}
@@ -803,7 +858,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         result = {
             "success": True,
             "facility_count": served_count,
-            "travel_cost": travel_cost,
+            "travel_cost": travel_costs if is_multi_band else travel_costs[0],
             "strategy": strategy,
             "layers_created": layers_created,
         }
@@ -813,14 +868,48 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             result["direction_field"] = direction_field
         if skipped:
             result["warnings"] = (
-                f"{len(skipped)} facility(ies) could not be fully processed -- see 'skipped' for "
-                "detail. Known limitation on very small/degenerate road networks "
+                f"{len(skipped)} facility/band combination(s) could not be fully processed -- see "
+                "'skipped' for detail. Known limitation on very small/degenerate road networks "
                 "(BUG-2026-09-05-2); real road datasets are very unlikely to hit this."
             )
             result["skipped"] = skipped
         return result
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}
+
+
+def _merge_band_hulls(band_hulls, output_name):
+    """Combines one facility's per-band hull polygon layers into ONE memory
+    layer with a travel_cost_band field -- a legible single isochrone/
+    access-band layer instead of N separately-named, separately-styled
+    layers. Not a processing.run() merge (native:mergevectorlayers): these
+    hull layers start with no fields at all, so building the combined layer
+    directly, feature by feature, is simpler than reconciling schemas
+    through an extra Processing call for what's a small number of features
+    (one per band, typically 2-5). Returns None if no band produced any
+    usable hull geometry (caller then adds nothing to the project for this
+    facility, matching the existing single-band "hull_layer is None" case)."""
+    if not band_hulls:
+        return None
+    crs = band_hulls[0][1].crs()
+    merged = QgsVectorLayer(f"Polygon?crs={crs.authid()}", output_name, "memory")
+    merged.dataProvider().addAttributes([QgsField("travel_cost_band", QVariant.Double)])
+    merged.updateFields()
+    feats = []
+    for band, hull_layer in band_hulls:
+        for hull_feat in hull_layer.getFeatures():
+            geom = hull_feat.geometry()
+            if geom is None or geom.isEmpty():
+                continue
+            new_feat = QgsFeature(merged.fields())
+            new_feat.setGeometry(geom)
+            new_feat.setAttribute("travel_cost_band", band)
+            feats.append(new_feat)
+    if not feats:
+        return None
+    merged.dataProvider().addFeatures(feats)
+    merged.updateExtents()
+    return merged
 
 
 @register_tool(
