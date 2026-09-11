@@ -53,7 +53,63 @@ canvas/project — not just that the chat bubble looks plausible.
 
 - If everything above passes: note the version tested and today's date somewhere retrievable (a line
   in `CHANGELOG.md`'s entry for the release is enough) — a release that was actually smoke-tested is
-  worth being able to point to later.
+  worth being able to point to later. This file's own [Run log](#run-log) below is the retrievable
+  place when the release's `CHANGELOG.md` entry is already tagged/pushed and shouldn't be edited after
+  the fact (`CONTRIBUTING.md` §2) — append a new dated entry there instead.
 - If anything fails: that's real signal this sandbox's test suite structurally cannot produce on its
   own — file it the same way every other review round in this project's history has, with the exact
   prompt used and what actually happened vs. what the code assumed would happen.
+
+## Run log
+
+Append-only; each entry records one actual run against real QGIS, not a plan to run one.
+
+**2026-09-12 — v1.8.3 — headless, not the full interactive checklist above.** No interactive QGIS
+session or configured LLM provider was available, so this run drove 14 of the 16 categories
+directly against real QGIS 4.2.2 (`python-qgis.bat`, real `QgsProject`/`QgsVectorLayer`/
+`QgsRasterLayer`, a real GeoTIFF built with GDAL, real registered tool functions called directly
+— not mocked, not a text simulation) instead of typing prompts into a live chat session. All 14
+passed:
+
+- **Vector & Geoprocessing** — `buffer_analysis` produced a real new polygon layer with the point
+  layer's feature count preserved.
+- **Raster** — `apply_raster_stretch` changed the renderer's real contrast-enhancement range.
+- **Data Analysis & Prediction** — `calculate_severity_index` wrote a real `severity_score` field
+  with 5 distinct computed values. (Auto-styling afterward per prompt rule 38 is a model-driven
+  behavior, not code-enforced — not verifiable without a live LLM chat turn; see below.)
+- **Styling & Labeling** — `apply_categorized_style` produced a real `QgsCategorizedSymbolRenderer`
+  with the correct category count for the test data's distinct values.
+- **System, Search & Scripting** — `execute_pyqgis_script` ran a real allowed script and really
+  blocked a disallowed one (`open` is not a resolvable name inside the sandbox's restricted
+  builtins — confirmed live, not just by reading the code); `search_web` degraded cleanly with the
+  documented missing-`duckduckgo-search` message (not installed in this sandbox).
+- **Export & Reporting** — `export_to_csv` wrote a real file with the correct row count.
+- **Print Layouts** — `create_print_layout` registered a real layout in the project's
+  `QgsLayoutManager`.
+- **Project Management** — real save/load round trip preserved all 4 layers by name; confirmed
+  `load_project` returns `PREVIEW_REQUIRED` without `confirmed=True` first (the destructive-action
+  gate, `SECURITY.md` §5, live — not just read from the test suite).
+- **Monitoring & Scheduling** — `schedule_recurring_workflow`/`stop_recurring_workflow` registered
+  and cancelled a real `QTimer`-backed schedule (confirmed via `list_scheduled_workflows`, not just
+  that the calls returned success).
+- **Humanitarian Data** — `fetch_building_footprints` made a real network call to Microsoft's
+  Global ML Building Footprints index and returned 50 real features from 2 real tiles over central
+  Amman, Jordan.
+- **Satellite Imagery & Vision** — `search_stac_satellite_imagery` made a real STAC API call and
+  returned 3 real results.
+- **AI Imagery Feature Extraction** — degraded cleanly with the documented missing-`ultralytics`
+  message (not installed in this sandbox).
+- **Reporting & Document Analysis** — `extract_word_tables` degraded cleanly with the documented
+  missing-`python-docx` message (not installed in this sandbox), against a real `.docx` already in
+  this repo (`docs/DPIA_SCREENING_WORKSHEET.docx`).
+
+**Not run, same as every prior round:** Database & Workflows' read-only-SQL check (no PostGIS test
+DB available, which the checklist itself says to skip) and Task & Memory Management's live
+multi-step Tasks-tab plan (genuinely needs an interactive QGIS GUI event loop plus a configured LLM
+provider — a direct function call can't exercise `task_manager.py`'s `PREVIEW_READY`/`CONFIRMED`
+gate or the dock widget's plan-rendering path). These two remain open items for a human running
+the full interactive checklist before the next release that touches those areas.
+
+No new bugs found this run (the release zip's own packaging bug, `BUG-2026-09-12-2`, was caught
+separately while verifying the release zip installs cleanly, before this checklist run, and is
+already fixed in v1.8.3).
