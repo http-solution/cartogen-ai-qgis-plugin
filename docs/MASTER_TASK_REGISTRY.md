@@ -832,7 +832,44 @@ next-steps queue always has at least one item — if everything concrete is done
    path on the same network produced byte-for-byte the same result shape/layer names as before
    this workstream. Workstream 5 (new prompt rules, conversational MapBrief) is the last one
    remaining before v1.8.0's release mechanics.
-48. **Z — standing maintenance (permanent, never removed):** after every future work slice,
+48. ~~v1.8.0 "Cartographic Intelligence" release, Workstream 5: new prompt
+   rules, conversational MapBrief~~ — **done, 2026-09-12 — all five workstreams of the v1.8.0
+   plan now complete.** Four new numbered rules (44-47) in `agent/prompts.py`, matching rules
+   19/21/38/43's exact dense-paragraph format: **44** — missing/suppressed/not-assessed values
+   must never land in the same class as a real zero (ties `apply_rule_based_style`'s new
+   automatic "Unknown / No data" catch-all class to an enforceable behavioral rule for numeric
+   fields too, where no such automatic catch-all exists). **45** — the MapBrief adaptation:
+   establish purpose/audience/sensitivity before a finished cartographic deliverable, using
+   rule 19's own "ask only when genuinely ambiguous, otherwise state the assumption" bar —
+   generalizes rule 43's existing briefing-map discipline to every finished export, not just
+   security/operational briefings, deliberately NOT a rigid structured object or blocking
+   pre-flight tool per the user's own scoping decision. **46** — a raw-count choropleth must be
+   normalized first or have its denominator/absence named explicitly (ties workstream 1's
+   `recommend_visualization_method` warning to an enforceable rule, not just an ignorable tool
+   hint). **47** — surface a RESTRICTED/SENSITIVE layer's tag in chat before an export/print-
+   layout call touching it, not just relying on the export tool's own advisory warning or
+   workstream 3's `map_qa` gate to catch it after the file already exists — those are real
+   backstops, not a substitute for the conversation itself. 4 new matching cases added to
+   `tests/manual_prompt_rule_evals.py` (20 total), following that file's existing `{id, rules, "
+   "query, check}` shape. `py_compile` clean; no automated pass/fail is possible for prompt-rule
+   behavior from this sandbox, the same standing limitation as every other prompt rule in this
+   project's history — these are added for a future manual/live-model verification pass.
+
+   **v1.8.0 is now feature-complete: all 5 workstreams closed.** `recommend_visualization_method` +
+   `apply_rule_based_style` (workstream 1), real sensitivity wired into the QA checklist
+   (workstream 2), a genuine blocking cartographic QA gate on `dataset_status.py`'s previously-
+   unused final transition (workstream 3), isochrone/access-band multi-value `travel_cost`
+   styling (workstream 4), and these four new behavioral rules (workstream 5) together adapt the
+   external "QGIS Cartographic Intelligence Standard" document to this codebase's actual
+   architecture — as an integration/gap-closure pass building on real existing infrastructure
+   (`_classify_values`, `_compute_severity_index`, `dataset_status.py`'s state machine,
+   `sensitivity.py`/`confidence.py`), not a from-scratch rebuild. Only release mechanics (version
+   bump to 1.8.0, `docs/TOOLS_REFERENCE.md` regeneration, release zip, tag) remain. See
+   `~/.claude/plans/idempotent-popping-haven.md` for the full plan and its "Explicitly out of
+   scope this release" list (bivariate choropleth, flow/OD maps, small-multiples/change-map
+   compositor, uncertainty-rendering, standard-deviation classification, a rigid MapBrief object,
+   sensitivity-suppression methods) — named, not silently dropped.
+49. **Z — standing maintenance (permanent, never removed):** after every future work slice,
 
    update this registry — close out the finished Current Task into Level 3's log, promote
    the next queue item into Current Task, and log any new bug/finding. This item exists so
