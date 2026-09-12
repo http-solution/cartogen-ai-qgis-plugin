@@ -302,6 +302,103 @@ def _categorical_color_map(values):
     return color_map
 
 
+# Same custom-property key hazard_monitoring_tools.py's fetch tools stamp on the layers they
+# create/refresh (FETCHED_AT_PROPERTY_KEY there) -- duplicated as a literal here rather than
+# imported, matching this codebase's existing convention of small cross-module constants/helpers
+# being self-contained per file (e.g. _find_layer_by_name is duplicated per tool module) rather
+# than reaching across domains for a one-line value.
+_FETCHED_AT_PROPERTY_KEY = "cartogen_ai/fetched_at"
+
+_FRESHNESS_FRESH_MAX_SECONDS = 3600    # < 1h old -> fresh
+_FRESHNESS_STALE_MAX_SECONDS = 86400   # < 24h old -> stale; >= 24h -> very stale
+
+# (text color, background color) per status -- same green/amber/red convention this codebase's
+# own choropleth colormap already uses (_build_dashboard_html's color_field styling above), not
+# an arbitrary new palette.
+_FRESHNESS_COLORS = {
+    "fresh": ("#1a9850", "#eafaf0"),
+    "stale": ("#b8860b", "#fff8e1"),
+    "very_stale": ("#d73027", "#fdecea"),
+}
+_FRESHNESS_LABELS = {"fresh": "Fresh", "stale": "Stale", "very_stale": "Very stale"}
+
+
+def _humanize_age(seconds):
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours}h"
+    days = hours // 24
+    return f"{days}d"
+
+
+def _classify_freshness(fetched_at_iso):
+    """Classifies a layer's cartogen_ai/fetched_at ISO-8601 timestamp (set by
+    hazard_monitoring_tools.py's fetch tools) into (status, age_label) for a dashboard freshness
+    pill. Returns None for a missing/unparseable timestamp -- most layers were never fetched
+    from a live source and should render with no badge at all, not a fake 'unknown' one."""
+    if not fetched_at_iso:
+        return None
+    try:
+        fetched_dt = datetime.datetime.fromisoformat(fetched_at_iso)
+    except (TypeError, ValueError):
+        return None
+    if fetched_dt.tzinfo is None:
+        fetched_dt = fetched_dt.replace(tzinfo=datetime.timezone.utc)
+    age_seconds = max(0, (datetime.datetime.now(datetime.timezone.utc) - fetched_dt).total_seconds())
+    if age_seconds < _FRESHNESS_FRESH_MAX_SECONDS:
+        status = "fresh"
+    elif age_seconds < _FRESHNESS_STALE_MAX_SECONDS:
+        status = "stale"
+    else:
+        status = "very_stale"
+    return status, _humanize_age(age_seconds)
+
+
+def _freshness_legend_html(layers):
+    """Small floating panel listing each layer's data-freshness pill (green 'Fresh 2m', amber
+    'Stale 3h', red 'Very stale 2d') -- WorldMonitor's exact visual pattern (a color-coded pill
+    plus a tooltip with the precise fetch time), reproduced in plain inline HTML/CSS, no JS
+    framework or new dependency. Only rendered for layers that were actually stamped with a
+    fetched_at time; a layer never fetched from a live source (the overwhelming majority of
+    layers this tool has ever been called with) gets no badge, correctly. This is a
+    computed-once-at-export-time snapshot from a static HTML file, not a live ticking clock --
+    the tool's own description says so, so it isn't misread as a live dashboard."""
+    import html as html_module
+    rows = []
+    for layer in layers:
+        classified = _classify_freshness(layer.get("fetched_at"))
+        if classified is None:
+            continue
+        status, age = classified
+        text_color, bg_color = _FRESHNESS_COLORS[status]
+        label = _FRESHNESS_LABELS[status]
+        name = html_module.escape(str(layer["name"]))
+        tooltip = html_module.escape(f"As of {layer.get('fetched_at')} (UTC)")
+        rows.append(
+            f'<div style="margin:2px 0;white-space:nowrap;" title="{tooltip}">'
+            f'<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
+            f'background:{bg_color};color:{text_color};font-size:11px;font-weight:600;">'
+            f'{label} {age}</span> '
+            f'<span style="font-size:12px;">{name}</span>'
+            f'</div>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<div style="position:fixed;top:60px;left:10px;z-index:9999;background:white;'
+        'padding:8px 10px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);'
+        'max-width:300px;">'
+        '<div style="font-size:11px;font-weight:700;margin-bottom:4px;color:#333;">Data freshness</div>'
+        + "".join(rows) + '</div>'
+    )
+
+
 def _title_overlay_html(title):
     """Shared fixed-position title-heading overlay markup for both
     _build_dashboard_html and _build_temporal_dashboard_html. Escaped so a
@@ -456,6 +553,10 @@ def _build_dashboard_html(layers, title=None):
 
     if title:
         m.get_root().html.add_child(folium.Element(_title_overlay_html(title)))
+
+    freshness_html = _freshness_legend_html(layers)
+    if freshness_html:
+        m.get_root().html.add_child(folium.Element(freshness_html))
 
     return {"html": m.get_root().render(), "warnings": warnings}
 
@@ -1128,6 +1229,10 @@ font-family:sans-serif;min-width:360px;">
 """
     m.get_root().html.add_child(folium.Element(slider_html))
 
+    freshness_html = _freshness_legend_html(layers)
+    if freshness_html:
+        m.get_root().html.add_child(folium.Element(freshness_html))
+
     return {"html": m.get_root().render(), "warnings": warnings}
 
 
@@ -1234,6 +1339,11 @@ def generate_html_dashboard(layers, title=None, output_path=None):
                 "popup_fields": spec.get("popup_fields"),
                 "popup_labels": spec.get("popup_labels"),
                 "color_field": spec.get("color_field"),
+                # Set by hazard_monitoring_tools.py's fetch tools (and any future live-data
+                # fetch tool that adopts the same convention) -- empty/absent for every other
+                # layer, which is the correct, common case (most layers were never fetched
+                # from a live source and should render with no freshness badge at all).
+                "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
         result = _build_dashboard_html(prepared, title=title)
@@ -1377,6 +1487,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
                 "color_field": spec.get("color_field"),
                 "location_field": spec.get("location_field"),
                 "marker_radius": spec.get("marker_radius"),
+                "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
         result = _build_temporal_dashboard_html(prepared, title=title, step_days=step_days)

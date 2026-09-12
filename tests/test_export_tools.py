@@ -11,7 +11,9 @@ from cartogen_ai.core.agent.tools.export_tools import (
     generate_report, generate_spatial_report, _layer_provenance_entries, _format_lineage_entry,
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
     _write_vector, export_layer, export_to_csv,
+    _classify_freshness, _humanize_age, _freshness_legend_html,
 )
+import datetime
 
 
 def _skip_if_missing(test_case, module_name):
@@ -376,6 +378,111 @@ class TestWriteVectorSensitivityWarning(unittest.TestCase):
 
         self.assertTrue(res["success"])
         self.assertNotIn("warning", res)
+
+
+def _iso_ago(**timedelta_kwargs):
+    """ISO-8601 UTC timestamp `timedelta_kwargs` in the past -- e.g.
+    _iso_ago(hours=2) for a 2-hour-old fetch."""
+    return (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(**timedelta_kwargs)).isoformat()
+
+
+class TestClassifyFreshness(unittest.TestCase):
+    """Dashboard freshness-pill classification (Live Hazard Monitoring, v1.9.0) --
+    hazard_monitoring_tools.py's fetch tools stamp cartogen_ai/fetched_at on the layers they
+    create; these classify that timestamp into the green/amber/red pill WorldMonitor's own
+    dashboards use, reproduced here as plain HTML/CSS."""
+
+    def test_missing_timestamp_returns_none(self):
+        self.assertIsNone(_classify_freshness(None))
+        self.assertIsNone(_classify_freshness(""))
+
+    def test_unparseable_timestamp_returns_none(self):
+        self.assertIsNone(_classify_freshness("not a date"))
+
+    def test_just_now_is_fresh(self):
+        status, age = _classify_freshness(_iso_ago(seconds=5))
+        self.assertEqual(status, "fresh")
+
+    def test_thirty_minutes_is_fresh(self):
+        status, _ = _classify_freshness(_iso_ago(minutes=30))
+        self.assertEqual(status, "fresh")
+
+    def test_three_hours_is_stale(self):
+        status, age = _classify_freshness(_iso_ago(hours=3))
+        self.assertEqual(status, "stale")
+        self.assertEqual(age, "3h")
+
+    def test_two_days_is_very_stale(self):
+        status, age = _classify_freshness(_iso_ago(days=2))
+        self.assertEqual(status, "very_stale")
+        self.assertEqual(age, "2d")
+
+    def test_naive_timestamp_treated_as_utc(self):
+        # datetime.fromisoformat on a timestamp with no timezone info -- confirm this doesn't
+        # crash and still classifies sensibly (treated as UTC, matching how
+        # hazard_monitoring_tools.py's _stamp_fetched_at always writes a timezone-aware one, but
+        # a naive value shouldn't be able to reach an exception here either).
+        naive = datetime.datetime.now().isoformat()
+        result = _classify_freshness(naive)
+        self.assertIsNotNone(result)
+
+
+class TestHumanizeAge(unittest.TestCase):
+    def test_seconds(self):
+        self.assertEqual(_humanize_age(30), "30s")
+
+    def test_minutes(self):
+        self.assertEqual(_humanize_age(150), "2m")
+
+    def test_hours(self):
+        self.assertEqual(_humanize_age(7200), "2h")
+
+    def test_days(self):
+        self.assertEqual(_humanize_age(3 * 86400), "3d")
+
+
+class TestFreshnessLegendHtml(unittest.TestCase):
+    def test_no_layers_with_fetched_at_renders_nothing(self):
+        html = _freshness_legend_html([{"name": "Regular Layer"}])
+        self.assertEqual(html, "")
+
+    def test_layer_with_fetched_at_renders_a_pill(self):
+        html = _freshness_legend_html([{"name": "NASA Active Fires", "fetched_at": _iso_ago(minutes=5)}])
+        self.assertIn("NASA Active Fires", html)
+        self.assertIn("Fresh", html)
+
+    def test_mixed_layers_only_badges_the_fetched_one(self):
+        html = _freshness_legend_html([
+            {"name": "Admin Boundaries"},  # never fetched live -- no badge
+            {"name": "GDACS Disaster Alerts", "fetched_at": _iso_ago(hours=5)},
+        ])
+        self.assertNotIn("Admin Boundaries", html)
+        self.assertIn("GDACS Disaster Alerts", html)
+        self.assertIn("Stale", html)
+
+
+class TestBuildDashboardHtmlFreshnessIntegration(unittest.TestCase):
+    """End-to-end through _build_dashboard_html -- confirms the freshness legend actually gets
+    embedded in the real generated page, not just tested in isolation."""
+
+    def setUp(self):
+        _skip_if_missing(self, "folium")
+
+    def test_freshness_badge_appears_in_rendered_html(self):
+        layer = {
+            "name": "NASA Active Fires", "geojson": _fake_severity_geojson(),
+            "fetched_at": _iso_ago(minutes=2),
+        }
+        res = _build_dashboard_html([layer])
+        self.assertNotIn("error", res)
+        self.assertIn("Data freshness", res["html"])
+        self.assertIn("Fresh", res["html"])
+
+    def test_no_fetched_at_produces_no_freshness_panel(self):
+        layer = {"name": "Severity Index", "geojson": _fake_severity_geojson()}
+        res = _build_dashboard_html([layer])
+        self.assertNotIn("error", res)
+        self.assertNotIn("Data freshness", res["html"])
 
 
 if __name__ == "__main__":
