@@ -64,6 +64,30 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-12 — v1.9.0 — headless, not the full interactive checklist above.** Same environment
+constraint as the v1.8.3 run below (no interactive QGIS session or configured LLM provider), so
+this reuses that run's script, re-executed fresh against v1.9.0's code, plus 3 new checks for
+this release's own headline feature (Live Hazard Monitoring). All 17 passed:
+
+- The same 14 categories as the v1.8.3 run below, unchanged results — confirms this release
+  introduced no regressions in the existing tool surface.
+- **Live Hazard Monitoring (fetch tools)** — `fetch_nasa_active_fires` degraded cleanly with the
+  documented missing-API-key message (no real FIRMS key in this sandbox); `fetch_nasa_eonet_events`
+  made a real network call, created a real layer, tagged it `OBSERVED` confidence, and stamped a
+  real `cartogen_ai/fetched_at` timestamp; a second fetch confirmed replace-in-place (still
+  exactly 1 layer, not a duplicate); `fetch_gdacs_disaster_alerts` made a real network call (99
+  real alerts) and tagged `DERIVED` confidence.
+- **Live Hazard Monitoring (scheduler diff cycle)** — a saved workflow running
+  `fetch_gdacs_disaster_alerts` through `run_monitoring_workflow` twice confirmed
+  `previous_run_at` populates correctly on the second run and `diffs_since_last_run` is reported
+  — the real diff-since-last-run mechanism working end to end against live hazard data, not just
+  unit-tested in isolation.
+- **Live Hazard Monitoring (situation dashboard)** — `generate_situation_dashboard` degraded
+  cleanly with the documented missing-`folium` message (known, pre-existing gap in this
+  sandbox's QGIS Python env, not new to this release).
+
+No new bugs found this run.
+
 **2026-09-12 — v1.8.3 — headless, not the full interactive checklist above.** No interactive QGIS
 session or configured LLM provider was available, so this run drove 14 of the 16 categories
 directly against real QGIS 4.2.2 (`python-qgis.bat`, real `QgsProject`/`QgsVectorLayer`/
