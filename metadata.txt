@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.11.0
+version=1.12.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,37 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.11.0 (2026-09-12):
+changelog=v1.12.0 (2026-09-12):
+    Third round of the same real-session feedback thread. Fixed a real regression in v1.11.0's
+    own chat-bubble accent stripe: it looked correct in code and in a screenshot, but the
+    border-left CSS was silently dropped by Qt's rich-text table engine when a border shorthand
+    was already set on the same cell -- confirmed by rendering an unmistakable magenta
+    border-left in isolation and finding it never appeared at all. Fixed with a two-cell table
+    (a dedicated stripe cell using only background-color, next to a content cell using only a
+    3-sided border) -- verified this time by isolating just the QTextBrowser and checking for a
+    narrow, spatially-consistent run of the exact color, not merely that the color existed
+    somewhere in a wider screenshot. Also removed the disabled version menu entry added in
+    v1.11.0 (one too many places showing it, per direct same-day follow-up) -- version now shows
+    only inside the Help dialog.
+    New: Help now auto-shows the first time the plugin ever loads, and again once after any
+    version update. New first-use onboarding profile (agent/onboarding_profile.py,
+    ui/onboarding_dialog.py) -- a short dialog asking role/use-case, QGIS experience level, and
+    communication style, saved as a real, human-readable user_profile.md in the QGIS profile
+    directory (not a hidden settings blob), feeding the base system prompt on every request via
+    a new build_system_prompt(user_profile_ctx=...) parameter; re-editable via Settings -> "Edit
+    My Profile...". Deliberately a static dialog, not an LLM-driven conversation, since
+    onboarding has to work before any API key is configured. Chat tool-call display redesigned:
+    every tool call used to render 2 separate scrollback lines (too much visual space/raw
+    detail/noise per real feedback); "running" status now updates the existing status label in
+    place, and terminal steps are collected into ONE compact "N tool calls · name, name" summary
+    per turn with a click-to-expand "Details" toggle (this chat log's first internal clickable
+    anchor) -- any failed step's error text always shows regardless of toggle state, never
+    collapsed. No new agent tools; 169 tools unchanged. Live-verified against real QGIS 4.2.2
+    throughout, including a 2-turn toggle scenario proving the cursor-position shift-adjustment
+    behind the Details toggle is actually correct, not just plausible-looking. Full suite: 1478
+    tests (up from 1457), 0 failures. See CHANGELOG.md's [1.12.0] entry for full detail.
+
+v1.11.0 (2026-09-12):
     Real-session UI fixes release, from a direct live user report (screenshots from the user's
     own QGIS session, not this project's own synthetic verification renders). Fixed two genuine
     bugs the synthetic screenshots never caught: chat bubbles had two stacked rendering defects

@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.12.0](#v1-12-0) | 2026-09-12 | Onboarding profile, Help auto-show, tidier tool-call summary; fixes a v1.11.0 accent-stripe regression |
 | [1.11.0](#v1-11-0) | 2026-09-12 | Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu |
 | [1.10.0](#v1-10-0) | 2026-09-12 | UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons |
 | [1.9.0](#v1-9-0) | 2026-09-12 | Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges |
@@ -19,6 +20,63 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-12-0"></a>
+## [1.12.0] — 2026-09-12 — Onboarding profile, Help auto-show, tidier tool-call summary
+
+Third round of the same real-session feedback thread as v1.11.0, starting with a genuine
+regression in that release's own bubble accent stripe, then a further batch of direct requests
+clarified via AskUserQuestion before implementing.
+
+- **The v1.11.0 accent stripe wasn't actually rendering.** It looked correct in code and had
+  passed a screenshot "confirmation" — but that check only found the expected accent color
+  *somewhere* in a full-widget screenshot, not proven to be the bubble itself. The real bug: Qt's
+  rich-text table CSS silently drops `border-left` when a `border` shorthand is already set on
+  the same cell — confirmed by rendering an unmistakable magenta `border-left` in isolation and
+  finding it never appeared in the output at all. Fixed with a two-cell table instead of a CSS
+  trick: a dedicated 3px stripe cell using only `background-color` (no border), beside a content
+  cell keeping its border but only on 3 sides. Verified properly this time by isolating just the
+  `QTextBrowser` (not the whole parent widget, which has its own accent-colored QSS chrome — the
+  exact trap that produced the false-positive the first time) and checking for a narrow,
+  spatially-consistent run of the exact accent color.
+- **Version menu entry removed.** v1.11.0 added a disabled `"Cartogen AI vX.Y.Z"` Plugins-menu
+  entry alongside the version already shown inside Help — direct same-day feedback said that was
+  one place too many. Version now shows only inside the Help dialog's own content.
+- **Help now auto-shows**: the first time the plugin ever loads, and again once after any version
+  update (a new `help_last_shown_version` setting compared against `metadata.txt`'s version on
+  every `initGui()`) — previously the user had to know to look for it in the Plugins menu at all.
+- **New first-use onboarding profile** (`agent/onboarding_profile.py`, `ui/onboarding_dialog.py`):
+  a short dialog — narrative intro, then role/use-case, QGIS experience level, and communication
+  style pickers — saved as a real, human-readable `user_profile.md` in the QGIS profile directory,
+  not a hidden settings blob, so it can be opened and hand-edited directly. Feeds the base system
+  prompt on every request via a new `build_system_prompt(user_profile_ctx=...)` parameter,
+  deliberately separate from `prompt_refiner.py`'s pre-existing "user_profile" (the Refinement
+  Persona sector dropdown, a different concept that only steers the optional prompt-refinement
+  rewrite). Deliberately a static dialog, not an LLM-driven conversation — onboarding has to work
+  before any API key is configured, which a live "the agent asks you" exchange wouldn't. Re-editable
+  anytime via a new Settings → "Edit My Profile…" button.
+- **Chat tool-call display redesigned.** Every tool call previously rendered 2 separate lines
+  directly in the conversation scrollback (`Using X` / `Used X`) — real feedback called this too
+  much visual space, too much raw detail, and too much visual noise for a multi-tool-call turn.
+  "Running" status now updates the existing status label in place instead of adding a scrollback
+  line; terminal steps are collected per turn and flushed as **one** compact
+  `"N tool calls · name, name"` summary with a "Details" toggle — this chat log's first internal
+  clickable anchor (intercepted via `anchorClicked` with `openLinks` disabled; real http(s) links
+  in AI responses are unaffected, still handled by `openExternalLinks`). Any failed step's error
+  text is always shown regardless of toggle state, never collapsed. The toggle is implemented via
+  `QTextCursor` position tracking with explicit shift-adjustment for every later block after an
+  edited one — directly live-verified with a 2-turn scenario proving stored positions actually
+  shift correctly and a later block's toggle still targets the right span afterward, rather than
+  trusting that the logic "looks right" (the same lesson this session's bubble-border fix already
+  ran into twice).
+
+No new agent tools — 169 tools, unchanged. Full suite 1478 tests (up from 1457), 0 failures.
+Live-verified against real QGIS 4.2.2 throughout: `OnboardingDialog` builds and its Other-role
+field toggles correctly; a full save writes a real `.md` file to disk and
+`get_formatted_onboarding_context()` reads it back; Settings' Edit My Profile button opens it;
+`build_system_prompt()` includes the profile block end to end; Help auto-show/onboarding-trigger
+logic exercised through all 3 states (first run, same version, version bump) via a mocked
+`iface`; the tool-steps toggle mechanism per above.
 
 <a id="v1-11-0"></a>
 ## [1.11.0] — 2026-09-12 — Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu
