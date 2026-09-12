@@ -3,12 +3,16 @@
 ## The panel
 
 Open **Cartogen AI** from the toolbar icon or the `Plugins` menu. It's a dock
-panel (drag it to float, or dock it left/right) with three tabs:
+panel (drag it to float, or dock it left/right) with two tabs:
 
 - **💬 Chat** — talk to the agent.
-- **📋 Tasks & Notes** — see the current multi-step plan and stored project memory.
-- **❓ Help** — provider list, quick tips, and example prompts, built from the same
-  data as this guide so it can't drift out of sync.
+- **📋 Activity** — see the current multi-step plan and stored project memory.
+
+Help, and the plugin's version number, live in `Plugins → Cartogen AI` on the QGIS menu
+bar rather than in the dock itself — **Help** opens a standalone window with the provider
+list, quick tips, and example prompts (built from the same data as this guide so it can't
+drift out of sync); the disabled **Cartogen AI vX.Y.Z** entry underneath it shows what
+you have installed.
 
 <p align="center"><img src="images/dock-panel.png" alt="The Cartogen AI dock panel" width="420"></p>
 
@@ -142,9 +146,8 @@ description of a file that was never written.
 ## Chatting
 
 Type a request and press **Enter** (Shift+Enter for a new line) or click the **send
-button** (the arrow, right of the input box). A few
-example prompts are pinned as clickable chips above the input box, and more are on the
-Help tab.
+button** (the arrow, right of the input box). For example prompts, see
+`Plugins → Cartogen AI → Help`.
 
 <p align="center"><img src="images/chat-conversation.png" alt="A real conversation: a request, live tool-call progress, and a markdown-formatted reply with a table" width="440"></p>
 
@@ -188,7 +191,7 @@ install rather than failing silently.
 ## Multi-step requests and the Task Manager
 
 For anything involving several distinct steps, the agent creates a visible **plan** in
-the Tasks & Notes tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
+the Activity tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
 a progress bar. Click a task to see its result, rationale, and any code it ran.
 
 Buttons available depending on the selected task's state:
@@ -196,7 +199,7 @@ Buttons available depending on the selected task's state:
   actions" below); approves and executes it.
 - **✕ Cancel** — cancels a `PREVIEW_READY` task instead of confirming it.
 - **🔁 Retry** — re-runs a `FAILED` task.
-- **✏️ Edit & Resend** — pre-fills the input box with an editable prompt for that
+- **✏️ Edit and Resend** — pre-fills the input box with an editable prompt for that
   task's description so you can adjust it before resending (doesn't auto-send).
 - **📋 Copy Snippet** — copies the selected task's PyQGIS code (if any) to the
   clipboard.
@@ -210,7 +213,7 @@ browsing; sending a new message automatically snaps back to the live plan.
 
 The agent can remember facts across the conversation (and across QGIS sessions, tied
 to the current project file) via `store_project_memory`/`store_global_memory`. The
-Tasks & Notes tab shows what's stored, with a search box to filter it and a
+Activity tab shows what's stored, with a search box to filter it and a
 **🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
 unaffected).
 
