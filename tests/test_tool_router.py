@@ -183,6 +183,66 @@ class TestToolRouterAliasCoverage(unittest.TestCase):
         names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("population_access_gap", names)
 
+    def test_current_disaster_finds_gdacs(self):
+        """Added 2026-09-13, live user report: 'show live incident in jordan...
+        natural, crime, hazard' -- fetch_gdacs_disaster_alerts scored zero
+        relevance for this phrasing (its description names specific hazard
+        types like earthquakes/floods, never the generic words a real user
+        reaches for first). Confirmed missing from the top-40 set before this
+        alias was added."""
+        filtered = self.router.filter_relevant_tools("what disasters are happening right now", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("fetch_gdacs_disaster_alerts", names)
+
+    def test_live_hazard_finds_eonet(self):
+        filtered = self.router.filter_relevant_tools("show live hazards in this area", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("fetch_nasa_eonet_events", names)
+
+    def test_current_wildfire_finds_active_fires(self):
+        filtered = self.router.filter_relevant_tools("is there a current wildfire nearby", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("fetch_nasa_active_fires", names)
+
+
+class TestFuzzyTypoCorrectionForHazardQueries(unittest.TestCase):
+    """The exact live-reported query (2026-09-13): 'show live incedent in jordan in the map
+    creat enew layer natural , crime , haszard' -- misspells BOTH 'hazard' and 'incident', so
+    the exact-substring aliases above never fire on the real report. Confirmed via a 30-trial
+    live run that fetch_gdacs_disaster_alerts/fetch_nasa_eonet_events were selected 30/30 after
+    this fix (0/30 and ~14/30 respectively before it) -- run repeatedly here too since the
+    router's own tie-breaking shuffle makes a single run an unreliable check for a low-margin
+    score difference."""
+
+    def setUp(self):
+        self.router = ToolRouter(TOOLS_SCHEMA)
+        self.query = (
+            "show live incedent in jordan in the map creat enew layer "
+            "natural , crime , haszard"
+        )
+
+    def test_haszard_typo_reliably_finds_gdacs_and_eonet(self):
+        for _ in range(10):
+            filtered = self.router.filter_relevant_tools(self.query, top_k=40)
+            names = [t.get("function", {}).get("name") for t in filtered]
+            self.assertIn("fetch_gdacs_disaster_alerts", names)
+            self.assertIn("fetch_nasa_eonet_events", names)
+
+    def test_short_words_are_not_fuzzy_corrected(self):
+        # A short query word (e.g. "hi", already covered by the v1.13.1 stopword/word-boundary
+        # fix) must not gain a spurious alias hit through the fuzzy path either -- confirms the
+        # length-5 floor actually gates the correction, not just the stopword list.
+        from cartogen_ai.core.agent.tool_router import _expand_query_with_fuzzy_corrections
+        result = _expand_query_with_fuzzy_corrections({"hi"}, "hi")
+        self.assertEqual(result, "hi")
+
+    def test_unrelated_long_word_is_not_corrected(self):
+        # A genuinely unrelated 5+ char word shouldn't fuzzy-match into the small hazard
+        # vocabulary just because it happens to share some characters.
+        from cartogen_ai.core.agent.tool_router import _expand_query_with_fuzzy_corrections
+        result = _expand_query_with_fuzzy_corrections({"buffer"}, "buffer this layer")
+        self.assertEqual(result, "buffer this layer")
+
     def test_surface_water_finds_ndwi(self):
         """Same thin-description pattern as calculate_ndvi -- calculate_ndwi's
         original description never said 'water'/'flood', just the acronym NDWI,

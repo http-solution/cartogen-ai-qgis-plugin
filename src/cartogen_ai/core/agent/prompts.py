@@ -484,6 +484,27 @@ _ALL_RULES = {
         'the fact. Those are real backstops, not a substitute for raising it in the conversation where the user can '
         'actually redirect you before the file exists.\n'
     ),
+    # Added 2026-09-13, live user report: "show live incident in jordan... natural, crime,
+    # hazard" got a blanket "I don't have access to live data" refusal even though
+    # fetch_nasa_eonet_events was an available tool for that exact turn -- extends rule 25's
+    # "recognize intent without the tool being named" pattern to this project's own Live
+    # Hazard Monitoring tools (v1.9.0), which had never gotten the same treatment.
+    48: (
+        "48. Requests for live/current/ongoing natural hazard or disaster data for an area "
+        "(floods, earthquakes, wildfires, storms, droughts, volcanic activity -- 'show live "
+        "incidents', 'what hazards are happening', 'current disasters in X') map to real tools, "
+        "not a refusal: `fetch_gdacs_disaster_alerts` (UN-coordinated alerts with a Green/"
+        "Orange/Red severity, no key needed) and `fetch_nasa_eonet_events` (NASA's broader "
+        "open-event tracker, no key needed) both cover this directly; `fetch_nasa_active_fires` "
+        "additionally covers live fire detections specifically, if a free FIRMS key is "
+        "configured. Try the ones that need no key first. If the SAME request also asks about "
+        "something with no genuine live data source behind it (e.g. crime/security incidents -- "
+        "this plugin has no such feed), fetch and map what these real tools DO cover, and "
+        "separately state plainly that the other category has no available source here -- never "
+        "decline the whole request just because one part of it can't be fulfilled, and never "
+        "invent data to cover the part that can't (rule 12/42's anti-fabrication principle "
+        "applies in full to that part, unchanged).\n"
+    ),
 }
 
 CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44)
