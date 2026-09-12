@@ -8,11 +8,10 @@ panel (drag it to float, or dock it left/right) with two tabs:
 - **💬 Chat** — talk to the agent.
 - **📋 Activity** — see the current multi-step plan and stored project memory.
 
-Help, and the plugin's version number, live in `Plugins → Cartogen AI` on the QGIS menu
-bar rather than in the dock itself — **Help** opens a standalone window with the provider
-list, quick tips, and example prompts (built from the same data as this guide so it can't
-drift out of sync); the disabled **Cartogen AI vX.Y.Z** entry underneath it shows what
-you have installed.
+Help lives in `Plugins → Cartogen AI → Help` on the QGIS menu bar rather than in the dock
+itself — it opens a standalone window with the provider list, quick tips, and example
+prompts (built from the same data as this guide so it can't drift out of sync), and shows
+the installed version number at the top of its own content.
 
 <p align="center"><img src="images/dock-panel.png" alt="The Cartogen AI dock panel" width="420"></p>
 
