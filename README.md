@@ -19,7 +19,7 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.8.3 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.9.0 · GNU GPL v2 · QGIS 3.0–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
@@ -59,13 +59,15 @@ black-box answer.
 - **Multi-provider**: OpenRouter, Google Gemini, OpenAI, Anthropic Claude, or a local
   Ollama server — switch anytime, bring your own API key (OpenRouter has a free tier;
   Ollama is free and fully local).
-- **165 tools** covering vector and raster geoprocessing, styling and labeling, print
+- **169 tools** covering vector and raster geoprocessing, styling and labeling, print
   layouts, exports, humanitarian data (HDX / OpenStreetMap / geoBoundaries / building
   footprints), satellite imagery search, database queries, trend forecasting, humanitarian
   severity/needs indexing (JIAF/INFORM-style composite scoring for fund-allocation
-  prioritization), 3W/4W operational-presence analysis and coverage-gap detection, an
-  interactive HTML situation dashboard export for non-QGIS audiences, geoprivacy obfuscation
-  for sensitive point data (Do No Harm), and workflow presets — see
+  prioritization), 3W/4W operational-presence analysis and coverage-gap detection, live hazard
+  monitoring (NASA FIRMS active fires, NASA EONET natural events, GDACS disaster alerts) with
+  recurring-workflow tracking, an interactive HTML situation dashboard export with per-layer
+  freshness badges for non-QGIS audiences, geoprivacy obfuscation for sensitive point data (Do
+  No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
 - **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
   matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
@@ -156,7 +158,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 165 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 169 tools, auto-generated from the live registry |
 
 ### Security & compliance
 

@@ -6,7 +6,7 @@ sandbox can run a real QGIS session, so every tool in the registry is "correct p
 suite," never "confirmed working live." Repeating that as a recommendation every round doesn't close
 the gap — it just restates it. This document exists to turn it into something a human can actually
 *do*: a ~15-minute checklist, one representative tool call per category, run inside a real QGIS
-install before each release. Not exhaustive (165 tools, this checks ~16 of them), but it catches the
+install before each release. Not exhaustive (169 tools, this checks ~16 of them), but it catches the
 class of bug no amount of sandboxed code review can: a real PyQGIS API call that doesn't behave the
 way the code assumed.
 

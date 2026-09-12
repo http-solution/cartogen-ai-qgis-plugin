@@ -322,6 +322,27 @@ user base at all, and if so, at what enforcement level.
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
+- **Live hazard monitoring (v1.9.0, 2026-09-12).** New `fetch_nasa_active_fires`/
+  `fetch_nasa_eonet_events`/`fetch_gdacs_disaster_alerts` plus `generate_situation_dashboard`
+  (`agent/tools/hazard_monitoring_tools.py`) and dashboard freshness badges
+  (`generate_html_dashboard`/`generate_temporal_dashboard`). Two things worth flagging for
+  future work in this area, not full open items:
+  - **Confidence-tagging convention, established but not retroactive.** These 3 tools are the
+    first fetch tools in this codebase to auto-call `set_layer_confidence` on the layer they
+    create (`OBSERVED` for FIRMS/EONET, `DERIVED` for GDACS). No prior fetch tool
+    (`fetch_geoboundaries`, `fetch_hdx_admin_boundaries`, `fetch_building_footprints`,
+    `fetch_worldpop_population`) does this — worth adopting there too if a future pass touches
+    those, but not itself a bug or a gap to close as this note is written.
+  - **GDACS license terms, verified live 2026-09-12.** `https://www.gdacs.org/About/termofuse.aspx`
+    carries no explicit data-redistribution license — it's primarily an accuracy/liability
+    disclaimer (deferring to the European Commission's general copyright notice), and states
+    plainly that GDACS's automated alerts "may require further validation" and "should not be
+    used for decision making without prior confirmation of their validity." Reflected in
+    `fetch_gdacs_disaster_alerts`'s own tool description per `docs/archive/LICENSE_AUDIT.md`'s
+    own established precedent (verify a source's current terms directly rather than assume —
+    that doc's own history shows a source's license can change between passes). Not added to
+    `docs/archive/LICENSE_AUDIT.md` itself, which is frozen; recorded here instead.
+
 Everything below was open as of `docs/archive/STATUS_REVIEW_2026-08-20.md` (v1.2.21) or a later round, and is
 now closed as of v1.2.33. Listed here once, briefly, so nobody re-opens it by misreading an old
 doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not repeated here.
