@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.9.0](#v1-9-0) | 2026-09-12 | Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges |
 | [1.8.3](#v1-8-3) | 2026-09-12 | Patch: release zip was silently missing 4 relocated archive docs |
 | [1.8.2](#v1-8-2) | 2026-09-12 | Docs-only: repo reorganization and documentation polish pass |
 | [1.8.1](#v1-8-1) | 2026-09-12 | Patch: dashboard OSM-blocked basemap + canvas not following new layers |
@@ -16,6 +17,63 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-9-0"></a>
+## [1.9.0] — 2026-09-12 — Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges
+
+Inspired by [koala73/worldmonitor](https://github.com/koala73/worldmonitor)'s live-event
+dashboards (crisis/disaster alerts, satellite fire detections) — adapts the *techniques*, not
+code (a completely different stack), and deliberately kept narrow: hazard data feeding this
+plugin's existing humanitarian analysis tools, not a general "crisis/geopolitical intelligence"
+product. Positioning checked against this project's own commercial strategy docs before
+building — see `docs/archive/COMMERCIAL_PRODUCT_STRATEGY.md`'s feature-placement test and
+`docs/archive/ENTERPRISE_GROWTH_PLAN.md`'s explicit warning against broadening Cartogen's
+positioning beyond humanitarian-GIS-first.
+
+- **3 new live hazard fetch tools**, `agent/tools/hazard_monitoring_tools.py`:
+  - `fetch_nasa_active_fires` — NASA FIRMS VIIRS active-fire/thermal-anomaly detections. First
+    Cartogen tool needing its own API key, separate from any LLM provider key — a new optional
+    field in Settings ("NASA FIRMS API Key"), stored via the same `CredentialManager` every
+    provider key already uses.
+  - `fetch_nasa_eonet_events` — NASA EONET natural event tracker (wildfires, storms, volcanoes,
+    floods, and more). Free, no key.
+  - `fetch_gdacs_disaster_alerts` — GDACS UN-coordinated disaster alerts, each with a
+    human-assigned Green/Orange/Red severity. Free, no key. Live-verified GDACS's own bbox query
+    parameter doesn't actually filter server-side, so filtering happens client-side after
+    fetching, the same pattern `fetch_building_footprints` already uses for its tile crop.
+  - All 3 use `[min_lon, min_lat, max_lon, max_lat]` (matching `search_stac_satellite_imagery`),
+    deliberately not `fetch_building_footprints`'s `[south, west, north, east]` — a real footgun
+    confirmed live during this project's own v1.8.3 release smoke test.
+  - Re-running any of the 3 (e.g. on a schedule) **replaces** that layer's features with the
+    latest fetch rather than accumulating duplicates. Each auto-tags layer confidence
+    (`OBSERVED` for FIRMS/EONET, `DERIVED` for GDACS) and stamps a `cartogen_ai/fetched_at`
+    custom property.
+- **`generate_situation_dashboard`** — one call fetches all 3 sources for a bbox and exports
+  them as a single HTML dashboard.
+- **Wired into the existing monitoring scheduler** — all 3 tools added to
+  `_ALLOWED_WORKFLOW_TOOLS`, extending its documented safety rationale to a second category
+  (idempotent external-data-refresh, never touches user-authored data). `run_monitoring_workflow`
+  now reports real "N new fire detections since last check" via its existing
+  `_diff_unit_results` mechanism — zero new diffing code, the honest analog of a competitor
+  product's persistence tracking built on infrastructure this project already had and had
+  already tested.
+- **Dashboard freshness badges** — the piece most directly asked for. `generate_html_dashboard`/
+  `generate_temporal_dashboard` now render a small color-coded pill per layer that carries a
+  `fetched_at` stamp: green "Fresh 2m", amber "Stale 3h", red "Very stale 2d", with a hover
+  tooltip showing the exact fetch time. Reproduces the competitor product's exact freshness-pill
+  visual pattern in plain inline HTML/CSS — no JS framework, no new dependency. Purely additive:
+  a layer never fetched from a live source renders with no badge, and every existing caller
+  keeps working unchanged.
+
+41 new tests (25 for the hazard tools, 16 for the freshness badges). Full suite 1447 tests, 0
+failures (up from 1406 at the start of this release). 169 tools (up from 165). A real bug
+(`generate_situation_dashboard` raising `KeyError` when QGIS is unavailable) was caught by this
+release's own test suite and fixed before it shipped. Live-verified against real QGIS 4.2.2 and
+the real NASA FIRMS/EONET/GDACS APIs throughout — real layers created, confidence/freshness
+stamped correctly, replace-in-place confirmed on a second fetch, client-side GDACS bbox
+filtering confirmed to actually narrow results (99 → 3 for a regional bbox), the monitoring
+scheduler's diff cycle confirmed against real GDACS data, and the Settings dialog's new FIRMS
+key field confirmed to round-trip through the same credential storage every provider key uses.
 
 <a id="v1-8-3"></a>
 ## [1.8.3] — 2026-09-12 — Patch: release zip was silently missing 4 relocated archive docs

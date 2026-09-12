@@ -10,7 +10,7 @@ what's actually shipped versus what's planned, since those two things drift apar
 stamped "125-tool registry" through 2026-08-15 -- stale; the registry has been 131 since the
 duplicate-registration cleanup noted in `docs/IMPLEMENTATION_TRACKER.md` §4.)
 
-**Tool-count correction, 2026-09-12:** the registry has grown to 165 tools since 2026-08-31 (see
+**Tool-count correction, 2026-09-12:** the registry has grown to 169 tools since 2026-08-31 (see
 `docs/TOOLS_REFERENCE.md` for the current, auto-generated count) -- this note fixes only the
 number, not a full re-verification of every other claim in this document against the current
 codebase, which hasn't been done as part of this pass.
@@ -26,7 +26,7 @@ Cartogen AI is structured as three tiers, aimed at progressively larger/more ins
 3. **Enterprise** (custom SLA) — the institutional partner (major crisis-response networks, defense,
    large public-sector agencies).
 
-**Only the Community tier exists today.** Everything this plugin currently does — all 165 tools, every
+**Only the Community tier exists today.** Everything this plugin currently does — all 169 tools, every
 provider integration, every security protection in `SECURITY.md` — is Community-tier functionality,
 shipped under GPL v2, with no backend service, no billing system, no accounts, and no per-tier feature
 gating anywhere in the code. Professional and Enterprise below describe target packaging for

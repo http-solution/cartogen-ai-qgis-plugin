@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.8.3
+version=1.9.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,29 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.8.3 (2026-09-12):
+changelog=v1.9.0 (2026-09-12):
+    Live Hazard Monitoring release. New hazard_monitoring_tools.py: fetch_nasa_active_fires
+    (NASA FIRMS VIIRS active-fire detections, needs a free API key added to Settings),
+    fetch_nasa_eonet_events (NASA EONET natural event tracker, free/no key),
+    fetch_gdacs_disaster_alerts (GDACS disaster alerts, free/no key), and a composite
+    generate_situation_dashboard tying all three into one dashboard export call. Inspired by
+    a competitor product's live-event dashboards, scoped Community-tier and kept narrowly
+    humanitarian-GIS-focused per a dedicated strategy-alignment research pass against this
+    project's own commercial strategy docs -- no cross-domain "intelligence" scoring, no
+    country-instability-index concept, no headless/always-on monitoring imported.
+    All 3 fetch tools wired into the existing run_monitoring_workflow/schedule_recurring_workflow
+    scheduler for real diff-since-last-run tracking ("N new fire detections since last check"),
+    and replace their own layer's features in place on repeat calls rather than accumulating
+    duplicates, so they're safe to schedule. generate_html_dashboard/generate_temporal_dashboard
+    gained per-layer freshness badges (green "Fresh 2m" / amber "Stale 3h" / red "Very stale 2d")
+    for any layer stamped with a live fetch time -- purely additive, existing callers unaffected.
+    Bbox convention for all 3 tools is deliberately [min_lon, min_lat, max_lon, max_lat],
+    matching search_stac_satellite_imagery, not fetch_building_footprints's confusing
+    [south, west, north, east]. Live-verified against real QGIS 4.2.2 and the real NASA/GDACS
+    APIs throughout, including the monitoring-scheduler diff cycle and the Settings dialog's new
+    FIRMS key field. See CHANGELOG.md's [1.9.0] entry for full detail.
+
+v1.8.3 (2026-09-12):
     Patch release: fixed BUG-2026-09-12-2, found and fixed the same day v1.8.2 shipped, caught
     while verifying the v1.8.2 release zip installs cleanly. plugin_upload.py's EXCLUDE_FILES
     matches by basename regardless of directory -- 4 of the 5 docs moved into docs/archive/ in
