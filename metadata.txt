@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.0
+version=1.15.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,20 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.0 (2026-09-13):
+changelog=v1.15.1 (2026-09-13):
+    Fix: live-hazard-data requests ("show live incidents/disasters/hazards in X") could get a
+    blanket "no live data access" refusal even though this plugin's Live Hazard Monitoring tools
+    (fetch_gdacs_disaster_alerts, fetch_nasa_eonet_events, fetch_nasa_active_fires, v1.9.0) exist
+    for exactly this. Found via a live user report with real typos ("haszard", "incedent"), root-
+    caused via direct router simulation: no prompt rule connected "live hazard/disaster" requests
+    to these tools, and even when a tool WAS a router candidate, generic words like "map"/"layer"
+    made its inclusion in the top-40 a coin flip against ~24 other tools scoring similarly. Fixed
+    with a new prompt rule, new tool-router aliases for the 3 hazard tools, and a small typo-
+    tolerant correction so a misspelled "hazard"/"incident" still resolves. A mixed request (e.g.
+    hazards + crime) now fetches what real tools cover and honestly states what has no source,
+    rather than refusing the whole thing. See CHANGELOG.md for full detail.
+
+v1.15.0 (2026-09-13):
     Gemini prompt caching, direct request ("implement gemini caching, check the
     documentation"), following a real report of ~168K tokens for one 6-call print-layout turn.
     Researched Google's current Gemini API docs before writing any code: implicit caching is

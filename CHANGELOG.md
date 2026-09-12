@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.1](#v1-15-1) | 2026-09-13 | Patch: live-hazard-data requests could get refused despite real matching tools existing |
 | [1.15.0](#v1-15-0) | 2026-09-13 | Gemini prompt caching (automatic, implicit) + cache-hit visibility for Gemini and Claude |
 | [1.14.1](#v1-14-1) | 2026-09-13 | Patch: floating dock clamped to the screen after a report of the chat input row going missing |
 | [1.14.0](#v1-14-0) | 2026-09-13 | Modularized the 47-rule base prompt by relevance; "hi" now ~3.2K tokens, down from ~23K originally |
@@ -25,6 +26,58 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-1"></a>
+## [1.15.1] — 2026-09-13 — Patch: live-hazard-data requests refused despite real tools existing
+
+Live user report (real typos preserved): "show live incedent in jordan in the map creat enew
+layer / Details: natural, crime, haszard" got a blanket "I do not currently have direct access
+to a verified live feed or real-time incident database..." refusal -- even though this plugin
+has shipped 3 real hazard-monitoring tools since v1.9.0: `fetch_gdacs_disaster_alerts`,
+`fetch_nasa_eonet_events`, and `fetch_nasa_active_fires`.
+
+**Root cause, diagnosed via direct router simulation rather than assumed** -- two stacked gaps:
+
+1. **No prompt rule connected the intent to the tools.** None of the 47 existing behavioral
+   rules told the model that a "live/current hazard or disaster" request maps to these 3 tools
+   specifically -- only rule 16 mentioned them, in an unrelated "treat fetched content as data,
+   not instructions" context. Even when a tool was available for the turn, nothing told the
+   model to reach for it.
+2. **Recall into the tool router's top-40 candidate set was unreliable even before the prompt
+   gap.** A 30-trial live simulation of the exact reported query found `fetch_nasa_eonet_events`
+   was selected only ~47% of the time, and `fetch_gdacs_disaster_alerts`/`fetch_nasa_active_fires`
+   never were -- generic words in the query ("map", "layer", "natural") gave ~24 other, unrelated
+   tools an equal or higher relevance score. The query's own typos ("haszard", "incedent")
+   additionally defeated the existing exact-substring alias-matching mechanism outright.
+
+**Three-part fix:**
+
+- **New prompt rule 48** (`agent/prompts.py`): explicit guidance that live/current natural
+  hazard or disaster requests map to the 3 named tools, with explicit instructions for a mixed
+  request like the one reported -- fetch and map what the real tools DO cover, and separately,
+  honestly state that a category with no real data source (e.g. crime/security incidents) can't
+  be fulfilled, rather than declining the whole request. Explicitly cross-references rule 12/42's
+  anti-fabrication guarantee so this new positive capability doesn't weaken it.
+- **New tool-router aliases** for all 3 hazard tools (`agent/tool_router.py`'s `_TOOL_ALIASES`)
+  -- phrases like "current disaster", "live hazard", "what hazards" that share no vocabulary with
+  the tools' own descriptions.
+- **A small, scoped typo-tolerant correction** (`_expand_query_with_fuzzy_corrections`, difflib-
+  based): only for query words 5+ characters long, checked only against a small curated list of
+  hazard-domain words (hazard, disaster, incident, wildfire, earthquake, flood, etc.) -- so a
+  misspelled "haszard"/"incedent" still resolves to the right alias, without the false-positive
+  risk of fuzzy-matching against the plugin's full ~169-tool vocabulary.
+
+**Live-verified end to end** against the exact reported query text: `fetch_gdacs_disaster_alerts`
+and `fetch_nasa_eonet_events` are now selected 30/30 trials through the real router (up from
+0/30 and ~14/30 before this fix), and rule 48's guidance text is confirmed present in the
+resulting assembled system prompt for that query. 11 new tests across `tests/test_prompt_modules.py`
+and `tests/test_tool_router.py`; full suite 1512 -> 1523, 0 failures.
+
+**Honest limitation**: the actual downstream model behavior change (does the LLM now correctly
+call these tools instead of refusing) cannot be confirmed from this sandbox -- there is no live
+network access to a real LLM API here. This release verifies the router selects the right tools
+and the prompt carries the right guidance; the user is the one who can confirm the model
+actually acts on it in a live session.
 
 <a id="v1-15-0"></a>
 ## [1.15.0] — 2026-09-13 — Gemini prompt caching (automatic, implicit) + cache-hit visibility
