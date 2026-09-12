@@ -10,6 +10,19 @@ RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_SECONDS = 1.5
 
+# 429 gets its own, longer retry budget, separate from DEFAULT_MAX_RETRIES/
+# DEFAULT_BACKOFF_SECONDS above -- a rate limit means an actual per-minute quota window has to
+# clear, not a one-off network blip, so the short generic backoff (at most ~4.5s total) usually
+# isn't enough. 10s/20s/30s gives roughly a minute of patience, on the same order as
+# openrouter.py's own RATE_LIMIT_WAIT_SECONDS=30 sustained-wait loop -- OpenRouter's client
+# already had real rate-limit resilience (a model-fallback chain plus that wait-and-retry loop);
+# Claude/OpenAI/Gemini/Ollama only ever had the short generic path below, confirmed via grep, so
+# this is the concrete gap that let a sustained rate limit kill an otherwise-fine multi-tool-call
+# task on 4 of 5 providers. A normal, non-rate-limited request never touches this -- only 429
+# responses reach it, and other retryable statuses (5xx) keep using the original short budget.
+RATE_LIMIT_BACKOFF_SECONDS = 10
+RATE_LIMIT_MAX_RETRIES = 3
+
 # Only claude.py previously capped output size (its own local DEFAULT_MAX_TOKENS,
 # same value, left as-is there rather than migrated here for no functional
 # reason). Every other raw-requests client sent no max_tokens at all -- rarely
@@ -25,13 +38,18 @@ DEFAULT_MAX_TOKENS = 8096
 def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES):
     """Shared HTTP POST for every provider's raw requests-based client. A single
     transient network hiccup or 429/5xx used to kill the whole agent turn with
-    no retry at all -- this gives every provider (except OpenRouter/Gemini,
-    which already have their own multi-model fallback loop as an outer layer)
-    a short exponential backoff before giving up. Returns the final
+    no retry at all -- this gives every provider (except OpenRouter, which
+    already has its own multi-model fallback loop as an outer layer) a short
+    exponential backoff before giving up, PLUS a separate, longer budget
+    specifically for 429 (see RATE_LIMIT_BACKOFF_SECONDS/RATE_LIMIT_MAX_RETRIES
+    above -- large multi-tool-call tasks, 2026-09-12). Returns the final
     requests.Response; the caller still calls .raise_for_status() as before,
     so this is a drop-in replacement for a bare requests.post(...) call."""
     last_exc = None
-    for attempt in range(max_retries + 1):
+    # The loop bound has to fit whichever retry budget is larger -- 429 may need more
+    # attempts than a plain 5xx/network blip does.
+    total_attempts = max(max_retries, RATE_LIMIT_MAX_RETRIES) + 1
+    for attempt in range(total_attempts):
         try:
             response = requests.post(url, headers=headers, data=payload_json, timeout=timeout)
         except requests.exceptions.RequestException as e:
@@ -40,6 +58,11 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
                 time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
                 continue
             raise
+        if response.status_code == 429:
+            if attempt < RATE_LIMIT_MAX_RETRIES:
+                time.sleep(RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1))
+                continue
+            return response
         if response.status_code in RETRYABLE_STATUS_CODES and attempt < max_retries:
             time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
             continue

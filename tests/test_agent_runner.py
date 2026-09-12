@@ -118,6 +118,82 @@ class TestToolStepCallback(unittest.TestCase):
 
 
 
+class _CapturingLoopingClient:
+    """Always returns another tool call -- drives run() all the way to MAX_ITERATIONS, same
+    failure-mode shape as test_new_tools.py's LoopingClient -- but also snapshots the `messages`
+    list passed on every call, so pacing/compaction (2026-09-12, large-request rate-limit
+    resilience) can be inspected directly rather than only checked via side effects."""
+    def __init__(self, tool_name="get_layers"):
+        self.calls = 0
+        self.tool_name = tool_name
+        self.messages_per_call = []
+
+    def complete(self, messages, tools=None):
+        self.calls += 1
+        self.messages_per_call.append([dict(m) for m in messages])  # snapshot, not a live ref
+        return {"message": {
+            "role": "assistant", "content": None,
+            "tool_calls": [{"id": f"c{self.calls}", "function": {"name": self.tool_name, "arguments": "{}"}}],
+        }}
+
+
+class TestPacingAndCompaction(unittest.TestCase):
+    """Large/complex requests used to fire up to MAX_ITERATIONS API calls back-to-back with no
+    pacing, and re-send every prior tool result in full on every call -- real risk of tripping a
+    provider's rate limit or a context-length ceiling on a genuinely large task. See
+    PACING_THRESHOLD_ITERATIONS/PACING_DELAY_SECONDS and MAX_FULL_TOOL_RESULTS_PER_TURN's own
+    comments in agent.py."""
+
+    def _run_looping(self, execute_tool_fn):
+        client = _CapturingLoopingClient()
+        agent = _make_bare_agent(client)
+        with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool", execute_tool_fn), \
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent.time.sleep") as mock_sleep:
+            agent.run("do something with many steps")
+        return client, mock_sleep
+
+    def test_no_pacing_delay_below_threshold_paces_above_it(self):
+        client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
+        # PACING_THRESHOLD_ITERATIONS=3 -> iterations 0,1,2 get no delay; every iteration from 3
+        # up to MAX_ITERATIONS-1 does -- a small/typical turn never reaches this at all.
+        expected_pacing_calls = agent_mod.MAX_ITERATIONS - agent_mod.PACING_THRESHOLD_ITERATIONS
+        self.assertEqual(mock_sleep.call_count, expected_pacing_calls)
+        for call in mock_sleep.call_args_list:
+            self.assertEqual(call.args[0], agent_mod.PACING_DELAY_SECONDS)
+
+    def test_old_successful_tool_results_get_compacted_recent_ones_dont(self):
+        client, _ = self._run_looping(lambda self, name, args: {"success": True})
+        last_messages = client.messages_per_call[-1]
+        tool_msgs = [m for m in last_messages if m.get("role") == "tool"]
+        compacted = [m for m in tool_msgs if m["content"] == agent_mod._COMPACTED_TOOL_RESULT_PLACEHOLDER]
+        full = [m for m in tool_msgs if m["content"] != agent_mod._COMPACTED_TOOL_RESULT_PLACEHOLDER]
+        self.assertGreater(len(compacted), 0, "a 20-iteration turn should have compacted some old results")
+        self.assertEqual(len(full), agent_mod.MAX_FULL_TOOL_RESULTS_PER_TURN)
+
+    def test_error_tool_result_never_compacted_even_once_old(self):
+        call_count = {"n": 0}
+
+        def fake_execute(self, name, args):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return {"error": "Layer not found"}
+            return {"success": True}
+
+        client, _ = self._run_looping(fake_execute)
+        last_messages = client.messages_per_call[-1]
+        tool_msgs = [m for m in last_messages if m.get("role") == "tool"]
+        first_tool_msg = tool_msgs[0]
+        # Well past MAX_FULL_TOOL_RESULTS_PER_TURN messages old by the end of a 20-iteration
+        # turn -- would be compacted if it were a success, but errors are never compacted at
+        # any age (the identical call chat_formatting.render_tool_steps_failure_details_html
+        # makes for the same reason: failures are load-bearing, not droppable-because-old).
+        self.assertIn("Layer not found", first_tool_msg["content"])
+        self.assertNotEqual(first_tool_msg["content"], agent_mod._COMPACTED_TOOL_RESULT_PLACEHOLDER)
+
+
 class TestExecuteToolTransactionRecording(unittest.TestCase):
     """_execute_tool (agent.py) wraps every tool call with a before/after
     live-layer-id snapshot and records it into self._transaction_log --

@@ -6,6 +6,7 @@ Task List Manager, and Thread-Safe Tool Dispatching.
 """
 
 import json
+import time
 
 try:
     from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot, Qt, QThread
@@ -152,6 +153,31 @@ FAILURE_ACK_KEYWORDS = (
 # tight and caused "Maximum iterations reached" on legitimate requests before
 # they could produce a final answer.
 MAX_ITERATIONS = 20
+
+# Rate-limit resilience for large/complex requests (2026-09-12): up to MAX_ITERATIONS calls to
+# client.complete() used to fire back-to-back with zero pacing -- a genuinely complex multi-step
+# request (buffer this, then clip that, then style each, then export) could burst 15-20 API
+# calls in a few seconds, well past most free/low-tier providers' requests-per-minute limits.
+# Small/typical turns (<=3 tool-call rounds) pay nothing at all; only once a turn is genuinely
+# getting large does it start spacing its own remaining calls out, proportional to how large it's
+# getting -- throttling exactly the requests that are actually at risk, not every request.
+PACING_THRESHOLD_ITERATIONS = 3
+PACING_DELAY_SECONDS = 1.2
+
+# Mid-turn context compaction (same rate-limit/size-resilience work): the in-flight `messages`
+# list for ONE turn keeps every prior tool call's result appended in full and re-sends the whole
+# thing on every subsequent client.complete() call -- for a large task this grows the per-call
+# payload unbounded, worsening both token-rate-limit exposure and the separate risk of hitting a
+# provider's context-length ceiling outright. Only the most recent N tool results are kept in
+# full; older ones (that succeeded -- see _compact_old_tool_results) get replaced with a short
+# placeholder. This list (messages) is turn-local -- see run()'s own comment on
+# conversation_history -- so compaction here never touches persisted conversation memory, only
+# what gets sent for the REST of the turn already in flight.
+MAX_FULL_TOOL_RESULTS_PER_TURN = 8
+_COMPACTED_TOOL_RESULT_PLACEHOLDER = json.dumps({
+    "note": "Result omitted from this request to keep it within size/rate limits -- "
+            "this action already completed successfully earlier in this turn.",
+})
 
 
 class CartogenAi:
@@ -696,6 +722,28 @@ class CartogenAi:
         if len(self.conversation_history) > MAX_HISTORY_MESSAGES:
             self.conversation_history = self.conversation_history[-MAX_HISTORY_MESSAGES:]
 
+    def _compact_old_tool_results(self, messages):
+        """Mid-turn context compaction (2026-09-12, see MAX_FULL_TOOL_RESULTS_PER_TURN's own
+        comment) -- mutates `messages` in place, keeping the most recent
+        MAX_FULL_TOOL_RESULTS_PER_TURN "tool"-role messages' content untouched and replacing
+        older ones with a short placeholder. A tool result whose content contains an "error" key
+        is NEVER compacted, at any age -- failures are load-bearing information the model may
+        still need to reason about later in the same turn, not detail safe to drop just because
+        it's old (the identical call this session's chat tool-steps redesign made for the
+        identical reason, ui/chat_formatting.py's render_tool_steps_failure_details_html).
+        Idempotent -- safe to call every iteration; already-compacted entries are skipped."""
+        tool_indices = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+        if len(tool_indices) <= MAX_FULL_TOOL_RESULTS_PER_TURN:
+            return
+        keep_full = set(tool_indices[-MAX_FULL_TOOL_RESULTS_PER_TURN:])
+        for i in tool_indices:
+            if i in keep_full:
+                continue
+            content = messages[i].get("content", "")
+            if content == _COMPACTED_TOOL_RESULT_PLACEHOLDER or '"error"' in content:
+                continue
+            messages[i]["content"] = _COMPACTED_TOOL_RESULT_PLACEHOLDER
+
     def _apply_auto_model_selection(self, user_query):
         """If the active provider's model setting is "auto", pick a concrete
         model from the live list fetched in Settings, based on how complex
@@ -822,13 +870,20 @@ class CartogenAi:
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
 
-        for _ in range(MAX_ITERATIONS):
+        for iteration_index in range(MAX_ITERATIONS):
             if should_stop is not None and should_stop():
                 final_text = "[Agent stopped] Stopped by user."
                 self.conversation_history.append(user_message)
                 self.conversation_history.append({"role": "assistant", "content": final_text})
                 self._trim_history()
                 return final_text
+            # Pacing (2026-09-12, see PACING_THRESHOLD_ITERATIONS's own comment): a normal,
+            # small turn (<=3 tool-call rounds) never reaches here -- only once a turn is
+            # genuinely getting large does it start spacing its own remaining API calls out,
+            # reducing the chance of ever tripping a provider's requests-per-minute limit in
+            # the first place, proportional to how large the task actually is.
+            if iteration_index >= PACING_THRESHOLD_ITERATIONS:
+                time.sleep(PACING_DELAY_SECONDS)
             try:
                 result = self.client.complete(messages, tools=active_tools)
             except Exception as e:
@@ -894,6 +949,11 @@ class CartogenAi:
                     "name": name,
                     "content": serialized,
                 })
+
+            # Mid-turn context compaction (see MAX_FULL_TOOL_RESULTS_PER_TURN's own comment) --
+            # once per iteration, after this iteration's own tool results are appended, so a
+            # large task's per-call payload to the model stays bounded for the rest of the turn.
+            self._compact_old_tool_results(messages)
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same
