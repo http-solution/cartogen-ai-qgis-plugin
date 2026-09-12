@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.13.0](#v1-13-0) | 2026-09-12 | Rate-limit/task-size resilience: 429-aware backoff on all providers, adaptive pacing, mid-turn compaction |
 | [1.12.0](#v1-12-0) | 2026-09-12 | Onboarding profile, Help auto-show, tidier tool-call summary; fixes a v1.11.0 accent-stripe regression |
 | [1.11.0](#v1-11-0) | 2026-09-12 | Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu |
 | [1.10.0](#v1-10-0) | 2026-09-12 | UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons |
@@ -20,6 +21,48 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-13-0"></a>
+## [1.13.0] — 2026-09-12 — Rate-limit/task-size resilience: 429-aware backoff, adaptive pacing, mid-turn compaction
+
+Direct request: prevent a large/complex request from failing outright when it hits a provider's
+API rate limit, or simply from its own size. Investigated actual current behavior before
+designing anything, rather than assuming: `agent.py`'s tool-calling loop could fire up to 20
+back-to-back `client.complete()` calls with **zero pacing**, and each iteration re-sent every
+prior tool result in full — a large task's per-call payload grows unbounded through the turn.
+When the iteration limit was hit, the turn just stopped with a static message asking the *user*
+to manually break up their own request — no automatic mitigation. Separately, `post_with_retry`
+already retried a transient 429/5xx twice with a short 1.5s/3s backoff, but a genuine *sustained*
+per-minute quota breach usually outlasts that. OpenRouter's client turned out to already have
+real resilience here (a model-fallback chain plus a 30s-wait/3-cycle loop) — confirmed via grep
+that Claude, OpenAI, Gemini, and Ollama had nothing like it, only the shared short-backoff path.
+
+- **429 gets its own, longer retry budget** (`providers/base.py`): `RATE_LIMIT_BACKOFF_SECONDS=10`,
+  `RATE_LIMIT_MAX_RETRIES=3` (10s/20s/30s, roughly a minute of patience) — separate from the
+  existing generic 5xx/network-blip budget, since a rate limit needs to wait out an actual quota
+  window while a transient 5xx usually clears in a second or two. Lifts Claude/OpenAI/Gemini/
+  Ollama to roughly OpenRouter's own level of sustained-rate-limit resilience. Also fixed
+  `gemini.py`'s `grounded_search()` — the one raw `requests.post()` call a grep sweep found
+  bypassing the shared retry helper entirely.
+- **Adaptive inter-iteration pacing** (`agent.py`): once a turn's tool-calling loop passes 3
+  iterations, each further one adds a short `1.2s` delay before the next `client.complete()` call
+  — a normal, small request (1-3 tool-call rounds) pays nothing at all; only a genuinely large
+  multi-step task starts spacing its own remaining calls out, in direct proportion to how large
+  it's getting, reducing the chance of ever tripping a provider's requests-per-minute limit in
+  the first place rather than only reacting after the fact.
+- **Mid-turn context compaction** (`agent.py`): once a turn's in-flight message list accumulates
+  more than 8 tool-result messages, older **successful** ones get replaced with a short
+  placeholder — the most recent 8 stay in full. Any tool result containing an `"error"` key is
+  **never** compacted, at any age — failures stay load-bearing, the identical call v1.12.0's chat
+  tool-steps redesign already made for the identical reason. This is turn-local: the in-flight
+  message list never touches persisted conversation history, so compaction only affects what
+  gets sent for the rest of the turn already in flight.
+
+No new agent tools — 169 tools, unchanged. Full suite 1484 tests (up from 1478), 0 failures.
+Live-verified against a real `CartogenAi` agent instance and real tool dispatch (`get_layers`
+against a real `QgsProject`, not a stub) in real QGIS 4.2.2: a 20-iteration looping turn produced
+exactly 17 pacing sleeps (iterations 3-19) and correctly compacted 11 old tool results while
+keeping the most recent 8 in full.
 
 <a id="v1-12-0"></a>
 ## [1.12.0] — 2026-09-12 — Onboarding profile, Help auto-show, tidier tool-call summary

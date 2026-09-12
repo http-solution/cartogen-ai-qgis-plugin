@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.12.0
+version=1.13.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,31 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.12.0 (2026-09-12):
+changelog=v1.13.0 (2026-09-12):
+    Rate-limit/task-size resilience release. A genuinely complex multi-step request could burst
+    up to 20 back-to-back API calls with zero pacing, and each call re-sent every prior tool
+    result in full -- real risk of tripping a provider's rate limit or a context-length ceiling,
+    with no automatic mitigation before this (only a canned message once the turn had already
+    failed). Investigated actual behavior before changing anything: OpenRouter's client already
+    had real rate-limit resilience (model-fallback chain + a 30s-wait/3-cycle retry loop);
+    Claude/OpenAI/Gemini/Ollama only had a short 1.5s/3s generic backoff, nowhere near enough to
+    outlast a real per-minute quota window. Three fixes: (1) providers/base.py's post_with_retry
+    gets a 429-specific retry budget (10s/20s/30s, roughly a minute of patience) separate from
+    the generic 5xx one, lifting all 5 providers to a similar level of sustained-rate-limit
+    resilience; also fixed gemini.py's grounded_search(), the one raw requests.post() call found
+    bypassing the shared retry helper. (2) agent.py: adaptive inter-iteration pacing -- a normal,
+    small turn (<=3 tool-call rounds) pays nothing at all; only a genuinely large turn starts
+    spacing its own remaining calls out, proportional to task size. (3) agent.py: mid-turn
+    context compaction -- once a turn accumulates more than 8 tool results, older SUCCESSFUL
+    ones get replaced with a placeholder (any result containing an error is never compacted, at
+    any age -- failures stay load-bearing, matching v1.12.0's chat-tool-steps redesign's
+    identical call). No new agent tools; 169 tools unchanged. Live-verified against a real
+    CartogenAi agent instance and real tool dispatch (get_layers against a real QgsProject) in
+    real QGIS 4.2.2: a 20-iteration looping turn produced exactly 17 pacing sleeps and correctly
+    compacted 11 old results while keeping the most recent 8 in full. Full suite: 1484 tests (up
+    from 1478), 0 failures. See CHANGELOG.md's [1.13.0] entry for full detail.
+
+v1.12.0 (2026-09-12):
     Third round of the same real-session feedback thread. Fixed a real regression in v1.11.0's
     own chat-bubble accent stripe: it looked correct in code and in a screenshot, but the
     border-left CSS was silently dropped by Qt's rich-text table engine when a border shorthand
