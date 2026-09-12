@@ -20,8 +20,8 @@ class TestFullPromptUnchangedWhenNoToolNamesGiven(unittest.TestCase):
         assembled = prompts._assemble_base_prompt(None)
         self.assertEqual(assembled, prompts.BASE_SYSTEM_PROMPT)
 
-    def test_base_system_prompt_contains_the_exact_text_of_all_47_rules(self):
-        for n in range(1, 48):
+    def test_base_system_prompt_contains_the_exact_text_of_all_rules(self):
+        for n in prompts._ALL_RULES:
             self.assertIn(prompts._ALL_RULES[n].strip(), prompts.BASE_SYSTEM_PROMPT)
 
 
@@ -109,6 +109,41 @@ class TestDomainRuleAutoTriggering(unittest.TestCase):
         # always-on rather than silently vanishing, same policy as "no tool mentioned at all".
         assembled = prompts._assemble_base_prompt({"buffer_analysis"})
         self.assertIn(prompts._ALL_RULES[8].strip(), assembled)
+
+
+class TestRule48LiveHazardIntentRecognition(unittest.TestCase):
+    """Rule 48 (added 2026-09-13, live user report: 'show live incident in jordan... natural,
+    crime, hazard' got a blanket refusal even though fetch_nasa_eonet_events was an available
+    tool for that turn) -- confirms the new rule is domain-tier (not core/sensitive) and is
+    correctly auto-triggered by exactly the 3 hazard-monitoring tools it names."""
+
+    def test_rule_48_not_core(self):
+        self.assertNotIn(48, prompts.CORE_RULE_NUMBERS)
+
+    def test_rule_48_not_sensitive(self):
+        self.assertNotIn(48, prompts.SENSITIVE_RULE_NUMBERS)
+
+    def test_rule_48_excluded_for_an_unrelated_tool(self):
+        assembled = prompts._assemble_base_prompt({"buffer_analysis"})
+        self.assertNotIn(prompts._ALL_RULES[48].strip(), assembled)
+
+    def test_rule_48_included_for_each_of_its_three_trigger_tools(self):
+        for tool_name in (
+            "fetch_gdacs_disaster_alerts",
+            "fetch_nasa_eonet_events",
+            "fetch_nasa_active_fires",
+        ):
+            assembled = prompts._assemble_base_prompt({tool_name})
+            self.assertIn(
+                prompts._ALL_RULES[48].strip(), assembled,
+                f"rule 48 should be included when {tool_name} is active",
+            )
+
+    def test_rule_48_trigger_tools_are_exactly_the_three_hazard_tools(self):
+        self.assertEqual(
+            prompts._DOMAIN_RULE_TRIGGER_TOOLS.get(48),
+            {"fetch_gdacs_disaster_alerts", "fetch_nasa_eonet_events", "fetch_nasa_active_fires"},
+        )
 
 
 class TestBuildSystemPromptIntegration(unittest.TestCase):

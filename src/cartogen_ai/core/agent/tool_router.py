@@ -5,6 +5,7 @@ Filters top-k relevant tool schemas based on user query keywords and intent matc
 to prevent LLM system prompt context overload.
 """
 
+import difflib
 import random
 import re
 from typing import List, Dict
@@ -71,7 +72,67 @@ _TOOL_ALIASES = {
         "raster color ramp", "raster contrast", "stretch the raster",
         "raster looks grey", "raster looks gray", "colorize the raster",
     ],
+    # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
+    # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its
+    # description names specific hazard TYPES -- earthquakes, floods, wildfires -- but never
+    # the generic words "disaster"/"hazard"/"incident" a real user reaches for first). The
+    # single-word "hazard"/"disaster"/"incident"/"wildfire" entries below exist specifically so
+    # _expand_query_with_fuzzy_corrections() (see its docstring) has something to land a
+    # corrected "haszard"->"hazard" or "incedent"->"incident" on -- bare-substring matching
+    # alone still can't see a misspelled word, but the fuzzy-correction pass runs before this
+    # check and appends the corrected form to the string these aliases are matched against.
+    # rule 48 (prompts.py) is the complementary fix for when the tool IS already a candidate
+    # but the model doesn't know to reach for it.
+    "fetch_gdacs_disaster_alerts": [
+        "disaster alert", "current disaster", "live disaster", "ongoing disaster",
+        "disaster incident", "hazard alert", "what disasters", "natural disaster",
+        "hazard", "disaster", "emergency",
+    ],
+    "fetch_nasa_eonet_events": [
+        "natural event", "live event", "current event", "live hazard",
+        "current hazard", "natural incident", "live incident", "ongoing hazard",
+        "what hazards", "hazard incident", "hazard", "incident",
+    ],
+    "fetch_nasa_active_fires": [
+        "active fire", "live fire", "fire detection", "current wildfire",
+        "wildfire location", "fire alert", "wildfire",
+    ],
 }
+# A live user report typo'd BOTH "hazard" -> "haszard" and "incident" -> "incedent" in the
+# same query (2026-09-13) -- the alias entries above are exact-substring, so a misspelled
+# word matches nothing at all, no matter how close. Scoped narrowly to avoid the false-positive
+# risk of fuzzy-matching against the full ~169-tool vocabulary: only checked against this small,
+# curated set of words that actually gate real capability (hazard/disaster reporting), only for
+# query words of 5+ characters (short words have too many close neighbors to be a safe fuzzy
+# target), and only ever ADDS a corrected word alongside the original -- never replaces or
+# removes a query word, so a query that was already scoring correctly is unaffected.
+_FUZZY_TYPO_VOCAB = {
+    "hazard", "hazards", "disaster", "disasters", "incident", "incidents",
+    "wildfire", "wildfires", "earthquake", "earthquakes", "flood", "floods",
+    "drought", "droughts", "volcano", "volcanoes", "cyclone", "cyclones",
+    "emergency", "emergencies",
+}
+_FUZZY_TYPO_MIN_WORD_LEN = 5
+_FUZZY_TYPO_CUTOFF = 0.8
+
+
+def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> str:
+    """Returns query_lower with a space-joined tail of any fuzzy-corrected words appended,
+    for use as the alias-matching string. Does not mutate query_words (name/description
+    scoring is unaffected -- see _FUZZY_TYPO_VOCAB's docstring above for why this stays
+    narrowly scoped to the alias-matching path only)."""
+    corrections = []
+    for word in query_words:
+        if len(word) < _FUZZY_TYPO_MIN_WORD_LEN or word in _FUZZY_TYPO_VOCAB:
+            continue
+        match = difflib.get_close_matches(
+            word, _FUZZY_TYPO_VOCAB, n=1, cutoff=_FUZZY_TYPO_CUTOFF
+        )
+        if match:
+            corrections.append(match[0])
+    if not corrections:
+        return query_lower
+    return query_lower + " " + " ".join(corrections)
 # Score contribution for an alias phrase match -- comparable to a name match
 # (10), since these are curated synonyms for a specific known gap rather than
 # an incidental substring hit, but not higher (a real name/description match
@@ -114,6 +175,10 @@ class ToolRouter:
         # check below) keeps every word, since a multi-word alias phrase like "rank the
         # districts" is matched as a whole substring, not word-by-word.
         query_words = set(re.findall(r'\w+', query_lower)) - _STOPWORDS
+        # Alias matching only -- see _FUZZY_TYPO_VOCAB's docstring. Never touches query_words
+        # itself, so name/description scoring (and every existing test asserting on it) is
+        # unaffected; only the alias substring check below sees the corrected words.
+        alias_query_lower = _expand_query_with_fuzzy_corrections(query_words, query_lower)
 
         # Always include core agent/task/memory tools. execute_pyqgis_script is
         # handled separately below (point 1 of
@@ -177,7 +242,7 @@ class ToolRouter:
 
             # Curated alias/synonym match score
             for alias in _TOOL_ALIASES.get(name, []):
-                if alias in query_lower:
+                if alias in alias_query_lower:
                     score += _ALIAS_MATCH_SCORE
 
             scored_tools.append((score, tool_obj))
