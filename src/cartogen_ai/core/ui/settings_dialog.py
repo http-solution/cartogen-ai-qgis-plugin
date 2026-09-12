@@ -394,6 +394,20 @@ class CartogenAiSettingsDialog(QDialog):
         profile_form.addRow("Refinement Persona:", self.user_profile_combo)
         layout.addLayout(profile_form)
 
+        # Not to be confused with "Refinement Persona" just above -- this is the separate
+        # onboarding profile (role/experience/communication style, agent/onboarding_profile.py),
+        # shown once at first use and re-editable here. Opens its own dialog rather than being
+        # inlined as more combo rows in this already-dense dialog.
+        self.edit_onboarding_profile_btn = QPushButton("Edit My Profile…")
+        self.edit_onboarding_profile_btn.setObjectName("secondaryButton")
+        self.edit_onboarding_profile_btn.setToolTip(
+            "Your role, QGIS experience level, and preferred communication style -- helps "
+            "Cartogen AI tailor its tone and detail level. Saved as a local .md file you can "
+            "also edit by hand."
+        )
+        self.edit_onboarding_profile_btn.clicked.connect(self._open_onboarding_profile)
+        layout.addWidget(self.edit_onboarding_profile_btn)
+
         self.fetch_status_label = QLabel("Model lists refresh automatically when you leave an API key field.")
         self.fetch_status_label.setObjectName("secondaryLabel")
         self.fetch_status_label.setStyleSheet("color: gray; font-size: 11px;")
@@ -414,6 +428,11 @@ class CartogenAiSettingsDialog(QDialog):
     def _open_account_dialog(self):
         from .account_dialog import CartogenAccountDialog
         dialog = CartogenAccountDialog(self)
+        dialog.exec()
+
+    def _open_onboarding_profile(self):
+        from .onboarding_dialog import OnboardingDialog
+        dialog = OnboardingDialog(self)
         dialog.exec()
 
     def update_fields(self):

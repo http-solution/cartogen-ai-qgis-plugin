@@ -3,6 +3,7 @@ import unittest
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
+    render_tool_steps_toggle_html, render_tool_steps_failure_details_html,
     build_dock_stylesheet, format_send_error, _brand_accent, BRAND_TEAL, BRAND_ACCENT_BLEND_T,
 )
 
@@ -246,6 +247,80 @@ class TestRenderToolStepHtml(unittest.TestCase):
     def test_unknown_status_falls_back_to_running_style(self):
         html = render_tool_step_html("get_layers", "bogus_status", None, self._colors)
         self.assertIn("Using Get layers", html)
+
+
+class TestRenderToolStepsToggleHtml(unittest.TestCase):
+    """Real user feedback 2026-09-12 ("too much visual space/raw detail/noise" for a
+    multi-tool-call turn) -- one compact toggleable summary line replacing the old
+    one-line-per-event approach. See chat_tab_widget._flush_tool_steps_summary/
+    _on_step_anchor_clicked for how the toggle actually gets wired up live."""
+    _colors = {"subtle": "#888888", "text": "#222222"}
+
+    def test_collapsed_shows_count_and_comma_joined_friendly_names(self):
+        steps = [
+            {"name": "apply_graduated_style", "status": "done", "error": None},
+            {"name": "get_layers", "status": "done", "error": None},
+        ]
+        html = render_tool_steps_toggle_html(steps, 1, self._colors, expanded=False)
+        self.assertIn("2 tool calls", html)
+        self.assertIn("Apply graduated style, Get layers", html)
+        self.assertIn('href="cartogen://steps/1"', html)
+        self.assertIn("Details", html)
+
+    def test_singular_wording_for_one_step(self):
+        steps = [{"name": "get_layers", "status": "done", "error": None}]
+        html = render_tool_steps_toggle_html(steps, 2, self._colors, expanded=False)
+        self.assertIn("1 tool call ", html)
+        self.assertNotIn("1 tool calls", html)
+
+    def test_collapsed_never_includes_raw_error_text(self):
+        steps = [{"name": "buffer_analysis", "status": "failed", "error": "Layer not found"}]
+        html = render_tool_steps_toggle_html(steps, 3, self._colors, expanded=False)
+        self.assertNotIn("Layer not found", html)
+
+    def test_expanded_lists_each_step_with_status_icon_no_raw_error(self):
+        steps = [
+            {"name": "apply_graduated_style", "status": "done", "error": None},
+            {"name": "buffer_analysis", "status": "failed", "error": "Layer not found"},
+        ]
+        html = render_tool_steps_toggle_html(steps, 4, self._colors, expanded=True)
+        self.assertIn("Apply graduated style", html)
+        self.assertIn("Buffer analysis", html)
+        self.assertIn("Hide details", html)
+        self.assertNotIn("Layer not found", html)  # still never here -- see failure-details test below
+
+    def test_different_block_ids_produce_independent_hrefs(self):
+        steps = [{"name": "get_layers", "status": "done", "error": None}]
+        html_a = render_tool_steps_toggle_html(steps, 7, self._colors, expanded=False)
+        html_b = render_tool_steps_toggle_html(steps, 8, self._colors, expanded=False)
+        self.assertIn('href="cartogen://steps/7"', html_a)
+        self.assertIn('href="cartogen://steps/8"', html_b)
+
+
+class TestRenderToolStepsFailureDetailsHtml(unittest.TestCase):
+    """Failures are always shown regardless of the toggle above's collapsed/expanded state --
+    never gated behind a click, matching this codebase's no-silent-failures posture elsewhere."""
+    _colors = {"subtle": "#888888", "text": "#222222"}
+
+    def test_no_failed_steps_returns_empty_string(self):
+        steps = [{"name": "get_layers", "status": "done", "error": None}]
+        self.assertEqual(render_tool_steps_failure_details_html(steps, self._colors), "")
+
+    def test_failed_step_error_text_is_present_and_escaped(self):
+        steps = [{"name": "buffer_analysis", "status": "failed", "error": "<script>evil</script>"}]
+        html = render_tool_steps_failure_details_html(steps, self._colors)
+        self.assertIn("Failed: Buffer analysis", html)
+        self.assertIn("&lt;script&gt;", html)
+        self.assertNotIn("<script>", html)
+
+    def test_only_failed_steps_are_rendered_not_done_ones(self):
+        steps = [
+            {"name": "get_layers", "status": "done", "error": None},
+            {"name": "buffer_analysis", "status": "failed", "error": "boom"},
+        ]
+        html = render_tool_steps_failure_details_html(steps, self._colors)
+        self.assertIn("Buffer analysis", html)
+        self.assertNotIn("Get layers", html)
 
 
 class TestBrandAccent(unittest.TestCase):

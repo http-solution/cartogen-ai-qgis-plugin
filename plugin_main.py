@@ -18,7 +18,7 @@ import os.path
 import re
 import traceback
 
-from qgis.PyQt.QtCore import Qt, QCoreApplication, QLocale, QTranslator
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QLocale, QTranslator, QTimer
 from qgis.PyQt.QtGui import QIcon
 
 try:
@@ -31,6 +31,7 @@ from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 from qgis.core import QgsSettings, QgsProject
 
 SETTINGS_KEY = "cartogen_ai/api_key"
+HELP_LAST_SHOWN_VERSION_KEY = "cartogen_ai/help_last_shown_version"
 
 
 def _dock_area_right():
@@ -124,6 +125,33 @@ class CartogenAi:
         project = QgsProject.instance()
         project.readProject.connect(self._on_project_changed)
         project.cleared.connect(self._on_project_changed)
+
+        # Deferred rather than called directly here: initGui() runs during QGIS's own plugin
+        # load sequence, and popping a modal dialog synchronously inside it risks competing
+        # with whatever QGIS itself is still doing at that exact moment. QTimer.singleShot(0)
+        # runs it on the next pass of the Qt event loop instead, once QGIS has finished
+        # settling -- the same "defer heavy/UI work out of initGui()" caution this codebase
+        # already follows elsewhere.
+        QTimer.singleShot(0, self._maybe_show_first_use_dialogs)
+
+    def _maybe_show_first_use_dialogs(self):
+        """First-use onboarding (role/experience/communication-style profile, real-session
+        feature request 2026-09-12) plus Help auto-show (first use, and once again after any
+        version update -- clarified via AskUserQuestion the same day). Onboarding runs first
+        (a brief, one-time "who are you" moment) and only ever once; Help re-shows on every
+        version bump, since that's meant as a lightweight "what's available" refresher, not a
+        one-time gate."""
+        from cartogen_ai.core.agent import onboarding_profile
+        if not onboarding_profile.is_onboarding_completed():
+            from cartogen_ai.core.ui.onboarding_dialog import OnboardingDialog
+            OnboardingDialog(self.iface.mainWindow()).exec()
+
+        settings = QgsSettings()
+        current_version = _read_plugin_version(self.plugin_dir)
+        last_shown_version = settings.value(HELP_LAST_SHOWN_VERSION_KEY, "")
+        if last_shown_version != current_version:
+            self.show_help()
+            settings.setValue(HELP_LAST_SHOWN_VERSION_KEY, current_version)
 
     def _on_project_changed(self, *_args):
         if self._agent is not None:

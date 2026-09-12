@@ -58,6 +58,7 @@ from .tools._snapshot_registry import get_snapshot_fn
 from . import tool_operations
 from .transactions import TurnTransactionLog
 from . import learning
+from . import onboarding_profile
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
 # extraction), and never touch qgis.core/Qt objects. These are safe to run
@@ -801,7 +802,13 @@ class CartogenAi:
         if learning.detect_correction(user_query) and self._last_tool_call:
             last_name, last_args = self._last_tool_call
             learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
-        system_prompt_content = build_system_prompt(self.task_manager, self.memory_manager, map_context)
+        # get_formatted_onboarding_context() does its own file read + QGIS_AVAILABLE guard and
+        # never raises (see onboarding_profile.py) -- no try/except needed at this call site,
+        # matching how map_context is passed through unguarded too.
+        user_profile_ctx = onboarding_profile.get_formatted_onboarding_context()
+        system_prompt_content = build_system_prompt(
+            self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx
+        )
         
         messages = [{"role": "system", "content": system_prompt_content}]
         messages.extend(self.conversation_history)

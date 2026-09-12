@@ -306,7 +306,13 @@ def render_tool_step_html(name, status, error, colors):
     tool-call step (see agent.py's run() tool_step_callback and
     dock_widget.py's _add_tool_step). Deliberately NOT a full chat bubble --
     smaller font, no avatar/label row, so a turn with many tool calls doesn't
-    visually compete with the actual conversation."""
+    visually compete with the actual conversation.
+
+    Superseded for "running"/"done" scrollback display by
+    render_tool_steps_toggle_html/render_tool_steps_failure_details_html below (real user
+    feedback 2026-09-12: a line per event was too much visual space/noise for a multi-tool-call
+    turn) -- kept as-is since it's still a small, independently useful building block (and its
+    own tests), not because anything still calls it for scrollback rendering."""
     meta = _STEP_STATUS.get(status, _STEP_STATUS["running"])
     color = colors.get(meta["color_key"], colors.get("subtle", "#808080"))
     # friendly_tool_name only ever transforms a real registered tool name
@@ -320,6 +326,67 @@ def render_tool_step_html(name, status, error, colors):
         f'<div style="font-size:11px;color:{color};margin:1px 0 1px 8px;">'
         f'{meta["icon"]}&nbsp;{text}</div>'
     )
+
+
+def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
+    """One compact summary line for an entire turn's tool calls, replacing the old
+    one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too
+    much raw detail", "general visual noise"). `steps` is a list of {"name","status","error"}
+    dicts for TERMINAL statuses only ("running" never reaches here -- see
+    chat_tab_widget._add_tool_step, which redirects live "running" text to the status label
+    instead). `block_id` is baked into the toggle anchor's href so multiple summary blocks in
+    the same scrollback toggle independently (chat_tab_widget._on_step_anchor_clicked looks it
+    up). Collapsed (expanded=False) shows one line with friendly names comma-joined; expanded
+    shows one line per step with a status icon, still no raw error text (that's always-visible
+    separately -- see render_tool_steps_failure_details_html, never gated behind this toggle)."""
+    color = colors.get("subtle", "#808080")
+    n = len(steps)
+    plural = "" if n == 1 else "s"
+    href = f"cartogen://steps/{block_id}"
+    if not expanded:
+        names = ", ".join(friendly_tool_name(s["name"]) for s in steps)
+        return (
+            f'<div style="font-size:11px;color:{color};margin:2px 0;">'
+            f'&#128295;&nbsp;{n} tool call{plural} &middot; {names}'
+            f'&nbsp;<a href="{href}">Details&nbsp;&#9662;</a></div>'
+        )
+    lines = [
+        f'<div style="font-size:11px;color:{color};margin:2px 0;">'
+        f'&#128295;&nbsp;{n} tool call{plural}'
+        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>'
+    ]
+    for s in steps:
+        icon = _STEP_STATUS.get(s["status"], _STEP_STATUS["done"])["icon"]
+        friendly = friendly_tool_name(s["name"])
+        lines.append(
+            f'<div style="font-size:11px;color:{color};margin:1px 0 1px 16px;">'
+            f'{icon}&nbsp;{friendly}</div>'
+        )
+    return "".join(lines)
+
+
+def render_tool_steps_failure_details_html(steps, colors):
+    """Full error text for any FAILED step in `steps`, always rendered regardless of the toggle
+    above's collapsed/expanded state -- failures are load-bearing information the user needs to
+    see, not detail they have to opt into (matching this codebase's existing no-silent-failures
+    posture elsewhere: the false-success narrative backstop, SECURITY.md's disclosure
+    conventions). Returns "" (append nothing) when nothing failed."""
+    failed = [s for s in steps if s.get("status") == "failed"]
+    if not failed:
+        return ""
+    color = colors.get("text", "#000000")
+    icon = _STEP_STATUS["failed"]["icon"]
+    parts = []
+    for s in failed:
+        friendly = friendly_tool_name(s["name"])
+        text = f"Failed: {friendly}"
+        if s.get("error"):
+            text += f" &mdash; {escape_plain_text(str(s['error']))}"
+        parts.append(
+            f'<div style="font-size:11px;color:{color};margin:1px 0 1px 8px;">'
+            f'{icon}&nbsp;{text}</div>'
+        )
+    return "".join(parts)
 
 
 def format_send_error(err) -> str:

@@ -15,6 +15,18 @@ the installed version number at the top of its own content.
 
 <p align="center"><img src="images/dock-panel.png" alt="The Cartogen AI dock panel" width="420"></p>
 
+### First launch
+
+The very first time the plugin loads, a short **welcome dialog** appears asking your role/use
+case, QGIS experience level, and preferred communication style — this takes a few seconds and
+helps the agent tailor its tone and detail level (a beginner gets more explanation, an expert
+gets less; a "concise" preference gets shorter answers). It's entirely optional — click **Skip
+for now** and nothing changes. Answers are saved as a plain, human-readable `user_profile.md`
+file in your QGIS profile folder, not a hidden settings blob — open and edit it directly anytime,
+or revisit the same picker later from **Settings → Edit My Profile…**. The **Help** window (see
+below) also opens automatically the first time, and again once after any future update, so
+what's new/available stays easy to find without having to go looking for it.
+
 ## First-time setup
 
 1. Click **Settings** in the dock header (top right, next to the provider dropdown).
@@ -150,16 +162,22 @@ button** (the arrow, right of the input box). For example prompts, see
 
 <p align="center"><img src="images/chat-conversation.png" alt="A real conversation: a request, live tool-call progress, and a markdown-formatted reply with a table" width="440"></p>
 
-Each tool call shows live progress inline (⚙ running, ✓ done) as the agent works, and
-the reply itself is real Markdown — tables, bold text, lists, and code blocks all render
+The reply itself is real Markdown — tables, bold text, lists, and code blocks all render
 formatted, not as raw text.
 
 While a request is running:
-- The status line shows what the agent is doing (e.g. "Thinking...", "Using Claude:
-  claude-opus-5...", a specific tool name).
+- The status line shows what the agent is doing right now (e.g. "Thinking...", a specific
+  tool name) — this updates in place rather than adding a new line each time, so a
+  multi-step request doesn't fill the chat log with live progress chatter.
 - Click the **stop button** (next to Send) to cancel it. This is cooperative, not instant — it stops the
   agent before its *next* step (another model call or tool call), not mid-flight, so
   there can be a short delay after clicking before it actually stops.
+
+Once a turn that called any tools finishes, one compact line summarizes what ran (e.g. "🔧
+3 tool calls · Calculate severity index, Apply graduated style, Export dashboard") —
+click **Details ▾** to expand it into a per-step list, or leave it collapsed. If any step
+failed, its full error text always shows directly underneath regardless of whether the
+summary is expanded or collapsed — failures are never hidden behind a click.
 
 ### Attaching files
 
