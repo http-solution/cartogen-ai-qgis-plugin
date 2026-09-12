@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.0](#v1-15-0) | 2026-09-13 | Gemini prompt caching (automatic, implicit) + cache-hit visibility for Gemini and Claude |
 | [1.14.1](#v1-14-1) | 2026-09-13 | Patch: floating dock clamped to the screen after a report of the chat input row going missing |
 | [1.14.0](#v1-14-0) | 2026-09-13 | Modularized the 47-rule base prompt by relevance; "hi" now ~3.2K tokens, down from ~23K originally |
 | [1.13.1](#v1-13-1) | 2026-09-12 | Patch: a plain "hi" cost ~23K tokens from tool-router padding; word-boundary matching + stopwords fix it |
@@ -24,6 +25,55 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-0"></a>
+## [1.15.0] — 2026-09-13 — Gemini prompt caching (automatic, implicit) + cache-hit visibility
+
+Direct request — "implement gemini caching, check the documentation" — following a real report
+of ~168K tokens for one 6-call print-layout turn. Researched Google's current Gemini API docs
+before writing any code, not assumed.
+
+**Implicit caching is automatic and free for Gemini 2.5+/3.x models** — no client code needed to
+trigger it, ~90% discount on cache hits, no storage cost. It requires the cached content to sit
+as a stable prefix above a per-model minimum (2,048 tokens for 2.5 Flash/Pro, 4,096 for 3.x
+Flash/3.1 Pro Preview). Confirmed this plugin's system prompt/tools already meet both: they're
+computed once before `agent.py`'s tool-calling loop starts and never rebuilt mid-turn — a
+multi-call turn's repeated system prompt is exactly the shape implicit caching targets. There was
+nothing to implement here beyond confirming it isn't accidentally defeated.
+
+**What was actually missing was visibility.** The Gemini OpenAI-compatible endpoint reports cache
+hits via `usage.prompt_tokens_details.cached_tokens` (a sub-breakdown of `prompt_tokens`, not
+subtracted from it), but nothing in this codebase surfaced it — so whether caching was helping
+was an unverifiable assumption.
+
+- **Explicit caching** (a separate `CachedContent` resource with its own lifecycle/storage cost)
+  was considered and deliberately not built: implicit caching already covers the exact scenario
+  driving this report — repeated identical content within one turn's loop — for free, and the
+  per-turn module-based system prompt (v1.14.0) limits explicit caching's cross-turn reuse value
+  for the added complexity.
+- `providers/base.py`'s `extract_openai_style_usage` (shared by Gemini/OpenAI/OpenRouter/Ollama)
+  now also extracts `cached_tokens` when present.
+- `providers/claude.py`'s `from_anthropic_response` gets the same visibility, for symmetry —
+  Claude already sends `cache_control` breakpoints (from earlier this session) but never
+  surfaced `cache_read`/`cache_creation` token counts either. Anthropic's own `input_tokens`
+  deliberately *excludes* cached tokens (unlike Gemini/OpenAI's convention, which includes them
+  in the headline total), so it's reconstructed to the full request size for cross-provider
+  consistency.
+- Session usage now shows e.g. `"~24,747 tokens this session (3 calls, ~14,400 served from
+  cache)"` — omitted entirely (not fabricated as 0) when nothing was reported, same honesty
+  policy the usage feature has always had.
+
+No new agent tools — 169 tools, unchanged. 18 new tests, full suite 1506 → 1512, 0 failures.
+Live-verified end to end in real QGIS 4.2.2: a realistic Gemini response shape parses correctly,
+a 3-turn fake-client session accumulates cache hits and produces the exact expected label text,
+and the real `ChatTabWidget` renders it.
+
+**Honest limitation, stated plainly**: this sandbox has no live network access to a real Gemini
+API key, so whether the actual API genuinely returns `prompt_tokens_details.cached_tokens`
+through this specific OpenAI-compatible endpoint (vs. only the native endpoint) is confirmed
+against Google's documentation, not confirmed end-to-end against a real response. The parsing
+logic is correct for the documented shape and degrades safely (omits `cached_tokens`, doesn't
+crash) if the real field name or nesting ever turns out to differ.
 
 <a id="v1-14-1"></a>
 ## [1.14.1] — 2026-09-13 — Patch: floating dock clamped to the screen
