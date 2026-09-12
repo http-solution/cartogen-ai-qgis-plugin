@@ -214,7 +214,10 @@ class ChatTabWidget(QWidget):
         # collapsing a meaning-carrying color -- found in the UX audit dated
         # 2026-08-31.
         self.preview_send_btn.clicked.connect(self._send_previewed_prompt)
-        self.preview_original_btn = QPushButton("Send my wording only")
+        # "Send as typed instead" matches the Refinement panel's identical bypass-send button
+        # exactly (:161) -- was "Send my wording only" here, a second phrasing of the same
+        # action across the two gate panels. UI/chat redesign workstream, 2026-09-12.
+        self.preview_original_btn = QPushButton("Send as typed instead")
         self.preview_original_btn.clicked.connect(self._send_preview_original)
         self.preview_cancel_btn = QPushButton("Cancel")
         self.preview_cancel_btn.clicked.connect(self._cancel_preview)
@@ -503,7 +506,7 @@ class ChatTabWidget(QWidget):
             + "</ul>"
         )
         self.preview_prompt.setPlainText(analysis.get("optimum_prompt") or original_text)
-        # Read-only while this panel is up: Send this / Send my wording only
+        # Read-only while this panel is up: Send this / Send as typed instead
         # both act on the original_text snapshot captured above, not on
         # whatever is in the box right now. Without this, editing the box
         # underneath the open panel and clicking either button silently sent
@@ -698,7 +701,7 @@ class ChatTabWidget(QWidget):
         # simply wrong). Every call site above passes its own analysis (or
         # explicitly None) already, so there is no caller left that needs a
         # self._pending_analysis fallback here -- and a fallback used to sit
-        # here, which silently undid "Send my wording only": clicking it
+        # here, which silently undid "Send as typed instead": clicking it
         # looked like it worked, then this line re-applied the very
         # enrichment, and the very output contract, the user had just opted
         # out of. Found by a real click on a real button in a headless

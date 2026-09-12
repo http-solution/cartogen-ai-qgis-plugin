@@ -48,7 +48,7 @@ def _build_help_html():
     then send again.</li>
     <li><b>A preview of the exact prompt about to be sent</b> — showing any values assumed on
     your behalf and what each attached file will be read as, with the reasoning behind it.
-    Click <b>Send this</b> to go with it, or <b>Send my wording only</b> to skip that
+    Click <b>Send this</b> to go with it, or <b>Send as typed instead</b> to skip that
     enrichment entirely and send exactly what you typed. Turn this off in Settings ("Show the
     prompt and reasoning before sending") if you'd rather it never appear.</li>
     </ul>
