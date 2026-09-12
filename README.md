@@ -161,7 +161,7 @@ the folder directly on GitHub.
 
 | Doc | Covers |
 |---|---|
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 169 tools, auto-generated from the live registry |
 
 ### Security & compliance
