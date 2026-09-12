@@ -64,6 +64,60 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-12 — v1.11.0 + v1.12.0 — headless, not the full interactive checklist above, run
+against the actually-released v1.12.0 zip.** Both releases are from the same real-session
+user-feedback thread; v1.11.0 never got its own logged run before v1.12.0 shipped the same day,
+so this one consolidated run covers everything from both, driven against a **fresh extraction of
+the released `cartogen_ai_v1.12.0.zip`** (not the dev tree) via `python-qgis.bat` — this is
+exactly what a real user installs. `apps/qgis/python/plugins` was added to `sys.path` and
+`Processing.initialize()` called explicitly, since neither is on the default path/initialized in
+this bare `QgsApplication([], True)` invocation (confirmed: `import processing` fails without
+it) — needed to exercise `processing.run()`-based tools like `buffer_analysis` for real instead
+of them degrading to "QGIS not available". All 11 checks passed:
+
+- **Dock structure** — exactly 2 tabs (Chat, Activity), no Help tab (moved to the Plugins menu);
+  the Activity tab's `QScrollArea` confirmed `ScrollBarAlwaysOff` horizontally; zero
+  `chipButton`-named widgets left in the Chat tab and `_send_quick_prompt` confirmed removed; a
+  fresh `TasksTabWidget` swept for any remaining `"X & Y"` (bare-ampersand-then-space)
+  Qt-mnemonic-glitch widget label — none found.
+- **Chat bubble, the actual v1.11.0→v1.12.0 regression** — rendered a real user message, grabbed
+  **only** the `QTextBrowser` (not the whole `ChatTabWidget`, which has its own accent-colored
+  QSS chrome — the exact trap that produced a false-positive "confirmation" during development),
+  and scanned for a narrow (≤8px), vertically-repeated run of the exact accent RGB value at a
+  stable x position: found, confirming the left-accent stripe genuinely renders this time, not
+  just that the color exists somewhere in a screenshot. Also confirmed the outer bubble alignment
+  table still carries `border="0"` (no double-border regression).
+- **Help menu** — confirmed `version_action` no longer exists anywhere in `plugin_main.py`'s
+  source; `show_help()` builds a real `QDialog` without raising; `_read_plugin_version()` reads
+  `1.12.0` from the packaged `metadata.txt`.
+- **Help auto-show / onboarding trigger** — exercised all 3 real states through
+  `_maybe_show_first_use_dialogs()` with a mocked `iface`: first-ever run triggers both the
+  onboarding dialog and Help; a repeat call at the same version with onboarding already marked
+  completed triggers neither; a simulated version bump re-triggers Help only, not onboarding.
+- **Onboarding profile, full round trip** — built a real `OnboardingDialog`, confirmed the
+  Other-role free-text field enables/disables correctly, saved a profile (role="other" with free
+  text, experience, style) to a real temp-dir `.md` file, confirmed the file's actual content,
+  confirmed `get_formatted_onboarding_context()` reads it back, confirmed
+  `build_system_prompt(user_profile_ctx=...)` actually includes it, and confirmed reopening the
+  dialog (simulating Settings → Edit My Profile) pre-fills every field from the saved file.
+- **Chat tool-call summary + Details toggle** — simulated a real 2-turn, 4-tool-call session
+  through `_add_tool_step`/`_flush_tool_steps_summary`: confirmed "running" status updates
+  `status_label` in place (not scrollback), the collapsed summary line and the always-visible
+  failure detail both render, and — the one piece of real technical risk in this whole thread —
+  clicking the first turn's Details toggle correctly **shifts** the second turn's stored
+  `QTextCursor` block position, and the second block's own toggle still targets the right span
+  and expands correctly afterward. This is exactly the class of Qt behavior that looks right in
+  code and isn't (the same lesson the bubble-border fix itself already taught this session
+  twice) — proving the shift-adjustment math is actually correct, not just plausible.
+- **Representative general-tool regression sample** — `buffer_analysis` (via `processing.run()`,
+  real `native:buffer` algorithm) produced a real, findable output layer from a real 3-feature
+  point layer; `calculate_severity_index` computed real per-feature scores against 2 indicator
+  fields. Confirms none of this session's UI-only changes touched the tool-calling path — no tool
+  code was modified across either release.
+
+No new bugs found this run. `dist/cartogen_ai_v1.12.0.zip` is confirmed to actually work as
+packaged, not just as source.
+
 **2026-09-12 — v1.10.0 — headless, not the full interactive checklist above.** Same environment
 constraint as the runs below, so this reuses that run's script again, re-executed fresh against
 v1.10.0's code, plus 5 new checks for this release's own headline feature (UI & Chat Redesign).
