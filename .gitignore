@@ -235,3 +235,7 @@ symbology-style.db
 
 # Quarantine for files the sandboxed mount cannot unlink (see CONTRIBUTING.md)
 _to_delete/
+
+# Working/dev-only scratch content (e.g. artifact drafts) -- already excluded from the release
+# zip via plugin_upload.py's EXCLUDE_DIRS, but was never actually gitignored until this line.
+/scratch/
