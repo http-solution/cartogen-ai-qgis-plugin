@@ -3,7 +3,7 @@ import unittest
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
-    build_dock_stylesheet, format_send_error,
+    build_dock_stylesheet, format_send_error, _brand_accent, BRAND_TEAL, BRAND_ACCENT_BLEND_T,
 )
 
 
@@ -238,11 +238,54 @@ class TestRenderToolStepHtml(unittest.TestCase):
         self.assertIn("Using Get layers", html)
 
 
+class TestBrandAccent(unittest.TestCase):
+    """UI/chat redesign workstream (2026-09-12): the one place this module's colors pick up
+    Cartogen brand identity -- blending QGIS's own live accent color toward the brand teal,
+    deliberately never replacing it outright, so the result still varies across QGIS themes
+    instead of becoming one fixed color that could clash with an unexpected theme."""
+
+    def test_blends_toward_brand_teal_not_replacing_it(self):
+        result = _brand_accent("#3daee9")
+        self.assertNotEqual(result, "#3daee9")  # actually blended, not a no-op
+        self.assertNotEqual(result, BRAND_TEAL)  # blended, not fully replaced
+
+    def test_matches_blend_hex_at_the_documented_ratio(self):
+        highlight = "#3daee9"
+        self.assertEqual(_brand_accent(highlight), _blend_hex(highlight, BRAND_TEAL, BRAND_ACCENT_BLEND_T))
+
+    def test_is_deterministic(self):
+        self.assertEqual(_brand_accent("#3daee9"), _brand_accent("#3daee9"))
+
+    def test_different_qgis_themes_still_produce_different_accents(self):
+        # The whole point of blending rather than replacing: two different QGIS highlight
+        # colors must still produce two different brand-blended results, not collapse to one
+        # fixed brand color regardless of theme.
+        light_theme_accent = _brand_accent("#3daee9")
+        dark_theme_accent = _brand_accent("#8ab4f8")
+        self.assertNotEqual(light_theme_accent, dark_theme_accent)
+
+
+class TestDeriveBubbleColorsBrandAccent(unittest.TestCase):
+    def test_user_bg_reflects_brand_blended_highlight(self):
+        window = "#f0f0f0"
+        raw_highlight = "#3daee9"
+        colors = derive_bubble_colors({"window": window, "highlight": raw_highlight})
+        # user_bg is window blended 22% toward the BRAND-blended highlight, not the raw one --
+        # confirm it differs from what the old (pre-brand-accent) blend would have produced.
+        old_behavior_bg = _blend_hex(window, raw_highlight, 0.22)
+        self.assertNotEqual(colors["user_bg"], old_behavior_bg)
+        expected_bg = _blend_hex(window, _brand_accent(raw_highlight), 0.22)
+        self.assertEqual(colors["user_bg"], expected_bg)
+
+
 class TestBuildDockStylesheet(unittest.TestCase):
     def test_falls_back_to_defaults_when_no_palette(self):
         qss = build_dock_stylesheet(None)
         self.assertIn("QPushButton", qss)
-        self.assertIn("#3daee9", qss)  # default highlight fallback
+        # The default highlight fallback (#3daee9) is now blended toward the Cartogen brand
+        # teal (_brand_accent, UI/chat redesign workstream, 2026-09-12) rather than appearing
+        # bare -- #329cbd is that blend's exact, deterministic output.
+        self.assertIn("#329cbd", qss)
 
     def test_uses_given_palette_colors(self):
         qss = build_dock_stylesheet({

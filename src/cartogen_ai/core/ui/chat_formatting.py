@@ -224,6 +224,27 @@ def _blend_hex(hex_a, hex_b, t):
     return f"#{r:02x}{g:02x}{bl:02x}"
 
 
+# branding/Cartogen_Brand_Guidelines.html's documented palette -- teal is the primary accent,
+# amber the secondary/highlight one. Neither reached the running UI before the UI/chat redesign
+# workstream (2026-09-12): every color in this module was previously derived purely from
+# QGIS's own live palette, with no brand identity at all. BRAND_ACCENT_BLEND_T is deliberately
+# modest (not a full color replacement) so the accent still visibly adapts across QGIS themes --
+# it's blended INTO the theme's own highlight color, never substituted for it, so this can't
+# produce a fixed color that clashes with an unexpected QGIS theme the way a hardcoded brand
+# color used bare would.
+BRAND_TEAL = "#1F7A6C"
+BRAND_AMBER = "#C97F22"
+BRAND_ACCENT_BLEND_T = 0.35
+
+
+def _brand_accent(highlight_hex):
+    """Blends QGIS's own live accent color toward the Cartogen brand teal -- the one place this
+    module's colors pick up brand identity, reused by both derive_bubble_colors (user-message
+    bubble tint) and build_dock_stylesheet (buttons, tab underline, focus border) so the accent
+    reads as consistently brand-flavored across the whole dock, not just one corner of it."""
+    return _blend_hex(highlight_hex, BRAND_TEAL, BRAND_ACCENT_BLEND_T)
+
+
 def derive_bubble_colors(palette_dict):
     """Pure color logic: given a plain dict of theme hex colors (as read from
     the live QApplication palette by dock_widget._extract_theme_palette),
@@ -243,7 +264,7 @@ def derive_bubble_colors(palette_dict):
             "subtle": "#666666", "border": "#d0d0d0",
         }
     window = palette_dict.get("window", "#f0f0f0")
-    highlight = palette_dict.get("highlight", "#3daee9")
+    highlight = _brand_accent(palette_dict.get("highlight", "#3daee9"))
     return {
         "user_bg": _blend_hex(window, highlight, 0.22),
         "agent_bg": palette_dict.get("alt_base", window),
@@ -373,7 +394,7 @@ def build_dock_stylesheet(palette_dict):
     text = palette_dict.get("text", "#000000")
     subtle = palette_dict.get("muted_text", "#808080")
     border = palette_dict.get("mid", "#c0c0c0")
-    highlight = palette_dict.get("highlight", "#3daee9")
+    highlight = _brand_accent(palette_dict.get("highlight", "#3daee9"))
     highlighted_text = palette_dict.get("highlighted_text", "#ffffff")
     highlight_hover = _blend_hex(highlight, "#000000", 0.12)
     highlight_pressed = _blend_hex(highlight, "#000000", 0.22)
