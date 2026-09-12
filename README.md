@@ -55,7 +55,7 @@ black-box answer.
 </details>
 
 <p align="center">
-  <img src="docs/images/dock-panel.png" alt="Cartogen AI dock panel — Chat, Tasks &amp; Notes, and Help tabs, with the provider switcher and quick-suggestion chips" width="440">
+  <img src="docs/images/dock-panel.png" alt="Cartogen AI dock panel — Chat and Activity tabs, with the provider switcher" width="440">
 </p>
 
 ## What it does
