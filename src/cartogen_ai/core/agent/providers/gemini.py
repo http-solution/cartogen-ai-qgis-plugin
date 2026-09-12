@@ -78,7 +78,12 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
         # See list_models()'s docstring above for why this uses the x-goog-api-key
         # header instead of a '?key=' query param (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
         # SS2.3) -- same endpoint family, same reasoning applies here.
-        response = requests.post(url, headers={"x-goog-api-key": api_key}, json=payload, timeout=30)
+        # post_with_retry (not a bare requests.post) -- found via a grep sweep confirming every
+        # provider call goes through the shared retry helper (large-request rate-limit
+        # resilience, 2026-09-12); this was the one real gap, a standalone call outside the main
+        # complete()/_post path that had no retry/backoff at all.
+        headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+        response = post_with_retry(url, headers, json.dumps(payload), timeout=30)
         response.raise_for_status()
         data = response.json()
         candidates = data.get("candidates") or []

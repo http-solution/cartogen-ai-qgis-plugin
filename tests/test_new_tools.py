@@ -1059,9 +1059,12 @@ class TestNewTools(unittest.TestCase):
         res = add_point_layer("Embassies", [])
         self.assertIn("error", res)
 
-    def test_agent_run_saves_history_when_iteration_limit_hit(self):
+    @patch("cartogen_ai.core.agent.agent.time.sleep")
+    def test_agent_run_saves_history_when_iteration_limit_hit(self, mock_sleep):
         # A client that never returns a final answer -- always another tool call --
-        # simulates the exact failure mode from the embassy-layer bug report.
+        # simulates the exact failure mode from the embassy-layer bug report. time.sleep is
+        # mocked since this drives the loop to MAX_ITERATIONS, which now includes real pacing
+        # delays (2026-09-12, PACING_THRESHOLD_ITERATIONS) -- unmocked this test took ~21s.
         class LoopingClient:
             def complete(self, messages, tools=None):
                 return {

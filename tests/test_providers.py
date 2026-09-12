@@ -397,6 +397,65 @@ class TestRetryWithBackoff(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 1)
         mock_sleep.assert_not_called()
 
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
+    def test_429_gets_the_longer_rate_limit_backoff_not_the_generic_one(self, mock_post, mock_sleep):
+        """Large-multi-tool-call-task rate-limit resilience (2026-09-12): a 429 needs to wait
+        out an actual per-minute quota window, not just a network blip, so it gets its own
+        longer/higher-retry-count budget (RATE_LIMIT_BACKOFF_SECONDS/RATE_LIMIT_MAX_RETRIES) --
+        distinct from DEFAULT_BACKOFF_SECONDS/DEFAULT_MAX_RETRIES, which 5xx still uses."""
+        from cartogen_ai.core.agent.providers.base import (
+            post_with_retry, RATE_LIMIT_BACKOFF_SECONDS, RATE_LIMIT_MAX_RETRIES,
+        )
+        rate_limited = MagicMock(status_code=429)
+        good_resp = MagicMock(status_code=200)
+        # max_retries=2 (the generic default) -- 429 must still get its own bigger budget,
+        # not be capped by the smaller generic one.
+        mock_post.side_effect = [rate_limited, rate_limited, rate_limited, good_resp]
+
+        result = post_with_retry("https://example.com", {}, "{}", timeout=60, max_retries=2)
+
+        self.assertIs(result, good_resp)
+        self.assertEqual(mock_post.call_count, 4)
+        sleep_calls = [c.args[0] for c in mock_sleep.call_args_list]
+        self.assertEqual(sleep_calls, [
+            RATE_LIMIT_BACKOFF_SECONDS * 1, RATE_LIMIT_BACKOFF_SECONDS * 2, RATE_LIMIT_BACKOFF_SECONDS * 3,
+        ])
+
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
+    def test_429_retries_exhausted_returns_response_does_not_raise(self, mock_post, mock_sleep):
+        from cartogen_ai.core.agent.providers.base import post_with_retry
+        rate_limited = MagicMock(status_code=429)
+        mock_post.return_value = rate_limited
+
+        # Caller's own raise_for_status()/status-code handling takes it from here, same
+        # contract as the generic 5xx-exhausted case (test_gives_up_after_max_retries_...).
+        result = post_with_retry("https://example.com", {}, "{}", timeout=60)
+
+        self.assertIs(result, rate_limited)
+        self.assertEqual(mock_post.call_count, 4)  # 1 initial + RATE_LIMIT_MAX_RETRIES (3)
+
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
+    def test_mixed_429_then_503_both_get_retried_correctly(self, mock_post, mock_sleep):
+        from cartogen_ai.core.agent.providers.base import (
+            post_with_retry, RATE_LIMIT_BACKOFF_SECONDS, DEFAULT_BACKOFF_SECONDS,
+        )
+        rate_limited = MagicMock(status_code=429)
+        server_error = MagicMock(status_code=503)
+        good_resp = MagicMock(status_code=200)
+        mock_post.side_effect = [rate_limited, server_error, good_resp]
+
+        result = post_with_retry("https://example.com", {}, "{}", timeout=60)
+
+        self.assertIs(result, good_resp)
+        self.assertEqual(mock_post.call_count, 3)
+        sleep_calls = [c.args[0] for c in mock_sleep.call_args_list]
+        # First retry uses the 429 (attempt=0) budget, second uses the generic 5xx (attempt=1)
+        # budget -- each status code's own backoff schedule, not a shared/confused one.
+        self.assertEqual(sleep_calls, [RATE_LIMIT_BACKOFF_SECONDS * 1, DEFAULT_BACKOFF_SECONDS * 2])
+
 
 class TestOllamaRetryAndErrorHandling(unittest.TestCase):
     """ollama.py previously called requests.post directly, bypassing the
