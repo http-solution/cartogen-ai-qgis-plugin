@@ -1178,6 +1178,51 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("60 tokens", text)
         self.assertIn("no usage reported", text)
 
+    def test_agent_run_accumulates_cached_tokens_and_shows_them_in_session_text(self):
+        # 2026-09-13, direct request ("implement gemini caching"): cached_tokens (from
+        # providers/base.py's extract_openai_style_usage or providers/claude.py's
+        # from_anthropic_response) must accumulate across calls and show up in the
+        # session-usage text, so prompt caching's effect is actually visible.
+        class CachingClient:
+            def complete(self, messages, tools=None):
+                return {
+                    "message": {"role": "assistant", "content": "Done."},
+                    "model": "fake",
+                    "usage": {"input_tokens": 8149, "output_tokens": 40, "cached_tokens": 7200},
+                }
+
+        agent = CartogenAi()
+        agent.conversation_history = []
+        agent.client = CachingClient()
+
+        agent.run("hello")
+
+        self.assertEqual(agent.session_usage["cached_tokens"], 7200)
+        text = agent.get_session_usage_text()
+        self.assertIn("8,189 tokens", text)
+        self.assertIn("7,200 served from cache", text)
+
+    def test_agent_get_session_usage_text_omits_cache_clause_when_no_cache_hit(self):
+        # No cached_tokens reported at all (a provider/model with no caching, or a genuine
+        # cache miss) -- the summary text must look exactly like it did before this feature,
+        # no "0 served from cache" clause fabricated onto it.
+        class NoCacheClient:
+            def complete(self, messages, tools=None):
+                return {
+                    "message": {"role": "assistant", "content": "Done."},
+                    "model": "fake",
+                    "usage": {"input_tokens": 100, "output_tokens": 25},
+                }
+
+        agent = CartogenAi()
+        agent.conversation_history = []
+        agent.client = NoCacheClient()
+        agent.run("hello")
+
+        text = agent.get_session_usage_text()
+        self.assertEqual(text, "~125 tokens this session (1 calls)")
+        self.assertNotIn("cache", text)
+
     def test_agent_run_stops_when_should_stop_returns_true(self):
         # There was previously no way to interrupt a running request at all.
         # should_stop (wired from the dock's Stop button -> QgsTask.isCanceled)

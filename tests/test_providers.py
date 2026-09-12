@@ -687,6 +687,88 @@ class TestUsageExtraction(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hi"}])
         self.assertEqual(result["usage"], {"input_tokens": 300, "output_tokens": 75})
 
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
+    def test_gemini_surfaces_cached_tokens_from_prompt_tokens_details(self, mock_post):
+        """2026-09-13, direct request ("implement gemini caching"): the OpenAI-compatible
+        response shape (confirmed against ai.google.dev docs before implementing) reports the
+        cache-hit portion as usage.prompt_tokens_details.cached_tokens -- a sub-breakdown of
+        prompt_tokens, not subtracted from it. prompt_tokens itself already reflects the full
+        request size whether or not it was a cache hit."""
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+                "usage": {
+                    "prompt_tokens": 8149, "completion_tokens": 40, "total_tokens": 8189,
+                    "prompt_tokens_details": {"cached_tokens": 7200},
+                },
+            },
+        )
+        client = gemini_mod.GeminiClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])
+        self.assertEqual(result["usage"], {"input_tokens": 8149, "output_tokens": 40, "cached_tokens": 7200})
+
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
+    def test_gemini_omits_cached_tokens_key_when_no_cache_hit(self, mock_post):
+        # Same "don't fabricate what wasn't reported" honesty policy as input_tokens/
+        # output_tokens themselves -- a genuine cache miss (or a model too old to cache at
+        # all) must not show a fabricated cached_tokens: 0 that looks like a confirmed measurement.
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+                "usage": {"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
+            },
+        )
+        client = gemini_mod.GeminiClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])
+        self.assertEqual(result["usage"], {"input_tokens": 80, "output_tokens": 20})
+        self.assertNotIn("cached_tokens", result["usage"])
+
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
+    def test_claude_reconstructs_full_input_tokens_and_surfaces_cached_tokens(self, mock_post):
+        """Anthropic's native "input_tokens" field deliberately EXCLUDES anything served from
+        or written to the prompt cache (this client already sends cache_control breakpoints,
+        see build_anthropic_request) -- reconstructed to the full request size here (Anthropic's
+        own documented formula: input_tokens + cache_read_input_tokens +
+        cache_creation_input_tokens) so "tokens this session" means the same thing across every
+        provider, matching Gemini/OpenAI's convention where prompt_tokens already includes
+        cached tokens. cache_read_input_tokens specifically (the actually-discounted portion) is
+        surfaced as cached_tokens, same field name as the Gemini/OpenAI-shaped providers use."""
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "content": [{"type": "text", "text": "hi"}],
+                "model": "claude-opus-5",
+                "usage": {
+                    "input_tokens": 50, "output_tokens": 75,
+                    "cache_read_input_tokens": 1800, "cache_creation_input_tokens": 0,
+                },
+            },
+        )
+        client = claude_mod.ClaudeClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])
+        self.assertEqual(result["usage"], {"input_tokens": 1850, "output_tokens": 75, "cached_tokens": 1800})
+
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
+    def test_claude_no_cache_fields_behaves_exactly_as_before(self, mock_post):
+        # A response with no cache activity at all (first call in a turn, or a provider/model
+        # that never caches) must reconstruct to the exact same numbers as before this change --
+        # zero cache_read/cache_creation is a no-op on the total, and cached_tokens is omitted
+        # entirely rather than fabricated as 0.
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "content": [{"type": "text", "text": "hi"}],
+                "model": "claude-opus-5",
+                "usage": {"input_tokens": 300, "output_tokens": 75},
+            },
+        )
+        client = claude_mod.ClaudeClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])
+        self.assertEqual(result["usage"], {"input_tokens": 300, "output_tokens": 75})
+        self.assertNotIn("cached_tokens", result["usage"])
+
     @patch("cartogen_ai.core.agent.providers.ollama.post_with_retry")
     def test_ollama_extracts_usage_when_present(self, mock_post):
         mock_post.return_value = MagicMock(
