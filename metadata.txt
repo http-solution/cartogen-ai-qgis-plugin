@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.2
+version=1.15.3
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.2 (2026-09-13):
+changelog=v1.15.3 (2026-09-13):
+    Fix: following v1.15.2's move of the requirement-gate question into the chat, a
+    real-session report found "some of my text i sent in the chat is not showing" -- the
+    user's reply to a clarifying question was folded into the pending request silently,
+    never shown as its own chat message. For a request needing two unresolvable details in
+    a row, asking a second time replaced the first question with no trace the first answer
+    was ever seen. Fixed: the reply is now echoed into the chat log immediately, before
+    being merged. Live-verified: a 2-round clarification now shows both replies in order.
+    See CHANGELOG.md for full detail.
+
+v1.15.2 (2026-09-13):
     Fix: the task-register requirement gate ("one more detail needed" -- asked when a slot like
     hazard type has no safe default to guess) showed as a separate boxed panel with two buttons
     and a locked input box, disconnected from the conversation above it. Direct user feedback

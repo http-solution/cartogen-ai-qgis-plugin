@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.3](#v1-15-3) | 2026-09-13 | Patch: the user's own reply to a clarifying question wasn't showing up in the chat log |
 | [1.15.2](#v1-15-2) | 2026-09-13 | Patch: requirement-gate questions now ask in chat instead of a separate boxed panel |
 | [1.15.1](#v1-15-1) | 2026-09-13 | Patch: live-hazard-data requests could get refused despite real matching tools existing |
 | [1.15.0](#v1-15-0) | 2026-09-13 | Gemini prompt caching (automatic, implicit) + cache-hit visibility for Gemini and Claude |
@@ -27,6 +28,25 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-3"></a>
+## [1.15.3] — 2026-09-13 — Patch: the user's own replies weren't showing up in chat
+
+Direct follow-up report after v1.15.2 shipped: "some of my text i sent in the chat is not
+showing." Root cause: when a requirement-gate question (see v1.15.2) was answered, the reply
+got folded into the pending request behind the scenes -- it was never emitted as its own chat
+message. For a request needing only one missing detail this was subtle (the eventual composed
+request still appeared once dispatch/preview happened, so something visible did show up
+eventually). For a request needing two unresolvable details in a row (e.g. `facility_type` AND
+`sector`, both with no safe default to guess), asking a second time silently replaced the first
+question with no trace the first answer was ever received -- exactly matching the report.
+
+**Fixed**: `chat_tab_widget.py`'s `send_message()` now echoes the literal reply into the chat
+log immediately, in the same `_awaiting_requirement_reply` branch, before merging it into the
+pending request text. Live-verified in real QGIS: a genuine 2-round clarification (facility
+type, then sector) now shows both replies as their own messages, in order, exactly as typed.
+New `test_multi_round_clarification_shows_every_reply_in_chat` plus a new assertion on the
+existing single-round test; full live-widget suite 8/8, full suite 1525 tests, 0 failures.
 
 <a id="v1-15-2"></a>
 ## [1.15.2] — 2026-09-13 — Patch: requirement-gate questions now ask in chat, not a boxed panel
