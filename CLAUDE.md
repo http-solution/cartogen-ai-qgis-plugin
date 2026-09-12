@@ -20,8 +20,16 @@ step, no compiled artifacts beyond the release zip.
   `agent/tools/registry.py`'s `@register_tool` decorator.
 - `ui/` — the QGIS dock widget, settings dialog, canvas highlighting. Everything here that
   imports `qgis.PyQt`/`qgis.core` unconditionally can only be exercised inside a real QGIS
-  process — this sandbox (and CI) cannot run or visually verify it. `ui/chat_formatting.py` is
-  deliberately Qt-free so it stays unit-testable; follow that pattern for new pure logic.
+  process — CI has no QGIS and cannot run or visually verify it. This interactive session's
+  sandbox CAN, when a real QGIS install is available: construct the real widget headlessly via
+  `"C:\Program Files\QGIS <ver>\bin\python-qgis.bat"` with `QgsApplication([], True)` (GUI mode,
+  not `False`), force a complete `QPalette` (the offscreen platform's default one is missing
+  roles like `AlternateBase` — force a realistic one rather than trusting the default), call
+  `widget.grab().save(path)`, then actually look at the saved PNG (the Read tool renders
+  images) — used throughout the UI/chat redesign workstream (2026-09-12) to verify icon/color
+  changes for real rather than only checking "imports without error." `ui/chat_formatting.py`
+  and `ui/icons.py`'s pure string-generation half are deliberately Qt-free so they stay
+  unit-testable without any of this; follow that pattern for new pure logic.
 - `tests/` — unit tests, runnable without a QGIS installation. Every module that touches
   `qgis.core` degrades gracefully via its own `QGIS_AVAILABLE` guard specifically so this works.
 - `docs/` — see the table in `README.md`. `docs/USER_GUIDE.md` and `docs/TOOLS_REFERENCE.md` are

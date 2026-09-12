@@ -10,9 +10,11 @@ panel (drag it to float, or dock it left/right) with three tabs:
 - **❓ Help** — provider list, quick tips, and example prompts, built from the same
   data as this guide so it can't drift out of sync.
 
+<p align="center"><img src="images/dock-panel.png" alt="The Cartogen AI dock panel" width="420"></p>
+
 ## First-time setup
 
-1. Click the ⚙ (settings) icon in the Chat tab.
+1. Click **Settings** in the dock header (top right, next to the provider dropdown).
 2. Pick a provider from the dropdown: **OpenRouter**, **Gemini**, **Ollama**, **OpenAI**,
    or **Claude**.
 3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
@@ -30,6 +32,14 @@ panel (drag it to float, or dock it left/right) with three tabs:
    to optimize for.)
 5. Click OK. You can switch providers anytime from the small dropdown at the top of
    the Chat tab without reopening Settings.
+
+<p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
+
+**NASA FIRMS API Key** (optional) — only needed for `fetch_nasa_active_fires` (live
+satellite fire/thermal-anomaly monitoring, see "Live hazard monitoring" below). Every
+other tool works without it. Get a free key at
+[firms.modaps.eosdis.nasa.gov/api/area](https://firms.modaps.eosdis.nasa.gov/api/area/)
+and paste it into this field — stored the same securely as any provider key.
 
 If Settings needed to fall back to storing a key without encryption (rare — only
 happens if QGIS's own encrypted credential store isn't available on your system),
@@ -100,7 +110,7 @@ text that will be sent, and why:
 - any value assumed on your behalf, stated in full
 - what each attached file will be read as
 
-*Send this* sends what you see. *Send my wording only* sends your text with no
+*Send this* sends what you see. *Send as typed instead* sends your text with no
 enrichment at all, for when the matched task is simply wrong. *Cancel* puts
 the message back in the box. You can turn the preview off in Settings; it is
 on by default, because it exists so that nothing is added to your message
@@ -131,20 +141,30 @@ description of a file that was never written.
 
 ## Chatting
 
-Type a request and press **Enter** (Shift+Enter for a new line) or click **➤**. A few
+Type a request and press **Enter** (Shift+Enter for a new line) or click the **send
+button** (the arrow, right of the input box). A few
 example prompts are pinned as clickable chips above the input box, and more are on the
 Help tab.
+
+<p align="center"><img src="images/chat-conversation.png" alt="A real conversation: a request, live tool-call progress, and a markdown-formatted reply with a table" width="440"></p>
+
+Each tool call shows live progress inline (⚙ running, ✓ done) as the agent works, and
+the reply itself is real Markdown — tables, bold text, lists, and code blocks all render
+formatted, not as raw text.
 
 While a request is running:
 - The status line shows what the agent is doing (e.g. "Thinking...", "Using Claude:
   claude-opus-5...", a specific tool name).
-- Click **⏹ Stop** to cancel it. This is cooperative, not instant — it stops the
+- Click the **stop button** (next to Send) to cancel it. This is cooperative, not instant — it stops the
   agent before its *next* step (another model call or tool call), not mid-flight, so
   there can be a short delay after clicking before it actually stops.
 
 ### Attaching files
 
-Click **📎** to attach a PDF, Word document, image, CSV, or Excel file.
+Click the **attach button** (paperclip, left of the input box) to attach a PDF, Word
+document, image, CSV, or Excel file.
+
+<p align="center"><img src="images/input-row.png" alt="The input row: attach, send, and stop buttons" width="360"></p>
 
 - PDF/Word: full text is extracted and given to the agent. If the data you actually
   need is in a table (a sitrep's "IDPs by district" table, a needs-assessment
@@ -249,6 +269,42 @@ own periodic dataset refresh, so it can lag the very latest imagery by months �
 newly-built structure may not be reflected yet. For damage assessment against a specific
 before/after image pair, use `calculate_raster_change_detection` instead; for road networks,
 `fetch_osm_features` already covers that (`key='highway'`) and isn't affected by this caveat.
+
+## Live hazard monitoring
+
+Three tools pull live hazard data for a bounding box and load it straight into the
+project as a real layer:
+
+| Tool | Source | Needs a key? |
+|---|---|---|
+| `fetch_nasa_active_fires` | NASA FIRMS (VIIRS satellite active-fire/thermal-anomaly detections) | Yes — free, see "First-time setup" above |
+| `fetch_nasa_eonet_events` | NASA EONET (wildfires, storms, volcanoes, floods, and more) | No |
+| `fetch_gdacs_disaster_alerts` | GDACS (UN-coordinated disaster alerts, Green/Orange/Red severity) | No |
+
+Ask for one directly (*"fetch active fires over this area"*), or get all three at once
+in a ready-to-view dashboard: *"give me a hazard situation dashboard for this area"*
+calls `generate_situation_dashboard`, which fetches all three sources and exports them
+as one interactive HTML map in a single step.
+
+**Re-running one of these on the same area replaces that layer's data with the latest
+fetch** — it doesn't pile up duplicate layers — so they're safe to schedule (see below)
+for an ongoing watch.
+
+**Scheduling a recurring check.** Ask the agent to save one of these as a named workflow
+preset (`save_workflow_preset`) and schedule it (`schedule_recurring_workflow`, e.g.
+every 30 minutes) — each run is automatically diffed against the previous one, so you
+get a plain-language summary of what actually changed (e.g. *"3 new fire detections
+since last check"*) instead of a full re-read every time. This is session-scoped: it
+only runs while QGIS stays open with the plugin loaded, not a background service that
+keeps working after you close QGIS. `list_scheduled_workflows`/`stop_recurring_workflow`
+show and cancel active schedules.
+
+**Freshness badges.** Any layer fetched by these tools carries a stamped fetch time.
+`generate_html_dashboard`/`generate_temporal_dashboard` show it as a small colored pill
+next to that layer — green ("Fresh, 2m ago"), amber ("Stale, 3h ago"), or red ("Very
+stale, 2d ago") — so you can tell at a glance whether the data on screen is current
+without checking anywhere else. A layer that was never fetched from a live source
+(most layers) shows no badge, which is correct, not a gap.
 
 ## Troubleshooting
 
