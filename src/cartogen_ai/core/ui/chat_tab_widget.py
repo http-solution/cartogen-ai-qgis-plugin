@@ -371,12 +371,28 @@ class ChatTabWidget(QWidget):
         # rich-text engine is a limited CSS 2.1-ish subset with no border-radius support at
         # all, so it was always silently ignored -- every message has always rendered as a
         # sharp rectangle in real QGIS, never actually rounded despite the code claiming to.
-        # Replaced with something Qt's engine genuinely renders: a colored left-accent stripe,
-        # the same flat-message shape GitHub PR review comments and Slack thread replies use.
+        #
+        # The accent stripe went through a second, real bug the first time around: a single
+        # cell styled with both "border:1px solid X" and "border-left:3px solid Y" silently
+        # drops the border-left override entirely -- confirmed by rendering an unmistakable
+        # magenta border-left in isolation and finding it never appeared in the output at all,
+        # only the uniform 1px border color on every side, live user report 2026-09-12 (the
+        # first fix looked right on inspection but was never actually visually confirmed
+        # pixel-by-pixel, only via a color existing somewhere in the wider screenshot -- see
+        # feedback_synthetic_screenshots_have_limits memory). Qt's table CSS DOES reliably
+        # support per-cell background-color and a uniform border shorthand -- just not both
+        # border shorthand and a conflicting border-left on the same cell. Fixed by using two
+        # cells instead of one CSS trick: a dedicated 3px-wide stripe cell with only a
+        # background-color (no border at all), directly beside the actual content cell, which
+        # keeps its border but only on 3 sides (top/right/bottom -- no border-left, so it sits
+        # flush against the stripe with no gap or double edge).
         html = f"""
         <table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:6px 0;"><tr><td align="{align}">
-        <table border="0" cellspacing="0" cellpadding="0" align="{align}" style="max-width:85%;background-color:{bg};
-            border:1px solid {colors['border']};border-left:3px solid {accent_border};"><tr><td style="padding:8px 12px;">
+        <table border="0" cellspacing="0" cellpadding="0" align="{align}" style="max-width:85%;"><tr>
+        <td width="3" style="background-color:{accent_border};"></td>
+        <td style="background-color:{bg};padding:8px 12px;
+            border-top:1px solid {colors['border']};border-right:1px solid {colors['border']};
+            border-bottom:1px solid {colors['border']};">
         <div style="font-size:11px;font-weight:bold;color:{colors['text']};margin-bottom:3px;">
             {label} <span style="font-weight:normal;color:{colors['subtle']};">&middot; {timestamp}</span>
         </div>
