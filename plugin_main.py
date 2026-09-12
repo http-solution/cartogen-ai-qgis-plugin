@@ -104,20 +104,17 @@ class CartogenAi:
         self.toolbar_action = action
         print("[CartogenAi] toolbar action installed")
 
-        # Help and the version label moved here from a permanent 3rd dock tab, per a
-        # 2026-09-12 real-session user report: a reference document doesn't need to occupy
-        # dock space at all times, and the standard QGIS-plugin convention for "what version
-        # am I running" is a disabled menu entry, not something buried in a tab.
+        # Help moved here from a permanent 3rd dock tab, per a 2026-09-12 real-session user
+        # report: a reference document doesn't need to occupy dock space at all times. The
+        # version number itself lives ONLY inside the Help dialog's own content (see
+        # show_help() / help_tab_widget.py) -- an earlier version of this also put a disabled
+        # "Cartogen AI vX.Y.Z" entry directly in this menu, but direct follow-up feedback the
+        # same day said that was one place too many; removed rather than kept as a second,
+        # redundant spot.
         help_action = QAction(self.tr("Help"), self.iface.mainWindow())
         help_action.triggered.connect(self.show_help)
         self.iface.addPluginToMenu(self.menu, help_action)
         self.actions.append(help_action)
-
-        version = _read_plugin_version(self.plugin_dir)
-        version_action = QAction(self.tr(f"Cartogen AI v{version}"), self.iface.mainWindow())
-        version_action.setEnabled(False)
-        self.iface.addPluginToMenu(self.menu, version_action)
-        self.actions.append(version_action)
 
         # The agent instance and dock widget are cached/reused across QGIS
         # project switches (see _get_agent()), so without this the chat panel
