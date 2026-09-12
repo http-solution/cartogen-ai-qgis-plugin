@@ -210,6 +210,12 @@ class TestChatWidgetLive(unittest.TestCase):
         ct.input_edit.setPlainText("flood")
         QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
 
+        # Real-session report, 2026-09-13: "some of my text i sent in the chat is not
+        # showing" -- the literal reply must be echoed into the chat log immediately,
+        # not silently swallowed into the merge.
+        self.assertIn("flood", self._chat_text(ct).lower(),
+                      "the user's own reply must appear in the chat log as its own message")
+
         self.assertFalse(ct._awaiting_requirement_reply,
                          "answering the only unresolvable slot should clear the pending state")
         self.assertTrue(ct.preview_panel.isVisible(),
@@ -224,6 +230,46 @@ class TestChatWidgetLive(unittest.TestCase):
         _pump(until=lambda: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "the merged, now-answerable request must actually reach the agent")
+
+    def test_multi_round_clarification_shows_every_reply_in_chat(self):
+        """Real-session report, 2026-09-13: after the single-reply fix above, a request
+        needing TWO unresolvable slots (facility_type AND sector, task 12.09) still lost
+        the user's first reply -- _ask_requirement_in_chat's second question replaced it
+        with no trace the first answer was ever seen. Both replies must show up as their
+        own chat messages, in order, even though neither slot has a safe default and the
+        gate genuinely has to ask twice."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        ct.input_edit.setPlainText("map services for at-risk children")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertTrue(ct._awaiting_requirement_reply)
+        first_question_log = self._chat_text(ct)
+        self.assertIn("facility", first_question_log.lower())
+
+        # Answers facility_type only ("clinics") -- sector is still missing, so this
+        # must ask again rather than proceeding.
+        ct.input_edit.setPlainText("clinics")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertIn("clinics", self._chat_text(ct).lower(),
+                      "the first reply must be visible in the chat log")
+        self.assertTrue(ct._awaiting_requirement_reply,
+                        "sector is still unresolved -- the gate must ask again, not proceed")
+
+        # Answers the second question ("protection") -- now both slots are resolved.
+        ct.input_edit.setPlainText("protection")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        log = self._chat_text(ct)
+        self.assertIn("protection", log.lower(),
+                      "the second reply must ALSO be visible -- not just the first")
+        self.assertIn("clinics", log.lower(),
+                      "the first reply must still be visible after the second round")
+        self.assertFalse(ct._awaiting_requirement_reply,
+                         "both slots are now resolved -- the pending state must clear")
+        self.assertEqual(agent.client.calls, 0,
+                         "still must not have sent anything to the model yet (this next step "
+                         "would be gated by the preview panel, not exercised by this test)")
 
     # --------------------------------------------------------- Scenario 2 --
 

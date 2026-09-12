@@ -567,13 +567,17 @@ class ChatTabWidget(QWidget):
             return
 
         # A requirement question is outstanding (see _ask_requirement_in_chat) -- this
-        # message IS the answer to it, not a new unrelated request. Merged into the
-        # original text with the same "Details: ..." convention the old Edit-request
-        # button used to pre-fill into the box; the combined text then runs through the
-        # exact same pipeline below as if the user had typed it all at once, including
-        # asking again (a new chat question, not a re-shown panel) if something is still
-        # missing.
+        # message IS the answer to it, not a new unrelated request. Real-session report,
+        # 2026-09-13: "some of my text i sent in the chat is not showing" -- the reply
+        # itself was never echoed into the chat log at all before being folded into the
+        # pending request, so a multi-round clarification (a second still-missing slot
+        # asking again) made every reply in between silently vanish from what the user
+        # could see. Echoing it here, unconditionally, as its own message is what makes
+        # this feel like an actual chat rather than a black box -- the eventual composed
+        # request (original + "Details: ...") still shows too, once dispatch/preview
+        # actually happens, exactly like any other task-matched message already does.
         if self._awaiting_requirement_reply:
+            self._dock.receiveMessageSignal.emit("user", text)
             text = f"{self._pending_analysis_text}\n\nDetails: {text}"
             self._awaiting_requirement_reply = False
             self.input_edit.setPlaceholderText(self._default_input_placeholder)
