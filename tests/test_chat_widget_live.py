@@ -159,7 +159,12 @@ class TestChatWidgetLive(unittest.TestCase):
 
     # --------------------------------------------------------- Scenario 1 --
 
-    def test_requirement_panel_blocks_and_gates_continue(self):
+    def test_requirement_question_asked_in_chat_not_a_boxed_panel(self):
+        """2026-09-13: replaced a separate QGroupBox("One more detail needed")
+        panel (with locked input + two buttons) with the question posted as a
+        normal chat message, per direct user feedback that the panel read as
+        a foreign popup disconnected from the conversation. This confirms the
+        question lands in the chat log and the input box stays fully live."""
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
@@ -168,14 +173,57 @@ class TestChatWidgetLive(unittest.TestCase):
         # hazard produces confidently wrong humanitarian output, so this must
         # stop rather than send.
         ct.input_edit.setPlainText("map population affected by a hazard")
-        self.assertFalse(ct.requirement_panel.isVisible())
+        self.assertFalse(ct._awaiting_requirement_reply)
         QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
 
-        self.assertTrue(ct.requirement_panel.isVisible(),
-                        "hazard_type is unresolvable -- should have stopped")
-        self.assertFalse(ct.requirement_continue_btn.isEnabled(),
-                         "Continue must stay disabled while something is unresolvable")
+        self.assertTrue(ct._awaiting_requirement_reply,
+                        "hazard_type is unresolvable -- should be waiting on the user's reply")
+        log = self._chat_text(ct)
+        self.assertIn("hazard", log.lower(),
+                      "the clarifying question must appear as a real chat message, not a hidden panel")
+        self.assertFalse(ct.input_edit.isReadOnly(),
+                         "the input box must stay live -- answering is just typing a normal reply")
         self.assertEqual(agent.client.calls, 0, "must not have sent anything to the model yet")
+
+    def test_requirement_reply_merges_into_original_request(self):
+        """The user's plain-typed reply ("flood") to the in-chat question above
+        must be treated as answering it, not as an unrelated new message --
+        merged into the original request text so the previously-missing
+        hazard_type slot now resolves (task_matcher's regex evidence check
+        matches "flood" literally) and the turn can proceed."""
+        # tool_calls includes export_to_csv -- the merged request's own output contract
+        # (task 3.15, "analysis" kind) needs one of field_statistics/export_to_csv to be
+        # satisfied on the first turn, or output_router fires a real second followup call
+        # (see test_output_contract_followup_fires_exactly_once) and agent.client.calls
+        # would be 2, unrelated to what this test is actually checking.
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "Mapped flood-affected population.",
+                         "tool_calls": ["fetch_worldpop_population", "export_to_csv"]}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        ct.input_edit.setPlainText("map population affected by a hazard")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertTrue(ct._awaiting_requirement_reply)
+
+        ct.input_edit.setPlainText("flood")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+
+        self.assertFalse(ct._awaiting_requirement_reply,
+                         "answering the only unresolvable slot should clear the pending state")
+        self.assertTrue(ct.preview_panel.isVisible(),
+                        "a now-resolved, matched task with preview enabled (the default) should "
+                        "proceed to the normal preview step, exactly like any fresh, already-"
+                        "complete request would")
+        shown = ct.preview_prompt.toPlainText()
+        self.assertIn("flood", shown.lower(),
+                      "the composed prompt must carry the answer forward, not just the original text")
+
+        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        _pump(until=lambda: agent.client.calls >= 1)
+        self.assertEqual(agent.client.calls, 1,
+                         "the merged, now-answerable request must actually reach the agent")
 
     # --------------------------------------------------------- Scenario 2 --
 
