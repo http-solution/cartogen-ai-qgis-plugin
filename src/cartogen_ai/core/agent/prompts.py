@@ -399,14 +399,28 @@ def _format_map_context(map_context: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(task_manager=None, memory_manager=None, map_context=None) -> str:
+def build_system_prompt(task_manager=None, memory_manager=None, map_context=None,
+                         user_profile_ctx=None) -> str:
     """Dynamically constructs system prompt with live Task Plan, Spatial Memory,
-    and Map Context."""
+    and Map Context.
+
+    user_profile_ctx is the pre-formatted string from
+    agent/onboarding_profile.py's get_formatted_onboarding_context() (already a fully-built
+    block, or None) -- passed in rather than computed here since it has no QGIS-object state to
+    read (unlike task_manager/memory_manager, which are live manager instances), so there's
+    nothing this function would gain by owning that call itself. Deliberately a separate
+    parameter from memory_manager's context, not folded into it: memory_manager's block is
+    explicitly framed to the model as soft/heuristic "pref:"/"rule:" notes (see
+    memory.get_formatted_memory_context()'s docstring), while a declared onboarding profile is a
+    stated fact about who the user is, not an inferred preference."""
     prompt_parts = [BASE_SYSTEM_PROMPT]
 
     map_ctx_text = _format_map_context(map_context)
     if map_ctx_text:
         prompt_parts.append("\n" + map_ctx_text)
+
+    if user_profile_ctx:
+        prompt_parts.append("\n" + user_profile_ctx)
 
     if memory_manager is not None:
         try:

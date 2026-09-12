@@ -15,6 +15,7 @@ import traceback
 import os
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize
+from qgis.PyQt.QtGui import QTextCursor
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
     QPushButton, QTextEdit, QGroupBox,
@@ -22,6 +23,7 @@ from qgis.PyQt.QtWidgets import (
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
+    render_tool_steps_toggle_html, render_tool_steps_failure_details_html, friendly_tool_name,
     format_send_error,
 )
 from .attachments import read_attached_file as _read_attached_file
@@ -59,6 +61,19 @@ class ChatTabWidget(QWidget):
         # Tool names that ran during the turn in flight -- the evidence
         # agent/output_router.py checks the output contract against.
         self._executed_tools = []
+        # Terminal-status (done/failed) step records for the turn in flight, flushed as one
+        # compact summary block by _flush_tool_steps_summary() once the turn completes -- see
+        # _add_tool_step. "running" status never lands here, it goes straight to status_label.
+        self._current_turn_steps = []
+        # block_id -> {"steps", "expanded", "start", "end"} for every tool-steps summary block
+        # rendered so far this session, keyed by a monotonic counter (_step_block_counter) baked
+        # into each block's toggle-anchor href. start/end are QTextCursor character positions
+        # bounding exactly the collapsible portion of that block -- valid for the block's whole
+        # lifetime since chat_browser is strictly append-only (nothing is ever inserted before
+        # an existing block), so a position recorded once stays correct until THIS code replaces
+        # it (and immediately re-records the fresh end position after doing so).
+        self._step_blocks = {}
+        self._step_block_counter = 0
         self._pending_contract = None
         self._contract_followup_used = False
 
@@ -77,6 +92,15 @@ class ChatTabWidget(QWidget):
 
         self.chat_browser = QTextBrowser()
         self.chat_browser.setOpenExternalLinks(True)
+        # openLinks=False so a real (internal-looking) anchor doesn't trigger QTextBrowser's own
+        # page-navigation via setSource() -- independent of openExternalLinks above, which still
+        # opens genuine http(s) links from markdown responses via QDesktopServices exactly as
+        # before. anchorClicked fires either way; this just intercepts the one internal scheme
+        # (cartogen://) this codebase's first-ever clickable in-chat control uses (the tool-steps
+        # Details toggle, added 2026-09-12 -- see _flush_tool_steps_summary/render_tool_steps_
+        # toggle_html) without letting Qt try to "navigate" to it as if it were a real page.
+        self.chat_browser.setOpenLinks(False)
+        self.chat_browser.anchorClicked.connect(self._on_step_anchor_clicked)
         chat_layout.addWidget(self.chat_browser)
 
         self.status_label = QLabel("")
@@ -413,22 +437,109 @@ class ChatTabWidget(QWidget):
         self.usage_label.setText(text)
 
     def _add_tool_step(self, name, status, error):
-        """Live, per-tool-call progress line appended inline in the chat as
-        the agent works -- see agent.py's run() tool_step_callback. Previously
-        there was zero visibility into a multi-tool-call turn beyond the
-        single one-time "Thinking..."/provider status; this fires twice per
-        tool call (once when it starts, once when it finishes), giving the
-        same kind of live step feedback modern AI chat apps show for tool use.
-        Deliberately a small inline div, not a full message bubble via
-        _add_message -- a turn with many tool calls shouldn't visually
-        compete with the actual conversation."""
+        """Live per-tool-call progress signal, fired twice per tool call (once starting, once
+        finishing) -- see agent.py's run() tool_step_callback. Previously every one of those
+        events appended its own line directly into the chat scrollback; real user feedback
+        (2026-09-12) called that too much visual space/raw detail/noise for a multi-tool-call
+        turn. Redesigned: "running" is transient, live-progress-only -- it now updates
+        status_label in place (the same label already used for "Thinking...") instead of adding
+        a permanent scrollback line. Terminal statuses ("done"/"failed") are collected into
+        self._current_turn_steps instead of rendered immediately; _flush_tool_steps_summary()
+        (called once, from _dispatch_message's on_complete when the whole turn finishes) turns
+        the collected list into ONE compact summary block."""
+        status_lower = (status or "").lower()
+        if status_lower == "running":
+            self.status_label.setText(f"⚙️ {friendly_tool_name(name)}…")
+            return
         colors = theme_colors()
         # Also the record agent/output_router.py checks the output contract
         # against. Only completed steps count -- a tool that started and failed
         # did not produce the deliverable.
-        if name and status and status.lower() in ("done", "ok", "finished", "completed", "success"):
+        if name and status_lower in ("done", "ok", "finished", "completed", "success"):
             self._executed_tools.append(name)
-        self.chat_browser.append(render_tool_step_html(name, status, error or None, colors))
+        self._current_turn_steps.append({
+            "name": name,
+            "status": "failed" if status_lower == "failed" else "done",
+            "error": error or None,
+        })
+
+    def _flush_tool_steps_summary(self):
+        """Renders self._current_turn_steps (accumulated by _add_tool_step above) as one
+        compact summary block, then clears the list. Called once per turn, from
+        _dispatch_message's on_complete() -- which already runs on the main GUI thread (it
+        calls receiveMessageSignal.emit directly with no extra thread-marshalling), so this is
+        safe to call directly without another signal hop. A no-op when no tools ran this turn
+        (a plain conversational reply with no tool calls) -- nothing is appended at all."""
+        steps = self._current_turn_steps
+        self._current_turn_steps = []
+        if not steps:
+            return
+        colors = theme_colors()
+        self._step_block_counter += 1
+        block_id = self._step_block_counter
+
+        cursor = QTextCursor(self.chat_browser.document())
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertBlock()  # a fresh paragraph, matching .append()'s own behavior elsewhere
+        start_pos = cursor.position()
+        cursor.insertHtml(render_tool_steps_toggle_html(steps, block_id, colors, expanded=False))
+        end_pos = cursor.position()
+        self._step_blocks[block_id] = {
+            "steps": steps, "expanded": False, "start": start_pos, "end": end_pos,
+        }
+
+        failure_html = render_tool_steps_failure_details_html(steps, colors)
+        if failure_html:
+            # Outside the tracked start/end span on purpose -- always visible, never part of
+            # what the toggle above collapses/expands (see render_tool_steps_failure_details_
+            # html's docstring: failures are load-bearing, not opt-in detail).
+            self.chat_browser.append(failure_html)
+
+    def _on_step_anchor_clicked(self, url):
+        """Handles clicks on the Details/Hide-details toggle anchor a tool-steps summary block
+        renders (render_tool_steps_toggle_html) -- the first internal (non-http) clickable
+        control this chat log has ever had. Ignores anything that isn't our own "cartogen://
+        steps/{block_id}" scheme, so real markdown links in AI responses (opened via
+        setOpenExternalLinks(True), untouched by this handler) are unaffected."""
+        if url.scheme() != "cartogen":
+            return
+        parts = [p for p in url.path().split("/") if p]
+        if not parts and url.host():
+            parts = [url.host()]
+        try:
+            block_id = int(parts[-1]) if parts else int(url.host())
+        except (ValueError, IndexError):
+            return
+        block = self._step_blocks.get(block_id)
+        if block is None:
+            return
+
+        colors = theme_colors()
+        block["expanded"] = not block["expanded"]
+        new_html = render_tool_steps_toggle_html(
+            block["steps"], block_id, colors, expanded=block["expanded"]
+        )
+
+        old_end = block["end"]
+        cursor = QTextCursor(self.chat_browser.document())
+        cursor.setPosition(block["start"])
+        cursor.setPosition(old_end, QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertHtml(new_html)
+        new_end = cursor.position()
+        block["end"] = new_end
+
+        # The collapsed and expanded HTML render to a different number of characters, so
+        # editing THIS block shifts every character position after it -- including any later
+        # turn's own step block(s) and their stored start/end, which are plain ints, not live
+        # QTextCursor objects Qt would auto-adjust on its own. Shift them by the same delta so a
+        # later toggle click still targets the right span instead of a now-stale one.
+        delta = new_end - old_end
+        if delta:
+            for other_id, other_block in self._step_blocks.items():
+                if other_id != block_id and other_block["start"] > old_end:
+                    other_block["start"] += delta
+                    other_block["end"] += delta
 
     def send_message(self):
         if not self.send_btn.isEnabled():
@@ -768,6 +879,7 @@ class ChatTabWidget(QWidget):
             self._contract_followup_used = False
         self._pending_contract = new_contract
         self._executed_tools = []
+        self._current_turn_steps = []
         self._attached_paths = []
         self._pending_analysis = None
         self._pending_analysis_text = None
@@ -775,6 +887,12 @@ class ChatTabWidget(QWidget):
         def on_complete(response, err):
             self._active_task = None
             self.stop_btn.setEnabled(False)
+            # Runs on the main GUI thread already (this function directly calls
+            # receiveMessageSignal.emit below with no extra thread-marshalling), so touching
+            # chat_browser here directly is safe. Flushed before the turn's own response bubble
+            # so the summary block reads in chronological order: user message, tool-call
+            # summary, then the answer.
+            self._flush_tool_steps_summary()
             if err:
                 self._dock.receiveMessageSignal.emit("ai", format_send_error(err))
                 # A multi-tool-call turn can accumulate usage on earlier,
