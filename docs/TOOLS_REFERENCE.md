@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (165 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (169 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1516,6 +1516,54 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## hazard_monitoring_tools
+
+### `fetch_gdacs_disaster_alerts` _(two-phase)_
+
+Fetch current UN-coordinated disaster alerts from GDACS (Global Disaster Alert and Coordination System) -- earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts -- each with a human-assigned Green/Orange/Red severity, and load them as a point layer. Free, no API key. Defaults to Orange and above (excludes minor/localized Green advisories) -- pass min_alert_level='Green' to include everything. IMPORTANT: bbox (when given) is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_active_fires and fetch_nasa_eonet_events. Re-running this tool REPLACES the layer's features with the latest fetch, so it's safe to schedule on a recurring interval.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage. |
+| `min_alert_level` | string | no | Minimum alert level to include: 'Green', 'Orange' (default), or 'Red'. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'GDACS Disaster Alerts'. Re-fetching with the same name replaces its features rather than duplicating them. |
+
+### `fetch_nasa_active_fires` _(two-phase)_
+
+Fetch near-real-time active fire/thermal-anomaly detections from NASA FIRMS (VIIRS satellite instrument) for a bounding box, and load them as a point layer. Needs a free NASA FIRMS API key configured in Settings -- if missing, this returns a clear error with a link to get one. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat] (matches search_stac_satellite_imagery's convention) -- NOT the [south, west, north, east] order fetch_building_footprints uses. Re-running this tool (e.g. via schedule_recurring_workflow) REPLACES the layer's features with the latest fetch rather than accumulating duplicates, so it's safe to schedule on a recurring interval to watch for new fire activity -- run_monitoring_workflow will then report new/disappeared detections automatically.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | yes | [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `days` | integer | no | How many days back to look, 1-10. Defaults to 1. |
+| `min_confidence` | string | no | Minimum detection confidence to include: 'low', 'nominal' (default), or 'high'. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'NASA Active Fires'. Re-fetching with the same name replaces its features rather than duplicating them. |
+
+### `fetch_nasa_eonet_events` _(two-phase)_
+
+Fetch open (or closed/all) natural events from NASA EONET -- wildfires, severe storms, volcanoes, floods, sea/lake ice, drought, dust/haze, and more -- for an optional bounding box, and load them as a point layer (each event's most recent known position). Free, no API key. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_active_fires and search_stac_satellite_imagery. Re-running this tool REPLACES the layer's features with the latest fetch, so it's safe to schedule on a recurring interval.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage. |
+| `category` | string | no | Optional EONET category id to filter to, e.g. 'wildfires', 'severeStorms', 'volcanoes', 'floods', 'drought'. |
+| `days` | integer | no | How many days back to look. Defaults to 20. |
+| `status` | string | no | 'open' (default), 'closed', or 'all'. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'NASA EONET Events'. Re-fetching with the same name replaces its features rather than duplicating them. |
+
+### `generate_situation_dashboard`
+
+Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disaster alerts) for a bounding box and export it all as one interactive HTML situation dashboard in a single call -- the fastest way to answer 'what hazards are happening in this area right now'. Internally calls fetch_nasa_active_fires/fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts (each skipped gracefully, not fatally, if its source errors -- e.g. no FIRMS API key configured) then generate_html_dashboard. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as the 3 fetch tools it calls.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | yes | [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `output_path` | string | no | Optional output HTML file path. |
+| `title` | string | no | Optional dashboard title. |
+| `include_fires` | boolean | no | Include NASA FIRMS active fires. Defaults to true. |
+| `include_eonet` | boolean | no | Include NASA EONET natural events. Defaults to true. |
+| `include_disasters` | boolean | no | Include GDACS disaster alerts. Defaults to true. |
 
 ## impedance_tools
 
