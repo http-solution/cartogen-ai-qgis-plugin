@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.13.1](#v1-13-1) | 2026-09-12 | Patch: a plain "hi" cost ~23K tokens from tool-router padding; word-boundary matching + stopwords fix it |
 | [1.13.0](#v1-13-0) | 2026-09-12 | Rate-limit/task-size resilience: 429-aware backoff on all providers, adaptive pacing, mid-turn compaction |
 | [1.12.0](#v1-12-0) | 2026-09-12 | Onboarding profile, Help auto-show, tidier tool-call summary; fixes a v1.11.0 accent-stripe regression |
 | [1.11.0](#v1-11-0) | 2026-09-12 | Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu |
@@ -21,6 +22,41 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-13-1"></a>
+## [1.13.1] — 2026-09-12 — Patch: a plain "hi" was costing ~23K tokens from tool-router padding
+
+Patch release, found and fixed the same day v1.13.0 shipped: a direct live report that a single
+plain `"hi"` message cost **~22,959 tokens for one API call**. Traced to
+`tool_router.py`'s `filter_relevant_tools()` always padding out to the full `top_k=40` tool
+schemas even for a query with zero real signal — worsened by two real matching bugs, not just
+one padding issue:
+
+- **Substring containment, not word-boundary matching.** Name/description scoring used
+  `word in text` — a 2-character query word like `"hi"` spuriously substring-matched inside
+  completely unrelated tool names (`histogram_equalization`, `highlight_features`, `hillshade`),
+  scoring a real-looking +10. That was enough to make the router's own "nothing else matched"
+  check evaluate `False`, triggering full `top_k` padding with ~30 more essentially random tool
+  schemas. Fixed by splitting tool names on `_` and tokenizing descriptions with the same `\w+`
+  regex already used for the query — both checks are now genuine word-boundary membership tests.
+- **No-signal queries still padded to `top_k`.** Even once correctly detected as having zero
+  real signal, the router still filled the remaining slots with random 0-score filler instead of
+  returning only the genuinely useful always-include + fallback set (9 tools). Fixed: a
+  no-signal query now returns only tools that scored above 0.
+- **A follow-up gap the word-boundary fix alone didn't close**: `"hello there"` still pulled in
+  the full padded set, because `"there"` is a genuine standalone word in several tool
+  descriptions' ordinary prose (`"is there flooding here"`) — a true match, just for a word
+  carrying zero intent signal. A small, conservative stopword list (articles, pronouns, common
+  greetings/acknowledgments) is now filtered out of query words before scoring — the curated
+  alias list and the always-include/fallback logic are untouched.
+
+Every real-signal query tested (buffer, calculate severity index, NDVI, all 8 existing
+alias-coverage tests) is completely unaffected — still gets the full `top_k=40` candidate pool
+exactly as before. Measured effect: `"hi"`'s filtered-tools payload dropped from 40 tools
+(~8,133 tokens) to 9 tools (~1,027 tokens); a real `agent.run("hi")` call's full payload (system
+prompt + tools) dropped from ~22,959 to ~9,316 tokens in live verification against a real QGIS
+4.2.2 session, not just the router in isolation. No new agent tools — 169 tools, unchanged. Full
+suite 1484 → 1488 tests, 0 failures.
 
 <a id="v1-13-0"></a>
 ## [1.13.0] — 2026-09-12 — Rate-limit/task-size resilience: 429-aware backoff, adaptive pacing, mid-turn compaction
