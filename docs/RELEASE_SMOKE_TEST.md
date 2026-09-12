@@ -64,6 +64,30 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-12 — v1.10.0 — headless, not the full interactive checklist above.** Same environment
+constraint as the runs below, so this reuses that run's script again, re-executed fresh against
+v1.10.0's code, plus 5 new checks for this release's own headline feature (UI & Chat Redesign).
+All 22 passed:
+
+- The same 17 categories as the v1.9.0 run below, unchanged results — confirms this release
+  introduced no regressions in the existing tool surface or the hazard-monitoring tools.
+- **UI & Chat Redesign (theme detection + brand accent)** — `_detect_theme_mode()` correctly
+  returned `"light"` for the sandbox's default palette; `_brand_accent()` confirmed to actually
+  blend QGIS's real accent color (`#0067c0`) toward the brand teal (`#0b6ea3` — distinct from
+  both the raw QGIS color and the full brand teal, confirming a blend, not a replacement).
+- **UI & Chat Redesign (icon rendering)** — all 4 hand-authored SVG icons (attach/send/stop/
+  settings) render as real, non-null `QIcon`s via `themed_icon()`.
+- **UI & Chat Redesign (toolbar icon)** — the shipped `icon.svg` (the real brand mark, replacing
+  the old flat PNG) loads as a real, non-null `QIcon`.
+- **UI & Chat Redesign (chat tab wiring)** — constructed the real `ChatTabWidget` and confirmed
+  the attach/send/stop buttons actually carry the new icons (not just that `icons.py` works in
+  isolation), and that the Preview panel's bypass-send button reads "Send as typed instead",
+  matching the Refinement panel exactly.
+- **UI & Chat Redesign (dock header wiring)** — constructed the real `CartogenAiDockWidget` and
+  confirmed the Settings button carries its new icon.
+
+No new bugs found this run.
+
 **2026-09-12 — v1.9.0 — headless, not the full interactive checklist above.** Same environment
 constraint as the v1.8.3 run below (no interactive QGIS session or configured LLM provider), so
 this reuses that run's script, re-executed fresh against v1.9.0's code, plus 3 new checks for
