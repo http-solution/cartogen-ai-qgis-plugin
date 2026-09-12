@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.10.0](#v1-10-0) | 2026-09-12 | UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons |
 | [1.9.0](#v1-9-0) | 2026-09-12 | Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges |
 | [1.8.3](#v1-8-3) | 2026-09-12 | Patch: release zip was silently missing 4 relocated archive docs |
 | [1.8.2](#v1-8-2) | 2026-09-12 | Docs-only: repo reorganization and documentation polish pass |
@@ -17,6 +18,52 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-10-0"></a>
+## [1.10.0] — 2026-09-12 — UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons
+
+A visual polish pass on the dock/chat UI, grounded in real QGIS plugin design research rather
+than generic web-design advice — published first as a review Artifact, corrected once (a
+research agent had reported 3 already-fixed UX-audit items as still open; re-reading the live
+code before planning caught it), then implemented as 4 workstreams. Structure, the markdown
+renderer, and the message-bubble mechanism are unchanged — this is polish on a sound base, not a
+rebuild.
+
+- **Two-tier theme detection.** `ui/theme.py`'s new `_detect_theme_mode()` checks QGIS's own
+  named theme (`QgsApplication.instance().themeName()`, `"Night Mapping"`/`"Blend of Gray"`)
+  before falling back to the existing palette-luminance read — QFieldSync's real, shipping
+  pattern (`qfieldsync/gui/utils.py`), since a named theme can pick a scheme that doesn't show
+  up as a clean luminance difference in every `QPalette` role.
+- **Brand-accent color blending.** New `_brand_accent()` in `chat_formatting.py` blends QGIS's
+  own live accent color toward the Cartogen brand teal (`#1F7A6C`) at a modest 0.35 ratio,
+  reusing the already-tested `_blend_hex()` helper — a blend, never a replacement, so the accent
+  still varies across QGIS themes instead of becoming one fixed color. Wired into
+  `derive_bubble_colors()` (the user-message bubble tint) and `build_dock_stylesheet()`
+  (buttons, selected-tab underline, focus border, chip buttons). The first brand color to reach
+  the running UI at all — every color before this was purely QGIS-palette-derived, with zero
+  connection to the plugin's own documented brand system.
+- **Theme-reactive SVG icons.** New `ui/icons.py`: hand-authored, in-repo SVGs (attach, send,
+  stop, settings) — matches the observed QGIS plugin-ecosystem convention (custom SVG icons
+  in-repo, e.g. `opengeos/qgis-plugin-template`) rather than an icon font. `themed_icon()`
+  renders a template at a given color entirely in memory (no temp file), colored from the live
+  palette at construction time — the same pattern TerraLabAI's `QGIS_AI-Segmentation` plugin
+  uses for its own dock icons. Replaces the plain Unicode emoji (📎 ➤ ⏹ ⚙) in the chat input
+  row and the Settings button. The toolbar/menu action icon also switched from a flat `icon.png`
+  to `icon.svg`, a copy of the real brand mark — placed at the plugin root specifically because
+  `plugin_upload.py`'s `EXCLUDE_DIRS` excludes the whole `branding/` folder from the release
+  zip; pointing directly at `branding/cartogen-mark.svg` would have silently shipped a plugin
+  with an empty toolbar icon. Caught by checking the exclusion list before wiring it up, not by
+  trial and error.
+- **One wording alignment.** The Preview panel's bypass-send button ("Send my wording only") now
+  matches the Refinement panel's identical action ("Send as typed instead") exactly — the one
+  real inconsistency once the other 3 items a prior UX audit flagged were confirmed already
+  fixed in code.
+
+No new agent tools — 169 tools, unchanged. 9 new tests (color-blend determinism/non-collapse
+behavior, icon SVG generation). Full suite 1456 tests (up from 1447), 0 failures. Live-verified
+against real QGIS 4.2.2 via actual rendered screenshots of the wired-up input row, dock header,
+gate-panel wording, and toolbar icon, in both light and forced-dark palettes — not just
+import-success checks, since a visual redesign can't be verified any other way.
 
 <a id="v1-9-0"></a>
 ## [1.9.0] — 2026-09-12 — Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges
