@@ -64,6 +64,41 @@ class CartogenAiDockWidget(QDockWidget):
         from ..agent.scheduler import get_scheduler
         get_scheduler().workflow_tick_completed.connect(self.chat_tab_widget._on_scheduled_workflow_tick)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._clamp_to_screen_if_floating()
+
+    def _clamp_to_screen_if_floating(self):
+        """Defensive guard against a floating dock ending up taller/wider than the available
+        screen, or partly off-screen (real-session report, 2026-09-12: a long chat response
+        left the input row not visible -- extensive headless testing across several hypotheses
+        (small windows, bloated Activity-tab content, the exact reported multi-tool-call
+        scenario) never reproduced a layout defect; the input row was always correctly present
+        and positioned in every test. A floating window that's grown or drifted past the
+        available screen height is a known Qt/Windows failure mode that produces exactly this
+        symptom -- the input row is still there in the layout, just rendered below the visible
+        screen area, invisible and unreachable without a manual resize this guard makes
+        unnecessary). Only acts while floating -- a docked panel is already bounded by the main
+        QGIS window's own geometry -- and only changes geometry that genuinely doesn't fit;
+        idempotent, so this is safe to call from every resizeEvent without risk of runaway
+        recursion (a window already inside the available geometry computes no change here)."""
+        if not self.isFloating():
+            return
+        screen = self.screen() if hasattr(self, "screen") else None
+        if screen is None:
+            from qgis.PyQt.QtWidgets import QApplication
+            screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        geo = self.geometry()
+        new_width = min(geo.width(), available.width())
+        new_height = min(geo.height(), available.height())
+        new_x = max(available.left(), min(geo.x(), available.right() - new_width))
+        new_y = max(available.top(), min(geo.y(), available.bottom() - new_height))
+        if (new_width, new_height, new_x, new_y) != (geo.width(), geo.height(), geo.x(), geo.y()):
+            self.setGeometry(new_x, new_y, new_width, new_height)
+
     def init_ui(self):
         container = QWidget(self)
         self.setWidget(container)
