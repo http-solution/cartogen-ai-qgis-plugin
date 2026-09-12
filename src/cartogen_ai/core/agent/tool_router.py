@@ -78,6 +78,25 @@ _TOOL_ALIASES = {
 # should still win a tie against an alias match).
 _ALIAS_MATCH_SCORE = 10
 
+# Common English function/filler words, excluded from name/description scoring -- 2026-09-12,
+# a follow-up to the word-boundary fix above: switching to word-boundary matching correctly
+# stopped "hi" from matching inside "histogram_equalization", but a query like "hello there"
+# still pulled in the full top_k candidate set, because "there" genuinely appears as a real
+# standalone word in several tool descriptions' ordinary English prose ("is there flooding
+# here", "there is no addressable map item") -- a true word-boundary match, not a bug, just an
+# extremely common word carrying no real intent signal. Deliberately small and conservative --
+# only words with essentially zero chance of ever being the actual point of a GIS request, never
+# a real (if short) content word like "map" or "fix". Doesn't touch the curated alias list
+# (_TOOL_ALIASES) or the always_include/fallback logic below, only the two generic scoring loops.
+_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "am",
+    "this", "that", "these", "those", "there", "here", "it", "its",
+    "and", "or", "but", "to", "of", "in", "on", "at", "for", "with",
+    "as", "by", "from", "so", "if", "than", "then",
+    "i", "you", "he", "she", "we", "they", "my", "your", "me",
+    "hi", "hey", "hello", "thanks", "thank", "please", "ok", "okay", "yes", "no",
+}
+
 
 class ToolRouter:
     """Keyword & intent-based tool schema selector."""
@@ -91,7 +110,10 @@ class ToolRouter:
             return self.full_schema_list
 
         query_lower = user_query.lower()
-        query_words = set(re.findall(r'\w+', query_lower))
+        # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
+        # check below) keeps every word, since a multi-word alias phrase like "rank the
+        # districts" is matched as a whole substring, not word-by-word.
+        query_words = set(re.findall(r'\w+', query_lower)) - _STOPWORDS
 
         # Always include core agent/task/memory tools. execute_pyqgis_script is
         # handled separately below (point 1 of
@@ -129,14 +151,28 @@ class ToolRouter:
                 scored_tools.append((1000, tool_obj))
                 continue
 
+            # Word-boundary matching, not substring containment -- 2026-09-12, from a live
+            # token-usage report: a plain "hi" was costing ~8K tokens in wholly irrelevant tool
+            # schemas because `"hi" in "histogram_equalization"` (and highlight_features,
+            # hillshade) is True as a raw substring check, even though "hi" never appears there
+            # as an actual word. Same bug hit longer words too, just less obviously: "there" (5
+            # chars, already past the old length guard) still substring-matched inside "whereby"
+            # and 6 other tool descriptions. Splitting the tool name on "_" and tokenizing the
+            # description with the same \w+ regex used for query_words turns both checks into
+            # real word-boundary membership tests instead of "is this text contained anywhere in
+            # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
+            # not the only thing standing between a short query word and a false match.
+            name_words = set(name.lower().split("_"))
+            desc_words = set(re.findall(r"\w+", desc))
+
             score = 0
             # Name match score
-            if any(w in name.lower() for w in query_words):
+            if query_words & {w for w in name_words if len(w) > 2}:
                 score += 10
 
             # Description match score
             for word in query_words:
-                if len(word) > 2 and word in desc:
+                if len(word) > 2 and word in desc_words:
                     score += 2
 
             # Curated alias/synonym match score
@@ -182,4 +218,12 @@ class ToolRouter:
 
         # Sort by score descending and take top_k
         scored_tools.sort(key=lambda x: x[0], reverse=True)
+        if nothing_else_matched:
+            # Genuinely no real signal at all (e.g. a plain "hi") -- only the always-relevant
+            # core tools + the fallback (9 total) are actually useful; padding out to top_k with
+            # random 0-score filler tools (still sorted, just no real relevance) was pure waste,
+            # found from a live report: it was costing ~8K tokens in irrelevant tool schemas for
+            # a one-word greeting. A query WITH any real signal is completely unaffected by this
+            # -- it still gets the full top_k candidate pool exactly as before.
+            return [tool for score, tool in scored_tools if score > 0][:top_k]
         return [tool for _, tool in scored_tools[:top_k]]

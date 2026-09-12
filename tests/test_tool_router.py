@@ -73,6 +73,56 @@ class TestExecutePyqgisScriptFallbackOnly(unittest.TestCase):
         self.assertIn("execute_pyqgis_script", names)
 
 
+class TestNoSignalQueryStaysSmall(unittest.TestCase):
+    """Direct live report, 2026-09-12: a plain "hi" greeting cost ~22K total tokens for one
+    API call, traced to filter_relevant_tools always padding out to the full top_k=40 even
+    when nothing in the query is remotely tool-relevant -- ~8K tokens of that from irrelevant
+    tool schemas alone. Two real, separate bugs found and fixed: (1) substring containment
+    (not word-boundary matching) let short/common query words spuriously match inside
+    unrelated tool names/descriptions ("hi" inside "histogram_equalization", "there" -- a
+    genuine standalone word in several descriptions' ordinary prose -- inside real GIS
+    content), which was enough to make the router think real signal existed and pad to top_k;
+    (2) even a correctly-detected no-signal query still padded to top_k with random 0-score
+    filler instead of returning only the genuinely useful always-include + fallback set."""
+
+    def setUp(self):
+        self.router = ToolRouter(TOOLS_SCHEMA)
+
+    def test_hi_no_longer_false_matches_histogram_or_highlight_or_hillshade(self):
+        filtered = self.router.filter_relevant_tools("hi", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertNotIn("histogram_equalization", names)
+        self.assertNotIn("highlight_features", names)
+        self.assertNotIn("hillshade", names)
+
+    def test_hi_returns_only_the_always_include_and_fallback_set_not_padded_to_top_k(self):
+        filtered = self.router.filter_relevant_tools("hi", top_k=40)
+        names = {t.get("function", {}).get("name") for t in filtered}
+        expected = {
+            "get_layers", "get_attributes", "create_plan", "update_task",
+            "set_task_preview", "store_project_memory", "store_global_memory",
+            "generate_spatial_report", "execute_pyqgis_script",
+        }
+        self.assertEqual(names, expected)
+
+    def test_common_filler_words_dont_pull_in_the_full_candidate_set(self):
+        # "there" is a real standalone word in several tool descriptions' ordinary English
+        # prose (not a false substring match) -- word-boundary matching alone wasn't enough
+        # here, a small stopword list is what actually keeps this one small.
+        for query in ("hello there", "thanks!", "ok thanks", "yes please"):
+            filtered = self.router.filter_relevant_tools(query, top_k=40)
+            self.assertLessEqual(len(filtered), 10, f"query {query!r} should stay small, got {len(filtered)} tools")
+
+    def test_a_real_short_query_still_gets_the_full_candidate_pool(self):
+        # Confirms the fixes above don't over-correct into suppressing genuine short
+        # relevant queries -- "buffer" alone is real signal (3+ chars, a genuine tool-name
+        # word, not a stopword) and must still get the full top_k treatment.
+        filtered = self.router.filter_relevant_tools("buffer this layer", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("buffer_analysis", names)
+        self.assertEqual(len(filtered), 40)
+
+
 class TestToolRouterAliasCoverage(unittest.TestCase):
     """Regression coverage for 3 real paraphrased queries that measurably
     missed the top-30 candidate set before the alias list was added -- see
