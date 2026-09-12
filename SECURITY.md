@@ -228,8 +228,12 @@ already saved in a project from before it was disabled.
 re-runs a saved sequence of tool calls on a `QTimer` at a user/model-chosen interval,
 unattended, for as long as QGIS stays open. Three controls:
 - **Tool allowlist.** `_load_steps()` rejects any preset step naming a tool outside
-  `_ALLOWED_WORKFLOW_TOOLS` (7 read-only analysis tools — no geometry edits, no file
-  writes) before it's ever scheduled.
+  `_ALLOWED_WORKFLOW_TOOLS` before it's ever scheduled — 7 read-only analysis tools (no
+  geometry edits, no file writes), plus (v1.9.0) 3 idempotent live-hazard-data refresh tools
+  (`fetch_nasa_active_fires`/`fetch_nasa_eonet_events`/`fetch_gdacs_disaster_alerts`) that DO
+  write, but only ever replace their own auto-managed layer's features with the latest fetch
+  from a fixed external source — never a user-authored layer, and never an unbounded or
+  escalating effect across repeated runs the way an arbitrary geometry edit could be.
 - **Minimum interval floor.** `WorkflowScheduler.start()` rejects `interval_minutes`
   below 1 — previously only `<= 0` was rejected, so e.g. `0.001` became a ~60ms `QTimer`
   re-running full geoprocessing (zonal statistics, severity scoring) on the main Qt

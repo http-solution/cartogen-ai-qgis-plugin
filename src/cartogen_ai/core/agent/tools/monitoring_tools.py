@@ -21,9 +21,19 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-# Read-only analysis tools only -- an unattended recurring run must never be
-# able to silently repeat a destructive/geometry-editing operation. Extend
-# this set deliberately, not by default, when a new analysis tool is added.
+# An unattended recurring run must never be able to silently repeat a destructive/
+# geometry-editing operation against USER-authored data. Extend this set deliberately, not by
+# default, when a new tool is added -- and only for one of two categories:
+#
+# 1. Read-only analysis tools (the original 7 below) -- never write anything.
+# 2. Idempotent external-data-refresh tools (hazard_monitoring_tools.py's fetch_nasa_active_fires/
+#    fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts) -- these DO write, but only ever REPLACE
+#    the features of their own auto-named, auto-managed layer with the latest fetch from a fixed
+#    external source; they never touch a user-authored layer, and re-running one produces the
+#    same category of result every time (this tick's live hazard data), not an escalating or
+#    diverging effect the way repeating a geometry edit against arbitrary data could. That's the
+#    same safety property the read-only category has (no unbounded, unattended damage to a
+#    user's own work), just satisfied a different way.
 _ALLOWED_WORKFLOW_TOOLS = {
     "calculate_severity_index",
     "calculate_presence_gap",
@@ -32,6 +42,9 @@ _ALLOWED_WORKFLOW_TOOLS = {
     "field_statistics",
     "population_access_gap",
     "estimate_population_exposure",
+    "fetch_nasa_active_fires",
+    "fetch_nasa_eonet_events",
+    "fetch_gdacs_disaster_alerts",
 }
 
 _WORKFLOW_KEY_PREFIX = "cartogen_ai/workflows/"
@@ -142,10 +155,14 @@ def _summarize_diffs(preset_name, result):
     "Re-run a saved sequence of analysis tools (a 'monitoring workflow', see save_workflow_preset) in "
     "one shot and diff each step's per-unit results against the last time this preset was run -- e.g. "
     "re-running calculate_severity_index weekly and seeing which admin units moved into a worse "
-    "severity class. Only read-only analysis tools are allowed as steps (calculate_severity_index, "
+    "severity class, or re-running fetch_nasa_active_fires hourly and seeing which fire detections "
+    "are new since the last check. Only read-only analysis tools (calculate_severity_index, "
     "calculate_presence_gap, calculate_population_in_need, forecast_trend, field_statistics, "
-    "population_access_gap, estimate_population_exposure) -- never geometry edits or file writes, so "
-    "an unattended recurring run can't silently repeat a destructive action. The preset must be saved "
+    "population_access_gap, estimate_population_exposure) and idempotent live-hazard-data refresh "
+    "tools (fetch_nasa_active_fires, fetch_nasa_eonet_events, fetch_gdacs_disaster_alerts -- these "
+    "only ever replace their own auto-managed layer's features with the latest fetch, never touch "
+    "user-authored data) are allowed as steps -- never geometry edits or file writes to arbitrary "
+    "layers, so an unattended recurring run can't silently repeat a destructive action. The preset must be saved "
     'first via save_workflow_preset as \'{"steps": [{"tool": "calculate_severity_index", "args": '
     '{...}}, ...]}\'. The first run has nothing to compare against (previous_run_at is null); later '
     "runs report units_appeared/units_disappeared/units_changed per step, wherever that step's result "
