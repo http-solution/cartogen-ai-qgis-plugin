@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.14.1
+version=1.15.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,35 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.14.1 (2026-09-13):
+changelog=v1.15.0 (2026-09-13):
+    Gemini prompt caching, direct request ("implement gemini caching, check the
+    documentation"), following a real report of ~168K tokens for one 6-call print-layout turn.
+    Researched Google's current Gemini API docs before writing any code: implicit caching is
+    automatic and free for Gemini 2.5+/3.x models -- no client code needed to trigger it, ~90%
+    discount on cache hits -- as long as the cached content is a stable prefix above a per-model
+    minimum (2,048-4,096 tokens). Confirmed this plugin's system prompt/tools already meet both
+    requirements (computed once before agent.py's tool-calling loop, never rebuilt mid-turn), so
+    a multi-call turn's repeated system prompt is exactly the shape implicit caching targets --
+    nothing to implement there beyond confirming it isn't accidentally defeated. What WAS
+    missing was visibility: the Gemini OpenAI-compatible endpoint reports cache hits via
+    usage.prompt_tokens_details.cached_tokens, but nothing surfaced it. Explicit caching (a
+    separate CachedContent resource with its own lifecycle/storage cost) was considered and
+    deliberately not built -- implicit caching already covers the reported scenario for free,
+    and the per-turn module-based system prompt (v1.14.0) limits explicit caching's cross-turn
+    reuse value for the added complexity. Extended usage extraction (shared by
+    Gemini/OpenAI/OpenRouter/Ollama) to surface cached_tokens; extended Claude's own usage
+    extraction the same way for symmetry (Claude already sends cache_control breakpoints from
+    earlier this session, but never surfaced cache_read/cache_creation counts either) --
+    Anthropic's own "input_tokens" excludes cached tokens unlike Gemini/OpenAI's convention, so
+    it's reconstructed to the full request size for cross-provider consistency. Session usage
+    now shows e.g. "~24,747 tokens this session (3 calls, ~14,400 served from cache)". No new
+    agent tools; 169 tools unchanged. 18 new tests, full suite 1506 -> 1512, 0 failures.
+    Live-verified end to end in real QGIS 4.2.2. Honest limitation: no live network access to a
+    real Gemini API key in this sandbox, so the parsing logic is confirmed against documentation
+    and realistic mock responses, not a real live API response. See CHANGELOG.md's [1.15.0]
+    entry for full detail.
+
+v1.14.1 (2026-09-13):
     Patch release, direct live report: after a long print-layout response, the chat input row
     was no longer visible -- the floating panel appeared to end right where the response
     content did. Investigated thoroughly before changing anything (small window + long
