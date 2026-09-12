@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.14.1](#v1-14-1) | 2026-09-13 | Patch: floating dock clamped to the screen after a report of the chat input row going missing |
 | [1.14.0](#v1-14-0) | 2026-09-13 | Modularized the 47-rule base prompt by relevance; "hi" now ~3.2K tokens, down from ~23K originally |
 | [1.13.1](#v1-13-1) | 2026-09-12 | Patch: a plain "hi" cost ~23K tokens from tool-router padding; word-boundary matching + stopwords fix it |
 | [1.13.0](#v1-13-0) | 2026-09-12 | Rate-limit/task-size resilience: 429-aware backoff on all providers, adaptive pacing, mid-turn compaction |
@@ -23,6 +24,36 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-14-1"></a>
+## [1.14.1] — 2026-09-13 — Patch: floating dock clamped to the screen
+
+Direct live report: after a long print-layout response, the chat input row was no longer
+visible — the floating panel's window appeared to end right where the response content did, no
+input box reachable.
+
+Investigated thoroughly before changing anything: tried to reproduce with a small window plus
+long content, a bloated Activity tab (many tasks/memory entries accumulated over a session), and
+the exact reported scenario (6 API calls, multiple tool-step summaries, a long final response) —
+in every headless test, `chat_tab_widget`'s layout correctly kept the input row visible and
+positioned within the window (`QTextBrowser.sizeHint()` stays content-independent, confirmed
+live; the Activity tab's `QScrollArea` correctly caps its own outward size hint regardless of
+its content's real size). Could not reproduce a layout defect in the sandbox.
+
+A floating window that's grown or drifted past the available screen's height/position is a known
+Qt/Windows failure mode that produces exactly this symptom — the input row still exists in the
+layout, just rendered below the visible screen area, invisible and unreachable without a manual
+resize. Added a defensive `resizeEvent` guard: while floating, clamps the dock's geometry to fit
+within `QScreen.availableGeometry()` whenever it would otherwise extend past it. Idempotent (a
+window already on-screen computes no change), so safe on every resize with no recursion risk.
+Only acts while floating — a docked panel is already bounded by the main QGIS window.
+
+Live-verified: forced the dock to an absurdly tall, partly off-screen geometry and confirmed the
+guard clamps it back on-screen, with the input row's own on-screen position confirmed within the
+visible screen area afterward. `dock_widget.py` has no automated test coverage (no
+`QGIS_AVAILABLE` fallback, by its own module docstring), so this relies on live verification per
+this file's established convention, not a new unit test. No new agent tools — 169 tools,
+unchanged. Full suite unaffected: 1506 tests, 0 failures.
 
 <a id="v1-14-0"></a>
 ## [1.14.0] — 2026-09-13 — Modularized the 47-rule base prompt by relevance

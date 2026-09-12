@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.14.0
+version=1.14.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,22 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.14.0 (2026-09-13):
+changelog=v1.14.1 (2026-09-13):
+    Patch release, direct live report: after a long print-layout response, the chat input row
+    was no longer visible -- the floating panel appeared to end right where the response
+    content did. Investigated thoroughly before changing anything (small window + long
+    content, a bloated Activity tab, the exact reported 6-call/multi-tool-step scenario) --
+    could not reproduce a layout defect in headless testing; chat_tab_widget's layout
+    correctly kept the input row visible in every scenario tried. A floating window that's
+    grown or drifted past the available screen's height/position is a known Qt/Windows
+    failure mode that produces exactly this symptom -- added a defensive resizeEvent guard
+    that clamps a floating dock's geometry to QScreen.availableGeometry() whenever it would
+    otherwise extend past it (idempotent, only acts while floating). Live-verified: forced the
+    dock to an oversized/off-screen geometry and confirmed the guard restores it on-screen with
+    the input row reachable. No new agent tools; 169 tools unchanged. Full suite unaffected:
+    1506 tests, 0 failures. See CHANGELOG.md's [1.14.1] entry for full detail.
+
+v1.14.0 (2026-09-13):
     Prompt modularization release, follow-up to v1.13.1's tool-router token fix. The remaining
     ~8,149-token base system prompt was investigated (not assumed): it contains no JSON schemas
     at all, 100% plain-English prose -- 47 numbered behavioral rules always sent in full
