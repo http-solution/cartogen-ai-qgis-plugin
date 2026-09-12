@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.13.0
+version=1.13.1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,25 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.13.0 (2026-09-12):
+changelog=v1.13.1 (2026-09-12):
+    Patch release, found and fixed the same day v1.13.0 shipped: a direct live report that a
+    single plain "hi" message cost ~22,959 tokens for one API call. Traced to
+    tool_router.py's filter_relevant_tools() always padding out to the full top_k=40 tool
+    schemas even for a query with zero real signal, worsened by two real matching bugs -- raw
+    substring containment (not word-boundary matching) let "hi" spuriously match inside
+    unrelated tool names (histogram_equalization, highlight_features, hillshade), and even a
+    correctly-detected no-signal query still padded with random 0-score filler instead of
+    returning just the always-useful 9-tool core set. A follow-up stopword list (articles,
+    pronouns, common greetings) closes a related gap where a real English word like "there"
+    (genuinely present in several tool descriptions' ordinary prose) still pulled in the full
+    padded set. Every real-signal query (buffer, calculate severity index, NDVI, all existing
+    alias-coverage tests) is completely unaffected -- still gets the full top_k=40 candidate
+    pool exactly as before. Measured effect: "hi"'s full agent.run() payload dropped from
+    ~22,959 to ~9,316 tokens in live verification against a real QGIS 4.2.2 session. No new
+    agent tools; 169 tools unchanged. Full suite: 1488 tests, 0 failures. See CHANGELOG.md's
+    [1.13.1] entry for full detail.
+
+v1.13.0 (2026-09-12):
     Rate-limit/task-size resilience release. A genuinely complex multi-step request could burst
     up to 20 back-to-back API calls with zero pacing, and each call re-sent every prior tool
     result in full -- real risk of tripping a provider's rate limit or a context-length ceiling,
