@@ -26,7 +26,6 @@ from .chat_formatting import (
 )
 from .attachments import read_attached_file as _read_attached_file
 from .theme import theme_colors, extract_theme_palette
-from .dock_constants import QUICK_SUGGESTION_CHIPS
 from .icons import themed_icon
 
 
@@ -102,16 +101,12 @@ class ChatTabWidget(QWidget):
         )
         chat_layout.addWidget(self.usage_label)
 
-        # Quick Suggestion Chips
-        chips_layout = QHBoxLayout()
-        chips_layout.setSpacing(4)
-        for chip_label, chip_template in QUICK_SUGGESTION_CHIPS:
-            chip_btn = QPushButton(chip_label)
-            chip_btn.setObjectName("chipButton")
-            chip_btn.clicked.connect(lambda checked=False, t=chip_template: self._send_quick_prompt(t))
-            chips_layout.addWidget(chip_btn)
-        chips_layout.addStretch()
-        chat_layout.addLayout(chips_layout)
+        # Quick-suggestion chips used to sit here, always visible above the input row.
+        # Removed per a 2026-09-12 real-session user report ("remove the buttons in the
+        # bottom... irrelevant") -- QUICK_SUGGESTION_CHIPS (dock_constants.py) still backs
+        # help_tab_widget.py's own example-prompts list, which is now their only home now
+        # that Help is a deliberate, opt-in destination (Plugins menu) rather than
+        # always-visible chrome.
 
         # Prompt Refinement panel -- separate widget above the input row
         # (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §6/§11.1: decided as a
@@ -209,8 +204,8 @@ class ChatTabWidget(QWidget):
         preview_buttons = QHBoxLayout()
         self.preview_send_btn = QPushButton("Send this")
         # Deliberately the default (accent) button style, not "successButton" --
-        # that green is reserved for the Tasks tab's destructive-action confirm
-        # gate ("Confirm & Apply Edit"). Reusing it here made the same color mean
+        # that green is reserved for the Activity tab's destructive-action confirm
+        # gate ("Confirm and Apply Edit"). Reusing it here made the same color mean
         # both "send a low-stakes composed prompt" and "apply an edit/delete",
         # collapsing a meaning-carrying color -- found in the UX audit dated
         # 2026-08-31.
@@ -360,15 +355,28 @@ class ChatTabWidget(QWidget):
             body = escape_plain_text(text)
             label, align = "You", "right"
             bg = colors["user_bg"]
+            accent_border = colors["accent"]  # the one place this UI spends its brand-color boldness
         else:
             body = render_markdown(text, colors)
             label, align = "🗺️ Cartogen", "left"
             bg = colors["agent_bg"]
+            accent_border = colors["border"]  # stays quiet -- no accent on the agent's own side
 
+        # border="0" cellspacing="0" cellpadding="0" on the OUTER (alignment-only) table --
+        # real bug, found from a live user report with screenshots (UI real-session-feedback
+        # fixes, 2026-09-12): without this, Qt's rich-text engine drew its own default table
+        # border around the outer table, stacking visibly with the inner table's real
+        # border:1px below it -- a "double border" around every message. border-radius:8px
+        # (previously on the inner table) is REMOVED, not just left as dead weight: Qt's
+        # rich-text engine is a limited CSS 2.1-ish subset with no border-radius support at
+        # all, so it was always silently ignored -- every message has always rendered as a
+        # sharp rectangle in real QGIS, never actually rounded despite the code claiming to.
+        # Replaced with something Qt's engine genuinely renders: a colored left-accent stripe,
+        # the same flat-message shape GitHub PR review comments and Slack thread replies use.
         html = f"""
-        <table width="100%" style="margin:6px 0;"><tr><td align="{align}">
-        <table align="{align}" style="max-width:85%;background-color:{bg};
-            border:1px solid {colors['border']};border-radius:8px;"><tr><td style="padding:8px 12px;">
+        <table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:6px 0;"><tr><td align="{align}">
+        <table border="0" cellspacing="0" cellpadding="0" align="{align}" style="max-width:85%;background-color:{bg};
+            border:1px solid {colors['border']};border-left:3px solid {accent_border};"><tr><td style="padding:8px 12px;">
         <div style="font-size:11px;font-weight:bold;color:{colors['text']};margin-bottom:3px;">
             {label} <span style="font-weight:normal;color:{colors['subtle']};">&middot; {timestamp}</span>
         </div>
@@ -902,20 +910,6 @@ class ChatTabWidget(QWidget):
                     self._active_highlights.append(highlight)
         except Exception as e:
             print(f"[ChatTabWidget] Canvas highlight failed: {e}")
-
-    def _send_quick_prompt(self, template):
-        """Handler for the suggestion chips -- fills in the active layer's
-        name where the template refers to it generically, then sends it."""
-        prompt = template
-        try:
-            from qgis.utils import iface
-            active = iface.activeLayer() if iface else None
-            if active and "the active layer" in template:
-                prompt = template.replace("the active layer", f"the layer '{active.name()}'")
-        except Exception:
-            pass
-        self.input_edit.setPlainText(prompt)
-        self.send_message()
 
     def attach_file(self):
         filters = (

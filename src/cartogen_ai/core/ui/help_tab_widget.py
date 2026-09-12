@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QTextBrowser
 from .dock_constants import PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS
 
 
-def _build_help_html():
+def _build_help_html(version=None):
     """Static help content -- provider list and example prompts are built from the same
     source data as the rest of the UI (PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS) rather
     than a second, driftable copy of the text.
@@ -19,23 +19,30 @@ def _build_help_html():
     despite docs/USER_GUIDE.md claiming this tab mirrors it. Still a static string, not
     literally generated from USER_GUIDE.md -- keep the two in sync by hand when either
     changes; the shared PROVIDER_CHOICES/QUICK_SUGGESTION_CHIPS above are the part that
-    genuinely can't drift."""
+    genuinely can't drift.
+
+    version, when given, renders as a line under the title -- a second, redundant point of
+    visibility alongside the disabled version QAction in the Plugins menu (plugin_main.py),
+    per the 2026-09-12 real-session user report asking for version info to be discoverable.
+    """
     provider_items = "".join(f"<li>{label}</li>" for label, _ in PROVIDER_CHOICES)
     example_items = "".join(
         f"<li>{template}</li>" for _, template in QUICK_SUGGESTION_CHIPS
     )
+    version_line = f"<p style='color:gray;'>Version {version}</p>" if version else ""
     return f"""
     <h3>🗺️ Cartogen AI — Help</h3>
+    {version_line}
     <p>Ask questions or give instructions in plain English in the <b>Chat</b> tab. The assistant
     can inspect your loaded layers, run real PyQGIS/Processing operations, and build maps for
-    you — every action it takes is visible in the <b>Tasks &amp; Notes</b> tab.</p>
+    you — every action it takes is visible in the <b>Activity</b> tab.</p>
 
     <h4>Getting started</h4>
     <ol>
     <li>Open <b>Settings</b> (top-right gear icon) and pick a provider and enter its API key.</li>
     <li>Type a request in the chat box and press Enter (Shift+Enter for a new line).</li>
     <li>For anything that edits or deletes data, you'll be asked to confirm in the
-    <b>Tasks &amp; Notes</b> tab before it actually runs.</li>
+    <b>Activity</b> tab before it actually runs.</li>
     </ol>
 
     <h4>Before your message is sent</h4>
@@ -71,7 +78,7 @@ def _build_help_html():
 
     <h4>Safety</h4>
     <p>Destructive actions (removing a layer, changing attribute values) always require an
-    explicit click on <b>Confirm &amp; Apply Edit</b> in the Tasks &amp; Notes tab — the AI
+    explicit click on <b>Confirm and Apply Edit</b> in the Activity tab — the AI
     cannot apply them on its own.</p>
 
     <h4>Something not working?</h4>
@@ -93,11 +100,11 @@ def _build_help_html():
 
 
 class HelpTabWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, version=None):
         super().__init__(parent)
         help_layout = QVBoxLayout(self)
         help_layout.setContentsMargins(4, 4, 4, 4)
         help_browser = QTextBrowser()
         help_browser.setOpenExternalLinks(True)
-        help_browser.setHtml(_build_help_html())
+        help_browser.setHtml(_build_help_html(version=version))
         help_layout.addWidget(help_browser)

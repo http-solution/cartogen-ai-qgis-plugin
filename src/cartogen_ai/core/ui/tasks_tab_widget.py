@@ -90,7 +90,7 @@ class TasksTabWidget(QWidget):
         tasks_layout.addWidget(self.task_list_widget, stretch=2)
 
         # Code Inspector & Rationale Panel
-        inspector_box = QGroupBox("🔍 Task Inspector & Preview Safety")
+        inspector_box = QGroupBox("🔍 Task Inspector and Preview Safety")
         inspector_layout = QVBoxLayout(inspector_box)
 
         self.rationale_label = QLabel("<b>Rationale:</b> Select a task to inspect details.")
@@ -110,7 +110,7 @@ class TasksTabWidget(QWidget):
 
         # Confirm / Retry / Cancel Button Layout
         confirm_layout = QHBoxLayout()
-        self.confirm_btn = QPushButton("✅ Confirm & Apply Edit")
+        self.confirm_btn = QPushButton("✅ Confirm and Apply Edit")
         self.confirm_btn.setObjectName("successButton")
         self.confirm_btn.setEnabled(False)
         self.confirm_btn.clicked.connect(self._confirm_selected_task)
@@ -121,7 +121,7 @@ class TasksTabWidget(QWidget):
         self.retry_task_btn.setToolTip("Ask the agent to retry this failed step")
         self.retry_task_btn.clicked.connect(self._retry_selected_task)
 
-        self.edit_task_btn = QPushButton("✏️ Edit & Resend")
+        self.edit_task_btn = QPushButton("✏️ Edit and Resend")
         self.edit_task_btn.setObjectName("secondaryButton")
         self.edit_task_btn.setEnabled(False)
         self.edit_task_btn.setToolTip("Pre-fill the chat box with an editable version of this step -- change it, then send yourself")
@@ -142,7 +142,7 @@ class TasksTabWidget(QWidget):
 
         # Spatial Memory panel: search box + browser (now actually resizes with the dock) + clear button
         memory_header = QHBoxLayout()
-        memory_header.addWidget(QLabel("<b>🧠 Project Notes & Memory</b>"))
+        memory_header.addWidget(QLabel("<b>🧠 Project Notes and Memory</b>"))
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
@@ -190,7 +190,7 @@ class TasksTabWidget(QWidget):
         # this cap just keeps it from dominating this tab's own scrollable area.
         self.memory_browser.setMinimumHeight(120)
         self.memory_browser.setMaximumHeight(220)
-        self.memory_browser.setPlaceholderText("Project Notes & Memory...")
+        self.memory_browser.setPlaceholderText("Project Notes and Memory...")
         tasks_layout.addWidget(self.memory_browser, stretch=1)
 
         # Learned Preferences & Rules (self-learning mechanism 4, 2026-09-02): the
@@ -201,7 +201,7 @@ class TasksTabWidget(QWidget):
         # the browser itself -- QTextBrowser doesn't host interactive widgets per
         # line, and a second list widget felt heavier than this tab needed.
         learned_header = QHBoxLayout()
-        learned_header.addWidget(QLabel("<b>🎓 Learned Preferences & Rules</b>"))
+        learned_header.addWidget(QLabel("<b>🎓 Learned Preferences and Rules</b>"))
         learned_header.addStretch()
         tasks_layout.addLayout(learned_header)
 

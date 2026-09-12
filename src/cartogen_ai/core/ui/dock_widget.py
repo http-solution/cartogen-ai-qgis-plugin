@@ -6,8 +6,11 @@ with non-blocking execution threads and file attachment handling.
 
 CartogenAiDockWidget is the outer QDockWidget: it owns the cross-tab signals, the
 agent_provider callable, and the header (title/provider switcher/settings button).
-The three tabs (Chat, Tasks & Notes, Help) are separate QWidget classes in
-chat_tab_widget.py / tasks_tab_widget.py / help_tab_widget.py --
+The two tabs (Chat, Activity) are separate QWidget classes in chat_tab_widget.py /
+tasks_tab_widget.py -- Help moved out of the dock's own tabs and into the QGIS
+Plugins menu (see plugin_main.py) per a 2026-09-12 real-session user report; its
+HelpTabWidget class (help_tab_widget.py) is unchanged, just no longer permanently
+embedded here.
 docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the full rationale for the split and
 what still needs verifying in a real QGIS session (this file cannot be imported or
 run outside one -- no QGIS_AVAILABLE fallback -- so nothing here has run since the
@@ -26,7 +29,6 @@ from .dock_constants import PROVIDER_CHOICES
 from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
 from .tasks_tab_widget import TasksTabWidget
-from .help_tab_widget import HelpTabWidget
 
 
 class CartogenAiDockWidget(QDockWidget):
@@ -109,28 +111,38 @@ class CartogenAiDockWidget(QDockWidget):
         self.chat_tab_widget = ChatTabWidget(dock=self)
         self.tab_widget.addTab(self.chat_tab_widget, "💬 Chat")
 
-        # Tasks & Help are wrapped in a QScrollArea rather than added to tab_widget
-        # directly: QTabWidget/QStackedWidget sizes the WHOLE dock to its tallest
-        # tab's natural size hint, not just the currently visible tab. With the
-        # Tasks tab's substantial content (progress bar, history, task list,
-        # inspector, memory panel) sized directly, that was forcing the entire QGIS
-        # window taller than the screen regardless of which tab was actually
-        # showing -- including the unrelated Chat tab. A QScrollArea decouples the
-        # tab's reported size from its content's full size; content that doesn't
-        # fit scrolls instead of forcing growth.
+        # Wrapped in a QScrollArea rather than added to tab_widget directly:
+        # QTabWidget/QStackedWidget sizes the WHOLE dock to its tallest tab's natural size
+        # hint, not just the currently visible tab. With this tab's substantial content
+        # (progress bar, history, task list, inspector, memory panel) sized directly, that
+        # was forcing the entire QGIS window taller than the screen regardless of which tab
+        # was actually showing -- including the unrelated Chat tab. A QScrollArea decouples
+        # the tab's reported size from its content's full size; content that doesn't fit
+        # scrolls VERTICALLY instead of forcing growth. Horizontal scrolling is explicitly
+        # turned off below -- a real user report (screenshots, UI real-session-feedback
+        # fixes, 2026-09-12) showed both scrollbars appearing at once, which reads as
+        # cluttered/broken; content should wrap within the available width, never need
+        # horizontal scroll, so this makes that structurally impossible rather than tuning
+        # around one window size.
         self.tasks_tab_widget = TasksTabWidget(dock=self)
         tasks_scroll = QScrollArea()
         tasks_scroll.setWidgetResizable(True)
         tasks_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        tasks_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         tasks_scroll.setWidget(self.tasks_tab_widget)
-        self.tab_widget.addTab(tasks_scroll, "📋 Tasks & Notes")
+        # "Activity" -- renamed from "Tasks & Notes" (real bug, found from the same user
+        # report: Qt treats a bare "&" followed by a space as a mnemonic it can't resolve,
+        # rendering as a stray underscore, e.g. "Tasks _Notes" -- visible in the screenshots).
+        # The new name sidesteps the ampersand entirely rather than just escaping it, and per
+        # the user's own choice among the options offered, reads better than spelling out
+        # "Tasks and Notes" for what's really one activity feed (live plan + stored memory).
+        self.tab_widget.addTab(tasks_scroll, "📋 Activity")
 
-        self.help_tab_widget = HelpTabWidget()
-        help_scroll = QScrollArea()
-        help_scroll.setWidgetResizable(True)
-        help_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        help_scroll.setWidget(self.help_tab_widget)
-        self.tab_widget.addTab(help_scroll, "❓ Help")
+        # Help used to be a permanent 3rd tab here (HelpTabWidget still exists as a class --
+        # see plugin_main.py's show_help(), which now opens it in a QDialog from the QGIS
+        # Plugins menu instead). Per the same user report: a reference document doesn't need
+        # to occupy dock space at all times, and moving it to the menu also gave a natural
+        # home for a plugin-version entry (see plugin_main.py).
 
         # Modern, theme-adaptive QSS pass over every widget in this dock --
         # see chat_formatting.build_dock_stylesheet for the actual rules and

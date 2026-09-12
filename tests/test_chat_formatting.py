@@ -170,6 +170,7 @@ class TestDeriveBubbleColors(unittest.TestCase):
         colors = derive_bubble_colors(None)
         self.assertEqual(colors["user_bg"], "#dce8f7")
         self.assertIn("agent_bg", colors)
+        self.assertIn("accent", colors)  # the fallback dict has it too, not just the live-palette path
 
     def test_uses_theme_values_when_given(self):
         palette = {
@@ -182,6 +183,15 @@ class TestDeriveBubbleColors(unittest.TestCase):
         self.assertEqual(colors["subtle"], "#909090")
         # user_bg should be a blend of window and highlight, not either raw value
         self.assertNotIn(colors["user_bg"], (palette["window"], palette["highlight"]))
+
+    def test_accent_is_the_brand_blended_highlight_not_the_raw_one(self):
+        # UI real-session-feedback fixes (2026-09-12): "accent" is exposed for the chat
+        # bubble's left-accent stripe -- must be the same brand-blended value user_bg's own
+        # blend uses, not the raw QGIS highlight color.
+        palette = {"window": "#f0f0f0", "highlight": "#3daee9"}
+        colors = derive_bubble_colors(palette)
+        self.assertEqual(colors["accent"], _brand_accent(palette["highlight"]))
+        self.assertNotEqual(colors["accent"], palette["highlight"])
 
 
 class TestEscapePlainText(unittest.TestCase):
