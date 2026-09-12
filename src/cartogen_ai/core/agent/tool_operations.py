@@ -129,6 +129,15 @@ TOOL_OPERATION_TYPES = {
     "fetch_building_footprints": CREATE,
     "fetch_geoboundaries": CREATE,
     "fetch_worldpop_population": CREATE,
+
+    # -- hazard_monitoring_tools.py -- live hazard data (NASA FIRMS/EONET, GDACS). Same CREATE
+    # bucket as the fetch_* tools above: adds something QGIS did not have before, a layer.
+    # (Repeat calls REPLACE that layer's features in place rather than appending -- an
+    # implementation detail of these specific tools, not a different operation type.)
+    "fetch_nasa_active_fires": CREATE,
+    "fetch_nasa_eonet_events": CREATE,
+    "fetch_gdacs_disaster_alerts": CREATE,
+    "generate_situation_dashboard": PUBLISH,
     # Both may create a brand-new point layer, or append to an
     # already-existing one of the same name (explicit in add_point_layer's
     # own description) -- the static label can't distinguish those two

@@ -295,6 +295,29 @@ class CartogenAiSettingsDialog(QDialog):
 
         layout.addWidget(self.provider_stack)
 
+        # NASA FIRMS active-fire monitoring (hazard_monitoring_tools.py) needs its own free API
+        # key -- separate from any LLM provider key above, so it gets its own standalone field
+        # rather than a page in provider_stack (it isn't an LLM connection choice). Stored/read
+        # via the same CredentialManager every provider key above already uses, keyed by the
+        # provider string "firms" -- CredentialManager.LEGACY_SETTINGS_KEYS falls back to
+        # f"cartogen_ai/{provider}_key" for any provider not in its explicit mapping, so "firms"
+        # works with zero changes needed there.
+        firms_form = QFormLayout()
+        self.firms_key_edit = QLineEdit()
+        self.firms_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.firms_key_edit.setText(CredentialManager.get_credential("firms"))
+        self.firms_key_edit.setPlaceholderText("Optional -- only needed for live active-fire monitoring")
+        self.firms_key_edit.setToolTip(
+            "Powers fetch_nasa_active_fires (NASA FIRMS active fire/thermal-anomaly detections). "
+            "Leave blank if you don't need this -- every other tool works without it."
+        )
+        firms_form.addRow("NASA FIRMS API Key:", self.firms_key_edit)
+        layout.addLayout(firms_form)
+        firms_help_label = QLabel('<a href="https://firms.modaps.eosdis.nasa.gov/api/area/">Get a free key →</a>')
+        firms_help_label.setOpenExternalLinks(True)
+        firms_help_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(firms_help_label)
+
         # S2: opt-in, default OFF -- chat history used to always be written
         # into the project (.qgz) file with no way to turn it off. A project
         # file is a shareable artifact (emailed, committed, uploaded), so
@@ -472,6 +495,10 @@ class CartogenAiSettingsDialog(QDialog):
             key_text = self._key_edits[pv].text().strip()
             if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_plaintext_fallback(pv):
                 fallback_providers.append(entry.get("provider_label", pv))
+
+        firms_key_text = self.firms_key_edit.text().strip()
+        if firms_key_text and CredentialManager.save_credential("firms", firms_key_text) and CredentialManager.used_plaintext_fallback("firms"):
+            fallback_providers.append("NASA FIRMS")
 
         if fallback_providers:
             message = (

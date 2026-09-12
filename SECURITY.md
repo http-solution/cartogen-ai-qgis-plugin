@@ -41,7 +41,8 @@ in that loop are **untrusted input**, not just data:
    in a tool call with attacker-influenced arguments — a script to execute, a URL to
    fetch, a SQL query to run.
 2. **Content fetched from the internet** (`search_web`, `fetch_osm_features`,
-   `search_hdx_datasets`, `fetch_geoboundaries`, `fetch_fts_funding_data`) that gets
+   `search_hdx_datasets`, `fetch_geoboundaries`, `fetch_fts_funding_data`,
+   `fetch_nasa_eonet_events`, `fetch_gdacs_disaster_alerts`) that gets
    fed back into the model's context and could contain text written to look like
    instructions.
 
@@ -206,10 +207,11 @@ confirmation dialog — see Limitations below).
 ### 6. Prompt-injection guidance
 `agent/prompts.py`, rule 16 — instructs the model to treat content returned by
 `search_web`/`gemini_grounded_search`/`openai_grounded_search`/`fetch_osm_features`/
-`search_hdx_datasets`/`fetch_geoboundaries`/`fetch_fts_funding_data` as data, never as
-instructions to follow. This is a prompt-level mitigation, not a code-enforced one —
-see Limitations. (`fetch_worldpop_population` returns only numeric/binary raster data
-to the model, no free-text fields, so it isn't a text-injection vector the same way.)
+`search_hdx_datasets`/`fetch_geoboundaries`/`fetch_fts_funding_data`/`fetch_nasa_eonet_events`/
+`fetch_gdacs_disaster_alerts` as data, never as instructions to follow. This is a prompt-level
+mitigation, not a code-enforced one — see Limitations. (`fetch_worldpop_population` and
+`fetch_nasa_active_fires` return only numeric/coded fields to the model — no free-text
+description/title fields — so neither is a text-injection vector the same way.)
 
 ### 7. Chat history persistence is opt-in
 `agent/chat_persistence.py` — the AI conversation is only written into the active

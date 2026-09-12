@@ -85,7 +85,11 @@ TASK_MANAGEMENT_TOOLS = frozenset({
 # dispatch above would block the QGIS GUI for the duration of the HTTP
 # request(s). Instead, _execute_two_phase_tool runs only the fast QGIS-touching
 # part on the main thread, and the network part on the calling (background) thread.
-TWO_PHASE_TOOLS = frozenset({"add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints", "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search"})
+TWO_PHASE_TOOLS = frozenset({
+    "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
+    "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
+    "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
+})
 
 
 class ToolDispatcher(QObject):
@@ -618,6 +622,49 @@ class CartogenAi:
             # the downloaded file must stay on disk for as long as the raster
             # layer exists (see add_worldpop_population_layer_main_thread_phase).
             res = self._run_on_main_thread(add_worldpop_population_layer_main_thread_phase, fetch_result)
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_nasa_active_fires":
+            from .tools.hazard_monitoring_tools import (
+                fetch_nasa_active_fires_network_phase, add_nasa_active_fires_layer_main_thread_phase,
+            )
+            fetch_result = fetch_nasa_active_fires_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("days", 1), filtered_args.get("min_confidence", "nominal"),
+            )
+            res = self._run_on_main_thread(
+                lambda a: add_nasa_active_fires_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA Active Fires")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_nasa_eonet_events":
+            from .tools.hazard_monitoring_tools import (
+                fetch_nasa_eonet_events_network_phase, add_nasa_eonet_events_layer_main_thread_phase,
+            )
+            fetch_result = fetch_nasa_eonet_events_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("category"),
+                filtered_args.get("days", 20), filtered_args.get("status", "open"),
+            )
+            res = self._run_on_main_thread(
+                lambda a: add_nasa_eonet_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA EONET Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_gdacs_disaster_alerts":
+            from .tools.hazard_monitoring_tools import (
+                fetch_gdacs_disaster_alerts_network_phase, add_gdacs_disaster_alerts_layer_main_thread_phase,
+            )
+            fetch_result = fetch_gdacs_disaster_alerts_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("min_alert_level", "Orange"),
+            )
+            res = self._run_on_main_thread(
+                lambda a: add_gdacs_disaster_alerts_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "GDACS Disaster Alerts")},
+            )
             self._log_tool_success(name, filtered_args, res)
             return res
 
