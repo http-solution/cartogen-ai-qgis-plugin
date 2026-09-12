@@ -10,7 +10,7 @@ name = "cartogen-ai-core"
 # manifest format and can't easily read from pyproject.toml at plugin-load
 # time; a `python docs/generate_tools_reference.py`-style sync script would
 # be the next step if this drifts in practice).
-version = "1.10.0"
+version = "1.11.0"
 description = "Cartogen AI Community edition -- spatial AI agent for QGIS"
 readme = "README.md"
 license = { text = "GPL-2.0-or-later" }
