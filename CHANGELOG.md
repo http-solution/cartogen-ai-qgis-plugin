@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.2](#v1-15-2) | 2026-09-13 | Patch: requirement-gate questions now ask in chat instead of a separate boxed panel |
 | [1.15.1](#v1-15-1) | 2026-09-13 | Patch: live-hazard-data requests could get refused despite real matching tools existing |
 | [1.15.0](#v1-15-0) | 2026-09-13 | Gemini prompt caching (automatic, implicit) + cache-hit visibility for Gemini and Claude |
 | [1.14.1](#v1-14-1) | 2026-09-13 | Patch: floating dock clamped to the screen after a report of the chat input row going missing |
@@ -26,6 +27,37 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-2"></a>
+## [1.15.2] — 2026-09-13 — Patch: requirement-gate questions now ask in chat, not a boxed panel
+
+Direct user feedback, with a real screenshot: "i dont like the style of the feedback from
+cartogen AI make it more in the chat and get user response interactive chat." The complaint was
+about the task-register requirement gate -- asked when a request is missing a slot with no safe
+default to guess (e.g. hazard type: guessing wrong produces confidently wrong humanitarian
+output) -- which showed as a separate `QGroupBox("One more detail needed")` panel above the
+input row, with two buttons and the input box locked read-only. Visually, it read as a foreign
+popup rather than part of the conversation above it.
+
+**Fixed** by posting the question as a normal Cartogen chat message instead. The input box stays
+fully live the whole time -- answering it is just typing a reply and hitting Send, exactly like
+any other turn. Behind the scenes, that reply is merged into the original request (the same
+"Details: ..." convention the old Edit-request button used to pre-fill into the box) and re-run
+through the same analysis pipeline, so a second still-missing slot asks again the same
+conversational way rather than needing a different mechanism.
+
+Also removed "Proceed with stated defaults" as confirmed dead code while making this change: the
+panel it lived on was only ever shown for a `blocking` analysis, and that button was always
+`setEnabled(not analysis.get("blocking"))` -- i.e. always disabled on every real call, exactly
+matching what the user's screenshot showed (a greyed-out button next to an active "Edit
+request").
+
+**Live-verified** in real QGIS (`python-qgis.bat`): the question renders as a genuine chat
+message with no boxed panel, the input box stays editable throughout, and a plain typed reply
+("flood") correctly resolves the pending hazard-type slot and proceeds to the normal preview
+step -- confirmed via both a rendered screenshot and the widget's actual text content. 2 tests
+updated/added in `tests/test_chat_widget_live.py` (a real headless Qt session, not mocks); full
+suite 1524 tests, 0 failures.
 
 <a id="v1-15-1"></a>
 ## [1.15.1] — 2026-09-13 — Patch: live-hazard-data requests refused despite real tools existing

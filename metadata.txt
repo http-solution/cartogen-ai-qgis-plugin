@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.1
+version=1.15.2
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.1 (2026-09-13):
+changelog=v1.15.2 (2026-09-13):
+    Fix: the task-register requirement gate ("one more detail needed" -- asked when a slot like
+    hazard type has no safe default to guess) showed as a separate boxed panel with two buttons
+    and a locked input box, disconnected from the conversation above it. Direct user feedback
+    with a screenshot: "make it more in the chat and get user response interactive chat." The
+    question now posts as a normal Cartogen chat message, and the input box stays fully live --
+    answering is just typing a reply and hitting Send like any other turn. Also removed a dead
+    "Proceed with stated defaults" button (it was always disabled on every real call). Live-
+    verified in real QGIS. See CHANGELOG.md for full detail.
+
+v1.15.1 (2026-09-13):
     Fix: live-hazard-data requests ("show live incidents/disasters/hazards in X") could get a
     blanket "no live data access" refusal even though this plugin's Live Hazard Monitoring tools
     (fetch_gdacs_disaster_alerts, fetch_nasa_eonet_events, fetch_nasa_active_fires, v1.9.0) exist
