@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.9.0
+version=1.10.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,23 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.9.0 (2026-09-12):
+changelog=v1.10.0 (2026-09-12):
+    UI & Chat Redesign release: a visual polish pass on the dock/chat UI, grounded in real
+    QGIS plugin design research (not generic web-design advice). New ui/theme.py two-tier
+    theme detection (QFieldSync's real pattern: check QGIS's named theme before falling back
+    to palette luminance). New _brand_accent() in chat_formatting.py blends QGIS's own live
+    accent color toward the Cartogen brand teal -- the first brand color to reach the running
+    UI at all, still adapting per QGIS theme rather than becoming one fixed color. New
+    ui/icons.py: hand-authored, theme-reactive SVG icons (attach/send/stop/settings) replacing
+    plain Unicode emoji, colored from the live palette at construction time. Toolbar/menu icon
+    switched from a flat PNG to the real brand mark (a real packaging trap -- pointing directly
+    at the excluded branding/ folder -- caught and fixed before shipping). One gate-panel
+    button wording aligned for consistency. No new agent tools; 169 tools unchanged. Live-
+    verified against real QGIS 4.2.2 via actual rendered screenshots of the wired-up UI in
+    both light and dark themes, not just import-success checks. See CHANGELOG.md's [1.10.0]
+    entry for full detail.
+
+v1.9.0 (2026-09-12):
     Live Hazard Monitoring release. New hazard_monitoring_tools.py: fetch_nasa_active_fires
     (NASA FIRMS VIIRS active-fire detections, needs a free API key added to Settings),
     fetch_nasa_eonet_events (NASA EONET natural event tracker, free/no key),
