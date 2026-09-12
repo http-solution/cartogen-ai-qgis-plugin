@@ -160,16 +160,32 @@ def from_anthropic_response(data, fallback_model):
         message["tool_calls"] = tool_calls
 
     out = {"message": message, "model": data.get("model", fallback_model)}
-    # Anthropic's native field names (input_tokens/output_tokens) already match
-    # this plugin's common usage shape (see base.extract_openai_style_usage's
-    # docstring for why that shape was picked) -- no renaming needed here,
-    # just pull it through if the response included it.
+    # Anthropic's native field names (input_tokens/output_tokens) already match this
+    # plugin's common usage shape (see base.extract_openai_style_usage's docstring for
+    # why that shape was picked) -- but Anthropic's own "input_tokens" is deliberately
+    # narrow: it excludes anything served from or written to the prompt cache (this
+    # client's OpenRouter/native Claude calls already send cache_control breakpoints --
+    # see build_anthropic_request -- so a multi-tool-call turn's repeated system
+    # prompt/tools genuinely gets cache hits after the first iteration). Reconstructed
+    # to the FULL request size here (input_tokens + cache_read_input_tokens +
+    # cache_creation_input_tokens, Anthropic's own documented formula for "total input
+    # tokens processed") so "~N tokens this session" means the same thing across every
+    # provider -- Gemini/OpenAI's own "prompt_tokens" already includes cached tokens in
+    # its headline number, with the cache-hit portion reported as a separate breakdown
+    # (see extract_openai_style_usage) rather than subtracted from the total the way
+    # Anthropic's raw field is. cached_tokens (2026-09-13, direct request: "implement
+    # gemini caching") is the read-from-cache portion specifically -- how much of the
+    # total was actually discounted, not written to the report at all before this.
     usage = data.get("usage")
     if isinstance(usage, dict) and ("input_tokens" in usage or "output_tokens" in usage):
+        cache_read = usage.get("cache_read_input_tokens") or 0
+        cache_creation = usage.get("cache_creation_input_tokens") or 0
         out["usage"] = {
-            "input_tokens": usage.get("input_tokens") or 0,
+            "input_tokens": (usage.get("input_tokens") or 0) + cache_read + cache_creation,
             "output_tokens": usage.get("output_tokens") or 0,
         }
+        if cache_read:
+            out["usage"]["cached_tokens"] = cache_read
     return out
 
 

@@ -119,9 +119,13 @@ class ChatTabWidget(QWidget):
         self.usage_label.setStyleSheet("color: gray; font-size: 10px;")
         self.usage_label.setToolTip(
             "Approximate token usage for this session, from provider-reported counts. "
-            "Not shown for providers/models that don't report usage. No dollar-cost estimate "
-            "is shown -- accurate per-model pricing across 5 providers isn't something this "
-            "plugin can keep reliably current."
+            "Not shown for providers/models that don't report usage. \"Served from cache\" "
+            "(2026-09-13) is how many of those tokens were a provider-side prompt-cache hit -- "
+            "billed at a steep discount rather than full price. Claude sends explicit cache "
+            "breakpoints; Gemini 2.5+/3.x models cache repeated content automatically, no setup "
+            "needed, as long as the request stays above the model's own minimum cacheable size. "
+            "No dollar-cost estimate is shown -- accurate per-model pricing across 5 providers "
+            "isn't something this plugin can keep reliably current."
         )
         chat_layout.addWidget(self.usage_label)
 

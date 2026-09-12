@@ -72,17 +72,33 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
 
 def extract_openai_style_usage(data):
     """Normalizes the OpenAI-Chat-Completions-shaped 'usage' object
-    ({'prompt_tokens', 'completion_tokens', ...}) that OpenRouter, OpenAI, and
-    Ollama's OpenAI-compatible endpoint all return into this plugin's common
-    {'input_tokens', 'output_tokens'} shape (matching Anthropic's native naming,
-    picked as the common form since ui/dock_widget.py only ever needs the two
-    numbers, not the provider-specific field names). Returns None -- not a
-    dict of zeros -- when the response has no 'usage' object at all, so a
-    provider/model that doesn't report usage is honestly reported as unknown
-    rather than fabricated as zero cost. See
+    ({'prompt_tokens', 'completion_tokens', ...}) that OpenRouter, OpenAI, Gemini
+    (via its OpenAI-compatible endpoint), and Ollama's OpenAI-compatible endpoint
+    all return into this plugin's common {'input_tokens', 'output_tokens'} shape
+    (matching Anthropic's native naming, picked as the common form since
+    ui/dock_widget.py only ever needs the two numbers, not the provider-specific
+    field names). Returns None -- not a dict of zeros -- when the response has no
+    'usage' object at all, so a provider/model that doesn't report usage is
+    honestly reported as unknown rather than fabricated as zero cost. See
     docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2 ("no cost/usage
     visibility in the UI") -- this is the shared extraction point every
-    OpenAI-compatible client's complete() calls."""
+    OpenAI-compatible client's complete() calls.
+
+    cached_tokens (2026-09-13, direct request: "implement gemini caching" --
+    confirmed against ai.google.dev/gemini-api/docs docs before implementing, not
+    assumed): Gemini 2.5+/3.x models cache repeated prompt prefixes automatically
+    at the infrastructure level (implicit caching, ~90% discount on cache hits,
+    no client code needed to trigger it -- this plugin's own system prompt/tools
+    already sit as a stable, unchanged prefix across a whole turn's tool-calling
+    loop, exactly the shape implicit caching is designed for) -- but nothing
+    previously surfaced whether it was actually happening. The standard
+    OpenAI-compatible response shape (confirmed live by OpenAI's own docs and
+    Gemini's OpenAI-compat endpoint following the same convention) reports the
+    cache-hit portion as usage.prompt_tokens_details.cached_tokens -- a
+    sub-breakdown of prompt_tokens, not subtracted from it, so prompt_tokens
+    already reflects the FULL request size either way. Only included in the
+    returned dict when present/truthy, same "don't fabricate what wasn't
+    reported" policy as input_tokens/output_tokens themselves."""
     usage = data.get("usage") if isinstance(data, dict) else None
     if not isinstance(usage, dict):
         return None
@@ -90,7 +106,11 @@ def extract_openai_style_usage(data):
     output_tokens = usage.get("completion_tokens")
     if input_tokens is None and output_tokens is None:
         return None
-    return {"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0}
+    result = {"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0}
+    cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    if cached_tokens:
+        result["cached_tokens"] = cached_tokens
+    return result
 
 
 class BaseAiProvider(ABC):

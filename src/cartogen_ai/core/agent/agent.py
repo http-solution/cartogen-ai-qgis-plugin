@@ -292,7 +292,15 @@ class CartogenAi:
         # calls_without_usage tracks turns where the provider's response didn't
         # include token counts at all, so the UI can caveat the total as a
         # partial figure instead of presenting it as exact when it isn't.
-        self.session_usage = {"input_tokens": 0, "output_tokens": 0, "calls_with_usage": 0, "calls_without_usage": 0}
+        # cached_tokens (2026-09-13, "implement gemini caching"): how many of
+        # input_tokens were actually served from a provider-side prompt cache --
+        # see providers/base.py's extract_openai_style_usage / providers/claude.py's
+        # from_anthropic_response docstrings for exactly what this does and doesn't
+        # mean per provider.
+        self.session_usage = {
+            "input_tokens": 0, "output_tokens": 0, "cached_tokens": 0,
+            "calls_with_usage": 0, "calls_without_usage": 0,
+        }
 
     @property
     def tools_schema(self):
@@ -317,10 +325,14 @@ class CartogenAi:
         setup, a pattern this shouldn't have to know about or require every
         such bare-agent helper to replicate."""
         if not hasattr(self, "session_usage"):
-            self.session_usage = {"input_tokens": 0, "output_tokens": 0, "calls_with_usage": 0, "calls_without_usage": 0}
+            self.session_usage = {
+                "input_tokens": 0, "output_tokens": 0, "cached_tokens": 0,
+                "calls_with_usage": 0, "calls_without_usage": 0,
+            }
         if isinstance(usage, dict) and ("input_tokens" in usage or "output_tokens" in usage):
             self.session_usage["input_tokens"] += usage.get("input_tokens") or 0
             self.session_usage["output_tokens"] += usage.get("output_tokens") or 0
+            self.session_usage["cached_tokens"] += usage.get("cached_tokens") or 0
             self.session_usage["calls_with_usage"] += 1
         else:
             self.session_usage["calls_without_usage"] += 1
@@ -336,20 +348,28 @@ class CartogenAi:
         per-model pricing across 5 providers would need a pricing table that's
         guaranteed to go stale and mislead; see
         docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
-        accuracy-over-completeness call on a different feature."""
+        accuracy-over-completeness call on a different feature.
+
+        cached_tokens (2026-09-13, "implement gemini caching"), when any calls
+        reported it, gets its own clause -- e.g. '~9,316 tokens this session
+        (6 calls, ~7,200 served from cache)'. This is what makes prompt caching's
+        effect (Claude's already-implemented cache_control breakpoints, Gemini
+        2.5+/3.x's automatic implicit caching) actually visible instead of a
+        silent, unverifiable assumption -- see providers/base.py's
+        extract_openai_style_usage and providers/claude.py's
+        from_anthropic_response for where this number comes from per provider."""
         u = getattr(self, "session_usage", None)
         if u is None:
             return None
         if u["calls_with_usage"] == 0:
             return None
         total = u["input_tokens"] + u["output_tokens"]
-        text = f"~{total:,} tokens this session ({u['calls_with_usage']} calls)"
+        calls_clause = f"{u['calls_with_usage']} calls"
         if u["calls_without_usage"] > 0:
-            text = (
-                f"~{total:,} tokens this session ({u['calls_with_usage']} calls; "
-                f"{u['calls_without_usage']} call(s) with no usage reported)"
-            )
-        return text
+            calls_clause += f"; {u['calls_without_usage']} call(s) with no usage reported"
+        if u.get("cached_tokens"):
+            calls_clause += f", ~{u['cached_tokens']:,} served from cache"
+        return f"~{total:,} tokens this session ({calls_clause})"
 
     def reload_chat_history(self):
         """Re-reads project-bound chat history from QgsProject. Call this after
