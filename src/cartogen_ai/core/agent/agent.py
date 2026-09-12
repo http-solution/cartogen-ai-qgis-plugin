@@ -850,20 +850,29 @@ class CartogenAi:
         if learning.detect_correction(user_query) and self._last_tool_call:
             last_name, last_args = self._last_tool_call
             learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
+        # Router runs BEFORE build_system_prompt now (2026-09-12, prompt modularization --
+        # following v1.13.1's fix to the same shape of problem on the tool-schema side): which
+        # of the 47 base-prompt rules actually need sending depends on which tools this turn can
+        # even reach, so the router's selection has to exist first. Nothing else depended on the
+        # old ordering (confirmed by reading this whole function before reordering it).
+        router = ToolRouter(TOOLS_SCHEMA)
+        active_tools = router.filter_relevant_tools(user_query, top_k=40)
+        active_tool_names = {
+            t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
+        }
+
         # get_formatted_onboarding_context() does its own file read + QGIS_AVAILABLE guard and
         # never raises (see onboarding_profile.py) -- no try/except needed at this call site,
         # matching how map_context is passed through unguarded too.
         user_profile_ctx = onboarding_profile.get_formatted_onboarding_context()
         system_prompt_content = build_system_prompt(
-            self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx
+            self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
+            active_tool_names=active_tool_names,
         )
-        
+
         messages = [{"role": "system", "content": system_prompt_content}]
         messages.extend(self.conversation_history)
         messages.append(user_message)
-
-        router = ToolRouter(TOOLS_SCHEMA)
-        active_tools = router.filter_relevant_tools(user_query, top_k=40)
 
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
