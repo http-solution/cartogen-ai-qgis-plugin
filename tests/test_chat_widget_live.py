@@ -28,7 +28,9 @@ over from an earlier revision of the send path. Every call site now passes
 its own analysis explicitly -- including _send_preview_original(), which
 passes None ON PURPOSE to mean "skip the register's enrichment entirely" (the
 escape hatch for when the matched task is simply wrong). The fallback
-silently overrode that: clicking "Send my wording only" would look like it
+silently overrode that: clicking "Send as typed instead" (labeled "Send my
+wording only" at the time this bug was found -- see the UI/chat redesign
+workstream, 2026-09-12, for the rename) would look like it
 worked, then re-apply the very enrichment -- and the very output contract --
 the user had just opted out of. No test against the pure logic could have
 caught this, because the pure logic was never wrong; only this one call
@@ -207,7 +209,7 @@ class TestChatWidgetLive(unittest.TestCase):
     def test_preview_panel_locks_input_box_against_edits(self):
         """Regression test for the P0 bug fixed 2026-08-31: nothing previously
         stopped a user from editing the input box while the preview panel was
-        open, and Send this / Send my wording only both acted on a stale text
+        open, and Send this / Send as typed instead both acted on a stale text
         snapshot regardless -- an edit made here was silently discarded with
         no warning. input_edit.setReadOnly(True) while the panel is open is
         the fix; this drives a REAL keystroke (QTest.keyClicks), not a
@@ -255,7 +257,7 @@ class TestChatWidgetLive(unittest.TestCase):
         _pump(500)
 
         self.assertEqual(agent.client.calls, 1,
-                         "'Send my wording only' must dispatch exactly once, with no contract "
+                         "'Send as typed instead' must dispatch exactly once, with no contract "
                          "follow-up -- the whole point of the button is to opt OUT of the "
                          "register's enrichment, contract included")
         self.assertFalse(ct.preview_panel.isVisible())
