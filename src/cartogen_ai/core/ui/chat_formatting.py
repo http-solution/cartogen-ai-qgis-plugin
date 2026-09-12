@@ -261,7 +261,7 @@ def derive_bubble_colors(palette_dict):
         # the old hardcoded light-theme colors this replaces).
         return {
             "user_bg": "#dce8f7", "agent_bg": "#eef0f2", "text": "#1c1c1c",
-            "subtle": "#666666", "border": "#d0d0d0",
+            "subtle": "#666666", "border": "#d0d0d0", "accent": "#0b6ea3",
         }
     window = palette_dict.get("window", "#f0f0f0")
     highlight = _brand_accent(palette_dict.get("highlight", "#3daee9"))
@@ -271,6 +271,11 @@ def derive_bubble_colors(palette_dict):
         "text": palette_dict.get("text", "#000000"),
         "subtle": palette_dict.get("muted_text", "#808080"),
         "border": palette_dict.get("mid", "#c0c0c0"),
+        # Exposed for _add_message's left-accent bubble stripe (UI real-session-feedback
+        # fixes, 2026-09-12) -- same brand-blended value already computed for user_bg's
+        # blend above, just also returned directly so callers don't need a second palette
+        # read/blend to get it.
+        "accent": highlight,
     }
 
 

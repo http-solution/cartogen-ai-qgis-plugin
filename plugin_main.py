@@ -15,6 +15,7 @@ Renaming this file is what fixes it -- see docs/archive/MULTITIER_REPO_ARCHITECT
 §3 for the full writeup, and docs/BUG_TRACKER.md for the incident entry.
 """
 import os.path
+import re
 import traceback
 
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QLocale, QTranslator
@@ -24,6 +25,8 @@ try:
     from qgis.PyQt.QtGui import QAction
 except ImportError:
     from qgis.PyQt.QtWidgets import QAction
+
+from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
 from qgis.core import QgsSettings, QgsProject
 
@@ -35,6 +38,22 @@ def _dock_area_right():
     if area is not None:
         return area
     return Qt.DockWidgetArea.RightDockWidgetArea
+
+
+def _read_plugin_version(plugin_dir):
+    """Mirrors plugin_upload.py's get_plugin_version() exactly (duplicated, not
+    imported -- plugin_upload.py is itself excluded from the release zip by
+    EXCLUDE_FILES, so it may not be present at runtime; same small-helper-per-file
+    convention this codebase already uses for _find_layer_by_name). Read at runtime
+    rather than hardcoded so the menu label can never drift from metadata.txt."""
+    metadata_path = os.path.join(plugin_dir, "metadata.txt")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            for line in f:
+                match = re.match(r"^version\s*=\s*(.+)$", line.strip())
+                if match:
+                    return match.group(1).strip()
+    return "0.1.0"
 
 
 class CartogenAi:
@@ -56,6 +75,7 @@ class CartogenAi:
         self.menu = self.tr("&Cartogen AI")
         self.dock_widget = None
         self.toolbar_action = None
+        self._help_dialog = None
         self._agent = None
         self._agent_key = None
 
@@ -83,6 +103,21 @@ class CartogenAi:
         self.actions.append(action)
         self.toolbar_action = action
         print("[CartogenAi] toolbar action installed")
+
+        # Help and the version label moved here from a permanent 3rd dock tab, per a
+        # 2026-09-12 real-session user report: a reference document doesn't need to occupy
+        # dock space at all times, and the standard QGIS-plugin convention for "what version
+        # am I running" is a disabled menu entry, not something buried in a tab.
+        help_action = QAction(self.tr("Help"), self.iface.mainWindow())
+        help_action.triggered.connect(self.show_help)
+        self.iface.addPluginToMenu(self.menu, help_action)
+        self.actions.append(help_action)
+
+        version = _read_plugin_version(self.plugin_dir)
+        version_action = QAction(self.tr(f"Cartogen AI v{version}"), self.iface.mainWindow())
+        version_action.setEnabled(False)
+        self.iface.addPluginToMenu(self.menu, version_action)
+        self.actions.append(version_action)
 
         # The agent instance and dock widget are cached/reused across QGIS
         # project switches (see _get_agent()), so without this the chat panel
@@ -127,6 +162,14 @@ class CartogenAi:
             except Exception as e:
                 print(f"[CartogenAi] removeDockWidget failed: {e}")
             self.dock_widget = None
+
+        if self._help_dialog is not None:
+            try:
+                self._help_dialog.close()
+                self._help_dialog.deleteLater()
+            except Exception as e:
+                print(f"[CartogenAi] closing Help dialog failed: {e}")
+            self._help_dialog = None
 
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
@@ -184,6 +227,25 @@ class CartogenAi:
                 f"Failed to open panel: {e}",
             )
             return False, False
+
+    def show_help(self):
+        """Opens Help in its own dialog rather than the dock -- independent of whether the
+        dock has ever been created, and of the dock's own lifecycle (a dock the user has
+        hidden shouldn't need to be shown just to read Help). Non-modal (exec() would block
+        the rest of QGIS) and reused across clicks rather than rebuilt each time, matching
+        how the toolbar toggle/dock_widget pattern above avoids recreating widgets."""
+        if self._help_dialog is None:
+            from cartogen_ai.core.ui.help_tab_widget import HelpTabWidget
+            version = _read_plugin_version(self.plugin_dir)
+            dialog = QDialog(self.iface.mainWindow())
+            dialog.setWindowTitle(self.tr("Cartogen AI Help"))
+            dialog.resize(520, 560)
+            layout = QVBoxLayout(dialog)
+            layout.addWidget(HelpTabWidget(parent=dialog, version=version))
+            self._help_dialog = dialog
+        self._help_dialog.show()
+        self._help_dialog.raise_()
+        self._help_dialog.activateWindow()
 
     def _on_dock_visibility(self, visible):
         if self.toolbar_action is not None:
