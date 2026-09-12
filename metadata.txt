@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.10.0
+version=1.11.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,28 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.10.0 (2026-09-12):
+changelog=v1.11.0 (2026-09-12):
+    Real-session UI fixes release, from a direct live user report (screenshots from the user's
+    own QGIS session, not this project's own synthetic verification renders). Fixed two genuine
+    bugs the synthetic screenshots never caught: chat bubbles had two stacked rendering defects
+    (a "double border" from a missing border="0" on the outer alignment table, and a
+    border-radius:8px that had NEVER actually worked -- Qt's QTextBrowser rich-text engine has
+    no border-radius support at all, unlike the QSS styling everything else in this dock uses) --
+    replaced with a real border-left accent stripe Qt's engine genuinely renders; and a Qt
+    plain-text mnemonic-parsing bug ("Tasks & Notes" rendering as "Tasks _Notes") fixed by
+    renaming the tab to "Activity" and spelling out "and" in 3 more affected widget labels found
+    by sweeping for the same pattern. Also: Help moved out of the dock's own tab bar entirely
+    into the QGIS Plugins menu as a standalone dialog, with a new disabled "Cartogen AI vX.Y.Z"
+    menu entry (and the same version line atop the Help dialog) so version info is discoverable
+    from the main menu; the quick-suggestion chip row removed from the bottom of the Chat tab
+    (still backs Help's own example-prompts list); and the Activity tab's QScrollArea now forces
+    ScrollBarAlwaysOff horizontally so content wraps instead of showing both scrollbars at once.
+    No new agent tools; 169 tools unchanged. Live-verified against real QGIS 4.2.2: 2 tabs (down
+    from 3), no chip buttons, horizontal scrollbar policy confirmed off, HelpTabWidget builds
+    standalone with a version string, regenerated dock-panel.png/chat-conversation.png. Full
+    suite: 1457 tests, 0 failures. See CHANGELOG.md's [1.11.0] entry for full detail.
+
+v1.10.0 (2026-09-12):
     UI & Chat Redesign release: a visual polish pass on the dock/chat UI, grounded in real
     QGIS plugin design research (not generic web-design advice). New ui/theme.py two-tier
     theme detection (QFieldSync's real pattern: check QGIS's named theme before falling back

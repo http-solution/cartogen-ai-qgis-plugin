@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.11.0](#v1-11-0) | 2026-09-12 | Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu |
 | [1.10.0](#v1-10-0) | 2026-09-12 | UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons |
 | [1.9.0](#v1-9-0) | 2026-09-12 | Live Hazard Monitoring: NASA FIRMS/EONET + GDACS tools, dashboard freshness badges |
 | [1.8.3](#v1-8-3) | 2026-09-12 | Patch: release zip was silently missing 4 relocated archive docs |
@@ -18,6 +19,53 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-11-0"></a>
+## [1.11.0] — 2026-09-12 — Real-session UI fixes: bubble double-border, Activity tab rename, Help moved to menu
+
+The v1.10.0 UI redesign above was verified against this session's own synthetic `widget.grab()`
+screenshots. A user then shared real screenshots from their own live QGIS session, and they
+caught two genuine bugs the synthetic ones never surfaced, plus several direct layout requests.
+
+- **Chat bubbles, two stacked bugs.** `QTextBrowser` renders message HTML through Qt's own
+  rich-text engine — a CSS 2.1-ish subset with **no `border-radius` support at all** — so the
+  existing `border-radius:8px` had never actually worked; every bubble has always rendered as a
+  sharp rectangle in real QGIS, unlike this same dock's QSS-styled buttons/tabs, which do support
+  `border-radius` (a completely different rendering path). Separately, the outer alignment
+  `<table>` never set `border="0"`, so Qt's rich-text engine drew its own default border around
+  it, stacking visibly with the inner bubble's real border — a genuine double border. Fixed both:
+  `border="0"` on the outer table, and the dead `border-radius` replaced with a
+  `border-left:3px solid` accent stripe (the same flat-message shape GitHub PR review comments
+  and Slack thread replies use) — user messages get the brand accent, agent messages stay
+  neutral. `chat_formatting.derive_bubble_colors()` now exposes that accent value directly.
+- **A Qt mnemonic-parsing bug.** "Tasks & Notes" rendered as "Tasks _Notes" in the screenshots —
+  Qt's plain-text widget-label parser treats a bare `&` immediately followed by a space as an
+  accelerator marker it can't resolve. (The QGIS Plugins-submenu title `"&Cartogen AI"` is *not*
+  affected — `&` immediately followed by a letter is a normal, working mnemonic.) A full sweep
+  found the same `"X & Y"` pattern in 3 more `tasks_tab_widget.py` labels (`QGroupBox`,
+  `QPushButton` — the same affected widget types) not visible in the screenshots but very likely
+  broken the same way, plus 3 rich-text `QLabel`s that aren't actually affected (HTML content
+  bypasses the mnemonic parser) but got the same wording fix for consistency. Renamed the tab
+  itself to **Activity** — the user's own choice among the options offered — rather than just
+  escaping the ampersand, spelling out "and" everywhere else.
+- **Help moved out of the dock entirely**, into the QGIS Plugins menu (`Cartogen AI → Help`) as a
+  standalone non-modal dialog reusing the existing `HelpTabWidget`. A new disabled
+  `"Cartogen AI vX.Y.Z"` menu entry (read at runtime from `metadata.txt`, mirroring
+  `plugin_upload.py`'s own `get_plugin_version()`) makes version info discoverable from the main
+  menu, per direct request — also shown a second time at the top of the Help dialog's own content.
+- **Quick-suggestion chip row removed** from the bottom of the Chat tab ("irrelevant" — direct
+  feedback). `QUICK_SUGGESTION_CHIPS` stays defined in `dock_constants.py`; Help's own
+  example-prompts list is its only consumer now.
+- **Both scrollbars showing at once on the Activity tab, fixed.** Its `QScrollArea` now forces
+  `ScrollBarAlwaysOff` horizontally so content wraps instead of ever triggering horizontal
+  scroll; vertical scrolling (needed to stop the dock forcing the whole QGIS window taller than
+  the screen) is unchanged.
+
+No new agent tools — 169 tools, unchanged. Full suite 1457 tests (up from 1456), 0 failures.
+Live-verified against real QGIS 4.2.2: 2 tabs (Chat, Activity, down from 3), zero chip buttons,
+horizontal scrollbar policy confirmed `ScrollBarAlwaysOff`, `HelpTabWidget` builds standalone
+with a version string, and `dock-panel.png`/`chat-conversation.png` regenerated to show the
+corrected UI.
 
 <a id="v1-10-0"></a>
 ## [1.10.0] — 2026-09-12 — UI & Chat Redesign: brand-accent blending, theme-reactive SVG icons
