@@ -53,6 +53,16 @@ class ChatTabWidget(QWidget):
         # to render, set only while _populate_initial_chat is replaying restored history
         self._pending_analysis_text = None
         self._pending_analysis = None
+        # True while a requirement question (see _ask_requirement_in_chat) is
+        # sitting in the chat log awaiting the user's reply -- the next plain
+        # message they send is treated as the answer, not a new unrelated
+        # request. Replaces a separate always-shown QGroupBox panel with two
+        # buttons (2026-09-13, direct user feedback: "i dont like the style
+        # of the feedback from cartogen AI make it more in the chat and get
+        # user response interactive chat") -- the question itself now reads
+        # as a normal Cartogen chat message, and answering it is just typing
+        # a reply and hitting Send like any other turn.
+        self._awaiting_requirement_reply = False
         # Files the user attached since the last send. attach_file() still
         # analyses each one immediately (unchanged); this list is what lets the
         # NEXT message know those files exist, so a sitrep PDF or a damage
@@ -190,28 +200,20 @@ class ChatTabWidget(QWidget):
 
         chat_layout.addWidget(self.refinement_panel)
 
-        # Local task-register requirement gate. This is deliberately separate
-        # from prompt refinement: it asks only for slots the matched task needs.
-        self.requirement_panel = QGroupBox("One more detail needed")
-        self.requirement_panel.setVisible(False)
-        requirement_layout = QVBoxLayout(self.requirement_panel)
-        self.requirement_question = QLabel()
-        self.requirement_question.setWordWrap(True)
-        requirement_layout.addWidget(self.requirement_question)
-        requirement_buttons = QHBoxLayout()
-        self.requirement_continue_btn = QPushButton("Proceed with stated defaults")
-        self.requirement_continue_btn.setToolTip(
-            "Disabled until this is resolved -- there's no safe default for this detail (for "
-            "example, hazard or facility type), and guessing one risks confidently wrong "
-            "humanitarian output. Click Edit request to add the missing detail, then send again."
-        )
-        self.requirement_continue_btn.clicked.connect(self._proceed_with_analysis_defaults)
-        self.requirement_edit_btn = QPushButton("Edit request")
-        self.requirement_edit_btn.clicked.connect(self._edit_analysis_request)
-        requirement_buttons.addWidget(self.requirement_continue_btn)
-        requirement_buttons.addWidget(self.requirement_edit_btn)
-        requirement_layout.addLayout(requirement_buttons)
-        chat_layout.addWidget(self.requirement_panel)
+        # Local task-register requirement gate (a genuinely unanswerable slot, e.g. hazard
+        # type, with no safe default -- see analyze_request's "blocking" flag). Used to be a
+        # separate always-boxed QGroupBox panel with its own "Proceed with stated defaults" /
+        # "Edit request" buttons, shown ABOVE the input row with the box locked read-only.
+        # Replaced 2026-09-13 (direct user feedback, real screenshot: "i dont like the style
+        # of the feedback from cartogen AI make it more in the chat and get user response
+        # interactive chat" -- the boxed panel read as a foreign popup, not part of the
+        # conversation) with _ask_requirement_in_chat(): the question is posted as a normal
+        # Cartogen chat message, and the user answers it by just typing a reply and hitting
+        # Send like any other turn -- see send_message()'s _awaiting_requirement_reply branch.
+        # "Proceed with stated defaults" was also confirmed dead in practice while removing
+        # this: _show_requirement_panel (now _ask_requirement_in_chat) was only ever called
+        # from the one `if analysis.get("blocking"):` branch below, and that button was always
+        # `setEnabled(not analysis.get("blocking"))` -- i.e. always disabled on every real call.
 
         # Prompt preview. The user asked to be shown the prompt that will be
         # sent, as reasoning, before it is sent -- so this shows the literal
@@ -274,7 +276,10 @@ class ChatTabWidget(QWidget):
 
         self.input_edit = ChatInputEdit()
         self.input_edit.setFixedHeight(55)
-        self.input_edit.setPlaceholderText("Ask me anything about your layers... (Enter to send, Shift+Enter for new line)")
+        # Saved so _ask_requirement_in_chat can swap in a reply-specific hint
+        # and restore this exact wording afterward.
+        self._default_input_placeholder = "Ask me anything about your layers... (Enter to send, Shift+Enter for new line)"
+        self.input_edit.setPlaceholderText(self._default_input_placeholder)
         self.input_edit.sendRequested.connect(self.send_message)
 
         self.send_btn = QPushButton()
@@ -359,6 +364,11 @@ class ChatTabWidget(QWidget):
         newly-active project's saved history instead of showing the previous project's
         conversation."""
         self.chat_browser.clear()
+        # A pending requirement question's chat bubble is about to be wiped by the clear()
+        # above -- without resetting this too, a message typed after switching projects would
+        # be silently merged into a now-invisible original request instead of treated as its
+        # own new message.
+        self._awaiting_requirement_reply = False
         self._populate_initial_chat()
 
     def _add_message(self, role, text):
@@ -556,6 +566,18 @@ class ChatTabWidget(QWidget):
         if not text:
             return
 
+        # A requirement question is outstanding (see _ask_requirement_in_chat) -- this
+        # message IS the answer to it, not a new unrelated request. Merged into the
+        # original text with the same "Details: ..." convention the old Edit-request
+        # button used to pre-fill into the box; the combined text then runs through the
+        # exact same pipeline below as if the user had typed it all at once, including
+        # asking again (a new chat question, not a re-shown panel) if something is still
+        # missing.
+        if self._awaiting_requirement_reply:
+            text = f"{self._pending_analysis_text}\n\nDetails: {text}"
+            self._awaiting_requirement_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+
         # A fresh send attempt abandons any still-open refinement panel from
         # a previous message -- the practical equivalent of spec §7's "user
         # closes the card without choosing" (this UI has no separate close/X
@@ -564,8 +586,6 @@ class ChatTabWidget(QWidget):
         # its _pending_refinement_text would linger orphaned.
         if self.refinement_panel.isVisible():
             self._hide_refinement_panel()
-        if self.requirement_panel.isVisible():
-            self._hide_requirement_panel()
         if self.preview_panel.isVisible():
             self._cancel_preview()
 
@@ -591,7 +611,7 @@ class ChatTabWidget(QWidget):
         # a prompt that interrupts constantly gets clicked through unread,
         # which defeats the disclosure it exists for.
         if analysis.get("blocking"):
-            self._show_requirement_panel(text, analysis)
+            self._ask_requirement_in_chat(text, analysis)
             return
         self._pending_analysis_text = text
         self._pending_analysis = analysis
@@ -614,36 +634,26 @@ class ChatTabWidget(QWidget):
 
         self._dispatch_message(text, analysis)
 
-    def _show_requirement_panel(self, original_text, analysis):
+    def _ask_requirement_in_chat(self, original_text, analysis):
+        """Asks a genuinely unanswerable requirement gap (e.g. hazard type --
+        no safe default exists, guessing one risks confidently wrong
+        humanitarian output) as a normal chat message instead of a separate
+        boxed panel. See _awaiting_requirement_reply's docstring in __init__
+        for why: a real user screenshot showed the old panel reading as a
+        foreign popup, disconnected from the conversation above it. The input
+        box stays fully live -- answering is just typing a reply and hitting
+        Send, handled by send_message()'s _awaiting_requirement_reply branch,
+        which merges that reply into `original_text` and re-runs it through
+        the exact same pipeline (so a second still-missing slot asks again
+        the same way, rather than needing a different mechanism)."""
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
-        self.requirement_question.setText(analysis.get("question") or "Additional task details are required.")
-        # Deliberately disabled while something unanswerable is outstanding:
-        # there is no safe default for a hazard type or a sector, and offering
-        # "proceed anyway" would be offering to guess one.
-        self.requirement_continue_btn.setEnabled(not analysis.get("blocking"))
-        # Read-only, not disabled: a disabled QTextEdit also greys out and
-        # blocks selection/copy, which is worse than necessary here. This
-        # panel's buttons act on the analysis snapshot captured above, not on
-        # whatever is currently in the box -- read-only stops a user from
-        # typing an edit that would then be silently ignored by Continue.
-        self.input_edit.setReadOnly(True)
-        self.requirement_panel.setVisible(True)
-
-    def _hide_requirement_panel(self):
-        self.requirement_panel.setVisible(False)
-        self.input_edit.setReadOnly(False)
-
-    def _proceed_with_analysis_defaults(self):
-        text = self._pending_analysis_text
-        analysis = self._pending_analysis
-        if text and analysis and not analysis.get("blocking"):
-            self._hide_requirement_panel()
-            from ..agent.prompt_refiner import is_prompt_preview_enabled
-            if is_prompt_preview_enabled():
-                self._show_preview_panel(text, analysis)
-                return
-            self._dispatch_message(text, analysis)
+        self._awaiting_requirement_reply = True
+        self.input_edit.clear()
+        self.input_edit.setPlaceholderText("Type your answer... (Enter to send)")
+        self.input_edit.setFocus()
+        question = analysis.get("question") or "Could you tell me a bit more about what you need?"
+        self._dock.receiveMessageSignal.emit("ai", question)
 
     # ------------------------------------------------------ prompt preview --
 
@@ -697,13 +707,6 @@ class ChatTabWidget(QWidget):
         self._pending_analysis_text = None
         if text:
             self.input_edit.setPlainText(text)
-            self.input_edit.setFocus()
-
-    def _edit_analysis_request(self):
-        text = self._pending_analysis_text or ""
-        self._hide_requirement_panel()
-        if text:
-            self.input_edit.setPlainText(text + "\n\nDetails: ")
             self.input_edit.setFocus()
 
     def _start_refinement(self, text, client):
