@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.14.0](#v1-14-0) | 2026-09-13 | Modularized the 47-rule base prompt by relevance; "hi" now ~3.2K tokens, down from ~23K originally |
 | [1.13.1](#v1-13-1) | 2026-09-12 | Patch: a plain "hi" cost ~23K tokens from tool-router padding; word-boundary matching + stopwords fix it |
 | [1.13.0](#v1-13-0) | 2026-09-12 | Rate-limit/task-size resilience: 429-aware backoff on all providers, adaptive pacing, mid-turn compaction |
 | [1.12.0](#v1-12-0) | 2026-09-12 | Onboarding profile, Help auto-show, tidier tool-call summary; fixes a v1.11.0 accent-stripe regression |
@@ -22,6 +23,66 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-14-0"></a>
+## [1.14.0] — 2026-09-13 — Modularized the 47-rule base prompt by relevance
+
+Follow-up to v1.13.1 (the tool-router side of the same token-waste problem). Direct request: the
+remaining ~8,149-token base system prompt should be trimmed the same way tool schemas already
+are. Investigated the actual content first, rather than assuming — `BASE_SYSTEM_PROMPT` contains
+**no JSON schemas at all** (those are the separate, already-fixed `TOOLS_SCHEMA` path); it's
+100% plain-English prose, **47 numbered behavioral rules** always sent in full regardless of
+what the request actually needed.
+
+Read and categorized all 47 rules before designing anything, into three tiers — confirmed with
+the user via `AskUserQuestion` on risk tolerance for the safety-critical cluster before
+implementing:
+
+- **CORE (16 rules, always included)**: task/memory mechanics, the destructive-action safety
+  gate, anti-fabrication, output structure, ask-vs-guess defaults. Applies to every request, no
+  relevance heuristic needed or wanted.
+- **SENSITIVE cluster (10 rules)**: protection-sensitive data handling, never-fabricate-
+  security-incidents (rule 42 exists because of a real, cited past incident — a live user report
+  of a fabricated Beirut security briefing exported looking authoritative), operational-briefing
+  sourcing standards, sensitivity-check-before-export. Included whenever ANY tool from a
+  deliberately **wide, hand-verified** trigger list is selected this turn — every export/
+  deliverable tool, incident/sensitivity tool, and humanitarian-logistics/routing tool — not
+  narrowly gated to "sounds humanitarian." Hand-verified rather than auto-extracted specifically
+  for this cluster: a rule's own prose sometimes names the *wrong* tool for triggering purposes
+  (rule 42 names `search_web` as the recommended fix for fabrication, not the risky report/
+  export action that should actually trigger the rule).
+- **Remaining 21 domain rules** (styling, imagery, workflows, documents, forecasting, web
+  search, print layouts, time-series dates): trigger tools extracted **automatically** via a
+  one-time regex scan of each rule's own backtick-quoted tool mentions against the real
+  `TOOLS_SCHEMA` — no hand-maintained list to drift out of sync as tools/rules change.
+
+**Found and fixed a real bug during live verification, not just unit tests**: router-guaranteed
+tools (`execute_pyqgis_script`, the 8 always-include core tools) were polluting the
+auto-extraction, since their presence in `active_tools` doesn't mean a rule's actual domain is
+relevant — rule 30 (print-layout composition) was firing on a plain `"hi"` purely because
+`execute_pyqgis_script` is the router's guaranteed no-signal fallback tool, nothing to do with
+print layouts. Fixed by excluding router-guaranteed tool names from the auto-extraction signal;
+a rule left with zero real trigger tools after that (rule 8) safely falls back to always-on
+rather than silently vanishing.
+
+Every rule keeps its **original number permanently** in every tier — 47 rules cross-reference
+each other by number (20 such references, confirmed via grep), so renumbering would silently
+break them. Included rules are always assembled in ascending numeric order, so the full/
+unfiltered `BASE_SYSTEM_PROMPT` (kept for `tests/manual_prompt_rule_evals.py`) is verified
+**byte-identical** to this file's pre-modularization content, not just "close enough."
+`agent.py`'s `run()` was reordered so `ToolRouter.filter_relevant_tools()` runs before
+`build_system_prompt()`, passing the selected tool names through as a new
+`active_tool_names` parameter (default `None` reproduces the exact prior behavior for any
+caller that doesn't pass it).
+
+No new agent tools — 169 tools, unchanged. **Measured effect**: a real `agent.run("hi")` call's
+full payload (system prompt + tools) dropped from ~9,316 tokens (v1.13.1's number) to **~3,184
+tokens — ~84% below the original ~22,959-token report** that started this whole thread. Real
+GIS requests save 15-30% depending on domain. Live-verified against real QGIS 4.2.2 for a plain
+`"hi"`, an export request, a humanitarian-logistics request, and a print-layout request,
+confirming the sensitive cluster and the right domain rules appear/don't appear as designed —
+plus a spot check across 7 realistic humanitarian-flavored queries confirming the sensitive
+cluster fires on every one. 18 new tests, full suite 1488 → 1506, 0 failures.
 
 <a id="v1-13-1"></a>
 ## [1.13.1] — 2026-09-12 — Patch: a plain "hi" was costing ~23K tokens from tool-router padding

@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.13.1
+version=1.14.0
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,36 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.13.1 (2026-09-12):
+changelog=v1.14.0 (2026-09-13):
+    Prompt modularization release, follow-up to v1.13.1's tool-router token fix. The remaining
+    ~8,149-token base system prompt was investigated (not assumed): it contains no JSON schemas
+    at all, 100% plain-English prose -- 47 numbered behavioral rules always sent in full
+    regardless of what the request needed. Categorized all 47 rules into three tiers: 16 CORE
+    rules (task/memory mechanics, the destructive-action gate, anti-fabrication, output
+    structure) always included; a 10-rule SENSITIVE cluster (protection-sensitive data handling,
+    never-fabricate-security-incidents -- rule 42 exists because of a real, cited past incident
+    -- operational-briefing standards, sensitivity-check-before-export) included whenever any
+    tool from a deliberately wide, hand-verified trigger list is selected (every export tool,
+    incident/sensitivity tool, humanitarian-logistics tool -- not narrowly gated to "sounds
+    humanitarian"), confirmed with the user via AskUserQuestion before implementing; the
+    remaining 21 domain rules (styling, imagery, workflows, documents, forecasting, web search,
+    print layouts) auto-triggered by tool names already present in each rule's own text, via a
+    one-time regex scan against the real tool registry. Found and fixed a real bug during live
+    verification: router-guaranteed tools (execute_pyqgis_script, the 8 always-include core
+    tools) were polluting the auto-extraction, causing print-layout rules to fire on a plain
+    "hi" -- fixed by excluding router-guaranteed tools from the trigger signal. Every rule keeps
+    its original number permanently (20 cross-references by number exist across the 47 rules),
+    and the full/unfiltered prompt is verified byte-identical to the pre-modularization content.
+    No new agent tools; 169 tools unchanged. Measured effect: a real agent.run("hi") call's full
+    payload dropped from ~9,316 tokens (v1.13.1's number) to ~3,184 tokens -- ~84% below the
+    original ~22,959-token report that started this whole thread. Real GIS requests save
+    15-30% depending on domain. Live-verified against real QGIS 4.2.2 for a plain "hi", an
+    export request, a humanitarian-logistics request, and a print-layout request, plus a spot
+    check across 7 realistic humanitarian-flavored queries confirming the sensitive cluster
+    fires on every one. Full suite: 1506 tests, 0 failures. See CHANGELOG.md's [1.14.0] entry
+    for full detail.
+
+v1.13.1 (2026-09-12):
     Patch release, found and fixed the same day v1.13.0 shipped: a direct live report that a
     single plain "hi" message cost ~22,959 tokens for one API call. Traced to
     tool_router.py's filter_relevant_tools() always padding out to the full top_k=40 tool
