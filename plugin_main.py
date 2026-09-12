@@ -64,7 +64,17 @@ class CartogenAi:
 
     def initGui(self):
         print("[CartogenAi] initGui()")
-        icon_path = os.path.join(self.plugin_dir, "icon.png")
+        # icon.svg -- a copy of branding/cartogen-mark.svg, the actual brand mark, not the flat
+        # icon.png this replaced. Deliberately copied to the plugin ROOT rather than referencing
+        # branding/ directly: plugin_upload.py's EXCLUDE_DIRS excludes the whole branding/
+        # folder from the release zip (the guidelines HTML/lockup SVGs genuinely have no
+        # runtime function) -- pointing this at branding/cartogen-mark.svg would have silently
+        # shipped a plugin with no toolbar icon at all, since QIcon() on a missing path just
+        # produces an empty icon rather than raising. icon.svg has a real runtime function
+        # (unlike the rest of branding/), so it ships from the root like icon.png always has.
+        # Qt loads SVG natively via its SVG icon engine (scales cleanly at any toolbar/HiDPI
+        # size). UI/chat redesign workstream, 2026-09-12.
+        icon_path = os.path.join(self.plugin_dir, "icon.svg")
         action = QAction(QIcon(icon_path), self.tr("Cartogen AI"), self.iface.mainWindow())
         action.setCheckable(True)
         action.triggered.connect(self.toggle_dock)

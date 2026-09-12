@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <linearGradient id="nodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E7A23D"/>
+      <stop offset="100%" stop-color="#C97F22"/>
+    </linearGradient>
+  </defs>
+  <!-- contour rings: outer navy, mid teal, inner amber-teal -->
+  <path d="M 30.498 71.851 A 34 34 0 1 1 64.369 74.814" fill="none" stroke="#0B2A3D" stroke-width="5.4" stroke-linecap="round"/>
+  <path d="M 36.234 63.660 A 24 24 0 1 1 60.143 65.751" fill="none" stroke="#1F7A6C" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M 41.970 55.468 A 14 14 0 1 1 55.917 56.688" fill="none" stroke="#2E9C89" stroke-width="3.8" stroke-linecap="round"/>
+  <!-- leader line from innermost ring down to the node -->
+  <line x1="48.780" y1="57.947" x2="46.514" y2="80.6" stroke="#0B2A3D" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- node: the single point of insight -->
+  <circle cx="46.514" cy="83.848" r="5.4" fill="url(#nodeGrad)"/>
+</svg>

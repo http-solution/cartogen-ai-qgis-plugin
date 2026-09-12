@@ -14,7 +14,7 @@ import threading
 import traceback
 import os
 
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
     QPushButton, QTextEdit, QGroupBox,
@@ -25,8 +25,9 @@ from .chat_formatting import (
     format_send_error,
 )
 from .attachments import read_attached_file as _read_attached_file
-from .theme import theme_colors
+from .theme import theme_colors, extract_theme_palette
 from .dock_constants import QUICK_SUGGESTION_CHIPS
+from .icons import themed_icon
 
 
 class ChatInputEdit(QTextEdit):
@@ -228,8 +229,21 @@ class ChatTabWidget(QWidget):
         chat_layout.addWidget(self.preview_panel)
 
         # Input Area
+        # Icon color for the 3 buttons below: they're all styled #iconButton, which falls back
+        # to the generic QPushButton rule's accent-filled background (build_dock_stylesheet),
+        # so the icon itself needs to contrast against THAT fill -- highlighted_text (the
+        # palette's own "text that sits on the accent color" role), not the page's normal text
+        # color. UI/chat redesign workstream, 2026-09-12: these were plain Unicode emoji before
+        # (📎 ➤ ⏹), replaced with theme-reactive SVGs (ui/icons.py) per the observed QGIS
+        # plugin-ecosystem convention (custom SVG icons tinted from the live palette at render
+        # time, not an icon font or fixed-color assets).
+        _palette = extract_theme_palette()
+        _icon_fg = (_palette or {}).get("highlighted_text", "#ffffff")
+
         input_layout = QHBoxLayout()
-        self.attach_btn = QPushButton("📎")
+        self.attach_btn = QPushButton()
+        self.attach_btn.setIcon(themed_icon("attach", _icon_fg))
+        self.attach_btn.setIconSize(QSize(16, 16))
         self.attach_btn.setObjectName("iconButton")
         self.attach_btn.setFixedSize(30, 30)
         self.attach_btn.setToolTip("Attach a file (PDF, Word, image, CSV, or Excel)")
@@ -240,13 +254,17 @@ class ChatTabWidget(QWidget):
         self.input_edit.setPlaceholderText("Ask me anything about your layers... (Enter to send, Shift+Enter for new line)")
         self.input_edit.sendRequested.connect(self.send_message)
 
-        self.send_btn = QPushButton("➤")
+        self.send_btn = QPushButton()
+        self.send_btn.setIcon(themed_icon("send", _icon_fg))
+        self.send_btn.setIconSize(QSize(16, 16))
         self.send_btn.setObjectName("iconButton")
         self.send_btn.setFixedSize(30, 30)
         self.send_btn.setToolTip("Send (Enter)")
         self.send_btn.clicked.connect(self.send_message)
 
-        self.stop_btn = QPushButton("⏹")
+        self.stop_btn = QPushButton()
+        self.stop_btn.setIcon(themed_icon("stop", _icon_fg))
+        self.stop_btn.setIconSize(QSize(16, 16))
         self.stop_btn.setObjectName("iconButton")
         self.stop_btn.setFixedSize(30, 30)
         self.stop_btn.setToolTip("Stop the current request")

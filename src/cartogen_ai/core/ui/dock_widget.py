@@ -13,7 +13,7 @@ what still needs verifying in a real QGIS session (this file cannot be imported 
 run outside one -- no QGIS_AVAILABLE fallback -- so nothing here has run since the
 split; see docs/RELEASE_SMOKE_TEST.md before shipping)."""
 
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize
 from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTabWidget, QComboBox, QScrollArea,
@@ -23,6 +23,7 @@ from qgis.core import QgsSettings
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
 from .dock_constants import PROVIDER_CHOICES
+from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
 from .tasks_tab_widget import TasksTabWidget
 from .help_tab_widget import HelpTabWidget
@@ -83,7 +84,16 @@ class CartogenAiDockWidget(QDockWidget):
             self.provider_combo.setCurrentIndex(idx)
         self.provider_combo.currentIndexChanged.connect(self._on_provider_switch)
 
-        self.settings_btn = QPushButton("⚙ Settings")
+        # secondaryButton is outlined/transparent (build_dock_stylesheet), not accent-filled
+        # like the input row's iconButton trio -- so this icon takes the palette's normal text
+        # color, not highlighted_text. UI/chat redesign workstream, 2026-09-12: replaces the
+        # plain "⚙" emoji with the same theme-reactive SVG convention as chat_tab_widget.py's
+        # icons (ui/icons.py).
+        _header_palette = extract_theme_palette()
+        _settings_icon_fg = (_header_palette or {}).get("text", "#000000")
+        self.settings_btn = QPushButton(" Settings")
+        self.settings_btn.setIcon(themed_icon("settings", _settings_icon_fg))
+        self.settings_btn.setIconSize(QSize(14, 14))
         self.settings_btn.setObjectName("secondaryButton")
         self.settings_btn.clicked.connect(self.open_settings)
         header_layout.addWidget(title)
