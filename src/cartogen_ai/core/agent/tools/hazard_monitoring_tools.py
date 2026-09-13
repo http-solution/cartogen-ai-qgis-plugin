@@ -322,6 +322,16 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": f"NASA EONET API request failed: {e}"}
+    # A real live crash traced this exact shape (2026-09-13): the request/decode above
+    # only guarantees `data` is valid JSON, not that it's a dict -- an API returning a
+    # bare string/list/null error body (rate limiting, a CDN error page served as JSON)
+    # would otherwise reach `data.get(...)` below and crash with an uncaught
+    # AttributeError, escaping all the way out of the tool-calling loop uncaught (see
+    # agent.py's _execute_tool for the matching generic safety net added at the same
+    # time -- this specific check gives a clear, attributable error instead of relying
+    # on that net alone).
+    if not isinstance(data, dict):
+        return {"error": f"NASA EONET API returned an unexpected response shape ({type(data).__name__}, expected an object)."}
 
     bbox_f = [float(v) for v in bbox] if bbox else None
     events_out = []
@@ -448,6 +458,11 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": f"GDACS API request failed: {e}"}
+    # See fetch_nasa_eonet_events_network_phase's identical comment above -- same real
+    # live crash, same fix, GDACS's own docs already warn its data "may require further
+    # validation" so a malformed non-dict body here is a real, not hypothetical, risk.
+    if not isinstance(data, dict):
+        return {"error": f"GDACS API returned an unexpected response shape ({type(data).__name__}, expected an object)."}
 
     bbox_f = [float(v) for v in bbox] if bbox else None
     alerts = []

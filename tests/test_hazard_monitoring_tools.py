@@ -137,6 +137,25 @@ class TestFetchNasaEonetEventsNetworkPhase(unittest.TestCase):
         self.assertEqual(res["events"][0]["unit"], "EONET_1")
         self.assertEqual(res["events"][0]["lat"], 31.0)
 
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_non_dict_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
+        """Real live crash, 2026-09-13: a chat turn ended in a bare 'Error: 'str' object
+        has no attribute 'get'' -- traced to this exact gap. The request/decode try/except
+        only guarantees valid JSON, not a dict; a bare JSON string (e.g. a CDN error page
+        served with a JSON content-type) used to reach data.get(...) below and crash
+        uncaught, escaping the whole tool-calling loop instead of becoming a normal
+        {"error": ...} result."""
+        mock_urlopen.return_value = _mock_response(json.dumps("Service temporarily unavailable"))
+        res = hz.fetch_nasa_eonet_events_network_phase(bbox=[34.9, 30.9, 35.2, 31.3])
+        self.assertIn("error", res)
+        self.assertIn("unexpected response shape", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_null_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response(json.dumps(None))
+        res = hz.fetch_nasa_eonet_events_network_phase()
+        self.assertIn("error", res)
+
 
 class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
     def _payload(self):
@@ -175,6 +194,16 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
     def test_network_failure_returns_clean_error(self, mock_urlopen):
         res = hz.fetch_gdacs_disaster_alerts_network_phase()
         self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_non_dict_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
+        """Same live crash class as TestFetchNasaEonetEventsNetworkPhase's identical test --
+        GDACS's own docs already warn its data 'may require further validation', so a
+        malformed non-dict body here is a real, not hypothetical, risk."""
+        mock_urlopen.return_value = _mock_response(json.dumps(["not", "a", "dict"]))
+        res = hz.fetch_gdacs_disaster_alerts_network_phase()
+        self.assertIn("error", res)
+        self.assertIn("unexpected response shape", res["error"])
 
 
 class TestGenerateSituationDashboardDegradesWithoutQgis(unittest.TestCase):
