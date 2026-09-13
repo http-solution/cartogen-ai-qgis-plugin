@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.3
+version=1.15.4
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,19 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.3 (2026-09-13):
+changelog=v1.15.4 (2026-09-13):
+    Fix: root-caused the "Error: 'str' object has no attribute 'get'" crash reported live.
+    The two-phase tool dispatch path (used by fetch_worldpop_population and the 3 hazard-
+    monitoring fetch tools, among others) had no exception handling of its own, unlike the
+    regular tool dispatch path -- and 3 of those network-fetch functions called .get() on a
+    freshly-parsed API response without checking it was actually a dict first. If the
+    external API ever returned valid JSON that wasn't a dict (a bare string/list/null error
+    body), the crash escaped the whole tool-calling loop uncaught. Fixed with a general
+    safety net (any exception from any tool dispatch path now becomes a normal error result,
+    closing this class of bug for every tool, not just the ones found) plus proper guards at
+    the 3 specific sites for a clear error message. See CHANGELOG.md for full detail.
+
+v1.15.3 (2026-09-13):
     Fix: following v1.15.2's move of the requirement-gate question into the chat, a
     real-session report found "some of my text i sent in the chat is not showing" -- the
     user's reply to a clarifying question was folded into the pending request silently,
