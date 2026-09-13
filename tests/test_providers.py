@@ -725,6 +725,31 @@ class TestUsageExtraction(unittest.TestCase):
         self.assertEqual(result["usage"], {"input_tokens": 80, "output_tokens": 20})
         self.assertNotIn("cached_tokens", result["usage"])
 
+    @patch("cartogen_ai.core.agent.providers.gemini.post_with_retry")
+    def test_gemini_non_dict_prompt_tokens_details_does_not_crash(self, mock_post):
+        """Real live crash, 2026-09-13, reported specifically against a Gemini-configured
+        session: `(usage.get("prompt_tokens_details") or {}).get("cached_tokens")` only
+        degrades safely when the field is falsy (None/""/0) -- if it's ever a TRUTHY
+        non-dict (a bare string is the most likely real shape for an OpenAI-compat shim
+        quirk), `x or {}` returns x itself (a truthy value short-circuits `or`), and the
+        following .get() raised uncaught with exactly this error text. Must degrade to
+        "no cache-hit info available" instead, not crash the whole API call."""
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+                "usage": {
+                    "prompt_tokens": 500, "completion_tokens": 10, "total_tokens": 510,
+                    "prompt_tokens_details": "unexpected-string-value",
+                },
+            },
+        )
+        client = gemini_mod.GeminiClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])
+        self.assertNotIn("error", result)
+        self.assertEqual(result["usage"], {"input_tokens": 500, "output_tokens": 10})
+        self.assertNotIn("cached_tokens", result["usage"])
+
     @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
     def test_claude_reconstructs_full_input_tokens_and_surfaces_cached_tokens(self, mock_post):
         """Anthropic's native "input_tokens" field deliberately EXCLUDES anything served from

@@ -107,7 +107,15 @@ def extract_openai_style_usage(data):
     if input_tokens is None and output_tokens is None:
         return None
     result = {"input_tokens": input_tokens or 0, "output_tokens": output_tokens or 0}
-    cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    # Real live crash, 2026-09-13 (reported against Gemini specifically, this field's own
+    # provider): `(x or {}).get(...)` only degrades safely when x is falsy (None/""/0) --
+    # if a provider's OpenAI-compat shim ever returns prompt_tokens_details as a TRUTHY
+    # non-dict (a bare string being the most likely real shape, matching the exact
+    # "'str' object has no attribute 'get'" crash reported live), `x or {}` evaluates to
+    # x itself (truthy short-circuits `or`), and .get() on that raises uncaught. Explicit
+    # isinstance check instead of relying on truthiness to decide "is this usable."
+    details = usage.get("prompt_tokens_details")
+    cached_tokens = details.get("cached_tokens") if isinstance(details, dict) else None
     if cached_tokens:
         result["cached_tokens"] = cached_tokens
     return result
