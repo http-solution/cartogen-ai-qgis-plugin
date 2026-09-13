@@ -492,7 +492,32 @@ class CartogenAi:
         layer_ids_before = self._live_layer_ids()
         snapshot_fn = get_snapshot_fn(name)
         snapshot = snapshot_fn(arguments) if snapshot_fn else None
-        result = self._execute_tool_dispatch(name, arguments)
+        # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading
+        # "Error: 'str' object has no attribute 'get'" -- an uncaught AttributeError
+        # that escaped run()'s tool-call loop entirely (task_runner.py's outer
+        # try/except is what actually caught it, surfacing the raw Python exception
+        # text with no context). Root-caused via direct code reading, not guessed:
+        # _real_execute_tool wraps its own func(**filtered_args) call in a broad
+        # except Exception, but _execute_two_phase_tool (TWO_PHASE_TOOLS' dispatch
+        # path -- the 3 hazard-monitoring fetch tools among them) has NO equivalent
+        # wrapping at all, and this call site (the one place ALL THREE dispatch
+        # paths funnel through) had none either. Confirmed a real, reachable trigger:
+        # fetch_nasa_eonet_events_network_phase/fetch_gdacs_disaster_alerts_network_
+        # phase/fetch_hdx_admin_boundaries_network_phase (hazard_monitoring_tools.py,
+        # humanitarian_tools.py) each call `data.get(...)` on a freshly-`json.loads`'d
+        # API response OUTSIDE their own try/except's coverage -- if the external API
+        # (GDACS's own docs warn its data "may require further validation") ever
+        # returns valid JSON that isn't a dict (a bare string/list/null error body),
+        # that .get() raises uncaught, with nothing anywhere in the call chain to
+        # catch it. Fixed at BOTH the specific sites (proper isinstance guards, see
+        # each file) AND here, as the general safety net every tool call -- present
+        # or future -- gets for free: any exception that reaches this point, from
+        # any dispatch path, becomes a normal {"error": ...} result instead of
+        # silently ending the whole turn.
+        try:
+            result = self._execute_tool_dispatch(name, arguments)
+        except Exception as e:
+            result = {"error": f"Tool {name} failed unexpectedly: {e}"}
         layer_ids_after = self._live_layer_ids()
         operation_type = tool_operations.get_tool_operation_type(name)
         self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=snapshot)

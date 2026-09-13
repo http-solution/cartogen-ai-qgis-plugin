@@ -270,6 +270,33 @@ class TestExecuteToolTransactionRecording(unittest.TestCase):
         self.assertEqual(entry["undo"]["kind"], "restore_field")
         self.assertEqual(entry["undo"]["tool_name"], "field_calculator")
 
+    def test_uncaught_dispatch_exception_becomes_a_normal_error_result(self):
+        """Real live crash, 2026-09-13: a turn ended in a bare 'Error: 'str' object
+        has no attribute 'get'' chat bubble -- an uncaught AttributeError that escaped
+        run()'s tool-call loop entirely because _execute_tool_dispatch's TWO_PHASE_TOOLS
+        path (unlike _real_execute_tool) had no exception handling of its own, and
+        neither did this call site. This is the general safety net added for it: ANY
+        exception from ANY dispatch path becomes a normal {"error": ...} result here,
+        so a future tool with the same gap fails the same clean way instead of ending
+        the whole turn uncaught."""
+        agent = self._make_agent()
+
+        def raising_dispatch(self, name, args):
+            raise AttributeError("'str' object has no attribute 'get'")
+
+        with patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch", raising_dispatch), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: set()):
+            result = agent._execute_tool("fetch_nasa_eonet_events", "{}")
+
+        self.assertIn("error", result)
+        self.assertIn("fetch_nasa_eonet_events", result["error"])
+        self.assertIn("'str' object has no attribute 'get'", result["error"])
+        # The transaction log must still see it as a normal, recorded failure --
+        # not a call that silently never got logged because it raised.
+        entries = agent._transaction_log.summary()
+        self.assertEqual(len(entries), 1)
+        self.assertFalse(entries[0]["success"])
+
     def test_no_registered_snapshot_fn_falls_back_to_layer_diff(self):
         """A tool with no _snapshot_registry.py entry (the common case) must
         behave exactly as before this feature existed -- undo determined by

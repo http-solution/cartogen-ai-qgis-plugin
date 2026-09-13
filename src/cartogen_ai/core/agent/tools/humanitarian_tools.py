@@ -375,6 +375,12 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         return {"error": f"HDX request failed: {e}"}
     except Exception as e:
         return {"error": f"HDX request failed: {e}"}
+    # Same real live crash class as hazard_monitoring_tools.py's fetch_nasa_eonet_events/
+    # fetch_gdacs_disaster_alerts (2026-09-13): the try/except above only guarantees valid
+    # JSON, not a dict -- a CKAN error page or gateway response served with a JSON
+    # content-type would otherwise reach data.get(...) below and crash uncaught.
+    if not isinstance(data, dict):
+        return {"error": f"HDX returned an unexpected response shape ({type(data).__name__}, expected an object)."}
 
     result_data = data.get("result", {})
     resources = result_data.get("resources", [])
@@ -682,6 +688,11 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
             try:
                 feat = json.loads(line)
             except (ValueError, TypeError):
+                continue
+            # Same class of gap as this file's fetch_hdx_admin_boundaries fix above --
+            # json.loads succeeding doesn't guarantee a dict; a malformed line parsing to
+            # a bare number/string/bool would otherwise crash feat.get(...) uncaught.
+            if not isinstance(feat, dict):
                 continue
             centroid = _feature_centroid(feat.get("geometry"))
             if centroid is None:

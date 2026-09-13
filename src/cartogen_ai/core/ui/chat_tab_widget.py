@@ -1198,7 +1198,9 @@ class ChatTabWidget(QWidget):
         # would otherwise silently miss the session usage total.
         if hasattr(agent, "_accumulate_usage"):
             agent._accumulate_usage(result.get("usage"))
-        message = result.get("message") or {}
+        message = result.get("message")
+        if not isinstance(message, dict):
+            message = {}
         content = message.get("content")
         if not content:
             return (

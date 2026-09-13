@@ -851,6 +851,25 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("fetch_geoboundaries", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_hdx_admin_boundaries_network_phase_non_dict_json_returns_clean_error(self, mock_urlopen):
+        """Same live crash class fixed in hazard_monitoring_tools.py the same day
+        (2026-09-13): package_show's own try/except only guarantees valid JSON, not a
+        dict -- a CKAN error page or gateway response served with a JSON content-type
+        used to reach data.get("result", {}) below and crash uncaught. A fresh, unused
+        iso3 -- fetch_hdx_admin_boundaries_network_phase caches successful results at
+        module scope keyed by (iso3, admin_level), and this test must not risk a stale
+        cache hit from another test's real (mocked-success) call to the same key
+        short-circuiting before ever reaching the code this test exercises."""
+        import json as _json
+        mock_response = MagicMock()
+        mock_response.__enter__.return_value.read.return_value = _json.dumps("Service Unavailable").encode()
+        mock_urlopen.return_value = mock_response
+
+        res = fetch_hdx_admin_boundaries_network_phase("ZZQ", "ADM1")
+        self.assertIn("error", res)
+        self.assertIn("unexpected response shape", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_errors_when_no_geojson_resource(self, mock_urlopen):
         import json as _json
         package_show_body = _json.dumps({
