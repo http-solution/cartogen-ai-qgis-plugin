@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.5](#v1-15-5) | 2026-09-13 | Patch: fixed another instance of the "'str' object has no attribute 'get'" crash, this one in Gemini usage parsing |
 | [1.15.4](#v1-15-4) | 2026-09-13 | Patch: root-caused and fixed the "'str' object has no attribute 'get'" crash |
 | [1.15.3](#v1-15-3) | 2026-09-13 | Patch: the user's own reply to a clarifying question wasn't showing up in the chat log |
 | [1.15.2](#v1-15-2) | 2026-09-13 | Patch: requirement-gate questions now ask in chat instead of a separate boxed panel |
@@ -29,6 +30,41 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-5"></a>
+## [1.15.5] — 2026-09-13 — Patch: fixed a second instance of the "'str' object has no attribute 'get'" crash
+
+Three more live reports came in right after v1.15.4 shipped -- same exact crash text, but with
+completely different tool sequences each time (4 tools, then 9 tools, none overlapping with
+the hazard/HDX tools v1.15.4 fixed), all on a session configured with **Google Gemini**.
+
+Three separate reproduction attempts (a scripted client, a real-QGIS run with real layers, and
+a run through the actual cross-thread dispatcher mechanism a live session uses) all came back
+clean against the reported tool sequences -- ruling out every individual tool involved and the
+dispatch machinery around them a second time. The common factor across all three reports
+wasn't any specific tool; it was the provider.
+
+**Root cause**: `providers/base.py`'s `extract_openai_style_usage` (added in v1.15.0's Gemini-
+caching-visibility work, and not covered by v1.15.4's audit since that code didn't exist yet
+when this bug class was first found) extracted the cache-hit count with:
+
+```python
+cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+```
+
+This only degrades safely when the field is missing or falsy. If a provider's OpenAI-compatible
+response ever returns `prompt_tokens_details` as a **truthy non-dict** (a bare string being the
+most likely real shape for a compatibility-shim quirk), `x or {}` returns `x` itself -- `or`
+short-circuits on the first truthy operand -- and the following `.get()` raises uncaught,
+producing exactly the reported error text. Confirmed with a one-line repro:
+`("some string" or {}).get("cached_tokens")` raises `AttributeError: 'str' object has no
+attribute 'get'`.
+
+**Fixed** with an explicit `isinstance(details, dict)` check instead of relying on truthiness.
+This is the shared usage-extraction point for all 4 OpenAI-style providers (Gemini, OpenAI,
+OpenRouter, and the hosted-gateway prototype), so the fix protects all of them, not just Gemini.
+New regression test confirms the exact malformed-response shape now degrades to "no cache-hit
+info available" instead of crashing the whole turn. Full suite 1530 -> 1531, 0 failures.
 
 <a id="v1-15-4"></a>
 ## [1.15.4] — 2026-09-13 — Patch: root-caused the "'str' object has no attribute 'get'" crash

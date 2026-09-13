@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.4
+version=1.15.5
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,16 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.4 (2026-09-13):
+changelog=v1.15.5 (2026-09-13):
+    Fix: another instance of the "'str' object has no attribute 'get'" crash, reported 3 more
+    times after v1.15.4 on a Gemini-configured session with different tool sequences each
+    time. Root cause: extract_openai_style_usage's cached-tokens extraction (added in v1.15.0)
+    used `(x or {}).get(...)`, which only degrades safely when x is falsy -- a truthy non-dict
+    response field (a bare string, the likely real shape) crashes it uncaught. Fixed with an
+    explicit isinstance check. This is new code from the Gemini-caching work, not covered by
+    the v1.15.4 tool-dispatch audit. See CHANGELOG.md for full detail.
+
+v1.15.4 (2026-09-13):
     Fix: root-caused the "Error: 'str' object has no attribute 'get'" crash reported live.
     The two-phase tool dispatch path (used by fetch_worldpop_population and the 3 hazard-
     monitoring fetch tools, among others) had no exception handling of its own, unlike the
