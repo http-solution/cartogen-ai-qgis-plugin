@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.4](#v1-15-4) | 2026-09-13 | Patch: root-caused and fixed the "'str' object has no attribute 'get'" crash |
 | [1.15.3](#v1-15-3) | 2026-09-13 | Patch: the user's own reply to a clarifying question wasn't showing up in the chat log |
 | [1.15.2](#v1-15-2) | 2026-09-13 | Patch: requirement-gate questions now ask in chat instead of a separate boxed panel |
 | [1.15.1](#v1-15-1) | 2026-09-13 | Patch: live-hazard-data requests could get refused despite real matching tools existing |
@@ -28,6 +29,42 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-4"></a>
+## [1.15.4] — 2026-09-13 — Patch: root-caused the "'str' object has no attribute 'get'" crash
+
+Following up on `BUG-2026-09-13-2` (see `docs/BUG_TRACKER.md`): a full audit of the tool-
+dispatch and `.get()` call surface, prompted directly by the live crash report, found the
+real gap.
+
+**Root cause**: `agent.py`'s `_execute_two_phase_tool` (the dispatch path used by
+`fetch_worldpop_population` and the 3 hazard-monitoring fetch tools, among others) has no
+exception handling of its own -- unlike the regular tool dispatch path, which wraps its
+function call in a broad `try/except`. Within that unguarded surface, 3 real network-fetch
+functions called `.get()` on a freshly `json.loads()`'d API response OUTSIDE their own
+`try/except`'s coverage: `fetch_nasa_eonet_events_network_phase` and
+`fetch_gdacs_disaster_alerts_network_phase` (`hazard_monitoring_tools.py`),
+`fetch_hdx_admin_boundaries_network_phase` (`humanitarian_tools.py`). If any of these APIs
+ever returned valid JSON that wasn't a dict (a bare string/list/null error body -- GDACS's
+own docs already warn its data "may require further validation"), that `.get()` call raised
+an uncaught `AttributeError` that escaped the entire tool-calling loop, surfacing as a bare
+Python exception in the chat instead of a normal error message.
+
+**Fixed in two parts**:
+- A general safety net in `agent.py`'s `_execute_tool`: any exception from any tool dispatch
+  path now becomes a normal `{"error": ...}` result. This closes the whole class of bug for
+  every tool -- present or future -- not just the 3 found.
+- Proper `isinstance(data, dict)` guards at the 3 specific sites (plus
+  `fetch_building_footprints_network_phase`'s per-line JSON parsing, same pattern, lower
+  risk), giving a clear, attributable error message instead of relying on the safety net
+  alone.
+
+Also fixed a matching but structurally different gap in `chat_tab_widget.py`'s
+`_analyze_image` (already caught by its own surrounding `try/except`, so not this specific
+bug, but the same risk class, worth closing while auditing this).
+
+5 new tests covering the exact malformed-response scenarios and the general safety net; full
+suite 1525 -> 1530, 0 failures.
 
 <a id="v1-15-3"></a>
 ## [1.15.3] — 2026-09-13 — Patch: the user's own replies weren't showing up in chat
