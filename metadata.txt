@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.15.5
+version=1.15.6
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,18 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.5 (2026-09-13):
+changelog=v1.15.6-rc1 (2026-09-14):
+    Release candidate: audit remediation, 27 of 32 findings fixed/mitigated from a full
+    security/QGIS/API/performance/code-quality audit (docs/audits/). SSRF-hardened 4 URL
+    fetches, sanitized CSV formula injection, redacted provider error bodies that could leak
+    partial API keys, fixed a crash on malformed provider JSON, excluded hazard-fetch tools
+    from recurring schedules (closing a real GUI-freeze risk), added real tests for all 24
+    previously-untested tools, and more -- see CHANGELOG.md for the full breakdown. Test
+    suite 1531 -> 1680, 0 failures. Tagged as a release candidate, not final: an interactive
+    QGIS smoke test, a licensing/publication decision, and package provenance confirmation
+    remain open. Also added CI secret scanning (gitleaks) and enabled Dependabot alerts.
+
+v1.15.5 (2026-09-13):
     Fix: another instance of the "'str' object has no attribute 'get'" crash, reported 3 more
     times after v1.15.4 on a Gemini-configured session with different tool sequences each
     time. Root cause: extract_openai_style_usage's cached-tokens extraction (added in v1.15.0)
