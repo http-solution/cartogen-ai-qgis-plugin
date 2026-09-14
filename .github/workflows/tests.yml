@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  secret-scan:
+    # GitHub's native secret scanning requires GitHub Advanced Security, which isn't
+    # available on this repo (private, no GHAS license) -- confirmed directly via the
+    # API (PATCH .../security_and_analysis returned "Secret scanning is not available
+    # for this repository", 2026-09-14). gitleaks is a free, open-source equivalent:
+    # scans the pushed commit range for common secret patterns (API keys, tokens,
+    # private keys, etc.) and fails the build if any are found. No license/account
+    # needed for this basic scan-and-fail usage.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     steps:
