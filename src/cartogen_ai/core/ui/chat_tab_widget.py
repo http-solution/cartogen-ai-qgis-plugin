@@ -34,6 +34,23 @@ from .settings_dialog import PROVIDERS as _PROVIDERS
 from .theme import theme_colors, extract_theme_palette
 from .icons import themed_icon
 
+# _ask_preview_in_chat's reply interpretation (2026-09-15 boxed-panel-to-in-chat conversion):
+# the old "Send this / Send as typed instead / Cancel" 3-way button choice now resolves from
+# free text. Deliberately generous but not fuzzy-matched -- an unrecognized reply always falls
+# through to the "send as typed" edit path (see send_message()), never silently ignored or
+# misread as a confirmation it wasn't.
+_PREVIEW_CONFIRM_REPLIES = {
+    "yes", "y", "yeah", "yep", "ok", "okay", "sure", "go", "go ahead",
+    "send", "send this", "confirm", "proceed", "do it",
+}
+_PREVIEW_CANCEL_REPLIES = {
+    "no", "n", "nope", "cancel", "stop", "abort", "never mind", "nevermind", "nvm",
+}
+
+
+def _normalize_preview_reply(text):
+    return text.strip().lower().rstrip("!.?")
+
 
 class ChatInputEdit(QTextEdit):
     """Multi-line input that sends on Enter and inserts a newline on Shift+Enter."""
@@ -67,6 +84,15 @@ class ChatTabWidget(QWidget):
         # as a normal Cartogen chat message, and answering it is just typing
         # a reply and hitting Send like any other turn.
         self._awaiting_requirement_reply = False
+        # True while the "Prompt that will be sent" preview (see _ask_preview_in_chat) is
+        # sitting in the chat log awaiting the user's reply -- same conversion, same reasoning
+        # as _awaiting_requirement_reply above, applied 2026-09-15 to the second and last
+        # remaining boxed panel (direct feedback, repeated: "i prefer everything to be in the
+        # chat"). Unlike the requirement gate, the reply here is genuinely 3-way (send the
+        # composed prompt / send as typed instead / cancel), so it needs real interpretation --
+        # see send_message()'s _awaiting_preview_reply branch and _PREVIEW_CONFIRM_REPLIES/
+        # _PREVIEW_CANCEL_REPLIES below.
+        self._awaiting_preview_reply = False
         # Files the user attached since the last send. attach_file() still
         # analyses each one immediately (unchanged); this list is what lets the
         # NEXT message know those files exist, so a sitrep PDF or a damage
@@ -219,43 +245,13 @@ class ChatTabWidget(QWidget):
         # from the one `if analysis.get("blocking"):` branch below, and that button was always
         # `setEnabled(not analysis.get("blocking"))` -- i.e. always disabled on every real call.
 
-        # Prompt preview. The user asked to be shown the prompt that will be
-        # sent, as reasoning, before it is sent -- so this shows the literal
-        # text (agent/prompt_refiner.compose_optimum_prompt returns both halves
-        # verbatim), not a paraphrase of it. Nothing is sent while this panel
-        # is open.
-        self.preview_panel = QGroupBox("Prompt that will be sent")
-        self.preview_panel.setVisible(False)
-        preview_layout = QVBoxLayout(self.preview_panel)
-        self.preview_reasoning = QLabel()
-        self.preview_reasoning.setWordWrap(True)
-        self.preview_reasoning.setTextFormat(Qt.TextFormat.RichText)
-        preview_layout.addWidget(self.preview_reasoning)
-        self.preview_prompt = QTextEdit()
-        self.preview_prompt.setReadOnly(True)
-        self.preview_prompt.setFixedHeight(120)
-        preview_layout.addWidget(self.preview_prompt)
-        preview_buttons = QHBoxLayout()
-        self.preview_send_btn = QPushButton("Send this")
-        # Deliberately the default (accent) button style, not "successButton" --
-        # that green is reserved for the Activity tab's destructive-action confirm
-        # gate ("Confirm and Apply Edit"). Reusing it here made the same color mean
-        # both "send a low-stakes composed prompt" and "apply an edit/delete",
-        # collapsing a meaning-carrying color -- found in the UX audit dated
-        # 2026-08-31.
-        self.preview_send_btn.clicked.connect(self._send_previewed_prompt)
-        # "Send as typed instead" matches the Refinement panel's identical bypass-send button
-        # exactly (:161) -- was "Send my wording only" here, a second phrasing of the same
-        # action across the two gate panels. UI/chat redesign workstream, 2026-09-12.
-        self.preview_original_btn = QPushButton("Send as typed instead")
-        self.preview_original_btn.clicked.connect(self._send_preview_original)
-        self.preview_cancel_btn = QPushButton("Cancel")
-        self.preview_cancel_btn.clicked.connect(self._cancel_preview)
-        preview_buttons.addWidget(self.preview_send_btn)
-        preview_buttons.addWidget(self.preview_original_btn)
-        preview_buttons.addWidget(self.preview_cancel_btn)
-        preview_layout.addLayout(preview_buttons)
-        chat_layout.addWidget(self.preview_panel)
+        # Prompt preview used to be a separate always-boxed QGroupBox panel here too (Send
+        # this / Send as typed instead / Cancel), shown ABOVE the input row. Replaced
+        # 2026-09-15 with _ask_preview_in_chat() for the same reason _ask_requirement_in_chat
+        # replaced the requirement-gate panel above: direct, repeated user feedback ("i prefer
+        # everything to be in the chat"). The reasoning + composed prompt now post as a normal
+        # chat message; the user answers by typing a reply -- see send_message()'s
+        # _awaiting_preview_reply branch and _PREVIEW_CONFIRM_REPLIES/_PREVIEW_CANCEL_REPLIES.
 
         # Input Area
         # Icon color for the 3 buttons below: they're all styled #iconButton, which falls back
@@ -373,6 +369,7 @@ class ChatTabWidget(QWidget):
         # be silently merged into a now-invisible original request instead of treated as its
         # own new message.
         self._awaiting_requirement_reply = False
+        self._awaiting_preview_reply = False
         self._populate_initial_chat()
 
     def _add_message(self, role, text):
@@ -586,6 +583,33 @@ class ChatTabWidget(QWidget):
             self._awaiting_requirement_reply = False
             self.input_edit.setPlaceholderText(self._default_input_placeholder)
 
+        # Answering the in-chat preview question (see _ask_preview_in_chat) -- this reply
+        # resolves the pending 3-way choice the old boxed panel used to offer as buttons:
+        # an affirmative reply sends the composed prompt, a cancel reply abandons it, and
+        # anything else is sent exactly as typed with no enrichment (the free-text
+        # equivalent of "Send as typed instead" -- confirmed with the user as the intended
+        # design, 2026-09-15). Fully resolves the turn itself, unlike the requirement-reply
+        # branch above (which merges and falls through) -- returns immediately either way.
+        if self._awaiting_preview_reply:
+            self._awaiting_preview_reply = False
+            original_text, pending_analysis = self._pending_analysis_text, self._pending_analysis
+            self._pending_analysis_text = None
+            self._pending_analysis = None
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+            reply_key = _normalize_preview_reply(text)
+            if reply_key in _PREVIEW_CONFIRM_REPLIES:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dispatch_message(original_text, pending_analysis)
+            elif reply_key in _PREVIEW_CANCEL_REPLIES:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "Okay, cancelled -- send a new message whenever you're ready.")
+            else:
+                # Edit fallback: exactly _send_preview_original's old behavior -- no manual
+                # echo here, _dispatch_message already echoes `text` itself.
+                self._dispatch_message(text, None)
+            return
+
         # A fresh send attempt abandons any still-open refinement panel from
         # a previous message -- the practical equivalent of spec §7's "user
         # closes the card without choosing" (this UI has no separate close/X
@@ -594,8 +618,6 @@ class ChatTabWidget(QWidget):
         # its _pending_refinement_text would linger orphaned.
         if self.refinement_panel.isVisible():
             self._hide_refinement_panel()
-        if self.preview_panel.isVisible():
-            self._cancel_preview()
 
         from ..agent.prompt_refiner import (
             analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
@@ -625,7 +647,7 @@ class ChatTabWidget(QWidget):
         self._pending_analysis = analysis
 
         if analysis.get("task") is not None and is_prompt_preview_enabled():
-            self._show_preview_panel(text, analysis)
+            self._ask_preview_in_chat(text, analysis)
             return
 
         agent = self._agent_provider() if self._agent_provider else None
@@ -665,75 +687,53 @@ class ChatTabWidget(QWidget):
 
     # ------------------------------------------------------ prompt preview --
 
-    def _show_preview_panel(self, original_text, analysis):
-        """Shows the exact prompt and the reasoning behind it, then waits."""
+    def _ask_preview_in_chat(self, original_text, analysis):
+        """Shows the exact prompt and the reasoning behind it as a normal chat message,
+        then waits for a typed reply -- same conversion, same rationale as
+        _ask_requirement_in_chat above (2026-09-15, direct repeated feedback: "i prefer
+        everything to be in the chat"). Unlike that gate's free-form merge, the reply here
+        resolves a genuine 3-way choice (send the composed prompt / send as typed instead /
+        cancel) -- see send_message()'s _awaiting_preview_reply branch for the interpretation."""
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
+        self._awaiting_preview_reply = True
         from ..agent import output_router
 
         lines = list(analysis.get("reasoning") or [])
         contract_line = output_router.describe_contract(analysis.get("contract"))
         if contract_line:
             lines.append(contract_line)
-        self.preview_reasoning.setText(
-            "<b>Why this prompt</b><ul>"
-            + "".join("<li>%s</li>" % escape_plain_text(l) for l in lines)
-            + "</ul>"
+        composed_prompt = analysis.get("optimum_prompt") or original_text
+        message = (
+            "**Why this prompt**\n"
+            + "".join("- %s\n" % l for l in lines)
+            + "\n```\n" + composed_prompt + "\n```\n"
+            + "\nReply to send this, or tell me what to change."
         )
-        self.preview_prompt.setPlainText(analysis.get("optimum_prompt") or original_text)
-        # Read-only while this panel is up: Send this / Send as typed instead
-        # both act on the original_text snapshot captured above, not on
-        # whatever is in the box right now. Without this, editing the box
-        # underneath the open panel and clicking either button silently sent
-        # the pre-edit text -- found in the UX audit dated 2026-08-31.
-        self.input_edit.setReadOnly(True)
-        self.preview_panel.setVisible(True)
-        self._clamp_dock_after_panel_change()
-
-    def _hide_preview_panel(self):
-        self.preview_panel.setVisible(False)
-        self.input_edit.setReadOnly(False)
-        self._clamp_dock_after_panel_change()
+        self.input_edit.clear()
+        self.input_edit.setPlaceholderText("Reply to confirm, or type what to change... (Enter to send)")
+        self.input_edit.setFocus()
+        self._dock.receiveMessageSignal.emit("ai", message)
 
     def _clamp_dock_after_panel_change(self):
-        """Real live report, 2026-09-15: showing this panel (a QGroupBox with its own
-        reasoning list, a fixed-height QTextEdit, and 3 buttons) genuinely grows the dock's
-        forced minimum size -- confirmed directly (696x572 minimum forced vs. a smaller
-        starting size) -- and a floating dock ending up past the available screen height is
-        exactly the known failure mode dock_widget.py's _clamp_to_screen_if_floating already
-        exists to catch (docstring there: 2026-09-12 report). That guard only runs from
-        resizeEvent, so it should already catch this -- but a QGroupBox becoming visible only
-        changes layout content, not necessarily generating a resize the same tick showing the
-        panel does, before the user sees a window that has grown past the screen. Calling the
-        same guard here too, right after the visibility change, closes that timing gap instead
-        of relying solely on whatever resizeEvent eventually follows."""
+        """Real live report, 2026-09-15: showing the (now-removed) prompt-preview panel --
+        a QGroupBox with its own reasoning list, a fixed-height QTextEdit, and 3 buttons --
+        genuinely grew the dock's forced minimum size -- confirmed directly (696x572 minimum
+        forced vs. a smaller starting size) -- and a floating dock ending up past the
+        available screen height is exactly the known failure mode dock_widget.py's
+        _clamp_to_screen_if_floating already exists to catch (docstring there: 2026-09-12
+        report). That guard only runs from resizeEvent, so it should already catch this -- but
+        a QGroupBox becoming visible only changes layout content, not necessarily generating a
+        resize the same tick showing a panel does, before the user sees a window that has
+        grown past the screen. Calling the same guard here too, right after any visibility
+        change, closes that timing gap instead of relying solely on whatever resizeEvent
+        eventually follows. The prompt-preview panel itself was replaced by
+        _ask_preview_in_chat() the same day -- this helper stays for the still-boxed
+        refinement_panel (_show_refinement_panel/_hide_refinement_panel), which can grow the
+        dock the same way."""
         clamp = getattr(self._dock, "_clamp_to_screen_if_floating", None)
         if callable(clamp):
             clamp()
-
-    def _send_previewed_prompt(self):
-        text = self._pending_analysis_text
-        analysis = self._pending_analysis
-        self._hide_preview_panel()
-        if text:
-            self._dispatch_message(text, analysis)
-
-    def _send_preview_original(self):
-        """Sends the user's own wording with no register enrichment at all --
-        the escape hatch for when the matched task is simply wrong."""
-        text = self._pending_analysis_text
-        self._hide_preview_panel()
-        if text:
-            self._dispatch_message(text, None)
-
-    def _cancel_preview(self):
-        self._hide_preview_panel()
-        text = self._pending_analysis_text
-        self._pending_analysis = None
-        self._pending_analysis_text = None
-        if text:
-            self.input_edit.setPlainText(text)
-            self.input_edit.setFocus()
 
     def _start_refinement(self, text, client):
         """Runs the refinement API call on a background thread -- it's a
@@ -884,9 +884,9 @@ class ChatTabWidget(QWidget):
         # starts -- QgsProject/layers aren't thread-safe to touch from run().
         map_ctx = get_map_context_summary()
         # analysis=None is meaningful, not "not supplied" -- it is exactly
-        # what _send_preview_original() passes to mean "skip the register's
-        # enrichment entirely" (the escape hatch for when the matched task is
-        # simply wrong). Every call site above passes its own analysis (or
+        # what send_message()'s _awaiting_preview_reply edit-fallback branch passes to mean
+        # "skip the register's enrichment entirely" (the escape hatch for when the matched
+        # task is simply wrong). Every call site above passes its own analysis (or
         # explicitly None) already, so there is no caller left that needs a
         # self._pending_analysis fallback here -- and a fallback used to sit
         # here, which silently undid "Send as typed instead": clicking it
