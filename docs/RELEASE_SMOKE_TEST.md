@@ -64,6 +64,41 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-14 — v1.15.6-rc1 (commit `86cc4f3`) — headless, targeted at the audit's own changes,
+run against the actually-built `dist/cartogen_ai_v1.15.6.zip`.** Not the full 16-item interactive
+checklist above (this was specifically the release-candidate gate for the 2026-09-13/14 audit
+remediation, `docs/audits/`) -- built the real zip via `python plugin_upload.py`, extracted it
+fresh (not the dev tree), added both `apps/qgis/python/plugins` (for `processing`) and the
+extracted zip's own `cartogen-ai/src` to `sys.path` via `python-qgis.bat`, same technique as the
+v1.12.0 run below. 7/7 checks passed, each exercising a real PyQGIS call, not a mock:
+
+1. **Plugin imports cleanly from the packaged zip** (not the dev tree -- confirmed via
+   `__file__` path) with all 169 tools registered in `TOOL_REGISTRY`.
+2. **`buffer_analysis`** ran a real `native:buffer` `processing.run()` call against a real
+   in-memory point layer and added the resulting buffered layer to the project.
+3. **`apply_raster_stretch`** (QGIS-005's None-guard fix site) ran against a real GDAL-written
+   GeoTIFF and returned success -- confirms the new explicit enum-resolution check didn't
+   break the real, currently-resolving-fine path on this QGIS version. One benign
+   `DeprecationWarning` surfaced (`QgsRasterInterface.bandStatistics()` -- `Qgis.RasterBandStatistic`
+   preferred over a bare `int` going forward); noted as a low-priority future-compat item, not
+   a failure -- the call still works correctly today.
+4. **`calculate_severity_index`** (QGIS-008's confirmation gate) fired `PREVIEW_REQUIRED`
+   against a real 3-feature layer with `confirmed` omitted, confirmed the field did NOT exist
+   yet, then actually wrote the field for real once called again with `confirmed=True`.
+5. **PERF-001's mitigation** -- confirmed live (not just via the test suite) that
+   `fetch_nasa_active_fires`/`fetch_nasa_eonet_events`/`fetch_gdacs_disaster_alerts` are absent
+   from `_ALLOWED_WORKFLOW_TOOLS` in the actually-packaged code.
+6. **PERF-002's mitigation** -- confirmed `_MAX_HUB_SITING_PAIRS` and its guard function exist
+   and reject an oversized pair count in the packaged code.
+7. **Dock/Chat widget** construct cleanly from the packaged code (`QgsApplication` + real `QApplication`,
+   offscreen platform) and API-007's `_attachment_disclosure_note()` is present and callable.
+
+Package provenance recorded alongside this run: `dist/cartogen_ai_v1.15.6.zip`, sha256
+`90ad75c4d86969f9889765451e16a1a4eacdc2b540f2960fd80123784ae33439`, built from commit `86cc4f3`
+(tag `commercial-plugin-v1.15.6-rc1`). Not run: the full 16-category interactive checklist above
+(this was a targeted regression gate for the audit's specific changes, not a general release
+smoke test) -- a full run is still recommended before any final (non-rc) release.
+
 **2026-09-12 — v1.11.0 + v1.12.0 — headless, not the full interactive checklist above, run
 against the actually-released v1.12.0 zip.** Both releases are from the same real-session
 user-feedback thread; v1.11.0 never got its own logged run before v1.12.0 shipped the same day,
