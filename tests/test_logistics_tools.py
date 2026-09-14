@@ -863,6 +863,7 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         far_feat.attribute.return_value = "far"
 
         candidates_layer.getFeatures.return_value = [near_feat, far_feat]
+        candidates_layer.featureCount.return_value = 2  # PERF-002 pair-count guard
 
         def side_effect(name):
             return {"candidates": candidates_layer, "demand": demand_layer}.get(name)
@@ -874,6 +875,66 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         self.assertEqual(res["demand_point_count"], 3)
         self.assertEqual(res["ranked_candidates"][0]["candidate"], "near")
         self.assertEqual(res["ranked_candidates"][1]["candidate"], "far")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_warns_when_candidate_layer_is_geographic(self, mock_find):
+        """QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis already
+        warns about -- distances here are raw, unconverted CRS-unit values, degrees on a
+        geographic CRS despite the tool's own docstring saying 'usually meters'."""
+        demand_layer = MagicMock()
+        g = MagicMock()
+        g.isEmpty.return_value = False
+        f = MagicMock()
+        f.geometry.return_value = g
+        demand_layer.getFeatures.return_value = [f]
+
+        candidates_layer = MagicMock()
+        cand_geom = MagicMock()
+        cand_geom.isEmpty.return_value = False
+        cand_geom.distance.return_value = 1.0
+        cand_feat = MagicMock()
+        cand_feat.geometry.return_value = cand_geom
+        cand_feat.fields.return_value.count.return_value = 1
+        cand_feat.attribute.return_value = "A"
+        candidates_layer.getFeatures.return_value = [cand_feat]
+        candidates_layer.featureCount.return_value = 1  # PERF-002 pair-count guard
+        candidates_layer.crs.return_value.isGeographic.return_value = True
+        candidates_layer.crs.return_value.authid.return_value = "EPSG:4326"
+
+        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+
+        res = optimal_hub_siting("candidates", "demand")
+        self.assertIn("warning", res)
+        self.assertIn("DEGREES", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_rejects_an_oversized_candidate_times_demand_pair_count(self, mock_find):
+        """PERF-002, 2026-09-14 audit: candidate x demand distance computation is O(pairs)
+        pure Python with no upper bound -- this proves the new safety cap actually engages
+        (and does so BEFORE the expensive distance() loop runs, not after) for an input
+        that would exceed it, instead of freezing the QGIS main thread."""
+        demand_layer = MagicMock()
+        demand_geom = MagicMock()
+        demand_geom.isEmpty.return_value = False
+        demand_feat = MagicMock()
+        demand_feat.geometry.return_value = demand_geom
+        demand_layer.getFeatures.return_value = [demand_feat] * 10
+
+        candidates_layer = MagicMock()
+        candidates_layer.featureCount.return_value = 1_000_000  # 1M x 10 = 10M pairs > cap
+        # getFeatures() must never even be consulted -- the cap check happens first.
+        candidates_layer.getFeatures.side_effect = AssertionError(
+            "must not iterate candidate features once the pair-count cap is exceeded"
+        )
+
+        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+
+        res = optimal_hub_siting("candidates", "demand")
+        self.assertIn("error", res)
+        self.assertIn("safety limit", res["error"])
+        self.assertIn("1,000,000", res["error"])
 
 
 def _dist(a, b):
@@ -942,6 +1003,7 @@ class TestLocationAllocationValidation(unittest.TestCase):
         cand_feat.geometry.return_value = cand_geom
         cand_feat.fields.return_value.count.return_value = 0
         candidates_layer.getFeatures.return_value = [cand_feat]
+        candidates_layer.featureCount.return_value = 1  # PERF-002 pair-count guard
 
         demand_layer = MagicMock()
         demand_feat = MagicMock()
@@ -1080,7 +1142,9 @@ class TestOptimizeDeliveryRouteRoadSnapping(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_without_road_network_returns_straight_line_warning(self, mock_find):
-        mock_find.return_value = _stop_layer(["a", "b", "c"])
+        layer = _stop_layer(["a", "b", "c"])
+        layer.crs.return_value.isGeographic.return_value = False
+        mock_find.return_value = layer
 
         res = optimize_delivery_route("stops")
 
@@ -1088,6 +1152,25 @@ class TestOptimizeDeliveryRouteRoadSnapping(unittest.TestCase):
         self.assertNotIn("route_layer", res)
         self.assertIn("warning", res)
         self.assertIn("straight-line", res["warning"])
+        self.assertNotIn("DEGREES", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_geographic_stops_layer_extends_the_straight_line_warning(self, mock_find):
+        """QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis already
+        warns about -- the straight-line distance_matrix is a raw, unconverted CRS-unit
+        distance, with total_distance carrying no unit label at all."""
+        layer = _stop_layer(["a", "b", "c"])
+        layer.crs.return_value.isGeographic.return_value = True
+        layer.crs.return_value.authid.return_value = "EPSG:4326"
+        mock_find.return_value = layer
+
+        res = optimize_delivery_route("stops")
+
+        self.assertTrue(res["success"])
+        self.assertIn("warning", res)
+        self.assertIn("DEGREES", res["warning"])
+        self.assertIn("EPSG:4326", res["warning"])
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
@@ -1339,6 +1422,66 @@ class TestScoreRouteIncidentRiskDegradesOutsideQgis(unittest.TestCase):
         res = score_route_incident_risk("route", "incidents", 500, weight_field="severity_score")
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
+
+
+class TestScoreRouteIncidentRiskPropagatesCrsWarning(unittest.TestCase):
+    """QGIS-006/QGIS-007, 2026-09-13 audit: this tool used to discard buffer_analysis's own
+    CRS warning entirely (only checked "error" in buffer_result) -- the same underlying
+    geographic-CRS issue also silently mislabels distance_to_route_m as meters when it's
+    actually degrees, the more safety-relevant half of the bug since this tool exists
+    specifically to score incident proximity to a route for humanitarian/security decisions."""
+
+    def _run(self, buffer_warning):
+        route = MagicMock()
+        route_geom = MagicMock()
+        route_geom.isEmpty.return_value = False
+        route_geom.distance.return_value = 42.0
+        route_feat = MagicMock()
+        route_feat.geometry.return_value = route_geom
+        route.getFeatures.return_value = [route_feat]
+
+        incidents = MagicMock()
+        incidents.fields.return_value = []
+        incident_geom = MagicMock()
+        incident_geom.isEmpty.return_value = False
+        incident_feat = MagicMock()
+        incident_feat.geometry.return_value = incident_geom
+        incident_feat.id.return_value = 1
+        incidents.getFeatures.return_value = [incident_feat]
+
+        buffer_layer = MagicMock()
+        buffer_geom = MagicMock()
+        buffer_geom.isEmpty.return_value = False
+        buffer_geom.intersects.return_value = True
+        buffer_feat = MagicMock()
+        buffer_feat.geometry.return_value = buffer_geom
+        buffer_layer.getFeatures.return_value = [buffer_feat]
+
+        def fake_find(name):
+            return {"route": route, "incidents": incidents, "route_buffer_500": buffer_layer}.get(name)
+
+        buffer_result = {"success": True, "layer_name": "route_buffer_500"}
+        if buffer_warning:
+            buffer_result["warning"] = buffer_warning
+
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name", side_effect=fake_find), \
+             patch("cartogen_ai.core.agent.tools.logistics_tools.buffer_analysis", return_value=buffer_result), \
+             patch("cartogen_ai.core.agent.tools.logistics_tools._style_risk_buffer_layer"):
+            return score_route_incident_risk("route", "incidents", 500)
+
+    def test_no_warning_when_buffer_analysis_reports_none(self):
+        res = self._run(buffer_warning=None)
+        self.assertTrue(res["success"])
+        self.assertNotIn("warning", res)
+
+    def test_geographic_crs_warning_is_propagated_and_extended(self):
+        res = self._run(buffer_warning="'route' is in a geographic CRS (EPSG:4326), so distance=500 was applied in DEGREES.")
+        self.assertTrue(res["success"])
+        self.assertIn("warning", res)
+        self.assertIn("EPSG:4326", res["warning"])
+        self.assertIn("distance_to_route_m", res["warning"])
+        self.assertIn("DEGREES", res["warning"])
 
 
 if __name__ == "__main__":

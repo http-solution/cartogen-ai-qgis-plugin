@@ -319,5 +319,64 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
         self.assertIn("before", res["coding_warnings"][0])
 
 
+class TestStylingFailureDoesNotBlockNewLayerCreation(unittest.TestCase):
+    """QGIS-009, 2026-09-14 audit: _style_incident_layer/_style_named_point_layer used to run
+    unguarded right after a brand-new shared layer was added to the project -- a styling
+    failure (e.g. an unresolved QGIS enum, same class as QGIS-004/005) would raise past that
+    point, so the point/feature the caller actually asked for never got added, even though the
+    layer now exists in the project (already added a line earlier) -- and since styling only
+    ever runs on first creation, every later call reusing that same layer would never retry it
+    either. Styling is cosmetic; a failure there must not block the tool's actual job."""
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._style_incident_layer")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    def test_add_incident_point_still_succeeds_when_styling_raises(
+        self, mock_project, mock_vector_layer_cls, mock_feature_cls, mock_geom, mock_point, mock_style
+    ):
+        new_layer = _mock_incident_layer(ALL_INCIDENT_FIELDS)
+        new_layer.isValid.return_value = True
+        mock_vector_layer_cls.return_value = new_layer
+        mock_project.instance.return_value.mapLayersByName.return_value = []  # no existing layer
+        mock_style.side_effect = RuntimeError("Could not resolve ShapeType enum in this QGIS version.")
+
+        res = add_incident_point(31.95, 35.93, "2026-03-14", "Test incident")
+
+        self.assertTrue(res.get("success"), res)
+        mock_project.instance.return_value.addMapLayer.assert_called_once_with(new_layer)
+        mock_style.assert_called_once_with(new_layer)
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._style_named_point_layer")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.QGIS_AVAILABLE", True)
+    def test_add_point_layer_still_succeeds_when_styling_raises(
+        self, mock_project, mock_vector_layer_cls, mock_feature_cls, mock_geom, mock_point, mock_style
+    ):
+        field_names = ("name", "description", "category")
+        new_layer = MagicMock()
+        new_layer.isValid.return_value = True
+        new_layer.addFeature.return_value = True
+        new_layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
+        for f, n in zip(new_layer.fields.return_value, field_names):
+            f.name.return_value = n
+        mock_vector_layer_cls.return_value = new_layer
+        mock_project.instance.return_value.mapLayersByName.return_value = []  # no existing layer
+        mock_style.side_effect = RuntimeError("Could not resolve ShapeType enum in this QGIS version.")
+
+        res = add_point_layer("Embassies", [{"lat": 31.95, "lon": 35.93, "name": "Embassy"}])
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res.get("added"), 1)
+        mock_style.assert_called_once_with(new_layer)
+
+
 if __name__ == "__main__":
     unittest.main()

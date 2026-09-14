@@ -82,5 +82,40 @@ class TestStacCacheAndQuota(unittest.TestCase):
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
 
 
+class TestInspectCanvasVisually(unittest.TestCase):
+    """inspect_canvas_visually: no test coverage at all before QUAL-006 (2026-09-14
+    audit)."""
+
+    def test_degrades_outside_qgis(self):
+        res = mrs.inspect_canvas_visually()
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.QGIS_AVAILABLE", True)
+    def test_reports_error_when_iface_is_none(self, mock_iface):
+        with patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.iface", None):
+            res = mrs.inspect_canvas_visually()
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.QGIS_AVAILABLE", True)
+    def test_success_captures_canvas_and_returns_base64_image(self, mock_iface):
+        res = mrs.inspect_canvas_visually(prompt_guidance="check for flooding")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["prompt_guidance"], "check for flooding")
+        self.assertEqual(res["mime"], "png")
+        self.assertIn("image_b64", res)
+        mock_iface.mapCanvas.return_value.saveAsImage.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.multimodal_remote_sensing.QGIS_AVAILABLE", True)
+    def test_canvas_capture_exception_is_reported_not_raised(self, mock_iface):
+        mock_iface.mapCanvas.return_value.saveAsImage.side_effect = RuntimeError("no display")
+        res = mrs.inspect_canvas_visually()
+        self.assertIn("error", res)
+        self.assertIn("inspect_canvas_visually failed", res["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

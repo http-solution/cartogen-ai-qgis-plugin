@@ -9,7 +9,13 @@ pypdf
 python-docx
 openpyxl
 pandas
-duckduckgo-search
+# Pinned to a floor, unlike everything else in this file (QUAL-004, 2026-09-13 audit):
+# duckduckgo-search has no official API -- it scrapes DuckDuckGo's own response format,
+# has a documented history of breaking on upstream changes, and the PyPI package itself
+# has since been renamed (duckduckgo-search -> ddgs, old name now a thin compat shim).
+# >=8.1.1 is the version search_web (system_tools.py) is actually tested against; <9
+# avoids an untested future major-version jump silently changing DDGS's API shape.
+duckduckgo-search>=8.1.1,<9
 pdfplumber
 matplotlib
 folium
@@ -26,4 +32,12 @@ folium
 # "PermissionError: [WinError 5] Access is denied" on a locked .pyd file.
 # Confirmed in real use, not hypothetical -- see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md.
 # Close QGIS, install (qpip or OSGeo4W Shell), then reopen QGIS.
+#
+# LICENSE NOTE (SEC-003, 2026-09-14 audit): ultralytics is dual-licensed AGPL-3.0/commercial
+# upstream -- a different, stricter license than this project's own GPL-2.0-only (LICENSE
+# file). It is never bundled or distributed with this plugin -- the user installs it
+# separately, at their own option, only if they want imagery-extraction. This note documents
+# that fact for anyone auditing dependency licenses; it does not itself resolve whether that
+# combination needs further review for a specific distribution/commercial use of this plugin --
+# that judgment call belongs with whoever owns this project's licensing decisions, not here.
 ultralytics

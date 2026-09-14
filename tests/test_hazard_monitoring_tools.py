@@ -85,6 +85,25 @@ class TestFetchNasaActiveFiresNetworkPhase(unittest.TestCase):
         self.assertEqual(res["detections"][0]["confidence"], "high")
         self.assertIn("unit", res["detections"][0])
 
+    @patch("cartogen_ai.core.agent.tools._urllib_retry.time.sleep")
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="TESTKEY")
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_retries_on_transient_503_then_succeeds(self, mock_urlopen, mock_cred, mock_sleep):
+        # API-003, 2026-09-14 audit: this fetch used to have zero retry/backoff at all --
+        # unlike every LLM provider call, a single transient 5xx failed the whole tool call
+        # outright, on a tool specifically designed to be re-run on a recurring schedule.
+        import io
+        import urllib.error
+        csv_body = (
+            "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight\n"
+            "31.95,35.93,330.5,0.4,0.4,2026-09-12,0130,N,high,2.0NRT,290.1,12.3,N\n"
+        )
+        err = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, io.BytesIO())
+        mock_urlopen.side_effect = [err, _mock_response(csv_body)]
+        res = hz.fetch_nasa_active_fires_network_phase([34.9, 30.9, 35.2, 31.3])
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(mock_urlopen.call_count, 2)
+
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="BADKEY")
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
     def test_firms_error_body_detected(self, mock_urlopen, mock_cred):

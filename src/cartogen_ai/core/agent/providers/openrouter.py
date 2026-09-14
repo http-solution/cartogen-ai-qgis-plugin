@@ -1,7 +1,7 @@
 import json
 import time
 import requests
-from .base import BaseAiProvider, post_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage
+from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
 from ..model_selector import filter_chat_model_ids
 
 
@@ -11,7 +11,7 @@ def list_models(api_key=None):
     in case it unlocks account-specific models."""
     try:
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        response = requests.get(
+        response = get_with_retry(
             "https://openrouter.ai/api/v1/models",
             headers=headers,
             timeout=15,
@@ -21,9 +21,9 @@ def list_models(api_key=None):
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
     except requests.exceptions.HTTPError as e:
-        return {"error": f"OpenRouter models list failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("OpenRouter models list failed", e)}
     except Exception as e:
-        return {"error": f"OpenRouter models list request failed: {e}"}
+        return {"error": format_request_exception("OpenRouter models list request failed", e)}
 
 FALLBACK_MODELS = [
     # Auto-router: OpenRouter itself picks a currently-free model. Listed first because
@@ -135,15 +135,27 @@ class OpenRouterClient(BaseAiProvider):
                             )
                         continue
                     response.raise_for_status()
-                    return {"ok": True, "data": response.json(), "model": model_id}
+                    # API-006, 2026-09-14 audit: response.json() used to be called directly in
+                    # the return statement above -- a malformed/non-JSON body (a proxy error
+                    # page, a truncated response) raised json.JSONDecodeError here, uncaught by
+                    # either except clause below (both only catch requests.exceptions.*), and
+                    # propagated all the way out of complete() uncaught. OpenAI/Gemini/Cartogen's
+                    # equivalent complete() methods already wrap this same call in a broad
+                    # except Exception, so they didn't have this specific gap -- OpenRouter's own
+                    # narrower per-clause exception handling here is what needed the explicit fix.
+                    try:
+                        data = response.json()
+                    except ValueError as e:
+                        return {"ok": False, "error": f"Response was not valid JSON: {e}", "model": model_id}
+                    return {"ok": True, "data": data, "model": model_id}
                 except requests.exceptions.HTTPError as e:
                     return {
                         "ok": False,
-                        "error": f"HTTP {e.response.status_code}: {e.response.text}",
+                        "error": format_http_error("HTTP error", e),
                         "model": model_id,
                     }
                 except requests.exceptions.RequestException as e:
-                    return {"ok": False, "error": f"Request failed: {e}", "model": model_id}
+                    return {"ok": False, "error": format_request_exception("Request failed", e), "model": model_id}
 
             if not any_rate_limited:
                 # Every model in the chain 404'd — none were merely rate-limited, so

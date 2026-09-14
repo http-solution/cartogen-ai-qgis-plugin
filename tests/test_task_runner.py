@@ -61,6 +61,39 @@ class TestAgentQgsTaskRun(unittest.TestCase):
         self.assertIsNone(client.set_status_callback.call_args.args[0])
 
 
+class TestAgentQgsTaskFinished(unittest.TestCase):
+    """QGIS-001, 2026-09-13 audit: finished() (called on the main Qt GUI thread by QGIS's
+    task manager) used to invoke on_complete with no exception guard at all, unlike run()
+    (background thread), which does. on_complete is a closure that can touch a live, or
+    by-then-destroyed, Qt widget -- an exception there must never propagate uncaught back
+    into QGIS's own task-manager machinery."""
+
+    def test_on_complete_exception_is_caught_not_propagated(self):
+        agent = _FakeAgent(response="ok")
+        task = _make_bare_task("desc", agent, "hello", on_complete=MagicMock(side_effect=RuntimeError("dock widget deleted")))
+        task.run()
+        # Must not raise -- the whole point of the fix.
+        task.finished(True)
+        task.on_complete.assert_called_once_with("ok", None)
+
+    def test_on_complete_still_fires_normally_when_it_does_not_raise(self):
+        agent = _FakeAgent(response="ok")
+        on_complete = MagicMock()
+        task = _make_bare_task("desc", agent, "hello", on_complete=on_complete)
+        task.run()
+        task.finished(True)
+        on_complete.assert_called_once_with("ok", None)
+
+    def test_on_complete_exception_is_caught_on_the_failure_path_too(self):
+        agent = _FakeAgent(raise_error=RuntimeError("boom"))
+        task = _make_bare_task("desc", agent, "hello", on_complete=MagicMock(side_effect=RuntimeError("dock widget deleted")))
+        task.run()
+        task.finished(False)  # must not raise
+        args = task.on_complete.call_args.args
+        self.assertIsNone(args[0])
+        self.assertIn("boom", args[1])
+
+
 class TestFallbackTaskCancellation(unittest.TestCase):
     """These exercise run_agent_task's non-QgsTask fallback thread path,
     which is exactly what runs in this test environment (QGIS_TASK_AVAILABLE

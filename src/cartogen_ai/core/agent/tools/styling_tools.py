@@ -440,6 +440,12 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             method_label = "Manual (defined breaks)"
         else:
             method = _resolve_classification_method(classification["method"])
+            # QGIS-005, 2026-09-14 audit: method could be None if none of Jenks/
+            # EqualInterval/Quantile resolved in this QGIS version -- previously passed
+            # straight to createRenderer() below with no explicit check (see QGIS-004's
+            # identical class of gap). Today inert (all 3 resolve fine currently).
+            if method is None:
+                return {"error": "Could not resolve a classification-mode enum in this QGIS version."}
             renderer = QgsGraduatedSymbolRenderer.createRenderer(
                 layer,
                 field,
@@ -515,6 +521,9 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
 
         classification = _classify_values(values, mode)
         method = _resolve_classification_method(classification["method"])
+        # QGIS-005, 2026-09-14 audit: see the identical guard's comment above (apply_graduated_style).
+        if method is None:
+            return {"error": "Could not resolve a classification-mode enum in this QGIS version."}
         num_classes = 5 if len(set(values)) >= 5 else max(2, len(set(values)))
 
         renderer = QgsGraduatedSymbolRenderer.createRenderer(

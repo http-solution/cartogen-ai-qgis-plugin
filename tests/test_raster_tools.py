@@ -12,6 +12,9 @@ from cartogen_ai.core.agent.tools.raster_tools import (
     elevation_profile, georeference_image, estimate_population_exposure,
     calculate_ndvi, calculate_ndwi, calculate_ndre,
     apply_raster_stretch, _auto_raster_style, _describe_population_raster,
+    _run_raster_and_add, slope_analysis, aspect_analysis, zonal_statistics,
+    raster_clip, unsupervised_classification, supervised_classification,
+    mosaic_rasters, band_composite, pan_sharpening,
 )
 
 
@@ -423,6 +426,376 @@ class TestApplyRasterStretchValidation(unittest.TestCase):
         # TestWeightedOverlayAnalysisValidation above).
         apply_raster_stretch("some_raster", mode="stretch", min_value=0, max_value=1)
         layer.dataProvider.return_value.bandStatistics.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._RBS_MIN", None)
+    def test_unresolved_raster_stats_enum_reports_a_clear_error(self, mock_find):
+        # QGIS-005, 2026-09-14 audit: _RBS_MIN/etc. used to be usable with no explicit check --
+        # a genuine resolution failure surfaced as a raw Python TypeError from `None | None`
+        # instead of a clear message, same class of gap QGIS-004 fixed for _VFW_NO_ERROR.
+        layer = MagicMock()
+        layer.bandCount.return_value = 1
+        mock_find.return_value = layer
+        res = apply_raster_stretch("single_band_raster", band=1)
+        self.assertIn("error", res)
+        self.assertIn("Could not resolve", res["error"])
+
+
+class TestRunRasterAndAdd(unittest.TestCase):
+    """QUAL-006, 2026-09-14 audit: _run_raster_and_add is the shared helper 9 previously
+    zero-coverage raster tools (slope_analysis, aspect_analysis, zonal_statistics,
+    raster_clip, unsupervised_classification, supervised_classification, mosaic_rasters,
+    band_composite, pan_sharpening) all route through -- none of them, nor the helper
+    itself, ever had a real success-path test before this (only degrade-outside-QGIS
+    existed for the sibling calculate_ndvi/ndwi/ndre, which use it too). Tested thoroughly
+    once here; each tool's own test class below only needs to prove ITS wiring (which
+    algorithm, which params) is correct, by mocking this helper directly."""
+
+    def test_degrades_outside_qgis(self):
+        res = _run_raster_and_add("native:slope", {"INPUT": None}, "out")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsRasterLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_success_path_adds_layer_and_returns_layer_name(self, mock_processing, mock_layer_cls, mock_project):
+        # _temp_raster_path() creates a REAL (empty) temp file via tempfile.mkstemp, so
+        # os.path.exists(out_path) is genuinely true here -- no need to mock the filesystem.
+        new_layer = MagicMock()
+        new_layer.isValid.return_value = True
+        mock_layer_cls.return_value = new_layer
+
+        params = {"INPUT": "fake-layer-object"}
+        res = _run_raster_and_add("native:slope", params, "DEM_slope")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["layer_name"], "DEM_slope")
+        mock_processing.run.assert_called_once()
+        alg_name, alg_params = mock_processing.run.call_args[0]
+        self.assertEqual(alg_name, "native:slope")
+        self.assertIn("OUTPUT", alg_params)  # default output_key
+        mock_project.instance.return_value.addMapLayer.assert_called_once_with(new_layer)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsRasterLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_custom_output_key_is_used_for_the_output_path(self, mock_processing, mock_layer_cls, mock_project):
+        # unsupervised_classification/supervised_classification pass output_key="CLUSTER"/
+        # "CLASSES" instead of the SAGA-incompatible default "OUTPUT" -- confirms that
+        # actually reaches processing.run's params, not just accepted and ignored.
+        mock_layer_cls.return_value = MagicMock(isValid=lambda: True)
+        _run_raster_and_add("saga:kmeansclassificationforgrid", {"GRIDS": []}, "out", output_key="CLUSTER")
+        _, alg_params = mock_processing.run.call_args[0]
+        self.assertIn("CLUSTER", alg_params)
+        self.assertNotIn("OUTPUT", alg_params)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QgsRasterLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_invalid_generated_layer_reports_a_clear_error(self, mock_processing, mock_layer_cls):
+        mock_layer_cls.return_value = MagicMock(isValid=lambda: False)
+        res = _run_raster_and_add("native:slope", {"INPUT": "x"}, "out")
+        self.assertIn("error", res)
+        self.assertIn("invalid", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_processing_exception_is_caught_and_reported(self, mock_processing):
+        mock_processing.run.side_effect = RuntimeError("GDAL error: no such algorithm")
+        res = _run_raster_and_add("native:slope", {"INPUT": "x"}, "out")
+        self.assertIn("error", res)
+        self.assertIn("native:slope failed", res["error"])
+
+
+class TestSlopeAndAspectAnalysis(unittest.TestCase):
+    """slope_analysis/aspect_analysis: no test coverage at all before QUAL-006."""
+
+    def test_slope_degrades_outside_qgis(self):
+        res = slope_analysis("dem")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_aspect_degrades_outside_qgis(self):
+        res = aspect_analysis("dem")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name", return_value=None)
+    def test_slope_reports_missing_layer(self, mock_find):
+        res = slope_analysis("ghost_dem")
+        self.assertIn("error", res)
+        self.assertIn("ghost_dem", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_slope_calls_native_slope_with_the_dem_layer(self, mock_find, mock_run):
+        dem = MagicMock()
+        mock_find.return_value = dem
+        mock_run.return_value = {"success": True, "layer_name": "dem_slope"}
+
+        res = slope_analysis("dem")
+
+        self.assertTrue(res["success"])
+        mock_run.assert_called_once()
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:slope")
+        self.assertIs(params["INPUT"], dem)
+        self.assertEqual(new_name, "dem_slope")
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_aspect_calls_native_aspect_with_the_dem_layer(self, mock_find, mock_run):
+        dem = MagicMock()
+        mock_find.return_value = dem
+        mock_run.return_value = {"success": True, "layer_name": "dem_aspect"}
+
+        res = aspect_analysis("dem")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:aspect")
+        self.assertIs(params["INPUT"], dem)
+
+
+class TestZonalStatisticsTool(unittest.TestCase):
+    """zonal_statistics: no test coverage at all before QUAL-006. Doesn't use
+    _run_raster_and_add (writes attributes onto the vector layer in place instead), so
+    tested against a directly-mocked processing.run."""
+
+    def test_degrades_outside_qgis(self):
+        res = zonal_statistics("dem", "zones")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_reports_missing_raster_layer(self, mock_find):
+        mock_find.side_effect = lambda name: None if name == "dem" else MagicMock()
+        res = zonal_statistics("dem", "zones")
+        self.assertIn("error", res)
+        self.assertIn("dem", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_reports_missing_vector_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "dem" else None
+        res = zonal_statistics("dem", "zones")
+        self.assertIn("error", res)
+        self.assertIn("zones", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_success_runs_qgis_zonalstatistics_with_both_layers(self, mock_find, mock_processing):
+        ras, vec = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"dem": ras, "zones": vec}[name]
+
+        res = zonal_statistics("dem", "zones")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertIn("zones", res["message"])
+        alg, params = mock_processing.run.call_args[0]
+        self.assertEqual(alg, "qgis:zonalstatistics")
+        self.assertIs(params["INPUT_RASTER"], ras)
+        self.assertIs(params["INPUT_VECTOR"], vec)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_processing_exception_is_reported_not_raised(self, mock_find, mock_processing):
+        mock_find.side_effect = lambda name: MagicMock()
+        mock_processing.run.side_effect = RuntimeError("boom")
+        res = zonal_statistics("dem", "zones")
+        self.assertIn("error", res)
+        self.assertIn("zonal_statistics failed", res["error"])
+
+
+class TestRasterClipTool(unittest.TestCase):
+    """raster_clip: no test coverage at all before QUAL-006."""
+
+    def test_degrades_outside_qgis(self):
+        res = raster_clip("dem", "mask")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_reports_missing_mask_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "dem" else None
+        res = raster_clip("dem", "mask")
+        self.assertIn("error", res)
+        self.assertIn("mask", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_calls_gdal_clip_with_crop_to_cutline(self, mock_find, mock_run):
+        ras, mask = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"dem": ras, "mask": mask}[name]
+        mock_run.return_value = {"success": True, "layer_name": "dem_clipped"}
+
+        res = raster_clip("dem", "mask")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "gdal:cliprasterbymasklayer")
+        self.assertIs(params["INPUT"], ras)
+        self.assertIs(params["MASK"], mask)
+        self.assertTrue(params["CROP_TO_CUTLINE"])
+        self.assertEqual(new_name, "dem_clipped")
+
+
+class TestClassificationTools(unittest.TestCase):
+    """unsupervised_classification/supervised_classification: no test coverage at all
+    before QUAL-006."""
+
+    def test_unsupervised_degrades_outside_qgis(self):
+        res = unsupervised_classification("img", 5)
+        self.assertIn("error", res)
+
+    def test_supervised_degrades_outside_qgis(self):
+        res = supervised_classification("img", "training")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_unsupervised_passes_num_classes_as_clusters_and_custom_output_key(self, mock_find, mock_run):
+        img = MagicMock()
+        mock_find.return_value = img
+        mock_run.return_value = {"success": True, "layer_name": "img_classified"}
+
+        res = unsupervised_classification("img", 7)
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "saga:kmeansclassificationforgrid")
+        self.assertEqual(params["CLUSTERS"], 7)
+        self.assertEqual(mock_run.call_args[1]["output_key"], "CLUSTER")
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name", return_value=None)
+    def test_supervised_reports_missing_raster_layer(self, mock_find):
+        res = supervised_classification("img", "training")
+        self.assertIn("error", res)
+        self.assertIn("img", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_supervised_passes_training_layer_and_custom_output_key(self, mock_find, mock_run):
+        img, training = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"img": img, "training": training}[name]
+        mock_run.return_value = {"success": True, "layer_name": "img_classified"}
+
+        res = supervised_classification("img", "training")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "saga:supervisedclassificationforgrids")
+        self.assertIs(params["TRAINING"], training)
+        self.assertEqual(mock_run.call_args[1]["output_key"], "CLASSES")
+
+
+class TestMosaicBandCompositePanSharpening(unittest.TestCase):
+    """mosaic_rasters/band_composite/pan_sharpening: no test coverage at all before
+    QUAL-006."""
+
+    def test_mosaic_degrades_outside_qgis(self):
+        res = mosaic_rasters(["a", "b"])
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_mosaic_rejects_fewer_than_two_rasters(self):
+        res = mosaic_rasters(["only_one"])
+        self.assertIn("error", res)
+        self.assertIn("at least 2", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_mosaic_reports_first_missing_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "a" else None
+        res = mosaic_rasters(["a", "b"])
+        self.assertIn("error", res)
+        self.assertIn("b", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_mosaic_passes_every_resolved_layer_to_gdal_merge(self, mock_find, mock_run):
+        a, b, c = MagicMock(), MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"a": a, "b": b, "c": c}[name]
+        mock_run.return_value = {"success": True, "layer_name": "mosaic_raster"}
+
+        res = mosaic_rasters(["a", "b", "c"])
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "gdal:merge")
+        self.assertEqual(params["INPUT"], [a, b, c])
+        self.assertFalse(params["SEPARATE"])
+
+    def test_band_composite_degrades_outside_qgis(self):
+        res = band_composite("rgb", "r", "g", "b")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_band_composite_reports_any_missing_band(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name != "blue" else None
+        res = band_composite("rgb", "red", "green", "blue")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_band_composite_uses_separate_true_for_gdal_merge(self, mock_find, mock_run):
+        r, g, b = MagicMock(), MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"red": r, "green": g, "blue": b}[name]
+        mock_run.return_value = {"success": True, "layer_name": "rgb"}
+
+        res = band_composite("rgb", "red", "green", "blue")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "gdal:merge")
+        self.assertEqual(params["INPUT"], [r, g, b])
+        self.assertTrue(params["SEPARATE"])
+        self.assertEqual(new_name, "rgb")
+
+    def test_pan_sharpening_degrades_outside_qgis(self):
+        res = pan_sharpening("ms", "pan")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_pan_sharpening_reports_missing_pan_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "ms" else None
+        res = pan_sharpening("ms", "pan")
+        self.assertIn("error", res)
+        self.assertIn("pan", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_pan_sharpening_wires_spectral_and_panchromatic_bands(self, mock_find, mock_run):
+        ms, pan = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"ms": ms, "pan": pan}[name]
+        mock_run.return_value = {"success": True, "layer_name": "ms_pansharpened"}
+
+        res = pan_sharpening("ms", "pan")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "gdal:pansharpening")
+        self.assertIs(params["SPECTRAL"], ms)
+        self.assertIs(params["PANCHROMATIC"], pan)
 
 
 if __name__ == "__main__":

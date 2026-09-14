@@ -83,10 +83,30 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 
 ## Editions
 
+> **CORRECTION (2026-09-14, verified via `git remote -v` + authenticated `gh repo view`,
+> resolving a real conflict an external audit flagged between this section and
+> `docs/MASTER_TASK_REGISTRY.md`):** the GitHub remote this checkout's `origin` actually points
+> to (`cartogenai-glitch/CARTOGEN-AI`) is **PRIVATE**, not public — confirmed with an
+> authenticated API call, not guessed. The separate repo `docs/MASTER_TASK_REGISTRY.md` names
+> as the intended public Community-facing repo (`cartogenai-glitch/cartogen_ai_community`) is
+> **also PRIVATE** as of this check, contradicting that doc's own 2026-09-05 claim of having
+> confirmed it public — it was either made private since, or that claim was wrong when made.
+> `gh repo list cartogenai-glitch` shows exactly these 2 repos and no others: **there is
+> currently no public GitHub repo for this project under this account at all.** The paragraph
+> below is still accurate about *codebase content/architecture* (this codebase carries no
+> tier-gating logic, verified separately in the 2026-09-13/14 audit) — read "public Community
+> codebase" as a statement of intended licensing/content, not of current GitHub visibility.
+> Whether/when to actually publish a public repo, and under what name, is a release decision
+> for Alaa — not resolved here.
+
 Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are three editions, but **not** three
-variants of this one codebase — this repo is, and stays, the single public Community codebase.
+variants of this one codebase — this repo's *content* is designed to stay the single Community
+codebase, carrying no tier-check/licensing-gate logic (verified, still true) — see the
+correction note above for what "public" does and doesn't mean here today.
 Pro/Enterprise are planned to be built in a *separate private repo* that consumes this one as an
-upstream core (one-way sync, decided but not yet built — see `docs/archive/OPEN_CORE_REPO_STRATEGY.md`).
+upstream core (one-way sync, decided but not yet built — see `docs/archive/OPEN_CORE_REPO_STRATEGY.md`;
+confirmed 2026-09-14 that `cartogen-ai-enterprise`/`cartogen-ai-pro` locally are empty
+placeholder directories with no git repo at all, consistent with "not yet built").
 **Don't add tier-check/licensing-gate logic to this repo** — that kind of logic belongs in the
 private repo once it exists, not here. If you're ever asked to add tier-gating directly to this
 codebase, that's a sign the request conflicts with the decided architecture — flag it rather than

@@ -904,6 +904,18 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
         if band > band_count:
             return {"error": f"'{layer_name}' has {band_count} band(s); band {band} does not exist."}
 
+        # QGIS-005, 2026-09-14 audit: _RBS_MIN/_RBS_MAX/_STRETCH_MINMAX/_RAMP_INTERPOLATED/
+        # _COLOR_RAMP_SHADER_ITEM were only ever None-safe by this function's own broad
+        # except Exception below (e.g. `_RBS_MIN | _RBS_MAX` on two Nones raises TypeError,
+        # caught generically) -- not by an explicit check, so a genuine resolution failure
+        # would surface as a confusing raw Python exception message instead of a clear one,
+        # same class of gap QGIS-004 fixed for _VFW_NO_ERROR. Today inert (every one of these
+        # resolves fine on both QGIS 3.x/4.x) -- this closes a correctness gap conditional on
+        # future QGIS API drift. Checked here, after the cheaper band-count validation above,
+        # not before it -- ordering matters for which error message a bad call actually sees.
+        if None in (_RBS_MIN, _RBS_MAX, _STRETCH_MINMAX, _RAMP_INTERPOLATED, _COLOR_RAMP_SHADER_ITEM):
+            return {"error": "Could not resolve one or more required QGIS raster-styling enums in this QGIS version."}
+
         provider = layer.dataProvider()
         computed_min = computed_max = None
         if min_value is None or max_value is None:

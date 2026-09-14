@@ -20,6 +20,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
     QPushButton, QTextEdit, QGroupBox,
 )
+from qgis.core import QgsSettings
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
@@ -27,6 +28,9 @@ from .chat_formatting import (
     format_send_error,
 )
 from .attachments import read_attached_file as _read_attached_file
+# API-007, 2026-09-14 audit: reused rather than duplicated -- settings_dialog.py's PROVIDERS
+# is already the single source of truth for each provider's display name.
+from .settings_dialog import PROVIDERS as _PROVIDERS
 from .theme import theme_colors, extract_theme_palette
 from .icons import themed_icon
 
@@ -978,20 +982,38 @@ class ChatTabWidget(QWidget):
         followup_analysis = {"contract": contract, "user_message": instruction, "directive": ""}
         self._dispatch_message(instruction, followup_analysis)
 
-    def _stop_current_task(self):
-        """Cancels the in-flight request. This is cooperative, not instant --
-        it sets QgsTask's isCanceled() flag, which agent.run()'s tool-calling
-        loop checks once per iteration (see agent/agent.py's should_stop
-        param), so it stops before the NEXT LLM call/tool step rather than
-        interrupting whichever one is already in flight. stop_btn stays
-        disabled until on_complete actually fires so the UI doesn't claim
-        it's stopped before it really has."""
+    def cancel_active_task(self):
+        """Cancels the in-flight request, if any -- the cancel-only core of
+        _stop_current_task below, exposed separately so plugin_main.py's unload() can call
+        it too (QGIS-002, 2026-09-13 audit): unloading/reloading the plugin while a request
+        was in flight used to leave a background QgsTask running against a dock widget
+        about to be deleted -- the direct trigger for QGIS-001's finished()-callback crash
+        (now also fixed with its own try/except, but stopping the task from ever running
+        against a doomed widget in the first place is the better fix). Deliberately does
+        NOT touch stop_btn/statusSignal -- those are chat-tab UI feedback that doesn't
+        apply (and could itself raise on a widget mid-teardown) when called from unload()."""
         if self._active_task is None:
             return
         try:
             self._active_task.cancel()
         except Exception as e:
             print(f"[ChatTabWidget] Failed to cancel task: {e}")
+
+    def _stop_current_task(self):
+        """Cancels the in-flight request. This is cooperative, not instant --
+        it sets QgsTask's isCanceled() flag, which agent.run()'s tool-calling
+        loop checks both once per LLM round AND once per individual tool call
+        within a multi-tool-call batch (QGIS-003, 2026-09-13 audit -- a batch
+        used to only be checked between rounds, so it couldn't be interrupted
+        mid-batch; see agent/agent.py's should_stop param for both check
+        sites), so it stops before the NEXT LLM call or the NEXT tool step,
+        whichever comes first, rather than interrupting whichever call is
+        already in flight. stop_btn stays disabled until on_complete
+        actually fires so the UI doesn't claim it's stopped before it
+        really has."""
+        if self._active_task is None:
+            return
+        self.cancel_active_task()
         self.stop_btn.setEnabled(False)
         self._dock.statusSignal.emit("Stopping...")
 
@@ -1056,6 +1078,25 @@ class ChatTabWidget(QWidget):
         except Exception as e:
             print(f"[ChatTabWidget] Canvas highlight failed: {e}")
 
+    @staticmethod
+    def _attachment_disclosure_note():
+        """API-007, 2026-09-14 audit: no inline notice existed at the moment of file
+        attachment telling the user that its content (including image bytes, for an
+        image attachment) is about to be sent to whichever AI provider is currently
+        configured -- the general privacy posture is documented in SECURITY.md/the
+        provider settings dialog's own key_tooltip text, but nothing surfaced it at the
+        specific moment it becomes true for THIS file. Ollama is local -- nothing leaves
+        the machine -- so it gets a different, accurate note rather than a generic
+        third-party-sending warning that would be false for it."""
+        provider_value = QgsSettings().value("cartogen_ai/provider", "openrouter")
+        if provider_value == "ollama":
+            return "This file's content stays local (Ollama) -- nothing is sent to a third party."
+        label = next(
+            (p["provider_label"] for p in _PROVIDERS if p["value"] == provider_value),
+            provider_value,
+        )
+        return f"This file's content will be sent to {label} for analysis."
+
     def attach_file(self):
         filters = (
             "Supported files (*.pdf *.docx *.png *.jpg *.jpeg *.csv *.xlsx);;"
@@ -1067,6 +1108,28 @@ class ChatTabWidget(QWidget):
             return
 
         name = os.path.basename(path)
+        disclosure = self._attachment_disclosure_note()
+        self._dock.receiveMessageSignal.emit(
+            "ai", f"📎 **Attaching:** {name}\n\n_{disclosure}_\n\nReading...")
+        self._dock.statusSignal.emit("Reading file...")
+
+        agent = None
+        if self._agent_provider:
+            agent = self._agent_provider()
+
+        thread = threading.Thread(
+            target=self._read_and_analyze_file, args=(agent, name, path), daemon=True
+        )
+        thread.start()
+
+    def _read_and_analyze_file(self, agent, name, path):
+        """PERF-005, 2026-09-13 audit: read_attached_file (pypdf/docx/pandas parsing) used
+        to run synchronously on the Qt main thread inside attach_file(), before the
+        background analysis thread below was even started -- a large PDF/DOCX/table-heavy
+        file could freeze the whole GUI while it parsed. read_attached_file has zero Qt/QGIS
+        dependency (see its own docstring), so it's safe to run here instead, on the same
+        background thread that was already doing the LLM analysis. Logic below is otherwise
+        unchanged from what attach_file() used to do synchronously."""
         data, err = _read_attached_file(path)
         if err is not None:
             self._dock.receiveMessageSignal.emit("ai", f"Error reading {name}: {err}")
@@ -1085,14 +1148,7 @@ class ChatTabWidget(QWidget):
             "ai", f"📎 **File attached:** {name}{carried}\n\nAnalyzing...")
         self._dock.statusSignal.emit("Analyzing...")
 
-        agent = None
-        if self._agent_provider:
-            agent = self._agent_provider()
-
-        thread = threading.Thread(
-            target=self._analyze_file, args=(agent, name, path, data), daemon=True
-        )
-        thread.start()
+        self._analyze_file(agent, name, path, data)
 
     def _analyze_file(self, agent, name, path, data):
         try:

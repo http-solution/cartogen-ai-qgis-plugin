@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from contextlib import contextmanager
+from unittest.mock import patch
 from cartogen_ai.core.agent.chat_persistence import (
     save_chat_history, load_chat_history,
     _attach_timestamps,
@@ -103,7 +104,17 @@ class TestAttachTimestamps(unittest.TestCase):
     """Pure-function tests for the merge logic behind the fix: a restored
     chat bubble should show its real age, not "just now" -- see
     chat_persistence.py's _attach_timestamps docstring for the live bug
-    (a stale Ollama error looking like it just happened) this addresses."""
+    (a stale Ollama error looking like it just happened) this addresses.
+
+    2026-09-14 (environment-reproducibility report): fixture "old" timestamps below use
+    2000-01-01, not a date in the actual current year -- a "fresh" timestamp is real
+    datetime.now().isoformat() wall-clock output (_attach_timestamps captures it once via
+    _now_iso()), and test_new_messages_appended_after_old_ones_get_a_fresh_timestamp asserts
+    that value is NOT one of the hardcoded "old" ones. A same-year fixture date is close
+    enough to a real clock reading that a badly-misconfigured system clock in some other
+    environment could coincide with it (this was reported as a failure elsewhere, though it
+    could not be reproduced here); an unambiguously-past year removes that risk entirely
+    without changing what the test actually verifies."""
 
     def test_all_new_messages_get_the_same_fresh_timestamp(self):
         history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
@@ -114,19 +125,19 @@ class TestAttachTimestamps(unittest.TestCase):
 
     def test_previously_persisted_messages_keep_their_original_timestamp(self):
         previous = [
-            {"role": "user", "content": "hi", "ts": "2026-01-01T00:00:00"},
-            {"role": "assistant", "content": "hello", "ts": "2026-01-01T00:00:01"},
+            {"role": "user", "content": "hi", "ts": "2000-01-01T00:00:00"},
+            {"role": "assistant", "content": "hello", "ts": "2000-01-01T00:00:01"},
         ]
         # Same two messages come back unchanged (e.g. re-saved without new turns).
         history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
         result = _attach_timestamps(history, previous)
-        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
-        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:01")
+        self.assertEqual(result[0]["ts"], "2000-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2000-01-01T00:00:01")
 
     def test_new_messages_appended_after_old_ones_get_a_fresh_timestamp(self):
         previous = [
-            {"role": "user", "content": "hi", "ts": "2026-01-01T00:00:00"},
-            {"role": "assistant", "content": "hello", "ts": "2026-01-01T00:00:01"},
+            {"role": "user", "content": "hi", "ts": "2000-01-01T00:00:00"},
+            {"role": "assistant", "content": "hello", "ts": "2000-01-01T00:00:01"},
         ]
         history = [
             {"role": "user", "content": "hi"},
@@ -135,19 +146,19 @@ class TestAttachTimestamps(unittest.TestCase):
             {"role": "assistant", "content": "[API error] Ollama connection failed"},
         ]
         result = _attach_timestamps(history, previous)
-        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
-        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:01")
+        self.assertEqual(result[0]["ts"], "2000-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2000-01-01T00:00:01")
         # The new turn gets a real fresh timestamp, distinct from the old ones --
         # this is exactly what stops a stale error from looking brand new.
-        self.assertNotIn(result[2]["ts"], ("2026-01-01T00:00:00", "2026-01-01T00:00:01"))
+        self.assertNotIn(result[2]["ts"], ("2000-01-01T00:00:00", "2000-01-01T00:00:01"))
         self.assertEqual(result[2]["ts"], result[3]["ts"])
 
     def test_trimmed_front_of_history_drops_the_oldest_timestamps_too(self):
         previous = [
-            {"role": "user", "content": "msg1", "ts": "2026-01-01T00:00:00"},
-            {"role": "assistant", "content": "reply1", "ts": "2026-01-01T00:00:01"},
-            {"role": "user", "content": "msg2", "ts": "2026-01-01T00:00:02"},
-            {"role": "assistant", "content": "reply2", "ts": "2026-01-01T00:00:03"},
+            {"role": "user", "content": "msg1", "ts": "2000-01-01T00:00:00"},
+            {"role": "assistant", "content": "reply1", "ts": "2000-01-01T00:00:01"},
+            {"role": "user", "content": "msg2", "ts": "2000-01-01T00:00:02"},
+            {"role": "assistant", "content": "reply2", "ts": "2000-01-01T00:00:03"},
         ]
         # agent.py's _trim_history dropped the oldest pair.
         history = [
@@ -156,18 +167,18 @@ class TestAttachTimestamps(unittest.TestCase):
         ]
         result = _attach_timestamps(history, previous)
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:02")
-        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:03")
+        self.assertEqual(result[0]["ts"], "2000-01-01T00:00:02")
+        self.assertEqual(result[1]["ts"], "2000-01-01T00:00:03")
 
     def test_duplicate_role_content_pairs_consume_timestamps_in_order(self):
         previous = [
-            {"role": "user", "content": "ok", "ts": "2026-01-01T00:00:00"},
-            {"role": "user", "content": "ok", "ts": "2026-01-01T00:00:05"},
+            {"role": "user", "content": "ok", "ts": "2000-01-01T00:00:00"},
+            {"role": "user", "content": "ok", "ts": "2000-01-01T00:00:05"},
         ]
         history = [{"role": "user", "content": "ok"}, {"role": "user", "content": "ok"}]
         result = _attach_timestamps(history, previous)
-        self.assertEqual(result[0]["ts"], "2026-01-01T00:00:00")
-        self.assertEqual(result[1]["ts"], "2026-01-01T00:00:05")
+        self.assertEqual(result[0]["ts"], "2000-01-01T00:00:00")
+        self.assertEqual(result[1]["ts"], "2000-01-01T00:00:05")
 
 
 class TestSaveLoadRoundTripWithTimestamps(unittest.TestCase):
@@ -208,15 +219,23 @@ class TestSaveLoadRoundTripWithTimestamps(unittest.TestCase):
     def test_a_new_turn_added_later_gets_its_own_fresh_timestamp(self):
         project = _FakeProject()
         with _simulate_qgis_with_persist_setting(True, project=project) as cp:
-            cp.save_chat_history([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}])
-            first_two = cp.load_chat_history_with_timestamps()
-            cp.save_chat_history([
-                {"role": "user", "content": "hi"},
-                {"role": "assistant", "content": "hello"},
-                {"role": "user", "content": "what now?"},
-                {"role": "assistant", "content": "[API error] Ollama connection failed"},
-            ])
-            all_four = cp.load_chat_history_with_timestamps()
+            # Keep this test independent of host-clock resolution or a frozen
+            # test-runner clock: the behavior under test is that a later save
+            # requests a fresh timestamp, not that datetime.now() advances
+            # between two rapid calls in every environment.
+            with patch(
+                "cartogen_ai.core.agent.chat_persistence._now_iso",
+                side_effect=["2000-01-02T00:00:00", "2000-01-02T00:00:01"],
+            ):
+                cp.save_chat_history([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}])
+                first_two = cp.load_chat_history_with_timestamps()
+                cp.save_chat_history([
+                    {"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "hello"},
+                    {"role": "user", "content": "what now?"},
+                    {"role": "assistant", "content": "[API error] Ollama connection failed"},
+                ])
+                all_four = cp.load_chat_history_with_timestamps()
             self.assertEqual(all_four[0]["ts"], first_two[0]["ts"])
             self.assertEqual(all_four[1]["ts"], first_two[1]["ts"])
             self.assertNotEqual(all_four[3]["ts"], first_two[0]["ts"])

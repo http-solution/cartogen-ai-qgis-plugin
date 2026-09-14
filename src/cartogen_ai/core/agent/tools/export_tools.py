@@ -18,6 +18,7 @@ try:
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     )
+    from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
     QGIS_AVAILABLE = True
     # QGIS 4.x/Qt6 scopes this under QgsVectorFileWriter.WriterError.NoError;
@@ -56,6 +57,17 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
             QgsCoordinateTransformContext(),
             options,
         )
+        # QGIS-004, 2026-09-13 audit: a real, currently-latent correctness bug --
+        # _VFW_NO_ERROR is None only when resolve_qgis_enum failed to resolve EITHER
+        # QGIS 4.x's scoped or QGIS 3.x's flat form (a future QGIS API change neither
+        # form survives). `error` from a real writeAsVectorFormatV2() call is never
+        # None -- so `error != _VFW_NO_ERROR` would then be `error != None`, which is
+        # ALWAYS True for a real (non-None) success code, meaning a fully successful
+        # export would silently report itself as failed. This doesn't crash, so
+        # nothing would have caught it -- the wrong answer would just ship. Checked
+        # explicitly and named, instead of comparing against a possibly-None sentinel.
+        if _VFW_NO_ERROR is None:
+            return {"error": "Could not resolve QgsVectorFileWriter.WriterError.NoError in this QGIS version -- export result cannot be verified."}
         if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
         result = {"success": True, "output_path": output_path}
@@ -88,17 +100,67 @@ def export_layer(layer_name, output_path, format):
     return _write_vector(layer, output_path, driver)
 
 
+# SEC-002, 2026-09-13 audit: a value beginning with one of these characters is interpreted
+# as a formula by Excel/LibreOffice/Google Sheets when the CSV is opened there -- a classic
+# CSV/"formula" injection vector (OWASP). A layer's string attribute fields can come from
+# unvetted external data (OSM tags, humanitarian datasets, a user's own free-text entry) and
+# are exactly the kind of content that could carry e.g. "=HYPERLINK(...)" or "=cmd|'/calc'!A1".
+# Numeric/date/bool fields are left untouched -- QGIS writes those as plain numbers/dates,
+# never a string that could start with one of these characters, and quoting a negative number
+# (a very common case: longitude, elevation change, etc.) would wrongly turn it into text.
+_CSV_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_csv_formula_injection(csv_path, string_field_names):
+    """Post-processes a CSV file _write_vector already wrote successfully: any cell in a
+    STRING-typed column whose value starts with a formula-trigger character gets a leading
+    single quote, the standard mitigation (OWASP) -- spreadsheet apps display the quote as
+    part of a plain-text cell rather than evaluating what follows as a formula. Only string
+    columns are touched (see _CSV_FORMULA_TRIGGER_CHARS above); the WKT geometry column
+    QgsVectorFileWriter adds (GEOMETRY=AS_WKT) is never in string_field_names, so it's left
+    alone unconditionally. Runs after the real export already succeeded -- a failure here is
+    reported as its own error rather than silently leaving unsanitized output in place."""
+    import csv
+    try:
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+            rows = list(csv.reader(f))
+        if not rows:
+            return None
+        header = rows[0]
+        string_col_indices = {i for i, name in enumerate(header) if name in string_field_names}
+        if not string_col_indices:
+            return None
+        changed = False
+        for row in rows[1:]:
+            for i in string_col_indices:
+                if i < len(row) and row[i] and row[i][0] in _CSV_FORMULA_TRIGGER_CHARS:
+                    row[i] = "'" + row[i]
+                    changed = True
+        if changed:
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                csv.writer(f).writerows(rows)
+        return None
+    except Exception as e:
+        return f"Export succeeded but CSV formula-injection sanitization failed: {e}"
+
+
 @register_tool("export_to_csv", "Export layer attribute table to CSV file.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["layer_name", "output_path"]})
 def export_to_csv(layer_name, output_path):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    return _write_vector(
+    result = _write_vector(
         layer,
         output_path,
         "CSV",
         layer_options=["GEOMETRY=AS_WKT", "SEPARATOR=COMMA"],
     )
+    if result.get("success"):
+        string_field_names = {f.name() for f in layer.fields() if f.type() == QVariant.String}
+        sanitize_error = _sanitize_csv_formula_injection(output_path, string_field_names)
+        if sanitize_error:
+            return {"error": sanitize_error}
+    return result
 
 
 @register_tool("print_map", "Export current QGIS map canvas view to PNG image.", {"type": "object", "properties": {"output_path": {"type": "string"}}, "required": ["output_path"]})

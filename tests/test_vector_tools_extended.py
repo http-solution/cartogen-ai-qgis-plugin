@@ -12,6 +12,9 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     field_statistics, select_by_location, invert_selection,
     _compute_field_statistics, zoom_to_layer, zoom_to_feature, _extent_to_canvas_crs,
     apply_labels, get_layers, diagnose_topology, _run_and_add, buffer_analysis,
+    rename_layer, toggle_visibility, intersect_layers, union_layers, dissolve_layer,
+    merge_layers, reproject_layer, fix_geometries, select_by_attribute,
+    get_feature_count, open_attribute_table, verify_crs_compatibility,
 )
 
 
@@ -787,3 +790,408 @@ class TestBufferAnalysisCrsWarning(unittest.TestCase):
         res = buffer_analysis("layer", 500)
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
+
+
+class TestRenameAndToggleVisibility(unittest.TestCase):
+    """rename_layer/toggle_visibility: no test coverage at all before QUAL-006
+    (2026-09-14 audit)."""
+
+    def test_rename_degrades_outside_qgis(self):
+        res = rename_layer("old", "new")
+        self.assertIn("error", res)
+
+    def test_toggle_degrades_outside_qgis(self):
+        res = toggle_visibility("layer")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_rename_reports_missing_layer(self, mock_find):
+        res = rename_layer("ghost", "new_name")
+        self.assertIn("error", res)
+        self.assertIn("ghost", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_rename_calls_setname_and_reports_success(self, mock_find):
+        layer = MagicMock()
+        mock_find.return_value = layer
+
+        res = rename_layer("old_name", "new_name")
+
+        self.assertTrue(res["success"])
+        layer.setName.assert_called_once_with("new_name")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_toggle_reports_missing_layer(self, mock_find):
+        res = toggle_visibility("ghost")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_toggle_reports_missing_tree_node(self, mock_find, mock_project):
+        mock_find.return_value = MagicMock()
+        mock_project.instance.return_value.layerTreeRoot.return_value.findLayer.return_value = None
+        res = toggle_visibility("layer")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_toggle_sets_visibility_checked_state(self, mock_find, mock_project):
+        layer = MagicMock()
+        layer.id.return_value = "layer123"
+        mock_find.return_value = layer
+        node = mock_project.instance.return_value.layerTreeRoot.return_value.findLayer.return_value
+
+        res = toggle_visibility("layer", visible=False)
+
+        self.assertTrue(res["success"])
+        node.setItemVisibilityChecked.assert_called_once_with(False)
+
+
+class TestIntersectAndUnionLayers(unittest.TestCase):
+    """intersect_layers/union_layers: no test coverage at all before QUAL-006 (2026-09-14
+    audit)."""
+
+    def test_intersect_degrades_outside_qgis(self):
+        res = intersect_layers("a", "b")
+        self.assertIn("error", res)
+
+    def test_union_degrades_outside_qgis(self):
+        res = union_layers("a", "b")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_intersect_reports_missing_second_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "a" else None
+        res = intersect_layers("a", "b")
+        self.assertIn("error", res)
+        self.assertIn("b", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_intersect_calls_native_intersection_with_both_layers(self, mock_find, mock_run):
+        a, b = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"a": a, "b": b}[name]
+        mock_run.return_value = {"success": True, "layer_name": "a_intersect_b"}
+
+        res = intersect_layers("a", "b")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:intersection")
+        self.assertIs(params["INPUT"], a)
+        self.assertIs(params["OVERLAY"], b)
+        self.assertEqual(new_name, "a_intersect_b")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_intersect_attaches_crs_mismatch_warning(self, mock_find, mock_run):
+        a, b = MagicMock(), MagicMock()
+        a.crs.return_value.authid.return_value = "EPSG:4326"
+        a.crs.return_value.__eq__ = lambda self, other: False
+        b.crs.return_value.authid.return_value = "EPSG:3857"
+        mock_find.side_effect = lambda name: {"a": a, "b": b}[name]
+        mock_run.return_value = {"success": True, "layer_name": "a_intersect_b"}
+
+        res = intersect_layers("a", "b")
+
+        self.assertIn("crs_warning", res)
+        self.assertIn("CRS mismatch", res["crs_warning"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_union_calls_native_union_with_both_layers(self, mock_find, mock_run):
+        a, b = MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"a": a, "b": b}[name]
+        mock_run.return_value = {"success": True, "layer_name": "a_union_b"}
+
+        res = union_layers("a", "b")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:union")
+        self.assertIs(params["INPUT"], a)
+        self.assertIs(params["OVERLAY"], b)
+
+
+class TestDissolveAndMergeLayers(unittest.TestCase):
+    """dissolve_layer/merge_layers: no test coverage at all before QUAL-006 (2026-09-14
+    audit)."""
+
+    def test_dissolve_degrades_outside_qgis(self):
+        res = dissolve_layer("layer")
+        self.assertIn("error", res)
+
+    def test_merge_degrades_outside_qgis(self):
+        res = merge_layers(["a", "b"])
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_dissolve_without_field_passes_empty_field_list(self, mock_find, mock_run):
+        layer = MagicMock()
+        mock_find.return_value = layer
+        mock_run.return_value = {"success": True, "layer_name": "layer_dissolved"}
+
+        res = dissolve_layer("layer")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:dissolve")
+        self.assertEqual(params["FIELD"], [])
+        self.assertIs(params["INPUT"], layer)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_dissolve_with_field_wraps_it_in_a_list(self, mock_find, mock_run):
+        mock_find.return_value = MagicMock()
+        mock_run.return_value = {"success": True, "layer_name": "layer_dissolved"}
+
+        dissolve_layer("layer", field="district")
+
+        _, params, _ = mock_run.call_args[0]
+        self.assertEqual(params["FIELD"], ["district"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_merge_rejects_fewer_than_two_layers(self):
+        res = merge_layers(["only_one"])
+        self.assertIn("error", res)
+        self.assertIn("at least 2", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_merge_reports_first_missing_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "a" else None
+        res = merge_layers(["a", "b"])
+        self.assertIn("error", res)
+        self.assertIn("b", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_merge_passes_every_resolved_layer(self, mock_find, mock_run):
+        a, b, c = MagicMock(), MagicMock(), MagicMock()
+        mock_find.side_effect = lambda name: {"a": a, "b": b, "c": c}[name]
+        mock_run.return_value = {"success": True, "layer_name": "merged"}
+
+        res = merge_layers(["a", "b", "c"])
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:mergevectorlayers")
+        self.assertEqual(params["LAYERS"], [a, b, c])
+
+
+class TestReprojectAndFixGeometries(unittest.TestCase):
+    """reproject_layer/fix_geometries: no test coverage at all before QUAL-006 (2026-09-14
+    audit)."""
+
+    def test_reproject_degrades_outside_qgis(self):
+        res = reproject_layer("layer", "EPSG:4326")
+        self.assertIn("error", res)
+
+    def test_fix_geometries_degrades_outside_qgis(self):
+        res = fix_geometries("layer")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateReferenceSystem", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_reproject_rejects_invalid_crs_code(self, mock_find, mock_crs_cls):
+        mock_find.return_value = MagicMock()
+        mock_crs_cls.return_value.isValid.return_value = False
+
+        res = reproject_layer("layer", "not-a-real-crs")
+
+        self.assertIn("error", res)
+        self.assertIn("not-a-real-crs", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateReferenceSystem", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_reproject_calls_native_reprojectlayer_with_target_crs(self, mock_find, mock_crs_cls, mock_run):
+        layer = MagicMock()
+        mock_find.return_value = layer
+        target_crs = mock_crs_cls.return_value
+        target_crs.isValid.return_value = True
+        mock_run.return_value = {"success": True, "layer_name": "layer_EPSG_3857"}
+
+        res = reproject_layer("layer", "EPSG:3857")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:reprojectlayer")
+        self.assertIs(params["INPUT"], layer)
+        self.assertIs(params["TARGET_CRS"], target_crs)
+        self.assertEqual(new_name, "layer_EPSG_3857")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_fix_geometries_reports_missing_layer(self, mock_find):
+        res = fix_geometries("ghost")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._run_and_add")
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_fix_geometries_calls_native_fixgeometries(self, mock_find, mock_run):
+        layer = MagicMock()
+        mock_find.return_value = layer
+        mock_run.return_value = {"success": True, "layer_name": "layer_fixed"}
+
+        res = fix_geometries("layer")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:fixgeometries")
+        self.assertIs(params["INPUT"], layer)
+        self.assertEqual(new_name, "layer_fixed")
+
+
+class TestSelectByAttributeAndFeatureCount(unittest.TestCase):
+    """select_by_attribute/get_feature_count/open_attribute_table: no test coverage at all
+    before QUAL-006 (2026-09-14 audit)."""
+
+    def test_select_by_attribute_degrades_outside_qgis(self):
+        res = select_by_attribute("layer", "field", "value")
+        self.assertIn("error", res)
+
+    def test_get_feature_count_degrades_outside_qgis(self):
+        res = get_feature_count("layer")
+        self.assertIn("error", res)
+
+    def test_open_attribute_table_degrades_outside_qgis(self):
+        res = open_attribute_table("layer")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_select_by_attribute_reports_unknown_field(self, mock_find):
+        layer = MagicMock()
+        layer.fields.return_value = []
+        mock_find.return_value = layer
+        res = select_by_attribute("layer", "not_a_field", "value")
+        self.assertIn("error", res)
+        self.assertIn("not_a_field", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_select_by_attribute_builds_a_quoted_expression_and_selects(self, mock_find, mock_expr_cls):
+        mock_expr_cls.quotedColumnRef.side_effect = lambda f: f'"{f}"'
+        mock_expr_cls.quotedValue.side_effect = lambda v: f"'{v}'"
+        field_mock = MagicMock()
+        field_mock.name.return_value = "district"
+        layer = MagicMock()
+        layer.fields.return_value = [field_mock]
+        layer.selectedFeatureCount.return_value = 3
+        mock_find.return_value = layer
+
+        res = select_by_attribute("layer", "district", "Zaatari")
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["count"], 3)
+        self.assertIn("district", res["expression"])
+        self.assertIn("Zaatari", res["expression"])
+        layer.selectByExpression.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_get_feature_count_reports_missing_layer(self, mock_find):
+        res = get_feature_count("ghost")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_get_feature_count_returns_the_real_count(self, mock_find):
+        layer = MagicMock()
+        layer.featureCount.return_value = 137
+        mock_find.return_value = layer
+
+        res = get_feature_count("layer")
+
+        self.assertEqual(res["feature_count"], 137)
+        self.assertEqual(res["layer_name"], "layer")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_open_attribute_table_reports_missing_iface(self, mock_iface):
+        with patch("cartogen_ai.core.agent.tools.vector_tools.iface", None):
+            res = open_attribute_table("layer")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.iface", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_open_attribute_table_calls_iface_showattributetable(self, mock_find, mock_iface):
+        layer = MagicMock()
+        mock_find.return_value = layer
+
+        res = open_attribute_table("layer")
+
+        self.assertTrue(res["success"])
+        mock_iface.showAttributeTable.assert_called_once_with(layer)
+
+
+class TestVerifyCrsCompatibility(unittest.TestCase):
+    """verify_crs_compatibility: no test coverage at all before QUAL-006 (2026-09-14
+    audit)."""
+
+    def test_degrades_outside_qgis(self):
+        res = verify_crs_compatibility("a", "b")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_reports_missing_second_layer(self, mock_find):
+        mock_find.side_effect = lambda name: MagicMock() if name == "a" else None
+        res = verify_crs_compatibility("a", "b")
+        self.assertIn("error", res)
+        self.assertIn("b", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_matching_crs_reports_compatible_with_no_warning(self, mock_find):
+        shared_crs = MagicMock()
+        shared_crs.authid.return_value = "EPSG:4326"
+        a, b = MagicMock(), MagicMock()
+        a.crs.return_value = shared_crs
+        b.crs.return_value = shared_crs
+        mock_find.side_effect = lambda name: {"a": a, "b": b}[name]
+
+        res = verify_crs_compatibility("a", "b")
+
+        self.assertTrue(res["success"])
+        self.assertTrue(res["compatible"])
+        self.assertEqual(res["warning"], "")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    def test_mismatched_crs_reports_incompatible_with_warning(self, mock_find):
+        crs_a, crs_b = MagicMock(), MagicMock()
+        crs_a.authid.return_value = "EPSG:4326"
+        crs_b.authid.return_value = "EPSG:3857"
+        crs_a.__eq__ = lambda self, other: False
+        a, b = MagicMock(), MagicMock()
+        a.crs.return_value = crs_a
+        b.crs.return_value = crs_b
+        mock_find.side_effect = lambda name: {"a": a, "b": b}[name]
+
+        res = verify_crs_compatibility("a", "b")
+
+        self.assertTrue(res["success"])
+        self.assertFalse(res["compatible"])
+        self.assertIn("CRS mismatch", res["warning"])
+        self.assertIn("EPSG:4326", res["warning"])
+        self.assertIn("EPSG:3857", res["warning"])

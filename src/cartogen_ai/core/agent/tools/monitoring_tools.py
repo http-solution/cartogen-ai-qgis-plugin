@@ -25,15 +25,25 @@ except ImportError:
 # geometry-editing operation against USER-authored data. Extend this set deliberately, not by
 # default, when a new tool is added -- and only for one of two categories:
 #
-# 1. Read-only analysis tools (the original 7 below) -- never write anything.
-# 2. Idempotent external-data-refresh tools (hazard_monitoring_tools.py's fetch_nasa_active_fires/
-#    fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts) -- these DO write, but only ever REPLACE
-#    the features of their own auto-named, auto-managed layer with the latest fetch from a fixed
-#    external source; they never touch a user-authored layer, and re-running one produces the
-#    same category of result every time (this tick's live hazard data), not an escalating or
-#    diverging effect the way repeating a geometry edit against arbitrary data could. That's the
-#    same safety property the read-only category has (no unbounded, unattended damage to a
-#    user's own work), just satisfied a different way.
+# 1. Read-only analysis tools (the 7 below) -- never write anything, and (relevant to PERF-001
+#    below) never do network I/O either, so running one synchronously on the main thread (the
+#    same way every other single-tool dispatch in this codebase already works) is bounded by
+#    ordinary local computation time, not an HTTP round-trip.
+# 2. Idempotent external-data-refresh tools -- would DO write, but only ever REPLACE the
+#    features of their own auto-named, auto-managed layer with the latest fetch from a fixed
+#    external source, so that part is safe. PERF-001 (2026-09-13 audit): fetch_nasa_active_fires/
+#    fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts were allowed here, but
+#    run_monitoring_workflow calls each step's plain combined function directly -- unlike a
+#    normal single call to one of these tools (dispatched through agent.py's TWO_PHASE_TOOLS,
+#    which runs the network fetch off the main thread), a scheduled/manual WORKFLOW run executes
+#    the combined network+QGIS function synchronously on the main Qt thread (scheduler.py's
+#    QTimer fires _fire() there, and run_monitoring_workflow is called directly from it) --
+#    repeatedly, every tick, for as long as a schedule runs. That freezes the whole QGIS GUI for
+#    each fetch's HTTP round-trip. Deliberately excluded here until run_monitoring_workflow (or
+#    the scheduler tick) is reworked to dispatch a network step's own *_network_phase function
+#    off-thread first, mirroring agent.py's _execute_two_phase_tool -- see the register for why
+#    that's a real design decision, not a same-session mechanical fix. Manually calling one of
+#    these 3 tools (not via a workflow) is unaffected -- that path already dispatches correctly.
 _ALLOWED_WORKFLOW_TOOLS = {
     "calculate_severity_index",
     "calculate_presence_gap",
@@ -42,9 +52,6 @@ _ALLOWED_WORKFLOW_TOOLS = {
     "field_statistics",
     "population_access_gap",
     "estimate_population_exposure",
-    "fetch_nasa_active_fires",
-    "fetch_nasa_eonet_events",
-    "fetch_gdacs_disaster_alerts",
 }
 
 _WORKFLOW_KEY_PREFIX = "cartogen_ai/workflows/"
@@ -155,14 +162,13 @@ def _summarize_diffs(preset_name, result):
     "Re-run a saved sequence of analysis tools (a 'monitoring workflow', see save_workflow_preset) in "
     "one shot and diff each step's per-unit results against the last time this preset was run -- e.g. "
     "re-running calculate_severity_index weekly and seeing which admin units moved into a worse "
-    "severity class, or re-running fetch_nasa_active_fires hourly and seeing which fire detections "
-    "are new since the last check. Only read-only analysis tools (calculate_severity_index, "
+    "severity class. Only read-only analysis tools are allowed as steps (calculate_severity_index, "
     "calculate_presence_gap, calculate_population_in_need, forecast_trend, field_statistics, "
-    "population_access_gap, estimate_population_exposure) and idempotent live-hazard-data refresh "
-    "tools (fetch_nasa_active_fires, fetch_nasa_eonet_events, fetch_gdacs_disaster_alerts -- these "
-    "only ever replace their own auto-managed layer's features with the latest fetch, never touch "
-    "user-authored data) are allowed as steps -- never geometry edits or file writes to arbitrary "
-    "layers, so an unattended recurring run can't silently repeat a destructive action. The preset must be saved "
+    "population_access_gap, estimate_population_exposure) -- never geometry edits, file writes, or "
+    "network-fetch tools, so an unattended recurring run can't silently repeat a destructive action "
+    "or freeze the QGIS interface on a slow network call. For live hazard data (fire detections, "
+    "GDACS alerts), call fetch_nasa_active_fires/fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts "
+    "directly instead -- they are not usable as a workflow step. The preset must be saved "
     'first via save_workflow_preset as \'{"steps": [{"tool": "calculate_severity_index", "args": '
     '{...}}, ...]}\'. The first run has nothing to compare against (previous_run_at is null); later '
     "runs report units_appeared/units_disappeared/units_changed per step, wherever that step's result "

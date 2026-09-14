@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import cartogen_ai.core.agent.agent as agent_mod
 from cartogen_ai.core.agent.agent import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
-from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, _enforce_db_read_only
+from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, _enforce_db_read_only, load_workflow_preset
 from cartogen_ai.core.agent.tools.vector_tools import (
     spatial_join, remove_layer, field_calculator,
     calculate_area, calculate_length,
@@ -19,6 +19,8 @@ from cartogen_ai.core.agent.tools.humanitarian_tools import (
     fetch_building_footprints_network_phase, add_building_footprints_layer_main_thread_phase,
     _lonlat_to_tile_xy, _tile_xy_to_quadkey, _quadkeys_for_bbox,
     _match_building_footprints_location, _feature_centroid,
+    _LOOKUP_CACHE as _HUMANITARIAN_LOOKUP_CACHE,
+    _cleanup_cached_local_path,
 )
 from cartogen_ai.core.agent.tools.system_tools import (
     resolve_gemini_search_config, gemini_grounded_search, geocode_batch, _GEOCODE_CACHE,
@@ -822,6 +824,117 @@ class TestNewTools(unittest.TestCase):
         res = fetch_geoboundaries_network_phase("JOR", "ADM1")
         self.assertIn("error", res)
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_geoboundaries_rejects_unsafe_second_hop_url(self, mock_urlopen):
+        """SEC-001 (2026-09-13 security audit): geoBoundaries' own API response names the
+        actual download URL (gjDownloadURL) -- third-party-controlled content, not a
+        hardcoded endpoint. A compromised/malicious response pointing that field at a
+        loopback/private/metadata address must be refused, not silently fetched."""
+        import json as _json
+        mock_urlopen.return_value = MagicMock(
+            __enter__=lambda s: MagicMock(read=lambda: _json.dumps(
+                {"gjDownloadURL": "http://169.254.169.254/latest/meta-data/", "boundaryName": "Fake"}
+            ).encode()),
+            __exit__=lambda *a: False,
+        )
+        res = fetch_geoboundaries_network_phase("JOR", "ADM1")
+        self.assertIn("error", res)
+        self.assertIn("Refusing to fetch", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_hdx_admin_boundaries_rejects_unsafe_second_hop_url(self, mock_urlopen):
+        """SEC-001: HDX's own catalog response names the zip resource URL -- published by
+        whichever organization uploaded the dataset, third-party content. A fresh, unused
+        iso3 -- this tool caches successful results at module scope keyed by (iso3,
+        admin_level), and this test must not risk a stale cache hit from another test's
+        real (mocked-success) call to the same key short-circuiting before ever reaching
+        the malicious-URL code path this test exercises."""
+        import json as _json
+        mock_urlopen.return_value = MagicMock(
+            __enter__=lambda s: MagicMock(read=lambda: _json.dumps({
+                "result": {"resources": [
+                    {"format": "geojson", "url": "http://127.0.0.1:9/internal.geojson.zip"},
+                ]}
+            }).encode()),
+            __exit__=lambda *a: False,
+        )
+        res = fetch_hdx_admin_boundaries_network_phase("ZZR", "ADM1")
+        self.assertIn("error", res)
+        self.assertIn("Refusing to fetch", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_building_footprints_rejects_unsafe_tile_url(self, mock_urlopen):
+        """SEC-001: each row's Url comes from Microsoft's own published tile index. Unlike
+        the per-country caches elsewhere in this file, the index CSV here is cached under
+        one single shared key regardless of country -- must be cleared explicitly, since
+        there's no "fresh, unused" value to pick around a single shared key the way the
+        other SEC-001 tests avoid collision via an unused iso3."""
+        _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
+        qk = "0"
+        links_csv = (
+            "Location,QuadKey,Url,Size,UploadDate\n"
+            f"RepublicofYemen,{qk},http://169.254.169.254/tile.csv.gz,1KB,2026-01-01\n"
+        )
+        mock_urlopen.return_value = MagicMock(
+            __enter__=lambda s: MagicMock(read=lambda: links_csv.encode("utf-8")),
+            __exit__=lambda *a: False,
+        )
+        with patch(
+            "cartogen_ai.core.agent.tools.humanitarian_tools._quadkeys_for_bbox",
+            return_value={qk},
+        ):
+            res = fetch_building_footprints_network_phase("Yemen", [12.77, 45.00, 12.80, 45.04])
+        self.assertIn("error", res)
+        self.assertIn("Refusing to fetch", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_building_footprints_caches_tile_download_across_calls(self, mock_urlopen, mock_opener):
+        """PERF-004, 2026-09-13 audit: the tile-index CSV was already cached, but the actual
+        per-quadkey tile download wasn't -- a second call for the same bbox re-downloaded and
+        re-decompressed the same multi-MB tile. Now cached by tile URL under the same
+        _LOOKUP_CACHE instance. A fresh, unused tile URL avoids collision with any other
+        test's cached entry (see the SEC-001 tests above for why that matters)."""
+        import os
+        import gzip
+        import json as _json
+
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _quadkeys_for_bbox
+        # Shared cache key across all tests regardless of country -- must be cleared
+        # explicitly (same reason as test_building_footprints_rejects_unsafe_tile_url above).
+        _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
+        bbox = [12.77, 45.00, 12.80, 45.04]
+        south, west, north, east = bbox
+        qk = list(_quadkeys_for_bbox(south, west, north, east))[0]
+
+        links_csv = (
+            "Location,QuadKey,Url,Size,UploadDate\n"
+            f"RepublicofYemen,{qk},https://example.com/perf004_cache_tile.csv.gz,1KB,2026-01-01\n"
+        )
+        inside_feat = {"type": "Feature", "properties": {"height": -1.0}, "geometry": {"type": "Polygon", "coordinates": [[[45.01, 12.78], [45.02, 12.78], [45.02, 12.79], [45.01, 12.79], [45.01, 12.78]]]}}
+        gz_bytes = gzip.compress((_json.dumps(inside_feat) + "\n").encode("utf-8"))
+
+        mock_index_response = MagicMock()
+        mock_index_response.__enter__.return_value.read.return_value = links_csv.encode("utf-8")
+        mock_tile_response = MagicMock()
+        mock_tile_response.__enter__.return_value.read.return_value = gz_bytes
+        mock_urlopen.return_value = mock_index_response
+        mock_opener.return_value.open.return_value = mock_tile_response
+
+        res1 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
+        self.assertTrue(res1.get("success"), res1)
+        self.assertEqual(mock_opener.return_value.open.call_count, 1)
+
+        # Second call, same bbox/tile -- must be served from the cache, not a second fetch.
+        res2 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
+        self.assertTrue(res2.get("success"), res2)
+        self.assertEqual(mock_opener.return_value.open.call_count, 1,
+                         "second call must reuse the cached tile, not re-download it")
+
+        for res in (res1, res2):
+            if res.get("local_path") and os.path.exists(res["local_path"]):
+                os.remove(res["local_path"])
+
     def test_hdx_admin_boundaries_main_thread_phase_passes_through_errors(self):
         res = add_hdx_admin_boundaries_layer_main_thread_phase({"error": "HDX request failed: boom"})
         self.assertIn("error", res)
@@ -883,8 +996,9 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("no GeoJSON boundaries resource", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_hdx_admin_boundaries_network_phase_happy_path_extracts_pcode_field(self, mock_urlopen):
+    def test_hdx_admin_boundaries_network_phase_happy_path_extracts_pcode_field(self, mock_urlopen, mock_opener):
         # End-to-end through the real (non-mocked) JSON/zip/pcode-detection
         # logic -- only the two urlopen() network calls are mocked. Confirms
         # the whole pipeline (package_show -> zip download -> member
@@ -918,7 +1032,10 @@ class TestNewTools(unittest.TestCase):
         mock_show_response.__enter__.return_value.read.return_value = package_show_body
         mock_zip_response = MagicMock()
         mock_zip_response.__enter__.return_value.read.return_value = zip_buf.getvalue()
-        mock_urlopen.side_effect = [mock_show_response, mock_zip_response]
+        mock_urlopen.return_value = mock_show_response
+        # SEC-001 (2026-09-13): the zip download now goes through
+        # _build_safe_opener().open(...), not the bare urlopen() above.
+        mock_opener.return_value.open.return_value = mock_zip_response
 
         res = fetch_hdx_admin_boundaries_network_phase("YEM", "ADM1")
         try:
@@ -1014,18 +1131,28 @@ class TestNewTools(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_building_footprints_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
+        # Shared cache key regardless of country -- must be cleared explicitly, or a
+        # successful index fetch cached by an earlier test (e.g. the PERF-004 cache test
+        # or the happy-path test) makes this urlopen mock never get reached at all.
+        _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_building_footprints_network_phase("Yemen", [12.7, 44.9, 12.9, 45.1])
         self.assertIn("error", res)
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_building_footprints_network_phase_happy_path(self, mock_urlopen):
+    def test_building_footprints_network_phase_happy_path(self, mock_urlopen, mock_opener):
         # End-to-end through the real (non-mocked) CSV-index parsing, quadkey
         # filtering, gzip decompression, and bbox-crop logic -- only the two
         # urlopen() network calls (index CSV, tile download) are mocked.
         import os
         import gzip
         import json as _json
+
+        # Shared cache key regardless of country -- must be cleared explicitly (PERF-004's
+        # cache test above uses the identical bbox, which would otherwise leave this test
+        # silently depending on that other test's cached index CSV/tile instead of its own).
+        _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
 
         from cartogen_ai.core.agent.tools.humanitarian_tools import _quadkeys_for_bbox
         bbox = [12.77, 45.00, 12.80, 45.04]
@@ -1047,7 +1174,10 @@ class TestNewTools(unittest.TestCase):
         mock_index_response.__enter__.return_value.read.return_value = links_csv.encode("utf-8")
         mock_tile_response = MagicMock()
         mock_tile_response.__enter__.return_value.read.return_value = gz_bytes
-        mock_urlopen.side_effect = [mock_index_response, mock_tile_response]
+        mock_urlopen.return_value = mock_index_response
+        # SEC-001 (2026-09-13): the per-tile download now goes through
+        # _build_safe_opener().open(...), not the bare urlopen() above.
+        mock_opener.return_value.open.return_value = mock_tile_response
 
         res = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
         try:
@@ -1303,6 +1433,55 @@ class TestNewTools(unittest.TestCase):
 
         self.assertIn("Stopped by user", result)
 
+    def test_agent_run_stops_mid_batch_not_just_between_llm_rounds(self):
+        """QGIS-003, 2026-09-13 audit: should_stop used to only be checked once per LLM
+        round (at the top of the outer loop) -- a single response asking for SEVERAL tool
+        calls at once (a real, common shape: buffer -> clip -> export style requests)
+        could not be interrupted partway through; the next check only happened before the
+        NEXT round's API call, after the whole batch had already run. Now checked before
+        each individual tool call within a batch too."""
+        class OneRoundTwoToolsClient:
+            def complete(self, messages, tools=None):
+                return {
+                    "message": {
+                        "role": "assistant", "content": None,
+                        "tool_calls": [
+                            {"id": "1", "function": {"name": "get_layers", "arguments": "{}"}},
+                            {"id": "2", "function": {"name": "get_attributes", "arguments": '{"layer_name": "x"}'}},
+                        ],
+                    },
+                    "model": "fake",
+                }
+
+        agent = CartogenAi()
+        agent.conversation_history = []
+        agent.client = OneRoundTwoToolsClient()
+
+        executed = []
+
+        def fake_execute_tool(self, name, arguments):
+            executed.append(name)
+            return {"success": True}
+
+        # False on the outer loop's own pre-round check AND the per-tool-call check
+        # before the batch's first tool (so get_layers actually dispatches), True from
+        # the per-tool-call check before the batch's second tool onward -- lands the
+        # stop strictly between the batch's two tool calls, not before the round even
+        # starts (already covered by the sibling tests above).
+        calls = {"n": 0}
+
+        def stopper():
+            calls["n"] += 1
+            return calls["n"] > 2
+
+        with patch.object(agent_mod.CartogenAi, "_execute_tool", fake_execute_tool):
+            result = agent.run("do two things", should_stop=stopper)
+
+        self.assertIn("Stopped by user", result)
+        self.assertEqual(executed, ["get_layers"],
+                         "must have stopped after the first tool call in the batch and "
+                         "never dispatched the second")
+
     def test_agent_run_without_should_stop_behaves_as_before(self):
         # should_stop is optional -- omitting it (existing callers, existing
         # tests) must not change behavior.
@@ -1473,6 +1652,80 @@ class TestNewTools(unittest.TestCase):
             mock_urlopen.return_value = self._mock_urlopen_response(b'{"elements": []}')
             fetch_osm_features("amenity", "hospital", [1, 2, 3, 4])
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 30)
+
+
+class TestCleanupCachedLocalPath(unittest.TestCase):
+    """SEC-004, 2026-09-14 audit: fetch_geoboundaries_network_phase/
+    fetch_hdx_admin_boundaries_network_phase/fetch_worldpop_population_network_phase cache
+    their result dict (including a real local_path temp file, deliberately kept alive while
+    cached so a repeat call within the TTL window reuses it) via _LOOKUP_CACHE -- but nothing
+    ever deleted that file once the cache entry itself expired, a real (if low-severity)
+    resource leak. _cleanup_cached_local_path is the on_evict callback that closes it; these
+    tests exercise it directly, independent of the cache-expiry machinery itself (covered in
+    test_cache_utils.py)."""
+
+    def test_removes_the_file_when_value_has_a_local_path(self):
+        import os
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".geojson")
+        os.close(fd)
+        try:
+            self.assertTrue(os.path.exists(path))
+            _cleanup_cached_local_path(("some", "key"), {"success": True, "local_path": path})
+            self.assertFalse(os.path.exists(path))
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_no_op_for_a_value_with_no_local_path(self):
+        # Most cached values here (location lookups, tile-index CSV text, per-tile content)
+        # have nothing to clean up -- must not raise or do anything surprising.
+        _cleanup_cached_local_path(("some", "key"), {"success": True})  # must not raise
+
+    def test_no_op_for_a_non_dict_value(self):
+        _cleanup_cached_local_path(("building_footprints_links",), "raw csv text")  # must not raise
+
+    def test_no_op_when_the_file_is_already_gone(self):
+        # Defends against a double-cleanup path (e.g. some other code already removed it) --
+        # must not raise on a stale path that no longer exists on disk.
+        _cleanup_cached_local_path(("k",), {"local_path": "/definitely/not/a/real/path.geojson"})
+
+
+class TestLoadWorkflowPreset(unittest.TestCase):
+    """load_workflow_preset: no test coverage at all before QUAL-006 (2026-09-14 audit)."""
+
+    def test_outside_qgis_reports_not_found_not_qgis_unavailable(self):
+        # Unlike most tools, load_workflow_preset has no explicit `if not QGIS_AVAILABLE`
+        # gate -- outside QGIS, `settings` is None and `raw` is "", so it falls through to
+        # the same "not found" error a real missing preset would give, not a distinct
+        # "QGIS not available" message. Documenting the actual behavior, not the more
+        # common convention this file's other tools follow.
+        res = load_workflow_preset("weekly_check")
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.db_and_workflow_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.db_and_workflow_tools.QgsSettings", create=True)
+    def test_missing_preset_reports_a_clear_error(self, mock_settings_cls):
+        mock_settings_cls.return_value.value.return_value = ""
+        res = load_workflow_preset("never_saved")
+        self.assertIn("error", res)
+        self.assertIn("never_saved", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.db_and_workflow_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.db_and_workflow_tools.QgsSettings", create=True)
+    def test_found_preset_returns_its_stored_json(self, mock_settings_cls):
+        stored = '{"steps": [{"tool": "calculate_severity_index", "args": {}}]}'
+        mock_settings_cls.return_value.value.return_value = stored
+
+        res = load_workflow_preset("weekly_check")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["workflow_json"], stored)
+        self.assertEqual(res["preset_name"], "weekly_check")
+        # Confirms the settings key namespace actually reached QgsSettings.value(...).
+        called_key = mock_settings_cls.return_value.value.call_args[0][0]
+        self.assertEqual(called_key, "cartogen_ai/workflows/weekly_check")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.export_tools import (
     generate_report, generate_spatial_report, _layer_provenance_entries, _format_lineage_entry,
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
-    _write_vector, export_layer, export_to_csv,
+    _write_vector, export_layer, export_to_csv, _sanitize_csv_formula_injection,
     _classify_freshness, _humanize_age, _freshness_legend_html,
 )
 import datetime
@@ -378,6 +378,145 @@ class TestWriteVectorSensitivityWarning(unittest.TestCase):
 
         self.assertTrue(res["success"])
         self.assertNotIn("warning", res)
+
+
+class TestWriteVectorUnresolvedNoErrorSentinel(unittest.TestCase):
+    """QGIS-004, 2026-09-13 audit: _VFW_NO_ERROR being None (resolve_qgis_enum failed to
+    resolve either QGIS 4.x's scoped or QGIS 3.x's flat WriterError.NoError -- a future QGIS
+    API change neither form survives) used to make `error != _VFW_NO_ERROR` evaluate as
+    `error != None`, which is ALWAYS True for a real (non-None) success code -- a fully
+    successful export would silently report itself as failed, with nothing to catch the
+    wrong answer since it never raises. Must now return a clear, explicit error instead."""
+
+    def test_unresolved_sentinel_reports_a_clear_error_not_a_false_failure(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+
+        fake_writer = MagicMock()
+        fake_writer.SaveVectorOptions.return_value = MagicMock()
+        layer = MagicMock()
+        layer.customProperty.return_value = ""
+
+        with patch.object(export_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(export_tools_mod, "QgsVectorFileWriter", fake_writer, create=True), \
+             patch.object(export_tools_mod, "QgsCoordinateTransformContext", MagicMock(), create=True), \
+             patch.object(export_tools_mod, "_VFW_NO_ERROR", None):
+            # A real successful write -- error code 0, exactly what a genuine success
+            # looks like. Before the fix, this was misreported as a failure purely
+            # because the sentinel itself failed to resolve, an unrelated fact.
+            fake_writer.writeAsVectorFormatV2.return_value = (0, "")
+            res = _write_vector(layer, "/tmp/out.gpkg", "GPKG")
+
+        self.assertIn("error", res)
+        self.assertNotIn("success", res)
+        self.assertIn("Could not resolve", res["error"])
+
+
+class TestSanitizeCsvFormulaInjection(unittest.TestCase):
+    """SEC-002, 2026-09-13 audit: export_to_csv wrote layer attribute values into CSV with
+    no sanitization -- a string field's value beginning with =/+/-/@ is interpreted as a
+    formula by Excel/LibreOffice/Sheets when opened there (CSV/formula injection, OWASP).
+    Exercises _sanitize_csv_formula_injection directly against a real temp file -- pure
+    Python (the csv module), no QGIS needed."""
+
+    def _write_temp_csv(self, header, rows):
+        import csv
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(header)
+            w.writerows(rows)
+        self.addCleanup(os.remove, path)
+        return path
+
+    def _read_csv(self, path):
+        import csv
+        with open(path, newline="", encoding="utf-8") as f:
+            return list(csv.reader(f))
+
+    def test_quotes_formula_prefixed_string_field_values(self):
+        path = self._write_temp_csv(
+            ["name", "notes"],
+            [["Site A", "=HYPERLINK(\"http://evil\")"], ["Site B", "+1;=cmd|'/calc'!A1"]],
+        )
+        err = _sanitize_csv_formula_injection(path, string_field_names={"name", "notes"})
+        self.assertIsNone(err)
+        rows = self._read_csv(path)
+        self.assertEqual(rows[1], ["Site A", "'=HYPERLINK(\"http://evil\")"])
+        self.assertEqual(rows[2], ["Site B", "'+1;=cmd|'/calc'!A1"])
+
+    def test_leaves_non_string_columns_untouched_even_with_leading_minus(self):
+        # A negative number (e.g. longitude) legitimately starts with "-" -- must never be
+        # quoted into a string, which would break numeric use of the exported CSV. Only
+        # columns named in string_field_names are eligible at all.
+        path = self._write_temp_csv(["lon", "name"], [["-73.985", "Plain name"]])
+        err = _sanitize_csv_formula_injection(path, string_field_names={"name"})
+        self.assertIsNone(err)
+        rows = self._read_csv(path)
+        self.assertEqual(rows[1], ["-73.985", "Plain name"])
+
+    def test_leaves_ordinary_string_values_untouched(self):
+        path = self._write_temp_csv(["name"], [["Ordinary text"], [""]])
+        err = _sanitize_csv_formula_injection(path, string_field_names={"name"})
+        self.assertIsNone(err)
+        rows = self._read_csv(path)
+        self.assertEqual(rows[1], ["Ordinary text"])
+        self.assertEqual(rows[2], [""])
+
+    def test_no_string_fields_is_a_no_op(self):
+        path = self._write_temp_csv(["lon", "lat"], [["-73.985", "40.7"]])
+        err = _sanitize_csv_formula_injection(path, string_field_names=set())
+        self.assertIsNone(err)
+        rows = self._read_csv(path)
+        self.assertEqual(rows[1], ["-73.985", "40.7"])
+
+
+class TestExportToCsvSanitizesStringFields(unittest.TestCase):
+    """Wiring test: export_to_csv must compute string_field_names from the real layer's
+    fields (QVariant.String only) and route the written file through the sanitizer above --
+    not just that the sanitizer works in isolation."""
+
+    def test_string_field_sanitized_after_real_export_succeeds(self):
+        import tempfile
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+
+        fake_writer = MagicMock()
+        fake_writer.SaveVectorOptions.return_value = MagicMock()
+
+        def fake_write(layer, output_path, ctx, options):
+            with open(output_path, "w", newline="", encoding="utf-8") as f:
+                f.write("name,WKT\n=cmd|'/calc'!A1,POINT (1 2)\n")
+            return (0, "")
+
+        fake_writer.writeAsVectorFormatV2.side_effect = fake_write
+
+        name_field = MagicMock()
+        name_field.name.return_value = "name"
+        name_field.type.return_value = 10
+
+        layer = MagicMock()
+        layer.customProperty.return_value = ""
+        layer.fields.return_value = [name_field]
+
+        fake_qvariant = MagicMock()
+        fake_qvariant.String = 10
+
+        fd, output_path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(lambda: os.path.exists(output_path) and os.remove(output_path))
+
+        with patch.object(export_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(export_tools_mod, "QgsVectorFileWriter", fake_writer, create=True), \
+             patch.object(export_tools_mod, "QgsCoordinateTransformContext", MagicMock(), create=True), \
+             patch.object(export_tools_mod, "_VFW_NO_ERROR", 0), \
+             patch.object(export_tools_mod, "QVariant", fake_qvariant, create=True), \
+             patch.object(export_tools_mod, "_find_layer_by_name", return_value=layer):
+            res = export_to_csv("incidents", output_path)
+
+        self.assertTrue(res.get("success"), res)
+        with open(output_path, newline="", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("'=cmd|'/calc'!A1", content)
 
 
 def _iso_ago(**timedelta_kwargs):

@@ -15,11 +15,42 @@ from datetime import date
 from .registry import register_tool
 from ._cache_utils import TTLCache
 from ._qgis_enum_compat import resolve_qgis_enum
+# SSRF protection (vector_tools.py's add_layer_from_path/_prefetch_url_to_temp already has
+# this, adversarially tested -- confirmed loopback/private/link-local/metadata addresses and
+# unsafe redirect targets are rejected before any bytes are fetched). Found missing here
+# entirely during a 2026-09-13 security audit (SEC-001): every function in this file that
+# does a SECOND fetch using a URL taken from a FIRST API response's own body (HDX's
+# resources[].url, geoBoundaries' gjDownloadURL, the Bing tile index's Url column, WorldPop's
+# files[0]) was fetching that second URL with plain urllib.request.urlopen -- no hostname/IP
+# validation, no redirect re-checking -- even though every one of those first responses is
+# genuinely external, third-party-published content. Reused here rather than duplicated.
+from .vector_tools import _is_safe_url, _build_safe_opener
+
+def _cleanup_cached_local_path(key, value):
+    """TTLCache on_evict callback (SEC-004, 2026-09-14 audit): several of this file's cached
+    results carry local_path, a real temp file on disk (fetch_geoboundaries_network_phase,
+    fetch_hdx_admin_boundaries_network_phase, fetch_worldpop_population_network_phase) --
+    deliberately kept alive while the cache entry is live, so a repeat call within the TTL
+    window reuses the already-downloaded file instead of re-fetching (see each function's own
+    "never-deleted temp file" comments). Once the cache entry itself expires or is replaced,
+    nothing else references that path any more, so it's safe to delete here. Not every cached
+    value has a local_path (the tile-index CSV, location lookups, etc. don't) -- silently a
+    no-op for those. Deliberately does NOT touch a fresh call's OWN new local_path (that's a
+    different dict, only the evicted OLD one is passed in here)."""
+    import os
+    if isinstance(value, dict):
+        local_path = value.get("local_path")
+        if local_path and os.path.exists(local_path):
+            try:
+                os.remove(local_path)
+            except OSError:
+                pass
+
 
 # Session-scoped cache for repeated identical lookups -- HDX/OSM/geoBoundaries
 # data doesn't change minute-to-minute, so a re-query with the same arguments
 # within a session (e.g. the model double-checking something) costs nothing.
-_LOOKUP_CACHE = TTLCache(ttl_seconds=1800)
+_LOOKUP_CACHE = TTLCache(ttl_seconds=1800, on_evict=_cleanup_cached_local_path)
 
 try:
     from qgis.core import (
@@ -272,6 +303,10 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> d
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urllib.request.urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode())
+        # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
+        # (2026-09-13): json.loads succeeding doesn't guarantee a dict.
+        if not isinstance(data, dict):
+            return {"error": f"geoBoundaries API returned an unexpected response shape ({type(data).__name__}, expected an object)."}
         geojson_url = data.get("gjDownloadURL")
         boundary_name = data.get("boundaryName")
 
@@ -280,8 +315,14 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> d
             _LOOKUP_CACHE.set(cache_key, result)
             return result
 
+        # SEC-001: geojson_url is third-party content (geoBoundaries' own API response),
+        # not a hardcoded endpoint -- validate before fetching it, same as any other
+        # externally-sourced URL.
+        unsafe_reason = _is_safe_url(geojson_url)
+        if unsafe_reason:
+            return {"error": f"Refusing to fetch geoBoundaries download URL: {unsafe_reason}"}
         req2 = urllib.request.Request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req2, timeout=60) as response2:
+        with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = response2.read()
 
         import os
@@ -395,9 +436,14 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         return {"error": f"'{dataset_name}' on HDX has no GeoJSON boundaries resource -- it may be published in shapefile-only format."}
 
     zip_url = zip_resource["url"]
+    # SEC-001: zip_url is a resource URL from HDX's own catalog data, published by whichever
+    # organization uploaded the dataset -- third-party content, validate before fetching.
+    unsafe_reason = _is_safe_url(zip_url)
+    if unsafe_reason:
+        return {"error": f"Refusing to fetch HDX resource URL: {unsafe_reason}"}
     try:
         req2 = urllib.request.Request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req2, timeout=60) as response2:
+        with _build_safe_opener().open(req2, timeout=60) as response2:
             zip_bytes = response2.read()
     except Exception as e:
         return {"error": f"Failed to download '{zip_url}': {e}"}
@@ -669,19 +715,34 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     features = []
     truncated = False
     for row in matching_rows:
-        try:
-            req = urllib.request.Request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
-            with urllib.request.urlopen(req, timeout=60) as response:
-                gz_bytes = response.read()
-        except Exception as e:
-            return {"error": f"Failed to download tile '{row['QuadKey']}': {e}"}
+        # PERF-004, 2026-09-13 audit: the tile-index CSV above was already cached via
+        # _LOOKUP_CACHE, but the actual per-quadkey tile download (multi-MB, gzipped)
+        # was not -- a repeated call for the same/overlapping bbox within the TTL window
+        # re-downloaded and re-decompressed the same tiles every time. Cached here by
+        # tile URL, same TTLCache instance and TTL as the tile-index lookup above.
+        tile_cache_key = ("building_footprint_tile", row["Url"])
+        tile_text = _LOOKUP_CACHE.get(tile_cache_key)
+        if tile_text is None:
+            # SEC-001: row["Url"] comes from Microsoft's own published tile index (fetched
+            # and parsed earlier in this function), not a hardcoded endpoint -- validate
+            # before fetching, same as any other externally-sourced URL.
+            unsafe_reason = _is_safe_url(row["Url"])
+            if unsafe_reason:
+                return {"error": f"Refusing to fetch tile '{row['QuadKey']}': {unsafe_reason}"}
+            try:
+                req = urllib.request.Request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
+                with _build_safe_opener().open(req, timeout=60) as response:
+                    gz_bytes = response.read()
+            except Exception as e:
+                return {"error": f"Failed to download tile '{row['QuadKey']}': {e}"}
 
-        try:
-            raw = gzip.decompress(gz_bytes)
-        except OSError as e:
-            return {"error": f"Tile '{row['QuadKey']}' did not decompress as gzip: {e}"}
+            try:
+                tile_text = gzip.decompress(gz_bytes).decode("utf-8")
+            except OSError as e:
+                return {"error": f"Tile '{row['QuadKey']}' did not decompress as gzip: {e}"}
+            _LOOKUP_CACHE.set(tile_cache_key, tile_text)
 
-        for line in raw.decode("utf-8").splitlines():
+        for line in tile_text.splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -863,8 +924,13 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None) -> dict
         if not file_urls:
             return {"error": f"WorldPop dataset for {iso3} has no downloadable file listed."}
 
+        # SEC-001: file_urls[0] comes from WorldPop's own API listing, not a hardcoded
+        # endpoint -- validate before fetching, same as any other externally-sourced URL.
+        unsafe_reason = _is_safe_url(file_urls[0])
+        if unsafe_reason:
+            return {"error": f"Refusing to fetch WorldPop file URL: {unsafe_reason}"}
         req2 = urllib.request.Request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req2, timeout=300) as response2:
+        with _build_safe_opener().open(req2, timeout=300) as response2:
             raster_bytes = response2.read()
 
         import os
@@ -1106,7 +1172,20 @@ def add_incident_point(
         if not layer.isValid():
             return {"error": "Failed to create Incidents layer"}
         QgsProject.instance().addMapLayer(layer)
-        _style_incident_layer(layer)
+        # QGIS-009, 2026-09-14 audit: _style_incident_layer used to run unguarded here -- a
+        # styling failure (e.g. an enum this QGIS version doesn't resolve, currently
+        # unreachable but latent, same class as QGIS-004/005) would raise past this point,
+        # meaning the layer already added above never gets its incident point added either,
+        # and the tool call fails outright -- even though the layer now EXISTS in the
+        # project, unstyled. Every later add_incident_point call hits the `if existing:`
+        # branch above and reuses that same layer, which is never styled again (styling only
+        # runs here, on first creation) -- "permanently unstyled" until the project is
+        # cleaned up by hand. Styling is cosmetic, not required for the feature itself to
+        # work, so a failure here must not block adding the actual incident point.
+        try:
+            _style_incident_layer(layer)
+        except Exception as e:
+            print(f"[humanitarian_tools] Failed to style new Incidents layer: {e}")
 
     feat = QgsFeature(layer.fields())
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
@@ -1241,7 +1320,13 @@ def add_point_layer(layer_name: str, points: list):
         if not layer.isValid():
             return {"error": f"Failed to create layer '{layer_name}'"}
         QgsProject.instance().addMapLayer(layer)
-        _style_named_point_layer(layer)
+        # QGIS-009, 2026-09-14 audit: same reasoning as add_incident_point's identical guard
+        # above -- styling is cosmetic and must not block the layer's actual points from
+        # being added if it fails.
+        try:
+            _style_named_point_layer(layer)
+        except Exception as e:
+            print(f"[humanitarian_tools] Failed to style new '{layer_name}' layer: {e}")
 
     field_names = [f.name() for f in layer.fields()]
     added = 0

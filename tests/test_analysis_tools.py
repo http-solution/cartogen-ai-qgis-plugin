@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 import datetime
+from unittest.mock import patch, MagicMock
+import cartogen_ai.core.agent.tools.analysis_tools as analysis_tools_mod
 from cartogen_ai.core.agent.tools.analysis_tools import (
     _parse_date, _linear_regression, _forecast_series, forecast_trend,
     _normalize_minmax, _severity_class, _compute_severity_index, calculate_severity_index,
@@ -270,6 +272,98 @@ class TestCalculateSeverityIndexTool(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
 
+def _fake_layer_with_fields(*field_names):
+    """A minimal fake layer for the QGIS-008 gate tests below -- just enough surface
+    (fields()/getFeatures()) for the gate to be reached; getFeatures() is never actually
+    called when the gate fires first, since these tests all pass confirmed=False.
+    `name` is a reserved MagicMock constructor kwarg (sets the mock's repr, not an
+    attribute) -- field.name.return_value is set explicitly afterward instead."""
+    layer = MagicMock()
+    fields = []
+    for n in field_names:
+        f = MagicMock()
+        f.name.return_value = n
+        fields.append(f)
+    layer.fields.return_value = fields
+    return layer
+
+
+class TestQgis008DestructiveOutputFieldGate(unittest.TestCase):
+    """2026-09-13 audit (QGIS-008): the 4 composite-index tools write output_field into the
+    layer's attribute table via the same provider.changeAttributeValues() mutation
+    field_calculator/calculate_area/calculate_length already gate behind confirmation
+    (BUG-2026-08-21-3) -- this was a real, confirmed inconsistency, not a duplicate of that
+    earlier fix. Gated on output_field being requested specifically: a plain analysis call
+    (no output_field) must stay fully ungated, since it never touches the layer."""
+
+    def test_severity_index_gated_only_when_output_field_requested(self):
+        layer = _fake_layer_with_fields("a", "b", "name")
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", return_value=layer):
+            gated = calculate_severity_index("units", ["a", "b"], "name", output_field="score", confirmed=False)
+            self.assertEqual(gated.get("status"), "PREVIEW_REQUIRED")
+            self.assertTrue(gated.get("requires_confirmation"))
+            self.assertEqual(gated["arguments"]["confirmed"], True)
+
+            ungated = calculate_severity_index("units", ["a", "b"], "name")
+            self.assertNotEqual(ungated.get("status"), "PREVIEW_REQUIRED")
+
+    def test_presence_gap_gated_only_when_output_field_requested(self):
+        layer = _fake_layer_with_fields("a", "b", "name")
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", return_value=layer):
+            gated = calculate_presence_gap(
+                "units", ["a", "b"], "name", "3w.csv", "district", "org", output_field="gap_status", confirmed=False
+            )
+            self.assertEqual(gated.get("status"), "PREVIEW_REQUIRED")
+
+            # No output_field -- the file doesn't exist, but that's a DIFFERENT (later)
+            # validation than the gate; confirms the gate itself isn't what's blocking it.
+            ungated = calculate_presence_gap("units", ["a", "b"], "name", "3w.csv", "district", "org")
+            self.assertNotEqual(ungated.get("status"), "PREVIEW_REQUIRED")
+
+    def test_population_in_need_gated_only_when_output_field_requested(self):
+        layer = _fake_layer_with_fields("a", "b", "name")
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", return_value=layer):
+            gated = calculate_population_in_need(
+                "units", ["a", "b"], "name", "pop_raster", output_field="pop", confirmed=False
+            )
+            self.assertEqual(gated.get("status"), "PREVIEW_REQUIRED")
+
+    def test_damage_exposure_severity_gated_only_when_output_field_requested(self):
+        admin = _fake_layer_with_fields("name")
+        footprints = MagicMock()
+
+        def fake_find(n):
+            return footprints if n == "footprints" else admin
+
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", side_effect=fake_find):
+            gated = calculate_damage_exposure_severity(
+                "units", "name", "before", "after", "footprints", output_field="dmg", confirmed=False
+            )
+            self.assertEqual(gated.get("status"), "PREVIEW_REQUIRED")
+
+    def test_dispatcher_schema_filtering_prevents_bypass_for_severity_index(self):
+        """Same protection field_calculator/calculate_area already have (test_new_tools.py's
+        test_dispatcher_schema_filtering_prevents_bypass): confirmed isn't in this tool's
+        declared JSON schema, so the dispatcher strips a model-injected confirmed=True
+        before it ever reaches the function -- only a real UI confirm click (which injects
+        it AFTER schema filtering, via user_confirmed) can actually set it."""
+        from cartogen_ai.core.agent.agent import CartogenAi
+        layer = _fake_layer_with_fields("a", "b", "name")
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", return_value=layer):
+            agent = CartogenAi()
+            res = agent._real_execute_tool(
+                "calculate_severity_index",
+                {"layer_name": "units", "indicator_fields": ["a", "b"], "unit_name_field": "name",
+                 "output_field": "score", "confirmed": True},
+            )
+        self.assertEqual(res.get("status"), "PREVIEW_REQUIRED")
+
+
 class TestCalculatePresenceGapTool(unittest.TestCase):
     def test_degrades_gracefully_outside_qgis(self):
         res = calculate_presence_gap("units", ["a", "b"], "name", "3w.csv", "district", "org")
@@ -365,6 +459,62 @@ class TestAnalyzeIncidentTrendTool(unittest.TestCase):
         res = analyze_incident_trend("incidents", "date", "zones", "name", period_days=7, periods_ahead=2)
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
+
+
+def _fake_feature(field_values, geom_is_empty=False):
+    """Minimal fake QgsFeature: supports feat[field] item access and
+    feat.geometry(); id() defaults to a fresh MagicMock identity."""
+    feat = MagicMock()
+    feat.__getitem__.side_effect = lambda k: field_values[k]
+    geom = MagicMock()
+    geom.isEmpty.return_value = geom_is_empty
+    feat.geometry.return_value = geom
+    return feat
+
+
+class TestAnalyzeIncidentTrendPerf003IndexReuse(unittest.TestCase):
+    """PERF-003, 2026-09-13 audit: analyze_incident_trend used to call
+    _count_points_in_polygons(zones, ...) once per time bucket, rebuilding the same
+    QgsSpatialIndex + feature-id map against the unchanged zones layer every time. Now
+    builds it once (_build_polygon_index) and reuses it across buckets
+    (_count_points_in_polygons_indexed). qgis.core isn't importable in this sandbox, so
+    both helpers are mocked rather than exercised for real -- this test verifies the
+    CALL PATTERN (index built once, not once per bucket), which is exactly what the
+    performance bug was."""
+
+    def test_builds_index_once_regardless_of_bucket_count(self):
+        point_layer = MagicMock()
+        point_layer.fields.return_value = [MagicMock(**{"name.return_value": "date"})]
+        # 4 points, each 30 days apart -- period_days=30 puts each in its own bucket,
+        # so 4 distinct buckets get counted, but the index must still build only once.
+        base = datetime.date(2026, 1, 1)
+        points = [
+            _fake_feature({"date": (base + datetime.timedelta(days=30 * i)).isoformat()})
+            for i in range(4)
+        ]
+        point_layer.getFeatures.return_value = points
+
+        zone_layer = MagicMock()
+        zone_layer.fields.return_value = [MagicMock(**{"name.return_value": "name"})]
+        zone_feat = _fake_feature({"name": "Zone A"})
+        zone_feat.id.return_value = 1
+        zone_layer.getFeatures.return_value = [zone_feat]
+
+        def fake_find(n):
+            return point_layer if n == "incidents" else zone_layer
+
+        with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(analysis_tools_mod, "_find_layer_by_name", side_effect=fake_find), \
+             patch.object(analysis_tools_mod, "_build_polygon_index", return_value=("idx", {1: zone_feat})) as mock_build, \
+             patch.object(analysis_tools_mod, "_count_points_in_polygons_indexed", return_value={1: 0}) as mock_count:
+            res = analyze_incident_trend("incidents", "date", "zones", "name", period_days=30)
+
+        self.assertNotIn("error", res)
+        mock_build.assert_called_once_with(zone_layer)
+        self.assertEqual(mock_count.call_count, 4)
+        for call in mock_count.call_args_list:
+            self.assertEqual(call.args[0], "idx")
+            self.assertEqual(call.args[1], {1: zone_feat})
 
 
 if __name__ == "__main__":

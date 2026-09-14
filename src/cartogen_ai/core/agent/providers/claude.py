@@ -1,6 +1,6 @@
 import json
 import requests
-from .base import BaseAiProvider, post_with_retry
+from .base import BaseAiProvider, post_with_retry, get_with_retry, format_http_error, format_request_exception
 from ..model_selector import filter_chat_model_ids
 
 ANTHROPIC_VERSION = "2023-06-01"
@@ -10,7 +10,7 @@ DEFAULT_MAX_TOKENS = 8096
 def list_models(api_key):
     """Fetches the live model list from Anthropic's /v1/models endpoint."""
     try:
-        response = requests.get(
+        response = get_with_retry(
             "https://api.anthropic.com/v1/models",
             headers={"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION},
             timeout=15,
@@ -20,9 +20,9 @@ def list_models(api_key):
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
     except requests.exceptions.HTTPError as e:
-        return {"error": f"Claude models list failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("Claude models list failed", e)}
     except Exception as e:
-        return {"error": f"Claude models list request failed: {e}"}
+        return {"error": format_request_exception("Claude models list request failed", e)}
 
 
 def _translate_user_content(content):
@@ -246,6 +246,6 @@ class ClaudeClient(BaseAiProvider):
             data = response.json()
             return from_anthropic_response(data, self.model)
         except requests.exceptions.HTTPError as e:
-            return {"error": f"Claude API error ({e.response.status_code}): {e.response.text}"}
+            return {"error": format_http_error("Claude API error", e)}
         except Exception as e:
-            return {"error": f"Claude API request failed: {e}"}
+            return {"error": format_request_exception("Claude API request failed", e)}

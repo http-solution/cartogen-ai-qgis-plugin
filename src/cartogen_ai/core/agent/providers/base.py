@@ -35,23 +35,22 @@ RATE_LIMIT_MAX_RETRIES = 3
 DEFAULT_MAX_TOKENS = 8096
 
 
-def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES):
-    """Shared HTTP POST for every provider's raw requests-based client. A single
-    transient network hiccup or 429/5xx used to kill the whole agent turn with
-    no retry at all -- this gives every provider (except OpenRouter, which
-    already has its own multi-model fallback loop as an outer layer) a short
-    exponential backoff before giving up, PLUS a separate, longer budget
-    specifically for 429 (see RATE_LIMIT_BACKOFF_SECONDS/RATE_LIMIT_MAX_RETRIES
-    above -- large multi-tool-call tasks, 2026-09-12). Returns the final
-    requests.Response; the caller still calls .raise_for_status() as before,
-    so this is a drop-in replacement for a bare requests.post(...) call."""
+def _request_with_retry(send, timeout, max_retries):
+    """Shared retry loop behind post_with_retry/get_with_retry -- `send` is a zero-arg
+    callable that performs the actual requests.post/requests.get call. A single transient
+    network hiccup or 429/5xx used to kill the whole agent turn with no retry at all -- this
+    gives every provider (except OpenRouter, which already has its own multi-model fallback
+    loop as an outer layer) a short exponential backoff before giving up, PLUS a separate,
+    longer budget specifically for 429 (see RATE_LIMIT_BACKOFF_SECONDS/RATE_LIMIT_MAX_RETRIES
+    above -- large multi-tool-call tasks, 2026-09-12). Returns the final requests.Response;
+    the caller still calls .raise_for_status() as before."""
     last_exc = None
     # The loop bound has to fit whichever retry budget is larger -- 429 may need more
     # attempts than a plain 5xx/network blip does.
     total_attempts = max(max_retries, RATE_LIMIT_MAX_RETRIES) + 1
     for attempt in range(total_attempts):
         try:
-            response = requests.post(url, headers=headers, data=payload_json, timeout=timeout)
+            response = send()
         except requests.exceptions.RequestException as e:
             last_exc = e
             if attempt < max_retries:
@@ -68,6 +67,74 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
             continue
         return response
     raise last_exc
+
+
+def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES):
+    """Shared HTTP POST for every provider's raw requests-based client -- see
+    _request_with_retry for the retry behavior. Drop-in replacement for a bare
+    requests.post(...) call."""
+    return _request_with_retry(
+        lambda: requests.post(url, headers=headers, data=payload_json, timeout=timeout),
+        timeout, max_retries,
+    )
+
+
+def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
+    """API-002, 2026-09-14 audit: every provider's list_models() used a bare requests.get(...)
+    with no retry at all -- unlike the chat-completion path, which has had post_with_retry's
+    resilience since 2026-09-12. A transient network hiccup or a 429 while just listing models
+    (e.g. populating the settings dialog's model dropdown) used to fail outright with no retry,
+    inconsistent with every other HTTP call this codebase makes. Same retry/backoff behavior as
+    post_with_retry, just for GET -- drop-in replacement for a bare requests.get(...) call."""
+    return _request_with_retry(
+        lambda: requests.get(url, headers=headers, timeout=timeout),
+        timeout, max_retries,
+    )
+
+
+def format_http_error(prefix, e):
+    """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
+    every provider client's list_models/grounded_search/chat-completion error paths.
+
+    API-005, 2026-09-13 audit: every provider surfaced e.response.text -- the raw HTTP error
+    body -- unfiltered into chat/conversation history. Several providers' own 401/403 error
+    messages echo back a masked/partial copy of the invalid key that was actually sent (e.g.
+    OpenAI's real format: "Incorrect API key provided: sk-ab***...yz. You can find your API
+    key at..."), which would otherwise sit in plain view in the chat log, get resent to the
+    model as part of conversation history on a later turn, and could end up in an exported
+    chat transcript. Redacted specifically for auth-shaped statuses (401/403) -- every other
+    status still surfaces the provider's real response text, which is usually genuinely
+    useful for debugging (quota errors, malformed-request details) and isn't credential-
+    bearing."""
+    status = e.response.status_code if e.response is not None else None
+    if status in (401, 403):
+        return (
+            f"{prefix} ({status}): Authentication failed -- check your API key. "
+            "(Response body withheld: some providers echo part of the submitted key back "
+            "in this specific error.)"
+        )
+    body = e.response.text if e.response is not None else str(e)
+    return f"{prefix} ({status}): {body}"
+
+
+def format_request_exception(prefix, e):
+    """API-10, 2026-09-14 audit: every provider's generic `except Exception as e: return
+    {"error": f"{prefix}: {e}"}` fallback surfaced whatever requests' own exception __str__
+    happened to produce -- bounded (no raw traceback ever reached the user), but for the most
+    common real-world case, no internet connection or a DNS failure, that text is genuinely
+    unhelpful: something like "HTTPSConnectionPool(host='api.openai.com', port=443): Max
+    retries exceeded... Failed to establish a new connection: [Errno 11001] getaddrinfo
+    failed". Detects requests.exceptions.ConnectionError specifically (DNS failure, refused
+    connection, no route to host all raise this) and gives a clear, actionable message
+    instead; a requests.exceptions.Timeout gets its own equally direct message. Every other
+    exception type (a malformed-response KeyError/IndexError, a JSON decode ValueError, etc.)
+    falls through to the original str(e) behavior unchanged -- this only replaces the one
+    genuinely common, genuinely unhelpful case."""
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return f"{prefix}: could not reach the server -- check your internet connection. ({e})"
+    if isinstance(e, requests.exceptions.Timeout):
+        return f"{prefix}: the request timed out -- the server may be slow or unreachable. ({e})"
+    return f"{prefix}: {e}"
 
 
 def extract_openai_style_usage(data):

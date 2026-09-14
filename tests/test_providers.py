@@ -10,6 +10,7 @@ from cartogen_ai.core.agent.providers import ollama as ollama_mod
 from cartogen_ai.core.agent.providers import openai as openai_mod
 from cartogen_ai.core.agent.providers import claude as claude_mod
 from cartogen_ai.core.agent.providers import cartogen as cartogen_mod
+from cartogen_ai.core.agent.providers.base import format_http_error, format_request_exception
 
 
 def _mock_get_response(json_body):
@@ -348,6 +349,152 @@ class TestListModels(unittest.TestCase):
         mock_get.return_value = mock_response
         result = openai_mod.list_models("bad-key")
         self.assertIn("error", result)
+
+
+class TestListModelsRetriesLikeChatCompletion(unittest.TestCase):
+    """API-002, 2026-09-14 audit: list_models() across all 6 providers used a bare
+    requests.get(...) with no retry at all -- inconsistent with the chat-completion path,
+    which has had post_with_retry's resilience since 2026-09-12. Now routed through the new
+    get_with_retry (providers/base.py), sharing the exact same retry/backoff loop. These tests
+    prove the retry actually engages for list_models specifically, not just that
+    get_with_retry works in isolation (already covered by TestRetryWithBackoff)."""
+
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.openai.requests.get")
+    def test_openai_list_models_retries_on_transient_503_then_succeeds(self, mock_get, mock_sleep):
+        # get_with_retry inspects response.status_code itself to decide whether to retry --
+        # it never calls raise_for_status() on the intermediate (retried-away) response, only
+        # list_models() does, on whichever response finally comes back.
+        failing = MagicMock(status_code=503)
+        succeeding = _mock_get_response({"data": [{"id": "gpt-5.6-sol"}]})
+        mock_get.side_effect = [failing, succeeding]
+
+        result = openai_mod.list_models("dummy")
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertTrue(result["success"])
+        self.assertIn("gpt-5.6-sol", result["models"])
+
+    @patch("cartogen_ai.core.agent.providers.base.time.sleep")
+    @patch("cartogen_ai.core.agent.providers.claude.requests.get")
+    def test_claude_list_models_retries_on_connection_error_then_succeeds(self, mock_get, mock_sleep):
+        import requests as requests_mod
+        succeeding = _mock_get_response({"data": [{"type": "model", "id": "claude-opus-5"}]})
+        mock_get.side_effect = [requests_mod.exceptions.ConnectionError("blip"), succeeding]
+
+        result = claude_mod.list_models("dummy")
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertTrue(result["success"])
+        self.assertIn("claude-opus-5", result["models"])
+
+
+class TestMalformedJsonBodyDoesNotCrashComplete(unittest.TestCase):
+    """API-006, 2026-09-14 audit: OpenRouter's and Ollama's complete() both called
+    response.json() inside a try block whose except clauses only caught
+    requests.exceptions.* -- a malformed/non-JSON response body (a proxy error page, a
+    truncated response) raised json.JSONDecodeError (a ValueError subclass) uncaught,
+    propagating out of complete() entirely instead of returning the normal {"error": ...}
+    shape every other failure mode already uses. OpenAI/Gemini/Claude/Cartogen already wrapped
+    this same call in a broad except Exception, so they didn't have this specific gap."""
+
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
+    def test_openrouter_malformed_json_body_returns_error_not_a_crash(self, mock_post):
+        bad_resp = MagicMock(status_code=200)
+        bad_resp.raise_for_status.return_value = None
+        bad_resp.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
+        mock_post.return_value = bad_resp
+
+        client = openrouter_mod.OpenRouterClient(api_key="dummy")
+        result = client.complete([{"role": "user", "content": "hi"}])  # must not raise
+
+        self.assertIn("error", result)
+        self.assertIn("not valid JSON", result["error"])
+
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
+    def test_ollama_malformed_json_body_returns_error_not_a_crash(self, mock_post):
+        bad_resp = MagicMock(status_code=200)
+        bad_resp.raise_for_status.return_value = None
+        bad_resp.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
+        mock_post.return_value = bad_resp
+
+        client = ollama_mod.OllamaClient()
+        result = client.complete([{"role": "user", "content": "hi"}])  # must not raise
+
+        self.assertIn("error", result)
+        self.assertIn("not valid JSON", result["error"])
+        self.assertNotIn("connection failed", result["error"].lower())
+
+
+class TestFormatRequestExceptionActionability(unittest.TestCase):
+    """API-010, 2026-09-14 audit: every provider's generic except-Exception fallback
+    surfaced whatever requests' own exception __str__ produced -- bounded, but genuinely
+    unhelpful for the most common real case (no internet/DNS failure). format_request_exception
+    gives ConnectionError/Timeout a clear, actionable message; everything else is unchanged."""
+
+    def test_connection_error_gets_an_actionable_message(self):
+        import requests
+        e = requests.exceptions.ConnectionError("Failed to establish a new connection: [Errno 11001] getaddrinfo failed")
+        msg = format_request_exception("OpenAI API request failed", e)
+        self.assertIn("OpenAI API request failed", msg)
+        self.assertIn("check your internet connection", msg)
+
+    def test_timeout_gets_an_actionable_message(self):
+        import requests
+        e = requests.exceptions.Timeout("Read timed out")
+        msg = format_request_exception("Gemini API request failed", e)
+        self.assertIn("Gemini API request failed", msg)
+        self.assertIn("timed out", msg)
+
+    def test_other_exception_types_pass_through_unchanged(self):
+        # A malformed-response KeyError/ValueError etc. must not be relabeled -- only the
+        # genuinely common, genuinely unhelpful connection/timeout case gets special-cased.
+        e = KeyError("choices")
+        msg = format_request_exception("Claude API request failed", e)
+        self.assertEqual(msg, f"Claude API request failed: {e}")
+
+
+class TestFormatHttpErrorRedaction(unittest.TestCase):
+    """API-005, 2026-09-13 audit: raw provider error bodies (e.response.text) were surfaced
+    unfiltered into chat/conversation history. Some providers' real 401/403 messages echo
+    back a masked/partial copy of the submitted API key (e.g. OpenAI's actual format:
+    "Incorrect API key provided: sk-ab***...yz") -- withheld here specifically for auth-
+    shaped statuses; every other status still passes the provider's real body through, since
+    that's usually genuinely useful for debugging and isn't credential-bearing."""
+
+    def _http_error(self, status_code, text):
+        import requests
+        e = requests.exceptions.HTTPError()
+        e.response = MagicMock(status_code=status_code, text=text)
+        return e
+
+    def test_401_withholds_the_raw_body(self):
+        e = self._http_error(401, "Incorrect API key provided: sk-ab1234...xyz. You can find your API key at...")
+        msg = format_http_error("OpenAI API error", e)
+        self.assertIn("Authentication failed", msg)
+        self.assertNotIn("sk-ab1234", msg)
+        self.assertNotIn("You can find your API key", msg)
+
+    def test_403_also_withholds_the_raw_body(self):
+        e = self._http_error(403, "Forbidden: key abc123 lacks scope")
+        msg = format_http_error("Claude API error", e)
+        self.assertIn("Authentication failed", msg)
+        self.assertNotIn("abc123", msg)
+
+    def test_non_auth_status_still_passes_the_real_body_through(self):
+        # A 429 quota-exceeded message, or a 400 malformed-request detail, is genuinely
+        # useful for debugging and isn't credential-bearing -- must not be redacted too.
+        e = self._http_error(429, "Rate limit exceeded, retry after 30s")
+        msg = format_http_error("Gemini API error", e)
+        self.assertIn("Rate limit exceeded, retry after 30s", msg)
+        self.assertIn("429", msg)
+
+    def test_prefix_and_status_present_in_every_case(self):
+        e = self._http_error(500, "Internal server error")
+        msg = format_http_error("Ollama HTTP error", e)
+        self.assertIn("Ollama HTTP error", msg)
+        self.assertIn("500", msg)
+        self.assertIn("Internal server error", msg)
 
 
 class TestRetryWithBackoff(unittest.TestCase):
