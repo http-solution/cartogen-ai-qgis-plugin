@@ -186,6 +186,9 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
                 {"type": "Feature", "geometry": {"type": "Point", "coordinates": [35.0, 31.0]},
                  "properties": {"eventid": 2, "eventtype": "DR", "eventname": "Drought B",
                                  "alertlevel": "Green", "country": "Jordan"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [44.0, 15.5]},
+                 "properties": {"eventid": 3, "eventtype": "FL", "eventname": "Flood C",
+                                 "alertlevel": "Red", "country": "Yemen"}},
             ]
         }
 
@@ -194,20 +197,47 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase()
         self.assertTrue(res["success"])
-        self.assertEqual(len(res["alerts"]), 1)
-        self.assertEqual(res["alerts"][0]["alert_level"], "Red")
+        self.assertEqual(len(res["alerts"]), 2)
+        self.assertTrue(all(a["alert_level"] == "Red" for a in res["alerts"]))
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
     def test_min_alert_level_green_includes_everything(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase(min_alert_level="Green")
-        self.assertEqual(len(res["alerts"]), 2)
+        self.assertEqual(len(res["alerts"]), 3)
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
     def test_bbox_filters_client_side(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase(bbox=[0, 0, 1, 1], min_alert_level="Green")
         self.assertEqual(len(res["alerts"]), 0)
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_country_filters_to_named_place_case_insensitive(self, mock_urlopen):
+        """2026-09-15, real live report: a request naming Yemen with no bbox returned every
+        GDACS alert worldwide. country= is the fix -- scopes by GDACS's own per-alert country
+        field without requiring the model to derive a bbox first."""
+        mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
+        res = hz.fetch_gdacs_disaster_alerts_network_phase(min_alert_level="Green", country="yemen")
+        self.assertEqual(len(res["alerts"]), 1)
+        self.assertEqual(res["alerts"][0]["name"], "Flood C")
+        self.assertEqual(res["country"], "yemen")
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_country_with_no_matches_returns_empty_not_an_error(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
+        res = hz.fetch_gdacs_disaster_alerts_network_phase(min_alert_level="Green", country="Chad")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["alerts"], [])
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_country_and_bbox_combine_as_and(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
+        # Yemen's Flood C is at (44.0, 15.5) -- a Jordan-only bbox should exclude it even
+        # though country="Jordan" alone would match the other two features.
+        res = hz.fetch_gdacs_disaster_alerts_network_phase(
+            bbox=[34.5, 30.5, 35.5, 31.5], min_alert_level="Green", country="Jordan")
+        self.assertEqual(len(res["alerts"]), 2)
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen", side_effect=OSError("timeout"))
     def test_network_failure_returns_clean_error(self, mock_urlopen):

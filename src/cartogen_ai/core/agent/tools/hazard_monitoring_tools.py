@@ -440,7 +440,7 @@ _GDACS_EVENTLIST_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/S
 _GDACS_ALERT_RANK = {"green": 0, "orange": 1, "red": 2}
 
 
-def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange"):
+def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange", country=None):
     """Pure network phase: queries GDACS's public event-list API for UN-coordinated disaster
     alerts (earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts), each with a
     human-assigned Green/Orange/Red severity. No qgis.core access -- safe off-thread. Free, no API
@@ -451,11 +451,22 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
     "server doesn't reliably filter, filter after fetching" pattern fetch_building_footprints
     already uses for its own tile-crop step. GDACS's default Green ("Advisory," minor/localized
     impact) is excluded unless min_alert_level is lowered -- matches the clutter-reduction
-    convention a comparable product (WorldMonitor) uses for the same source."""
+    convention a comparable product (WorldMonitor) uses for the same source.
+
+    country (2026-09-15, direct live report -- "my request was for yemen the client brought all
+    the incidents in the world"): a request naming a place, not a bbox, previously had no way to
+    scope this tool -- bbox defaults to None/"omit for global coverage", so a model that skips
+    geocoding the place first (nothing forced it to) got every alert on Earth. GDACS's own feed
+    already carries a per-alert `country` string (extracted into the result below, but never
+    filtered on before this) -- a case-insensitive substring match against it is a second,
+    independent way to scope a request by name, without requiring the model to derive a bbox
+    first. bbox and country can be combined (both must match); either alone is enough to avoid
+    the global-fallback case this fix closes."""
     bbox_error = _validate_bbox(bbox)
     if bbox_error:
         return {"error": bbox_error}
     min_rank = _GDACS_ALERT_RANK.get(str(min_alert_level).strip().lower(), 1)
+    country_needle = str(country).strip().lower() if country else None
 
     try:
         req = urllib.request.Request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
@@ -480,6 +491,9 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
         lon, lat = float(coords[0]), float(coords[1])
         if bbox_f and not _point_in_bbox(lon, lat, bbox_f):
             continue
+        country_value = props.get("country", "")
+        if country_needle and country_needle not in str(country_value).strip().lower():
+            continue
         alert_level = props.get("alertlevel", "")
         rank = _GDACS_ALERT_RANK.get(str(alert_level).strip().lower(), -1)
         if rank < min_rank:
@@ -491,12 +505,12 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
             "name": props.get("eventname", props.get("name", "")),
             "description": props.get("description", ""),
             "alert_level": alert_level,
-            "country": props.get("country", ""),
+            "country": country_value,
             "from_date": props.get("fromdate", ""),
             "to_date": props.get("todate", ""),
         })
 
-    return {"success": True, "bbox": bbox, "min_alert_level": min_alert_level, "alerts": alerts}
+    return {"success": True, "bbox": bbox, "min_alert_level": min_alert_level, "country": country, "alerts": alerts}
 
 
 def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="GDACS Disaster Alerts"):
@@ -552,20 +566,24 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
     "asks about acting on a specific alert. Free, no API key. Defaults to Orange and above (excludes minor/localized Green "
     "advisories) -- pass min_alert_level='Green' to include everything. IMPORTANT: bbox (when "
     "given) is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_active_fires "
-    "and fetch_nasa_eonet_events. Re-running this tool REPLACES the layer's features with the "
-    "latest fetch, so it's safe to schedule on a recurring interval.",
+    "and fetch_nasa_eonet_events. IMPORTANT: if the user names a specific place ('the latest "
+    "GDACS alerts for Yemen') rather than giving coordinates, pass country (e.g. country='Yemen') "
+    "-- omitting BOTH bbox and country returns every alert worldwide, which is very rarely what a "
+    "place-scoped request actually wants. Re-running this tool REPLACES the layer's features with "
+    "the latest fetch, so it's safe to schedule on a recurring interval.",
     {
         "type": "object",
         "properties": {
             "bbox": {"type": "array", "items": {"type": "number"}, "description": "Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage."},
             "min_alert_level": {"type": "string", "description": "Minimum alert level to include: 'Green', 'Orange' (default), or 'Red'."},
+            "country": {"type": "string", "description": "Optional country name to scope results to (case-insensitive substring match against GDACS's own per-alert country field, e.g. 'Yemen'). Use this or bbox (or both) whenever the user named a specific place -- don't leave both empty for a place-scoped request."},
             "layer_name": {"type": "string", "description": "Name for the layer. Defaults to 'GDACS Disaster Alerts'. Re-fetching with the same name replaces its features rather than duplicating them."},
         },
         "required": [],
     },
 )
-def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", layer_name="GDACS Disaster Alerts"):
-    fetch_result = fetch_gdacs_disaster_alerts_network_phase(bbox, min_alert_level)
+def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=None, layer_name="GDACS Disaster Alerts"):
+    fetch_result = fetch_gdacs_disaster_alerts_network_phase(bbox, min_alert_level, country)
     return add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name)
 
 
