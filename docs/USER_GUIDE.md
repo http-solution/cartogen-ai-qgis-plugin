@@ -116,8 +116,8 @@ type produces a confidently wrong map. Things the plugin can work out for
 itself (the area of interest, from the layers you have open) are not asked
 about at all.
 
-**The prompt preview.** Before the request goes anywhere, you see the exact
-text that will be sent, and why:
+**The prompt preview.** Before the request goes anywhere, the assistant posts a
+normal chat message showing the exact text that will be sent, and why:
 
 - which task matched, and how confident the match was
 - what you will get back — a styled layer, a PDF layout, an HTML dashboard, a
@@ -125,11 +125,12 @@ text that will be sent, and why:
 - any value assumed on your behalf, stated in full
 - what each attached file will be read as
 
-*Send this* sends what you see. *Send as typed instead* sends your text with no
-enrichment at all, for when the matched task is simply wrong. *Cancel* puts
-the message back in the box. You can turn the preview off in Settings; it is
-on by default, because it exists so that nothing is added to your message
-without you seeing it.
+Reply like you would to anything else. Confirming (e.g. "yes", "send", "go
+ahead") sends what you saw in the preview. Typing anything else sends your
+own wording instead, with no enrichment at all — for when the matched task is
+simply wrong. Replying "cancel" (or "no", "stop") abandons it. You can turn
+the preview off in Settings; it is on by default, because it exists so that
+nothing is added to your message without you seeing it.
 
 **Attachments.** A file you attach is classified and routed to the tool that
 can read it:

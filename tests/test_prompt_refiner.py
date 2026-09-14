@@ -167,7 +167,7 @@ class TestChatPipelineIntegration(unittest.TestCase):
     def test_chat_send_path_previews_the_prompt_before_sending(self):
         text = self._source("chat_tab_widget.py")
         self.assertIn("is_prompt_preview_enabled", text)
-        self.assertIn("_show_preview_panel", text)
+        self.assertIn("_ask_preview_in_chat", text)
         self.assertIn("optimum_prompt", text)
 
     def test_chat_send_path_sends_the_composed_message_not_the_raw_text(self):

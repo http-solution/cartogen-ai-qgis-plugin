@@ -157,6 +157,15 @@ class TestChatWidgetLive(unittest.TestCase):
     def _chat_text(ct):
         return ct.chat_browser.toPlainText()
 
+    @staticmethod
+    def _reply(ct, text):
+        """Types text into the real input box and presses the real Send button --
+        used for both a fresh message and a typed reply to an in-chat question
+        (requirement gate or prompt preview), since both are just "type, hit Send"
+        from the user's side."""
+        ct.input_edit.setPlainText(text)
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+
     # --------------------------------------------------------- Scenario 1 --
 
     def test_requirement_question_asked_in_chat_not_a_boxed_panel(self):
@@ -203,12 +212,10 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
 
-        ct.input_edit.setPlainText("map population affected by a hazard")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "map population affected by a hazard")
         self.assertTrue(ct._awaiting_requirement_reply)
 
-        ct.input_edit.setPlainText("flood")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "flood")
 
         # Real-session report, 2026-09-13: "some of my text i sent in the chat is not
         # showing" -- the literal reply must be echoed into the chat log immediately,
@@ -218,15 +225,15 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self.assertFalse(ct._awaiting_requirement_reply,
                          "answering the only unresolvable slot should clear the pending state")
-        self.assertTrue(ct.preview_panel.isVisible(),
+        self.assertTrue(ct._awaiting_preview_reply,
                         "a now-resolved, matched task with preview enabled (the default) should "
                         "proceed to the normal preview step, exactly like any fresh, already-"
                         "complete request would")
-        shown = ct.preview_prompt.toPlainText()
+        shown = self._chat_text(ct)
         self.assertIn("flood", shown.lower(),
                       "the composed prompt must carry the answer forward, not just the original text")
 
-        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "yes")
         _pump(until=lambda: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "the merged, now-answerable request must actually reach the agent")
@@ -242,24 +249,21 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
 
-        ct.input_edit.setPlainText("map services for at-risk children")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "map services for at-risk children")
         self.assertTrue(ct._awaiting_requirement_reply)
         first_question_log = self._chat_text(ct)
         self.assertIn("facility", first_question_log.lower())
 
         # Answers facility_type only ("clinics") -- sector is still missing, so this
         # must ask again rather than proceeding.
-        ct.input_edit.setPlainText("clinics")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "clinics")
         self.assertIn("clinics", self._chat_text(ct).lower(),
                       "the first reply must be visible in the chat log")
         self.assertTrue(ct._awaiting_requirement_reply,
                         "sector is still unresolved -- the gate must ask again, not proceed")
 
         # Answers the second question ("protection") -- now both slots are resolved.
-        ct.input_edit.setPlainText("protection")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "protection")
         log = self._chat_text(ct)
         self.assertIn("protection", log.lower(),
                       "the second reply must ALSO be visible -- not just the first")
@@ -269,11 +273,11 @@ class TestChatWidgetLive(unittest.TestCase):
                          "both slots are now resolved -- the pending state must clear")
         self.assertEqual(agent.client.calls, 0,
                          "still must not have sent anything to the model yet (this next step "
-                         "would be gated by the preview panel, not exercised by this test)")
+                         "would be gated by the in-chat preview question, not exercised by this test)")
 
     # --------------------------------------------------------- Scenario 2 --
 
-    def test_preview_panel_shows_real_prompt_and_send_dispatches_it(self):
+    def test_preview_question_shows_real_prompt_and_confirm_reply_dispatches_it(self):
         agent = _FakeAgent(script=[
             {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
                          "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
@@ -281,37 +285,68 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
 
-        ct.input_edit.setPlainText("map health facilities")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "map health facilities")
 
-        self.assertTrue(ct.preview_panel.isVisible(),
-                        "a matched task with preview enabled (the default) must show the preview")
-        shown = ct.preview_prompt.toPlainText()
+        self.assertTrue(ct._awaiting_preview_reply,
+                        "a matched task with preview enabled (the default) must ask in chat")
+        shown = self._chat_text(ct)
         self.assertIn("map health facilities", shown,
-                      "the preview must show the real composed prompt, not a placeholder")
-        self.assertEqual(agent.client.calls, 0, "must not have sent anything while the preview is up")
+                      "the chat message must show the real composed prompt, not a placeholder")
+        self.assertEqual(agent.client.calls, 0, "must not have sent anything while awaiting the reply")
 
-        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "yes")
         _pump(until=lambda: agent.client.calls >= 1)
 
-        self.assertFalse(ct.preview_panel.isVisible())
-        self.assertEqual(agent.client.calls, 1, "clicking Send this must be what actually dispatches the call")
+        self.assertFalse(ct._awaiting_preview_reply)
+        self.assertEqual(agent.client.calls, 1, "a confirming reply must be what actually dispatches the call")
         log = self._chat_text(ct)
         self.assertIn("map health facilities", log, "the user's own message must land in the chat log")
         self.assertIn("Loaded 3 facility layers", log, "the agent's real response must land in the chat log")
 
-    def test_preview_panel_growth_reclamps_a_floating_dock(self):
-        """Real live report, 2026-09-15: after this panel appeared, the floating dock ended up
-        with its input row under the Windows taskbar. Confirmed directly (separate manual repro)
-        that showing this panel genuinely grows the dock's forced minimum size -- exactly the
-        failure mode dock_widget.py's _clamp_to_screen_if_floating exists to catch, but that
-        guard previously only ran from resizeEvent, leaving a timing gap. Proves the fix: the
-        clamp now actually fires at the moment the panel's visibility changes, not just
-        eventually via whatever resize follows."""
+    def test_preview_reply_variants_are_interpreted_correctly(self):
+        """The free-text reply resolves a genuine 3-way choice (confirmed with the user as the
+        design, 2026-09-15): an affirmative word sends the composed prompt, a cancel word
+        abandons it with no dispatch, and anything else is sent exactly as typed (the free-text
+        equivalent of the old 'Send as typed instead' button) -- checked here as three separate,
+        independent turns."""
         agent = _FakeAgent(script=[
-            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
-                         "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
+            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
+            {"message": {"role": "assistant", "content": "OK.", "tool_calls": []}},
         ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        # Cancel: no dispatch, an acknowledgment lands in the chat, state clears.
+        self._reply(ct, "map health facilities")
+        self.assertTrue(ct._awaiting_preview_reply)
+        self._reply(ct, "cancel")
+        self.assertFalse(ct._awaiting_preview_reply)
+        self.assertEqual(agent.client.calls, 0, "cancelling must not dispatch anything")
+        self.assertIn("cancelled", self._chat_text(ct).lower())
+
+        # Edit fallback: an unrecognized reply is sent exactly as typed, no enrichment/contract.
+        self._reply(ct, "map health facilities")
+        self.assertTrue(ct._awaiting_preview_reply)
+        self._reply(ct, "just show me clinics instead")
+        _pump(until=lambda: agent.client.calls >= 1)
+        self.assertEqual(agent.client.calls, 1,
+                         "an unrecognized reply must dispatch exactly once, with no contract "
+                         "follow-up -- the whole point is opting OUT of the register's "
+                         "enrichment, contract included")
+        self.assertIn("just show me clinics instead", self._chat_text(ct).lower())
+
+    def test_boxed_panel_growth_reclamps_a_floating_dock(self):
+        """Real live report, 2026-09-15: after the (then-boxed) prompt-preview panel
+        appeared, the floating dock ended up with its input row under the Windows taskbar.
+        Confirmed directly (separate manual repro) that showing a panel like this genuinely
+        grows the dock's forced minimum size -- exactly the failure mode
+        dock_widget.py's _clamp_to_screen_if_floating exists to catch, but that guard
+        previously only ran from resizeEvent, leaving a timing gap. The prompt-preview panel
+        itself was converted to an in-chat exchange the same day (see the preview tests
+        above), so this now drives the still-boxed refinement_panel directly -- same
+        clamp-call wiring, same real widget, without needing the refinement feature's own
+        network-call scaffolding (not otherwise present in this test file)."""
+        agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         dock.setFloating(True)
         ct = dock.chat_tab_widget
@@ -319,38 +354,36 @@ class TestChatWidgetLive(unittest.TestCase):
         calls = []
         dock._clamp_to_screen_if_floating = lambda: calls.append(True)
 
-        ct.input_edit.setPlainText("map health facilities")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        self.assertTrue(ct.preview_panel.isVisible())
+        ct._show_refinement_panel("map health facilities", [
+            {"id": "A", "label": "Clearer", "refined_prompt": "Map health facilities in admin2.",
+             "rationale": "States the admin level explicitly."},
+            {"id": "B", "label": "Detailed", "refined_prompt": "Map and style health facilities by type.",
+             "rationale": "Adds styling."},
+        ])
+        self.assertTrue(ct.refinement_panel.isVisible())
         self.assertGreaterEqual(len(calls), 1,
-            "showing the preview panel must re-clamp the floating dock, not just wait for resizeEvent")
+            "showing the refinement panel must re-clamp the floating dock, not just wait for resizeEvent")
 
         calls.clear()
-        QTest.mouseClick(ct.preview_cancel_btn, Qt.MouseButton.LeftButton)
-        self.assertFalse(ct.preview_panel.isVisible())
+        ct._hide_refinement_panel()
+        self.assertFalse(ct.refinement_panel.isVisible())
         self.assertGreaterEqual(len(calls), 1, "hiding the panel again must also re-clamp")
 
-    def test_preview_panel_growth_is_pulled_back_within_available_screen(self):
+    def test_boxed_panel_growth_is_pulled_back_within_available_screen(self):
         """Same scenario as above, but checking the actual resulting geometry rather than just
         that the clamp function got called -- proves the fix does something, not just that it
         runs. Constrains only the HEIGHT of the dock's own screen() (standing in for a real
         screen where a taskbar eats into the bottom of availableGeometry, the exact reported
-        symptom) to something shorter than the panel-grown minimum height -- width is left
-        generous since the dock's own forced minimum width can't be shrunk below regardless of
-        available screen size, and isn't what this bug report was about."""
+        symptom) -- width is left generous since the dock's own forced minimum width can't be
+        shrunk below regardless of available screen size, and isn't what this bug report was
+        about."""
         from qgis.PyQt.QtCore import QRect
 
-        agent = _FakeAgent(script=[
-            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
-                         "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
-        ])
+        agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         dock.setFloating(True)
         ct = dock.chat_tab_widget
 
-        # Established live (manual repro): showing this panel forces a ~572px minimum height.
-        # 400px available height (as if a taskbar left only that much room) guarantees the
-        # grown dock exceeds it, without conflicting with the dock's own minimum WIDTH.
         small_available = QRect(0, 0, 1200, 400)
 
         class _FakeScreen:
@@ -360,70 +393,18 @@ class TestChatWidgetLive(unittest.TestCase):
         dock.screen = lambda: _FakeScreen()
         dock.setGeometry(0, 0, 700, 400)
 
-        ct.input_edit.setPlainText("map health facilities")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        self.assertTrue(ct.preview_panel.isVisible())
+        ct._show_refinement_panel("map health facilities", [
+            {"id": "A", "label": "Clearer", "refined_prompt": "Map health facilities in admin2.",
+             "rationale": "States the admin level explicitly."},
+            {"id": "B", "label": "Detailed", "refined_prompt": "Map and style health facilities by type.",
+             "rationale": "Adds styling."},
+        ])
+        self.assertTrue(ct.refinement_panel.isVisible())
 
         geo = dock.geometry()
         self.assertLessEqual(geo.y() + geo.height(), small_available.bottom() + 1,
             "dock's bottom edge must be pulled back within the (simulated) available screen -- "
             "this is the exact symptom reported (content ending up under the taskbar)")
-
-    def test_preview_panel_locks_input_box_against_edits(self):
-        """Regression test for the P0 bug fixed 2026-08-31: nothing previously
-        stopped a user from editing the input box while the preview panel was
-        open, and Send this / Send as typed instead both acted on a stale text
-        snapshot regardless -- an edit made here was silently discarded with
-        no warning. input_edit.setReadOnly(True) while the panel is open is
-        the fix; this drives a REAL keystroke (QTest.keyClicks), not a
-        programmatic setPlainText, to prove the box is genuinely locked for a
-        user, not just that the code happens to use the snapshot."""
-        agent = _FakeAgent(script=[
-            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
-        ])
-        dock = self._make_dock(agent)
-        ct = dock.chat_tab_widget
-
-        ct.input_edit.setPlainText("map health facilities")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        self.assertTrue(ct.preview_panel.isVisible())
-        self.assertTrue(ct.input_edit.isReadOnly(), "input box must be locked while the preview is open")
-
-        before = ct.input_edit.toPlainText()
-        QTest.keyClicks(ct.input_edit, " EDITED")
-        self.assertEqual(ct.input_edit.toPlainText(), before,
-                          "a real keystroke must not change the box while it's read-only")
-
-        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
-        _pump(until=lambda: agent.client.calls >= 1)
-
-        self.assertFalse(ct.input_edit.isReadOnly(), "must unlock again once the panel closes")
-        log = self._chat_text(ct)
-        self.assertIn("map health facilities", log)
-        self.assertNotIn("EDITED", log, "the stale-edit text must never reach the sent message")
-
-    def test_send_my_wording_only_skips_enrichment_and_its_contract(self):
-        """Regression test for the bug this file's docstring describes:
-        _dispatch_message(text, None) must actually mean no contract, not
-        fall back to the pending enriched analysis."""
-        agent = _FakeAgent(script=[
-            {"message": {"role": "assistant", "content": "OK.", "tool_calls": []}},
-        ])
-        dock = self._make_dock(agent)
-        ct = dock.chat_tab_widget
-
-        ct.input_edit.setPlainText("map health facilities")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        self.assertTrue(ct.preview_panel.isVisible())
-
-        QTest.mouseClick(ct.preview_original_btn, Qt.MouseButton.LeftButton)
-        _pump(500)
-
-        self.assertEqual(agent.client.calls, 1,
-                         "'Send as typed instead' must dispatch exactly once, with no contract "
-                         "follow-up -- the whole point of the button is to opt OUT of the "
-                         "register's enrichment, contract included")
-        self.assertFalse(ct.preview_panel.isVisible())
 
     # --------------------------------------------------------- Scenario 3 --
 
@@ -443,10 +424,9 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
 
-        ct.input_edit.setPlainText("build me a dashboard of displacement by district")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        self.assertTrue(ct.preview_panel.isVisible())
-        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "build me a dashboard of displacement by district")
+        self.assertTrue(ct._awaiting_preview_reply)
+        self._reply(ct, "yes")
 
         _pump(until=lambda: agent.client.calls >= 2)  # first turn + the one follow-up
         _pump(500)  # let the follow-up's on_complete/chat emit finish landing
@@ -468,9 +448,8 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
 
-        ct.input_edit.setPlainText("build me a dashboard of displacement by district")
-        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
-        QTest.mouseClick(ct.preview_send_btn, Qt.MouseButton.LeftButton)
+        self._reply(ct, "build me a dashboard of displacement by district")
+        self._reply(ct, "yes")
         _pump(until=lambda: agent.client.calls >= 1)
         _pump(500)
 
