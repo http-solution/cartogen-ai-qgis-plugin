@@ -1,3 +1,11 @@
+# Required dependency: every provider client (agent/providers/openai.py, gemini.py, claude.py,
+# ollama.py, openrouter.py) and account.py import `requests` directly for all LLM API calls --
+# without it, the plugin has no working provider connectivity at all. Not listed here until the
+# 2026-09-14 Community-lineage classification pass flagged the gap: it had always been present in
+# practice because QGIS's own bundled Python environment typically ships it already, but that's an
+# unstated assumption about the host environment, not a declared dependency of this package.
+requests
+
 # Optional dependencies for Cartogen AI.
 # Enables document parsing (PDF/Word/Excel attachments), web search, PDF table
 # extraction, and chart generation.
