@@ -64,6 +64,74 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-14 — v1.15.6-rc1 (commit `86cc4f3`, tag `commercial-plugin-v1.15.6-rc1`) — headless,
+FULL 16-category interactive checklist, run against the same already-built
+`dist/cartogen_ai_v1.15.6.zip` (sha256 `90ad75c4d86969f9889765451e16a1a4eacdc2b540f2960fd80123784ae33439`)
+used by the targeted 7-check run logged below.** This entry supersedes that one's "full run still
+recommended" note — the full checklist has now been run. Same `python-qgis.bat` / fresh-extraction
+/ `sys.path` technique as every other entry here; each category called the real tool function
+directly against real `QgsVectorLayer`/`QgsRasterLayer`/`QgsProject` objects (buffer, hub-siting,
+export, layout, etc. all go through real PyQGIS/GDAL/`processing.run()` calls, not mocks) — this
+is a headless run, not a literal chat-UI keystroke session, so it exercises each category's real
+tool-call path but not the chat widget itself (that half is already covered by the 2026-09-12
+entry below). First pass caught 5 pure test-script bugs (wrong tool import path/module, a
+positional/keyword argument collision, a wrong class name, a missing required `run()` wrapper for
+`execute_pyqgis_script`) — all fixed in the script, not the product; re-run below is the corrected
+one. **15/15 runnable categories passed, 1 explicitly skipped, 0 real product defects found:**
+
+1. **Vector & Geoprocessing** — `buffer_analysis` on a real 3-feature point layer; buffered layer
+   added to the project with 3 features.
+2. **Raster** — `apply_raster_stretch(mode="color_ramp")` on a real GDAL-written GeoTIFF; renderer
+   confirmed switched away from `singlebandgray`.
+3. **Humanitarian Data (HDX/OSM/geoBoundaries)** — `fetch_osm_features` against the real Overpass
+   API for a real bounding box (first attempt hit a transient `HTTP 504`; retried and succeeded —
+   noted as ordinary third-party API flakiness, not a plugin defect).
+4. **Humanitarian Logistics** — `optimal_hub_siting` against a real point layer; returned real
+   ranked candidates.
+5. **Data Analysis & Prediction** — `calculate_severity_index`'s `PREVIEW_REQUIRED` gate fired
+   with `confirmed` omitted, then wrote a real `sev_idx` field once confirmed.
+6. **Styling & Labeling** — `apply_categorized_style` on the point layer's `name` field; renderer
+   confirmed switched to `categorizedSymbol`.
+7. **AI Imagery Feature Extraction** — `extract_features_from_imagery` confirmed a clean degrade
+   (a real, actionable error naming the missing `ultralytics`/`torch` dependency) since neither is
+   installed in this environment — the "no crash, no hang, clear message" path, not the full
+   extraction path.
+8. **Satellite Imagery & Vision** — `search_stac_satellite_imagery` made a real STAC API call and
+   returned real results.
+9. **Monitoring & Scheduling** — `schedule_recurring_workflow` started a real `QTimer`-backed
+   schedule, confirmed present in `list_scheduled_workflows`, then `stop_recurring_workflow`
+   confirmed it was really cancelled (absent from the list afterward), not just removed from a
+   in-memory dict independent of the timer.
+10. **Database & Workflows** — **SKIPPED**, per this checklist's own stated allowance: no PostGIS
+    test database available in this sandbox.
+11. **Export & Reporting** — `export_to_csv` wrote a real file with correct headers and data
+    (also exercises SEC-002's formula-injection sanitization path).
+12. **Print Layouts** — `create_print_layout` added a real entry to
+    `QgsProject.instance().layoutManager()`, confirmed present by name afterward.
+13. **Reporting & Document Analysis** — real PDF extraction via a genuine `pypdf`-written PDF
+    succeeded; a `.docx` path confirmed a clean, explicit `python-docx`-missing degrade (not
+    installed in this environment) rather than a crash.
+14. **Project Management** — `save_project`/`load_project` round-tripped a real `.qgz` file;
+    `load_project`'s destructive-action `PREVIEW_REQUIRED` gate fired before `confirmed=True`,
+    and the reloaded project still had the expected layers afterward.
+15. **Task & Memory Management** — a real multi-step `CartogenAi.run()` call (fake multi-turn
+    client, real tool dispatch, real live `AgentTaskManager` instance) completed without error.
+    Note: this exercises the tool-calling loop and task-manager plumbing for real; it does not
+    verify the Tasks/Activity tab's own live-updating UI rendering, which needs the actual dock
+    widget (covered separately by the 2026-09-12 entry's UI-focused checks).
+16. **System, Search & Scripting** — `search_web` confirmed a clean, explicit degrade (naming the
+    missing `duckduckgo_search` dependency) rather than a crash; `execute_pyqgis_script` actually
+    **blocked** a disallowed `os.system(...)` call at the sandbox's safety-validation layer, live,
+    and actually **allowed** and correctly returned the result of a legitimate read-only script.
+
+No product code changes resulted from this run — every category either passed cleanly against
+real QGIS/GDAL/network calls, or hit a real, already-documented missing optional dependency and
+degraded exactly as designed. Optional-dependency inventory for this environment, checked
+separately: `psycopg2`/`pandas`/`openpyxl`/`matplotlib`/`pypdf` available; `docx`
+(python-docx)/`ultralytics`/`torch`/`duckduckgo_search`/`folium`/`pdfplumber` MISSING.
+
+---
+
 **2026-09-14 — v1.15.6-rc1 (commit `86cc4f3`) — headless, targeted at the audit's own changes,
 run against the actually-built `dist/cartogen_ai_v1.15.6.zip`.** Not the full 16-item interactive
 checklist above (this was specifically the release-candidate gate for the 2026-09-13/14 audit
