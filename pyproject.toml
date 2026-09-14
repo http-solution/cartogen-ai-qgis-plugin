@@ -10,10 +10,15 @@ name = "cartogen-ai-core"
 # manifest format and can't easily read from pyproject.toml at plugin-load
 # time; a `python docs/generate_tools_reference.py`-style sync script would
 # be the next step if this drifts in practice).
-version = "1.15.0"
+version = "1.15.5"
 description = "Cartogen AI Community edition -- spatial AI agent for QGIS"
 readme = "README.md"
-license = { text = "GPL-2.0-or-later" }
+# SEC-003, 2026-09-14 audit: was "GPL-2.0-or-later", which didn't match either the actual
+# shipped LICENSE file (plain GPLv2, no "or any later version" clause applied to this project)
+# or metadata.txt's own license= field ("GNU GPL v2"). Corrected to match both -- a metadata
+# accuracy fix, not a change to the license terms themselves (which were already GPLv2 per the
+# LICENSE file; this SPDX identifier was simply wrong).
+license = { text = "GPL-2.0-only" }
 requires-python = ">=3.9"
 authors = [{ name = "Alaa Alshoubaki", email = "alaa.alshoubaki@gmail.com" }]
 

@@ -181,6 +181,17 @@ class CartogenAi:
             print(f"[CartogenAi] scheduler stop_all failed: {e}")
 
         if self.dock_widget is not None:
+            # QGIS-002, 2026-09-13 audit: an in-flight AgentQgsTask used to keep running on
+            # its background thread after this point, against a dock widget scheduled for
+            # deletion below -- the direct trigger for QGIS-001's finished()-callback crash
+            # (a user unloading/reloading the plugin mid-request, e.g. via QGIS's own Plugin
+            # Reloader, was a plausible, ordinary way to hit it). Cooperative cancellation
+            # (see ChatTabWidget.cancel_active_task's own docstring) -- not guaranteed
+            # instant, but stops it from starting its NEXT step against a doomed widget.
+            try:
+                self.dock_widget.chat_tab_widget.cancel_active_task()
+            except Exception as e:
+                print(f"[CartogenAi] cancel_active_task failed: {e}")
             try:
                 self.iface.removeDockWidget(self.dock_widget)
                 self.dock_widget.deleteLater()

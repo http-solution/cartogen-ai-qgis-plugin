@@ -316,7 +316,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
         "required": ["layer_name", "indicator_fields", "unit_name_field"],
     },
 )
-def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weights=None, invert_indicators=None, output_field=None):
+def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weights=None, invert_indicators=None, output_field=None, confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -327,6 +327,30 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
     missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
+
+    # QGIS-008, 2026-09-13 audit: output_field writes the composite score into the layer's
+    # attribute table via the same provider.changeAttributeValues() mutation
+    # field_calculator/calculate_area/calculate_length already gate behind confirmation
+    # (BUG-2026-08-21-3) -- this must too, for the same reason. Gated on output_field being
+    # requested specifically, not the whole function: the analysis itself (no output_field)
+    # is read-only and must stay ungated, or every plain "rank these districts" call would
+    # need a pointless confirmation click for something that never touches the layer.
+    if output_field and not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "calculate_severity_index",
+            "arguments": {
+                "layer_name": layer_name, "indicator_fields": indicator_fields,
+                "unit_name_field": unit_name_field, "weights": weights,
+                "invert_indicators": invert_indicators, "output_field": output_field,
+                "confirmed": True,
+            },
+            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = composite severity score across features\nlayer.commitChanges()",
+            "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's composite severity score.",
+            "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
+        }
 
     rows = []
     for feat in layer.getFeatures():
@@ -479,7 +503,7 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
 )
 def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presence_file_path, presence_admin_field, presence_org_field,
                             weights=None, invert_indicators=None, high_severity_classes=None, low_presence_threshold=1,
-                            sheet_name=None, delimiter=",", output_field=None):
+                            sheet_name=None, delimiter=",", output_field=None, confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -490,6 +514,28 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
     missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
+
+    # QGIS-008, 2026-09-13 audit -- see calculate_severity_index's identical gate above for
+    # the full rationale. Gated on output_field specifically, not the whole function.
+    if output_field and not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "calculate_presence_gap",
+            "arguments": {
+                "layer_name": layer_name, "indicator_fields": indicator_fields,
+                "unit_name_field": unit_name_field, "presence_file_path": presence_file_path,
+                "presence_admin_field": presence_admin_field, "presence_org_field": presence_org_field,
+                "weights": weights, "invert_indicators": invert_indicators,
+                "high_severity_classes": high_severity_classes, "low_presence_threshold": low_presence_threshold,
+                "sheet_name": sheet_name, "delimiter": delimiter, "output_field": output_field,
+                "confirmed": True,
+            },
+            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = presence-gap status ('gap'/'covered'/'unmatched') across features\nlayer.commitChanges()",
+            "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each high-severity unit's presence-gap status.",
+            "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
+        }
 
     rows = [{"unit": str(feat[unit_name_field]), "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
@@ -657,7 +703,8 @@ def _write_population_to_layer(layer, rows, unit_results, output_field):
     },
 )
 def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, population_raster_layer,
-                                  weights=None, invert_indicators=None, high_severity_classes=None, output_field=None):
+                                  weights=None, invert_indicators=None, high_severity_classes=None, output_field=None,
+                                  confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -673,6 +720,26 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
     unknown_classes = high_classes - {1, 2, 3, 4, 5}
     if unknown_classes:
         return {"error": f"high_severity_classes must be within 1-5, got {sorted(unknown_classes)}."}
+
+    # QGIS-008, 2026-09-13 audit -- see calculate_severity_index's identical gate for the
+    # full rationale. Gated on output_field specifically, not the whole function.
+    if output_field and not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "calculate_population_in_need",
+            "arguments": {
+                "layer_name": layer_name, "indicator_fields": indicator_fields,
+                "unit_name_field": unit_name_field, "population_raster_layer": population_raster_layer,
+                "weights": weights, "invert_indicators": invert_indicators,
+                "high_severity_classes": high_severity_classes, "output_field": output_field,
+                "confirmed": True,
+            },
+            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = population-in-need figure across features\nlayer.commitChanges()",
+            "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's population figure.",
+            "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
+        }
 
     rows = [{"unit": str(feat[unit_name_field]), "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
@@ -781,18 +848,22 @@ def _write_damage_severity_to_layer(layer, rows, unit_results, output_field):
     return None
 
 
-def _count_points_in_polygons(admin_layer, point_geometries):
-    """Counts how many of point_geometries fall within each admin_layer
-    feature, keyed by admin feature id. Takes point QgsGeometry objects
-    directly (callers pass footprint CENTROIDS, not raw polygon geometries
-    -- testing full-polygon containment would undercount buildings that
-    straddle an admin boundary, attributing them to neither unit). Mirrors
-    the QgsSpatialIndex + bbox-then-contains pattern already used by
-    obfuscate_sensitive_points' admin_unit_snap method."""
+def _build_polygon_index(admin_layer):
+    """Builds the QgsSpatialIndex + feature-id map that _count_points_in_polygons
+    needs, as a standalone step so a caller counting against the SAME admin_layer
+    many times (e.g. analyze_incident_trend, once per time bucket -- PERF-003,
+    2026-09-13 audit) can build it once and reuse it, instead of paying
+    O(admin features) index/dict construction again on every call."""
     from qgis.core import QgsSpatialIndex
 
     index = QgsSpatialIndex(admin_layer.getFeatures())
     admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
+    return index, admin_features_by_id
+
+
+def _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries):
+    """Same counting logic as _count_points_in_polygons, against an
+    already-built (index, admin_features_by_id) pair from _build_polygon_index."""
     counts = {fid: 0 for fid in admin_features_by_id}
 
     for geom in point_geometries:
@@ -804,6 +875,23 @@ def _count_points_in_polygons(admin_layer, point_geometries):
                 break
 
     return counts
+
+
+def _count_points_in_polygons(admin_layer, point_geometries):
+    """Counts how many of point_geometries fall within each admin_layer
+    feature, keyed by admin feature id. Takes point QgsGeometry objects
+    directly (callers pass footprint CENTROIDS, not raw polygon geometries
+    -- testing full-polygon containment would undercount buildings that
+    straddle an admin boundary, attributing them to neither unit). Mirrors
+    the QgsSpatialIndex + bbox-then-contains pattern already used by
+    obfuscate_sensitive_points' admin_unit_snap method.
+
+    Single-call convenience wrapper around _build_polygon_index +
+    _count_points_in_polygons_indexed -- callers that count against the same
+    admin_layer more than once should call those two directly instead, to
+    avoid rebuilding the index every time (see analyze_incident_trend)."""
+    index, admin_features_by_id = _build_polygon_index(admin_layer)
+    return _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries)
 
 
 @register_tool(
@@ -841,7 +929,8 @@ def _count_points_in_polygons(admin_layer, point_geometries):
 )
 def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_before, raster_after,
                                         building_footprints_layer, hazard_intensity_raster=None,
-                                        high_severity_classes=None, output_field=None):
+                                        high_severity_classes=None, output_field=None,
+                                        confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(admin_layer)
@@ -858,6 +947,27 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     unknown_classes = high_classes - {1, 2, 3, 4, 5}
     if unknown_classes:
         return {"error": f"high_severity_classes must be within 1-5, got {sorted(unknown_classes)}."}
+
+    # QGIS-008, 2026-09-13 audit -- see calculate_severity_index's identical gate for the
+    # full rationale. Gated on output_field specifically, not the whole function.
+    if output_field and not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "calculate_damage_exposure_severity",
+            "arguments": {
+                "admin_layer": admin_layer, "unit_name_field": unit_name_field,
+                "raster_before": raster_before, "raster_after": raster_after,
+                "building_footprints_layer": building_footprints_layer,
+                "hazard_intensity_raster": hazard_intensity_raster,
+                "high_severity_classes": high_severity_classes, "output_field": output_field,
+                "confirmed": True,
+            },
+            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = damage-exposure severity score across features\nlayer.commitChanges()",
+            "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{admin_layer}' with each unit's damage-exposure severity score.",
+            "message": f"Confirmation required before mutating attribute field '{output_field}' on '{admin_layer}'.",
+        }
 
     change = calculate_raster_change_detection(raster_before, raster_after)
     if "error" in change:
@@ -1079,7 +1189,15 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
     zone_features = list(zones.getFeatures())
     zone_names = {f.id(): str(f[zone_name_field]) for f in zone_features}
 
-    bucket_zone_counts = {idx: _count_points_in_polygons(zones, geoms) for idx, geoms in buckets.items()}
+    # PERF-003, 2026-09-13 audit: was calling _count_points_in_polygons(zones, ...) once
+    # per bucket, rebuilding the same QgsSpatialIndex + feature-id map against the same,
+    # unchanged zones layer every time -- O(periods x zones) of redundant index
+    # construction for a fine-grained/long-range analysis. Built once here instead.
+    zone_index, zone_features_by_id = _build_polygon_index(zones)
+    bucket_zone_counts = {
+        idx: _count_points_in_polygons_indexed(zone_index, zone_features_by_id, geoms)
+        for idx, geoms in buckets.items()
+    }
 
     results = []
     for fid, zone_name in zone_names.items():

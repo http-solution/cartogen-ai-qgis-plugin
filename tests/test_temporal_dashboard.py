@@ -40,6 +40,17 @@ def _skip_if_missing(test_case, module_name):
         test_case.skipTest(f"{module_name} not installed")
 
 
+# 2026-09-14 (post-audit environment-reproducibility report): every test class below only
+# checked "folium" was importable, but _build_temporal_dashboard_html's real-build code path
+# also does `import branca.colormap` directly (export_tools.py) -- folium normally pulls
+# branca in as its own dependency, but that's not guaranteed in every environment (a partial
+# install, a pip cache oddity, etc.), and when it doesn't, folium alone imports fine while the
+# actual test body still hits an uncaught ModuleNotFoundError for branca. Each setUp/skip call
+# site below now checks both, so a branca-less environment reports a clean skip instead of a
+# failure -- confirmed via a fresh audit re-run in a different environment where this exact
+# failure was reported (branca present here, but the guard was still wrong on its own terms).
+
+
 def _control_areas_geojson():
     """Synthetic placeholder "control areas" features -- deliberately
     generic (Faction A/B/C, made-up dates), never a real conflict dataset."""
@@ -99,6 +110,10 @@ class TestDateToEpochMs(unittest.TestCase):
 
 
 class TestResolveTemporalColors(unittest.TestCase):
+    def setUp(self):
+        _skip_if_missing(self, "folium")
+        _skip_if_missing(self, "branca")
+
     def test_category_field_colors_by_category(self):
         features = _control_areas_geojson()["features"]
         warnings = []
@@ -174,6 +189,7 @@ class TestResolveTemporalBounds(unittest.TestCase):
 class TestBuildTemporalDashboardHtml(unittest.TestCase):
     def setUp(self):
         _skip_if_missing(self, "folium")
+        _skip_if_missing(self, "branca")
 
     def test_rejects_empty_layers(self):
         res = _build_temporal_dashboard_html([])
@@ -283,6 +299,7 @@ class TestGenerateTemporalDashboardMockedSuccess(unittest.TestCase):
 
     def test_success_path_returns_connectivity_note_and_layer_count(self):
         _skip_if_missing(self, "folium")
+        _skip_if_missing(self, "branca")
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
         import json as _json
 
@@ -500,6 +517,7 @@ class TestBuildTrendChartData(unittest.TestCase):
 class TestBuildTemporalDashboardHtmlNewFeatures(unittest.TestCase):
     def setUp(self):
         _skip_if_missing(self, "folium")
+        _skip_if_missing(self, "branca")
 
     def test_point_layer_renders_with_circle_marker_point_to_layer(self):
         geojson = {"type": "FeatureCollection", "features": [

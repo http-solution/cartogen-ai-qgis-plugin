@@ -307,17 +307,20 @@ calls `generate_situation_dashboard`, which fetches all three sources and export
 as one interactive HTML map in a single step.
 
 **Re-running one of these on the same area replaces that layer's data with the latest
-fetch** — it doesn't pile up duplicate layers — so they're safe to schedule (see below)
-for an ongoing watch.
+fetch** — it doesn't pile up duplicate layers — so re-fetching by hand (or asking the
+agent to re-run one) at any point is always safe.
 
-**Scheduling a recurring check.** Ask the agent to save one of these as a named workflow
-preset (`save_workflow_preset`) and schedule it (`schedule_recurring_workflow`, e.g.
-every 30 minutes) — each run is automatically diffed against the previous one, so you
-get a plain-language summary of what actually changed (e.g. *"3 new fire detections
-since last check"*) instead of a full re-read every time. This is session-scoped: it
-only runs while QGIS stays open with the plugin loaded, not a background service that
-keeps working after you close QGIS. `list_scheduled_workflows`/`stop_recurring_workflow`
-show and cancel active schedules.
+**Scheduling a recurring check.** `save_workflow_preset` + `schedule_recurring_workflow`
+exist for *read-only analysis tools* (e.g. `calculate_severity_index`, `forecast_trend`)
+— save one as a named preset and schedule it (e.g. every 30 minutes), and each run is
+automatically diffed against the previous one for a plain-language change summary. **The
+3 hazard-fetch tools above are not usable as a scheduled workflow step** (a known
+GUI-freeze risk under audit, 2026-09-13 — they do network I/O, and a scheduled run
+executes synchronously on the QGIS main thread) — for an ongoing hazard watch, re-run one
+manually or ask the agent to check again periodically, rather than scheduling it. This is
+session-scoped either way: it only runs while QGIS stays open with the plugin loaded, not
+a background service that keeps working after you close QGIS.
+`list_scheduled_workflows`/`stop_recurring_workflow` show and cancel active schedules.
 
 **Freshness badges.** Any layer fetched by these tools carries a stamped fetch time.
 `generate_html_dashboard`/`generate_temporal_dashboard` show it as a small colored pill

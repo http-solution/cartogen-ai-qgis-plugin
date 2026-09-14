@@ -159,6 +159,23 @@ class TestAllowedWorkflowTools(unittest.TestCase):
             for marker in destructive_markers:
                 self.assertNotIn(marker, name, f"'{name}' looks destructive, should not be in the recurring-workflow allowlist")
 
+    def test_network_hazard_tools_excluded_pending_off_main_thread_dispatch(self):
+        """PERF-001, 2026-09-13 audit: run_monitoring_workflow calls each step's plain
+        combined function directly, synchronously on the main Qt thread (scheduler.py's
+        QTimer fires there) -- unlike a normal single call to fetch_nasa_active_fires/
+        fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts, which agent.py's
+        TWO_PHASE_TOOLS dispatch correctly runs off-thread. Using one of these 3 as a
+        workflow step would freeze the whole QGIS GUI for its HTTP round-trip, every tick,
+        for as long as a schedule runs. Excluded here until run_monitoring_workflow itself
+        is reworked to dispatch a network step off-thread first -- a real design decision,
+        not a same-session mechanical fix (see the audit register)."""
+        for name in ("fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts"):
+            self.assertNotIn(
+                name, _ALLOWED_WORKFLOW_TOOLS,
+                f"'{name}' does network I/O and must not be usable as a recurring-workflow step "
+                "until it dispatches off the main thread there too"
+            )
+
 
 class TestMonitoringToolsDegradeOutsideQgis(unittest.TestCase):
     def test_run_monitoring_workflow(self):

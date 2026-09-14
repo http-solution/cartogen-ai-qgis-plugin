@@ -1,6 +1,6 @@
 import json
 import requests
-from .base import BaseAiProvider, post_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage
+from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
 from ..model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
@@ -25,7 +25,7 @@ def list_models(api_key):
     Humanitarian Data/provider row before the next release, since this
     sandbox has no live network access to confirm it end-to-end itself."""
     try:
-        response = requests.get(
+        response = get_with_retry(
             "https://generativelanguage.googleapis.com/v1beta/models",
             headers={"x-goog-api-key": api_key},
             timeout=15,
@@ -40,9 +40,9 @@ def list_models(api_key):
             ids.append(name.split("/", 1)[-1] if name.startswith("models/") else name)
         return {"success": True, "models": filter_chat_model_ids(ids)}
     except requests.exceptions.HTTPError as e:
-        return {"error": f"Gemini models list failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("Gemini models list failed", e)}
     except Exception as e:
-        return {"error": f"Gemini models list request failed: {e}"}
+        return {"error": format_request_exception("Gemini models list request failed", e)}
 
 
 def grounded_search(api_key, query, model="gemini-flash-latest"):
@@ -104,9 +104,9 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
         _SEARCH_CACHE.set(cache_key, result)
         return result
     except requests.exceptions.HTTPError as e:
-        return {"error": f"Gemini grounded search failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("Gemini grounded search failed", e)}
     except Exception as e:
-        return {"error": f"Gemini grounded search request failed: {e}"}
+        return {"error": format_request_exception("Gemini grounded search request failed", e)}
 
 
 # "-latest" is a self-updating alias on Google's side, so it resists exactly the
@@ -179,9 +179,9 @@ class GeminiClient(BaseAiProvider):
                     out["usage"] = usage
                 return out
             except requests.exceptions.HTTPError as e:
-                return {"error": f"Gemini API error ({e.response.status_code}): {e.response.text}"}
+                return {"error": format_http_error("Gemini API error", e)}
             except Exception as e:
-                return {"error": f"Gemini API request failed: {e}"}
+                return {"error": format_request_exception("Gemini API request failed", e)}
 
         tried = ", ".join(self.models)
         return {

@@ -9,6 +9,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
     save_layer_style, load_layer_style, _derive_style_path, apply_rule_based_style,
+    apply_heatmap_style,
 )
 
 
@@ -646,6 +647,69 @@ class TestLoadLayerStyle(unittest.TestCase):
             layer.triggerRepaint.assert_called_once()
         finally:
             os.remove(style_path)
+
+
+class TestApplyHeatmapStyle(unittest.TestCase):
+    """apply_heatmap_style: no test coverage at all before QUAL-006 (2026-09-14 audit)."""
+
+    def test_degrades_outside_qgis(self):
+        res = apply_heatmap_style("incidents")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name", return_value=None)
+    def test_reports_missing_layer(self, mock_find):
+        res = apply_heatmap_style("ghost_layer")
+        self.assertIn("error", res)
+        self.assertIn("ghost_layer", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsHeatmapRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_success_sets_renderer_without_a_field(self, mock_find, mock_renderer_cls):
+        layer = MagicMock()
+        layer.fields.return_value = []
+        mock_find.return_value = layer
+        renderer = mock_renderer_cls.return_value
+
+        res = apply_heatmap_style("incidents")
+
+        self.assertTrue(res.get("success"), res)
+        layer.setRenderer.assert_called_once_with(renderer)
+        layer.triggerRepaint.assert_called_once()
+        renderer.setWeightExpression.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsHeatmapRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_known_field_sets_weight_expression(self, mock_find, mock_renderer_cls):
+        layer = MagicMock()
+        severity_field = MagicMock()
+        severity_field.name.return_value = "severity"
+        layer.fields.return_value = [severity_field]
+        mock_find.return_value = layer
+        renderer = mock_renderer_cls.return_value
+
+        res = apply_heatmap_style("incidents", field="severity")
+
+        self.assertTrue(res.get("success"), res)
+        renderer.setWeightExpression.assert_called_once_with('"severity"')
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsHeatmapRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_unknown_field_is_silently_ignored_not_an_error(self, mock_find, mock_renderer_cls):
+        # Matches the tool's own actual behavior (a field check with no error branch) --
+        # documented here so a future change to this is a deliberate choice, not a surprise.
+        layer = MagicMock()
+        layer.fields.return_value = []
+        mock_find.return_value = layer
+        renderer = mock_renderer_cls.return_value
+
+        res = apply_heatmap_style("incidents", field="not_a_real_field")
+
+        self.assertTrue(res.get("success"), res)
+        renderer.setWeightExpression.assert_not_called()
 
 
 if __name__ == "__main__":

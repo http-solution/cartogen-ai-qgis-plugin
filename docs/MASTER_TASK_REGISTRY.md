@@ -26,7 +26,33 @@ Baron's explicit instruction — see Release Management's governance note.
 
 ## LEVEL 1 — RELEASE MANAGEMENT
 
-### Current state (as of 2026-09-05)
+### Current state (as of 2026-09-14 — supersedes the 2026-09-05 block below, kept per this
+file's own no-silent-rewrite convention)
+
+Verified as part of the 2026-09-13/14 QGIS-plugin audit's resolution of a real conflict flagged
+between this file and `CLAUDE.md`'s "Editions" section — see that section for the fuller
+correction note. Facts below are from a direct `git remote -v` in the actual working checkout
+plus an **authenticated** `gh repo view`/`gh repo list` call (not the unauthenticated
+404-based inference the 2026-09-05 snapshot below used, which turned out to be wrong for one
+of the two repos):
+
+| | |
+|---|---|
+| Source tree version (`metadata.txt`) | **1.15.5** (this file's own 2026-09-05 snapshot below is 9 versions stale — not updated then, not silently rewritten now) |
+| This checkout's (`C:\Cartogen-AI-Core\cartogen-ai`) `origin` remote | `cartogenai-glitch/CARTOGEN-AI` — confirmed **PRIVATE** via authenticated `gh repo view` (`visibility: PRIVATE`, not just an unauthenticated 404 inference) |
+| `cartogenai-glitch/cartogen_ai_community` (the repo this file's 2026-09-05 entry below calls "Community/public") | Confirmed **PRIVATE** via the same authenticated check — **contradicts** the 2026-09-05 entry's "Confirmed public via the GitHub API (`private: false`)" claim. Either made private since 2026-09-04 (its last-updated timestamp), or that claim was incorrect when made — not distinguishable from here. |
+| Total repos under this GitHub account | **Exactly 3, all private** (`/user/repos?visibility=all`) — `CARTOGEN-AI`, `cartogen_ai_community`, and `-Cartogen-AI-Website`. **No public repo for this project currently exists on GitHub under this account.** |
+| Local sibling directories checked | `cartogen-ai-community` (confusingly named — its `origin` is actually the SAME private `CARTOGEN-AI` remote, i.e. it's a second checkout of this same repo, not a different one — consistent with `CLAUDE.md`'s "stale ancestor" description); `cartogen-ai-community-limited` (its `origin` IS `cartogen_ai_community` — the repo actually meant by "Community/public" below); `cartogen-ai-enterprise`/`cartogen-ai-pro` (local folders exist, but **no `.git` at all** — not real repos yet, consistent with "planned, not yet built"). |
+
+**What this settles:** the disagreement between this file and `CLAUDE.md` about which repo is
+"commercial" vs. "community" is resolved — this file's repo-mapping (this checkout = private
+`CARTOGEN-AI`, a separate `cartogen_ai_community` repo = the intended Community-facing one) is
+the technically correct mapping. **What this does NOT settle:** `cartogen_ai_community` being
+private right now means the intended public/Community distribution channel isn't actually
+public today. Whether that's deliberate (pre-release embargo) or an oversight, and what to do
+about it, is a release decision for Alaa — not inferred or decided here.
+
+### Prior state (as of 2026-09-05, superseded above — kept per this file's no-silent-rewrite convention)
 
 | | |
 |---|---|
@@ -51,6 +77,11 @@ Baron's explicit instruction — see Release Management's governance note.
 | Working tree clean otherwise? | No — pre-existing uncommitted "account" feature work (since reconciled and shipped — see the 2026-09-05 update above and in Level 2). |
 
 ### Release channels (per `docs/RELEASE_GOVERNANCE.md`)
+
+**2026-09-14 correction: the "Community/public" row below is stale — see the "Current state
+(as of 2026-09-14)" block above for the re-verified, authenticated result.
+`cartogen_ai_community` is confirmed PRIVATE today, not public.** Left unedited below (not
+silently rewritten) per this file's own convention; the 2026-09-14 block above is authoritative.
 
 - **Commercial/private** — `cartogenai-glitch/CARTOGEN-AI` (**this repo**). Confirmed private via the GitHub API (unauthenticated lookup → HTTP 404). May contain managed-gateway, org, deployment, support, and commercial-operations code.
 - **Community/public** — `cartogenai-glitch/cartogen_ai_community`. Confirmed public via the GitHub API (`private: false`). Community-safe core only — never a copy of private code. Not touched this session (no clone, no explicit instruction).

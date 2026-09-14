@@ -41,7 +41,7 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 
 import json
 import requests
-from .base import BaseAiProvider, post_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage
+from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
 from ..model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
@@ -70,7 +70,7 @@ def list_models(api_key, base_url=None):
     of this stub (see module docstring) -- no gateway is deployed anywhere
     this repo can reach yet."""
     try:
-        response = requests.get(
+        response = get_with_retry(
             _models_url(base_url),
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=15,
@@ -80,11 +80,12 @@ def list_models(api_key, base_url=None):
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
     except requests.exceptions.HTTPError as e:
-        return {"error": f"Cartogen gateway models list failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("Cartogen gateway models list failed", e)}
     except Exception as e:
         return {
-            "error": f"Cartogen gateway models list request failed: {e} (this is a stub client "
-            "-- no gateway is deployed yet; see this module's docstring and service/README.md)"
+            "error": format_request_exception("Cartogen gateway models list request failed", e)
+            + " (this is a stub client -- no gateway is deployed yet; see this module's "
+              "docstring and service/README.md)"
         }
 
 # Matches the `model_name` aliases service/gateway/litellm_config.yaml defines today
@@ -162,11 +163,12 @@ class CartogenClient(BaseAiProvider):
                     out["usage"] = usage
                 return out
             except requests.exceptions.HTTPError as e:
-                return {"error": f"Cartogen gateway API error ({e.response.status_code}): {e.response.text}"}
+                return {"error": format_http_error("Cartogen gateway API error", e)}
             except Exception as e:
                 return {
-                    "error": f"Cartogen gateway request failed: {e} (this is a stub client -- no gateway "
-                    "is deployed yet; see this module's docstring and service/README.md)"
+                    "error": format_request_exception("Cartogen gateway request failed", e)
+                    + " (this is a stub client -- no gateway is deployed yet; see this module's "
+                      "docstring and service/README.md)"
                 }
 
         tried = ", ".join(self.models)

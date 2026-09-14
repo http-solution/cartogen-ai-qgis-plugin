@@ -28,6 +28,17 @@ def _mock_response(payload_or_bytes):
     return resp
 
 
+def _mock_safe_opener(response):
+    """SEC-001 (2026-09-13): the actual file-download request now goes through
+    _build_safe_opener().open(...), not the bare urllib.request.urlopen(...) these
+    tests already mock for the FIRST (listing) request -- this stands in for the
+    opener so the second request is served from the test's own fixture too, not a
+    real network call."""
+    opener = MagicMock()
+    opener.open.return_value = response
+    return opener
+
+
 _YEM_LISTING = {
     "data": [
         {"popyear": "2015", "files": ["https://data.worldpop.org/.../yem_ppp_2015.tif"]},
@@ -47,9 +58,11 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_auto_selects_most_recent_year(self, mock_urlopen):
-        mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
+    def test_auto_selects_most_recent_year(self, mock_urlopen, mock_opener):
+        mock_urlopen.return_value = _mock_response(_YEM_LISTING)
+        mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
         res = fetch_worldpop_population_network_phase("yem")
 
@@ -61,9 +74,11 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertTrue(os.path.exists(res["local_path"]))
         os.remove(res["local_path"])
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_selects_requested_year(self, mock_urlopen):
-        mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
+    def test_selects_requested_year(self, mock_urlopen, mock_opener):
+        mock_urlopen.return_value = _mock_response(_YEM_LISTING)
+        mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
         res = fetch_worldpop_population_network_phase("YEM", year="2015")
 
@@ -82,6 +97,21 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertIn("1999", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    def test_rejects_unsafe_second_hop_file_url(self, mock_urlopen):
+        """SEC-001 (2026-09-13 security audit): file_urls[0] comes from WorldPop's own API
+        listing -- third-party content, not a hardcoded endpoint. A response pointing that
+        field at a loopback/private/metadata address must be refused, not silently fetched."""
+        unsafe_listing = {
+            "data": [{"popyear": "2020", "files": ["http://169.254.169.254/latest/meta-data/"]}]
+        }
+        mock_urlopen.return_value = _mock_response(unsafe_listing)
+
+        res = fetch_worldpop_population_network_phase("YEM")
+
+        self.assertIn("error", res)
+        self.assertIn("Refusing to fetch", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_no_datasets_found_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": []})
 
@@ -89,16 +119,23 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
 
         self.assertIn("error", res)
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_result_is_cached_on_repeated_call(self, mock_urlopen):
-        mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
+    def test_result_is_cached_on_repeated_call(self, mock_urlopen, mock_opener):
+        mock_urlopen.return_value = _mock_response(_YEM_LISTING)
+        mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
         first = fetch_worldpop_population_network_phase("YEM")
         second = fetch_worldpop_population_network_phase("YEM")
 
         self.assertNotIn("cached", first)
         self.assertTrue(second.get("cached"))
-        self.assertEqual(mock_urlopen.call_count, 2)  # not 4 -- second call served from cache
+        # SEC-001 (2026-09-13) split the single fetch pair across two request paths --
+        # the listing still via urlopen, the actual raster download via the safe opener
+        # -- so each is 1 real call (not 2), for the whole pair across both invocations,
+        # confirming the second invocation made no network calls of either kind.
+        self.assertEqual(mock_urlopen.call_count, 1)
+        self.assertEqual(mock_opener.return_value.open.call_count, 1)
         import os
         os.remove(first["local_path"])
 
@@ -128,13 +165,15 @@ class TestFetchWorldpopPopulationCombined(unittest.TestCase):
     def setUp(self):
         _LOOKUP_CACHE._store.clear()
 
+    @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
-    def test_leaves_downloaded_file_on_disk_after_loading(self, mock_urlopen):
+    def test_leaves_downloaded_file_on_disk_after_loading(self, mock_urlopen, mock_opener):
         # Regression guard for the correctness issue found while designing this
         # tool: a raster layer reads its backing file lazily, so (unlike
         # fetch_geoboundaries) the downloaded file must NOT be deleted after
         # QgsRasterLayer construction, or the layer would silently break later.
-        mock_urlopen.side_effect = [_mock_response(_YEM_LISTING), _mock_response(b"fake-tiff-bytes")]
+        mock_urlopen.return_value = _mock_response(_YEM_LISTING)
+        mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
         res = fetch_worldpop_population("YEM")
 

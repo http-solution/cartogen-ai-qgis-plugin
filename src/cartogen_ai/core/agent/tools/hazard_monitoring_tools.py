@@ -33,6 +33,11 @@ from datetime import datetime, timezone
 from .registry import register_tool
 from ..auth import CredentialManager
 from ..confidence import set_layer_confidence
+# API-003, 2026-09-14 audit: these 3 fetches had no retry/backoff at all, unlike every LLM
+# provider call (post_with_retry/get_with_retry since 2026-09-12) -- a single transient
+# network hiccup or 5xx failed the whole tool call outright, on tools specifically designed
+# to be re-run on a recurring schedule (see module docstring).
+from ._urllib_retry import urlopen_with_retry
 
 try:
     from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
@@ -166,7 +171,7 @@ def fetch_nasa_active_fires_network_phase(bbox, days=1, min_confidence="nominal"
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urlopen_with_retry(req, timeout=30) as response:
             csv_text = response.read().decode()
     except Exception as e:
         return {"error": f"NASA FIRMS API request failed: {e}"}
@@ -318,7 +323,7 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urlopen_with_retry(req, timeout=30) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": f"NASA EONET API request failed: {e}"}
@@ -454,7 +459,7 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
 
     try:
         req = urllib.request.Request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urlopen_with_retry(req, timeout=30) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": f"GDACS API request failed: {e}"}

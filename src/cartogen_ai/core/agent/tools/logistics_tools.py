@@ -51,6 +51,41 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
+# PERF-002, 2026-09-14 audit: optimal_hub_siting/location_allocation compute a full
+# candidate x demand QgsGeometry.distance() cross product in pure Python, with no upper
+# bound on input size -- since every tool call in this codebase's dispatcher runs on the
+# QGIS main GUI thread (BlockingQueuedConnection), an unbounded pair count would freeze the
+# whole interface for however long that loop takes. A genuine algorithm change (e.g.
+# migrating to native:distancematrix) was considered and deliberately not made here -- it
+# would need live-QGIS verification that its distance semantics exactly match
+# QgsGeometry.distance() (planar, not ellipsoidal) across every existing test's CRS
+# assumptions, a real correctness-risk rewrite this audit's own conventions say not to make
+# without that evidence. This is the safe, mechanical half instead: a hard cap on the
+# candidate x demand pair count, matching the same "protective bound against an unbounded,
+# unattended cost" pattern already established elsewhere in this codebase (scheduler.py's
+# _MIN_INTERVAL_MINUTES/_MAX_CONCURRENT_SCHEDULES, from an earlier security review). The
+# exact number is a conservative estimate (not a live-measured benchmark in this sandbox):
+# at a rough ~1-10 microseconds per simple point-point GEOS distance() call, 2,000,000 pairs
+# is on the order of a few seconds worst case, not the tens-of-seconds-plus that would
+# actually be disruptive -- comfortably above any realistic humanitarian facility-siting
+# dataset (this codebase's own docs describe "tens of candidates, low hundreds of demand
+# points" as typical), so no legitimate real-world call is expected to be newly rejected.
+_MAX_HUB_SITING_PAIRS = 2_000_000
+
+
+def _check_hub_siting_pair_count(candidate_count, demand_count, tool_name):
+    pairs = candidate_count * demand_count
+    if pairs > _MAX_HUB_SITING_PAIRS:
+        return (
+            f"{tool_name}: {candidate_count:,} candidates x {demand_count:,} demand points = "
+            f"{pairs:,} distance pairs, over this tool's {_MAX_HUB_SITING_PAIRS:,}-pair safety "
+            "limit (this computation runs on the QGIS main thread and would freeze the "
+            "interface for its duration). Reduce candidate_layer/demand_layer to a smaller "
+            "area of interest, or pre-aggregate demand points (e.g. dissolve to admin-unit "
+            "centroids) before calling this tool."
+        )
+    return None
+
 
 def _network_direction_speed_params(network, speed_field=None, direction_field=None,
                                      value_forward="yes", value_backward="-1", value_both="no"):
@@ -175,6 +210,12 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         if not demand_geoms:
             return {"error": f"'{demand_layer}' has no usable point features."}
 
+        pair_count_error = _check_hub_siting_pair_count(
+            candidates.featureCount(), len(demand_geoms), "optimal_hub_siting"
+        )
+        if pair_count_error:
+            return {"error": pair_count_error}
+
         candidate_distances = {}
         for i, cand_feat in enumerate(candidates.getFeatures()):
             cand_geom = cand_feat.geometry()
@@ -187,12 +228,28 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
             return {"error": f"'{candidate_layer}' has no usable point features."}
 
         ranked = _rank_hub_candidates(candidate_distances, max_distance)
-        return {
+        result = {
             "success": True,
             "candidate_count": len(ranked),
             "demand_point_count": len(demand_geoms),
             "ranked_candidates": ranked,
         }
+        # QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis already
+        # warns about (Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) --
+        # cand_geom.distance(dg) above is a raw, unconverted CRS-unit distance, and every
+        # avg_distance/max_distance value in `ranked` is described as "usually meters" in
+        # this tool's own docstring, but is actually degrees on a geographic CRS. Honest
+        # warning, not a guessed reprojection.
+        try:
+            if candidates.crs().isGeographic():
+                result["warning"] = (
+                    f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}), so "
+                    "every distance value above is in DEGREES, not meters -- reproject to a "
+                    "projected/UTM CRS first for meaningful distances."
+                )
+        except Exception:
+            pass
+        return result
     except Exception as e:
         return {"error": f"optimal_hub_siting failed: {e}"}
 
@@ -290,6 +347,12 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
                     demand_weights.append(0.0)
         else:
             demand_weights = [1.0] * len(demand_feats)
+
+        pair_count_error = _check_hub_siting_pair_count(
+            candidates.featureCount(), len(demand_geoms), "location_allocation"
+        )
+        if pair_count_error:
+            return {"error": pair_count_error}
 
         candidate_distances = {}
         for i, cand_feat in enumerate(candidates.getFeatures()):
@@ -459,11 +522,24 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         }
 
         if network is None:
-            result["warning"] = (
+            warning = (
                 "No road_network_layer given -- total_distance is straight-line and route_order "
                 "is a stop sequence only, not a routable path. Do not render a line through these "
                 "stops as a delivery route; pass road_network_layer to build one."
             )
+            # QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis
+            # already warns about -- the straight-line distance_matrix above is a raw,
+            # unconverted CRS-unit distance with no unit label on total_distance at all.
+            try:
+                if layer.crs().isGeographic():
+                    warning += (
+                        f" '{stops_layer}' is also in a geographic CRS ({layer.crs().authid()}), "
+                        "so total_distance is in DEGREES, not any real distance unit -- reproject "
+                        "to a projected/UTM CRS first for a meaningful figure."
+                    )
+            except Exception:
+                pass
+            result["warning"] = warning
             return result
 
         route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour)
@@ -766,10 +842,15 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         # _degenerate_hull_fallback's own docstring for the isolated root cause and fix,
         # which *is* provable without live QGIS since it follows from convex-hull
         # geometry (collinear points) rather than from QGIS-specific runtime behaviour.
+        # QGIS-005, 2026-09-14 audit: was passed straight to setInvalidGeometryCheck() with no
+        # explicit None check -- only "safe" by whatever this function's own outer exception
+        # handling happens to do with the resulting error, not by design (QGIS-004's identical
+        # class of gap). Today inert (this enum resolves fine on both QGIS 3.x/4.x).
+        _invalid_geom_check = resolve_qgis_enum(Qgis, "InvalidGeometryCheck", "GeometrySkipInvalid")
+        if _invalid_geom_check is None:
+            return {"error": "Could not resolve QgsProcessing's InvalidGeometryCheck enum in this QGIS version."}
         context = QgsProcessingContext()
-        context.setInvalidGeometryCheck(
-            resolve_qgis_enum(Qgis, "InvalidGeometryCheck", "GeometrySkipInvalid")
-        )
+        context.setInvalidGeometryCheck(_invalid_geom_check)
         for i, feat in enumerate(facilities.getFeatures()):
             geom = feat.geometry()
             if geom is None or geom.isEmpty():
@@ -1209,6 +1290,21 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     buffer_result = buffer_analysis(route_layer, buffer_distance)
     if "error" in buffer_result:
         return buffer_result
+    # QGIS-006/QGIS-007, 2026-09-13 audit: buffer_analysis already detects and warns when
+    # route_layer is in a geographic CRS (Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_
+    # REVIEW_2026-09-04.md -- distance/buffer values applied in degrees, not meters), but
+    # this function used to discard that warning entirely (only checked "error" in
+    # buffer_result). The SAME underlying issue also mislabels distance_to_route_m below
+    # (a raw route_geom.distance(geom) in the layer's own CRS units, but the field name
+    # asserts meters) -- this is the more safety-relevant of the two, since this tool
+    # exists specifically to score incident proximity to a route for humanitarian/security
+    # decisions. Propagate the warning and extend it to cover both.
+    crs_warning = buffer_result.get("warning")
+    if crs_warning:
+        crs_warning += (
+            " This also means every 'distance_to_route_m' value below is in DEGREES, not "
+            "meters, despite the field name."
+        )
     buffer_layer_name = buffer_result["layer_name"]
     buffer_layer = _find_layer_by_name(buffer_layer_name)
     if buffer_layer is None:
@@ -1253,7 +1349,7 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     matched.sort(key=lambda e: e["distance_to_route_m"])
     matched_capped, matched_total, truncated = _cap_entries(matched)
 
-    return {
+    result = {
         "success": True,
         "route_layer": route_layer,
         "incident_layer": incident_layer,
@@ -1265,3 +1361,6 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
         "incidents": matched_capped,
         "truncated": truncated,
     }
+    if crs_warning:
+        result["warning"] = crs_warning
+    return result

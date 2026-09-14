@@ -408,6 +408,107 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 1,
                          "the renderer ran on turn 1 -- no follow-up should ever be sent")
 
+    def test_cancel_active_task_reaches_a_real_scheduled_task(self):
+        """QGIS-002, 2026-09-13 audit: plugin_main.py's unload() used to never reach an
+        in-flight AgentQgsTask at all -- a user unloading/reloading the plugin mid-request
+        left it running against a dock widget scheduled for deletion, the direct trigger
+        for QGIS-001's finished()-callback crash. cancel_active_task() (now called from
+        unload()) is the fix; this drives it against a REAL scheduled QgsTask, not a mock,
+        confirming it actually reaches the task's own isCanceled() flag."""
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "done", "tool_calls": []}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        # Bypasses the requirement/preview gates entirely -- this test is about the
+        # scheduled-task/cancel mechanism, not the send pipeline those other tests cover.
+        ct._dispatch_message("plain test message", None)
+
+        self.assertIsNotNone(ct._active_task, "a real task must have been scheduled")
+        task = ct._active_task
+        self.assertFalse(task.isCanceled())
+
+        ct.cancel_active_task()
+
+        self.assertTrue(task.isCanceled(), "cancel_active_task() must reach the real QgsTask")
+        _pump(until=lambda: ct._active_task is None)
+
+    def test_cancel_active_task_is_a_safe_no_op_with_nothing_running(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        self.assertIsNone(ct._active_task)
+        ct.cancel_active_task()  # must not raise
+
+    def test_attach_file_reads_and_analyzes_off_the_main_thread(self):
+        """PERF-005, 2026-09-13 audit: read_attached_file (pypdf/docx/pandas parsing) used
+        to run synchronously on the Qt main thread inside attach_file(), before the
+        background analysis thread was even started. It now runs inside that same
+        background thread (_read_and_analyze_file) instead. This drives that method the
+        same way attach_file() itself does -- a real background thread, a real file on
+        disk -- confirming the whole path (disk read -> attached-paths bookkeeping ->
+        agent.run() -> chat log) still works end to end after the move."""
+        import threading
+        import tempfile
+
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "This looks like a plain text note."}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("hello from a test attachment")
+
+            thread = threading.Thread(
+                target=ct._read_and_analyze_file, args=(agent, "note.txt", path), daemon=True
+            )
+            thread.start()
+            _pump(until=lambda: "plain text note" in self._chat_text(ct))
+
+            self.assertIn(path, ct._attached_paths,
+                         "successful read must still register the path for the next message")
+            self.assertFalse(thread.is_alive())
+        finally:
+            os.remove(path)
+
+    def test_attachment_disclosure_note_names_the_active_hosted_provider(self):
+        """API-007, 2026-09-14 audit: attach_file() must tell the user, at the moment of
+        attachment, which provider the file's content is about to be sent to."""
+        from qgis.core import QgsSettings
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        settings = QgsSettings()
+        original = settings.value("cartogen_ai/provider", "openrouter")
+        try:
+            settings.setValue("cartogen_ai/provider", "gemini")
+            note = ct._attachment_disclosure_note()
+            self.assertIn("Gemini", note)
+            self.assertIn("sent to", note)
+        finally:
+            settings.setValue("cartogen_ai/provider", original)
+
+    def test_attachment_disclosure_note_is_accurate_for_local_ollama(self):
+        from qgis.core import QgsSettings
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        settings = QgsSettings()
+        original = settings.value("cartogen_ai/provider", "openrouter")
+        try:
+            settings.setValue("cartogen_ai/provider", "ollama")
+            note = ct._attachment_disclosure_note()
+            self.assertIn("local", note.lower())
+            self.assertNotIn("will be sent to", note)
+        finally:
+            settings.setValue("cartogen_ai/provider", original)
+
 
 if __name__ == "__main__":
     unittest.main()

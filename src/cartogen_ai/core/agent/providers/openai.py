@@ -1,6 +1,6 @@
 import json
 import requests
-from .base import BaseAiProvider, post_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage
+from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
 from ..model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
@@ -10,7 +10,7 @@ _SEARCH_CACHE = TTLCache(ttl_seconds=1800)
 def list_models(api_key):
     """Fetches the live model list from OpenAI's /v1/models endpoint."""
     try:
-        response = requests.get(
+        response = get_with_retry(
             "https://api.openai.com/v1/models",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=15,
@@ -20,9 +20,9 @@ def list_models(api_key):
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
     except requests.exceptions.HTTPError as e:
-        return {"error": f"OpenAI models list failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("OpenAI models list failed", e)}
     except Exception as e:
-        return {"error": f"OpenAI models list request failed: {e}"}
+        return {"error": format_request_exception("OpenAI models list request failed", e)}
 
 
 def grounded_search(api_key, query, model="gpt-5-search-api"):
@@ -78,9 +78,9 @@ def grounded_search(api_key, query, model="gpt-5-search-api"):
         _SEARCH_CACHE.set(cache_key, result)
         return result
     except requests.exceptions.HTTPError as e:
-        return {"error": f"OpenAI grounded search failed ({e.response.status_code}): {e.response.text}"}
+        return {"error": format_http_error("OpenAI grounded search failed", e)}
     except Exception as e:
-        return {"error": f"OpenAI grounded search request failed: {e}"}
+        return {"error": format_request_exception("OpenAI grounded search request failed", e)}
 
 
 # gpt-5.2-chat-latest is a self-updating alias (always the current GPT-5.2-tier
@@ -146,9 +146,9 @@ class OpenAIClient(BaseAiProvider):
                     out["usage"] = usage
                 return out
             except requests.exceptions.HTTPError as e:
-                return {"error": f"OpenAI API error ({e.response.status_code}): {e.response.text}"}
+                return {"error": format_http_error("OpenAI API error", e)}
             except Exception as e:
-                return {"error": f"OpenAI API request failed: {e}"}
+                return {"error": format_request_exception("OpenAI API request failed", e)}
 
         tried = ", ".join(self.models)
         return {

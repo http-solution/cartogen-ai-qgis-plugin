@@ -76,11 +76,26 @@ class AgentQgsTask(QgsTask):
         """Executes on the main Qt GUI thread when background processing finishes."""
         print(f"[TaskRunner] AgentQgsTask.finished(result={result})")
         if self.on_complete:
-            if result and self.response is not None:
-                self.on_complete(self.response, None)
-            else:
-                err_msg = str(self.error) if self.error else "Task failed or was cancelled."
-                self.on_complete(None, err_msg)
+            # QGIS-001, 2026-09-13 audit: run() (background thread) wraps agent.run() in
+            # try/except, but this call was not guarded at all -- on_complete is a closure
+            # touching a live Qt widget (self._dock in chat_tab_widget.py). If the dock has
+            # already been destroyed by the time this runs (see QGIS-002's unload() fix,
+            # which narrows but doesn't eliminate the window), this would raise
+            # `RuntimeError: wrapped C/C++ object has been deleted` from inside a
+            # QGIS-task-manager-invoked callback with nothing to catch it. Matches this
+            # codebase's own established convention (tool_step_callback's identical
+            # try/except in agent.py's run()): a UI-side failure here must never look like
+            # the agent run itself failed, and must never propagate into QGIS's own task-
+            # manager machinery uncaught.
+            try:
+                if result and self.response is not None:
+                    self.on_complete(self.response, None)
+                else:
+                    err_msg = str(self.error) if self.error else "Task failed or was cancelled."
+                    self.on_complete(None, err_msg)
+            except Exception as e:
+                print(f"[TaskRunner] AgentQgsTask.finished()'s on_complete callback raised: {e}")
+                traceback.print_exc()
 
 
 def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Processing", on_complete=None, on_status=None, map_context=None, on_tool_step=None):

@@ -968,6 +968,19 @@ class CartogenAi:
                 return final_text
 
             for call in tool_calls:
+                # QGIS-003, 2026-09-13 audit: should_stop was only checked once per LLM
+                # round, at the top of the OUTER loop -- a multi-tool-call batch in one
+                # response (common: buffer -> clip -> export style requests) couldn't be
+                # interrupted mid-batch; the Stop button's own docstring claimed it "stops
+                # before the next LLM call/tool step," but the "tool step" half overstated
+                # what actually happened. Checked here too, so a stop request takes effect
+                # before the NEXT tool call in the same batch, not just the next LLM call.
+                if should_stop is not None and should_stop():
+                    final_text = "[Agent stopped] Stopped by user."
+                    self.conversation_history.append(user_message)
+                    self.conversation_history.append({"role": "assistant", "content": final_text})
+                    self._trim_history()
+                    return final_text
                 fn = call.get("function", {}) if isinstance(call, dict) else {}
                 name = fn.get("name", "")
                 arguments = fn.get("arguments", "{}")
