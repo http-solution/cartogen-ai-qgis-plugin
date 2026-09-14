@@ -688,10 +688,28 @@ class ChatTabWidget(QWidget):
         # the pre-edit text -- found in the UX audit dated 2026-08-31.
         self.input_edit.setReadOnly(True)
         self.preview_panel.setVisible(True)
+        self._clamp_dock_after_panel_change()
 
     def _hide_preview_panel(self):
         self.preview_panel.setVisible(False)
         self.input_edit.setReadOnly(False)
+        self._clamp_dock_after_panel_change()
+
+    def _clamp_dock_after_panel_change(self):
+        """Real live report, 2026-09-15: showing this panel (a QGroupBox with its own
+        reasoning list, a fixed-height QTextEdit, and 3 buttons) genuinely grows the dock's
+        forced minimum size -- confirmed directly (696x572 minimum forced vs. a smaller
+        starting size) -- and a floating dock ending up past the available screen height is
+        exactly the known failure mode dock_widget.py's _clamp_to_screen_if_floating already
+        exists to catch (docstring there: 2026-09-12 report). That guard only runs from
+        resizeEvent, so it should already catch this -- but a QGroupBox becoming visible only
+        changes layout content, not necessarily generating a resize the same tick showing the
+        panel does, before the user sees a window that has grown past the screen. Calling the
+        same guard here too, right after the visibility change, closes that timing gap instead
+        of relying solely on whatever resizeEvent eventually follows."""
+        clamp = getattr(self._dock, "_clamp_to_screen_if_floating", None)
+        if callable(clamp):
+            clamp()
 
     def _send_previewed_prompt(self):
         text = self._pending_analysis_text
@@ -781,11 +799,13 @@ class ChatTabWidget(QWidget):
             card["rationale"].setText(rec.get("rationale", ""))
         self.input_edit.setReadOnly(True)
         self.refinement_panel.setVisible(True)
+        self._clamp_dock_after_panel_change()
 
     def _hide_refinement_panel(self):
         self.refinement_panel.setVisible(False)
         self._pending_refinement_text = None
         self.input_edit.setReadOnly(False)
+        self._clamp_dock_after_panel_change()
 
     def _use_refinement_card(self, card_id):
         card = self._refinement_cards.get(card_id)
