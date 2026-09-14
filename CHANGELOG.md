@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc1](#v1-15-6-rc1) | 2026-09-14 | Release candidate: fixes 27 of 32 findings from a full security/QGIS/API/performance/code-quality audit |
 | [1.15.5](#v1-15-5) | 2026-09-13 | Patch: fixed another instance of the "'str' object has no attribute 'get'" crash, this one in Gemini usage parsing |
 | [1.15.4](#v1-15-4) | 2026-09-13 | Patch: root-caused and fixed the "'str' object has no attribute 'get'" crash |
 | [1.15.3](#v1-15-3) | 2026-09-13 | Patch: the user's own reply to a clarifying question wasn't showing up in the chat log |
@@ -30,6 +31,61 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc1"></a>
+## [1.15.6-rc1] — 2026-09-14 — Release candidate: audit remediation (27 of 32 findings)
+
+Full multi-domain audit (Security, QGIS/PyQGIS Integrity, API/Network Client, Performance, Code
+Quality) against `cartogen-ai-audit-charter.md`, executed over 2 days against this repo's actual
+current state. Complete findings register, remediation log, and a synthesized final report live
+in `docs/audits/` (`QGIS_PLUGIN_FINDINGS.md`, `QGIS_PLUGIN_AUDIT_FINAL_REPORT.md`) -- this entry
+is a summary; those files are the source of truth for every individual finding's evidence, test
+reference, and reasoning.
+
+**32 real findings, 27 fixed/mitigated/partial, 2 accepted risk, 3 deliberately untouched**
+(all three explicitly no-action-recommended by the audit itself -- large-scope, low-value
+rewrites with no demonstrated bug). Test suite grew 1531 → 1680, 0 failures throughout,
+re-verified independently on GitHub Actions CI after every push.
+
+**Security**: SSRF-hardened 4 second-hop URL fetches that bypassed this plugin's own guard
+(`humanitarian_tools.py`); sanitized CSV/spreadsheet formula injection in `export_to_csv`;
+corrected a license-metadata mismatch and documented an optional dependency's stricter license;
+cleaned up cached fetch results' leftover temp files.
+
+**API/network**: redacted provider error bodies that can echo back partial API keys; added
+retry/backoff to `list_models()` and the 3 recurring-schedule hazard fetch tools (12 one-shot
+fetch tools intentionally left for a follow-up); fixed a real crash on a malformed JSON response
+in 2 providers; gave connection/timeout errors an actionable message instead of raw exception
+text; added an inline disclosure at the moment of file attachment naming which AI provider the
+content is sent to.
+
+**QGIS/PyQGIS**: guarded task-completion callbacks and now cancel in-flight tasks on plugin
+unload; the Stop button now takes effect mid-batch, not just between rounds; fixed a latent
+export-writer bug and 5 more unresolved-enum gaps of the same class; propagated and extended
+CRS-unit-mismatch warnings across 3 logistics tools (numeric correction itself remains an open
+design decision -- these tools warn honestly rather than guess a reprojection); extended the
+destructive-action confirmation gate to 4 more attribute-mutating tools; a styling failure can
+no longer leave a shared layer permanently unstyled.
+
+**Performance**: excluded the 3 network-fetch hazard tools from scheduled/recurring workflows,
+closing a real QGIS-GUI-freeze risk (the underlying off-main-thread dispatch rework remains
+open); stopped rebuilding a spatial index once per time bucket instead of once; cached
+building-footprint tile downloads; moved attachment parsing off the Qt main thread; capped the
+candidate×demand pair count in facility-siting tools against unbounded input size.
+
+**Code quality**: pinned an unofficial-API dependency to a known-working range; synced drifted
+version metadata across `pyproject.toml`/`README.md`; added real behavioral tests for all 24
+previously-untested tools (9 raster/classification, 15 vector/layer-management) -- 0 of 169
+tools now have zero test coverage, down from 24.
+
+**CI**: added a `gitleaks` secret-scanning job (GitHub's native secret scanning isn't available
+on this private repo without a paid GHAS license -- confirmed directly via the API) and enabled
+Dependabot vulnerability alerts and automated security fixes.
+
+Tagged `commercial-plugin-v1.15.6-rc1` rather than promoted straight to a final release: several
+release-readiness gates remain open independent of the code itself -- an interactive QGIS smoke
+test, a licensing/publication decision, and package identity/provenance confirmation. See
+`docs/audits/QGIS_PLUGIN_AUDIT_FINAL_REPORT.md` §16 for the full gate table.
 
 <a id="v1-15-5"></a>
 ## [1.15.5] — 2026-09-13 — Patch: fixed a second instance of the "'str' object has no attribute 'get'" crash
