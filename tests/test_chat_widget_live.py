@@ -300,6 +300,75 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertIn("map health facilities", log, "the user's own message must land in the chat log")
         self.assertIn("Loaded 3 facility layers", log, "the agent's real response must land in the chat log")
 
+    def test_preview_panel_growth_reclamps_a_floating_dock(self):
+        """Real live report, 2026-09-15: after this panel appeared, the floating dock ended up
+        with its input row under the Windows taskbar. Confirmed directly (separate manual repro)
+        that showing this panel genuinely grows the dock's forced minimum size -- exactly the
+        failure mode dock_widget.py's _clamp_to_screen_if_floating exists to catch, but that
+        guard previously only ran from resizeEvent, leaving a timing gap. Proves the fix: the
+        clamp now actually fires at the moment the panel's visibility changes, not just
+        eventually via whatever resize follows."""
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
+                         "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
+        ])
+        dock = self._make_dock(agent)
+        dock.setFloating(True)
+        ct = dock.chat_tab_widget
+
+        calls = []
+        dock._clamp_to_screen_if_floating = lambda: calls.append(True)
+
+        ct.input_edit.setPlainText("map health facilities")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertTrue(ct.preview_panel.isVisible())
+        self.assertGreaterEqual(len(calls), 1,
+            "showing the preview panel must re-clamp the floating dock, not just wait for resizeEvent")
+
+        calls.clear()
+        QTest.mouseClick(ct.preview_cancel_btn, Qt.MouseButton.LeftButton)
+        self.assertFalse(ct.preview_panel.isVisible())
+        self.assertGreaterEqual(len(calls), 1, "hiding the panel again must also re-clamp")
+
+    def test_preview_panel_growth_is_pulled_back_within_available_screen(self):
+        """Same scenario as above, but checking the actual resulting geometry rather than just
+        that the clamp function got called -- proves the fix does something, not just that it
+        runs. Constrains only the HEIGHT of the dock's own screen() (standing in for a real
+        screen where a taskbar eats into the bottom of availableGeometry, the exact reported
+        symptom) to something shorter than the panel-grown minimum height -- width is left
+        generous since the dock's own forced minimum width can't be shrunk below regardless of
+        available screen size, and isn't what this bug report was about."""
+        from qgis.PyQt.QtCore import QRect
+
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
+                         "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
+        ])
+        dock = self._make_dock(agent)
+        dock.setFloating(True)
+        ct = dock.chat_tab_widget
+
+        # Established live (manual repro): showing this panel forces a ~572px minimum height.
+        # 400px available height (as if a taskbar left only that much room) guarantees the
+        # grown dock exceeds it, without conflicting with the dock's own minimum WIDTH.
+        small_available = QRect(0, 0, 1200, 400)
+
+        class _FakeScreen:
+            def availableGeometry(self_inner):
+                return small_available
+
+        dock.screen = lambda: _FakeScreen()
+        dock.setGeometry(0, 0, 700, 400)
+
+        ct.input_edit.setPlainText("map health facilities")
+        QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
+        self.assertTrue(ct.preview_panel.isVisible())
+
+        geo = dock.geometry()
+        self.assertLessEqual(geo.y() + geo.height(), small_available.bottom() + 1,
+            "dock's bottom edge must be pulled back within the (simulated) available screen -- "
+            "this is the exact symptom reported (content ending up under the taskbar)")
+
     def test_preview_panel_locks_input_box_against_edits(self):
         """Regression test for the P0 bug fixed 2026-08-31: nothing previously
         stopped a user from editing the input box while the preview panel was
