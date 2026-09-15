@@ -4,7 +4,8 @@ import threading
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
-    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton
+    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton,
+    QScrollArea, QFrame,
 )
 from qgis.core import QgsSettings
 
@@ -172,8 +173,35 @@ class CartogenAiSettingsDialog(QDialog):
     def init_ui(self):
         from ..agent.auth import CredentialManager
 
-        layout = QVBoxLayout(self)
+        # Real live report, 2026-09-15: "the setting window unable to save NASA free Api key,
+        # and the window is too long can not press ok or cancel" -- confirmed via screenshot.
+        # Every field used to go straight into one QVBoxLayout on the dialog itself, so the
+        # dialog auto-sized to fit ALL of it (account row, provider picker, privacy note, the
+        # per-provider key/model page, the FIRMS key, 4 checkboxes, persona picker, profile
+        # button) with nothing capping its height -- on a screen too short for that (a laptop, or
+        # a QGIS window not maximized), the bottom of the dialog -- OK/Cancel -- ends up entirely
+        # off-screen with no way to reach it, so the FIRMS key the user typed could never
+        # actually be saved: accept() only runs when OK is clicked. Fixed by putting everything
+        # except the button row inside a QScrollArea, and keeping the button row fixed outside
+        # it in its own outer layout, so OK/Cancel always stay reachable regardless of content
+        # height or screen size.
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
+        scroll_area.setWidget(content)
+        outer_layout.addWidget(scroll_area)
+
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            self.setMaximumHeight(max(300, int(screen.availableGeometry().height() * 0.85)))
 
         account_row = QHBoxLayout()
         account_status = QLabel("Hosted Cartogen AI account")
@@ -414,11 +442,14 @@ class CartogenAiSettingsDialog(QDialog):
         self.fetch_status_label.setWordWrap(True)
         layout.addWidget(self.fetch_status_label)
 
-        # Buttons
+        # Buttons -- deliberately added to outer_layout, NOT layout/scroll_area, so OK/Cancel
+        # stay fixed and reachable at the bottom of the dialog regardless of how tall the
+        # scrollable content above grows. See init_ui's opening comment for the live bug this fixes.
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.setContentsMargins(12, 8, 12, 12)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
+        outer_layout.addWidget(self.button_box)
 
         self.setStyleSheet(build_dock_stylesheet(_extract_theme_palette()))
 
