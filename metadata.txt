@@ -23,7 +23,28 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.6-rc1 (2026-09-14):
+changelog=v1.15.6-rc2 (2026-09-15):
+    Release candidate: 4 real fixes on top of v1.15.6-rc1, all reported live and verified
+    against the packaged plugin, not just the dev tree. (1) Declared `requests` as a required
+    dependency -- every provider client imports it directly, but it was never listed, working
+    only because QGIS's bundled Python typically ships it already. (2) Added a `country`
+    parameter to fetch_gdacs_disaster_alerts -- a place-scoped request with no bbox (e.g.
+    "GDACS alerts for Yemen") previously fell through to every alert on Earth; now scopes by
+    GDACS's own per-alert country field. (3) The floating chat dock now proactively re-clamps
+    to the available screen when the prompt-preview/refinement panels show or hide, closing a
+    timing gap in the existing screen-clamp guard that could leave the input row under the
+    Windows taskbar. (4) Converted the "Prompt that will be sent" boxed panel into an in-chat
+    exchange (reply to confirm, type a correction, or say "cancel") -- the same conversion
+    already applied to the requirement-gate panel, now covering the last boxed panel in the
+    chat flow. Full suite 1684 tests, 0 failures. Live-verified: full 16-category interactive
+    checklist (15/15 runnable categories) plus 4 targeted checks (plugin load/unload via the
+    real classFactory() entry point, a live network call proving the Yemen filter actually
+    scopes results, the screen-clamp firing on a real panel change, and the old boxed panel
+    confirmed removed) -- all against the packaged zip. See CHANGELOG.md for full detail.
+    Still a release candidate, not final: licensing/publication decision, package provenance
+    confirmation, and stable-promotion gates remain open.
+
+v1.15.6-rc1 (2026-09-14):
     Release candidate: audit remediation, 27 of 32 findings fixed/mitigated from a full
     security/QGIS/API/performance/code-quality audit (docs/audits/). SSRF-hardened 4 URL
     fetches, sanitized CSV formula injection, redacted provider error bodies that could leak
