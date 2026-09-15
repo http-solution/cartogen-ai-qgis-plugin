@@ -23,7 +23,7 @@ from ..agent.providers.ollama import list_models as _list_ollama
 from ..agent.providers.openai import list_models as _list_openai
 from ..agent.providers.claude import list_models as _list_claude
 from ..agent.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
-from .chat_formatting import build_dock_stylesheet
+from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 
 PROVIDER_KEY = "cartogen_ai/provider"
 AUTO_LABEL = "auto (recommended)"
@@ -510,11 +510,47 @@ class CartogenAiSettingsDialog(QDialog):
         # scrollable content above grows. See init_ui's opening comment for the live bug this fixes.
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.setContentsMargins(12, 8, 12, 12)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setObjectName("settingsOkButton")
+        self.button_box.button(QDialogButtonBox.StandardButton.Cancel).setObjectName("settingsCancelButton")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         outer_layout.addWidget(self.button_box)
 
-        self.setStyleSheet(build_dock_stylesheet(_extract_theme_palette()))
+        # Real live report, 2026-09-16: a first pass at this redesign left OK/Cancel as the
+        # shared build_dock_stylesheet's default QPushButton rule -- large, rounded, and
+        # colored from _brand_accent(), which BLENDS the live QGIS theme's own accent toward
+        # the brand teal rather than using it outright, so on a theme with a strong native
+        # blue it read as generic Windows-blue, not the design proposal's teal. Confirmed via
+        # a real screenshot: the result looked nothing like the approved mockup. This extra,
+        # narrowly-scoped stylesheet (appended after, so it wins) pins OK/Cancel and the
+        # active provider pill to the actual brand teal constant, and trims their padding
+        # closer to the mockup's compact pills -- scoped to object names unique to this
+        # dialog so it can't affect the chat dock's own Send/Stop buttons, which still use
+        # the shared, theme-blended style on purpose.
+        self.setStyleSheet(build_dock_stylesheet(_extract_theme_palette()) + f"""
+QPushButton#providerPill {{
+    padding: 5px 10px;
+}}
+QPushButton#providerPill:checked {{
+    background-color: #ffffff;
+    color: {BRAND_TEAL};
+    border: 1.5px solid {BRAND_TEAL};
+}}
+QPushButton#settingsOkButton, QPushButton#settingsCancelButton {{
+    padding: 5px 16px;
+    font-size: 12px;
+    border-radius: 4px;
+}}
+QPushButton#settingsOkButton {{
+    background-color: {BRAND_TEAL};
+    color: #ffffff;
+}}
+QPushButton#settingsCancelButton {{
+    background-color: transparent;
+    color: {BRAND_TEAL};
+    border: 1px solid {BRAND_TEAL};
+}}
+""")
 
         self.update_fields()
 
@@ -529,7 +565,10 @@ class CartogenAiSettingsDialog(QDialog):
         row_layout.setContentsMargins(0, 10, 0, 2)
         row_layout.setSpacing(8)
         no_label = QLabel(number)
-        no_label.setStyleSheet("color: #a3255a; font-weight: 700; font-size: 12px;")
+        no_label.setStyleSheet(
+            "color: #a3255a; font-weight: 700; font-size: 13px; "
+            "font-family: Georgia, 'Times New Roman', serif;"
+        )
         title_label = QLabel(title)
         title_label.setStyleSheet("font-weight: 700; font-size: 12.5px;")
         row_layout.addWidget(no_label)
