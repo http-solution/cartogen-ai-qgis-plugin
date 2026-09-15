@@ -23,7 +23,23 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.6-rc2 (2026-09-15):
+changelog=v1.15.6-rc3 (2026-09-15):
+    Release candidate: 2 more fixes on top of rc2, both from direct live reports, both verified
+    against the packaged plugin. (1) The message that triggers an in-chat gate question
+    (requirement gate or prompt preview) is now echoed as its own chat bubble immediately --
+    previously it only appeared secondhand, quoted inside the AI's own response, which looked
+    to the user like their message had vanished. (2) Tool-call arguments are now validated to
+    actually be an object after JSON-decoding, not just successfully parseable -- a
+    double-JSON-encoded arguments string (a known real-world LLM tool-calling quirk) previously
+    decoded to a plain string and crashed uncaught on the next line; investigated as a candidate
+    cause for a live-reported crash after a real multi-tool-call Gemini turn (not confirmed as
+    the exact site -- no traceback was available -- but a real, demonstrable gap in the same bug
+    class as two earlier-fixed usage-parsing crashes). Full suite 1689 tests, 0 failures.
+    Live-verified: full 16-category checklist (15/15) plus 2 targeted checks for both fixes
+    against the rebuilt package. See CHANGELOG.md for full detail.
+    Still a release candidate, not final.
+
+v1.15.6-rc2 (2026-09-15):
     Release candidate: 4 real fixes on top of v1.15.6-rc1, all reported live and verified
     against the packaged plugin, not just the dev tree. (1) Declared `requests` as a required
     dependency -- every provider client imports it directly, but it was never listed, working

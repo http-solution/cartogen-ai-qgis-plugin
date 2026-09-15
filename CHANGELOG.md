@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc3](#v1-15-6-rc3) | 2026-09-15 | Release candidate: 2 more fixes on rc2 -- missing first-message echo, tool-argument shape validation |
 | [1.15.6-rc2](#v1-15-6-rc2) | 2026-09-15 | Release candidate: 4 fixes on rc1 -- requests dependency, GDACS country filter, dock screen-clamp timing, prompt-preview-to-in-chat conversion |
 | [1.15.6-rc1](#v1-15-6-rc1) | 2026-09-14 | Release candidate: fixes 27 of 32 findings from a full security/QGIS/API/performance/code-quality audit |
 | [1.15.5](#v1-15-5) | 2026-09-13 | Patch: fixed another instance of the "'str' object has no attribute 'get'" crash, this one in Gemini usage parsing |
@@ -32,6 +33,40 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc3"></a>
+## [1.15.6-rc3] — 2026-09-15 — Release candidate: 2 more fixes on rc2
+
+Two more real, live-reported fixes on top of `v1.15.6-rc2`, both verified against the packaged
+plugin. Source commit `156fea4`.
+
+1. **The triggering message for an in-chat gate is now echoed as its own bubble.** Real live
+   report: "the first message i sent on the chat was not showing in the chat box." When a
+   fresh message triggered either in-chat gate (`_ask_requirement_in_chat` or
+   `_ask_preview_in_chat`), the user's own typed text was never shown as its own "You" bubble
+   -- it only appeared secondhand, quoted inside the AI's own message. Both gates now echo the
+   triggering message immediately, before the AI's question; the preview-confirm path gained an
+   `already_echoed` flag so the same text isn't shown a second time once dispatch happens.
+2. **Tool-call arguments are now validated to actually be an object.** `json.loads` succeeds on
+   any well-formed JSON document, not just objects -- a double-JSON-encoded arguments string (a
+   known real-world LLM tool-calling quirk: the model's own arguments field is itself a
+   JSON-encoded string) decodes to a plain string, not the intended dict, and previously crashed
+   uncaught on the next line. Investigated as a candidate cause for a live-reported
+   `'str' object has no attribute 'get'` crash immediately after a real 18-tool-call Gemini turn
+   where every individual tool call succeeded -- not confirmed as the exact site (no traceback
+   was available to pin it down precisely), but a real, demonstrable gap in the same bug class
+   as two earlier-fixed usage-parsing crashes (`extract_openai_style_usage`).
+
+Full suite: 1689 tests, 0 failures. Live-verified against the rebuilt package (`dist/`
+`cartogen_ai_v1.15.6.zip`, 173 entries, sha256 `1d1cd5b5...6530f810`): the full 16-category
+interactive checklist (15/15 runnable categories, PostGIS skipped -- no test DB; one transient
+network timeout on the OSM category, clean on retry) plus 2 targeted checks proving both fixes
+work against the packaged code, not just the dev tree -- see `docs/RELEASE_SMOKE_TEST.md`'s
+2026-09-15 RC3 run log entry for the full detail.
+
+Still a release candidate, not final: licensing/publication decision, package provenance
+confirmation, and stable-promotion gates remain open — see
+`docs/audits/QGIS_PLUGIN_AUDIT_FINAL_REPORT.md` §16 for the full gate table.
 
 <a id="v1-15-6-rc2"></a>
 ## [1.15.6-rc2] — 2026-09-15 — Release candidate: 4 fixes on rc1

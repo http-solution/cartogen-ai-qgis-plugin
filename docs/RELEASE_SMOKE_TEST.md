@@ -64,6 +64,26 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-15 — RC3 candidate (commit `156fea4`) — headless, FULL 16-category checklist plus 2
+targeted checks for the 2 fixes new since RC2, run against a freshly built
+`dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
+`1d1cd5b534588f741435b5577eb5fa39c1cbb84ca0559d88ea06396a6530f810`).** 2 real fixes landed on top
+of RC2 (`55a108a`): the missing-first-message echo fix and tool-argument shape validation.
+
+**16-category checklist: 15/15 runnable categories pass**, category 10 (PostGIS) skipped per the
+checklist's own allowance. First pass hit a transient `HTTP 504` on category 3 (OSM Overpass) --
+retried clean on its own, ordinary third-party API flakiness, not a regression.
+
+**2 targeted checks, both passing, against the packaged code:**
+1. **Message-echo fix** -- typed a fresh message, confirmed it's echoed as its own "You" bubble
+   *before* the AI's preview question (not just present somewhere in the log), then confirmed
+   with "yes" and verified the original text appears exactly twice total (the upfront echo plus
+   the AI's own quote of it) -- never a third time, proving the confirm path doesn't re-echo it.
+2. **Tool-argument shape validation** -- called `_real_execute_tool` with a double-JSON-encoded
+   arguments string (decodes to a plain string, not a dict) and confirmed it's rejected with a
+   clean "Invalid tool arguments" error instead of crashing; confirmed a normal, real dict-shaped
+   call is completely unaffected.
+
 **2026-09-15 — post-fix rebuild (commit `62fcb69`) — headless, FULL 16-category checklist plus 4
 targeted P0 checks, run against a freshly built `dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
 `5aee5c9982b9bf3685107ff025d66e7cb94fecfae18fe3f64bdad83e1377a950`).** 4 real fixes landed since the
