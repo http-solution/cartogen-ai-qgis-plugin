@@ -332,6 +332,65 @@ def render_tool_step_html(name, status, error, colors):
     )
 
 
+def render_welcome_html(intro, capabilities, starters, colors):
+    """The chat panel's cold-start welcome body -- a numbered capability index (a big teal
+    numeral beside a bold title and a muted description) and starter prompts rendered as
+    bordered, clickable cards, not a plain bullet list. Design proposal, 2026-09-16 (Dateline
+    Dock artifact): real user feedback on the first pass ("its not following the design
+    notes") was that going through render_markdown's plain bullet/numbered-list output lost
+    the mockup's actual visual treatment -- a numeral-led row and a bordered card per starter,
+    not inline text. Hand-built HTML via Qt's table-based rich-text pattern instead (the same
+    technique _add_message's own bubble wrapper already uses), bypassing render_markdown
+    entirely for this one message. Border-radius is deliberately absent on the starter cards --
+    see _add_message's own comment on why Qt's rich-text engine doesn't support it at all.
+
+    `intro` is the italic hero line. `capabilities` is a list of (title, description) pairs;
+    `starters` is a list of prompt strings, rendered as cartogen://starter/{index} links --
+    see chat_tab_widget.py's _on_starter_prompt_clicked for what a click on one does."""
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    border_color = colors.get("border", "#d0d0d0")
+    teal = _brand_accent(colors.get("highlight", "#3daee9"))
+
+    hero = (
+        f'<div style="font-style:italic;font-size:13.5px;color:{text_color};margin-bottom:12px;">'
+        f'{escape_plain_text(intro)}</div>'
+    )
+
+    rows = []
+    for i, (title, desc) in enumerate(capabilities, start=1):
+        rows.append(
+            '<tr>'
+            f'<td style="width:22px;vertical-align:top;padding:3px 6px 3px 0;'
+            f'color:{teal};font-weight:bold;font-size:13px;">{i:02d}</td>'
+            f'<td style="vertical-align:top;padding:3px 0;font-size:12.5px;">'
+            f'<b>{escape_plain_text(title)}</b><br>'
+            f'<span style="color:{subtle_color};font-size:11.5px;">{escape_plain_text(desc)}</span>'
+            '</td></tr>'
+        )
+    plate_table = (
+        '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
+        f'style="margin:2px 0 12px;">{"".join(rows)}</table>'
+    )
+
+    starter_cards = []
+    for i, prompt in enumerate(starters):
+        starter_cards.append(
+            '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
+            'style="margin-bottom:6px;"><tr>'
+            f'<td style="border:1px solid {border_color};padding:7px 10px;">'
+            f'<a href="cartogen://starter/{i}" style="text-decoration:none;color:{text_color};'
+            f'font-size:12px;">{escape_plain_text(prompt)}</a>'
+            '</td></tr></table>'
+        )
+
+    starters_heading = (
+        f'<div style="font-size:12px;font-weight:bold;color:{text_color};margin:2px 0 6px;">'
+        'Try one of these</div>'
+    )
+    return hero + plate_table + starters_heading + "".join(starter_cards)
+
+
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
     """One compact summary line for an entire turn's tool calls, replacing the old
     one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too

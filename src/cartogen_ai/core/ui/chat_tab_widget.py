@@ -357,25 +357,26 @@ class ChatTabWidget(QWidget):
             # Design proposal, 2026-09-16 (Dateline Dock artifact): the plain welcome
             # paragraph gains a numbered capability index (adapted from Cartogen Panel.pdf's
             # option 1B, "The spatial desk") and clickable starter prompts (see
-            # self._starter_prompts / _on_starter_prompt_clicked) -- a first-time user gets
-            # something to scan and try instead of only prose. Plain markdown, rendered
-            # through the same render_markdown() path every other message already uses, not
-            # hand-built HTML -- kept consistent with how this chat log has always rendered
-            # rich content, and avoids re-solving text-escaping/theme-color handling here.
-            starters_md = "\n".join(
-                f"- [{text}](cartogen://starter/{i})"
-                for i, text in enumerate(self._starter_prompts)
+            # self._starter_prompts / _on_starter_prompt_clicked). Real live feedback on the
+            # first pass ("its not following the design notes"): going through plain markdown
+            # (a numbered list + bullet links) lost the mockup's actual visual treatment -- a
+            # big teal numeral beside each capability, and each starter as its own bordered
+            # card, not inline text. render_welcome_html builds that directly; called through
+            # _add_message's _raw_html path, not the receiveMessageSignal emit every other
+            # message uses, since this is the one message that needs to bypass render_markdown.
+            from .chat_formatting import render_welcome_html
+            welcome_html = render_welcome_html(
+                intro="Your spatial analysis assistant for humanitarian GIS 🗺️. What are we working on?",
+                capabilities=[
+                    ("Monitor", "Real-time GDACS alerts, flood extents, earthquake footprints."),
+                    ("Ingest", "HDX/OCHA boundaries, OSM infrastructure, satellite basemaps."),
+                    ("Analyse", "Population exposure, facility accessibility, buffer zones."),
+                    ("Publish", "Thematic maps, hi-res layouts, cluster summary reports."),
+                ],
+                starters=self._starter_prompts,
+                colors=theme_colors(),
             )
-            self._dock.receiveMessageSignal.emit(
-                "ai",
-                "Your spatial analysis assistant for humanitarian GIS 🗺️. What are we working on?\n\n"
-                "1. **Monitor** -- Real-time GDACS alerts, flood extents, earthquake footprints.\n"
-                "2. **Ingest** -- HDX/OCHA boundaries, OSM infrastructure, satellite basemaps.\n"
-                "3. **Analyse** -- Population exposure, facility accessibility, buffer zones.\n"
-                "4. **Publish** -- Thematic maps, hi-res layouts, cluster summary reports.\n\n"
-                "**Try one of these:**\n"
-                f"{starters_md}"
-            )
+            self._add_message("ai", "", _raw_html=welcome_html)
 
         from ..agent.auth import CredentialManager
         missing_key_msg = CredentialManager.missing_credential_message(
@@ -401,7 +402,15 @@ class ChatTabWidget(QWidget):
         self._awaiting_preview_reply = False
         self._populate_initial_chat()
 
-    def _add_message(self, role, text):
+    def _add_message(self, role, text, _raw_html=None):
+        # _raw_html: pre-built HTML body to use verbatim instead of running `text` through
+        # render_markdown -- only the welcome message (_populate_initial_chat, via
+        # chat_formatting.render_welcome_html) uses this, to get the design proposal's actual
+        # numeral-led capability rows and bordered starter cards instead of what render_
+        # markdown's plain bullet/numbered-list output can produce. Not part of
+        # receiveMessageSignal's (str, str) signature -- called directly (this method is a
+        # normal Python method beneath the signal-connected slot of the same name), never via
+        # emit(), so no signal-signature change was needed.
         # Theme-aware colors (see chat_formatting.derive_bubble_colors) so bubbles
         # read correctly in both light and dark QGIS themes instead of a hardcoded
         # light-blue/light-grey pair. timestamp is "now" at render time for a live
@@ -425,7 +434,7 @@ class ChatTabWidget(QWidget):
             bg = colors["user_bg"]
             accent_border = colors["accent"]  # the one place this UI spends its brand-color boldness
         else:
-            body = render_markdown(text, colors)
+            body = _raw_html if _raw_html is not None else render_markdown(text, colors)
             label, align = "🗺️ Cartogen", "left"
             bg = colors["agent_bg"]
             accent_border = colors["border"]  # stays quiet -- no accent on the agent's own side
