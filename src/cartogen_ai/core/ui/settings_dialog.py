@@ -1,11 +1,11 @@
 import json
 import threading
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QRect, QSize, QPoint
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton,
-    QScrollArea, QFrame, QButtonGroup,
+    QScrollArea, QFrame, QButtonGroup, QLayout,
 )
 from qgis.core import QgsSettings
 
@@ -57,7 +57,7 @@ def _extract_theme_palette():
 # function) -- not another block of near-duplicate widget code.
 PROVIDERS = [
     {
-        "value": "openrouter", "provider_label": "OpenRouter (Hosted)",
+        "value": "openrouter", "provider_label": "OpenRouter (Hosted)", "pill_label": "OpenRouter",
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
         "model_setting_key": "cartogen_ai/openrouter_model", "default_model": AUTO_SENTINEL,
         "key_default": "", "list_fn": _list_openrouter,
@@ -72,7 +72,7 @@ PROVIDERS = [
         "dpa_label": "Data processing info (self-serve; a signed DPA needs Enterprise)",
     },
     {
-        "value": "gemini", "provider_label": "Google Gemini (Hosted)",
+        "value": "gemini", "provider_label": "Google Gemini (Hosted)", "pill_label": "Gemini",
         "key_label": "Gemini API Key:", "model_label": "Gemini Model:",
         # default_model is AUTO_SENTINEL (not a fixed model) so a fresh install
         # with nothing saved yet shows "Auto" pre-selected here, matching
@@ -103,7 +103,7 @@ PROVIDERS = [
         # Ollama stays pinned to a concrete default (no auto-routing) -- local
         # models aren't a cost concern, and complexity-based naming heuristics
         # don't translate to an arbitrary local model catalog.
-        "value": "ollama", "provider_label": "Ollama (Local)",
+        "value": "ollama", "provider_label": "Ollama (Local)", "pill_label": "Ollama · local",
         "key_label": "Ollama Endpoint URL:", "model_label": "Ollama Model:",
         "model_setting_key": "cartogen_ai/ollama_model", "default_model": "llama3.1",
         "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
@@ -111,7 +111,7 @@ PROVIDERS = [
                         "default unless your Ollama server runs somewhere else.",
     },
     {
-        "value": "openai", "provider_label": "OpenAI (Hosted)",
+        "value": "openai", "provider_label": "OpenAI (Hosted)", "pill_label": "OpenAI",
         "key_label": "OpenAI API Key (paid):", "model_label": "OpenAI Model:",
         "model_setting_key": "cartogen_ai/openai_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gpt-5.6",
@@ -122,7 +122,7 @@ PROVIDERS = [
         "dpa_label": "Data Processing Addendum",
     },
     {
-        "value": "claude", "provider_label": "Claude / Anthropic (Hosted)",
+        "value": "claude", "provider_label": "Claude / Anthropic (Hosted)", "pill_label": "Claude",
         "key_label": "Claude API Key (paid):", "model_label": "Claude Model:",
         "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
@@ -138,7 +138,7 @@ PROVIDERS = [
         # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
         # install to a provider that can't resolve would break the out-of-the-box
         # experience. Reorder to first once a real gateway exists (see that doc's Phase 1).
-        "value": "cartogen", "provider_label": "Cartogen AI (Hosted)",
+        "value": "cartogen", "provider_label": "Cartogen AI (Hosted)", "pill_label": "Cartogen AI",
         "key_label": "Cartogen AI Key:", "model_label": "Cartogen AI Model:",
         "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
@@ -147,6 +147,75 @@ PROVIDERS = [
                         "Community edition today (see docs/PRODUCT_TIERS.md).",
     },
 ]
+
+
+class FlowLayout(QLayout):
+    """Standard Qt "flow layout" recipe (wraps its children onto a new row once the current
+    one runs out of width), adapted for the provider pills below. Design proposal, 2026-09-16
+    (Dateline Dock artifact): the mockup's `.pill-row` is `display:flex;flex-wrap:wrap` -- a
+    real live report on the first pass ("its not following the design notes") was that a
+    single full-width vertical stack (the first, simpler implementation here) doesn't match
+    that at all. Qt has no built-in equivalent to CSS flex-wrap for QBoxLayout, so this fills
+    the gap -- self-contained, used only by the pills row below."""
+
+    def __init__(self, parent=None, spacing=6):
+        super().__init__(parent)
+        self.setSpacing(spacing)
+        self._items = []
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+        return size
+
+    def _do_layout(self, rect, test_only):
+        x, y = rect.x(), rect.y()
+        line_height = 0
+        spacing = self.spacing()
+        for item in self._items:
+            hint = item.sizeHint()
+            next_x = x + hint.width() + spacing
+            if next_x - spacing > rect.right() and line_height > 0:
+                x = rect.x()
+                y += line_height + spacing
+                next_x = x + hint.width() + spacing
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x = next_x
+            line_height = max(line_height, hint.height())
+        return y + line_height - rect.y()
 
 
 class CartogenAiSettingsDialog(QDialog):
@@ -238,28 +307,32 @@ class CartogenAiSettingsDialog(QDialog):
         self._active_provider = current_provider if any(e["value"] == current_provider for e in PROVIDERS) else PROVIDERS[0]["value"]
 
         # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
-        # a stack of pills instead of a QComboBox -- every connection (including Ollama's
+        # a row of pills instead of a QComboBox -- every connection (including Ollama's
         # "local" qualifier) is visible at once instead of hidden inside a closed dropdown.
-        # Single column, not a grid: tried a 3- then a 2-column grid first, but provider
-        # labels like "Claude / Anthropic (Hosted)" still overflowed this dialog's 420px
-        # minimum width (confirmed via a live headless screenshot -- a horizontal scrollbar
-        # appeared both times). One column per row has no such ceiling, and matches this
-        # section's own "kept: one column" brief better than a grid would have anyway.
-        pills_col = QVBoxLayout()
-        pills_col.setSpacing(4)
+        # The mockup's `.pill-row` wraps (CSS flex-wrap) rather than stacking one per row --
+        # a first pass here used a plain vertical QVBoxLayout instead (tried a 3- then a
+        # 2-column QGridLayout even earlier, both overflowing on long provider labels), and a
+        # real live report on that pass ("its not following the design notes") confirmed it
+        # read as a plain list, not the mockup's compact wrapping chip row. FlowLayout (above)
+        # is a real wrap, and short pill_label text (vs. the longer provider_label used
+        # elsewhere, e.g. in the masthead) keeps each chip narrow enough that several fit per
+        # row at this dialog's actual width -- the full name is still available as a tooltip.
+        pills_container = QWidget()
+        pills_flow = FlowLayout(pills_container, spacing=6)
         self._provider_button_group = QButtonGroup(self)
         self._provider_button_group.setExclusive(True)
         for entry in PROVIDERS:
             pv = entry["value"]
-            btn = QPushButton(entry["provider_label"])
+            btn = QPushButton(entry.get("pill_label", entry["provider_label"]))
             btn.setObjectName("providerPill")
+            btn.setToolTip(entry["provider_label"])
             btn.setCheckable(True)
             btn.setChecked(pv == self._active_provider)
             btn.clicked.connect(lambda checked, p=pv: self._select_provider(p))
             self._provider_button_group.addButton(btn)
             self._provider_buttons[pv] = btn
-            pills_col.addWidget(btn)
-        layout.addLayout(pills_col)
+            pills_flow.addWidget(btn)
+        layout.addWidget(pills_container)
 
         # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
         # in the product told a user what happens to data once a cloud provider is picked.
@@ -635,8 +708,14 @@ QPushButton#settingsCancelButton {{
 
     def _build_key_row(self, provider_value, label, value):
         row = QWidget()
+        row.setObjectName("keyRow")
+        # WA_StyledBackground: a plain QWidget ignores border/background from its own
+        # stylesheet by default (a real Qt gotcha) -- needed for the dashed row divider
+        # below (mockup's .key-row: border-bottom:1px dashed) to actually paint.
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row.setStyleSheet("QWidget#keyRow { border: none; border-bottom: 1px dashed palette(mid); }")
         row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(0, 4, 0, 4)
+        row_layout.setContentsMargins(0, 6, 0, 6)
         row_layout.setSpacing(8)
 
         name_label = QLabel(label)
