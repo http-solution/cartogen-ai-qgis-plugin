@@ -1,11 +1,11 @@
 import json
 import threading
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QRect, QSize, QPoint
+from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton,
-    QScrollArea, QFrame, QButtonGroup, QLayout,
+    QScrollArea, QFrame, QButtonGroup,
 )
 from qgis.core import QgsSettings
 
@@ -149,75 +149,6 @@ PROVIDERS = [
 ]
 
 
-class FlowLayout(QLayout):
-    """Standard Qt "flow layout" recipe (wraps its children onto a new row once the current
-    one runs out of width), adapted for the provider pills below. Design proposal, 2026-09-16
-    (Dateline Dock artifact): the mockup's `.pill-row` is `display:flex;flex-wrap:wrap` -- a
-    real live report on the first pass ("its not following the design notes") was that a
-    single full-width vertical stack (the first, simpler implementation here) doesn't match
-    that at all. Qt has no built-in equivalent to CSS flex-wrap for QBoxLayout, so this fills
-    the gap -- self-contained, used only by the pills row below."""
-
-    def __init__(self, parent=None, spacing=6):
-        super().__init__(parent)
-        self.setSpacing(spacing)
-        self._items = []
-
-    def addItem(self, item):
-        self._items.append(item)
-
-    def count(self):
-        return len(self._items)
-
-    def itemAt(self, index):
-        return self._items[index] if 0 <= index < len(self._items) else None
-
-    def takeAt(self, index):
-        return self._items.pop(index) if 0 <= index < len(self._items) else None
-
-    def expandingDirections(self):
-        return Qt.Orientation(0)
-
-    def hasHeightForWidth(self):
-        return True
-
-    def heightForWidth(self, width):
-        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
-
-    def setGeometry(self, rect):
-        super().setGeometry(rect)
-        self._do_layout(rect, test_only=False)
-
-    def sizeHint(self):
-        return self.minimumSize()
-
-    def minimumSize(self):
-        size = QSize()
-        for item in self._items:
-            size = size.expandedTo(item.minimumSize())
-        margins = self.contentsMargins()
-        size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
-        return size
-
-    def _do_layout(self, rect, test_only):
-        x, y = rect.x(), rect.y()
-        line_height = 0
-        spacing = self.spacing()
-        for item in self._items:
-            hint = item.sizeHint()
-            next_x = x + hint.width() + spacing
-            if next_x - spacing > rect.right() and line_height > 0:
-                x = rect.x()
-                y += line_height + spacing
-                next_x = x + hint.width() + spacing
-                line_height = 0
-            if not test_only:
-                item.setGeometry(QRect(QPoint(x, y), hint))
-            x = next_x
-            line_height = max(line_height, hint.height())
-        return y + line_height - rect.y()
-
-
 class CartogenAiSettingsDialog(QDialog):
     # Fetching a model list hits the network -- must never block the UI thread
     # (a slow/unreachable endpoint would otherwise freeze the whole dialog, and
@@ -309,30 +240,31 @@ class CartogenAiSettingsDialog(QDialog):
         # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
         # a row of pills instead of a QComboBox -- every connection (including Ollama's
         # "local" qualifier) is visible at once instead of hidden inside a closed dropdown.
-        # The mockup's `.pill-row` wraps (CSS flex-wrap) rather than stacking one per row --
-        # a first pass here used a plain vertical QVBoxLayout instead (tried a 3- then a
-        # 2-column QGridLayout even earlier, both overflowing on long provider labels), and a
-        # real live report on that pass ("its not following the design notes") confirmed it
-        # read as a plain list, not the mockup's compact wrapping chip row. FlowLayout (above)
-        # is a real wrap, and short pill_label text (vs. the longer provider_label used
-        # elsewhere, e.g. in the masthead) keeps each chip narrow enough that several fit per
-        # row at this dialog's actual width -- the full name is still available as a tooltip.
-        pills_container = QWidget()
-        pills_flow = FlowLayout(pills_container, spacing=6)
+        # REVERTED from FlowLayout back to a plain vertical QVBoxLayout, 2026-09-16: a real
+        # live report ("the software completely freeze") right after this dialog's first real
+        # interactive use with FlowLayout -- a custom QLayout subclass nested inside this
+        # dialog's QScrollArea is a known way to trigger a resize feedback loop that pegs the
+        # Qt event loop, and headless/offscreen testing (everything this was verified with
+        # before shipping) doesn't reliably exercise real interactive resize/paint behavior the
+        # way a live windowed session does. A plain QVBoxLayout can't overflow -- it was
+        # already the working, freeze-free version -- so this trades the mockup's wrapping chip
+        # row back for one pill per line rather than risk the same freeze again. See docs/
+        # BUG_TRACKER.md if this is later revisited with a safer wrap approach.
+        pills_col = QVBoxLayout()
+        pills_col.setSpacing(4)
         self._provider_button_group = QButtonGroup(self)
         self._provider_button_group.setExclusive(True)
         for entry in PROVIDERS:
             pv = entry["value"]
-            btn = QPushButton(entry.get("pill_label", entry["provider_label"]))
+            btn = QPushButton(entry["provider_label"])
             btn.setObjectName("providerPill")
-            btn.setToolTip(entry["provider_label"])
             btn.setCheckable(True)
             btn.setChecked(pv == self._active_provider)
             btn.clicked.connect(lambda checked, p=pv: self._select_provider(p))
             self._provider_button_group.addButton(btn)
             self._provider_buttons[pv] = btn
-            pills_flow.addWidget(btn)
-        layout.addWidget(pills_container)
+            pills_col.addWidget(btn)
+        layout.addLayout(pills_col)
 
         # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
         # in the product told a user what happens to data once a cloud provider is picked.

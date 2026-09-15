@@ -9,20 +9,13 @@ CartogenAiDockWidget -- reached via self._dock, same pattern as chat_tab_widget.
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextBrowser,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QTextBrowser,
     QListWidget, QListWidgetItem, QGroupBox, QComboBox, QProgressBar, QLineEdit,
     QMessageBox, QApplication, QFileDialog,
 )
 
 from .chat_formatting import _relative_time, render_markdown
 from .theme import theme_colors
-# Reused rather than duplicated -- settings_dialog.py's FlowLayout is already the single
-# source of truth for "wrap these buttons onto a new row instead of overflowing", the same
-# cross-import precedent chat_tab_widget.py already follows for PROVIDERS. Real live report,
-# 2026-09-16 (screenshot): this tab's task-action button row (Confirm/Retry/Edit/Cancel) was
-# visibly cut off at the dock's right edge in a plain QHBoxLayout -- the exact overflow
-# FlowLayout was built to fix for the Settings dialog's provider pills.
-from .settings_dialog import FlowLayout
 
 _STATUS_STYLES = {
     "TODO": ("⚪", "#666666", "#f1f3f6"),
@@ -141,11 +134,18 @@ class TasksTabWidget(QWidget):
         self.copy_snippet_btn.clicked.connect(self._copy_code_snippet)
         inspector_layout.addWidget(self.copy_snippet_btn)
 
-        # Confirm / Retry / Edit / Cancel Button Layout -- FlowLayout (wraps onto a new row
-        # instead of overflowing), not QHBoxLayout. See this file's FlowLayout import comment
-        # for the real live report (a screenshot showing Cancel cut off at the dock's edge).
+        # Confirm / Retry / Edit / Cancel Button Layout. REVERTED from FlowLayout back to a
+        # plain 2x2 QGridLayout, 2026-09-16: a real live report ("the software completely
+        # freeze") right after this tab's first real interactive use with FlowLayout -- a
+        # custom QLayout nested inside this tab's QScrollArea is a known way to trigger a
+        # resize feedback loop that pegs the Qt event loop, which headless/offscreen testing
+        # doesn't reliably catch. A fixed 2x2 grid can't overflow (each cell is a known
+        # fraction of the row) and can't feedback-loop (QGridLayout is a standard, well-tested
+        # Qt layout) -- it trades the exact "wrap wherever it needs to" flexibility for
+        # something that just can't misbehave.
         confirm_row = QWidget()
-        confirm_layout = FlowLayout(confirm_row, spacing=6)
+        confirm_layout = QGridLayout(confirm_row)
+        confirm_layout.setSpacing(6)
         self.confirm_btn = QPushButton("✅ Confirm and Apply Edit")
         self.confirm_btn.setObjectName("successButton")
         self.confirm_btn.setEnabled(False)
@@ -168,21 +168,22 @@ class TasksTabWidget(QWidget):
         self.cancel_task_btn.setEnabled(False)
         self.cancel_task_btn.clicked.connect(self._cancel_selected_task)
 
-        confirm_layout.addWidget(self.confirm_btn)
-        confirm_layout.addWidget(self.retry_task_btn)
-        confirm_layout.addWidget(self.edit_task_btn)
-        confirm_layout.addWidget(self.cancel_task_btn)
+        confirm_layout.addWidget(self.confirm_btn, 0, 0, 1, 2)  # full width -- the primary action
+        confirm_layout.addWidget(self.retry_task_btn, 1, 0)
+        confirm_layout.addWidget(self.edit_task_btn, 1, 1)
+        confirm_layout.addWidget(self.cancel_task_btn, 2, 0, 1, 2)
         inspector_layout.addWidget(confirm_row)
 
         tasks_layout.addWidget(inspector_box)
 
         # Spatial Memory panel: search box + browser (now actually resizes with the dock) + clear button
         tasks_layout.addWidget(self._section_header("02", "Project Notes and Memory"))
-        # Action row is a FlowLayout, not QHBoxLayout, for the same reason as confirm_row
-        # above -- 3 buttons with real labels ("Export My Data", "Clear Project Memory",
-        # "Clear Global Memory") overflow a fixed-width row at this dock's typical width.
+        # REVERTED from FlowLayout back to a plain vertical QVBoxLayout, 2026-09-16 -- see
+        # confirm_row's own comment above for why (a real live report of a total freeze,
+        # right after this tab's first real interactive use with FlowLayout).
         memory_actions_row = QWidget()
-        memory_header = FlowLayout(memory_actions_row, spacing=6)
+        memory_header = QVBoxLayout(memory_actions_row)
+        memory_header.setSpacing(4)
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
