@@ -52,6 +52,53 @@ class TestAuthAndDeps(unittest.TestCase):
         self.assertTrue(result)
         self.assertFalse(CredentialManager.used_plaintext_fallback("test_clear_provider"))
 
+    def test_save_after_stale_auth_id_failure_returns_new_value_not_old(self):
+        # Real bug, reproduced live 2026-09-16 (see commit 7da0112's message):
+        # when storeAuthenticationConfig() fails against a stale/broken auth
+        # ID left over from an earlier session ("Store config: FAILED because
+        # pre-defined config ID %1 is not unique"), save_credential() used to
+        # fall through to the plaintext fallback and report success WITHOUT
+        # clearing the stale auth_id_{provider} QgsSettings entry.
+        # get_credential() checks that entry first, so it kept loading the
+        # OLD auth-manager config and returning the OLD key -- silently
+        # ignoring the new value actually written to the plaintext fallback.
+        store = {"cartogen_ai/auth_id_test_stale_provider": "old-broken-auth-id"}
+
+        class FakeSettings:
+            def value(self, key, default=""):
+                return store.get(key, default)
+
+            def setValue(self, key, value):
+                store[key] = value
+
+            def remove(self, key):
+                store.pop(key, None)
+
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = False
+        fake_auth_mgr.storeAuthenticationConfig.return_value = False  # simulates the collision failure
+
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
+            mock_app.authManager.return_value = fake_auth_mgr
+            result = CredentialManager.save_credential("test_stale_provider", "brand-new-key")
+
+        self.assertTrue(result)
+        self.assertTrue(CredentialManager.used_plaintext_fallback("test_stale_provider"))
+        # The stale auth_id reference must be cleared, not left dangling.
+        self.assertNotIn("cartogen_ai/auth_id_test_stale_provider", store)
+
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
+            mock_app.authManager.return_value = fake_auth_mgr
+            key = CredentialManager.get_credential("test_stale_provider")
+
+        self.assertEqual(key, "brand-new-key")
+
     def test_missing_credential_message_none_outside_qgis(self):
         # QGIS_AVAILABLE is False in this test environment -- no real settings
         # store exists, so the no-client fallback path must return None

@@ -48,11 +48,11 @@ class CredentialManager:
         CredentialManager._plaintext_fallback_providers.discard(provider)
 
         if QGIS_AVAILABLE:
+            auth_id_setting = f"cartogen_ai/auth_id_{provider}"
             try:
                 auth_mgr = QgsApplication.authManager()
                 if auth_mgr and not auth_mgr.isDisabled():
                     # Create/update QgsAuthMethodConfig
-                    auth_id_setting = f"cartogen_ai/auth_id_{provider}"
                     settings = QgsSettings()
                     existing_auth_id = settings.value(auth_id_setting, "")
 
@@ -73,8 +73,23 @@ class CredentialManager:
                     if save_fn and save_fn(config):
                         settings.setValue(auth_id_setting, config.id())
                         return True
+
+                    # storeAuthenticationConfig failed -- commonly a stale auth ID left
+                    # over from an earlier session colliding with the new config (live
+                    # QGIS warning: "Store config: FAILED because pre-defined config ID
+                    # %1 is not unique"). If we leave the stale auth_id_{provider}
+                    # setting in place, get_credential() will find it, successfully load
+                    # the OLD auth-manager entry, and return the OLD key -- silently
+                    # ignoring the new value we're about to write to the plaintext
+                    # fallback below. Clear it so get_credential() falls through instead.
+                    if existing_auth_id:
+                        settings.remove(auth_id_setting)
             except Exception as e:
                 print(f"[CredentialManager] QgsAuthManager save failed, falling back to QgsSettings: {e}")
+                try:
+                    QgsSettings().remove(auth_id_setting)
+                except Exception:
+                    pass
 
         # Fallback to QgsSettings — uses the SAME key mapping get_credential reads from.
         # This path stores the key in plaintext (on Windows, the registry), unlike
