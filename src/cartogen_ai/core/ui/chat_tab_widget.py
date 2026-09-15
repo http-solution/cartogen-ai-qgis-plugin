@@ -441,6 +441,17 @@ class ChatTabWidget(QWidget):
         """
 
         self.chat_browser.append(html)
+        # Force-scroll to the newly added bubble rather than trusting QTextBrowser.append()'s
+        # own "was already at the bottom" heuristic. Real live report, 2026-09-15: "still my
+        # first massage is not showing in the chat" -- confirmed via screenshot that the message
+        # WAS actually in the log (an older, previously-rendered bubble from the same session was
+        # still visible at the current scroll position), it just never scrolled into view. That
+        # heuristic is unreliable right after a dock is (re)created or right after a large HTML
+        # table block lands -- the scrollbar's reported max/value at the moment of the very next
+        # append() doesn't always reflect the just-inserted content yet. Setting the scrollbar to
+        # its maximum explicitly, after the insert, has no such race.
+        scrollbar = self.chat_browser.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
         self.input_edit.clear()
         self.send_btn.setEnabled(True)
         self.status_label.setText("")
