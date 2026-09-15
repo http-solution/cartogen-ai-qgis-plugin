@@ -305,7 +305,10 @@ class ChatTabWidget(QWidget):
         input_layout.addWidget(self.stop_btn)
         chat_layout.addLayout(input_layout)
 
-        self._populate_initial_chat()
+        # NOT called here anymore -- see CartogenAiDockWidget.__init__ (dock_widget.py) for why:
+        # this method emits receiveMessageSignal before the dock has connected it to
+        # _add_message, which used to silently drop the welcome/restored-history message every
+        # time. The dock now calls _populate_initial_chat() itself, once its signals are wired.
 
     def _populate_initial_chat(self):
         """Shows the welcome message, or restores this project's saved conversation
