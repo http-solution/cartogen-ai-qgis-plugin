@@ -16,6 +16,13 @@ from qgis.PyQt.QtWidgets import (
 
 from .chat_formatting import _relative_time, render_markdown
 from .theme import theme_colors
+# Reused rather than duplicated -- settings_dialog.py's FlowLayout is already the single
+# source of truth for "wrap these buttons onto a new row instead of overflowing", the same
+# cross-import precedent chat_tab_widget.py already follows for PROVIDERS. Real live report,
+# 2026-09-16 (screenshot): this tab's task-action button row (Confirm/Retry/Edit/Cancel) was
+# visibly cut off at the dock's right edge in a plain QHBoxLayout -- the exact overflow
+# FlowLayout was built to fix for the Settings dialog's provider pills.
+from .settings_dialog import FlowLayout
 
 _STATUS_STYLES = {
     "TODO": ("⚪", "#666666", "#f1f3f6"),
@@ -134,8 +141,11 @@ class TasksTabWidget(QWidget):
         self.copy_snippet_btn.clicked.connect(self._copy_code_snippet)
         inspector_layout.addWidget(self.copy_snippet_btn)
 
-        # Confirm / Retry / Cancel Button Layout
-        confirm_layout = QHBoxLayout()
+        # Confirm / Retry / Edit / Cancel Button Layout -- FlowLayout (wraps onto a new row
+        # instead of overflowing), not QHBoxLayout. See this file's FlowLayout import comment
+        # for the real live report (a screenshot showing Cancel cut off at the dock's edge).
+        confirm_row = QWidget()
+        confirm_layout = FlowLayout(confirm_row, spacing=6)
         self.confirm_btn = QPushButton("✅ Confirm and Apply Edit")
         self.confirm_btn.setObjectName("successButton")
         self.confirm_btn.setEnabled(False)
@@ -162,13 +172,17 @@ class TasksTabWidget(QWidget):
         confirm_layout.addWidget(self.retry_task_btn)
         confirm_layout.addWidget(self.edit_task_btn)
         confirm_layout.addWidget(self.cancel_task_btn)
-        inspector_layout.addLayout(confirm_layout)
+        inspector_layout.addWidget(confirm_row)
 
         tasks_layout.addWidget(inspector_box)
 
         # Spatial Memory panel: search box + browser (now actually resizes with the dock) + clear button
-        memory_header = QHBoxLayout()
-        memory_header.addWidget(self._section_header("02", "Project Notes and Memory"))
+        tasks_layout.addWidget(self._section_header("02", "Project Notes and Memory"))
+        # Action row is a FlowLayout, not QHBoxLayout, for the same reason as confirm_row
+        # above -- 3 buttons with real labels ("Export My Data", "Clear Project Memory",
+        # "Clear Global Memory") overflow a fixed-width row at this dock's typical width.
+        memory_actions_row = QWidget()
+        memory_header = FlowLayout(memory_actions_row, spacing=6)
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
@@ -196,11 +210,10 @@ class TasksTabWidget(QWidget):
             "JSON file."
         )
         self.export_data_btn.clicked.connect(self._export_stored_data_clicked)
-        memory_header.addStretch()
         memory_header.addWidget(self.export_data_btn)
         memory_header.addWidget(self.clear_memory_btn)
         memory_header.addWidget(self.clear_global_memory_btn)
-        tasks_layout.addLayout(memory_header)
+        tasks_layout.addWidget(memory_actions_row)
 
         self.memory_search_edit = QLineEdit()
         self.memory_search_edit.setPlaceholderText("🔎 Filter memory notes...")
