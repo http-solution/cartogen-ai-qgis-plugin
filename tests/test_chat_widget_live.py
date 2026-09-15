@@ -43,7 +43,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from qgis.core import QgsApplication
-    from qgis.PyQt.QtCore import Qt, QEventLoop, QTimer
+    from qgis.PyQt.QtCore import Qt, QEventLoop, QTimer, QUrl
     from qgis.PyQt.QtTest import QTest
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
@@ -194,7 +194,12 @@ class TestChatWidgetLive(unittest.TestCase):
         # in the chat box" -- the message that TRIGGERED this gate must itself be echoed as
         # its own bubble, before the AI's question, not silently dropped.
         user_pos = log.find("map population affected by a hazard")
-        cartogen_bubble_pos = log.find("Cartogen ")
+        # Search for the AI label starting AFTER the user's own message, not from the top of
+        # the log -- the welcome message (_populate_initial_chat) also renders a "Cartogen "
+        # label, and now correctly appears in the log itself (see the 2026-09-16 fix for "the
+        # welcome message from Cartogen AI is not showing"), so a plain log.find("Cartogen ")
+        # would match that instead of the gate's own question bubble this test cares about.
+        cartogen_bubble_pos = log.find("Cartogen ", user_pos)
         self.assertNotEqual(user_pos, -1, "the user's own triggering message must appear in the log")
         self.assertNotEqual(cartogen_bubble_pos, -1, "the AI's reply bubble must also be present")
         self.assertLess(user_pos, cartogen_bubble_pos,
@@ -381,76 +386,60 @@ class TestChatWidgetLive(unittest.TestCase):
                          "enrichment, contract included")
         self.assertIn("just show me clinics instead", self._chat_text(ct).lower())
 
-    def test_boxed_panel_growth_reclamps_a_floating_dock(self):
-        """Real live report, 2026-09-15: after the (then-boxed) prompt-preview panel
-        appeared, the floating dock ended up with its input row under the Windows taskbar.
-        Confirmed directly (separate manual repro) that showing a panel like this genuinely
-        grows the dock's forced minimum size -- exactly the failure mode
-        dock_widget.py's _clamp_to_screen_if_floating exists to catch, but that guard
-        previously only ran from resizeEvent, leaving a timing gap. The prompt-preview panel
-        itself was converted to an in-chat exchange the same day (see the preview tests
-        above), so this now drives the still-boxed refinement_panel directly -- same
-        clamp-call wiring, same real widget, without needing the refinement feature's own
-        network-call scaffolding (not otherwise present in this test file)."""
+    # Both boxed-panel-growth-reclamps-a-floating-dock tests that used to live here were
+    # deleted, not adapted, 2026-09-16: their entire premise (a QGroupBox that becomes visible
+    # and forces the dock's minimum size to grow, needing a proactive re-clamp outside the
+    # normal resizeEvent path) no longer applies now that the refinement panel -- the last
+    # remaining boxed panel -- was itself converted to an in-chat exchange (see
+    # _show_refinement_in_chat in chat_tab_widget.py and the design-proposal comment where
+    # the old QGroupBox construction used to be). chat_tab_widget.py's own now-dead
+    # _clamp_dock_after_panel_change wrapper was removed with it, for the same reason
+    # test_preview_panel_locks_input_box_against_edits was deleted rather than adapted when
+    # the preview panel was converted earlier: the premise being tested is gone, not just the
+    # widget. dock_widget.py's own _clamp_to_screen_if_floating (the underlying resizeEvent
+    # guard, 2026-09-12) is untouched and still runs on every real resize.
+
+    def test_welcome_starter_prompt_click_fills_input_box_not_send(self):
+        """Design proposal, 2026-09-16 (Dateline Dock artifact): the welcome message's starter
+        prompts are cartogen://starter/{index} links (render_welcome_html); clicking one must
+        fill the input box for the user to review/edit, never dispatch a turn on its own."""
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
-        dock.setFloating(True)
         ct = dock.chat_tab_widget
 
-        calls = []
-        dock._clamp_to_screen_if_floating = lambda: calls.append(True)
+        log = self._chat_text(ct)
+        self.assertIn("Monitor", log)
+        self.assertIn(ct._starter_prompts[0], log)
 
-        ct._show_refinement_panel("map health facilities", [
+        ct._on_step_anchor_clicked(QUrl("cartogen://starter/1"))
+        self.assertEqual(ct.input_edit.toPlainText(), ct._starter_prompts[1])
+        self.assertEqual(agent.client.calls, 0, "clicking a starter must never itself dispatch a turn")
+
+    def test_refinement_recommendation_click_fills_input_box_not_send(self):
+        """Design proposal, 2026-09-16 (Dateline Dock artifact), real live report: "the
+        recommendation text as button style like the welcome message" -- the refinement
+        panel (a boxed QGroupBox) was converted to in-chat cards the same way the requirement
+        gate and prompt preview already were. Exercises _show_refinement_in_chat/
+        _on_refinement_card_clicked directly (bypassing the network-call scaffolding, same
+        precedent the tests this replaces used for the old boxed panel)."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        recommendations = [
             {"id": "A", "label": "Clearer", "refined_prompt": "Map health facilities in admin2.",
              "rationale": "States the admin level explicitly."},
             {"id": "B", "label": "Detailed", "refined_prompt": "Map and style health facilities by type.",
              "rationale": "Adds styling."},
-        ])
-        self.assertTrue(ct.refinement_panel.isVisible())
-        self.assertGreaterEqual(len(calls), 1,
-            "showing the refinement panel must re-clamp the floating dock, not just wait for resizeEvent")
+        ]
+        ct._show_refinement_in_chat(recommendations)
+        log = self._chat_text(ct)
+        self.assertIn("Suggested rewordings", log)
+        self.assertIn("Map health facilities in admin2.", log)
 
-        calls.clear()
-        ct._hide_refinement_panel()
-        self.assertFalse(ct.refinement_panel.isVisible())
-        self.assertGreaterEqual(len(calls), 1, "hiding the panel again must also re-clamp")
-
-    def test_boxed_panel_growth_is_pulled_back_within_available_screen(self):
-        """Same scenario as above, but checking the actual resulting geometry rather than just
-        that the clamp function got called -- proves the fix does something, not just that it
-        runs. Constrains only the HEIGHT of the dock's own screen() (standing in for a real
-        screen where a taskbar eats into the bottom of availableGeometry, the exact reported
-        symptom) -- width is left generous since the dock's own forced minimum width can't be
-        shrunk below regardless of available screen size, and isn't what this bug report was
-        about."""
-        from qgis.PyQt.QtCore import QRect
-
-        agent = _FakeAgent(script=[])
-        dock = self._make_dock(agent)
-        dock.setFloating(True)
-        ct = dock.chat_tab_widget
-
-        small_available = QRect(0, 0, 1200, 400)
-
-        class _FakeScreen:
-            def availableGeometry(self_inner):
-                return small_available
-
-        dock.screen = lambda: _FakeScreen()
-        dock.setGeometry(0, 0, 700, 400)
-
-        ct._show_refinement_panel("map health facilities", [
-            {"id": "A", "label": "Clearer", "refined_prompt": "Map health facilities in admin2.",
-             "rationale": "States the admin level explicitly."},
-            {"id": "B", "label": "Detailed", "refined_prompt": "Map and style health facilities by type.",
-             "rationale": "Adds styling."},
-        ])
-        self.assertTrue(ct.refinement_panel.isVisible())
-
-        geo = dock.geometry()
-        self.assertLessEqual(geo.y() + geo.height(), small_available.bottom() + 1,
-            "dock's bottom edge must be pulled back within the (simulated) available screen -- "
-            "this is the exact symptom reported (content ending up under the taskbar)")
+        ct._on_step_anchor_clicked(QUrl("cartogen://refine/1"))
+        self.assertEqual(ct.input_edit.toPlainText(), "Map and style health facilities by type.")
+        self.assertEqual(agent.client.calls, 0, "clicking a recommendation must never itself dispatch a turn")
 
     # --------------------------------------------------------- Scenario 3 --
 
