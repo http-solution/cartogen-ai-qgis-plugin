@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc2](#v1-15-6-rc2) | 2026-09-15 | Release candidate: 4 fixes on rc1 -- requests dependency, GDACS country filter, dock screen-clamp timing, prompt-preview-to-in-chat conversion |
 | [1.15.6-rc1](#v1-15-6-rc1) | 2026-09-14 | Release candidate: fixes 27 of 32 findings from a full security/QGIS/API/performance/code-quality audit |
 | [1.15.5](#v1-15-5) | 2026-09-13 | Patch: fixed another instance of the "'str' object has no attribute 'get'" crash, this one in Gemini usage parsing |
 | [1.15.4](#v1-15-4) | 2026-09-13 | Patch: root-caused and fixed the "'str' object has no attribute 'get'" crash |
@@ -31,6 +32,52 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc2"></a>
+## [1.15.6-rc2] — 2026-09-15 — Release candidate: 4 fixes on rc1
+
+Four real, live-reported fixes on top of `v1.15.6-rc1`, all verified against the packaged plugin
+(not just the dev tree). Source commit `62fcb69`.
+
+1. **`requests` declared as a required dependency.** Every provider client
+   (`agent/providers/*.py`) and `account.py` import it directly for all LLM API calls, but it was
+   never listed in `requirements.txt` -- worked in practice only because QGIS's own bundled
+   Python typically ships it already, an unstated host-environment assumption rather than a real
+   dependency declaration.
+2. **GDACS `country` filter.** A place-scoped request with no explicit bbox (e.g. "the latest
+   GDACS alerts for Yemen") previously fell through to `fetch_gdacs_disaster_alerts`'s
+   global-coverage default, returning every disaster alert on Earth. Added a `country` parameter
+   that filters against GDACS's own per-alert country field (already extracted, never filtered
+   on before). Live-verified: every returned alert's country field genuinely contains "Yemen",
+   and the filtered count never exceeds the unfiltered count.
+3. **Floating dock proactively re-clamped on panel toggle.** Showing the prompt-preview/
+   refinement panels grows the dock's forced minimum size enough to push it past the available
+   screen height -- exactly the failure mode `_clamp_to_screen_if_floating` (added in `v1.14.1`)
+   exists to catch, but that guard only ran from `resizeEvent`, leaving a timing gap that could
+   leave the chat input row under the Windows taskbar. Now called proactively the moment either
+   panel's visibility changes.
+4. **Prompt-preview panel converted to an in-chat exchange.** The "Prompt that will be sent"
+   boxed panel (Send this / Send as typed instead / Cancel) is replaced by `_ask_preview_in_chat`
+   -- the reasoning and composed prompt post as a normal chat message, and a typed reply resolves
+   the same 3-way choice (confirm / edit / cancel) via free text. Same conversion already applied
+   to the requirement-gate panel in `v1.15.2`; this was the last boxed panel in the chat flow.
+
+Also fixed in passing: a stale doc reference in `help_tab_widget.py` (an "Edit request" button
+that had already been removed in the `v1.15.2` conversion) and a dangling reference in
+`.github/workflows/sync-to-private.yml` found while preparing an unrelated Community-publication
+artifact.
+
+Full suite: 1684 tests, 0 failures. Live-verified against the rebuilt package (`dist/`
+`cartogen_ai_v1.15.6.zip`, 173 entries, sha256 `5aee5c99...377a950`): the full 16-category
+interactive checklist (15/15 runnable categories, PostGIS skipped -- no test DB) plus 4 targeted
+checks (plugin load/unload via the real `classFactory()` entry point, the live GDACS network
+call described above, the screen-clamp firing on a real panel-visibility change, and the old
+boxed preview panel confirmed absent with the new in-chat mechanism confirmed present) -- see
+`docs/RELEASE_SMOKE_TEST.md`'s 2026-09-15 run log entry for the full detail.
+
+Still a release candidate, not final: licensing/publication decision, package provenance
+confirmation, and stable-promotion gates remain open — see
+`docs/audits/QGIS_PLUGIN_AUDIT_FINAL_REPORT.md` §16 for the full gate table.
 
 <a id="v1-15-6-rc1"></a>
 ## [1.15.6-rc1] — 2026-09-14 — Release candidate: audit remediation (27 of 32 findings)

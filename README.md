@@ -19,7 +19,7 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.15.6-rc1 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.15.6-rc2 · GNU GPL v2 · QGIS 3.0–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
