@@ -223,6 +223,29 @@ class TestPacingAndCompaction(unittest.TestCase):
         self.assertGreater(len(compacted), 0, "a 20-iteration turn should have compacted some old results")
         self.assertEqual(len(full), agent_mod.MAX_FULL_TOOL_RESULTS_PER_TURN)
 
+    def test_compaction_survives_a_malformed_non_dict_history_entry(self):
+        """Real live report, recurring across this whole session at every tool-call count
+        tried (18, then 3, then 1): a bare "Error: 'str' object has no attribute 'get'" with
+        no [API error] prefix, meaning it escaped run() as a raw exception rather than a
+        normal returned error string -- and only ever on a turn that had at least one tool
+        call, at any count. _compact_old_tool_results's `m.get("role")` assumed every message
+        is a dict; a malformed non-dict entry anywhere in conversation_history (the exact
+        mechanism that produces one was not conclusively identified by code reading alone) hit
+        exactly that. Confirms run() no longer raises when conversation_history contains one,
+        for a turn that does make a tool call (any turn without one never reaches
+        _compact_old_tool_results at all, matching why this was never seen on a plain
+        conversational turn)."""
+        client = _CapturingLoopingClient()
+        agent = _make_bare_agent(client)
+        agent.conversation_history = ["a malformed history entry, not a {\"role\":...} dict"]
+        with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent.time.sleep"):
+            final_text = agent.run("do something with a tool call")
+        self.assertNotIn("has no attribute 'get'", final_text or "")
+
     def test_oversized_tool_result_compacted_immediately_not_only_after_8_calls(self):
         """Real live report, 2026-09-16: a Gemini 400 'input token count exceeds the maximum
         number of tokens allowed 1048576' after only 5 tool calls -- inspect_canvas_visually

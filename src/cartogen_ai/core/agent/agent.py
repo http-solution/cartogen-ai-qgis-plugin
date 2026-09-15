@@ -810,8 +810,23 @@ class CartogenAi:
         provider's token ceiling on its own; waiting for MAX_FULL_TOOL_RESULTS_PER_TURN other
         tool calls to also happen first (the original rule's assumption) doesn't hold for it.
 
-        Idempotent -- safe to call every iteration; already-compacted entries are skipped."""
-        tool_indices = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+        Idempotent -- safe to call every iteration; already-compacted entries are skipped.
+
+        Real live report, 2026-09-16, recurring across this whole session at every tool-call
+        count tried (18, then 3, then 1) -- a bare, context-free "Error: 'str' object has no
+        attribute 'get'" with no [API error] prefix, meaning it escaped run() as a raw
+        exception rather than being returned as a normal error string (see the client.complete()
+        try/except a few lines above this method's own call site -- anything raised INSIDE that
+        call is already caught there; this is the next unguarded .get() reachable afterward, on
+        every turn that has at least one tool call -- matching every reported occurrence, at
+        every different tool count). `m.get("role")` assumed every entry in `messages` (built
+        from conversation_history + this turn's own messages) is a dict; if a malformed non-dict
+        entry is ever present -- the exact mechanism was not conclusively identified by code
+        reading alone, no traceback was available to confirm the precise origin -- this crashed
+        with exactly that text. Guarded defensively either way, matching this same function's own
+        established precedent (2026-09-13 QGIS-audit comment on _execute_tool, a few hundred
+        lines below: fix the specific site if found, AND add the general safety net here)."""
+        tool_indices = [i for i, m in enumerate(messages) if isinstance(m, dict) and m.get("role") == "tool"]
         if not tool_indices:
             return
         most_recent = tool_indices[-1]
@@ -821,6 +836,8 @@ class CartogenAi:
         )
         for i in tool_indices:
             content = messages[i].get("content", "")
+            if not isinstance(content, str):
+                continue
             if content == _COMPACTED_TOOL_RESULT_PLACEHOLDER or '"error"' in content:
                 continue
             oversized = i != most_recent and len(content) > _LARGE_TOOL_RESULT_CHAR_THRESHOLD
