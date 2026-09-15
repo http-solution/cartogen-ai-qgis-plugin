@@ -64,6 +64,39 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-15 — post-fix rebuild (commit `62fcb69`) — headless, FULL 16-category checklist plus 4
+targeted P0 checks, run against a freshly built `dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
+`5aee5c9982b9bf3685107ff025d66e7cb94fecfae18fe3f64bdad83e1377a950`).** 4 real fixes landed since the
+v1.15.6-rc1 tag (`86cc4f3`): the `requests` dependency, the GDACS country filter, the dock
+screen-clamp fix, and the prompt-preview-to-in-chat conversion -- this run verifies the rebuilt
+package against all of them, per the 2026-09-15 deep-audit's P0 checklist. Same
+`python-qgis.bat`/fresh-extraction/`sys.path` technique as every other entry here.
+
+**16-category checklist: 15/15 runnable categories pass**, category 10 (PostGIS) skipped per the
+checklist's own allowance -- identical result to every prior full run, confirming general tool
+behavior is unaffected by the 4 fixes.
+
+**4 targeted P0 checks, all passing, none covered by the general checklist:**
+1. **Plugin load/unload** -- `__init__.py`'s real `classFactory()` (the actual QGIS Plugin
+   Manager entry point) constructed the plugin, ran `initGui()`, and ran `unload()` cleanly
+   against the packaged module -- not the dev tree. Required replicating QGIS's own plugin-loader
+   mechanics (`submodule_search_locations` + a `sys.modules` registration) so the package's
+   internal relative import (`from .plugin_main import CartogenAi`) resolves correctly outside a
+   real plugin-manager load -- a test-harness detail, not a product concern.
+2. **GDACS country filter, live network** -- fetched real GDACS alerts unfiltered and again
+   scoped to `country="Yemen"`; confirmed every returned alert's `country` field actually contains
+   "Yemen" (not a no-op filter) and the filtered count never exceeds the unfiltered count -- the
+   exact real-world scenario from the 2026-09-15 live report.
+3. **Dock screen clamp** -- confirmed `_clamp_to_screen_if_floating` is actually invoked when a
+   boxed panel (`refinement_panel`) becomes visible on a floating dock, against the packaged code.
+4. **In-chat prompt-preview exchange** -- confirmed the old boxed `preview_panel` is genuinely
+   absent from the packaged UI and `_ask_preview_in_chat`/`_awaiting_preview_reply` are present.
+
+Not run: PostGIS (no test DB, per the checklist's own allowance). Not diagnosable from this
+sandbox: the separate 0xC0000005 QGIS-runner crash reported on another machine -- needs to be
+investigated on that machine directly, not something a different environment's clean run can rule
+in or out.
+
 **2026-09-14 — v1.15.6-rc1 (commit `86cc4f3`, tag `commercial-plugin-v1.15.6-rc1`) — headless,
 FULL 16-category interactive checklist, run against the same already-built
 `dist/cartogen_ai_v1.15.6.zip` (sha256 `90ad75c4d86969f9889765451e16a1a4eacdc2b540f2960fd80123784ae33439`)
