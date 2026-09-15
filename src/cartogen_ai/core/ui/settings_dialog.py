@@ -1,11 +1,11 @@
 import json
 import threading
 
-from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton,
-    QScrollArea, QFrame,
+    QScrollArea, QFrame, QButtonGroup,
 )
 from qgis.core import QgsSettings
 
@@ -167,6 +167,13 @@ class CartogenAiSettingsDialog(QDialog):
         self._model_combos = {}
         self._cached_model_lists = {}
         self._fetching = set()
+        self._provider_buttons = {}
+        # A provider only ever enters this set after a real _on_models_fetched success in
+        # THIS dialog session -- a saved key that has never been exercised this session is
+        # "set", not "verified": this dialog has no way to know a key still works without
+        # actually calling the provider, so the Keys section (see _rebuild_keys_summary)
+        # deliberately shows two different words rather than claiming more than it knows.
+        self._verified_providers = set()
         self.modelsFetchedSignal.connect(self._on_models_fetched)
         self.init_ui()
 
@@ -212,17 +219,47 @@ class CartogenAiSettingsDialog(QDialog):
         account_row.addWidget(self.account_button)
         layout.addLayout(account_row)
 
-        top_form = QFormLayout()
-        self.provider_combo = QComboBox()
-        for entry in PROVIDERS:
-            self.provider_combo.addItem(entry["provider_label"], entry["value"])
+        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
+        # one-glance status line -- which connection, which model, how many of the provider
+        # keys that need one actually have one set. Kept honest rather than mirroring the
+        # mockup's "N keys verified" literally: see _verified_providers's comment above for
+        # why a freshly-opened dialog can only ever claim a key is "set", not "verified".
+        # Directly useful given the FIRMS-key bug this replaces the neighbourhood of: this
+        # line would have shown a count that didn't match what the user just typed, instead
+        # of the dialog giving no feedback at all about whether a save actually took.
+        self.masthead_label = QLabel()
+        self.masthead_label.setWordWrap(True)
+        self.masthead_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(self.masthead_label)
+
+        layout.addWidget(self._section_header("01", "Where your prompts go"))
 
         current_provider = self.settings.value(PROVIDER_KEY, "openrouter")
-        index = self.provider_combo.findData(current_provider)
-        if index >= 0:
-            self.provider_combo.setCurrentIndex(index)
-        top_form.addRow("Connection:", self.provider_combo)
-        layout.addLayout(top_form)
+        self._active_provider = current_provider if any(e["value"] == current_provider for e in PROVIDERS) else PROVIDERS[0]["value"]
+
+        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
+        # a stack of pills instead of a QComboBox -- every connection (including Ollama's
+        # "local" qualifier) is visible at once instead of hidden inside a closed dropdown.
+        # Single column, not a grid: tried a 3- then a 2-column grid first, but provider
+        # labels like "Claude / Anthropic (Hosted)" still overflowed this dialog's 420px
+        # minimum width (confirmed via a live headless screenshot -- a horizontal scrollbar
+        # appeared both times). One column per row has no such ceiling, and matches this
+        # section's own "kept: one column" brief better than a grid would have anyway.
+        pills_col = QVBoxLayout()
+        pills_col.setSpacing(4)
+        self._provider_button_group = QButtonGroup(self)
+        self._provider_button_group.setExclusive(True)
+        for entry in PROVIDERS:
+            pv = entry["value"]
+            btn = QPushButton(entry["provider_label"])
+            btn.setObjectName("providerPill")
+            btn.setCheckable(True)
+            btn.setChecked(pv == self._active_provider)
+            btn.clicked.connect(lambda checked, p=pv: self._select_provider(p))
+            self._provider_button_group.addButton(btn)
+            self._provider_buttons[pv] = btn
+            pills_col.addWidget(btn)
+        layout.addLayout(pills_col)
 
         # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
         # in the product told a user what happens to data once a cloud provider is picked.
@@ -258,6 +295,10 @@ class CartogenAiSettingsDialog(QDialog):
             saved_key = CredentialManager.get_credential(pv)
             key_edit.setText(saved_key if saved_key else entry["key_default"])
             key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
+            # Live feedback for the Keys summary below (masked value + Set/Verified badge) --
+            # not gated on editingFinished/blur like the model fetch above, so the summary
+            # reflects what's actually typed even before the user tabs away or saves.
+            key_edit.textChanged.connect(self._rebuild_keys_summary)
             # A user who has never used an LLM API before has no way to know
             # what belongs in this field or where to get it -- found in the UX
             # audit dated 2026-08-31 ("Settings gives no guidance on what an
@@ -323,6 +364,21 @@ class CartogenAiSettingsDialog(QDialog):
 
         layout.addWidget(self.provider_stack)
 
+        layout.addWidget(self._section_header("02", "Keys"))
+
+        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1b):
+        # a compact, read-only summary of every credential -- masked value, and whether it's
+        # set or verified -- with a "Replace"/"Add key" link that jumps to the real editable
+        # field above (provider_stack's key_edit, or firms_key_edit below). This is the piece
+        # that most directly targets the live-reported bug: the plain password-dot field gave
+        # no confirmation a key had actually been typed or saved, so a save that silently
+        # failed (the settings dialog being too tall to reach Save, in that report) looked
+        # identical to one that worked. Rebuilt on every keystroke (_rebuild_keys_summary) and
+        # after every model-fetch result, never edited in place.
+        self.keys_summary_layout = QVBoxLayout()
+        self.keys_summary_layout.setSpacing(0)
+        layout.addLayout(self.keys_summary_layout)
+
         # NASA FIRMS active-fire monitoring (hazard_monitoring_tools.py) needs its own free API
         # key -- separate from any LLM provider key above, so it gets its own standalone field
         # rather than a page in provider_stack (it isn't an LLM connection choice). Stored/read
@@ -339,12 +395,17 @@ class CartogenAiSettingsDialog(QDialog):
             "Powers fetch_nasa_active_fires (NASA FIRMS active fire/thermal-anomaly detections). "
             "Leave blank if you don't need this -- every other tool works without it."
         )
+        self.firms_key_edit.textChanged.connect(self._rebuild_keys_summary)
         firms_form.addRow("NASA FIRMS API Key:", self.firms_key_edit)
         layout.addLayout(firms_form)
         firms_help_label = QLabel('<a href="https://firms.modaps.eosdis.nasa.gov/api/area/">Get a free key →</a>')
         firms_help_label.setOpenExternalLinks(True)
         firms_help_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(firms_help_label)
+
+        self._rebuild_keys_summary()
+
+        layout.addWidget(self._section_header("03", "What gets kept and shown"))
 
         # S2: opt-in, default OFF -- chat history used to always be written
         # into the project (.qgz) file with no way to turn it off. A project
@@ -411,6 +472,8 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.prompt_preview_checkbox)
 
+        layout.addWidget(self._section_header("04", "Who the assistant writes for"))
+
         profile_form = QFormLayout()
         self.user_profile_combo = QComboBox()
         for value, label in PROFILE_LABELS.items():
@@ -453,7 +516,29 @@ class CartogenAiSettingsDialog(QDialog):
 
         self.setStyleSheet(build_dock_stylesheet(_extract_theme_palette()))
 
-        self.provider_combo.currentIndexChanged.connect(self.update_fields)
+        self.update_fields()
+
+    def _section_header(self, number, title):
+        """Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
+        a small serif numeral beside a section title, the same device used for the chat
+        panel's capability index. Purely a scan aid for a dialog that has grown to 4 real,
+        distinct groups (connection, keys, what's kept, who it writes for) -- the numbering
+        isn't claiming any ordering dependency between them, just giving each one a landmark."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 10, 0, 2)
+        row_layout.setSpacing(8)
+        no_label = QLabel(number)
+        no_label.setStyleSheet("color: #a3255a; font-weight: 700; font-size: 12px;")
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-weight: 700; font-size: 12.5px;")
+        row_layout.addWidget(no_label)
+        row_layout.addWidget(title_label)
+        row_layout.addStretch(1)
+        return row
+
+    def _select_provider(self, provider_value):
+        self._active_provider = provider_value
         self.update_fields()
 
     def _open_account_dialog(self):
@@ -467,10 +552,104 @@ class CartogenAiSettingsDialog(QDialog):
         dialog.exec()
 
     def update_fields(self):
-        provider = self.provider_combo.currentData()
+        provider = self._active_provider
         page_index = self._provider_page_index.get(provider)
         if page_index is not None:
             self.provider_stack.setCurrentIndex(page_index)
+        self._update_masthead()
+
+    def _update_masthead(self):
+        entry = next((e for e in PROVIDERS if e["value"] == self._active_provider), None)
+        if entry is None:
+            return
+        model_text = self._model_combos[self._active_provider].currentText().strip() or AUTO_LABEL
+        # Ollama excluded from the count: it's a local endpoint URL with a working default,
+        # not a credential a user needs to go obtain -- counting it would make "N of 6" read
+        # as if something were missing when nothing is.
+        keyed_providers = [e["value"] for e in PROVIDERS if e["value"] != "ollama"]
+        set_count = sum(1 for pv in keyed_providers if self._key_edits[pv].text().strip())
+        self.masthead_label.setText(
+            f"{entry['provider_label']} &middot; {model_text} model &middot; "
+            f"{set_count} of {len(keyed_providers)} keys set &middot; "
+            f'<a href="#" style="color:inherit;">Manage account →</a>'
+        )
+
+    def _rebuild_keys_summary(self):
+        """Redraws the '02 Keys' summary from scratch against current field text -- cheap
+        (6 rows, no network) so it can safely run on every keystroke. See its construction
+        site in init_ui for what real bug this addresses."""
+        if not hasattr(self, "keys_summary_layout"):
+            return  # called via textChanged before init_ui has built this section yet
+        while self.keys_summary_layout.count():
+            item = self.keys_summary_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        rows = [(e["value"], e["provider_label"]) for e in PROVIDERS if e["value"] != "ollama"]
+        rows.append(("firms", "NASA FIRMS"))
+        for pv, label in rows:
+            key_edit = self.firms_key_edit if pv == "firms" else self._key_edits[pv]
+            value = key_edit.text().strip()
+            self.keys_summary_layout.addWidget(self._build_key_row(pv, label, value))
+        self._update_masthead()
+
+    def _build_key_row(self, provider_value, label, value):
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 4, 0, 4)
+        row_layout.setSpacing(8)
+
+        name_label = QLabel(label)
+        name_label.setMinimumWidth(110)
+        name_label.setStyleSheet("font-size: 12px; font-weight: 600;")
+        row_layout.addWidget(name_label)
+
+        if value:
+            masked = ("•••• " * 2 + value[-4:]) if len(value) > 4 else "•" * len(value)
+            mask_label = QLabel(masked)
+            mask_label.setStyleSheet("font-size: 11.5px; color: gray; font-family: monospace;")
+            row_layout.addWidget(mask_label, 1)
+
+            verified = provider_value in self._verified_providers
+            status = QLabel("Verified" if verified else "Set")
+            status.setStyleSheet(
+                "font-size: 11px; font-weight: 700; color: %s;" % ("#1c7a4d" if verified else "gray")
+            )
+            row_layout.addWidget(status)
+
+            replace_btn = QPushButton("Replace")
+            replace_btn.setObjectName("linkButton")
+            replace_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            replace_btn.clicked.connect(lambda: self._go_to_key(provider_value))
+            row_layout.addWidget(replace_btn)
+        else:
+            row_layout.addWidget(QLabel(""), 1)
+            unset_label = QLabel("not set")
+            unset_label.setStyleSheet("font-size: 11px; color: gray;")
+            row_layout.addWidget(unset_label)
+
+            add_btn = QPushButton("Add key →")
+            add_btn.setObjectName("linkButton")
+            add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            add_btn.clicked.connect(lambda: self._go_to_key(provider_value))
+            row_layout.addWidget(add_btn)
+
+        return row
+
+    def _go_to_key(self, provider_value):
+        """A Keys-summary row's Replace/Add-key link jumps straight to the real editable
+        field, rather than making the user hunt for which provider pill owns which key."""
+        if provider_value == "firms":
+            target = self.firms_key_edit
+        else:
+            btn = self._provider_buttons.get(provider_value)
+            if btn is not None:
+                btn.setChecked(True)
+            self._select_provider(provider_value)
+            target = self._key_edits[provider_value]
+        target.setFocus()
+        target.selectAll()
 
     def _fetch_models(self, provider_value):
         entry = next(e for e in PROVIDERS if e["value"] == provider_value)
@@ -513,6 +692,12 @@ class CartogenAiSettingsDialog(QDialog):
             self.fetch_status_label.setText(
                 f"Loaded {len(models)} {entry['provider_label']} model(s)."
             )
+            # A successful model fetch is the one thing this dialog actually knows for sure
+            # about a key -- the provider accepted it and returned real data. That's what
+            # "Verified" in the Keys summary means; see _verified_providers's comment in
+            # __init__ for why nothing else in this dialog is allowed to claim that word.
+            self._verified_providers.add(provider_value)
+            self._rebuild_keys_summary()
         else:
             self.fetch_status_label.setText(
                 f"{entry['provider_label']} fetch failed: {result.get('error', 'unknown error')}"
@@ -526,7 +711,7 @@ class CartogenAiSettingsDialog(QDialog):
 
     def accept(self):
         from ..agent.auth import CredentialManager
-        provider = self.provider_combo.currentData()
+        provider = self._active_provider
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())

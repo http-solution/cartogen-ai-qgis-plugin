@@ -534,6 +534,36 @@ QPushButton#iconButton {{
     border-radius: 15px;
     font-size: 14px;
 }}
+QPushButton#providerPill {{
+    background-color: transparent;
+    color: {text};
+    border: 1px solid {border};
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+}}
+QPushButton#providerPill:hover {{
+    background-color: {alt_base};
+}}
+QPushButton#providerPill:checked {{
+    background-color: {base};
+    color: {highlight};
+    border: 1px solid {highlight};
+}}
+QPushButton#linkButton {{
+    background-color: transparent;
+    color: {highlight};
+    border: none;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: underline;
+}}
+QPushButton#linkButton:hover {{
+    color: {highlight_hover};
+}}
 QTabWidget::pane {{
     border: 1px solid {border};
     border-radius: 8px;
