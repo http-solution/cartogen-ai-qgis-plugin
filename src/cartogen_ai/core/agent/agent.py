@@ -174,6 +174,17 @@ PACING_DELAY_SECONDS = 1.2
 # conversation_history -- so compaction here never touches persisted conversation memory, only
 # what gets sent for the REST of the turn already in flight.
 MAX_FULL_TOOL_RESULTS_PER_TURN = 8
+# Real live report, 2026-09-16: a Gemini 400 "input token count exceeds the maximum number of
+# tokens allowed 1048576" after only 5 tool calls -- well under MAX_FULL_TOOL_RESULTS_PER_TURN,
+# so the count-based window above never even kicked in. Root cause: inspect_canvas_visually
+# (tools/multimodal_remote_sensing.py) returns a full base64-encoded PNG of the map canvas as
+# its "image_b64" field -- a single call can easily be hundreds of thousands of tokens on its
+# own, dwarfing every other tool's JSON output by orders of magnitude, and (unlike the 8-result
+# window) needs no accumulation of many tool calls to blow the budget -- one is enough. The
+# model only needs to see an image result once, right after the call that produced it; keeping
+# it in full for every subsequent iteration of the same turn is pure waste. See
+# _compact_old_tool_results's own updated comment for the size-based rule this adds.
+_LARGE_TOOL_RESULT_CHAR_THRESHOLD = 20000
 _COMPACTED_TOOL_RESULT_PLACEHOLDER = json.dumps({
     "note": "Result omitted from this request to keep it within size/rate limits -- "
             "this action already completed successfully earlier in this turn.",
@@ -790,16 +801,30 @@ class CartogenAi:
         still need to reason about later in the same turn, not detail safe to drop just because
         it's old (the identical call this session's chat tool-steps redesign made for the
         identical reason, ui/chat_formatting.py's render_tool_steps_failure_details_html).
+
+        A second, size-based rule (2026-09-16, see _LARGE_TOOL_RESULT_CHAR_THRESHOLD's own
+        comment): a tool result whose content is unusually large -- in practice, a base64 image
+        payload like inspect_canvas_visually's, hundreds of times bigger than any normal JSON
+        tool result -- gets compacted as soon as it's no longer the LATEST tool result, even if
+        it's still within the count-based window above. A single oversized result can blow the
+        provider's token ceiling on its own; waiting for MAX_FULL_TOOL_RESULTS_PER_TURN other
+        tool calls to also happen first (the original rule's assumption) doesn't hold for it.
+
         Idempotent -- safe to call every iteration; already-compacted entries are skipped."""
         tool_indices = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
-        if len(tool_indices) <= MAX_FULL_TOOL_RESULTS_PER_TURN:
+        if not tool_indices:
             return
-        keep_full = set(tool_indices[-MAX_FULL_TOOL_RESULTS_PER_TURN:])
+        most_recent = tool_indices[-1]
+        keep_full_by_count = (
+            set(tool_indices) if len(tool_indices) <= MAX_FULL_TOOL_RESULTS_PER_TURN
+            else set(tool_indices[-MAX_FULL_TOOL_RESULTS_PER_TURN:])
+        )
         for i in tool_indices:
-            if i in keep_full:
-                continue
             content = messages[i].get("content", "")
             if content == _COMPACTED_TOOL_RESULT_PLACEHOLDER or '"error"' in content:
+                continue
+            oversized = i != most_recent and len(content) > _LARGE_TOOL_RESULT_CHAR_THRESHOLD
+            if i in keep_full_by_count and not oversized:
                 continue
             messages[i]["content"] = _COMPACTED_TOOL_RESULT_PLACEHOLDER
 

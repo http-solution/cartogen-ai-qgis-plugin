@@ -223,6 +223,36 @@ class TestPacingAndCompaction(unittest.TestCase):
         self.assertGreater(len(compacted), 0, "a 20-iteration turn should have compacted some old results")
         self.assertEqual(len(full), agent_mod.MAX_FULL_TOOL_RESULTS_PER_TURN)
 
+    def test_oversized_tool_result_compacted_immediately_not_only_after_8_calls(self):
+        """Real live report, 2026-09-16: a Gemini 400 'input token count exceeds the maximum
+        number of tokens allowed 1048576' after only 5 tool calls -- inspect_canvas_visually
+        returns a full base64 PNG as its 'image_b64' field, easily hundreds of thousands of
+        tokens on its own, and the count-based MAX_FULL_TOOL_RESULTS_PER_TURN window (8) never
+        even got a chance to help. The new size-based rule should compact an oversized result
+        as soon as a later tool call happens, not wait for 8 more tool calls first."""
+        call_count = {"n": 0}
+        huge_payload = "x" * (agent_mod._LARGE_TOOL_RESULT_CHAR_THRESHOLD + 5000)
+
+        def fake_execute(self, name, args):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return {"success": True, "image_b64": huge_payload}
+            return {"success": True}
+
+        client, _ = self._run_looping(fake_execute)
+
+        # The call immediately after the oversized result was produced -- the model must still
+        # see it in full at least once, or the vision tool call was pointless.
+        second_call_messages = client.messages_per_call[1]
+        second_call_tool_msgs = [m for m in second_call_messages if m.get("role") == "tool"]
+        self.assertIn(huge_payload, second_call_tool_msgs[0]["content"])
+
+        # But well before 8 more tool calls have happened, it should already be compacted --
+        # the old count-based rule alone would have kept it full until then.
+        third_call_messages = client.messages_per_call[2]
+        third_call_tool_msgs = [m for m in third_call_messages if m.get("role") == "tool"]
+        self.assertEqual(third_call_tool_msgs[0]["content"], agent_mod._COMPACTED_TOOL_RESULT_PLACEHOLDER)
+
     def test_error_tool_result_never_compacted_even_once_old(self):
         call_count = {"n": 0}
 
