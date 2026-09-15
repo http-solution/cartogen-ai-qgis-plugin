@@ -14,7 +14,8 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox, QApplication, QFileDialog,
 )
 
-from .chat_formatting import _relative_time
+from .chat_formatting import _relative_time, render_markdown
+from .theme import theme_colors
 
 _STATUS_STYLES = {
     "TODO": ("⚪", "#666666", "#f1f3f6"),
@@ -43,6 +44,31 @@ class TasksTabWidget(QWidget):
     @property
     def _agent_provider(self):
         return self._dock._agent_provider
+
+    def _section_header(self, number, title):
+        """Design proposal, 2026-09-16 (Dateline Dock artifact): same small numeral-plus-
+        title device already used in settings_dialog.py's _section_header, applied here per
+        the real live report "the activity tab needs to be redesigned" -- a scan aid across
+        this tab's 3 real, distinct groups (task inspector, project memory, learned
+        preferences), replacing the old plain emoji-prefixed labels. Duplicated rather than
+        imported from settings_dialog.py to avoid a cross-tab-widget import for one small
+        widget-building helper -- matches this codebase's existing small-helper-per-file
+        convention (see plugin_main.py's own comment on _find_layer_by_name)."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 8, 0, 2)
+        row_layout.setSpacing(8)
+        no_label = QLabel(number)
+        no_label.setStyleSheet(
+            "color: #a3255a; font-weight: 700; font-size: 12px; "
+            "font-family: Georgia, 'Times New Roman', serif;"
+        )
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-weight: 700; font-size: 12px;")
+        row_layout.addWidget(no_label)
+        row_layout.addWidget(title_label)
+        row_layout.addStretch(1)
+        return row
 
     def init_ui(self):
         # Note: this widget is wrapped in a QScrollArea by dock_widget.py, not sized
@@ -90,7 +116,7 @@ class TasksTabWidget(QWidget):
         tasks_layout.addWidget(self.task_list_widget, stretch=2)
 
         # Code Inspector & Rationale Panel
-        inspector_box = QGroupBox("🔍 Task Inspector and Preview Safety")
+        inspector_box = QGroupBox("01   Task Inspector and Preview Safety")
         inspector_layout = QVBoxLayout(inspector_box)
 
         self.rationale_label = QLabel("<b>Rationale:</b> Select a task to inspect details.")
@@ -142,7 +168,7 @@ class TasksTabWidget(QWidget):
 
         # Spatial Memory panel: search box + browser (now actually resizes with the dock) + clear button
         memory_header = QHBoxLayout()
-        memory_header.addWidget(QLabel("<b>🧠 Project Notes and Memory</b>"))
+        memory_header.addWidget(self._section_header("02", "Project Notes and Memory"))
         self.clear_memory_btn = QPushButton("🗑 Clear Project Memory")
         self.clear_memory_btn.setObjectName("dangerButton")
         self.clear_memory_btn.clicked.connect(self._clear_project_memory_clicked)
@@ -201,7 +227,7 @@ class TasksTabWidget(QWidget):
         # the browser itself -- QTextBrowser doesn't host interactive widgets per
         # line, and a second list widget felt heavier than this tab needed.
         learned_header = QHBoxLayout()
-        learned_header.addWidget(QLabel("<b>🎓 Learned Preferences and Rules</b>"))
+        learned_header.addWidget(self._section_header("03", "Learned Preferences and Rules"))
         learned_header.addStretch()
         tasks_layout.addLayout(learned_header)
 
@@ -623,9 +649,15 @@ class TasksTabWidget(QWidget):
         self._apply_memory_filter()
 
     def _apply_memory_filter(self):
+        # Real live report, 2026-09-16 (screenshot): this used setText(), which shows plain
+        # text verbatim -- get_formatted_memory_context() returns real markdown ("## SPATIAL
+        # MEMORY CONTEXT", "**preferred_provider**: gemini", etc.), so the literal "##"/"**"
+        # characters were visible instead of being rendered, unlike every other place this app
+        # shows rich text (chat bubbles, the welcome message). Switched to setHtml() with the
+        # same render_markdown() the rest of the UI already uses.
         query = self.memory_search_edit.text().strip().lower()
-        if not query:
-            self.memory_browser.setText(self._raw_memory_context)
-            return
-        matched = [line for line in self._raw_memory_context.split("\n") if query in line.lower()]
-        self.memory_browser.setText("\n".join(matched) if matched else "(no matches)")
+        text = self._raw_memory_context
+        if query:
+            matched = [line for line in text.split("\n") if query in line.lower()]
+            text = "\n".join(matched) if matched else "(no matches)"
+        self.memory_browser.setHtml(render_markdown(text, theme_colors()))

@@ -69,7 +69,7 @@ class ChatTabWidget(QWidget):
         self._dock = dock
         self._active_highlights = []  # keeps QgsHighlight objects alive until their timer fires
         self._active_task = None  # the running QgsTask, if any -- lets _stop_current_task cancel it
-        self._pending_refinement_text = None  # original text while the refinement panel is shown
+        self._pending_refinement_cards = None  # recommendations list while in-chat cards are showing
         self._pending_restore_ts = None  # ISO ts for the message _add_message is about
         # to render, set only while _populate_initial_chat is replaying restored history
         self._pending_analysis_text = None
@@ -187,59 +187,18 @@ class ChatTabWidget(QWidget):
         # that Help is a deliberate, opt-in destination (Plugins menu) rather than
         # always-visible chrome.
 
-        # Prompt Refinement panel -- separate widget above the input row
-        # (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §6/§11.1: decided as a
-        # separate panel rather than inline chat bubbles, so these cards
-        # never touch conversation_history or chat_persistence.py at all --
-        # they're not chat messages). Hidden by default; shown only once
-        # send_message() decides a message should be refined and a valid
-        # response comes back. Modeled on the confirm_btn/PREVIEW_READY
-        # gate's explicit-button, nothing-auto-proceeds interaction language.
-        self.refinement_panel = QGroupBox("Suggested rewordings")
-        self.refinement_panel.setVisible(False)
-        refinement_layout = QVBoxLayout(self.refinement_panel)
-
-        refinement_hint = QLabel("Refined prompt suggestions -- pick one, edit first, or send as typed:")
-        refinement_hint.setStyleSheet("color: gray; font-size: 11px;")
-        refinement_layout.addWidget(refinement_hint)
-
-        cards_row = QHBoxLayout()
-        self._refinement_cards = {}
-        for card_id in ("A", "B"):
-            card_box = QGroupBox()
-            card_layout = QVBoxLayout(card_box)
-
-            label_lbl = QLabel()
-            label_lbl.setStyleSheet("font-weight: bold;")
-            card_layout.addWidget(label_lbl)
-
-            prompt_lbl = QLabel()
-            prompt_lbl.setWordWrap(True)
-            card_layout.addWidget(prompt_lbl)
-
-            rationale_lbl = QLabel()
-            rationale_lbl.setWordWrap(True)
-            rationale_lbl.setStyleSheet("color: gray; font-size: 11px;")
-            card_layout.addWidget(rationale_lbl)
-
-            card_btn_row = QHBoxLayout()
-            use_btn = QPushButton("Use this")
-            use_btn.clicked.connect(lambda checked=False, cid=card_id: self._use_refinement_card(cid))
-            edit_btn = QPushButton("Edit request")
-            edit_btn.clicked.connect(lambda checked=False, cid=card_id: self._edit_refinement_card(cid))
-            card_btn_row.addWidget(use_btn)
-            card_btn_row.addWidget(edit_btn)
-            card_layout.addLayout(card_btn_row)
-
-            cards_row.addWidget(card_box)
-            self._refinement_cards[card_id] = {"label": label_lbl, "prompt": prompt_lbl, "rationale": rationale_lbl}
-        refinement_layout.addLayout(cards_row)
-
-        send_as_typed_btn = QPushButton("Send as typed instead")
-        send_as_typed_btn.clicked.connect(self._send_refinement_original)
-        refinement_layout.addWidget(send_as_typed_btn)
-
-        chat_layout.addWidget(self.refinement_panel)
+        # Prompt Refinement recommendations -- design proposal, 2026-09-16 (Dateline Dock
+        # artifact), real live report: "the recommendation text as button style like the
+        # welcome message". Previously a separate boxed QGroupBox panel above the input row
+        # (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §6/§11.1's original decision) -- now
+        # shown in-chat instead, as clickable bordered cards via render_refinement_html, the
+        # same technique the welcome message's starter prompts use. The spec's actual
+        # underlying reason for a separate panel (these are ephemeral UI suggestions, never
+        # persisted into conversation_history/chat_persistence.py as real turns) still holds:
+        # _add_message only ever touches the visible chat_browser log, never
+        # agent.conversation_history -- exactly like the welcome message and the preview card,
+        # neither of which are persisted turns either. See _show_refinement_in_chat/
+        # _on_refinement_card_clicked below.
 
         # Local task-register requirement gate (a genuinely unanswerable slot, e.g. hazard
         # type, with no safe default -- see analyze_request's "blocking" flag). Used to be a
@@ -560,16 +519,21 @@ class ChatTabWidget(QWidget):
             self.chat_browser.append(failure_html)
 
     def _on_step_anchor_clicked(self, url):
-        """Handles clicks on this app's own internal "cartogen://" anchors -- currently the
+        """Handles clicks on this app's own internal "cartogen://" anchors -- the
         Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
-        toggle_html), and a welcome-message starter prompt (cartogen://starter/{index}, see
-        _populate_initial_chat). Dispatches on url.host() since both share the scheme. Ignores
-        anything that isn't "cartogen", so real markdown links in AI responses (opened via
-        setOpenExternalLinks(True), untouched by this handler) are unaffected."""
+        toggle_html), a welcome-message starter prompt (cartogen://starter/{index}, see
+        _populate_initial_chat), and a prompt-refinement recommendation (cartogen://refine/
+        {index}, see _show_refinement_in_chat). Dispatches on url.host() since all three share
+        the scheme. Ignores anything that isn't "cartogen", so real markdown links in AI
+        responses (opened via setOpenExternalLinks(True), untouched by this handler) are
+        unaffected."""
         if url.scheme() != "cartogen":
             return
         if url.host() == "starter":
             self._on_starter_prompt_clicked(url)
+            return
+        if url.host() == "refine":
+            self._on_refinement_card_clicked(url)
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -683,14 +647,12 @@ class ChatTabWidget(QWidget):
                 self._dispatch_message(text, None)
             return
 
-        # A fresh send attempt abandons any still-open refinement panel from
-        # a previous message -- the practical equivalent of spec §7's "user
-        # closes the card without choosing" (this UI has no separate close/X
-        # affordance; typing something else and hitting Send again is how a
-        # user actually walks away from it). Without this, a stale panel and
-        # its _pending_refinement_text would linger orphaned.
-        if self.refinement_panel.isVisible():
-            self._hide_refinement_panel()
+        # A fresh send attempt abandons any still-pending refinement cards from a previous
+        # message -- the practical equivalent of spec §7's "user closes the card without
+        # choosing". No explicit hide needed now that the cards render in-chat (they're just
+        # scrollback, not a widget that stays visible) -- only the pending-selection state
+        # needs clearing, so a stale click on an old card's link can't resurrect it.
+        self._pending_refinement_cards = None
 
         from ..agent.prompt_refiner import (
             analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
@@ -805,26 +767,6 @@ class ChatTabWidget(QWidget):
         self.input_edit.setFocus()
         self._add_message("ai", "", _raw_html=preview_html)
 
-    def _clamp_dock_after_panel_change(self):
-        """Real live report, 2026-09-15: showing the (now-removed) prompt-preview panel --
-        a QGroupBox with its own reasoning list, a fixed-height QTextEdit, and 3 buttons --
-        genuinely grew the dock's forced minimum size -- confirmed directly (696x572 minimum
-        forced vs. a smaller starting size) -- and a floating dock ending up past the
-        available screen height is exactly the known failure mode dock_widget.py's
-        _clamp_to_screen_if_floating already exists to catch (docstring there: 2026-09-12
-        report). That guard only runs from resizeEvent, so it should already catch this -- but
-        a QGroupBox becoming visible only changes layout content, not necessarily generating a
-        resize the same tick showing a panel does, before the user sees a window that has
-        grown past the screen. Calling the same guard here too, right after any visibility
-        change, closes that timing gap instead of relying solely on whatever resizeEvent
-        eventually follows. The prompt-preview panel itself was replaced by
-        _ask_preview_in_chat() the same day -- this helper stays for the still-boxed
-        refinement_panel (_show_refinement_panel/_hide_refinement_panel), which can grow the
-        dock the same way."""
-        clamp = getattr(self._dock, "_clamp_to_screen_if_floating", None)
-        if callable(clamp):
-            clamp()
-
     def _start_refinement(self, text, client):
         """Runs the refinement API call on a background thread -- it's a
         real network call and must never block the UI thread, same reasoning
@@ -876,52 +818,38 @@ class ChatTabWidget(QWidget):
         # via _add_message; this branch doesn't reach _dispatch_message, so it
         # must undo _start_refinement's send_btn.setEnabled(False) here.
         self.send_btn.setEnabled(True)
-        self._show_refinement_panel(original_text, result["recommendations"])
+        self._show_refinement_in_chat(result["recommendations"])
 
-    def _show_refinement_panel(self, original_text, recommendations):
-        self._pending_refinement_text = original_text
-        for rec in recommendations:
-            card = self._refinement_cards.get(rec.get("id"))
-            if card is None:
-                continue
-            card["label"].setText(rec.get("label") or rec.get("id", ""))
-            card["prompt"].setText(rec.get("refined_prompt", ""))
-            card["rationale"].setText(rec.get("rationale", ""))
-        self.input_edit.setReadOnly(True)
-        self.refinement_panel.setVisible(True)
-        self._clamp_dock_after_panel_change()
+    def _show_refinement_in_chat(self, recommendations):
+        """Design proposal, 2026-09-16 (Dateline Dock artifact): the 'Suggested rewordings'
+        cards render in-chat now, same as the welcome message's starter prompts -- see
+        render_refinement_html and this file's own comment where the old boxed panel used to
+        be constructed. self.input_edit is left exactly as the user typed it (never made
+        read-only) -- unlike the old panel, "send as typed instead" needs no dedicated
+        button/branch: the user's own text is already sitting in the box, so hitting Send
+        again just sends it, same as ignoring a starter prompt."""
+        from .chat_formatting import render_refinement_html
+        self._pending_refinement_cards = recommendations
+        html = render_refinement_html(recommendations, theme_colors())
+        self._add_message("ai", "", _raw_html=html)
 
-    def _hide_refinement_panel(self):
-        self.refinement_panel.setVisible(False)
-        self._pending_refinement_text = None
-        self.input_edit.setReadOnly(False)
-        self._clamp_dock_after_panel_change()
-
-    def _use_refinement_card(self, card_id):
-        card = self._refinement_cards.get(card_id)
-        chosen_text = card["prompt"].text() if card else ""
-        self._hide_refinement_panel()
-        if chosen_text:
-            self._dispatch_message(chosen_text, self._pending_analysis)
-
-    def _edit_refinement_card(self, card_id):
-        """Opens the refined text in ChatInputEdit for the user to modify
-        before sending -- never auto-sends a rewritten prompt the user
-        hasn't seen (spec §6), mirroring the existing pre-fill-without-send
-        pattern already used elsewhere in this file (e.g. the Edit & Resend
-        task action's setPlainText call, without a following send_message())."""
-        card = self._refinement_cards.get(card_id)
-        refined_prompt = card["prompt"].text() if card else ""
-        self._hide_refinement_panel()
+    def _on_refinement_card_clicked(self, url):
+        """A cartogen://refine/{index} link, from _show_refinement_in_chat -- fills the input
+        box with that recommendation's refined prompt rather than sending it (spec §6: never
+        auto-send a rewritten prompt the user hasn't seen), the same one-click-to-edit pattern
+        _on_starter_prompt_clicked already uses."""
+        parts = [p for p in url.path().split("/") if p]
+        try:
+            index = int(parts[-1]) if parts else -1
+        except (ValueError, IndexError):
+            return
+        cards = self._pending_refinement_cards
+        if not cards or not (0 <= index < len(cards)):
+            return
+        refined_prompt = cards[index].get("refined_prompt", "")
         if refined_prompt:
             self.input_edit.setPlainText(refined_prompt)
             self.input_edit.setFocus()
-
-    def _send_refinement_original(self):
-        original_text = self._pending_refinement_text
-        self._hide_refinement_panel()
-        if original_text:
-            self._dispatch_message(original_text, self._pending_analysis)
 
     def _dispatch_message(self, text, analysis=None, already_echoed=False):
         """The actual send path -- unchanged from send_message()'s original

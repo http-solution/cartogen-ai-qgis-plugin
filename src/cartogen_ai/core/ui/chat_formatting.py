@@ -431,6 +431,54 @@ def render_preview_html(reasoning_lines, composed_prompt, colors):
     return heading + reasoning_rows + prompt_card + cta
 
 
+def render_refinement_html(recommendations, colors):
+    """Prompt-refinement recommendations ('Suggested rewordings'), shown in-chat instead of
+    the old boxed QGroupBox panel -- design proposal, 2026-09-16 (Dateline Dock artifact),
+    real live report: "the recommendation text as button style like the welcome message".
+    Same bordered-card technique as render_welcome_html's starter prompts: each
+    recommendation is a card with its label, the refined prompt itself as a clickable
+    cartogen://refine/{index} link (chat_tab_widget.py's _on_refinement_card_clicked fills the
+    input box with it, same click-to-edit pattern as a starter prompt -- never auto-sends,
+    matching docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §6's "never send a rewritten prompt
+    the user hasn't seen"), and the rationale below in muted text. `recommendations` is the
+    raw list prompt_refiner.refine() returns -- each a dict with id/label/refined_prompt/
+    rationale keys."""
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    border_color = colors.get("border", "#d0d0d0")
+    teal = _brand_accent(colors.get("highlight", "#3daee9"))
+
+    heading = (
+        f'<div style="font-weight:bold;font-size:12.5px;color:{teal};margin-bottom:6px;">'
+        'Suggested rewordings</div>'
+    )
+    hint = (
+        f'<div style="font-size:11.5px;color:{subtle_color};margin-bottom:8px;">'
+        'Click one to edit it in the input box, or just send your own wording as typed.</div>'
+    )
+    cards = []
+    for i, rec in enumerate(recommendations):
+        label = rec.get("label") or rec.get("id", "")
+        prompt = rec.get("refined_prompt", "")
+        rationale = rec.get("rationale", "")
+        rationale_html = (
+            f'<div style="font-size:11px;color:{subtle_color};margin-top:4px;">'
+            f'{escape_plain_text(rationale)}</div>'
+        ) if rationale else ""
+        cards.append(
+            '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
+            'style="margin-bottom:8px;"><tr>'
+            f'<td style="border:1px solid {border_color};padding:8px 10px;">'
+            f'<div style="font-size:11px;font-weight:bold;color:{text_color};margin-bottom:3px;">'
+            f'{escape_plain_text(label)}</div>'
+            f'<a href="cartogen://refine/{i}" style="text-decoration:none;color:{text_color};'
+            f'font-size:12px;">{escape_plain_text(prompt)}</a>'
+            f'{rationale_html}'
+            '</td></tr></table>'
+        )
+    return heading + hint + "".join(cards)
+
+
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
     """One compact summary line for an entire turn's tool calls, replacing the old
     one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too
