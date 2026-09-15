@@ -190,6 +190,15 @@ class TestChatWidgetLive(unittest.TestCase):
         log = self._chat_text(ct)
         self.assertIn("hazard", log.lower(),
                       "the clarifying question must appear as a real chat message, not a hidden panel")
+        # Real live report, 2026-09-15: "the first message i sent on the chat was not showing
+        # in the chat box" -- the message that TRIGGERED this gate must itself be echoed as
+        # its own bubble, before the AI's question, not silently dropped.
+        user_pos = log.find("map population affected by a hazard")
+        cartogen_bubble_pos = log.find("Cartogen ")
+        self.assertNotEqual(user_pos, -1, "the user's own triggering message must appear in the log")
+        self.assertNotEqual(cartogen_bubble_pos, -1, "the AI's reply bubble must also be present")
+        self.assertLess(user_pos, cartogen_bubble_pos,
+            "the user's message must be echoed before the AI's own question bubble")
         self.assertFalse(ct.input_edit.isReadOnly(),
                          "the input box must stay live -- answering is just typing a normal reply")
         self.assertEqual(agent.client.calls, 0, "must not have sent anything to the model yet")
@@ -302,6 +311,43 @@ class TestChatWidgetLive(unittest.TestCase):
         log = self._chat_text(ct)
         self.assertIn("map health facilities", log, "the user's own message must land in the chat log")
         self.assertIn("Loaded 3 facility layers", log, "the agent's real response must land in the chat log")
+
+    def test_original_message_is_echoed_as_its_own_bubble_before_the_preview_question(self):
+        """Real live report, 2026-09-15: "the first message i sent on the chat was not
+        showing in the chat box" -- confirmed live (separate repro): the triggering message
+        was never shown as a distinct "You" bubble at all before this fix, only ever quoted
+        back secondhand inside the AI's own "Message sent as you: ..." text. Checks the
+        precise ordering (echoed BEFORE the AI's question, not just present somewhere in the
+        log eventually) and that confirming doesn't show the exact same text a second time,
+        verbatim, as if the user had retyped it."""
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        self._reply(ct, "map health facilities")
+
+        log_before_reply = self._chat_text(ct)
+        user_pos = log_before_reply.find("map health facilities")
+        ai_question_pos = log_before_reply.find("Why this prompt")
+        self.assertNotEqual(user_pos, -1, "the user's own message must appear in the log at all")
+        self.assertLess(user_pos, ai_question_pos,
+            "the user's message must be echoed BEFORE the AI's preview question, not only "
+            "quoted back inside it afterward")
+
+        self._reply(ct, "yes")
+        _pump(until=lambda: agent.client.calls >= 1)
+
+        log_after = self._chat_text(ct)
+        occurrences = log_after.count("map health facilities")
+        # Appears: once as the upfront echo, once more inside the composed "Message sent as
+        # you: ..." block the AI's own question quotes -- never a THIRD time as if dispatch
+        # re-echoed the identical raw text again on confirm.
+        self.assertEqual(occurrences, 2,
+            f"expected 'map health facilities' exactly twice (upfront echo + the AI's own "
+            f"quote of it), found {occurrences} -- confirming must not re-echo the same raw "
+            f"text a second time as its own new bubble")
 
     def test_preview_reply_variants_are_interpreted_correctly(self):
         """The free-text reply resolves a genuine 3-way choice (confirmed with the user as the

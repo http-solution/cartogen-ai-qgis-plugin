@@ -599,7 +599,10 @@ class ChatTabWidget(QWidget):
             reply_key = _normalize_preview_reply(text)
             if reply_key in _PREVIEW_CONFIRM_REPLIES:
                 self._dock.receiveMessageSignal.emit("user", text)
-                self._dispatch_message(original_text, pending_analysis)
+                # already_echoed=True: original_text was already shown as its own bubble
+                # by _ask_preview_in_chat when the question was first asked -- see that
+                # method's docstring.
+                self._dispatch_message(original_text, pending_analysis, already_echoed=True)
             elif reply_key in _PREVIEW_CANCEL_REPLIES:
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
@@ -675,7 +678,15 @@ class ChatTabWidget(QWidget):
         Send, handled by send_message()'s _awaiting_requirement_reply branch,
         which merges that reply into `original_text` and re-runs it through
         the exact same pipeline (so a second still-missing slot asks again
-        the same way, rather than needing a different mechanism)."""
+        the same way, rather than needing a different mechanism).
+
+        Echoes original_text as its own "You" bubble first -- real live report,
+        2026-09-15: "the first message i sent on the chat was not showing in the
+        chat box". Confirmed live: the triggering message was never shown as a
+        distinct bubble at all before this fix, only ever quoted back secondhand
+        once a later step happened to reference it -- from the user's side, it
+        looked like their own message had vanished."""
+        self._dock.receiveMessageSignal.emit("user", original_text)
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
         self._awaiting_requirement_reply = True
@@ -693,7 +704,15 @@ class ChatTabWidget(QWidget):
         _ask_requirement_in_chat above (2026-09-15, direct repeated feedback: "i prefer
         everything to be in the chat"). Unlike that gate's free-form merge, the reply here
         resolves a genuine 3-way choice (send the composed prompt / send as typed instead /
-        cancel) -- see send_message()'s _awaiting_preview_reply branch for the interpretation."""
+        cancel) -- see send_message()'s _awaiting_preview_reply branch for the interpretation.
+
+        Echoes original_text as its own "You" bubble first -- see _ask_requirement_in_chat's
+        identical fix above for the real live report this addresses. Confirmed live: without
+        this, the only place the user's own message appeared was quoted secondhand inside the
+        AI's own "Message sent as you: ..." text -- never as a message actually attributed to
+        the user. send_message()'s confirm branch passes already_echoed=True to _dispatch_message
+        so this doesn't show a third time, identical text, once dispatch actually happens."""
+        self._dock.receiveMessageSignal.emit("user", original_text)
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
         self._awaiting_preview_reply = True
@@ -833,20 +852,27 @@ class ChatTabWidget(QWidget):
         if original_text:
             self._dispatch_message(original_text, self._pending_analysis)
 
-    def _dispatch_message(self, text, analysis=None):
+    def _dispatch_message(self, text, analysis=None, already_echoed=False):
         """The actual send path -- unchanged from send_message()'s original
         body. Shared by the refinement skip-path (send_message() calls this
         directly) and the post-choice path (a card's 'Use this', 'Send as
         typed instead', or the plain non-refined flow all funnel here with
         one final chosen_text string). conversation_history sees only this
         text -- no trace of a refinement step survives downstream, per spec
-        §3/§11.2's decision."""
+        §3/§11.2's decision.
+
+        already_echoed=True (only the preview-confirm branch in send_message() passes this):
+        skips the "user" bubble below because _ask_preview_in_chat already showed this exact
+        text as its own message when the preview question was first asked -- without this,
+        confirming would show the same original message a second time, verbatim, as if the
+        user had just retyped it."""
         # receiveMessageSignal is a direct (same-thread) connection, so this emit
         # runs _add_message synchronously right here -- and _add_message always
         # re-enables send_btn (it's also used for messages that aren't part of a
         # running task). So the "disable while a task is in flight" state has to
         # be set AFTER this emit, not before, or it gets immediately clobbered.
-        self._dock.receiveMessageSignal.emit("user", text)
+        if not already_echoed:
+            self._dock.receiveMessageSignal.emit("user", text)
         self._dock.statusSignal.emit("Thinking...")
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
