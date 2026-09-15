@@ -64,6 +64,21 @@ class CartogenAiDockWidget(QDockWidget):
         from ..agent.scheduler import get_scheduler
         get_scheduler().workflow_tick_completed.connect(self.chat_tab_widget._on_scheduled_workflow_tick)
 
+        # Run only after the connect() calls above, not from ChatTabWidget.__init__ itself
+        # (where it used to live) -- real live report, 2026-09-15, confirmed via a Python
+        # Console screenshot showing an entirely empty chat log right after dock creation:
+        # the automatic welcome message never appeared at all, first use, every time.
+        # Root cause: _populate_initial_chat() emits receiveMessageSignal to show the
+        # welcome/restored-history message, but when it ran inside init_ui() (called from
+        # ChatTabWidget's own __init__, several lines above receiveMessageSignal.connect()
+        # here), that signal had zero slots connected yet -- connect() can't happen until
+        # self.chat_tab_widget exists, which requires ChatTabWidget.__init__ to have already
+        # returned. A Qt signal emitted with no connected slots is just silently dropped, so
+        # the welcome message vanished into nothing, every single time, while every later
+        # emit (sent after this constructor fully returns) worked correctly -- exactly the
+        # "only ever missing at first use" pattern reported.
+        self.chat_tab_widget._populate_initial_chat()
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._clamp_to_screen_if_floating()
