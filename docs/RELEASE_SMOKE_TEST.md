@@ -66,9 +66,15 @@ Append-only; each entry records one actual run against real QGIS, not a plan to 
 
 **2026-09-15 — RC3 candidate (commit `156fea4`) — headless, FULL 16-category checklist plus 2
 targeted checks for the 2 fixes new since RC2, run against a freshly built
-`dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
-`1d1cd5b534588f741435b5577eb5fa39c1cbb84ca0559d88ea06396a6530f810`).** 2 real fixes landed on top
-of RC2 (`55a108a`): the missing-first-message echo fix and tool-argument shape validation.
+`dist/cartogen_ai_v1.15.6.zip` (173 entries).** 2 real fixes landed on top
+of RC2 (`55a108a`): the missing-first-message echo fix and tool-argument shape validation. The zip
+was rebuilt once more at the release-prep commit (`42bcfd1`, which only touches `metadata.txt`'s
+embedded changelog/version plus docs) before tagging and publishing; the checksum actually
+released and verified against the downloaded asset is sha256
+`f99d51269b970e9309f25f5ffacf9b8b6fd359169e752a031a20425429b0faa8` (this entry's original run used
+an earlier, pre-release-prep build of the same code and is superseded by that number -- the
+16-category and targeted-check results below are unaffected, since none of that changed between
+the two builds).
 
 **16-category checklist: 15/15 runnable categories pass**, category 10 (PostGIS) skipped per the
 checklist's own allowance. First pass hit a transient `HTTP 504` on category 3 (OSM Overpass) --
