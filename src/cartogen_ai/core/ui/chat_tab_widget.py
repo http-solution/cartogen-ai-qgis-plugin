@@ -793,16 +793,17 @@ class ChatTabWidget(QWidget):
         if contract_line:
             lines.append(contract_line)
         composed_prompt = analysis.get("optimum_prompt") or original_text
-        message = (
-            "**Why this prompt**\n"
-            + "".join("- %s\n" % l for l in lines)
-            + "\n```\n" + composed_prompt + "\n```\n"
-            + "\nReply to send this, or tell me what to change."
-        )
+        # Design proposal, 2026-09-16 (Dateline Dock artifact): matches render_welcome_html's
+        # visual treatment (real live report: this card still looked like plain text next to
+        # the now-styled welcome message) -- a teal heading, muted reasoning bullets, and the
+        # composed prompt in a bordered card instead of a markdown code fence. Bypasses
+        # render_markdown via _add_message's _raw_html param, same as the welcome message.
+        from .chat_formatting import render_preview_html
+        preview_html = render_preview_html(lines, composed_prompt, theme_colors())
         self.input_edit.clear()
         self.input_edit.setPlaceholderText("Reply to confirm, or type what to change... (Enter to send)")
         self.input_edit.setFocus()
-        self._dock.receiveMessageSignal.emit("ai", message)
+        self._add_message("ai", "", _raw_html=preview_html)
 
     def _clamp_dock_after_panel_change(self):
         """Real live report, 2026-09-15: showing the (now-removed) prompt-preview panel --

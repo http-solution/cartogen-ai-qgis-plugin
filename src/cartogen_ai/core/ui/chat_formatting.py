@@ -391,6 +391,46 @@ def render_welcome_html(intro, capabilities, starters, colors):
     return hero + plate_table + starters_heading + "".join(starter_cards)
 
 
+def render_preview_html(reasoning_lines, composed_prompt, colors):
+    """The '01 Why this prompt' preview message (_ask_preview_in_chat) -- shown before a
+    task-matched message is actually sent, so the user sees what's about to go out and why.
+    Real live report, 2026-09-16: after render_welcome_html gave the welcome message real
+    visual structure, the SAME feedback applied here -- this message was still going through
+    render_markdown's plain bullet-list-plus-code-fence output, so it read as plain text next
+    to the now much more visual welcome message. Rebuilt with the same table-based rich-text
+    technique: a small teal heading, muted reasoning bullets, and the composed prompt in its
+    own bordered card (monospace, matching the Keys summary's masked-value styling) instead of
+    a code fence -- no border-radius, same Qt rich-text constraint as every other card in this
+    UI. Bypasses render_markdown entirely, same as the welcome message -- see _add_message's
+    _raw_html parameter."""
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    border_color = colors.get("border", "#d0d0d0")
+    teal = _brand_accent(colors.get("highlight", "#3daee9"))
+
+    heading = (
+        f'<div style="font-weight:bold;font-size:12.5px;color:{teal};margin-bottom:6px;">'
+        'Why this prompt</div>'
+    )
+    reasoning_rows = "".join(
+        f'<div style="font-size:12px;color:{subtle_color};margin:2px 0;">'
+        f'&bull;&nbsp;{escape_plain_text(line)}</div>'
+        for line in reasoning_lines
+    )
+    prompt_card = (
+        '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
+        'style="margin:10px 0;"><tr>'
+        f'<td style="border:1px solid {border_color};padding:8px 10px;'
+        f'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:{text_color};">'
+        f'{escape_plain_text(composed_prompt)}</td></tr></table>'
+    )
+    cta = (
+        f'<div style="font-size:11.5px;font-style:italic;color:{subtle_color};">'
+        'Reply to send this, or tell me what to change.</div>'
+    )
+    return heading + reasoning_rows + prompt_card + cta
+
+
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
     """One compact summary line for an entire turn's tool calls, replacing the old
     one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too
