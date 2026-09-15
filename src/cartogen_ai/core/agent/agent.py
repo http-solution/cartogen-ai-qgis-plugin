@@ -395,6 +395,16 @@ class CartogenAi:
             args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
         except (TypeError, ValueError) as e:
             return {"error": f"Invalid tool arguments: {e}"}
+        # A well-formed JSON document that isn't an object (a bare string, list, or number)
+        # decodes successfully -- json.loads has no way to reject that on its own. A
+        # double-JSON-encoded tool-call arguments string (a known real-world quirk: the
+        # model's own arguments field is itself a JSON-encoded string, so parsing it once
+        # yields a plain string, not the intended object) hits exactly this shape. Without
+        # this check, the next line's args.items() raises an uncaught 'str' object has no
+        # attribute 'items' -- same bug class as the already-fixed usage-parsing crashes
+        # (extract_openai_style_usage, providers/base.py), just a different call site.
+        if not isinstance(args, dict):
+            return {"error": f"Invalid tool arguments: expected an object, got {type(args).__name__}."}
 
         # Dispatcher-level schema enforcement: filter out any argument keys not in the registered tool schema
         schema_props = {}
@@ -595,6 +605,10 @@ class CartogenAi:
             args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
         except (TypeError, ValueError) as e:
             return {"error": f"Invalid tool arguments: {e}"}
+        # See _real_execute_tool's identical check for why this is needed even though
+        # json.loads already succeeded above.
+        if not isinstance(args, dict):
+            return {"error": f"Invalid tool arguments: expected an object, got {type(args).__name__}."}
 
         # Same dispatcher-level schema enforcement as _real_execute_tool
         schema_props = self._get_schema_props(name)

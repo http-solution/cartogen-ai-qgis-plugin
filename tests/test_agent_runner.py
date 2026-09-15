@@ -26,6 +26,56 @@ class TestAgentRunner(unittest.TestCase):
         self.assertIn("REGISTERED TASK CONTEXT", prompt)
         self.assertIn("Recognised task 01.01", prompt)
 
+class TestToolArgumentShapeValidation(unittest.TestCase):
+    """A well-formed JSON document that isn't an object (a bare string, list, or number)
+    parses successfully via json.loads -- it just isn't usable as kwargs. A double-JSON-
+    encoded tool-call arguments string (the model's own arguments field is itself a
+    JSON-encoded string, a known real-world LLM tool-calling quirk) hits exactly this
+    shape: parsing it once yields a plain string, not the intended object. Without an
+    explicit isinstance check, the next line's args.items() raises an uncaught
+    "'str' object has no attribute 'items'" -- same bug class as the already-fixed
+    usage-parsing crashes (extract_openai_style_usage), a different call site.
+    Investigated as a candidate root cause for a real live report of an unexplained
+    "'str' object has no attribute 'get'" crash after a real multi-tool-call Gemini
+    turn; not confirmed as the exact site (no traceback was available), but a real,
+    demonstrable gap in the same bug class regardless."""
+
+    def _agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.task_manager = MagicMock()
+        agent.memory_manager = MagicMock()
+        return agent
+
+    def test_real_execute_tool_rejects_double_encoded_string_arguments(self):
+        agent = self._agent()
+        # json.loads('"{\\"a\\": 1}"') -- a JSON string literal whose *content* looks like
+        # an object -- decodes to the Python str '{"a": 1}', not a dict. Exactly the
+        # double-encoding shape this guards against.
+        double_encoded = '"{\\"layer_name\\": \\"X\\"}"'
+        res = agent._real_execute_tool("get_layers", double_encoded)
+        self.assertIn("error", res)
+        self.assertIn("Invalid tool arguments", res["error"])
+        self.assertIn("str", res["error"])
+
+    def test_real_execute_tool_rejects_bare_list_arguments(self):
+        agent = self._agent()
+        res = agent._real_execute_tool("get_layers", "[1, 2, 3]")
+        self.assertIn("error", res)
+        self.assertIn("Invalid tool arguments", res["error"])
+
+    def test_real_execute_tool_still_accepts_a_real_dict(self):
+        agent = self._agent()
+        # A real, working tool call must be completely unaffected by the new check.
+        res = agent._real_execute_tool("get_layers", "{}")
+        self.assertNotIn("Invalid tool arguments", str(res.get("error", "")))
+
+    def test_execute_two_phase_tool_rejects_double_encoded_string_arguments(self):
+        agent = self._agent()
+        res = agent._execute_two_phase_tool("fetch_geoboundaries", '"{\\"iso3\\": \\"YEM\\"}"')
+        self.assertIn("error", res)
+        self.assertIn("Invalid tool arguments", res["error"])
+
+
 class _FakeClient:
     """Returns one tool call, then a final answer -- just enough to exercise
     run()'s tool-calling loop once."""
