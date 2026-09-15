@@ -98,6 +98,17 @@ class ChatTabWidget(QWidget):
         # NEXT message know those files exist, so a sitrep PDF or a damage
         # photo becomes part of the task rather than a separate side errand.
         self._attached_paths = []
+        # Design proposal, 2026-09-16 (Dateline Dock artifact, adapted from Cartogen
+        # Panel.pdf's option 1B): example requests shown as clickable links in the welcome
+        # message (_populate_initial_chat) -- index here is what a cartogen://starter/{i}
+        # anchor resolves against (_on_starter_prompt_clicked). Each one maps to a real,
+        # already-shipped tool (buffer_analysis, estimate_population_exposure,
+        # calculate_service_area -- see docs/TOOLS_REFERENCE.md), not an aspirational example.
+        self._starter_prompts = [
+            "Buffer 5 km around active GDACS alerts",
+            "Population within the flood extent",
+            "Health facilities beyond one hour's travel",
+        ]
         # Tool names that ran during the turn in flight -- the evidence
         # agent/output_router.py checks the output contract against.
         self._executed_tools = []
@@ -343,12 +354,27 @@ class ChatTabWidget(QWidget):
         if restored:
             self._dock.receiveMessageSignal.emit("ai", "_(Restored previous conversation for this project.)_")
         else:
+            # Design proposal, 2026-09-16 (Dateline Dock artifact): the plain welcome
+            # paragraph gains a numbered capability index (adapted from Cartogen Panel.pdf's
+            # option 1B, "The spatial desk") and clickable starter prompts (see
+            # self._starter_prompts / _on_starter_prompt_clicked) -- a first-time user gets
+            # something to scan and try instead of only prose. Plain markdown, rendered
+            # through the same render_markdown() path every other message already uses, not
+            # hand-built HTML -- kept consistent with how this chat log has always rendered
+            # rich content, and avoids re-solving text-escaping/theme-color handling here.
+            starters_md = "\n".join(
+                f"- [{text}](cartogen://starter/{i})"
+                for i, text in enumerate(self._starter_prompts)
+            )
             self._dock.receiveMessageSignal.emit(
                 "ai",
-                "Hello! I'm Cartogen AI 🗺️\n\n"
-                "I plan multi-step spatial tasks, call the right tools, and execute real operations "
-                "against your open project -- with spatial memory and every step inspectable.\n\n"
-                "Ask me to analyze, buffer, style, or process your layers!"
+                "Your spatial analysis assistant for humanitarian GIS 🗺️. What are we working on?\n\n"
+                "1. **Monitor** -- Real-time GDACS alerts, flood extents, earthquake footprints.\n"
+                "2. **Ingest** -- HDX/OCHA boundaries, OSM infrastructure, satellite basemaps.\n"
+                "3. **Analyse** -- Population exposure, facility accessibility, buffer zones.\n"
+                "4. **Publish** -- Thematic maps, hi-res layouts, cluster summary reports.\n\n"
+                "**Try one of these:**\n"
+                f"{starters_md}"
             )
 
         from ..agent.auth import CredentialManager
@@ -525,13 +551,18 @@ class ChatTabWidget(QWidget):
             self.chat_browser.append(failure_html)
 
     def _on_step_anchor_clicked(self, url):
-        """Handles clicks on the Details/Hide-details toggle anchor a tool-steps summary block
-        renders (render_tool_steps_toggle_html) -- the first internal (non-http) clickable
-        control this chat log has ever had. Ignores anything that isn't our own "cartogen://
-        steps/{block_id}" scheme, so real markdown links in AI responses (opened via
+        """Handles clicks on this app's own internal "cartogen://" anchors -- currently the
+        Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
+        toggle_html), and a welcome-message starter prompt (cartogen://starter/{index}, see
+        _populate_initial_chat). Dispatches on url.host() since both share the scheme. Ignores
+        anything that isn't "cartogen", so real markdown links in AI responses (opened via
         setOpenExternalLinks(True), untouched by this handler) are unaffected."""
         if url.scheme() != "cartogen":
             return
+        if url.host() == "starter":
+            self._on_starter_prompt_clicked(url)
+            return
+
         parts = [p for p in url.path().split("/") if p]
         if not parts and url.host():
             parts = [url.host()]
@@ -569,6 +600,22 @@ class ChatTabWidget(QWidget):
                 if other_id != block_id and other_block["start"] > old_end:
                     other_block["start"] += delta
                     other_block["end"] += delta
+
+    def _on_starter_prompt_clicked(self, url):
+        """A cartogen://starter/{index} link, from the welcome message's example-prompt list
+        (_populate_initial_chat) -- fills the input box with that example rather than sending
+        it, matching the design proposal's "clicking one fills the input box (not auto-sends)"
+        call, the same one-click-to-edit pattern "Edit & Resend" already uses in the Tasks tab.
+        Real product decision documented in the Dateline Dock design proposal, 2026-09-16."""
+        parts = [p for p in url.path().split("/") if p]
+        try:
+            index = int(parts[-1]) if parts else -1
+        except (ValueError, IndexError):
+            return
+        if not (0 <= index < len(self._starter_prompts)):
+            return
+        self.input_edit.setPlainText(self._starter_prompts[index])
+        self.input_edit.setFocus()
 
     def send_message(self):
         if not self.send_btn.isEnabled():

@@ -160,7 +160,11 @@ def render_markdown(text, colors=None):
     )
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'~~(.+?)~~', r'<s>\1</s>', text)
-    text = re.sub(r'\[([^\]\[]+)\]\((https?://[^\s)]+)\)', r'<a href="\2">\1</a>', text)
+    # cartogen:// alongside https?:// -- this app's own internal anchor scheme (see
+    # chat_tab_widget.py's _on_step_anchor_clicked), used so markdown-authored content like
+    # the welcome message's starter prompts can link to an in-app action (fill the input box)
+    # instead of only ever linking out to the web.
+    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\s)]+)\)', r'<a href="\2">\1</a>', text)
 
     # 5. Restore code blocks as styled, non-wrapping blocks.
     for idx, code in enumerate(code_blocks):
