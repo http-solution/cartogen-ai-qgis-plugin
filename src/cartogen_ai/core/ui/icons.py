@@ -59,6 +59,16 @@ _ICON_TEMPLATES = {
         '<line x1="8" y1="17" x2="13" y2="17"/>'
         '</g>'
     ),
+    # Broadsheet redesign Phase 3: the composer's layer-context-picker button
+    # (chat_tab_widget.py's _open_layer_context_picker) -- the standard "stacked map
+    # layers" glyph (three offset diamonds), stroke-only to match this row's other icon
+    # buttons (attach/send/stop).
+    "layers": (
+        '<g fill="none" stroke="{color}" stroke-width="1.8" stroke-linejoin="round">'
+        '<path d="M12 4 L21 9 L12 14 L3 9 Z"/>'
+        '<path d="M3 13.5 L12 18.5 L21 13.5" stroke-linecap="round"/>'
+        '</g>'
+    ),
 }
 
 
