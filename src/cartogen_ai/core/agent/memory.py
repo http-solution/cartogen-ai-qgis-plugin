@@ -293,7 +293,7 @@ class SpatialMemoryManager:
         dumped into one flat "User Global Preferences" list -- see agent/learning.py,
         which is what actually writes pref:*/rule:*/usage:* entries via
         store_global_note/get_global_notes. Splitting them here gives the model (and
-        the memory panel in tasks_tab_widget.py, which renders this same string)
+        the memory panel in ui/memory_dialog.py, which renders this same string)
         clearly labeled sections instead of a mix of raw keys. Any pre-existing
         global note that predates this categorization (no recognized prefix) still
         renders under "User Global Preferences" exactly as before, so nothing already

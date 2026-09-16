@@ -982,7 +982,7 @@ class CartogenAi:
         # (there's no ground truth for "the user meant this as a correction"
         # short of asking them). False negatives just mean nothing extra gets
         # remembered; false positives store an overly specific rule, which the
-        # memory panel's Forget control (tasks_tab_widget.py) lets the user remove.
+        # memory panel's Forget control (memory_dialog.py) lets the user remove.
         if learning.detect_correction(user_query) and self._last_tool_call:
             last_name, last_args = self._last_tool_call
             learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)

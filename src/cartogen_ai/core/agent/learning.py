@@ -52,9 +52,10 @@ requests", clarified via AskUserQuestion -- user selected all four):
    overriding a widget default is not, and is left for a follow-up once
    that file is back in a clean state.
 4. Visible, editable memory panel -- this module doesn't touch the UI
-   directly; tasks_tab_widget.py's existing "Project Notes & Memory" panel
-   already renders whatever get_formatted_memory_context() returns, and was
-   extended (see that file) with a "Forget" control wired to
+   directly; ui/memory_dialog.py's "Project Notes & Memory" dialog (the old
+   Activity tab's equivalent section before the Broadsheet redesign moved it
+   into its own dialog) already renders whatever get_formatted_memory_context()
+   returns, and was extended (see that file) with a "Forget" control wired to
    memory.delete_global_note() so a user can remove a wrong inferred
    preference or a stale correction rule.
 """

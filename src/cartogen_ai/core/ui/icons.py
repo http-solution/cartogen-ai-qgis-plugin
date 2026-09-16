@@ -47,6 +47,18 @@ _ICON_TEMPLATES = {
         '<line x1="4" y1="17" x2="20" y2="17"/><circle cx="17" cy="17" r="2" fill="{color}" stroke="none"/>'
         '</g>'
     ),
+    # Broadsheet redesign Phase 1: the dock header's Memory button (dock_widget.py's
+    # open_memory) -- a simple ruled note card (rectangle + text lines), same
+    # stroke-only-outline weight as the icons above so it doesn't read heavier than
+    # Settings' glyph sitting right next to it.
+    "notes": (
+        '<g fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round">'
+        '<rect x="5" y="4" width="14" height="16" rx="1.5"/>'
+        '<line x1="8" y1="9" x2="16" y2="9"/>'
+        '<line x1="8" y1="13" x2="16" y2="13"/>'
+        '<line x1="8" y1="17" x2="13" y2="17"/>'
+        '</g>'
+    ),
 }
 
 
