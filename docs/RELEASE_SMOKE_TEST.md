@@ -64,6 +64,32 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-16 — RC4 candidate (commit `d3836ac`) — headless, FULL 16-category checklist plus 4
+targeted checks for the fixes new since RC3, run against a freshly built
+`dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
+`b99936eb4c9261c92cf8712e8bfc01ad45c280c96eeacef876a047e207f86b0a`).** A large batch of real
+fixes landed on top of RC3 (`279383f`): two crashes root-caused with real tracebacks
+(the snapshot-arguments parsing bug and the `_compact_old_tool_results` guard), an oversized
+-tool-result compaction fix, a tool-router alias fix for geocode tools, a reverted `FlowLayout`
+that caused a real live UI freeze, and a Settings/chat/Activity visual redesign -- see
+`CHANGELOG.md`'s `[1.15.6-rc4]` entry for full per-fix detail.
+
+**16-category checklist: 15/15 runnable categories pass**, category 10 (PostGIS) skipped per the
+checklist's own allowance -- clean run, no transient failures this time.
+
+**4 targeted checks, all passing, against the packaged code:**
+1. **Snapshot-arguments crash fix** -- called `_execute_tool` with a raw JSON-encoded arguments
+   string (the real shape `agent.run()`'s loop passes) for a tool with a registered snapshot
+   function, and confirmed the snapshot function receives a real parsed dict, not the raw string
+   that crashed with `'str' object has no attribute 'get'`.
+2. **Router-alias fix** -- confirmed `geocode_and_enrich`/`geocode_batch` are present in the
+   router's top-40 candidate set for the exact reported "health facilities" query.
+3. **Activity tab markdown fix** -- confirmed the memory panel's rendered text contains no raw
+   `##`/`**` markdown syntax.
+4. **Full pipeline** -- ran a real multi-step `agent.run()` turn (create a plan, add a point
+   layer, mark both tasks done) and confirmed a real QGIS layer was created and the task plan
+   (the Activity tab's data source) shows both tasks `DONE`.
+
 **2026-09-15 — RC3 candidate (commit `156fea4`) — headless, FULL 16-category checklist plus 2
 targeted checks for the 2 fixes new since RC2, run against a freshly built
 `dist/cartogen_ai_v1.15.6.zip` (173 entries).** 2 real fixes landed on top

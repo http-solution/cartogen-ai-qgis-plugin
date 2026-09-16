@@ -23,7 +23,42 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.6-rc3 (2026-09-15):
+changelog=v1.15.6-rc4 (2026-09-16):
+    Release candidate: a large batch of live-reported fixes on top of rc3, every one
+    reproduced and verified against the packaged plugin, not just the dev tree. Two real
+    crashes, root-caused with actual tracebacks (not guessed): (1) a tool's pre-execution
+    "snapshot" step (apply_categorized_style and similar MODIFY/DELETE tools) received the
+    model's tool-call arguments as a raw, still-JSON-encoded string instead of a parsed
+    dict, crashing with "'str' object has no attribute 'get'" on every turn that called one
+    -- this is the exact crash reported repeatedly this cycle at every different tool-call
+    count (18, 3, 1, 15), now conclusively fixed and covered by a regression test
+    reproducing the real traceback; (2) a defensive guard against the same error class in
+    the mid-turn tool-result compaction path. A related token-budget bug: a canvas-
+    screenshot tool call could blow a provider's token ceiling on its own because oversized
+    results only got trimmed after 8 other tool calls -- now trimmed immediately after their
+    one necessary use. A real tool-discovery gap: geocode_and_enrich/geocode_batch shared no
+    vocabulary with "health facilities beyond one hour's travel"-style requests, so they lost
+    the competition for a slot in the ~40 tools shown to the model on every such request --
+    the model resorted to hunting the filesystem via execute_pyqgis_script instead of ever
+    seeing the geocoding tools existed; fixed with router aliases, confirmed end-to-end (the
+    real agent.run() loop now actually offers both tools to the model for this exact
+    request), and covered by a new live regression test that scripts a full realistic turn
+    (geocode -> create a plan -> add a real QGIS layer -> style it -> mark every task DONE)
+    and confirms a real layer appears on the canvas and the Activity tab's data actually
+    populates. A UI freeze: a custom Qt layout added for the Settings dialog's provider pills
+    (then reused in the Activity tab) triggered a real, live-reported total application
+    freeze on its first real interactive use -- reverted outright to plain, long-established
+    Qt layouts rather than risk the same failure mode again. The Settings dialog and chat
+    panel also got a substantial visual pass (numbered sections, a masthead status line, a
+    "Keys" summary with masked values, a redesigned welcome message and prompt-preview card,
+    an Activity-tab button-overflow fix, and a fix for the Activity tab's memory panel
+    showing raw unrendered markdown) following a design proposal drawn up and iterated
+    against real screenshots this cycle. Full suite: 1695 tests, 0 failures, including a new
+    live-QGIS regression suite (tests/test_agent_live.py) that exercises real tool execution
+    against a real QGIS project, not mocks. See CHANGELOG.md for full per-fix detail.
+    Still a release candidate, not final.
+
+v1.15.6-rc3 (2026-09-15):
     Release candidate: 2 more fixes on top of rc2, both from direct live reports, both verified
     against the packaged plugin. (1) The message that triggers an in-chat gate question
     (requirement gate or prompt preview) is now echoed as its own chat bubble immediately --
