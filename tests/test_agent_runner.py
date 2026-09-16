@@ -458,5 +458,76 @@ class TestExecuteToolTransactionRecording(unittest.TestCase):
         self.assertEqual(entry["undo"], {"kind": "remove_layers", "layer_ids": ["b"]})
 
 
+class TestPreviewRequiredCreatesADedicatedTask(unittest.TestCase):
+    """2026-09-16 live bug: a destructive-action gate (field_calculator etc. returning
+    {"status": "PREVIEW_REQUIRED"}) used to only start a fresh safety-gate plan when
+    self.task_manager.tasks was completely empty; otherwise it glued the pending
+    confirmation state onto tasks[0] of whatever plan happened to already be active --
+    silently overwriting an unrelated, possibly already-DONE task's status and result.
+    Reproduced here with a real AgentTaskManager (not a MagicMock) so the actual task
+    list is inspected, not just that some method got called."""
+
+    def _agent_with_real_task_manager(self):
+        from cartogen_ai.core.agent.task_manager import AgentTaskManager
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.task_manager = AgentTaskManager()
+        agent.memory_manager = MagicMock()
+        agent._last_tool_call = None
+        return agent
+
+    def _fake_destructive_tool(self, **kwargs):
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "code_snippet": "field_calculator(...)",
+            "rationale": "Adds a numeric severity field.",
+            "arguments": {"layer_name": "GDACS Disaster Alerts - Yemen",
+                           "new_field": "severity", "expression": "2"},
+        }
+
+    def test_an_unrelated_already_done_task_is_left_untouched(self):
+        agent = self._agent_with_real_task_manager()
+        agent.task_manager.create_plan("Health facilities", ["Compile facilities"])
+        agent.task_manager.update_task("1", "DONE", "Facilities compiled.")
+
+        with patch.dict(agent_mod.TOOL_REGISTRY,
+                         {"field_calculator": self._fake_destructive_tool}):
+            agent._real_execute_tool("field_calculator", "{}")
+
+        original = agent.task_manager.tasks[0]
+        self.assertEqual(original["status"], "DONE")
+        self.assertEqual(original["result"], "Facilities compiled.")
+        self.assertNotIn("pending_tool", original)
+
+    def test_the_pending_confirmation_lands_on_a_new_task(self):
+        agent = self._agent_with_real_task_manager()
+        agent.task_manager.create_plan("Health facilities", ["Compile facilities"])
+        agent.task_manager.update_task("1", "DONE", "Facilities compiled.")
+
+        with patch.dict(agent_mod.TOOL_REGISTRY,
+                         {"field_calculator": self._fake_destructive_tool}):
+            agent._real_execute_tool("field_calculator", "{}")
+
+        self.assertEqual(len(agent.task_manager.tasks), 2)
+        preview_task = agent.task_manager.tasks[1]
+        self.assertEqual(preview_task["status"], "PREVIEW_READY")
+        self.assertEqual(preview_task["pending_tool"], "field_calculator")
+        self.assertEqual(preview_task["pending_args"]["new_field"], "severity")
+
+    def test_an_empty_task_manager_still_starts_a_fresh_plan(self):
+        """The pre-existing, already-correct behavior for the empty-plan case must
+        keep working unchanged."""
+        agent = self._agent_with_real_task_manager()
+
+        with patch.dict(agent_mod.TOOL_REGISTRY,
+                         {"field_calculator": self._fake_destructive_tool}):
+            agent._real_execute_tool("field_calculator", "{}")
+
+        self.assertEqual(len(agent.task_manager.tasks), 1)
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+        self.assertEqual(agent.task_manager.tasks[0]["pending_tool"], "field_calculator")
+
+
 if __name__ == "__main__":
     unittest.main()

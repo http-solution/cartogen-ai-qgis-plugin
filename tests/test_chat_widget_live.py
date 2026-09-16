@@ -112,6 +112,20 @@ class _FakeAgent:
         self.client = _FakeClient(script)
         self.conversation_history = []
         self.executed_tools = []
+        # Real AgentTaskManager (not a mock) -- the confirmation-gate tests below need
+        # real PREVIEW_READY/add_task behavior, not a MagicMock that would silently
+        # accept any attribute access without exercising the real logic under test.
+        from cartogen_ai.core.agent.task_manager import AgentTaskManager
+        from cartogen_ai.core.agent.memory import SpatialMemoryManager
+        self.task_manager = AgentTaskManager()
+        # tasks_tab_widget.py's sync_with_agent() reads agent.memory_manager right after
+        # agent.task_manager once a real task_manager is present (previously that whole
+        # branch was unreachable here since _FakeAgent had no task_manager at all) -- a
+        # real, empty SpatialMemoryManager satisfies that the same way a real Agent would.
+        self.memory_manager = SpatialMemoryManager()
+        # Records every _real_execute_tool call this fake agent receives, so a test can
+        # assert the confirmation gate called (or did NOT call) it without a real tool.
+        self.real_execute_tool_calls = []
 
     def run(self, user_text, map_context=None, should_stop=None, tool_step_callback=None):
         self.conversation_history.append({"role": "user", "content": user_text})
@@ -124,6 +138,10 @@ class _FakeAgent:
         text = msg.get("content") or ""
         self.conversation_history.append({"role": "assistant", "content": text})
         return text
+
+    def _real_execute_tool(self, name, arguments, user_confirmed=False):
+        self.real_execute_tool_calls.append((name, arguments, user_confirmed))
+        return {"success": True, "layer_name": arguments.get("layer_name", "")}
 
     def get_session_usage_text(self):
         return None
@@ -575,6 +593,84 @@ class TestChatWidgetLive(unittest.TestCase):
             self.assertIn("sent to", note)
         finally:
             settings.setValue("cartogen_ai/provider", original)
+
+    # --------------------------------------------- destructive-action confirm gate --
+
+    def test_chat_typed_confirm_resolves_pending_destructive_action_directly(self):
+        """Real live report, 2026-09-16: a user typed "Confirm" in chat to approve a
+        field_calculator preview. That reply used to re-enter the normal tool-calling
+        LLM turn, with no structured way for the model to know what was pending -- it
+        fabricated a "Confirmed" narrative without ever calling field_calculator, so the
+        approved edit silently never happened. Now a plain confirm reply must resolve
+        directly against pending_tool/pending_args, the exact same deterministic path
+        the Activity tab's own Confirm button uses (tasks_tab_widget.py's
+        _confirm_selected_task) -- never through client.complete() at all."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen",
+                                 "new_field": "severity", "expression": "2"}
+
+        self._reply(ct, "Confirm")
+
+        self.assertEqual(agent.real_execute_tool_calls,
+                          [("field_calculator", task["pending_args"], True)])
+        self.assertEqual(agent.client.calls, 0,
+                          "a plain confirm reply must never go through the LLM loop")
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
+        log = self._chat_text(ct)
+        self.assertIn("Confirmed & Executed", log)
+
+    def test_chat_typed_cancel_resolves_pending_destructive_action_without_executing(self):
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen"}
+
+        self._reply(ct, "cancel")
+
+        self.assertEqual(agent.real_execute_tool_calls, [],
+                          "a cancel reply must never execute the pending tool")
+        self.assertEqual(agent.client.calls, 0)
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "FAILED")
+        log = self._chat_text(ct)
+        self.assertIn("Cancelled", log)
+
+    def test_a_pending_gate_does_not_hijack_an_unrelated_new_message(self):
+        """Only an exact confirm/cancel-shaped reply resolves the gate -- anything else
+        (a genuinely new request) must fall through to the normal send path, so a stale
+        PREVIEW_READY task from an earlier turn can never swallow unrelated messages."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "ok, mapped it"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X"}
+
+        self._reply(ct, "map health facilities in Aleppo")
+
+        # Whatever the normal send path does with this new, unrelated message (dispatch,
+        # show a prompt preview, ask a requirement question) is out of scope here -- the
+        # only thing under test is that the confirmation gate itself was NOT triggered.
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY",
+                          "an unrelated message must not disturb the still-pending gate")
 
     def test_attachment_disclosure_note_is_accurate_for_local_ollama(self):
         from qgis.core import QgsSettings

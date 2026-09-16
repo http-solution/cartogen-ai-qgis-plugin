@@ -434,22 +434,34 @@ class CartogenAi:
             res = func(**filtered_args)
             if isinstance(res, dict):
                 if res.get("status") == "PREVIEW_REQUIRED":
-                    # Register preview safety task in TaskManager
+                    # Register a DEDICATED preview safety task -- never reuse tasks[0] of
+                    # whatever plan happens to already be active. Real live bug, 2026-09-16:
+                    # this used to only start a fresh plan `if not self.task_manager.tasks`,
+                    # so when a plan from an earlier, unrelated turn was still active (the
+                    # common case -- plans aren't cleared between turns), the preview state
+                    # got glued onto tasks[0], silently overwriting an already-DONE task's
+                    # status/result with this gate's PREVIEW_READY state. add_task() appends
+                    # instead, so a pending confirmation can never collide with an existing
+                    # task that already means something else.
                     if not self.task_manager.tasks:
                         self.task_manager.create_plan(
                             f"Safety Gate Preview: {name}",
                             [f"Preview {name} operation"]
                         )
+                        preview_task = self.task_manager.tasks[0]
+                    else:
+                        preview_task = self.task_manager.add_task(f"Preview {name} operation")["task"]
                     self.task_manager.set_task_preview(
-                        task_id=self.task_manager.tasks[0]["id"] if self.task_manager.tasks else "1",
+                        task_id=preview_task["id"],
                         code_snippet=res.get("code_snippet", ""),
                         rationale=res.get("rationale", ""),
                         is_destructive=res.get("is_destructive", True)
                     )
-                    # Attach pending execution arguments to task object
-                    if self.task_manager.tasks:
-                        self.task_manager.tasks[0]["pending_tool"] = name
-                        self.task_manager.tasks[0]["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+                    # Attach pending execution arguments to the SAME dedicated task object
+                    # (set_task_preview mutates self.task_manager.tasks in place, so
+                    # preview_task -- taken from that same list -- reflects it here too).
+                    preview_task["pending_tool"] = name
+                    preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
 
                 elif res.get("success"):
                     self.memory_manager.log_spatial_action(name, str(args))

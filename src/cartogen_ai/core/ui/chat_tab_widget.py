@@ -137,6 +137,38 @@ class ChatTabWidget(QWidget):
     def _agent_provider(self):
         return self._dock._agent_provider
 
+    def _pending_confirmation_task(self, agent):
+        """The most recently updated task still awaiting a destructive-action confirmation
+        gate (agent.py's _real_execute_tool PREVIEW_REQUIRED handling), or None. Only tasks
+        carrying pending_tool are eligible -- a PREVIEW_READY task with no pending_tool has
+        nothing to directly re-execute. See send_message()'s call site for why this exists."""
+        if agent is None or not hasattr(agent, "task_manager"):
+            return None
+        candidates = [t for t in agent.task_manager.tasks
+                      if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda t: t.get("updated_at", ""))
+
+    def _resolve_pending_confirmation(self, agent, task, confirmed):
+        """Executes or cancels a pending destructive-action gate directly, with no model
+        turn involved -- mirrors tasks_tab_widget.py's _confirm_selected_task/
+        _cancel_selected_task exactly, so a chat-typed reply and the Activity tab's own
+        buttons are the same code path and can never disagree about what "Confirm" does."""
+        task_id = task.get("id")
+        if confirmed:
+            pending_tool = task.get("pending_tool")
+            pending_args = task.get("pending_args", {})
+            exec_res = agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)
+            msg = f"Executed `{pending_tool}`: {exec_res}"
+            agent.task_manager.update_task(task_id, "DONE", msg)
+            self._dock.receiveMessageSignal.emit(
+                "ai", f"✅ **Confirmed & Executed Task {task_id}:** {msg}")
+        else:
+            agent.task_manager.update_task(task_id, "FAILED", "Cancelled by User")
+            self._dock.receiveMessageSignal.emit(
+                "ai", f"❌ **Cancelled Task {task_id}:** {task.get('description')}")
+
     def init_ui(self):
         chat_layout = QVBoxLayout(self)
         chat_layout.setContentsMargins(4, 4, 4, 4)
@@ -646,6 +678,37 @@ class ChatTabWidget(QWidget):
                 # echo here, _dispatch_message already echoes `text` itself.
                 self._dispatch_message(text, None)
             return
+
+        # A destructive-action confirmation gate (field_calculator etc. -- see agent.py's
+        # _real_execute_tool PREVIEW_REQUIRED handling) may be pending. A short, unambiguous
+        # confirm/cancel reply here must resolve it through the exact same deterministic path
+        # the Activity tab's own Confirm/Cancel buttons use (tasks_tab_widget.py's
+        # _confirm_selected_task/_cancel_selected_task), not the free-form LLM loop.
+        #
+        # Real live report, 2026-09-16: a user typed "Confirm" in chat to approve a
+        # field_calculator preview. That reply re-entered the normal tool-calling turn with
+        # no structured awareness of what was pending (get_formatted_task_context() didn't
+        # even mention pending_tool/pending_args at the time), and the model fabricated a
+        # "Confirmed" narrative without ever calling field_calculator -- the approved edit
+        # silently never happened.
+        #
+        # Deliberately narrow: only intercepts when (a) a task is actually PREVIEW_READY
+        # with a pending_tool attached, AND (b) the typed reply exactly matches one of the
+        # same keyword sets _awaiting_preview_reply already uses above -- so a longer,
+        # unrelated message is never mistaken for a yes/no answer to a stale gate, and this
+        # never fires unless there is something real to confirm or cancel. Checked after the
+        # two local UI-flag branches above so a still-open requirement/preview question (a
+        # more specific, just-asked exchange) always takes priority over an older pending
+        # gate.
+        agent = self._agent_provider() if self._agent_provider else None
+        pending_task = self._pending_confirmation_task(agent)
+        if pending_task is not None:
+            reply_key = _normalize_preview_reply(text)
+            if reply_key in _PREVIEW_CONFIRM_REPLIES or reply_key in _PREVIEW_CANCEL_REPLIES:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._resolve_pending_confirmation(
+                    agent, pending_task, confirmed=(reply_key in _PREVIEW_CONFIRM_REPLIES))
+                return
 
         # A fresh send attempt abandons any still-pending refinement cards from a previous
         # message -- the practical equivalent of spec §7's "user closes the card without
