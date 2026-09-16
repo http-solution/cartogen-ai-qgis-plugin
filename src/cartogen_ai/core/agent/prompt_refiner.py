@@ -289,7 +289,35 @@ def analyze_request(query, context=None, attachments=None):
 
     try:
         verdict = tmatch.classify(query)
-        entry = verdict["best"]
+        # `ambiguous` means the local match is below the confidence floor, or
+        # tied across sections -- the register's own signal that a second
+        # (stage-2) opinion is warranted before trusting it. That stage-2 call
+        # is not wired up anywhere in this codebase (build_disambiguation_messages/
+        # parse_disambiguation_response are defined but never invoked), so
+        # until it is, an ambiguous match must NOT be used to build a task
+        # directive -- doing so silently pressures the model into a wrong
+        # deliverable/tool-order for the turn (confirmed live, 2026-09-16: a
+        # 0.12-confidence match routed "only create the layer, do not add
+        # styling yet" to a satellite-orthophoto print-layout task, and a
+        # 0.33-confidence match routed "apply a color ramp to the raster
+        # layer" to an unrelated HDX/3W CSV-export task; the model then
+        # answered the WRONG task convincingly, and later nagged the user for
+        # a deliverable -- e.g. a CSV -- they never actually asked for).
+        # Falling back to `entry = None` here reuses the exact same "nothing
+        # matched" path the register already has for a genuinely unmatched
+        # query: no directive, no contract, message sent as typed.
+        #
+        # Only the "below confidence floor" reason is treated this way. The
+        # other ambiguous reason, "tie across sections", fires even when the
+        # top score clears the floor by a healthy margin -- e.g. "build me a
+        # dashboard of displacement by district" scores 0.38 (well above the
+        # 0.34 floor) and is obviously the right match, but still gets flagged
+        # ambiguous because a much weaker match (0.33) in a different section
+        # happens to sit within AMBIGUITY_MARGIN. Nulling out entry for that
+        # case throws away good matches, not just bad ones -- so leave that
+        # branch's `entry` untouched pending an actual stage-2 tie-break.
+        entry = None if verdict["ambiguous"] and verdict["reason"] == "below confidence floor" \
+            else verdict["best"]
         # `context` is whatever the host has: either explicit slot values, or
         # the raw map summary from agent/map_context. Translate the latter into
         # slot answers so the user is never asked for something QGIS already

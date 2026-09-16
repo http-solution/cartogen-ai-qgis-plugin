@@ -238,6 +238,54 @@ class TestAnalyzeRequestShape(unittest.TestCase):
         self.assertIn("HTML", a["expected_output"])
 
 
+class TestBelowFloorMatchesDoNotInjectAWrongDirective(unittest.TestCase):
+    """2026-09-16 live report: a long RC4 test session showed the model
+    confidently answering the WRONG task -- e.g. "apply a color ramp to the
+    raster layer" got matched (confidence 0.33, below the 0.34 floor) to an
+    unrelated HDX/3W CSV-export task, and the model dutifully "exported" a
+    GPKG/CSV instead of styling the raster. task_matcher.classify() already
+    computes `ambiguous`/`reason` for exactly this case, but analyze_request()
+    used to ignore it and build a directive from the low-confidence match
+    anyway. These queries are taken directly from that live session."""
+
+    LIVE_REPORT_QUERIES = (
+        "Apply a color ramp to the raster layer.",
+        "Only create the layer, do not add styling yet.",
+        "Run a read-only PyQGIS script that lists the current project "
+        "layer names and geometry types.",
+        "Create a print layout with the current map view.",
+        "Run a PyQGIS script that writes a file outside the project directory.",
+    )
+
+    def test_a_below_floor_match_is_treated_as_no_match(self):
+        from cartogen_ai.core.agent import task_matcher as tmatch
+
+        for q in self.LIVE_REPORT_QUERIES:
+            verdict = tmatch.classify(q)
+            self.assertEqual(verdict["reason"], "below confidence floor",
+                              "fixture query %r no longer scores below the "
+                              "floor -- pick a new below-floor example" % q)
+            a = analyze_request(q)
+            self.assertIsNone(a["task"], q)
+            self.assertEqual(a["directive"], "", q)
+            self.assertIsNone(a["contract"], q)
+            self.assertEqual(a["user_message"], q.strip(), q)
+
+    def test_a_tied_but_above_floor_match_still_gets_a_directive(self):
+        # Different ambiguous reason ("tie across sections"): the top score
+        # clears the floor and is the obviously right match -- nulling this
+        # one out would throw away good matches, not just bad ones.
+        from cartogen_ai.core.agent import task_matcher as tmatch
+
+        q = "build me a dashboard of displacement by district"
+        verdict = tmatch.classify(q)
+        self.assertTrue(verdict["ambiguous"])
+        self.assertEqual(verdict["reason"], "tie across sections")
+        a = analyze_request(q)
+        self.assertIsNotNone(a["task"])
+        self.assertNotEqual(a["directive"], "")
+
+
 class TestAnalyzeRequestAttachments(unittest.TestCase):
     def test_a_pdf_a_picture_and_a_text_file_are_each_placed(self):
         a = analyze_request("map damaged buildings",
