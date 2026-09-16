@@ -3,10 +3,15 @@
 ## The panel
 
 Open **Cartogen AI** from the toolbar icon or the `Plugins` menu. It's a dock
-panel (drag it to float, or dock it left/right) with two tabs:
+panel (drag it to float, or dock it left/right) — one continuous scroll, not
+separate tabs: a sticky **plan strip** for any active multi-step task sits above
+the chat thread itself, so you never have to switch views mid-conversation to see
+what the agent is doing.
 
-- **💬 Chat** — talk to the agent.
-- **📋 Activity** — see the current multi-step plan and stored project memory.
+The header has two buttons alongside the provider dropdown:
+- **🗂 Memory** — opens the stored-memory dialog (project notes, learned
+  preferences, export/clear controls — see "Project memory" below).
+- **⚙ Settings** — provider, API keys, and safety toggles.
 
 Help lives in `Plugins → Cartogen AI → Help` on the QGIS menu bar rather than in the dock
 itself — it opens a standalone window with the provider list, quick tips, and example
@@ -45,8 +50,8 @@ what's new/available stays easy to find without having to go looking for it.
    automatically, based on the request's wording and length. (Ollama always uses
    whatever model you pick; local models aren't a cost concern the auto-router needs
    to optimize for.)
-5. Click OK. You can switch providers anytime from the small dropdown at the top of
-   the Chat tab without reopening Settings.
+5. Click OK. You can switch providers anytime from the small dropdown in the dock
+   header without reopening Settings.
 
 <p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
 
@@ -206,42 +211,55 @@ manually — see the main [README](../README.md). If
 they're missing, attaching that file type gives a clear error telling you what to
 install rather than failing silently.
 
-## Multi-step requests and the Task Manager
+## Multi-step requests and the plan strip
 
 For anything involving several distinct steps, the agent creates a visible **plan** in
-the Activity tab: each step shows as TODO → IN PROGRESS → DONE (or FAILED) with
-a progress bar. Click a task to see its result, rationale, and any code it ran.
-
-Buttons available depending on the selected task's state:
-- **✔ Confirm** — appears for a task in `PREVIEW_READY` state (see "Destructive
-  actions" below); approves and executes it.
+the sticky strip above the chat thread: a progress bar (e.g. *"3/4 steps complete"*, or
+*"3/4 steps complete — 1 needs you"* when a step is waiting on your decision) and a list
+of tasks, each showing TODO → IN PROGRESS → DONE (or FAILED). Click a task row to open
+its inspector — result, rationale, any code it ran, and action buttons for that task's
+current state:
+- **✔ Confirm and Apply Edit** — appears for a task in `PREVIEW_READY` state (see
+  "Destructive actions" below); approves and executes it.
 - **✕ Cancel** — cancels a `PREVIEW_READY` task instead of confirming it.
 - **🔁 Retry** — re-runs a `FAILED` task.
 - **✏️ Edit and Resend** — pre-fills the input box with an editable prompt for that
   task's description so you can adjust it before resending (doesn't auto-send).
-- **📋 Copy Snippet** — copies the selected task's PyQGIS code (if any) to the
-  clipboard.
-- **✕ Clear Plan** — clears the currently visible plan from view.
+- **📋 Copy Snippet** — copies the task's PyQGIS code (if any) to the clipboard.
 
-The dropdown above the task list lets you browse **plan history** (the last 5 plans
-this session) without losing the live one — selecting an older plan is read-only
-browsing; sending a new message automatically snaps back to the live plan.
+The strip's own **✕** button clears the currently visible plan. The dropdown next to
+the plan title lets you browse **plan history** (the last 5 plans this session) without
+losing the live one — selecting an older plan is read-only browsing; sending a new
+message automatically snaps back to the live plan.
 
 ## Project memory
 
 The agent can remember facts across the conversation (and across QGIS sessions, tied
-to the current project file) via `store_project_memory`/`store_global_memory`. The
-Activity tab shows what's stored, with a search box to filter it and a
-**🗑 Clear Project Memory** button to wipe project-scoped memory (global memory is
-unaffected).
+to the current project file) via `store_project_memory`/`store_global_memory`. Click
+**🗂 Memory** in the dock header to see what's stored, with a search box to filter it,
+an **Export My Data** button, and **🗑 Clear Project Memory**/**🗑 Clear Global Memory**
+buttons.
+
+## Layer context
+
+By default, every loaded layer's schema (field names, geometry type, feature count) is
+visible to the model so it can answer questions about your project without you having
+to spell out every layer by name. Click the **layers icon** next to the input box to
+choose which layers' schema Cartogen can actually see for a given question — each layer
+defaults checked, except one you've already tagged `RESTRICTED`/`SENSITIVE` via
+`set_layer_sensitivity`, which defaults unchecked. Cartogen sends only a schema and a
+sample of rows for whatever's checked, never a whole table. This is opt-out, not
+opt-in — if you never open it, nothing changes from today's behavior.
 
 ## Destructive actions
 
 Removing a layer or running a field calculator mutation always goes through a
-preview-then-confirm gate: the agent shows you what it's about to do and waits for an
-explicit **Confirm** click in the Tasks tab — it cannot skip this by itself, even if
-prompted to (the confirmation flag isn't something a tool call can set; only the UI
-button can).
+preview-then-confirm gate: the agent shows what it's about to do as a card right in the
+chat (layer, field, the code that will run) with **Apply edit**/**Cancel** links, and
+also waits for an explicit confirmation — clicking those links, replying "Confirm"/
+"cancel" in chat, or using the task inspector's buttons all resolve the exact same way.
+It cannot skip this by itself, even if prompted to (the confirmation flag isn't
+something a tool call can set; only you approving it can).
 
 ## Sensitive point data
 
