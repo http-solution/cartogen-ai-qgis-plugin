@@ -1141,6 +1141,33 @@ def _style_incident_layer(layer):
         "required": ["lat", "lon", "date", "description"],
     },
 )
+def _clip_to_field_width(layer, fname, value):
+    """Clip a string value to its field's declared width before setAttribute.
+
+    Same fix as hazard_monitoring_tools.py's identically-named helper (duplicated here
+    rather than imported, matching this codebase's existing per-file-helper convention --
+    see _find_layer_by_name's ~18 independent copies across agent/tools/): this file's
+    Incidents/add_point_layer schemas also use fixed shapefile-era widths
+    (name/description:string(255) etc.), and setAttribute on a QGIS memory-provider layer
+    silently rejects (and drops) any value wider than the field's declared length rather
+    than raising -- confirmed for the sibling GDACS layer via a real "Could not store
+    attribute" Qt log line, 2026-09-16. Clipping defensively here covers both write sites
+    below regardless of which field a future caller happens to overflow."""
+    if not isinstance(value, str):
+        return value
+    # Best-effort: this file's own test suite stands layers in with a bare MagicMock()
+    # (no real QgsFields), so .field(fname).length() there returns another MagicMock,
+    # not an int -- treat anything that isn't a real QGIS field width as unbounded
+    # rather than raising or mis-clipping against a mock's identity.
+    try:
+        width = layer.fields().field(fname).length()
+    except Exception:
+        return value
+    if isinstance(width, int) and width > 0 and len(value) > width:
+        return value[:width]
+    return value
+
+
 def add_incident_point(
     lat: float, lon: float, date: str, description: str, severity: str = None,
     event_type: str = None, sub_event_type: str = None,
@@ -1189,8 +1216,8 @@ def add_incident_point(
 
     feat = QgsFeature(layer.fields())
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
-    feat.setAttribute("date", str(date))
-    feat.setAttribute("description", str(description))
+    feat.setAttribute("date", _clip_to_field_width(layer, "date", str(date)))
+    feat.setAttribute("description", _clip_to_field_width(layer, "description", str(description)))
     # Older Incidents layers created before these fields existed won't have
     # them -- skip rather than raise, matching this layer's overall "reuse
     # whatever's already there" behavior above.
@@ -1200,7 +1227,7 @@ def add_incident_point(
         ("event_start", event_start), ("event_end", event_end), ("last_verified", last_verified),
     ):
         if value is not None and layer.fields().indexFromName(field_name) >= 0:
-            feat.setAttribute(field_name, str(value))
+            feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(value)))
 
     layer.startEditing()
     added = layer.addFeature(feat)
@@ -1349,8 +1376,9 @@ def add_point_layer(layer_name: str, points: list):
 
         feat = QgsFeature(layer.fields())
         feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
-        feat.setAttribute("name", str(pt.get("name", "")))
-        feat.setAttribute("description", str(pt.get("description", "")))
+        feat.setAttribute("name", _clip_to_field_width(layer, "name", str(pt.get("name", ""))))
+        feat.setAttribute("description",
+                           _clip_to_field_width(layer, "description", str(pt.get("description", ""))))
         # Older layers created before these fields existed won't have them --
         # skip rather than raise, matching the reused-existing-layer path above.
         for field_name in (
@@ -1358,7 +1386,7 @@ def add_point_layer(layer_name: str, points: list):
             "event_start", "event_end", "last_verified",
         ):
             if field_name in field_names and pt.get(field_name) is not None:
-                feat.setAttribute(field_name, str(pt[field_name]))
+                feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(pt[field_name])))
         point_warnings = _validate_incident_coding(
             pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
         )

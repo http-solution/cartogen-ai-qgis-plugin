@@ -92,6 +92,34 @@ def _point_in_bbox(lon, lat, bbox):
     return min_lon <= lon <= max_lon and min_lat <= lat <= max_lat
 
 
+def _clip_to_field_width(layer, fname, value):
+    """Clip a string value to its field's declared width before setAttribute.
+
+    Real live crash, 2026-09-16: fetch_gdacs_disaster_alerts's memory layer declares
+    field=country:string(255) (mirroring a shapefile-era convention), but GDACS's own
+    `country` property is a comma-joined list of every country a regional event (e.g. a
+    cyclone spanning several nations) touches -- observed at 261 chars, one event, no
+    user action involved. QGIS's memory provider enforces the declared width same as a
+    real shapefile would, so setAttribute silently fails (Qt logs "Could not store
+    attribute", the point is dropped from the layer, and nothing in this tool's own
+    return value reflects that -- the model then reports success on data that partly
+    never landed). Clipping defensively here, once, covers every field on every call
+    into this shared writer, rather than raising the field width per-source and hoping
+    the next external API happens to fit under it."""
+    if not isinstance(value, str):
+        return value
+    # Best-effort: a test double or an unusual provider may not expose a real
+    # QgsFields/.length() int -- treat anything that isn't one as unbounded
+    # rather than raising or mis-clipping against a mock's identity.
+    try:
+        width = layer.fields().field(fname).length()
+    except Exception:
+        return value
+    if isinstance(width, int) and width > 0 and len(value) > width:
+        return value[:width]
+    return value
+
+
 def _replace_point_features(layer, rows, geometry_key="__geom__"):
     """Find-or-create-then-REPLACE helper shared by the 3 recurring-fetch tools below. Unlike
     humanitarian_tools.py's add_point_layer (which APPENDS to an existing layer), this REPLACES
@@ -111,7 +139,7 @@ def _replace_point_features(layer, rows, geometry_key="__geom__"):
         feat.setGeometry(row[geometry_key])
         for fname in field_names:
             if fname in row:
-                feat.setAttribute(fname, row[fname])
+                feat.setAttribute(fname, _clip_to_field_width(layer, fname, row[fname]))
         if layer.addFeature(feat):
             added += 1
     layer.commitChanges()

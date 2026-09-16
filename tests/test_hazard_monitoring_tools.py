@@ -255,6 +255,62 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertIn("unexpected response shape", res["error"])
 
 
+class _FakeField:
+    def __init__(self, width):
+        self._width = width
+
+    def length(self):
+        return self._width
+
+
+class _FakeFields:
+    def __init__(self, widths):
+        self._widths = widths
+
+    def field(self, name):
+        return _FakeField(self._widths.get(name, 0))
+
+
+class _FakeLayer:
+    """Duck-typed stand-in for a QgsVectorLayer's .fields() -- enough surface for
+    _clip_to_field_width, no real QGIS needed."""
+    def __init__(self, widths):
+        self._fields = _FakeFields(widths)
+
+    def fields(self):
+        return self._fields
+
+
+class TestClipToFieldWidth(unittest.TestCase):
+    """2026-09-16 live report: 'Layer GDACS Disaster Alerts: Could not store attribute
+    "country": String of length 261 exceeds maximum field length (255)'. GDACS's own
+    country property is a comma-joined list for multi-country events, wider than the
+    memory layer's shapefile-era field=country:string(255). QGIS's memory provider
+    enforces that width same as a real shapefile would and silently drops the value on
+    overflow -- _clip_to_field_width is the fix, exercised here without needing a real
+    QGIS session (the field-width contract is pure duck-typing, no qgis.core import)."""
+
+    def test_a_string_longer_than_the_field_width_is_clipped(self):
+        layer = _FakeLayer({"country": 255})
+        value = "x" * 261
+        self.assertEqual(len(hz._clip_to_field_width(layer, "country", value)), 255)
+
+    def test_a_string_within_the_field_width_is_untouched(self):
+        layer = _FakeLayer({"country": 255})
+        self.assertEqual(hz._clip_to_field_width(layer, "country", "Yemen"), "Yemen")
+
+    def test_a_zero_width_field_is_treated_as_unbounded(self):
+        # QGIS reports length() == 0 for fields with no declared width (e.g. most
+        # non-shapefile providers) -- must not clip to an empty string.
+        layer = _FakeLayer({"notes": 0})
+        value = "x" * 1000
+        self.assertEqual(hz._clip_to_field_width(layer, "notes", value), value)
+
+    def test_a_non_string_value_passes_through_unchanged(self):
+        layer = _FakeLayer({"count": 10})
+        self.assertEqual(hz._clip_to_field_width(layer, "count", 42), 42)
+
+
 class TestGenerateSituationDashboardDegradesWithoutQgis(unittest.TestCase):
     """QGIS isn't available in this test environment, so every fetch tool's main-thread phase
     returns a count-only stub with no layer_name -- this must degrade to a clean 'no data'
