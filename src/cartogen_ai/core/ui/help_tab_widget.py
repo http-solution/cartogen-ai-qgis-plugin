@@ -33,16 +33,17 @@ def _build_help_html(version=None):
     return f"""
     <h3>🗺️ Cartogen AI — Help</h3>
     {version_line}
-    <p>Ask questions or give instructions in plain English in the <b>Chat</b> tab. The assistant
+    <p>Ask questions or give instructions in plain English in the chat box. The assistant
     can inspect your loaded layers, run real PyQGIS/Processing operations, and build maps for
-    you — every action it takes is visible in the <b>Activity</b> tab.</p>
+    you — every step of a multi-step request shows live in the <b>plan strip</b> pinned above
+    the chat thread, no separate tab to switch to.</p>
 
     <h4>Getting started</h4>
     <ol>
     <li>Open <b>Settings</b> (top-right gear icon) and pick a provider and enter its API key.</li>
     <li>Type a request in the chat box and press Enter (Shift+Enter for a new line).</li>
-    <li>For anything that edits or deletes data, you'll be asked to confirm in the
-    <b>Activity</b> tab before it actually runs.</li>
+    <li>For anything that edits or deletes data, you'll see a confirmation card right in the
+    chat before it actually runs.</li>
     </ol>
 
     <h4>Before your message is sent</h4>
@@ -77,10 +78,18 @@ def _build_help_html(version=None):
     <li>"Map population affected by flooding in Aleppo." <i>(humanitarian task register)</i></li>
     </ul>
 
+    <h4>Layer context</h4>
+    <p>Every loaded layer's schema is visible to the model by default, so it can answer
+    questions without you naming every layer. Click the <b>layers icon</b> next to the input
+    box to choose exactly which layers it can see for a question — a layer already tagged
+    RESTRICTED/SENSITIVE defaults unchecked. Only a schema and a sample of rows are ever sent,
+    never a whole table.</p>
+
     <h4>Safety</h4>
     <p>Destructive actions (removing a layer, changing attribute values) always require an
-    explicit click on <b>Confirm and Apply Edit</b> in the Activity tab — the AI
-    cannot apply them on its own.</p>
+    explicit confirmation — click <b>Apply edit</b> on the card that appears in the chat, click
+    <b>Confirm and Apply Edit</b> in that task's inspector (click its row in the plan strip),
+    or just reply "Confirm" — the AI cannot apply them on its own.</p>
 
     <h4>Something not working?</h4>
     <ul>
