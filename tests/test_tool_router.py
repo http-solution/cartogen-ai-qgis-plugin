@@ -204,6 +204,21 @@ class TestToolRouterAliasCoverage(unittest.TestCase):
         names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("fetch_nasa_active_fires", names)
 
+    def test_health_facilities_by_coordinates_finds_geocode_tools(self):
+        """Real live report, 2026-09-16 -- the exact reported query, coordinates only, no
+        place names: with neither geocode tool's own description ('Geocode a SINGLE
+        address/place name into lat/lon...') sharing any vocabulary with 'health facilities
+        beyond one hour's travel', both scored at or near 0 and were confirmed missing from
+        the top-40 candidate set before these aliases were added -- the model, unable to even
+        see geocode_and_enrich/geocode_batch existed, spent its entire tool-call budget on
+        execute_pyqgis_script hunting for a local data file on disk instead, and never
+        produced the requested layers."""
+        filtered = self.router.filter_relevant_tools(
+            "Health facilities beyond one hour's travel 4178029,3463954", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("geocode_and_enrich", names)
+        self.assertIn("geocode_batch", names)
+
 
 class TestFuzzyTypoCorrectionForHazardQueries(unittest.TestCase):
     """The exact live-reported query (2026-09-13): 'show live incedent in jordan in the map

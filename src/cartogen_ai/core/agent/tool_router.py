@@ -63,6 +63,29 @@ _TOOL_ALIASES = {
         "before and after", "compare images", "what changed", "how much damage",
         "damage from before to after", "satellite comparison",
     ],
+    # Real live report, 2026-09-16: a "Health facilities beyond one hour's travel <coords>"
+    # request -- no place names in the query, no facility layer already in the project --
+    # spent its whole tool-call budget on execute_pyqgis_script hunting for a local data file
+    # on disk and probing the plugin's own internals, never once calling geocode_and_enrich/
+    # geocode_batch, even though an earlier turn with the same underlying task DID use them
+    # successfully. Root cause not fully instrumented (which tools were actually in that turn's
+    # active_tools isn't logged), but is strongly implicated by the scoring itself: neither
+    # tool's own description ("Geocode a SINGLE address/place name into lat/lon...") shares any
+    # vocabulary with "health facilities beyond one hour's travel", so with no query text to
+    # match on, both tools score at or near 0 against a name query -- an easy loss against ~175
+    # other registered tools within a top_k=40 cutoff, especially since "health"/"facilit*" /
+    # "travel"/"hour" naturally score highly for several OTHER, unrelated tools instead. These
+    # aliases give both geocode tools a fighting chance of being visible on exactly the kind of
+    # query that most needs them: naming real-world facilities (hospitals, clinics) with no
+    # existing coordinate data to start from.
+    "geocode_and_enrich": [
+        "hospital", "hospitals", "clinic", "clinics", "health facilit",
+        "geocode", "find the location of", "where is",
+    ],
+    "geocode_batch": [
+        "hospital", "hospitals", "clinic", "clinics", "health facilit",
+        "geocode", "list of locations", "multiple locations",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",
