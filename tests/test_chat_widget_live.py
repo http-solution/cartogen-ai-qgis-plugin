@@ -877,6 +877,77 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertTrue(hasattr(dock, "memory_btn"))
         self.assertFalse(dock.memory_btn.icon().isNull())
 
+    # ------------------------------------------ layer context picker (Phase 3) --
+
+    def test_layer_context_picker_defaults_sensitive_layers_unchecked(self):
+        from cartogen_ai.core.ui.layer_context_picker_dialog import LayerContextPickerDialog
+
+        layers = [
+            {"name": "Health Facilities", "type": "VectorLayer", "feature_count": 8},
+            {"name": "Beneficiary Registry", "type": "VectorLayer", "feature_count": 40},
+        ]
+        sensitivity = {"Beneficiary Registry": "SENSITIVE"}
+        dialog = LayerContextPickerDialog(
+            layers, selection={}, sensitivity_lookup=lambda name: sensitivity.get(name))
+        self.addCleanup(dialog.close)
+
+        self.assertTrue(dialog._checkboxes["Health Facilities"].isChecked())
+        self.assertFalse(dialog._checkboxes["Beneficiary Registry"].isChecked())
+
+    def test_layer_context_picker_a_prior_choice_wins_over_the_sensitivity_default(self):
+        from cartogen_ai.core.ui.layer_context_picker_dialog import LayerContextPickerDialog
+
+        layers = [{"name": "Beneficiary Registry", "type": "VectorLayer", "feature_count": 40}]
+        # A layer with a real sensitivity level would default unchecked -- but the user
+        # already explicitly re-checked it once before, and reopening the dialog must
+        # not silently forget that.
+        dialog = LayerContextPickerDialog(
+            layers, selection={"Beneficiary Registry": True},
+            sensitivity_lookup=lambda name: "SENSITIVE")
+        self.addCleanup(dialog.close)
+
+        self.assertTrue(dialog._checkboxes["Beneficiary Registry"].isChecked())
+
+    def test_layer_context_picker_result_selection_reflects_unchecking(self):
+        from cartogen_ai.core.ui.layer_context_picker_dialog import LayerContextPickerDialog
+
+        layers = [{"name": "Health Facilities", "type": "VectorLayer", "feature_count": 8}]
+        dialog = LayerContextPickerDialog(layers, selection={}, sensitivity_lookup=lambda name: None)
+        self.addCleanup(dialog.close)
+        dialog._checkboxes["Health Facilities"].setChecked(False)
+
+        self.assertEqual(dialog.result_selection(), {"Health Facilities": False})
+
+    def test_dispatch_message_filters_map_context_by_the_saved_selection(self):
+        """End-to-end: a layer unchecked via the picker must actually be absent from
+        the map_context run_agent_task receives -- not just filtered in isolation."""
+        from unittest.mock import patch
+
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "ok"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        ct._layer_context_selection = {"Beneficiary Registry": False}
+
+        fake_ctx = {
+            "project_title": "P", "layer_count": 2,
+            "layers": [{"name": "Health Facilities"}, {"name": "Beneficiary Registry"}],
+        }
+        captured = {}
+        real_run_agent_task = None
+        from cartogen_ai.core.agent import task_runner as task_runner_mod
+        real_run_agent_task = task_runner_mod.run_agent_task
+
+        def _spy_run_agent_task(**kwargs):
+            captured["map_context"] = kwargs.get("map_context")
+            return real_run_agent_task(**kwargs)
+
+        with patch("cartogen_ai.core.agent.map_context.get_map_context_summary", return_value=fake_ctx), \
+             patch.object(task_runner_mod, "run_agent_task", side_effect=_spy_run_agent_task):
+            ct._dispatch_message("plain test message", None)
+
+        names = [l["name"] for l in captured["map_context"]["layers"]]
+        self.assertEqual(names, ["Health Facilities"])
+
 
 if __name__ == "__main__":
     unittest.main()

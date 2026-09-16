@@ -141,6 +141,12 @@ class ChatTabWidget(QWidget):
         # destructive action reusing the same numeric id (a fresh plan/task_manager
         # instance) still gets its own card shown.
         self._posted_safety_gate_task_ids = set()
+        # Broadsheet redesign Phase 3 (mockup 1l, layer context picker): {layer_name:
+        # bool}, empty until the user opens layer_context_btn at least once -- see
+        # map_context.filter_layers_by_selection's docstring for why an empty dict here
+        # means "send every loaded layer's schema" (today's unchanged behavior), not
+        # "send nothing".
+        self._layer_context_selection = {}
 
         from ..agent.deps import get_dependency_warning_message
         self._dep_warning = get_dependency_warning_message()
@@ -223,6 +229,21 @@ class ChatTabWidget(QWidget):
         if task is None:
             return
         self._resolve_pending_confirmation(agent, task, confirmed=(url.host() == "confirm"))
+
+    def _open_layer_context_picker(self):
+        """Opens layer_context_picker_dialog.py's checklist against the CURRENT live
+        layer list, and replaces self._layer_context_selection wholesale with whatever
+        was checked on accept. A cancelled dialog leaves the prior selection untouched."""
+        from ..agent.map_context import get_map_context_summary
+        map_ctx = get_map_context_summary()
+        layers = map_ctx.get("layers") or []
+        if not layers:
+            self._dock.statusSignal.emit("No layers loaded to choose from.")
+            return
+        from .layer_context_picker_dialog import LayerContextPickerDialog
+        dialog = LayerContextPickerDialog(layers, self._layer_context_selection, parent=self)
+        if dialog.exec():
+            self._layer_context_selection = dialog.result_selection()
 
     def init_ui(self):
         chat_layout = QVBoxLayout(self)
@@ -330,6 +351,18 @@ class ChatTabWidget(QWidget):
         _icon_fg = (_palette or {}).get("highlighted_text", "#ffffff")
 
         input_layout = QHBoxLayout()
+        # Broadsheet redesign Phase 3 (mockup 1l): explicit, per-question control over
+        # which loaded layers' schema reaches the model -- opt-out, not opt-in (see
+        # map_context.py's filter_layers_by_selection), so this button is silently a
+        # no-op on every send until the user actually opens it once.
+        self.layer_context_btn = QPushButton()
+        self.layer_context_btn.setIcon(themed_icon("layers", _icon_fg))
+        self.layer_context_btn.setIconSize(QSize(16, 16))
+        self.layer_context_btn.setObjectName("iconButton")
+        self.layer_context_btn.setFixedSize(30, 30)
+        self.layer_context_btn.setToolTip("Choose which layers' schema Cartogen can see for this question")
+        self.layer_context_btn.clicked.connect(self._open_layer_context_picker)
+
         self.attach_btn = QPushButton()
         self.attach_btn.setIcon(themed_icon("attach", _icon_fg))
         self.attach_btn.setIconSize(QSize(16, 16))
@@ -363,6 +396,7 @@ class ChatTabWidget(QWidget):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_current_task)
 
+        input_layout.addWidget(self.layer_context_btn)
         input_layout.addWidget(self.attach_btn)
         input_layout.addWidget(self.input_edit)
         input_layout.addWidget(self.send_btn)
@@ -1036,11 +1070,15 @@ class ChatTabWidget(QWidget):
         self.plan_strip.sync_with_agent(agent)
 
         from ..agent.task_runner import run_agent_task
-        from ..agent.map_context import get_map_context_summary
+        from ..agent.map_context import get_map_context_summary, filter_layers_by_selection
 
         # Gathered here, on the main thread, before the background QgsTask
         # starts -- QgsProject/layers aren't thread-safe to touch from run().
         map_ctx = get_map_context_summary()
+        # Broadsheet redesign Phase 3 (mockup 1l, layer context picker): a no-op filter
+        # (returns map_ctx unchanged) unless the user has actually opened
+        # layer_context_btn at least once this session and unchecked something.
+        map_ctx = filter_layers_by_selection(map_ctx, self._layer_context_selection)
         # analysis=None is meaningful, not "not supplied" -- it is exactly
         # what send_message()'s _awaiting_preview_reply edit-fallback branch passes to mean
         # "skip the register's enrichment entirely" (the escape hatch for when the matched
