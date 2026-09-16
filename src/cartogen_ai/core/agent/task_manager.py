@@ -76,6 +76,37 @@ class AgentTaskManager(QObject):
             self.plan_updated.emit(plan_data)
         return {"success": True, "title": self.title, "task_count": len(self.tasks), "plan": plan_data}
 
+    def add_task(self, description: str) -> dict:
+        """Appends ONE new task to the CURRENT plan, without archiving it.
+
+        Unlike create_plan (which replaces the whole plan and archives the old one),
+        this is for a single task that needs to exist alongside whatever plan is
+        already active -- e.g. a destructive-action confirmation gate that fires
+        mid-plan. Real live bug, 2026-09-16: agent.py's PREVIEW_REQUIRED handling
+        used to glue the pending-confirmation state onto tasks[0] of whichever plan
+        happened to be active (only starting a fresh plan when there were no tasks
+        at all), which silently overwrote an unrelated, already-DONE task's status
+        and result. A dedicated appended task can never collide with one that
+        already means something else."""
+        now = _now_iso()
+        task_item = {
+            "id": str(self._next_id),
+            "description": description,
+            "status": "TODO",
+            "result": "",
+            "rationale": "",
+            "code_snippet": "",
+            "is_destructive": False,
+            "tool_name": "",
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.tasks.append(task_item)
+        self._next_id += 1
+        if QT_AVAILABLE:
+            self.plan_updated.emit(self.get_plan())
+        return {"success": True, "task": task_item}
+
     def set_task_preview(self, task_id: str, code_snippet: str, rationale: str = "", is_destructive: bool = False) -> dict:
         """Sets preview state for a task requiring user confirmation before destructive execution."""
         for task in self.tasks:
@@ -174,6 +205,22 @@ class AgentTaskManager(QObject):
             
             res_str = f" → {task['result']}" if task["result"] else ""
             lines.append(f"{task['id']}. [{icon} {task['status']}] {task['description']}{res_str}")
+            # Real live bug, 2026-09-16: a user confirmed a destructive-action gate
+            # (field_calculator etc.) by replying "Confirm" in chat; the model had no
+            # structured way to know WHICH tool+arguments that confirmation was for
+            # (pending_tool/pending_args live on the task dict, but were never in this
+            # prompt context before), and fabricated a "confirmed" narrative without
+            # ever re-calling the tool. Surfaced here as a defense-in-depth backstop --
+            # the primary fix is chat_tab_widget.py's send_message() resolving a plain
+            # confirm/cancel reply directly against pending_tool/pending_args, bypassing
+            # the model entirely, but this line covers any reply that doesn't match that
+            # exact keyword check.
+            if task.get("pending_tool"):
+                lines.append(
+                    f"   ⏳ Awaiting confirmation: if the user just confirmed this, call "
+                    f"`{task['pending_tool']}` with arguments {task.get('pending_args')} "
+                    f"(do not describe it as done without actually calling it)."
+                )
 
         lines.append("\nRULE: Use `update_task` tool to update status as you execute steps!")
         return "\n".join(lines)
