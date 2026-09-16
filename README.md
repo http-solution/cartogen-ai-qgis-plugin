@@ -263,5 +263,5 @@ top of this file.)
 
 ## Support
 
-Internal/commercial use — for issues or questions, contact
+For issues or questions, contact
 [alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com).

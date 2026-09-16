@@ -74,7 +74,7 @@ austere or off-grid environments.
   imagery search) still need connectivity when actually invoked; offline-first means "the AI reasoning
   loop itself needs no cloud," not "every tool works with no network ever."
 - **GPL v2, free to use and modify** (`LICENSE`), no account or license key of any kind.
-- **The full 165-tool registry**, not a limited/gated subset — including the humanitarian-specific
+- **The full 169-tool registry**, not a limited/gated subset — including the humanitarian-specific
   tooling (severity indexing, geoprivacy obfuscation, 3W/4W presence-gap analysis) this document's
   vertical framing leans on.
 - **Bring-your-own API key** for OpenRouter, Gemini, OpenAI, or Claude when a user *does* have
