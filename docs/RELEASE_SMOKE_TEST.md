@@ -71,6 +71,14 @@ directory and imported from THAT path, not the dev tree).** 3 real orchestrator 
 4-phase UI redesign landed on top of RC4 (`aee354c`) -- see `CHANGELOG.md`'s `[1.15.6-rc5]` entry
 for full per-fix/per-phase detail.
 
+**Correction (same day):** this entry's own edit (adding it to this file) happened AFTER the
+build above, and `docs/RELEASE_SMOKE_TEST.md` is itself packaged into the zip -- so the hash
+above is already stale relative to what was actually committed, the same trap noted in RC3's own
+run-log entry. The zip was rebuilt once more at the actual release-prep commit (`55ff923`, which
+only adds this note -- no `.py` source changed between the two builds, so the 6 targeted checks'
+results are unaffected); the checksum actually tagged/released is sha256
+`97387bbc337b21fcedb30e18eae52fa82ff8dc047a5b40ca863561397de330cb`.
+
 **16-category checklist: not re-run this cycle.** Every change this cycle is in
 `agent/prompt_refiner.py`/`agent/task_matcher.py`/`agent/agent.py`/`agent/task_manager.py` (the
 orchestrator) or `ui/*.py` (the dock redesign) -- nothing in `agent/tools/*.py` the 16-category
