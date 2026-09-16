@@ -240,6 +240,25 @@ BRAND_TEAL = "#1F7A6C"
 BRAND_AMBER = "#C97F22"
 BRAND_ACCENT_BLEND_T = 0.35
 
+# Broadsheet redesign (2026-09-16, mockup-driven): magenta reserved specifically for
+# "the one thing that mutates your data" -- the destructive-action confirm button and
+# the inline safety-gate card, never a general accent. #A3255A is not a new invented
+# color: it's the exact numeral-label hex settings_dialog.py's and tasks_tab_widget.py's
+# own _section_header already ship with, so this reuses an already-live color instead of
+# introducing a second, competing "brand magenta." Blended at a stronger ratio than the
+# teal accent (0.5 vs 0.35) -- a destructive action should read as more distinctly
+# "different" than the routine interactive-accent nudge.
+BRAND_MAGENTA = "#A3255A"
+BRAND_DANGER_BLEND_T = 0.5
+
+# Nearest serif stack Qt's desktop rendering can actually honor -- Source Serif (the
+# mockup's stated typeface) is a web font with no bundled-with-Qt equivalent, and this is
+# a native Qt app, not a browser. Georgia/Times New Roman is the same fallback stack
+# settings_dialog.py's and tasks_tab_widget.py's own _section_header already use for their
+# numeral labels -- shared here as one constant so any FUTURE heading reuses the same
+# declared stack instead of a third hand-typed copy of the same string.
+BROADSHEET_SERIF = "Georgia, 'Times New Roman', serif"
+
 
 def _brand_accent(highlight_hex):
     """Blends QGIS's own live accent color toward the Cartogen brand teal -- the one place this
@@ -247,6 +266,14 @@ def _brand_accent(highlight_hex):
     bubble tint) and build_dock_stylesheet (buttons, tab underline, focus border) so the accent
     reads as consistently brand-flavored across the whole dock, not just one corner of it."""
     return _blend_hex(highlight_hex, BRAND_TEAL, BRAND_ACCENT_BLEND_T)
+
+
+def _brand_danger(base_hex):
+    """Blends a base color toward the Broadsheet destructive-action magenta -- same
+    "nudge the live theme color, never replace it outright" approach _brand_accent uses,
+    so a destructive-action button/card still visibly adapts across light/dark QGIS themes
+    instead of ever being a flat, theme-blind magenta."""
+    return _blend_hex(base_hex, BRAND_MAGENTA, BRAND_DANGER_BLEND_T)
 
 
 def derive_bubble_colors(palette_dict):
@@ -266,9 +293,11 @@ def derive_bubble_colors(palette_dict):
         return {
             "user_bg": "#dce8f7", "agent_bg": "#eef0f2", "text": "#1c1c1c",
             "subtle": "#666666", "border": "#d0d0d0", "accent": "#0b6ea3",
+            "danger": BRAND_MAGENTA, "danger_bg": "#f7e6ee",
         }
     window = palette_dict.get("window", "#f0f0f0")
     highlight = _brand_accent(palette_dict.get("highlight", "#3daee9"))
+    danger = _brand_danger(palette_dict.get("highlight", "#3daee9"))
     return {
         "user_bg": _blend_hex(window, highlight, 0.22),
         "agent_bg": palette_dict.get("alt_base", window),
@@ -280,6 +309,15 @@ def derive_bubble_colors(palette_dict):
         # blend above, just also returned directly so callers don't need a second palette
         # read/blend to get it.
         "accent": highlight,
+        # Broadsheet redesign, 2026-09-16: magenta reserved for the one thing that mutates
+        # data -- the destructive-action confirm button (build_dock_stylesheet's
+        # successButton/dangerButton rules) and the inline safety-gate card (Phase 2,
+        # render_safety_gate_html). "danger" is the solid ink (button fill, border,
+        # emphasized text); "danger_bg" is a soft card-background tint blended from the
+        # SAME window color user_bg/agent_bg already use, at a light ratio, so the gate
+        # card reads as "tinted paper", not a jarring flat-magenta block.
+        "danger": danger,
+        "danger_bg": _blend_hex(window, danger, 0.12),
     }
 
 
@@ -621,6 +659,15 @@ def build_dock_stylesheet(palette_dict):
     highlighted_text = palette_dict.get("highlighted_text", "#ffffff")
     highlight_hover = _blend_hex(highlight, "#000000", 0.12)
     highlight_pressed = _blend_hex(highlight, "#000000", 0.22)
+    # Broadsheet redesign, 2026-09-16: magenta reserved for the one thing that mutates data.
+    # #successButton is the Activity tab's "Confirm and Apply Edit" button -- the actual
+    # destructive-edit confirm action, not a generic "success" -- so it now takes the same
+    # danger token dangerButton uses, just filled instead of outlined (the stronger of the
+    # two treatments, since it's the one button that actually executes a data mutation).
+    danger = _brand_danger(palette_dict.get("highlight", "#3daee9"))
+    danger_hover = _blend_hex(danger, "#000000", 0.12)
+    danger_pressed = _blend_hex(danger, "#000000", 0.22)
+    danger_bg = _blend_hex(window, danger, 0.12)
 
     return f"""
 QPushButton {{
@@ -652,20 +699,32 @@ QPushButton#secondaryButton:hover {{
 }}
 QPushButton#dangerButton {{
     background-color: transparent;
-    color: #c0392b;
-    border: 1px solid #c0392b;
+    color: {danger};
+    border: 1px solid {danger};
     font-weight: 500;
 }}
 QPushButton#dangerButton:hover {{
-    background-color: rgba(192, 57, 43, 0.12);
+    background-color: {danger_bg};
+}}
+QPushButton#dangerButton:disabled {{
+    background-color: transparent;
+    color: {subtle};
+    border-color: {border};
 }}
 QPushButton#successButton {{
-    background-color: #2e7d32;
-    color: white;
+    background-color: {danger};
+    color: {highlighted_text};
     font-weight: 600;
 }}
 QPushButton#successButton:hover {{
-    background-color: #276428;
+    background-color: {danger_hover};
+}}
+QPushButton#successButton:pressed {{
+    background-color: {danger_pressed};
+}}
+QPushButton#successButton:disabled {{
+    background-color: {border};
+    color: {subtle};
 }}
 QPushButton#chipButton {{
     background-color: transparent;
