@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc5](#v1-15-6-rc5) | 2026-09-17 | Release candidate: router-confidence, field-width, and confirmation-gate fixes, plus the full Broadsheet redesign (single-scroll dock, inline safety-gate card, layer context picker) |
 | [1.15.6-rc4](#v1-15-6-rc4) | 2026-09-16 | Release candidate: crash root-causes confirmed with real tracebacks, a tool-discovery router gap, a UI freeze reverted, and a Settings/chat/Activity visual redesign |
 | [1.15.6-rc3](#v1-15-6-rc3) | 2026-09-15 | Release candidate: 2 more fixes on rc2 -- missing first-message echo, tool-argument shape validation |
 | [1.15.6-rc2](#v1-15-6-rc2) | 2026-09-15 | Release candidate: 4 fixes on rc1 -- requests dependency, GDACS country filter, dock screen-clamp timing, prompt-preview-to-in-chat conversion |
@@ -34,6 +35,85 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc5"></a>
+## [1.15.6-rc5] — 2026-09-17 — Release candidate: router/field-width/confirmation-gate fixes, and the Broadsheet redesign
+
+An extended live-testing session on top of `v1.15.6-rc4` surfaced 3 more real, code-grounded bugs
+in the orchestrator pipeline, all reproduced and fixed against the real agent — not from a chat
+transcript's own summary text, but from the raw QGIS Python Console's `[Agent] Tool call:`/
+`succeeded`/`FAILED` lines, since two of the three bugs were exactly the case where the model's
+own prose confidently described something that never actually happened. Source commits `ce91b6a`,
+`96fd84b`, `ed6c42b`.
+
+**1. The task router's own confidence floor was computed but never checked.**
+`task_matcher.classify()` already flags a match `ambiguous` when it scores below
+`CONFIDENT_SCORE=0.34`, but `prompt_refiner.analyze_request()` built a full "Recognised task X,
+deliver Y, prefer tools Z" system-prompt directive from the low-confidence match anyway. Live
+evidence: "apply a color ramp to the raster layer" (score 0.33) got routed to an unrelated HDX/3W
+CSV-export task; the model then reported a fabricated GPKG/CSV export instead of touching the
+raster at all. Fixed by falling through to the same "nothing matched" path a genuinely unmatched
+query already gets, but ONLY for the "below confidence floor" reason — a *tied*-but-above-floor
+match (e.g. a 0.38-scoring "dashboard" query merely tied against a much weaker cross-section
+match) is left alone, since nulling that out would throw away good matches too, not just bad
+ones. This was the dominant root cause behind reports of answers "not relative to the request."
+
+**2. External API values wider than a memory layer's field width were silently dropped.**
+GDACS's own `country` property is a comma-joined list for multi-country events (observed at 261
+chars); the memory layer's shapefile-era `field=country:string(255)` silently rejects anything
+over 255 chars via QGIS's own memory-provider width enforcement — no exception, just a missing
+attribute and a Qt log line the tool's own return value never reflected. Fixed with a small
+`_clip_to_field_width` helper (one copy per file, matching this codebase's existing per-file-
+helper convention) applied at all 3 affected write sites (GDACS/EONET/fires, and the two
+humanitarian incident-point writers).
+
+**3. A destructive-action confirmation gate could be bypassed by normal chat use, not misuse —
+the most serious finding.** Traced a specific live sequence: a `field_calculator` `PREVIEW_
+REQUIRED` gate fired mid-plan, the user replied "Confirm" in the chat box rather than the
+Activity tab's own "Confirm and Apply Edit" button, and the actual tool log for that turn showed
+`field_calculator` was never called — the model fabricated a full "Confirmation Acknowledged...
+Evaluated Numeric Severity: 2" narrative while the field was never written. Three compounding
+structural gaps, fixed together: `_real_execute_tool` used to only start a fresh safety-gate plan
+when the task list was completely empty, otherwise gluing the pending confirmation onto
+`tasks[0]` of whatever plan happened to already be active — silently overwriting an unrelated,
+possibly already-`DONE` task; a new `add_task()` on the task manager always appends a dedicated
+task instead. The chat send path gained the same deterministic resolution the Activity tab's
+button already used (`agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)`
+directly, no LLM turn) for a plain-text confirm/cancel reply — narrow enough that only an exact
+yes/no-shaped reply is intercepted, so an unrelated new message can never hijack a stale gate.
+`get_formatted_task_context()` now also surfaces the pending tool/arguments as defense-in-depth.
+
+**Broadsheet redesign** — a full visual and structural redesign of the dock, from a user-supplied
+15-state mockup board reviewed live and confirmed direction-by-direction:
+- **Single continuous scroll, no more Chat/Activity tabs.** A sticky plan strip (progress bar,
+  now stating e.g. *"3/4 steps complete — 1 needs you"* directly instead of a bare fraction, plus
+  the task list) sits above the chat thread in one view — directly fixes a live audit finding
+  that the one task genuinely needing a decision could scroll out of view inside the old tab's
+  capped list. The Task Inspector moved to a per-task dialog opened by clicking a plan-strip row;
+  Project Notes/Memory and Learned Preferences moved to a new dialog opened from a header button.
+- **Inline destructive-action confirmation card.** Replaces the plain-text gate message with a
+  real card (layer/field summary, rationale, code snippet, clickable Apply-edit/Cancel links) —
+  wired to the exact same safe confirmation path fix 3 above built, not new logic.
+- **Layer context picker.** A new composer control gives explicit, per-question, opt-out control
+  over which loaded layers' schema reaches the model — a layer already tagged via the existing
+  `set_layer_sensitivity` tool defaults unchecked; a user who never opens it sees unchanged
+  behavior.
+- Theme-aware magenta/"danger" color tokens (nudging the live QGIS palette, never a flat
+  hardcoded color, so it still adapts across light/dark themes) reserved specifically for the one
+  thing that mutates data — found and fixed a real bug along the way: the Confirm button had no
+  `:disabled` QSS rule at all, so it looked identically clickable whether it actually was or not.
+
+New `docs/LIVE_TEST_SCENARIOS.md` adds 5 multi-turn workflow scenarios (not single-prompt checks
+like `docs/RELEASE_SMOKE_TEST.md`) — 3 reproduce this cycle's own fixed bugs, 2 are grounded
+directly in the plugin's stated core purpose (map-visualization accuracy and technical-analysis
+accuracy), every one verified against actual canvas/attribute-table state, never chat prose.
+`docs/USER_GUIDE.md` and the in-app Help window updated to match the redesign throughout.
+
+Full suite: 1751 tests, 0 failures (up from rc4's 1695 — new coverage for every fix and every
+redesign phase, live-verified with real headless screenshots and real `QTest` clicks/keystrokes
+against the actual Qt widgets, not just unit-level assertions). 34/34 live-QGIS tests passing.
+
+Still a release candidate, not final.
 
 <a id="v1-15-6-rc4"></a>
 ## [1.15.6-rc4] — 2026-09-16 — Release candidate: confirmed crash root-causes, a router gap, a UI freeze reverted, and a visual redesign
