@@ -672,6 +672,98 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY",
                           "an unrelated message must not disturb the still-pending gate")
 
+    # ------------------------------------------ inline safety-gate card (Phase 2) --
+
+    def test_safety_gate_card_is_posted_after_a_turn_leaves_a_task_pending(self):
+        """Broadsheet redesign Phase 2: once a turn completes and a task is left
+        PREVIEW_READY with pending_tool set, the inline card (render_safety_gate_html)
+        must appear in the chat log with real, clickable confirm/cancel links -- not just
+        the model's own free-text description of the gate."""
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "I've staged the severity field for review."}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="Adds a numeric severity field.",
+                                             is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen", "new_field": "severity"}
+
+        ct._dispatch_message("calculate severity", None)
+        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(500)
+
+        log = self._chat_text(ct)
+        self.assertIn("CONFIRMATION REQUIRED", log)
+        self.assertIn("GDACS Disaster Alerts - Yemen", log)
+        html = ct.chat_browser.toHtml()
+        self.assertIn(f'cartogen://confirm/{task["id"]}', html)
+        self.assertIn(f'cartogen://cancel/{task["id"]}', html)
+
+    def test_safety_gate_card_confirm_link_click_resolves_directly(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X", "new_field": "severity"}
+        ct._show_safety_gate_in_chat(agent)
+
+        ct._on_step_anchor_clicked(QUrl(f'cartogen://confirm/{task["id"]}'))
+
+        self.assertEqual(agent.real_execute_tool_calls,
+                          [("field_calculator", task["pending_args"], True)])
+        self.assertEqual(agent.client.calls, 0,
+                          "clicking the card's link must never go through the LLM loop")
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
+        self.assertIn("Confirmed & Executed", self._chat_text(ct))
+
+    def test_safety_gate_card_cancel_link_click_does_not_execute(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X"}
+        ct._show_safety_gate_in_chat(agent)
+
+        ct._on_step_anchor_clicked(QUrl(f'cartogen://cancel/{task["id"]}'))
+
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "FAILED")
+        self.assertIn("Cancelled", self._chat_text(ct))
+
+    def test_safety_gate_card_not_reposted_while_the_same_task_is_still_pending(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X"}
+
+        ct._show_safety_gate_in_chat(agent)
+        ct._show_safety_gate_in_chat(agent)
+
+        html = ct.chat_browser.toHtml()
+        self.assertEqual(html.count(f'cartogen://confirm/{task["id"]}'), 1,
+                          "the same still-pending task's card must only be posted once")
+
     def test_attachment_disclosure_note_is_accurate_for_local_ollama(self):
         from qgis.core import QgsSettings
         agent = _FakeAgent(script=[])
