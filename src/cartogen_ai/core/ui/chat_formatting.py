@@ -517,6 +517,91 @@ def render_refinement_html(recommendations, colors):
     return heading + hint + "".join(cards)
 
 
+def render_safety_gate_html(task, colors):
+    """Inline destructive-action confirmation card -- Broadsheet redesign Phase 2, mockup
+    state 1f (the inline-card treatment, chosen over 1g's heavier bottom-anchored locking
+    sheet). Same bordered-card/`<a>`-as-button technique render_refinement_html and
+    render_welcome_html's starter prompts already use, styled with the `danger`/`danger_bg`
+    tokens derive_bubble_colors added for exactly this -- magenta reserved for the one
+    thing that mutates data, nothing else in this app uses these two colors.
+
+    `task` is a task_manager.py task dict that has `pending_tool`/`pending_args` set (see
+    agent.py's `_real_execute_tool` PREVIEW_REQUIRED handling) -- this function only reads
+    it, never mutates it. The Confirm/Cancel links are `cartogen://confirm/{task_id}` and
+    `cartogen://cancel/{task_id}`; chat_tab_widget.py's `_on_step_anchor_clicked` resolves
+    the task by id and calls `_resolve_pending_confirmation` -- the exact same deterministic
+    `agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)` path a
+    plain-text "Confirm" reply already uses (this phase only adds a second, clickable entry
+    point to that already-correct mechanism, not a new one).
+
+    Best-effort on `pending_args`' shape: `layer_name`/`new_field` are shown as a labeled
+    summary row WHEN present, since they're the two fields field_calculator (the common
+    PREVIEW_REQUIRED source today) always includes -- but this renderer does not assume any
+    tool-specific shape beyond that, so a future destructive tool with a different argument
+    shape still renders sensibly (rationale + code snippet + the two action links)."""
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    danger = colors.get("danger", "#A3255A")
+    danger_bg = colors.get("danger_bg", "#f7e6ee")
+
+    task_id = task.get("id", "")
+    rationale = task.get("rationale", "")
+    code_snippet = task.get("code_snippet", "")
+    pending_args = task.get("pending_args") or {}
+    layer_name = pending_args.get("layer_name")
+    new_field = pending_args.get("new_field")
+
+    heading = (
+        f'<div style="font-weight:bold;font-size:11px;letter-spacing:0.04em;color:{danger};'
+        'margin-bottom:6px;">&#128737;&nbsp;CONFIRMATION REQUIRED</div>'
+    )
+    summary_rows = []
+    if layer_name:
+        summary_rows.append(("Layer", layer_name))
+    if new_field:
+        summary_rows.append(("Adds field", new_field))
+    summary_html = "".join(
+        f'<div style="font-size:11.5px;color:{text_color};margin:2px 0;">'
+        f'<span style="color:{subtle_color};">{escape_plain_text(label)}:</span>&nbsp;'
+        f'<b>{escape_plain_text(str(value))}</b></div>'
+        for label, value in summary_rows
+    )
+    rationale_html = (
+        f'<div style="font-size:11.5px;color:{text_color};margin:6px 0;">'
+        f'{escape_plain_text(rationale)}</div>'
+    ) if rationale else ""
+    code_html = (
+        '<table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:6px 0;"><tr>'
+        f'<td style="border:1px solid {danger};padding:8px 10px;'
+        f'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:{text_color};">'
+        f'{escape_plain_text(code_snippet)}</td></tr></table>'
+    ) if code_snippet else ""
+    # A real gap between the two links, not CSS margin -- Qt's rich-text engine doesn't
+    # reliably honor margin on inline-block <a> tags (confirmed live: "Apply edit" and
+    # "Cancel" rendered touching with zero gap despite margin-right:8px). An explicit
+    # non-breaking-space run is the same &nbsp;-for-spacing workaround this file already
+    # relies on elsewhere (render_markdown's list indentation, render_tool_step_html's
+    # icon gap) for exactly this class of Qt rich-text CSS limitation.
+    actions = (
+        f'<a href="cartogen://confirm/{task_id}" style="text-decoration:none;'
+        f'display:inline-block;padding:5px 14px;'
+        f'background-color:{danger};color:#ffffff;font-weight:600;font-size:12px;">'
+        '&#10003;&nbsp;Apply edit</a>'
+        '&nbsp;&nbsp;&nbsp;'
+        f'<a href="cartogen://cancel/{task_id}" style="text-decoration:none;'
+        f'display:inline-block;padding:5px 14px;border:1px solid {subtle_color};'
+        f'color:{text_color};font-size:12px;">Cancel</a>'
+    )
+    card = (
+        '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
+        f'style="margin:10px 0;background-color:{danger_bg};"><tr>'
+        f'<td style="border:1px solid {danger};padding:10px 12px;">'
+        f'{heading}{summary_html}{rationale_html}{code_html}{actions}'
+        '</td></tr></table>'
+    )
+    return card
+
+
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
     """One compact summary line for an entire turn's tool calls, replacing the old
     one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too

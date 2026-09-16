@@ -383,6 +383,53 @@ class TestDeriveBubbleColorsBrandAccent(unittest.TestCase):
         self.assertEqual(colors["user_bg"], expected_bg)
 
 
+class TestRenderSafetyGateHtml(unittest.TestCase):
+    """Broadsheet redesign Phase 2 -- the inline destructive-action confirmation card
+    (mockup state 1f) that replaces the model's own plain-text safety-gate prose as the
+    actual actionable UI element."""
+
+    def setUp(self):
+        from cartogen_ai.core.ui.chat_formatting import render_safety_gate_html
+        self.render = render_safety_gate_html
+        self.colors = derive_bubble_colors(None)
+        self.task = {
+            "id": "4",
+            "rationale": "Maps categorical alert_level to a numeric severity scale.",
+            "code_snippet": "CASE WHEN alert_level = 'Red' THEN 3 ELSE 0 END",
+            "pending_tool": "field_calculator",
+            "pending_args": {"layer_name": "GDACS Disaster Alerts - Yemen", "new_field": "severity"},
+        }
+
+    def test_confirm_and_cancel_links_carry_the_task_id(self):
+        html = self.render(self.task, self.colors)
+        self.assertIn('href="cartogen://confirm/4"', html)
+        self.assertIn('href="cartogen://cancel/4"', html)
+
+    def test_layer_and_field_summary_are_shown(self):
+        html = self.render(self.task, self.colors)
+        self.assertIn("GDACS Disaster Alerts - Yemen", html)
+        self.assertIn("severity", html)
+
+    def test_rationale_and_code_snippet_are_shown_and_escaped(self):
+        task = dict(self.task)
+        task["rationale"] = "Mutates <the> table"
+        html = self.render(task, self.colors)
+        self.assertIn("&lt;the&gt;", html)
+        self.assertNotIn("<the>", html)
+        self.assertIn("CASE WHEN", html)
+
+    def test_missing_pending_args_does_not_raise(self):
+        task = {"id": "1", "rationale": "", "code_snippet": ""}
+        html = self.render(task, self.colors)
+        self.assertIn('href="cartogen://confirm/1"', html)
+
+    def test_uses_the_danger_token_not_a_hardcoded_color(self):
+        colors = dict(self.colors)
+        colors["danger"] = "#123456"
+        html = self.render(self.task, colors)
+        self.assertIn("#123456", html)
+
+
 class TestBuildDockStylesheet(unittest.TestCase):
     def test_falls_back_to_defaults_when_no_palette(self):
         qss = build_dock_stylesheet(None)

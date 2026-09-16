@@ -127,6 +127,15 @@ class ChatTabWidget(QWidget):
         self._step_block_counter = 0
         self._pending_contract = None
         self._contract_followup_used = False
+        # task_manager task ids whose inline safety-gate card (_show_safety_gate_in_chat,
+        # Broadsheet redesign Phase 2) has already been posted to this chat log -- a
+        # PREVIEW_READY task stays PREVIEW_READY across every turn until it's actually
+        # confirmed/cancelled, so without this the same card would be re-posted after
+        # every unrelated message sent while it's still pending. Cleared per task id once
+        # _resolve_pending_confirmation moves that task off PREVIEW_READY, so a LATER
+        # destructive action reusing the same numeric id (a fresh plan/task_manager
+        # instance) still gets its own card shown.
+        self._posted_safety_gate_task_ids = set()
 
         from ..agent.deps import get_dependency_warning_message
         self._dep_warning = get_dependency_warning_message()
@@ -153,9 +162,11 @@ class ChatTabWidget(QWidget):
     def _resolve_pending_confirmation(self, agent, task, confirmed):
         """Executes or cancels a pending destructive-action gate directly, with no model
         turn involved -- mirrors tasks_tab_widget.py's _confirm_selected_task/
-        _cancel_selected_task exactly, so a chat-typed reply and the Activity tab's own
-        buttons are the same code path and can never disagree about what "Confirm" does."""
+        _cancel_selected_task exactly, so a chat-typed reply, the inline safety-gate card's
+        links, and the Activity tab's own buttons are all the same code path and can never
+        disagree about what "Confirm" does."""
         task_id = task.get("id")
+        self._posted_safety_gate_task_ids.discard(task_id)
         if confirmed:
             pending_tool = task.get("pending_tool")
             pending_args = task.get("pending_args", {})
@@ -168,6 +179,45 @@ class ChatTabWidget(QWidget):
             agent.task_manager.update_task(task_id, "FAILED", "Cancelled by User")
             self._dock.receiveMessageSignal.emit(
                 "ai", f"❌ **Cancelled Task {task_id}:** {task.get('description')}")
+
+    def _show_safety_gate_in_chat(self, agent):
+        """Posts the inline destructive-action confirmation card (render_safety_gate_html,
+        Broadsheet redesign Phase 2, mockup state 1f) for the current pending task, if any
+        and if it hasn't already been posted. Called from _dispatch_message's on_complete
+        after every successful turn -- cheap no-op when there's nothing pending, and
+        _posted_safety_gate_task_ids stops the same still-open gate from being reposted
+        after every unrelated message sent while it waits (see that set's own docstring in
+        __init__)."""
+        task = self._pending_confirmation_task(agent)
+        if task is None:
+            return
+        task_id = task.get("id")
+        if task_id in self._posted_safety_gate_task_ids:
+            return
+        self._posted_safety_gate_task_ids.add(task_id)
+        from .chat_formatting import render_safety_gate_html
+        html = render_safety_gate_html(task, theme_colors())
+        self._add_message("ai", "", _raw_html=html)
+
+    def _on_safety_gate_link_clicked(self, url):
+        """A cartogen://confirm/{task_id} or cartogen://cancel/{task_id} link, from
+        _show_safety_gate_in_chat's card. Resolves the SAME task_manager task a plain-text
+        "Confirm"/"cancel" chat reply already resolves (see send_message()'s
+        _pending_confirmation_task check) -- this is a second, clickable entry point onto
+        the identical _resolve_pending_confirmation path, not a new confirmation mechanism.
+        Silently no-ops if the agent or the task is gone (e.g. the task was cleared/the
+        plan reset since the card was shown) rather than erroring on a stale click."""
+        agent = self._agent_provider() if self._agent_provider else None
+        if agent is None or not hasattr(agent, "task_manager"):
+            return
+        parts = [p for p in url.path().split("/") if p]
+        task_id = parts[-1] if parts else None
+        if not task_id:
+            return
+        task = next((t for t in agent.task_manager.tasks if t.get("id") == task_id), None)
+        if task is None:
+            return
+        self._resolve_pending_confirmation(agent, task, confirmed=(url.host() == "confirm"))
 
     def init_ui(self):
         chat_layout = QVBoxLayout(self)
@@ -554,11 +604,13 @@ class ChatTabWidget(QWidget):
         """Handles clicks on this app's own internal "cartogen://" anchors -- the
         Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
         toggle_html), a welcome-message starter prompt (cartogen://starter/{index}, see
-        _populate_initial_chat), and a prompt-refinement recommendation (cartogen://refine/
-        {index}, see _show_refinement_in_chat). Dispatches on url.host() since all three share
-        the scheme. Ignores anything that isn't "cartogen", so real markdown links in AI
-        responses (opened via setOpenExternalLinks(True), untouched by this handler) are
-        unaffected."""
+        _populate_initial_chat), a prompt-refinement recommendation (cartogen://refine/
+        {index}, see _show_refinement_in_chat), and the inline safety-gate card's Apply
+        edit/Cancel links (cartogen://confirm/{task_id} / cartogen://cancel/{task_id}, see
+        _show_safety_gate_in_chat -- Broadsheet redesign Phase 2). Dispatches on url.host()
+        since all share the scheme. Ignores anything that isn't "cartogen", so real markdown
+        links in AI responses (opened via setOpenExternalLinks(True), untouched by this
+        handler) are unaffected."""
         if url.scheme() != "cartogen":
             return
         if url.host() == "starter":
@@ -566,6 +618,9 @@ class ChatTabWidget(QWidget):
             return
         if url.host() == "refine":
             self._on_refinement_card_clicked(url)
+            return
+        if url.host() in ("confirm", "cancel"):
+            self._on_safety_gate_link_clicked(url)
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -1028,6 +1083,7 @@ class ChatTabWidget(QWidget):
                 self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
                 self._after_successful_response(agent, response)
                 self._enforce_output_contract(sent_text)
+                self._show_safety_gate_in_chat(agent)
 
         def on_status(msg):
             self._dock.statusSignal.emit(msg)
