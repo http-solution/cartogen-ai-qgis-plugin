@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc4](#v1-15-6-rc4) | 2026-09-16 | Release candidate: crash root-causes confirmed with real tracebacks, a tool-discovery router gap, a UI freeze reverted, and a Settings/chat/Activity visual redesign |
 | [1.15.6-rc3](#v1-15-6-rc3) | 2026-09-15 | Release candidate: 2 more fixes on rc2 -- missing first-message echo, tool-argument shape validation |
 | [1.15.6-rc2](#v1-15-6-rc2) | 2026-09-15 | Release candidate: 4 fixes on rc1 -- requests dependency, GDACS country filter, dock screen-clamp timing, prompt-preview-to-in-chat conversion |
 | [1.15.6-rc1](#v1-15-6-rc1) | 2026-09-14 | Release candidate: fixes 27 of 32 findings from a full security/QGIS/API/performance/code-quality audit |
@@ -33,6 +34,80 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc4"></a>
+## [1.15.6-rc4] — 2026-09-16 — Release candidate: confirmed crash root-causes, a router gap, a UI freeze reverted, and a visual redesign
+
+A large batch of live-reported fixes on top of `v1.15.6-rc3`, every one reproduced and verified
+against the packaged plugin across an extended live-testing session, not just the dev tree.
+
+**Crashes, root-caused with real tracebacks:**
+
+1. **`'str' object has no attribute 'get'` — the actual root cause, finally confirmed.** This
+   exact error text was reported repeatedly across the cycle, at wildly different tool-call
+   counts (18, then 3, then 1, then 15) with no traceback to pin it down — two earlier defensive
+   guards landed without full confirmation (see below). A live report finally came with a real
+   traceback: `_execute_tool`'s pre-dispatch "snapshot" step (`_snapshot_registry.py`, used by
+   MODIFY/DELETE tools like `apply_categorized_style` to capture undo state) received the
+   model's tool-call arguments as the raw, still-JSON-encoded string straight off the tool call —
+   never parsed into a dict, unlike the two real dispatch paths a few lines later, which each
+   parse it internally. Any tool registered with a snapshot function crashed this way every time
+   it was actually called, independent of anything else that ran first — exactly why the
+   tool-call count varied while the crash didn't. Fixed by parsing once, before the snapshot
+   call; covered by a new test that reproduces the real traceback shape (a raw JSON string in,
+   not an already-parsed dict).
+2. **`_compact_old_tool_results` guarded against a non-dict message entry.** A separate,
+   legitimate defensive fix found while investigating (1) above, before the real root cause was
+   confirmed — `m.get("role")` assumed every entry in the turn's message list was a dict;
+   reproduced in isolation (`['x'][0].get('role')` raises the identical text) and guarded either
+   way, though the exact mechanism that could produce a non-dict entry was never conclusively
+   identified.
+3. **Oversized tool results are now compacted immediately, not after 8 more tool calls.** A
+   Gemini 400 "input token count exceeds the maximum" error after only 5 tool calls —
+   `inspect_canvas_visually` embeds a full base64 canvas screenshot in its tool result, easily
+   hundreds of thousands of tokens on its own, but the existing mid-turn compaction only trimmed
+   a result once 8 *other* tool calls had also happened, a rule that assumes no single result is
+   enormous enough to blow the budget alone. A single oversized result now gets trimmed as soon
+   as it's no longer the latest one, immediately after the model has seen it once.
+
+**Tool discovery:** `geocode_and_enrich`/`geocode_batch` share no vocabulary with
+"health facilities beyond one hour's travel"-style requests, so they lost the competition for a
+slot in the ~40 tools shown to the model out of ~170 registered — the model, unable to see they
+existed, spent an entire turn's tool budget hunting the filesystem via `execute_pyqgis_script`
+for a local data file instead. Fixed with curated router aliases (the same mechanism already
+tuned for 8 other tools with this exact gap); confirmed end-to-end against the real `agent.run()`
+loop, not just the router in isolation, and covered by a new live regression suite
+(`tests/test_agent_live.py`) that scripts a full realistic turn — geocode, create a plan, add a
+real QGIS layer, style it, mark every task `DONE` — and confirms a real layer lands on the canvas
+and the Activity tab's actual data source gets populated, closing the loop on a live report that
+a "successful" turn produced neither.
+
+**A real UI freeze, reverted rather than chased.** A custom Qt `FlowLayout`, added this cycle for
+the Settings dialog's provider pills (then reused in the Activity tab), triggered a live-reported
+total application freeze on its first real interactive use — a known Qt failure mode (a resize
+feedback loop inside a `QScrollArea`) that headless/offscreen screenshot verification cannot
+catch, since it never drives real interactive resize/paint behavior. Reverted outright to plain,
+long-established Qt layouts (a vertical stack for the pills, a fixed grid for the Activity tab's
+buttons) rather than risk the same failure mode chasing a fix blind.
+
+**Visual redesign**, following a design proposal drawn up this cycle and iterated against real
+screenshots and real live feedback: numbered sections and a masthead status line in Settings; a
+"Keys" summary showing a masked value and Set/Verified state per credential, directly targeting
+an earlier live report where a saved key gave no confirmation it had actually taken; a redesigned
+welcome message (a real capability index and clickable starter prompts, not plain markdown) and a
+matching restyle of the prompt-preview card; the "Suggested rewordings" boxed panel converted to
+in-chat cards, the same conversion the requirement gate and prompt preview already went through
+earlier; an Activity-tab fix for buttons overflowing off the dock's edge; and a real correctness
+fix for the Activity tab's memory panel, which was showing raw, unrendered `##`/`**` markdown
+instead of formatted text.
+
+Full suite: 1695 tests, 0 failures, including a new live-QGIS regression module
+(`tests/test_agent_live.py`) that exercises real tool execution against a real QGIS project and
+a real task-tracking pipeline, not mocks — closing a real gap every other agent test left open
+(mocking tool dispatch directly proves the tool-calling loop is correct, but never proves a tool
+call actually creates a real layer or populates the Activity tab's data).
+
+Still a release candidate, not final.
 
 <a id="v1-15-6-rc3"></a>
 ## [1.15.6-rc3] — 2026-09-15 — Release candidate: 2 more fixes on rc2
