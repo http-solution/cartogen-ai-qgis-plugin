@@ -194,6 +194,26 @@ class TestDeriveBubbleColors(unittest.TestCase):
         self.assertEqual(colors["accent"], _brand_accent(palette["highlight"]))
         self.assertNotEqual(colors["accent"], palette["highlight"])
 
+    def test_danger_is_theme_aware_not_a_flat_magenta(self):
+        # Broadsheet redesign (2026-09-16): "danger" must still visibly adapt across QGIS
+        # themes, same guarantee _brand_accent already gives "accent" -- a flat, theme-blind
+        # magenta would clash on an unexpected QGIS theme the same way a hardcoded brand
+        # color always risked before _brand_accent existed.
+        from cartogen_ai.core.ui.chat_formatting import _brand_danger, BRAND_MAGENTA
+        light = derive_bubble_colors({"window": "#f0f0f0", "highlight": "#3daee9"})
+        dark = derive_bubble_colors({"window": "#202020", "highlight": "#3daee9"})
+        self.assertEqual(light["danger"], _brand_danger("#3daee9"))
+        self.assertNotEqual(light["danger"], BRAND_MAGENTA)
+        # Same highlight, different window -> danger_bg (blended from window) must differ,
+        # while the ink color "danger" itself (blended from highlight only) stays the same.
+        self.assertEqual(light["danger"], dark["danger"])
+        self.assertNotEqual(light["danger_bg"], dark["danger_bg"])
+
+    def test_no_palette_fallback_still_has_danger_tokens(self):
+        colors = derive_bubble_colors(None)
+        self.assertIn("danger", colors)
+        self.assertIn("danger_bg", colors)
+
 
 class TestEscapePlainText(unittest.TestCase):
     def test_escapes_html_and_preserves_newlines_as_br(self):
@@ -389,6 +409,25 @@ class TestBuildDockStylesheet(unittest.TestCase):
     def test_is_deterministic_for_the_same_input(self):
         palette = {"window": "#ffffff", "highlight": "#123456"}
         self.assertEqual(build_dock_stylesheet(palette), build_dock_stylesheet(palette))
+
+    def test_success_and_danger_buttons_have_a_distinct_disabled_state(self):
+        # 2026-09-16 Activity-tab audit finding: successButton (the "Confirm and Apply
+        # Edit" button) had no #successButton:disabled QSS rule -- only the generic
+        # QPushButton:disabled one existed, and an ID-selector rule with no :disabled
+        # variant beats a bare-type-selector :disabled rule on specificity, so the button
+        # rendered visually identical (solid, active-looking) whether it was actually
+        # enabled or not. Confirmed live in a real screenshot before this fix.
+        qss = build_dock_stylesheet(None)
+        self.assertIn("#successButton:disabled", qss)
+        self.assertIn("#dangerButton:disabled", qss)
+
+    def test_success_button_uses_the_danger_magenta_not_green(self):
+        # Broadsheet redesign, 2026-09-16: successButton IS the destructive-edit confirm
+        # button, not a generic "success" -- it must take the same danger token
+        # dangerButton uses, not the old hardcoded #2e7d32 green.
+        qss = build_dock_stylesheet({"window": "#f0f0f0", "highlight": "#3daee9"})
+        self.assertNotIn("#2e7d32", qss)
+        self.assertNotIn("#c0392b", qss)
 
 
 if __name__ == "__main__":
