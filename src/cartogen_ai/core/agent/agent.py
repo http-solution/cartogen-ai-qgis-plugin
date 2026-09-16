@@ -509,10 +509,33 @@ class CartogenAi:
         snapshot (e.g. layer not found), gets snapshot=None, which record()
         already treats as "fall back to the existing new-layer-diff
         mechanism" -- no different from before this change for every other
-        tool."""
+        tool.
+
+        Real live crash, 2026-09-16, finally caught with a real traceback (every earlier
+        report of the same "Error: 'str' object has no attribute 'get'" text this session had
+        none): `arguments` arrives here as the RAW, still-JSON-encoded string from the model's
+        tool call -- run()'s loop reads it straight off fn.get("arguments", "{}") with no
+        parsing. _real_execute_tool/_execute_two_phase_tool each parse it into a dict
+        internally before using it, but snapshot_fn(arguments) below was called with the raw
+        string, BEFORE either of those ever runs -- and outside the try/except a few lines
+        down, which only wraps the dispatch call, not this. _snapshot_style
+        (_snapshot_registry.py) does `arguments.get("layer_name")`, assuming a dict, and
+        apply_categorized_style is registered with exactly that snapshot function -- any turn
+        that calls it (traceback confirmed: apply_categorized_style, after 15 unrelated
+        successful tool calls in the same turn) hit this every time, regardless of what else
+        ran first. Parsing once here, the same way the two dispatch targets already do
+        (isinstance guard first, so re-parsing an already-dict value later is a no-op), fixes
+        the actual reported bug -- the isinstance guard added to _compact_old_tool_results
+        earlier this session was a real, separate gap, not this one."""
         layer_ids_before = self._live_layer_ids()
+        try:
+            parsed_arguments = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            if not isinstance(parsed_arguments, dict):
+                parsed_arguments = {}
+        except (TypeError, ValueError):
+            parsed_arguments = {}
         snapshot_fn = get_snapshot_fn(name)
-        snapshot = snapshot_fn(arguments) if snapshot_fn else None
+        snapshot = snapshot_fn(parsed_arguments) if snapshot_fn else None
         # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading
         # "Error: 'str' object has no attribute 'get'" -- an uncaught AttributeError
         # that escaped run()'s tool-call loop entirely (task_runner.py's outer

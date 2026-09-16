@@ -373,6 +373,48 @@ class TestExecuteToolTransactionRecording(unittest.TestCase):
         self.assertEqual(entry["undo"]["kind"], "restore_field")
         self.assertEqual(entry["undo"]["tool_name"], "field_calculator")
 
+    def test_snapshot_fn_receives_a_parsed_dict_not_a_raw_json_string(self):
+        """Real live crash, 2026-09-16 -- finally caught with a real traceback after several
+        earlier reports of the same bare "Error: 'str' object has no attribute 'get'" text
+        with no traceback to confirm the site:
+
+            File "agent.py", line ~1056, in run
+                tool_result = self._execute_tool(name, arguments)
+            File "agent.py", line ~515, in _execute_tool
+                snapshot = snapshot_fn(arguments) if snapshot_fn else None
+            File "_snapshot_registry.py", line 157, in _snapshot_style
+                layer = _find_layer(arguments.get("layer_name"))
+            AttributeError: 'str' object has no attribute 'get'
+
+        run()'s loop reads `arguments` straight off the model's tool call as a raw JSON-encoded
+        STRING (fn.get("arguments", "{}")) -- _real_execute_tool/_execute_two_phase_tool each
+        parse it into a dict internally before use, but _execute_tool's own snapshot_fn(...)
+        call ran on the still-raw string, before either dispatch path (and before this
+        function's own try/except, which only wraps dispatch) ever touches it. Any tool
+        registered with a snapshot function (apply_categorized_style, confirmed by the real
+        traceback) crashed this way every time it was called with real (string) tool-call
+        arguments -- test_snapshot_fn_is_called_before_dispatch_for_a_registered_tool above
+        never caught this because it calls _execute_tool with an already-parsed dict, not the
+        raw string shape run() actually passes."""
+        agent = self._make_agent()
+        received = {}
+
+        def fake_snapshot_fn(arguments):
+            received["arguments"] = arguments
+            return {"kind": "restore_style", "layer_id": "x"}
+
+        with patch.object(agent_mod, "get_snapshot_fn",
+                           lambda name: fake_snapshot_fn if name == "apply_categorized_style" else None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool_dispatch", lambda self, name, args: {"success": True}), \
+             patch.object(agent_mod.CartogenAi, "_live_layer_ids", lambda self: set()):
+            # The real shape run()'s loop passes: a raw JSON-encoded string, exactly what
+            # fn.get("arguments", "{}") returns straight from the model's tool call.
+            result = agent._execute_tool("apply_categorized_style", '{"layer_name": "Health Facilities", "field": "category"}')
+
+        self.assertEqual(result, {"success": True})
+        self.assertIsInstance(received["arguments"], dict)
+        self.assertEqual(received["arguments"].get("layer_name"), "Health Facilities")
+
     def test_uncaught_dispatch_exception_becomes_a_normal_error_result(self):
         """Real live crash, 2026-09-13: a turn ended in a bare 'Error: 'str' object
         has no attribute 'get'' chat bubble -- an uncaught AttributeError that escaped
