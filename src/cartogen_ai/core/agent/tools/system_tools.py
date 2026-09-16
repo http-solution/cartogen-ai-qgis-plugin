@@ -274,7 +274,20 @@ def _validate_script_safety(script: str):
 @register_tool("search_web", "Search internet for real-time information or facts.", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
 def search_web(query: str, max_results: int = 3):
     try:
-        from duckduckgo_search import DDGS
+        # `ddgs` first, `duckduckgo_search` as a fallback for an environment that
+        # already has the old package working -- live-verified, 2026-09-18: PyPI's
+        # `duckduckgo_search` (even at 8.1.1, the version requirements.txt pins as the
+        # "thin compat shim" floor) silently returns ZERO results for a real query,
+        # no error, nothing to catch -- while `ddgs` (the actual current package the
+        # project renamed to) returns real results immediately for the identical
+        # query. Not a hypothetical: confirmed with a live network call, not just
+        # reading the deprecation notice. Same DDGS class/`.text()` call shape in
+        # both packages, so no logic below needs to change, only which module
+        # provides it.
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
             if not results:
@@ -285,8 +298,8 @@ def search_web(query: str, max_results: int = 3):
             return {"results": "\n\n".join(formatted)}
     except ImportError:
         return {
-            "error": "Required package 'duckduckgo-search' is missing. Ask the user to install it via "
-            "the qpip plugin, or manually in the OSGeo4W Shell: python -m pip install duckduckgo-search"
+            "error": "Required package 'ddgs' is missing. Ask the user to install it via "
+            "the qpip plugin, or manually in the OSGeo4W Shell: python -m pip install ddgs"
         }
     except Exception as e:
         return {"error": f"Search failed: {e}"}

@@ -17,13 +17,17 @@ pypdf
 python-docx
 openpyxl
 pandas
-# Pinned to a floor, unlike everything else in this file (QUAL-004, 2026-09-13 audit):
-# duckduckgo-search has no official API -- it scrapes DuckDuckGo's own response format,
-# has a documented history of breaking on upstream changes, and the PyPI package itself
-# has since been renamed (duckduckgo-search -> ddgs, old name now a thin compat shim).
-# >=8.1.1 is the version search_web (system_tools.py) is actually tested against; <9
-# avoids an untested future major-version jump silently changing DDGS's API shape.
-duckduckgo-search>=8.1.1,<9
+# Switched from duckduckgo-search to ddgs, 2026-09-18 -- live-verified: duckduckgo-search
+# (even at 8.1.1, the version this line used to pin as the "thin compat shim" floor)
+# silently returns ZERO results for a real query, no error raised, nothing for
+# search_web's own error handling to catch -- while ddgs (the actual current package
+# the project renamed to) returns real results immediately for the identical query.
+# ddgs has no official API either and the same documented history of breaking on
+# upstream changes as its predecessor -- floored, not pinned to an exact version, for
+# the same reason: system_tools.py's search_web is tested against this floor, and an
+# unbounded upper range risks an untested future major version silently changing
+# DDGS's API shape.
+ddgs>=9.16.0
 pdfplumber
 matplotlib
 folium

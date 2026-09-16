@@ -18,7 +18,13 @@ REQUIRED_PACKAGES = {
     "docx": "python-docx",
     "openpyxl": "openpyxl",
     "pandas": "pandas",
-    "duckduckgo_search": "duckduckgo-search",
+    # ddgs is the current package (system_tools.py's search_web imports it first,
+    # falling back to the old duckduckgo_search name) -- live-verified, 2026-09-18:
+    # duckduckgo_search silently returns zero results for a real query even at its
+    # own pinned floor version, while ddgs works immediately for the same query.
+    # Tracked here by its real importable module name so the startup dependency
+    # banner/install command names the package that actually works.
+    "ddgs": "ddgs",
     "pdfplumber": "pdfplumber",
     "matplotlib": "matplotlib",
     "folium": "folium",

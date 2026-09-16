@@ -1728,5 +1728,92 @@ class TestLoadWorkflowPreset(unittest.TestCase):
         self.assertEqual(called_key, "cartogen_ai/workflows/weekly_check")
 
 
+class TestSearchWebPrefersDdgs(unittest.TestCase):
+    """2026-09-18, live-verified: duckduckgo_search (even at 8.1.1, the version
+    requirements.txt used to pin as the "thin compat shim" floor) silently returns
+    ZERO results for a real query -- no error, nothing for search_web's own except
+    ImportError to catch. ddgs (the actual current package the project renamed to)
+    returned real results immediately for the identical query. search_web must
+    import ddgs first, only falling back to duckduckgo_search if ddgs genuinely
+    isn't installed."""
+
+    def setUp(self):
+        import sys
+        self._sys_modules_backup = dict(sys.modules)
+
+    def tearDown(self):
+        import sys
+        sys.modules.clear()
+        sys.modules.update(self._sys_modules_backup)
+
+    def _fake_ddgs_module(self, results):
+        import sys
+        import types
+
+        class _FakeDDGS:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def text(self, query, max_results=3):
+                return results
+
+        fake_mod = types.ModuleType("ddgs")
+        fake_mod.DDGS = _FakeDDGS
+        sys.modules["ddgs"] = fake_mod
+        sys.modules.pop("duckduckgo_search", None)
+        return fake_mod
+
+    def test_uses_ddgs_when_available(self):
+        from cartogen_ai.core.agent.tools.system_tools import search_web
+        self._fake_ddgs_module([{"title": "QGIS", "href": "https://qgis.org", "body": "GIS software"}])
+
+        res = search_web("qgis")
+
+        self.assertIn("results", res)
+        self.assertIn("QGIS", res["results"])
+
+    def test_falls_back_to_duckduckgo_search_when_ddgs_missing(self):
+        import sys
+        import types
+
+        class _FakeDDGS:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def text(self, query, max_results=3):
+                return [{"title": "Fallback result", "href": "https://x", "body": "y"}]
+
+        # No "ddgs" entry in sys.modules AND no real ddgs installed in THIS test
+        # process would make `from ddgs import DDGS` raise naturally -- but ddgs IS
+        # a real installed dependency of this project's own test environment, so
+        # block it explicitly the same way a genuinely-missing package would fail.
+        sys.modules.pop("ddgs", None)
+        sys.modules["ddgs"] = None  # import machinery treats a None entry as absent -> ImportError
+        fake_mod = types.ModuleType("duckduckgo_search")
+        fake_mod.DDGS = _FakeDDGS
+        sys.modules["duckduckgo_search"] = fake_mod
+
+        from cartogen_ai.core.agent.tools.system_tools import search_web
+        res = search_web("qgis")
+
+        self.assertIn("results", res)
+        self.assertIn("Fallback result", res["results"])
+
+    def test_no_results_from_ddgs_reports_a_message_not_a_silent_empty_success(self):
+        from cartogen_ai.core.agent.tools.system_tools import search_web
+        self._fake_ddgs_module([])
+
+        res = search_web("a query with genuinely no results")
+
+        self.assertIn("message", res)
+        self.assertNotIn("results", res)
+
+
 if __name__ == "__main__":
     unittest.main()
