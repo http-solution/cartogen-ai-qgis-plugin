@@ -23,7 +23,39 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.6-rc4 (2026-09-16):
+changelog=v1.15.6-rc5 (2026-09-17):
+    Release candidate: 3 real fixes from an extended live-testing session on top of rc4, plus a
+    full Broadsheet visual/structural redesign of the dock UI. Fixes, all reproduced against the
+    real agent pipeline: (1) the task router's own confidence floor was computed but never
+    checked -- a low-confidence match (e.g. "apply a color ramp to the raster layer" scoring
+    0.33) still got baked into a "recognised task" system-prompt directive, routing the model to
+    a completely unrelated deliverable; now a below-floor match falls through exactly like a
+    genuinely unmatched query. (2) External API string values wider than a memory layer's
+    shapefile-era field width (e.g. GDACS's multi-country `country` field) were silently dropped
+    by QGIS's own memory-provider width enforcement, with nothing surfacing it -- now clipped
+    defensively at every write site. (3) The most serious: a destructive-action confirmation
+    gate could be silently bypassed by normal chat use -- a user replying "Confirm" in the chat
+    box (not the Activity tab's own button) re-entered the free-form LLM loop with no structured
+    awareness of what was pending, and the model fabricated a "Confirmed" narrative without ever
+    re-calling the tool, so an approved edit silently never happened. Fixed at 3 compounding
+    layers: a pending confirmation now always lands on a dedicated task instead of overwriting an
+    unrelated one, a typed "Confirm"/"cancel" resolves through the exact same deterministic path
+    the Activity tab's button always used, and the pending tool/arguments are now surfaced in the
+    model's own prompt context as a defense-in-depth backstop.
+    Redesign ("Broadsheet", from a user-supplied mockup board, confirmed direction by direction):
+    the Chat/Activity tab split is gone in favor of one continuous scroll with a sticky plan strip
+    that states e.g. "3/4 steps complete -- 1 needs you" directly; the plain-text destructive-
+    action gate is now a real inline card with clickable Apply-edit/Cancel links wired to the same
+    safe confirmation path above; the Task Inspector and Project Notes/Memory sections moved from
+    always-docked tab content into their own dialogs; and a new layer-context picker gives
+    per-question, opt-out control over which loaded layers' schema reaches the model, defaulting
+    unchecked for any layer already tagged sensitive via the existing sensitivity tools. New
+    docs/LIVE_TEST_SCENARIOS.md adds 5 multi-turn workflow scenarios verified against real canvas/
+    attribute-table state, not chat prose. USER_GUIDE.md and the in-app Help window updated to
+    match. Full suite: 1751 tests, 0 failures; 34/34 live-QGIS tests passing.
+    Still a release candidate, not final.
+
+v1.15.6-rc4 (2026-09-16):
     Release candidate: a large batch of live-reported fixes on top of rc3, every one
     reproduced and verified against the packaged plugin, not just the dev tree. Two real
     crashes, root-caused with actual tracebacks (not guessed): (1) a tool's pre-execution

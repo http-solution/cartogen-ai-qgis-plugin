@@ -64,6 +64,38 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-17 — RC5 candidate (commit `3e4427c`) — headless, 6 targeted checks against a freshly
+built `dist/cartogen_ai_v1.15.6.zip` (177 entries, sha256
+`f0f9b92bd93fc0b23edb869fabf3dce2ca1a27384b6bb426d3c87ada78f8a5b7`, extracted fresh to a scratch
+directory and imported from THAT path, not the dev tree).** 3 real orchestrator fixes and a full
+4-phase UI redesign landed on top of RC4 (`aee354c`) -- see `CHANGELOG.md`'s `[1.15.6-rc5]` entry
+for full per-fix/per-phase detail.
+
+**16-category checklist: not re-run this cycle.** Every change this cycle is in
+`agent/prompt_refiner.py`/`agent/task_matcher.py`/`agent/agent.py`/`agent/task_manager.py` (the
+orchestrator) or `ui/*.py` (the dock redesign) -- nothing in `agent/tools/*.py` the 16-category
+checklist actually exercises changed at all, so RC4's already-passing 15/15 run (category 10
+PostGIS skipped, same as every prior cycle) is still the accurate result for that surface. Re-
+running it would exercise code that provably didn't change; the 6 targeted checks below plus the
+34 live-QGIS `QTest`-driven tests in `tests/test_chat_widget_live.py` (run against the dev tree,
+identical source to what's packaged) are what's actually new and load-bearing this cycle.
+
+**6 targeted checks, all passing, against the packaged code (not the dev tree):**
+1. **Router confidence-floor fix** -- `analyze_request("Apply a color ramp to the raster
+   layer.")` (a real below-`CONFIDENT_SCORE` query from the live report that started this fix)
+   produces `task=None`/`directive=""`, not a wrong "Recognised task" directive.
+2. **Field-width clipping** -- `_clip_to_field_width` actually clips a 300-char value to a
+   field's declared 255-char width.
+3. **Confirmation-gate dedicated-task fix** -- `AgentTaskManager.add_task()` appends a new task
+   without disturbing an existing `DONE` one, confirming the fix that used to silently overwrite
+   `tasks[0]` of an unrelated plan.
+4. **Single-scroll dock (Phase 1)** -- a real `CartogenAiDockWidget` has no `tab_widget`
+   attribute, `chat_tab_widget.plan_strip` exists, and the new `memory_btn` header button exists.
+5. **Inline safety-gate card (Phase 2)** -- `render_safety_gate_html` produces real
+   `cartogen://confirm/{id}`/`cartogen://cancel/{id}` links for a pending task.
+6. **Layer context picker (Phase 3)** -- `filter_layers_by_selection` actually excludes a layer
+   explicitly unchecked, confirmed against a synthetic 2-layer context.
+
 **2026-09-16 — RC4 candidate (commit `d3836ac`) — headless, FULL 16-category checklist plus 4
 targeted checks for the fixes new since RC3, run against a freshly built
 `dist/cartogen_ai_v1.15.6.zip` (173 entries, sha256
