@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
 """Chat tab, extracted from dock_widget.py's CartogenAiDockWidget
 (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
-quick-suggestion chips, prompt-refinement panel, and file-attachment analysis.
+quick-suggestion chips, prompt-refinement panel, file-attachment analysis, and (Broadsheet
+redesign Phase 1, mockup 1k "no tabs, one scroll") the sticky plan strip
+(self.plan_strip, see plan_strip_widget.py) -- this is now the dock's single continuous
+scroll, not one of two tabs. The old separate Activity tab (tasks_tab_widget.py) is
+deleted; its Task Inspector moved to task_inspector_dialog.py (opened per-task from the
+plan strip) and its Project Notes/Memory section moved to memory_dialog.py (opened from
+a header button in dock_widget.py).
 
 Signals (receiveMessageSignal/statusSignal/usageSignal/toolStepSignal/
 refinementFetchedSignal) stay defined on the parent CartogenAiDockWidget, not here
 -- per the split plan's recommendation, since statusSignal/usageSignal are also
-emitted from Tasks-tab and dock-header code (_copy_code_snippet, open_settings).
-This widget reaches them via self._dock, the same pattern used for
-self._dock.tasks_tab_widget below."""
+emitted from dock-header code (open_settings) and the two dialogs above. This widget
+reaches them via self._dock, the same pattern those dialogs use too."""
 
 import threading
 import traceback
@@ -222,6 +227,13 @@ class ChatTabWidget(QWidget):
     def init_ui(self):
         chat_layout = QVBoxLayout(self)
         chat_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Broadsheet redesign Phase 1 (mockup 1k, "no tabs, one scroll"): the live plan
+        # collapses into a sticky strip at the top of the thread instead of a separate
+        # Activity tab -- see plan_strip_widget.py.
+        from .plan_strip_widget import PlanStripWidget
+        self.plan_strip = PlanStripWidget(dock=self._dock)
+        chat_layout.addWidget(self.plan_strip)
 
         self.chat_browser = QTextBrowser()
         self.chat_browser.setOpenExternalLinks(True)
@@ -1014,11 +1026,14 @@ class ChatTabWidget(QWidget):
             self._dock.statusSignal.emit("")
             return
 
-        # Sending a new message means "back to work" -- hands off to the Tasks tab to
-        # snap out of history-browsing mode and refresh the live plan/memory panels
-        # while this request runs (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md: this used
-        # to be inline here since both tabs were one class; now Tasks owns its own state).
-        self._dock.tasks_tab_widget.sync_with_agent(agent)
+        # Sending a new message means "back to work" -- snaps the plan strip out of
+        # history-browsing mode and connects/refreshes the live plan while this request
+        # runs. Broadsheet redesign Phase 1: this used to hand off to the old Activity
+        # tab's TasksTabWidget.sync_with_agent (deleted in this change) -- the live-plan
+        # half of that method moved to plan_strip_widget.py; the memory-panel half moved
+        # to memory_dialog.py, which reads live state fresh on open instead of needing an
+        # eager per-send sync (it's a short-lived modal now, not a permanently docked tab).
+        self.plan_strip.sync_with_agent(agent)
 
         from ..agent.task_runner import run_agent_task
         from ..agent.map_context import get_map_context_summary

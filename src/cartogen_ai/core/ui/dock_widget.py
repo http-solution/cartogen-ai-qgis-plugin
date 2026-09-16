@@ -1,25 +1,30 @@
 # -*- coding: utf-8 -*-
 """
 Dock Widget UI for Cartogen AI.
-Provides dual-tab interface (Chat and Tasks/Notes Plan)
-with non-blocking execution threads and file attachment handling.
+Broadsheet redesign Phase 1 (mockup state 1k, "no tabs, one scroll"): this hosts ONE
+continuous-scroll widget (ChatTabWidget, which now owns the sticky plan strip too --
+see plan_strip_widget.py), not the old Chat/Activity QTabWidget split. Non-blocking
+execution threads and file attachment handling live in ChatTabWidget.
 
-CartogenAiDockWidget is the outer QDockWidget: it owns the cross-tab signals, the
-agent_provider callable, and the header (title/provider switcher/settings button).
-The two tabs (Chat, Activity) are separate QWidget classes in chat_tab_widget.py /
-tasks_tab_widget.py -- Help moved out of the dock's own tabs and into the QGIS
-Plugins menu (see plugin_main.py) per a 2026-09-12 real-session user report; its
-HelpTabWidget class (help_tab_widget.py) is unchanged, just no longer permanently
-embedded here.
-docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the full rationale for the split and
-what still needs verifying in a real QGIS session (this file cannot be imported or
-run outside one -- no QGIS_AVAILABLE fallback -- so nothing here has run since the
-split; see docs/RELEASE_SMOKE_TEST.md before shipping)."""
+CartogenAiDockWidget is the outer QDockWidget: it owns the cross-widget signals, the
+agent_provider callable, and the header (title/provider switcher/Memory button/settings
+button). The old separate Activity tab (tasks_tab_widget.py) is deleted -- its live plan
+moved into chat_tab_widget.py's plan_strip, its Task Inspector into
+task_inspector_dialog.py (opened per-task), and its Project Notes/Memory section into
+memory_dialog.py (opened from the new header button). Help moved out of the dock's own
+tabs and into the QGIS Plugins menu (see plugin_main.py) per a 2026-09-12 real-session
+user report; its HelpTabWidget class (help_tab_widget.py) is unchanged, just no longer
+permanently embedded here.
+docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md has the original tab-split rationale
+(superseded by this Phase 1 change, kept for history per CONTRIBUTING.md's frozen-docs
+rule) and what still needs verifying in a real QGIS session (this file cannot be
+imported or run outside one -- no QGIS_AVAILABLE fallback -- so nothing here has run
+since the split; see docs/RELEASE_SMOKE_TEST.md before shipping)."""
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize
 from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTabWidget, QComboBox, QScrollArea,
+    QPushButton, QComboBox,
 )
 from qgis.core import QgsSettings
 
@@ -28,7 +33,6 @@ from .theme import extract_theme_palette
 from .dock_constants import PROVIDER_CHOICES
 from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
-from .tasks_tab_widget import TasksTabWidget
 
 
 class CartogenAiDockWidget(QDockWidget):
@@ -53,13 +57,13 @@ class CartogenAiDockWidget(QDockWidget):
 
         self.init_ui()
 
-        # Connected after init_ui() so chat_tab_widget/tasks_tab_widget exist.
+        # Connected after init_ui() so chat_tab_widget (and its plan_strip) exist.
         self.receiveMessageSignal.connect(self.chat_tab_widget._add_message)
         self.statusSignal.connect(self.chat_tab_widget._set_status)
         self.usageSignal.connect(self.chat_tab_widget._set_usage_label)
         self.toolStepSignal.connect(self.chat_tab_widget._add_tool_step)
         self.refinementFetchedSignal.connect(self.chat_tab_widget._on_refinement_fetched)
-        self.planUpdatedSignal.connect(self.tasks_tab_widget._render_plan)
+        self.planUpdatedSignal.connect(self.chat_tab_widget.plan_strip._render_plan)
 
         from ..agent.scheduler import get_scheduler
         get_scheduler().workflow_tick_completed.connect(self.chat_tab_widget._on_scheduled_workflow_tick)
@@ -143,6 +147,14 @@ class CartogenAiDockWidget(QDockWidget):
         # icons (ui/icons.py).
         _header_palette = extract_theme_palette()
         _settings_icon_fg = (_header_palette or {}).get("text", "#000000")
+        # Broadsheet redesign Phase 1: Memory moved from a permanent Activity-tab section
+        # into its own dialog (memory_dialog.py, mockup state 1o), opened from a header
+        # button alongside Settings -- same "← back" dialog pattern Settings already uses.
+        self.memory_btn = QPushButton(" Memory")
+        self.memory_btn.setIcon(themed_icon("notes", _settings_icon_fg))
+        self.memory_btn.setIconSize(QSize(14, 14))
+        self.memory_btn.setObjectName("secondaryButton")
+        self.memory_btn.clicked.connect(self.open_memory)
         self.settings_btn = QPushButton(" Settings")
         self.settings_btn.setIcon(themed_icon("settings", _settings_icon_fg))
         self.settings_btn.setIconSize(QSize(14, 14))
@@ -151,42 +163,18 @@ class CartogenAiDockWidget(QDockWidget):
         header_layout.addWidget(title)
         header_layout.addStretch()
         header_layout.addWidget(self.provider_combo)
+        header_layout.addWidget(self.memory_btn)
         header_layout.addWidget(self.settings_btn)
         main_layout.addLayout(header_layout)
 
-        # Main Tab Widget
-        self.tab_widget = QTabWidget()
-        main_layout.addWidget(self.tab_widget)
-
+        # Broadsheet redesign Phase 1 (mockup 1k, "no tabs, one scroll"): ChatTabWidget is
+        # now the dock's single continuous-scroll content, not one of two QTabWidget tabs.
+        # It owns the sticky plan strip (plan_strip_widget.py) above its own chat thread,
+        # which already scrolls its own content internally (chat_browser) -- unlike the old
+        # Activity tab's many stacked sections, nothing here needed the extra QScrollArea
+        # wrapper that tab required to stop forcing the whole dock taller than the screen.
         self.chat_tab_widget = ChatTabWidget(dock=self)
-        self.tab_widget.addTab(self.chat_tab_widget, "💬 Chat")
-
-        # Wrapped in a QScrollArea rather than added to tab_widget directly:
-        # QTabWidget/QStackedWidget sizes the WHOLE dock to its tallest tab's natural size
-        # hint, not just the currently visible tab. With this tab's substantial content
-        # (progress bar, history, task list, inspector, memory panel) sized directly, that
-        # was forcing the entire QGIS window taller than the screen regardless of which tab
-        # was actually showing -- including the unrelated Chat tab. A QScrollArea decouples
-        # the tab's reported size from its content's full size; content that doesn't fit
-        # scrolls VERTICALLY instead of forcing growth. Horizontal scrolling is explicitly
-        # turned off below -- a real user report (screenshots, UI real-session-feedback
-        # fixes, 2026-09-12) showed both scrollbars appearing at once, which reads as
-        # cluttered/broken; content should wrap within the available width, never need
-        # horizontal scroll, so this makes that structurally impossible rather than tuning
-        # around one window size.
-        self.tasks_tab_widget = TasksTabWidget(dock=self)
-        tasks_scroll = QScrollArea()
-        tasks_scroll.setWidgetResizable(True)
-        tasks_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        tasks_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        tasks_scroll.setWidget(self.tasks_tab_widget)
-        # "Activity" -- renamed from "Tasks & Notes" (real bug, found from the same user
-        # report: Qt treats a bare "&" followed by a space as a mnemonic it can't resolve,
-        # rendering as a stray underscore, e.g. "Tasks _Notes" -- visible in the screenshots).
-        # The new name sidesteps the ampersand entirely rather than just escaping it, and per
-        # the user's own choice among the options offered, reads better than spelling out
-        # "Tasks and Notes" for what's really one activity feed (live plan + stored memory).
-        self.tab_widget.addTab(tasks_scroll, "📋 Activity")
+        main_layout.addWidget(self.chat_tab_widget)
 
         # Help used to be a permanent 3rd tab here (HelpTabWidget still exists as a class --
         # see plugin_main.py's show_help(), which now opens it in a QDialog from the QGIS
@@ -222,6 +210,14 @@ class CartogenAiDockWidget(QDockWidget):
             except Exception as e:
                 print(f"[DockWidget] Agent refresh after provider switch failed: {e}")
         self.receiveMessageSignal.emit("ai", f"🔀 Switched active provider to **{provider_label}**.")
+
+    def open_memory(self):
+        """Broadsheet redesign Phase 1, mockup state 1o: Project Notes & Memory as its own
+        dialog, same pattern as open_settings below -- replaces the old Activity tab's
+        always-docked Memory/Learned-Preferences sections."""
+        from .memory_dialog import CartogenAiMemoryDialog
+        dialog = CartogenAiMemoryDialog(self)
+        dialog.exec()
 
     def open_settings(self):
         from .settings_dialog import CartogenAiSettingsDialog

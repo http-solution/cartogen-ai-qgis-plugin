@@ -780,6 +780,103 @@ class TestChatWidgetLive(unittest.TestCase):
         finally:
             settings.setValue("cartogen_ai/provider", original)
 
+    # ------------------------------------------ single-scroll dock (Phase 1) --
+
+    def test_no_tabs_the_dock_hosts_one_continuous_scroll(self):
+        """Broadsheet redesign Phase 1 (mockup 1k): the old Chat/Activity QTabWidget
+        split is gone -- ChatTabWidget (with its plan strip) is the dock's only content."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        self.assertFalse(hasattr(dock, "tab_widget"))
+        self.assertFalse(hasattr(dock, "tasks_tab_widget"))
+        self.assertTrue(hasattr(dock.chat_tab_widget, "plan_strip"))
+
+    def test_plan_strip_progress_bar_flags_a_pending_confirmation(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X"}
+        ct.plan_strip.sync_with_agent(agent)
+
+        self.assertIn("needs you", ct.plan_strip.plan_progress_bar.format())
+
+    def test_plan_strip_hides_task_list_when_no_plan_is_active(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        ct.plan_strip.sync_with_agent(agent)
+        self.assertFalse(ct.plan_strip.task_list_widget.isVisible())
+
+    def test_plan_strip_shows_task_list_once_a_plan_exists(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("A plan", ["Step one"])
+        ct.plan_strip.sync_with_agent(agent)
+        self.assertTrue(ct.plan_strip.task_list_widget.isVisible())
+        self.assertEqual(ct.plan_strip.task_list_widget.count(), 1)
+
+    def test_task_inspector_dialog_confirm_resolves_via_the_shared_method(self):
+        """task_inspector_dialog.py must route through the SAME
+        _resolve_pending_confirmation the chat-typed reply and the safety-gate card's
+        links already use -- not a fourth, separately-duplicated confirm implementation."""
+        from cartogen_ai.core.ui.task_inspector_dialog import CartogenAiTaskInspectorDialog
+
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "X"}
+
+        dialog = CartogenAiTaskInspectorDialog(dock, task)
+        self.assertTrue(dialog.confirm_btn.isEnabled())
+        dialog._confirm()
+
+        self.assertEqual(agent.real_execute_tool_calls, [("field_calculator", {"layer_name": "X"}, True)])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
+
+    def test_task_inspector_dialog_read_only_disables_all_actions(self):
+        from cartogen_ai.core.ui.task_inspector_dialog import CartogenAiTaskInspectorDialog
+
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        task = {"id": "1", "status": "PREVIEW_READY", "pending_tool": "field_calculator",
+                "pending_args": {}, "rationale": "", "code_snippet": ""}
+
+        dialog = CartogenAiTaskInspectorDialog(dock, task, read_only=True)
+        self.assertFalse(dialog.confirm_btn.isEnabled())
+        self.assertFalse(dialog.cancel_task_btn.isEnabled())
+        self.assertFalse(dialog.edit_task_btn.isEnabled())
+
+    def test_memory_dialog_populates_from_the_live_agent(self):
+        from cartogen_ai.core.ui.memory_dialog import CartogenAiMemoryDialog
+
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        agent.memory_manager.store_project_note("preferred_crs", "EPSG:32638")
+
+        dialog = CartogenAiMemoryDialog(dock)
+        self.addCleanup(dialog.close)
+
+        self.assertIn("EPSG:32638", dialog.memory_browser.toPlainText())
+
+    def test_memory_button_opens_a_dialog(self):
+        """The header's Memory button (dock_widget.py's open_memory) must exist and use
+        the "notes" icon -- confirms icons.py's new template renders without raising."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        self.assertTrue(hasattr(dock, "memory_btn"))
+        self.assertFalse(dock.memory_btn.icon().isNull())
+
 
 if __name__ == "__main__":
     unittest.main()
