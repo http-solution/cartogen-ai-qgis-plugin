@@ -79,6 +79,34 @@ only adds this note -- no `.py` source changed between the two builds, so the 6 
 results are unaffected); the checksum actually tagged/released is sha256
 `97387bbc337b21fcedb30e18eae52fa82ff8dc047a5b40ca863561397de330cb`.
 
+**Second correction (2026-09-17, prompted by an independent external audit that flagged the
+checksum as unreconciled):** the line above is ALSO wrong, for the same self-referential reason
+one level deeper -- adding that correction paragraph was itself one more edit to this packaged
+file, so `97387bbc...` (built at `55ff923`) was superseded the moment it was written too. A THIRD
+build, at the real tag commit `2c24781`, produced sha256
+`2cc70239827add9aad8fa07724bc408f021730002bebfd9a5d80c26e6d9f668c` -- this is the one actually
+uploaded to the GitHub prerelease, confirmed twice by downloading the published asset and
+diffing it byte-for-byte against the local build (once during the original RC5 cut, once again
+independently while investigating the audit's report) -- both times, exact match, no discrepancy
+in the actual shipped artifact at any point.
+
+**The deeper, general lesson** (recorded in memory as `reference_rc_cutting_process.md` for future
+cycles, worth restating here since a rebuilt-zip checksum mismatch will keep recurring otherwise):
+`plugin_upload.py`'s `zipf.write()` embeds each source file's real on-disk mtime into the zip
+entry, and never normalizes it -- so TWO ZIPS BUILT FROM BYTE-IDENTICAL SOURCE CONTENT WILL STILL
+HASH DIFFERENTLY if built at different times, from different checkouts (a fresh `git archive`
+extraction resets every file's mtime to the extraction moment), or in a different working
+directory. A checksum mismatch between two independently-built zips is therefore NOT by itself
+evidence of a content or provenance problem -- comparing rebuild checksums across sessions/
+environments is close to meaningless with this build script as it stands. The only checksum
+comparison that actually verifies anything is the one this process's step 7 already does: build
+once, publish, immediately download that exact published asset, and diff it against the exact
+local build used to create it, in the same session, before anything else touches those files. If
+byte-reproducible builds ever matter enough to be worth the effort (e.g. for third-party
+verification without trusting a from-scratch rebuild claim), `plugin_upload.py` would need to
+pin every `ZipInfo.date_time` to a fixed value rather than reading it from the filesystem --
+not done today, and not required for the guarantee this process actually needs.
+
 **16-category checklist: not re-run this cycle.** Every change this cycle is in
 `agent/prompt_refiner.py`/`agent/task_matcher.py`/`agent/agent.py`/`agent/task_manager.py` (the
 orchestrator) or `ui/*.py` (the dock redesign) -- nothing in `agent/tools/*.py` the 16-category
