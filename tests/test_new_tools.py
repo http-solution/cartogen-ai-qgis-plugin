@@ -1597,6 +1597,63 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("boom2", result)
         self.assertIn("2 tool calls", result)
 
+    def test_sandbox_flailing_nudge_fires_after_threshold_consecutive_blocked_scripts(self):
+        # Live-reported, 2026-09-19: the model burned its whole tool-call budget on
+        # execute_pyqgis_script calls that were all rejected by the safety sandbox,
+        # never calling a directed tool. 3 in a row must trigger the nudge.
+        agent = CartogenAi()
+        log = [
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'QDir' -- not allowed in execute_pyqgis_script."),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'pathlib' -- not allowed in execute_pyqgis_script."),
+        ]
+        nudge = agent._sandbox_flailing_nudge(log)
+        self.assertIsNotNone(nudge)
+        self.assertIn("execute_pyqgis_script", nudge)
+
+    def test_sandbox_flailing_nudge_does_not_fire_below_threshold(self):
+        agent = CartogenAi()
+        log = [
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'QDir' -- not allowed in execute_pyqgis_script."),
+        ]
+        self.assertIsNone(agent._sandbox_flailing_nudge(log))
+
+    def test_sandbox_flailing_nudge_ignores_non_safety_errors(self):
+        # An execute_pyqgis_script call failing for a REAL reason (a bug in the model's
+        # own script, a missing layer) is the model iterating on its own code, not
+        # flailing against the sandbox wall -- must not trigger the nudge.
+        agent = CartogenAi()
+        log = [
+            ("execute_pyqgis_script", True, "NameError: name 'foo' is not defined"),
+            ("execute_pyqgis_script", True, "NameError: name 'bar' is not defined"),
+            ("execute_pyqgis_script", True, "NameError: name 'baz' is not defined"),
+        ]
+        self.assertIsNone(agent._sandbox_flailing_nudge(log))
+
+    def test_sandbox_flailing_nudge_ignores_a_mix_of_tools(self):
+        # A get_layers call breaking up the streak means the model isn't purely
+        # hammering the sandbox -- it's at least trying something else in between.
+        agent = CartogenAi()
+        log = [
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."),
+            ("get_layers", False, None),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'QDir' -- not allowed in execute_pyqgis_script."),
+        ]
+        self.assertIsNone(agent._sandbox_flailing_nudge(log))
+
+    def test_sandbox_flailing_nudge_only_looks_at_the_most_recent_window(self):
+        # An earlier blocked streak that the model already moved on from (a
+        # successful call happened after it) must not retroactively trigger.
+        agent = CartogenAi()
+        log = [
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'QDir' -- not allowed in execute_pyqgis_script."),
+            ("execute_pyqgis_script", True, "Script rejected for safety: Blocked import 'pathlib' -- not allowed in execute_pyqgis_script."),
+            ("get_layers", False, None),
+        ]
+        self.assertIsNone(agent._sandbox_flailing_nudge(log))
+
     def test_geocode_batch_rejects_empty_list(self):
         self.assertIn("error", geocode_batch([]))
 

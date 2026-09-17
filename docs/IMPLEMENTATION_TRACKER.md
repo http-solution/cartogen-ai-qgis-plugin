@@ -1,8 +1,9 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-09-19, against `v1.15.6` stable + 4 unreleased fixes on `main` (169 tools,
-1763 tests, 0 failures — the in-chat plan-progress card, the travel-time task-matcher fix, the
-chat scroll-to-bottom fix, and `export_to_csv`'s default output path, none cut as a release yet).
+**Last updated:** 2026-09-19, against `v1.15.6` stable + 5 unreleased fixes on `main` (169 tools,
+1771 tests, 0 failures — the in-chat plan-progress card, the travel-time task-matcher fix, the
+chat scroll-to-bottom fix, `export_to_csv`'s default output path, and the execute_pyqgis_script
+sandbox-flailing circuit breaker, none cut as a release yet).
 Previously stamped 2026-09-18, against `v1.15.6-rc6` (169
 tools, 1754 tests, 0 failures — see
 `docs/BUG_TRACKER.md` for the known-baseline breakdown). Previously stamped 2026-08-31 against
@@ -421,6 +422,22 @@ or a new explicit `visible: bool` parameter on the tool itself).
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
+- **2026-09-19, a code-level circuit breaker on `main` from a THIRD live-reported transcript of
+  the identical "Health facilities beyond one hour's travel" request -- proving the task router
+  and directive were both correct (independently confirmed by re-running the exact same query
+  text against both the dev repo and the actual installed plugin files) and the model still
+  burned its whole 20-call budget on `execute_pyqgis_script` probing anyway, never once calling a
+  directed tool.** `agent.py`'s tool-calling loop now injects a one-shot corrective message when
+  `SANDBOX_FLAILING_THRESHOLD` (3) consecutive `execute_pyqgis_script` calls in the same turn are
+  ALL rejected by the safety sandbox specifically -- a deterministic circuit breaker, not a prompt
+  wording change, since `execute_pyqgis_script`'s own "LAST RESORT ONLY" description clearly isn't
+  reliable enough alone. Does not fire for a script that fails for a real reason (a bug in the
+  model's own code, a missing layer) or when a different tool breaks up the streak. 8 new tests (5
+  pure-function, 3 full `run()`-loop integration tests using the existing `_CapturingLoopingClient`
+  harness) confirm the nudge fires exactly once, only after the threshold, and only for genuine
+  safety rejections. Not yet cut into a release. This is a mitigation for an underlying LLM-
+  compliance gap (the directive existing in the system prompt doesn't guarantee the model follows
+  it), not a fix for the gap itself -- worth watching whether it recurs with a different tool.
 - **2026-09-19, two more fixes on `main` from a second live-reported transcript (the travel-time
   router fix above actually worked correctly this time -- confirmed task 7.23 matched, not
   25c.01), not yet cut into a release.**
