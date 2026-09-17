@@ -297,6 +297,49 @@ class TestPacingAndCompaction(unittest.TestCase):
         self.assertNotEqual(first_tool_msg["content"], agent_mod._COMPACTED_TOOL_RESULT_PLACEHOLDER)
 
 
+class TestSandboxFlailingNudgeInjectedMidTurn(unittest.TestCase):
+    """Integration test for the circuit breaker above run()'s tool-calling loop: a client
+    that only ever calls execute_pyqgis_script, always rejected by the sandbox, must get the
+    corrective nudge appended to `messages` as soon as SANDBOX_FLAILING_THRESHOLD consecutive
+    rejections have happened -- not just that the pure detector function returns the right
+    string in isolation (already covered in test_new_tools.py), but that run()'s own loop
+    actually wires it in at the right point and only once."""
+
+    def _run_always_rejected(self):
+        client = _CapturingLoopingClient(tool_name="execute_pyqgis_script")
+        agent = _make_bare_agent(client)
+        rejected = {"error": "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."}
+        with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: dict(rejected)), \
+             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent.time.sleep"):
+            agent.run("find some health facility data")
+        return client
+
+    def test_nudge_appears_in_messages_after_the_threshold_is_reached(self):
+        client = self._run_always_rejected()
+        # The call right after the threshold-th rejection is the first one that could
+        # possibly carry the nudge -- it must be present from there through the end.
+        call_with_nudge = client.messages_per_call[agent_mod.SANDBOX_FLAILING_THRESHOLD]
+        nudge_msgs = [m for m in call_with_nudge if "execute_pyqgis_script is a last resort" in (m.get("content") or "")]
+        self.assertEqual(len(nudge_msgs), 1)
+
+    def test_nudge_never_appears_before_the_threshold_is_reached(self):
+        client = self._run_always_rejected()
+        for call_messages in client.messages_per_call[:agent_mod.SANDBOX_FLAILING_THRESHOLD]:
+            nudge_msgs = [m for m in call_messages if "execute_pyqgis_script is a last resort" in (m.get("content") or "")]
+            self.assertEqual(nudge_msgs, [])
+
+    def test_nudge_is_injected_only_once_across_the_whole_turn(self):
+        # A 20-iteration turn that never recovers would otherwise get re-nudged every
+        # single iteration once past the threshold -- must fire exactly once.
+        client = self._run_always_rejected()
+        last_call = client.messages_per_call[-1]
+        nudge_msgs = [m for m in last_call if "execute_pyqgis_script is a last resort" in (m.get("content") or "")]
+        self.assertEqual(len(nudge_msgs), 1)
+
+
 class TestExecuteToolTransactionRecording(unittest.TestCase):
     """_execute_tool (agent.py) wraps every tool call with a before/after
     live-layer-id snapshot and records it into self._transaction_log --

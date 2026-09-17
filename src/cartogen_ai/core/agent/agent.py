@@ -164,6 +164,23 @@ MAX_ITERATIONS = 20
 PACING_THRESHOLD_ITERATIONS = 3
 PACING_DELAY_SECONDS = 1.2
 
+# Live-reported, 2026-09-19: on two separate runs of the identical "Health facilities
+# beyond one hour's travel" request -- even WITH a correct task_directive already in the
+# system prompt naming calculate_service_area/travel_time_matrix/etc. -- the model instead
+# spent its whole MAX_ITERATIONS budget calling execute_pyqgis_script over and over trying
+# to probe the filesystem/interpreter for a "real" data file (os/sys/QDir/pathlib imports,
+# all correctly rejected by the sandbox), never once calling a directed tool, and failed
+# the turn outright. A prompt-level fix ("LAST RESORT ONLY" is already execute_pyqgis_
+# script's own tool description) clearly isn't reliable enough on its own -- this is a
+# deterministic, code-level circuit breaker for the specific pattern that actually
+# recurred: N consecutive execute_pyqgis_script calls in the SAME turn, every one rejected
+# by the safety sandbox, is a strong signal the model is flailing rather than making
+# progress. 3 was chosen as tight enough to interrupt this pattern well before it can burn
+# through a 20-call budget, loose enough that a single legitimate blocked attempt (the
+# model tries something reasonable, gets told no, tries a different approach) never
+# triggers it.
+SANDBOX_FLAILING_THRESHOLD = 3
+
 # Mid-turn context compaction (same rate-limit/size-resilience work): the in-flight `messages`
 # list for ONE turn keeps every prior tool call's result appended in full and re-sends the whole
 # thing on every subsequent client.complete() call -- for a large task this grows the per-call
@@ -953,6 +970,35 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
+    def _sandbox_flailing_nudge(self, turn_tool_log):
+        """Returns a corrective message to inject mid-turn, or None, when the most recent
+        SANDBOX_FLAILING_THRESHOLD entries in turn_tool_log are all execute_pyqgis_script
+        calls rejected by the safety sandbox specifically (an execute_pyqgis_script call
+        that fails for some OTHER reason -- a real bug in the script, a missing layer --
+        does not count; that's the model iterating on its own code, not flailing against a
+        wall it can't get through). See SANDBOX_FLAILING_THRESHOLD's own comment for the
+        live report this closes. Pure/deterministic, same "cheap code-level backstop, not a
+        second agent" shape as _reconcile_final_text_with_tool_log above."""
+        recent = turn_tool_log[-SANDBOX_FLAILING_THRESHOLD:]
+        if len(recent) < SANDBOX_FLAILING_THRESHOLD:
+            return None
+        if not all(
+            name == "execute_pyqgis_script" and is_error
+            and isinstance(error_msg, str) and "rejected for safety" in error_msg
+            for name, is_error, error_msg in recent
+        ):
+            return None
+        return (
+            f"You've made {SANDBOX_FLAILING_THRESHOLD} execute_pyqgis_script calls in a row, "
+            "every one rejected by the safety sandbox. Stop trying to probe the filesystem or "
+            "interpreter internals through it -- execute_pyqgis_script is a last resort, not a "
+            "way to explore what data exists. If this task's directive already named specific "
+            "tools to use, call those now. If you need data that isn't already in the project, "
+            "use a registered acquisition tool (geocode_and_enrich/geocode_batch for named "
+            "places, fetch_osm_features/search_hdx_datasets for real-world datasets) instead of "
+            "searching for a local file that may not exist."
+        )
+
     def run(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
         user has asked to abort (task_runner.py passes the running QgsTask's
@@ -1014,6 +1060,10 @@ class CartogenAi:
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        # One-shot flag for _sandbox_flailing_nudge below -- the nudge is a single course-
+        # correction attempt, not a repeating scold on every iteration if the model keeps
+        # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
+        sandbox_flailing_nudged = False
 
         for iteration_index in range(MAX_ITERATIONS):
             if should_stop is not None and should_stop():
@@ -1112,6 +1162,12 @@ class CartogenAi:
             # once per iteration, after this iteration's own tool results are appended, so a
             # large task's per-call payload to the model stays bounded for the rest of the turn.
             self._compact_old_tool_results(messages)
+
+            if not sandbox_flailing_nudged:
+                nudge = self._sandbox_flailing_nudge(turn_tool_log)
+                if nudge:
+                    messages.append({"role": "user", "content": nudge})
+                    sandbox_flailing_nudged = True
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same
