@@ -1,9 +1,15 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-08-31, against v1.4.4 (131 tools, 814 tests — see `docs/BUG_TRACKER.md`
-for the known-baseline breakdown). Previously stamped v1.4.1, which predated the task-register
-integration ([1.4.2]-[1.4.4]) and the 2026-08-31 UX/documentation audit fixes below — re-synced
-here, since a tracker that lags the code defeats its own stated purpose.
+**Last updated:** 2026-09-18, against `v1.15.6-rc6` (169 tools, 1754 tests, 0 failures — see
+`docs/BUG_TRACKER.md` for the known-baseline breakdown). Previously stamped 2026-08-31 against
+v1.4.4 — nearly seven weeks and 15 release-candidate/version cycles behind, most notably
+missing this repo getting a real GitHub remote (§2's "No git remote" bullet below was simply
+wrong by the time this update landed) and the entire v1.9.0-v1.15.6 workstream (live hazard
+monitoring, rate-limit resilience, the UI/chat Broadsheet redesign, the orchestrator reliability
+pass). Re-synced here for the same reason the previous sync gave: a tracker that lags the code
+defeats its own stated purpose. §4 below gets one consolidated entry for everything that closed
+in the gap rather than reconstructing a decision-by-decision history this pass doesn't have
+firsthand context for -- see `CHANGELOG.md` for the authoritative per-version detail.
 
 This is the one place to look for "what's actually still open right now." Every review, audit,
 and spec doc referenced below now lives in `docs/archive/` (moved there in the 2026-08-31
@@ -73,6 +79,16 @@ server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise stil
 `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`). Everything built toward the Professional tier
 so far (the plugin-side provider wiring, the `service/website/` billing hardening in
 §4 below) assumes Model A. Model B remains frozen/unresolved and isn't being built toward.
+
+**Re-confirmed still accurate, 2026-09-18**, prompted by an external audit that initially (and
+incorrectly) read `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`'s 3-provider Community
+restriction language as if it were a settled, active policy contradicting the shipped 5/6-provider
+product. It isn't — the audit withdrew that finding once shown this section and
+`docs/PRODUCT_TIERS.md`'s own "draft for a decision, not yet a settled fact" framing. Restated
+plainly since an outside reader keeps tripping on it: **today's shipped Community edition has
+never been provider-restricted, is not blocked on this item resolving, and nothing about §1.3
+being open threatens that.** This item blocks *future* Enterprise/restrictive-tier work only, per
+the narrowing two paragraphs above — it does not describe current product behavior.
 
 ### 1.4 GDPR / data-protection alignment
 
@@ -277,30 +293,35 @@ user base at all, and if so, at what enforcement level.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
-- **Live-QGIS verification pass — partially closed 2026-08-22.** The plugin now loads and the
-  dock widget works in a real QGIS session (see §1.2) — the "does it even load" half of this
-  gap, the largest single piece, is closed. What's not yet done: `docs/RELEASE_SMOKE_TEST.md`'s
-  full 16-category checklist (one representative tool per category) hasn't been run row by row,
-  so most of the 131-tool registry is still "correct per the code and test suite" only. Worth
-  running before a public release, not before further local dev.
+- **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
+  the full 16-category checklist itself has since been run repeatedly, not just once.**
+  `docs/RELEASE_SMOKE_TEST.md`'s checklist has run against every `v1.15.6-rcN` build
+  (rc1 through rc6, 2026-09-14 through 2026-09-18) — most recently confirming 15/15 runnable
+  categories pass (category 10, PostGIS, skipped under the checklist's own documented allowance
+  every time). RC5/RC6's own cycles didn't re-run the full 16 categories (their changes were
+  isolated to the orchestrator/UI and one tool dependency, not the tool surface that checklist
+  exercises broadly) — see that doc's run log for the exact reasoning each time. **Still
+  genuinely open, unchanged**: PostGIS's read-only-SQL enforcement has never been verified
+  against a real database in this environment — no test DB has ever been available, and a
+  2026-09-18 attempt to start one via Docker Desktop found its backend won't start without a
+  one-time interactive first-run only a human can complete.
 - **`generate_html_dashboard` connectivity requirement** — carried forward unchanged from prior
   review rounds; no new information available from this sandbox.
-- **No git remote on this repo.** `main` has 5 local commits and no remote configured — nothing
-  is on GitHub yet. Blocks the sync workflow, public Releases, plugins.qgis.org submission, and
-  anything that references a public repo URL. External action, not a code change.
-- **Test baseline is 2 failures, not the documented 1 — specific to the FUSE sandbox.** A full
-  run on 2026-08-21 in that sandbox gives 691 tests, **2 failures + 6 errors + 13 skipped**. The
-  extra one is `tests/test_export_tools.py::TestGenerateHtmlDashboardConnectivityNote` — it fails
-  when `folium` (an optional dependency) is absent, because the test patches `QGIS_AVAILABLE` but
-  has no corresponding optional-dependency guard, so it fails where the rest of the suite skips.
-  Environmental, not a code defect — the tool returned its documented graceful-degradation error
-  correctly. Recommended fix and the reasoning for flagging rather than applying it:
-  `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` §9.1. **2026-08-22, on a normal (non-FUSE) local
-  machine with `folium` installed:** 691 tests, 0 failures, 0 errors, 1 skipped — see
-  `docs/BUG_TRACKER.md`'s 2026-08-22 baseline entry. The FUSE-specific failures don't reproduce
-  outside that sandbox, and the optional-dependency guard has since been added (see
-  `CHANGELOG.md`), so the test now skips cleanly on any machine without `folium` instead of
-  failing. Current baseline: **691 tests, 0 failures, 0 errors, 14 skipped.**
+- ~~**No git remote on this repo.**~~ **Resolved, some time before 2026-09-14 (exact date not
+  captured when it happened).** This repo now has a real, private GitHub remote
+  (`cartogenai-glitch/CARTOGEN-AI`, confirmed via `git remote -v` and authenticated `gh repo
+  view` — see `CLAUDE.md`'s own 2026-09-14 correction note) with a full release history:
+  `v1.7.0` through `v1.15.5` as tagged releases, `v1.15.6-rc1` through `-rc6` as tagged
+  prereleases (none yet promoted to "Latest"). Sync workflow, tagged releases, and downloadable
+  asset verification are all in active, routine use — every RC follows the same 7-step process
+  (version bump, smoke test, commit, push+verify, rebuild+checksum, tag, GitHub prerelease+asset
+  diff), not written up as its own doc in this repo but applied identically every time. plugins.qgis.org submission
+  specifically has not happened (the remote is still private, not a public listing) — that's the
+  one piece of this bullet still genuinely open.
+- **Test baseline, current: 1754 tests, 0 failures, 36 skipped** (`python -m unittest discover
+  -s tests -t . -p "test_*.py"`, 2026-09-18, against `v1.15.6-rc6`). The FUSE-sandbox-specific
+  2-failure baseline this bullet used to describe (`folium` absence mishandling) was fixed long
+  ago per this bullet's own 2026-08-22 update and hasn't recurred in any measurement since.
 - ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
   2026-08-22** — both now hold a placeholder `README.md` pointing at
   `docs/archive/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
@@ -321,6 +342,82 @@ user base at all, and if so, at what enforcement level.
 ---
 
 ## 4. Resolved since the last full status review (informational — for traceability)
+
+- **2026-09-11 through 2026-09-18, v1.13.0 through v1.15.6-rc6 — the largest gap this tracker
+  has ever gone stale for (this section's own preceding entries stop at 2026-09-12/v1.9.0; this
+  one entry covers everything from there to now in one pass, not a day-by-day reconstruction).
+  Full per-version detail lives in `CHANGELOG.md`, not repeated here.**
+  - **API cost/token resilience (v1.13.0-v1.14.0).** 429-aware backoff on all 5 provider clients,
+    adaptive inter-iteration pacing, mid-turn tool-result compaction, tool-router word-boundary
+    matching (a plain "hi" dropped from ~23K to ~3.2K tokens across the full v1.13-v1.14 arc), and
+    the 47-rule base system prompt split into always/sensitive-cluster/domain tiers sent only when
+    relevant. Gemini implicit prompt caching (automatic, no code needed) plus cache-hit visibility
+    in the session usage line, later confirmed working against a real account in live use.
+  - **UI & Chat Redesign workstream (v1.15.2 onward) — culminating in the Broadsheet redesign.**
+    Every remaining boxed `QGroupBox` panel (the requirement gate, the prompt preview, the
+    prompt-refinement panel) converted to in-chat messages per repeated direct feedback. A
+    recurring `'str' object has no attribute 'get'` crash, reported identically at wildly
+    different tool-call counts across 5+ separate incidents, was finally root-caused for real in
+    `v1.15.6-rc4` (`_execute_tool`'s snapshot step was receiving raw, still-JSON-encoded tool-call
+    arguments instead of a parsed dict) after two earlier defensive-guard fixes landed without
+    being the actual cause. `v1.15.6-rc5`/`rc6` then shipped a full 4-phase visual and structural
+    redesign from a user-supplied mockup board ("Broadsheet"): the Chat/Activity tab split
+    replaced by one continuous scroll with a sticky plan strip; the destructive-action
+    confirmation gate re-rendered as a real inline card with clickable Apply-edit/Cancel links;
+    the Task Inspector and Project Notes/Memory sections moved from always-docked tab content into
+    per-task/on-demand dialogs; and a new layer-context picker giving explicit, per-question,
+    opt-out control over which loaded layers' schema reaches the model (defaulting unchecked for
+    anything already tagged via the existing `set_layer_sensitivity` tool).
+  - **Orchestrator reliability pass (v1.15.6-rc5), 3 real bugs found via close reading of an
+    actual live-session transcript, not assumption:** (1) the task router's own confidence floor
+    was computed but never checked, so a low-confidence match still routed the model to a
+    completely unrelated deliverable — the dominant cause of reports that answers weren't
+    "relative to the request." (2) External API string values wider than a memory layer's
+    shapefile-era field width (e.g. GDACS's multi-country `country` field) were silently dropped
+    by QGIS's own memory-provider enforcement, with nothing surfacing it. (3) The most serious: a
+    destructive-action confirmation gate could be bypassed by normal chat use — a plain "Confirm"
+    reply used to re-enter the free-form LLM loop with no structured awareness of what was
+    pending, and the model could fabricate a "Confirmed" narrative without ever re-calling the
+    tool, so an approved edit silently never happened. Fixed at 3 compounding layers (a dedicated
+    task instead of overwriting an unrelated one; the same deterministic resolution path for a
+    typed reply as the UI's own button; the pending tool/arguments surfaced in the model's own
+    prompt context as a backstop).
+  - **`v1.15.6-rc6`: `search_web`'s dependency was found genuinely broken and fixed.**
+    `duckduckgo_search`, even at its own documented-safe pinned floor version, was confirmed live
+    to silently return zero results for a real query with no exception raised — while `ddgs` (the
+    package it was renamed to upstream) returned real results immediately for the identical
+    query. Migrated with a fallback for anyone still on the old package.
+  - **Two rounds of independent external audit of `v1.15.6-rc5`**, both instructive: one flagged
+    the release checksum as unreconciled, which traced to this project's own zip-build script
+    embedding real on-disk file mtimes (a rebuild-checksum mismatch across sessions isn't, by
+    itself, evidence of a content problem — the actual published GitHub asset was re-verified
+    correct both times). The other flagged a "Community edition provider-restriction contradiction"
+    that traced to an explicitly-marked, never-merged draft proposal (`docs/archive/
+    TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`, §1.3 above) being misread as current policy — the
+    audit withdrew the finding once shown the exact quotes. Two small real documentation fixes
+    shipped from the exchange regardless: a stale tool count in `docs/PRODUCT_TIERS.md`, and a
+    leftover "Internal/commercial use" phrase in `README.md` inconsistent with the rest of that
+    page's Community/GPL framing.
+  - **Repository housekeeping**: 2 moderate Dependabot vulnerabilities in `service/website`'s
+    `qs` transitive dependency (via `express`/`body-parser`/`stripe`) resolved via a patch-level
+    `npm audit fix`, confirmed both alerts show `state: fixed` on GitHub. New
+    `docs/LIVE_TEST_SCENARIOS.md` adds 5 multi-turn workflow scenarios (not single-prompt checks
+    like `docs/RELEASE_SMOKE_TEST.md`) verified against actual canvas/attribute-table state.
+  - **What's still genuinely open from this whole arc, not silently dropped**: PostGIS live
+    read-only-SQL verification (no test database ever available in this sandbox; a 2026-09-18
+    attempt to start one via Docker Desktop found its backend won't start without a one-time
+    interactive first run); a live Gemini network observation from this sandbox specifically (the
+    real QGIS profile has a Gemini provider configured, but its encrypted credential needs an
+    interactive GUI unlock a headless boot never triggers); full positive-path coverage for
+    `ultralytics`/`torch`-backed imagery feature extraction (the packages install and import fine
+    in isolation, confirmed 2026-09-18, but the tool itself needs `qgis.core` + a real raster
+    layer, meaning installing a real ML runtime into a live QGIS Python environment rather than a
+    disposable one); and QGIS-version-range coverage beyond 4.2.2 (confirmed 2026-09-18: this
+    development machine has exactly one real, complete QGIS install — the other 3 version
+    directories present are bare, unusable OSGeo4W installer shells).
+  - `v1.15.6-rc1`-`rc6` are all published GitHub prereleases (checksum-verified against each
+    downloaded asset every time); none has been promoted to "Latest"/stable yet — an explicit,
+    standing "hold off, keep testing" instruction, not an oversight.
 
 - **Live hazard monitoring (v1.9.0, 2026-09-12).** New `fetch_nasa_active_fires`/
   `fetch_nasa_eonet_events`/`fetch_gdacs_disaster_alerts` plus `generate_situation_dashboard`
@@ -444,6 +541,8 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
 | `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` | Frozen review — repo-rename item still open, §2 above. |
 | `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` | Frozen plan, 2026-08-21. Phased Professional-tier build plan; §4 narrows §1.3 above, §9 records findings folded into §2. |
 | `RELEASE_SMOKE_TEST.md` | **Living checklist**, not frozen — update when tools/categories change. |
+| `LIVE_TEST_SCENARIOS.md` | **Living checklist**, added 2026-09-16 — multi-turn workflow scenarios a single-prompt smoke test can't catch (task routing, confirmation gates, map-visualization/technical-analysis accuracy). |
+| `PRODUCT_TIERS.md` | **Living positioning doc**, not frozen — §1.3 above is its live open question. |
 | `BUG_TRACKER.md` | **Living tracker**, not frozen — update as bugs are found/fixed. |
 | `CHANGELOG.md` | **Living log**, not frozen — the authoritative fix/feature history. |
 
