@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6](#v1-15-6) | 2026-09-18 | **Stable.** Promoted from rc6, no code changes -- security/audit remediation, crash root-causes, rate-limit resilience, the orchestrator reliability pass, and the full Broadsheet UI redesign, across 6 release candidates |
 | [1.15.6-rc6](#v1-15-6-rc6) | 2026-09-18 | Release candidate: search_web's dead duckduckgo-search dependency migrated to ddgs, found via an independent audit-verification pass of every RC5 open item |
 | [1.15.6-rc5](#v1-15-6-rc5) | 2026-09-17 | Release candidate: router-confidence, field-width, and confirmation-gate fixes, plus the full Broadsheet redesign (single-scroll dock, inline safety-gate card, layer context picker) |
 | [1.15.6-rc4](#v1-15-6-rc4) | 2026-09-16 | Release candidate: crash root-causes confirmed with real tracebacks, a tool-discovery router gap, a UI freeze reverted, and a Settings/chat/Activity visual redesign |
@@ -36,6 +37,57 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6"></a>
+## [1.15.6] — 2026-09-18 — Stable, promoted from rc6
+
+**No code changes from `v1.15.6-rc6`** — this release exists to mark that candidate as the
+version actually shipped as "Latest," not to introduce anything new. Six release candidates ran
+against this version line over 5 days, each checksum-verified against a real QGIS session before
+the next one started:
+
+- **rc1** (2026-09-14): remediated 27 of 32 findings from a full security/QGIS/API/performance/
+  code-quality audit.
+- **rc2** (2026-09-15): 4 fixes — a missing `requests` dependency declaration, a GDACS country
+  filter, dock screen-clamp timing, and the prompt-preview panel's first conversion to in-chat.
+- **rc3** (2026-09-15): a missing first-message echo fixed, and tool-call argument shape
+  validation added (guards against a double-JSON-encoded arguments string).
+- **rc4** (2026-09-16): the recurring `'str' object has no attribute 'get'` crash — reported
+  identically at wildly different tool-call counts across 5+ separate incidents — finally
+  root-caused for real (`_execute_tool`'s snapshot step was receiving raw, unparsed JSON tool-call
+  arguments) after two earlier defensive-guard fixes landed without being the actual cause; a
+  custom Qt layout that froze the whole application on first real interactive use, reverted
+  outright rather than debugged blind; and a Settings/chat/Activity visual pass.
+- **rc5** (2026-09-17): three real orchestrator bugs found from close reading of an actual live
+  session transcript — a task-router confidence floor that was computed but never checked
+  (routing low-confidence requests to a completely unrelated deliverable, the dominant cause of
+  reports that answers weren't "relative to the request"); external API values silently dropped
+  by a memory layer's shapefile-era field width; and a destructive-action confirmation gate that
+  could be silently bypassed by a plain "Confirm" reply in chat, fixed at 3 compounding layers.
+  Plus the full 4-phase Broadsheet UI redesign: a single continuous scroll replacing the Chat/
+  Activity tab split, an inline destructive-action confirmation card with clickable Apply-edit/
+  Cancel links, the Task Inspector and Project Notes/Memory moved into on-demand dialogs, and a
+  new layer-context picker for explicit, opt-out control over what schema reaches the model.
+- **rc6** (2026-09-18): `search_web`'s `duckduckgo-search` dependency confirmed genuinely broken
+  (silently returns zero results for a real query) and migrated to `ddgs` — found by
+  independently verifying every item left open by two rounds of external audit of rc5, rather
+  than accepting "reported PASS, not independently rerun" as a final answer. Both audit rounds'
+  own headline findings (a release-checksum non-issue caused by this build script's zip entries
+  embedding real file mtimes; a licensing-contradiction claim traced to a never-merged draft
+  proposal misread as current policy) were resolved without any code change.
+
+**Known, honestly-tracked open items at this promotion, not resolved by it** — see
+`docs/IMPLEMENTATION_TRACKER.md` for the current, living list: PostGIS live read-only-SQL
+enforcement has never been verified against a real database in this development environment
+(Docker's backend won't start there without a one-time interactive first run); a live Gemini
+network observation from that same environment is blocked on an interactive credential-store
+unlock a headless process never triggers; imagery feature extraction (`ultralytics`/`torch`) is
+confirmed installable and importable but not end-to-end tested against a real QGIS raster layer;
+and the Community/Professional/Enterprise licensing path (`docs/PRODUCT_TIERS.md`) remains an
+open business/legal decision that does not affect this edition's shipped functionality — the
+Community edition has never been provider-restricted and ships all 6 provider integrations today.
+
+Full suite: 1754 tests, 0 failures.
 
 <a id="v1-15-6-rc6"></a>
 ## [1.15.6-rc6] — 2026-09-18 — Release candidate: search_web's dead dependency migrated to ddgs

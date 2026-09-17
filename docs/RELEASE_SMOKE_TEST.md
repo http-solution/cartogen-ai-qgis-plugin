@@ -64,6 +64,20 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-18 — v1.15.6 STABLE, promoted from rc6 — no code changes, so no new tool-level testing
+against this build specifically.** Every real verification this version carries is the rc1-rc6
+history below and above: 6 release candidates, each checksum-verified against a real QGIS session
+in turn, culminating in rc6's 3 targeted checks (still accurate for this build, since the packaged
+Python source is byte-identical to rc6's — only `metadata.txt`/`README.md`/`CHANGELOG.md` text
+changed to mark the promotion). Checksum deliberately not recorded here for the same
+self-reference reason noted in rc6's own entry below — see step 7's download-and-diff for the
+actual verification. **Known open items this promotion does not resolve**: PostGIS live
+enforcement (still no test database available; Docker's backend needs a one-time interactive
+first run this environment can't complete headlessly), a live Gemini network observation (blocked
+on an interactive credential-store unlock), and `ultralytics`/`torch`'s full end-to-end path
+(confirmed installable, not tested against a real QGIS raster layer) — see
+`docs/IMPLEMENTATION_TRACKER.md` for the current status of each.
+
 **2026-09-18 — RC6 candidate — headless, 3 targeted checks against a freshly built
 `dist/cartogen_ai_v1.15.6.zip` (177 entries, extracted fresh to a scratch directory and imported
 from THAT path, not the dev tree). Checksum deliberately NOT recorded here as "the" release
