@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.15.6-rc6](#v1-15-6-rc6) | 2026-09-18 | Release candidate: search_web's dead duckduckgo-search dependency migrated to ddgs, found via an independent audit-verification pass of every RC5 open item |
 | [1.15.6-rc5](#v1-15-6-rc5) | 2026-09-17 | Release candidate: router-confidence, field-width, and confirmation-gate fixes, plus the full Broadsheet redesign (single-scroll dock, inline safety-gate card, layer context picker) |
 | [1.15.6-rc4](#v1-15-6-rc4) | 2026-09-16 | Release candidate: crash root-causes confirmed with real tracebacks, a tool-discovery router gap, a UI freeze reverted, and a Settings/chat/Activity visual redesign |
 | [1.15.6-rc3](#v1-15-6-rc3) | 2026-09-15 | Release candidate: 2 more fixes on rc2 -- missing first-message echo, tool-argument shape validation |
@@ -35,6 +36,65 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-15-6-rc6"></a>
+## [1.15.6-rc6] — 2026-09-18 — Release candidate: search_web's dead dependency migrated to ddgs
+
+A real fix found by closing out RC5's remaining open items for real rather than leaving them as
+"reported PASS, not independently rerun" — two rounds of external audit on RC5 (see below) had
+already confirmed the mechanical release state, but 4 items were still genuinely unverified:
+PostGIS live enforcement, a real Gemini network observation, QGIS-version-range coverage beyond
+4.2.2, and optional-dependency positive-path coverage. Attempted every one for real.
+
+**`search_web`'s dependency was genuinely broken, and is now fixed.** `duckduckgo_search`, even
+at 8.1.1 (the version `requirements.txt` pinned as its documented "thin compat shim" floor),
+silently returns zero results for a real live query — no exception raised, nothing for
+`search_web`'s own `except ImportError` to catch, so the tool just reported "no results found"
+for a completely valid query as though that were a normal, unremarkable answer. The identical
+query against `ddgs` (the actual current package this dependency was renamed to upstream)
+returned real results immediately, confirmed live, not from reading the deprecation notice alone.
+`search_web` now imports `ddgs` first, falling back to `duckduckgo_search` only if `ddgs`
+genuinely isn't installed — both expose the same `DDGS` class/`.text()` call shape, so nothing
+below the import needed to change. `requirements.txt` and the startup dependency-check banner
+(`agent/deps.py`) now track `ddgs` (floored at 9.16.0, the version this fix was tested against)
+instead of the dead pin. 3 new tests confirm the preference order and the fallback path.
+
+**The other 3 items got honest, closing answers — not silently declared done:**
+- **QGIS version-range coverage**: this machine has exactly ONE real, complete QGIS install
+  (4.2.2). The other 3 version directories present (`3.44.12`, `3.44.13`, `4.2.0`) are all bare
+  OSGeo4W installer shells with no usable Python environment at all — resolved as "not further
+  testable in this environment," a real finding, not a gap left open indefinitely.
+- **Optional-dependency positive paths**: `python-docx` and `pdfplumber` both confirmed working
+  against real generated test files (a real `.docx` with a table, a real PDF with a table)
+  through the plugin's own `read_attached_file`/`extract_pdf_tables` code, in an isolated
+  throwaway environment. `ultralytics`/`torch` installed and imported successfully the same way,
+  confirming the packages work on this machine — completing that specific tool's own end-to-end
+  test needs `qgis.core` plus a real raster layer, meaning installing a real ML runtime into the
+  live QGIS Python environment rather than a disposable one; deliberately not done without
+  explicit sign-off, given that weight and persistence.
+- **PostGIS live verification and a live Gemini network observation remain genuinely blocked** —
+  Docker Desktop's backend won't start without a one-time interactive first run only a human can
+  complete; the real QGIS profile has a Gemini provider configured, but its encrypted credential
+  needs the interactive GUI's master-password unlock, which a headless boot never triggers.
+
+**Two rounds of external audit on RC5**, both instructive: the first flagged the release checksum
+as unreconciled, which traced to `plugin_upload.py`'s zip embedding real on-disk file mtimes
+(never normalized) — a checksum mismatch across independent rebuilds is not, by itself, evidence
+of a content problem with this build script, documented plainly so it stops causing false alarms.
+The actual published GitHub asset was re-downloaded and re-hashed fresh, twice, confirming the
+real release was never in question. The second flagged a "product identity/licensing
+contradiction" between the shipped 5/6-provider Community edition and a supposed "Community
+contract" limiting it to 3 — traced to `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`, an
+explicitly-marked, never-merged DRAFT being misread as current policy; `README.md`, `CLAUDE.md`,
+and `docs/PRODUCT_TIERS.md` are actually mutually consistent, and the audit withdrew the finding
+once shown the exact quotes. Two small real documentation fixes came out of that exchange anyway:
+a stale "165-tool" count in `docs/PRODUCT_TIERS.md` (live count is 169), and a leftover "Internal/
+commercial use" phrase in `README.md`'s Support section, inconsistent with the rest of the page's
+Community/GPL framing.
+
+Full suite: 1754 tests, 0 failures (up from rc5's 1751).
+
+Still a release candidate, not final.
 
 <a id="v1-15-6-rc5"></a>
 ## [1.15.6-rc5] — 2026-09-17 — Release candidate: router/field-width/confirmation-gate fixes, and the Broadsheet redesign
