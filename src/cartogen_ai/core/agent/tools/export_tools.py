@@ -144,22 +144,66 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
         return f"Export succeeded but CSV formula-injection sanitization failed: {e}"
 
 
-@register_tool("export_to_csv", "Export layer attribute table to CSV file.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["layer_name", "output_path"]})
-def export_to_csv(layer_name, output_path):
+def _sanitize_filename(name):
+    safe = "".join(c if c.isalnum() or c in "._- " else "_" for c in str(name)).strip()
+    return safe or "layer"
+
+
+def _derive_csv_path(layer, output_path):
+    """Returns (path, used_desktop_fallback) for export_to_csv. Same convention as
+    styling_tools.py's _derive_style_path/provenance_tools.py's _derive_sidecar_path: an
+    explicit output_path always wins; otherwise sits the .csv beside the layer's own
+    on-disk source when that resolves to a real file, falling back to Desktop (named after
+    the layer) for a scratch/memory layer -- exactly the shape most `export_to_csv` calls
+    are in practice (a facility/analysis layer built in-session from tool output, never
+    saved to disk itself). Live-reported bug, 2026-09-19: `output_path` was a hard-required
+    argument with no default, so a turn that ran out of tool-call budget before the model
+    happened to invent a path ended in "please specify a destination file path" -- a dead
+    end after real analysis had already completed, for an argument this codebase already
+    has an established default-derivation pattern for everywhere else it appears."""
+    if output_path:
+        return output_path, False
+
+    source = ""
+    try:
+        source = layer.source() or ""
+    except Exception:
+        source = ""
+    base_path = source.split("|", 1)[0] if source else ""
+    if base_path and os.path.isfile(base_path):
+        return f"{os.path.splitext(base_path)[0]}.csv", False
+
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    if not os.path.isdir(desktop):
+        desktop = os.path.expanduser("~")
+    return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.csv"), True
+
+
+@register_tool("export_to_csv", "Export layer attribute table to CSV file. output_path is optional -- "
+               "omit it to save beside the layer's own source file (or to Desktop for a scratch/memory "
+               "layer with no on-disk source).",
+               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["layer_name"]})
+def export_to_csv(layer_name, output_path=None):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    path, used_fallback = _derive_csv_path(layer, output_path)
     result = _write_vector(
         layer,
-        output_path,
+        path,
         "CSV",
         layer_options=["GEOMETRY=AS_WKT", "SEPARATOR=COMMA"],
     )
     if result.get("success"):
         string_field_names = {f.name() for f in layer.fields() if f.type() == QVariant.String}
-        sanitize_error = _sanitize_csv_formula_injection(output_path, string_field_names)
+        sanitize_error = _sanitize_csv_formula_injection(path, string_field_names)
         if sanitize_error:
             return {"error": sanitize_error}
+        if used_fallback:
+            result["warning"] = (
+                "No output_path given and the layer has no real on-disk source (a scratch/"
+                "memory layer) -- saved to Desktop instead."
+            )
     return result
 
 

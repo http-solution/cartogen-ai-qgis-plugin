@@ -1,8 +1,9 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-09-19, against `v1.15.6` stable + 2 unreleased fixes on `main` (169 tools,
-1759 tests, 0 failures — the in-chat plan-progress card and the travel-time task-matcher fix
-below, neither cut as a release yet). Previously stamped 2026-09-18, against `v1.15.6-rc6` (169
+**Last updated:** 2026-09-19, against `v1.15.6` stable + 4 unreleased fixes on `main` (169 tools,
+1763 tests, 0 failures — the in-chat plan-progress card, the travel-time task-matcher fix, the
+chat scroll-to-bottom fix, and `export_to_csv`'s default output path, none cut as a release yet).
+Previously stamped 2026-09-18, against `v1.15.6-rc6` (169
 tools, 1754 tests, 0 failures — see
 `docs/BUG_TRACKER.md` for the known-baseline breakdown). Previously stamped 2026-08-31 against
 v1.4.4 — nearly seven weeks and 15 release-candidate/version cycles behind, most notably
@@ -333,6 +334,41 @@ collisions as they're found live.
 
 ---
 
+### 1.9 `run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones
+
+**Added 2026-09-19, from a live-reported "layer order is wrong" complaint.** Live-verified that
+`set_layer_order`/`_reorder_top_level_layers` (`styling_tools.py`) themselves are NOT buggy: a
+throwaway 4-layer project confirmed `set_layer_order(["A","B","C","D"])` produces exactly
+`layerOrder() == ["A","B","C","D"]`, top to bottom, every time (`python-qgis.bat`, live).
+
+**What's actually happening:** a real turn (the "Health facilities beyond one hour's travel"
+analysis) called `run_allowlisted_processing_algorithm` four times to reproject/buffer/intersect
+its way to an answer, producing `Assessment_Origin_3857`, `Access_Threshold_5km`,
+`Health_Facilities_3857`, and `Facilities_Within_5km` -- of which only `Access_Threshold_5km` (the
+buffer) was ever a real deliverable; the two reprojected copies and the (0-feature) intersection
+result exist purely as internal computation steps. All four were added to the project fully
+visible (`QgsProject.instance().addMapLayer(new_layer)`, no visibility flag). The model's own
+`set_layer_order` call afterward only named 4 layers (the two originals, the buffer, and the
+basemap) -- the two reprojected duplicates and the empty intersection layer were left out of that
+call entirely and sit in the legend/map at whatever position they landed in by default, visually
+cluttering a map that otherwise looks intentional.
+
+**Why this isn't a mechanical fix.** Hiding every `run_allowlisted_processing_algorithm` output by
+default would be wrong just as often as leaving it visible -- many allowed algorithms (`native:
+buffer` for a requested buffer map, `native:clip` for a requested clip) ARE the deliverable a task's
+own `layer` output contract expects to see rendered (`output_router.satisfied()`'s `layer` branch
+explicitly credits `buffer_`/`clip_`/etc. as satisfying that contract). There's no way to tell
+"purely-internal reprojection step" from "the actual requested result" from inside this one tool
+call alone -- that requires either a caller-supplied hint (a new parameter?) or a smarter
+default (e.g. hide only when `new_layer_name` wasn't given, on the theory that the model names
+layers it means to keep visible) — a real design call, not an obvious fix.
+
+**Needs:** a decision on the right default (always visible as today; always hidden requiring an
+explicit follow-up to show it; hidden only when the model didn't bother naming the output layer;
+or a new explicit `visible: bool` parameter on the tool itself).
+
+---
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
@@ -385,6 +421,27 @@ collisions as they're found live.
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
+- **2026-09-19, two more fixes on `main` from a second live-reported transcript (the travel-time
+  router fix above actually worked correctly this time -- confirmed task 7.23 matched, not
+  25c.01), not yet cut into a release.**
+  - **Chat scroll-to-bottom fixed for cursor-inserted blocks.** `_add_message`'s existing
+    force-scroll fix (2026-09-15) only covered `chat_browser.append()`; `_flush_tool_steps_summary`
+    and the new in-chat plan card (`_on_live_plan_updated`) insert via `QTextCursor` directly,
+    which bypasses `append()`'s scroll heuristic entirely -- neither ever scrolled the view down.
+    Fixed by force-scrolling after a genuinely NEW block lands (not on every in-place update or
+    spinner tick, which would yank the view down several times a second during a running turn).
+    Live-verified: a scripted scroll-to-top followed by a new tool-steps block or a new plan card
+    both correctly snap back to the bottom; a spinner tick on an already-visible card does not.
+  - **`export_to_csv`'s `output_path` is no longer a hard-required argument.** Live-reported dead
+    end: a turn that ran out of tool-call budget before the model supplied a path ended in "please
+    specify a destination file path" after the real analysis (including a full generated report)
+    had already completed. Now defaults the same way `save_layer_style`'s `_derive_style_path`
+    already does -- beside the layer's real on-disk source, or Desktop for a scratch/memory layer
+    -- rather than leaving the model with nothing sensible to default to. 4 new tests; live-verified
+    against a real memory layer.
+  - **Investigated and ruled out:** the same transcript's "layer order is wrong" complaint is NOT a
+    bug in `set_layer_order` (live-verified correct); see §1.9 above for what's actually happening
+    and why it's a real design decision, not a quick fix.
 - **2026-09-19, two fixes on `main`, not yet cut into a release.**
   - **In-chat plan-progress card, replacing the docked plan strip.** `plan_strip_widget.py` (the
     Broadsheet Phase 1 sticky panel above the chat) was live-user-rejected in turn -- "i dont like
