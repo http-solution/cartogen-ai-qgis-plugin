@@ -602,6 +602,118 @@ def render_safety_gate_html(task, colors):
     return card
 
 
+# Braille-dot spinner frames for the one task currently IN_PROGRESS in an in-chat plan
+# card (render_task_progress_html) -- cycled by chat_tab_widget._tick_plan_spinner on a
+# QTimer. Chosen over a rotating clock/hourglass emoji: renders as a single quiet glyph
+# at any font size instead of a cartoonish icon, matching this app's "elegant but
+# professional" bar for in-chat motion (2026-09-17, replacing the sticky plan-strip
+# widget above the chat -- see plan_strip_widget.py's own docstring for what this
+# superseded and why: a separately-docked progress bar read as a debug-panel leftover,
+# and the user asked for task progress to live inside the conversation itself instead).
+PLAN_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+_PLAN_TASK_STATUS_STYLE = {
+    # (glyph, color_key) -- color_key is resolved against `colors` at render time so every
+    # row stays theme-aware instead of a hardcoded hex per status.
+    "DONE": ("&#10003;", "subtle"),
+    "FAILED": ("&#10007;", "danger"),
+    "TODO": ("&#8211;", "subtle"),
+}
+
+
+def render_task_progress_html(plan_data, colors, spinner_frame=0):
+    """In-chat plan/progress card -- supersedes plan_strip_widget.py's always-docked strip
+    above the chat (2026-09-17 redesign: the user found a separate pinned panel with
+    animation on it felt like a debug overlay, and asked for task progress to render
+    inside the conversation instead, with the current task animated and the list settling
+    into place as steps complete). Lives in the message log like any other block, updated
+    in place while the plan it names is still the active one (see chat_tab_widget.py's
+    _on_live_plan_updated/_tick_plan_spinner, which reuse the same tracked-cursor-span
+    technique render_tool_steps_toggle_html's click-to-expand already relies on) --
+    once a NEW plan starts, the old card is left as a frozen record in scrollback rather
+    than overwritten, so plan history is just "scroll up" instead of a separate dropdown
+    (plan_strip_widget.py needed its own plan_history_combo for exactly this; here the
+    chat log already provides it for free).
+
+    A DONE task renders as a single condensed line (checkmark + description) so finished
+    steps visually "settle" into a quiet trail; the one IN_PROGRESS task is the only line
+    that's bold/accented and carries the animated spinner glyph; TODO tasks stay dim.
+    `pending_tool` tasks (waiting on the user via the separate safety-gate card, see
+    render_safety_gate_html) get a small "needs you" chip here too, so the plan card
+    doesn't silently look "stuck" while the real confirmation card is what's asking.
+
+    Clicking any row opens the Task Inspector dialog exactly like the old strip's list
+    did (cartogen://task/{id}, resolved by chat_tab_widget._on_step_anchor_clicked); a
+    small "Clear plan" link at the bottom is cartogen://clearplan."""
+    text_color = colors.get("text", "#1c1c1c")
+    subtle_color = colors.get("subtle", "#666666")
+    accent = colors.get("accent", "#0b6ea3")
+    danger = colors.get("danger", "#A3255A")
+    border = colors.get("border", "#d0d0d0")
+
+    title = plan_data.get("title", "")
+    tasks = plan_data.get("tasks", [])
+    total = len(tasks)
+    done = sum(1 for t in tasks if t.get("status") == "DONE")
+
+    heading = (
+        f'<div style="font-size:11px;font-weight:bold;letter-spacing:0.04em;color:{subtle_color};'
+        f'text-transform:uppercase;margin-bottom:4px;">&#128203;&nbsp;{escape_plain_text(title) or "Plan"}'
+        f'&nbsp;&middot;&nbsp;{done}/{total} done</div>'
+    )
+
+    rows = []
+    for task in tasks:
+        status = task.get("status", "TODO")
+        desc = escape_plain_text(task.get("description", ""))
+        task_id = task.get("id", "")
+        href = f"cartogen://task/{task_id}"
+        chip = ""
+        if task.get("pending_tool"):
+            chip = (
+                f'<span style="background-color:{danger};color:#ffffff;border-radius:2px;'
+                'padding:0 5px;font-size:9.5px;margin-left:6px;">needs you</span>'
+            )
+        if status == "IN_PROGRESS":
+            glyph = PLAN_SPINNER_FRAMES[spinner_frame % len(PLAN_SPINNER_FRAMES)]
+            rows.append(
+                f'<div style="font-size:12px;color:{accent};font-weight:600;margin:3px 0;">'
+                f'<a href="{href}" style="text-decoration:none;color:{accent};">'
+                f'{glyph}&nbsp;{desc}</a>{chip}</div>'
+            )
+        elif status == "DONE":
+            glyph, color_key = _PLAN_TASK_STATUS_STYLE["DONE"]
+            rows.append(
+                f'<div style="font-size:11px;color:{colors.get(color_key, subtle_color)};margin:1px 0;">'
+                f'<a href="{href}" style="text-decoration:none;color:inherit;">{glyph}&nbsp;{desc}</a></div>'
+            )
+        elif status == "FAILED":
+            glyph, color_key = _PLAN_TASK_STATUS_STYLE["FAILED"]
+            rows.append(
+                f'<div style="font-size:11.5px;color:{colors.get(color_key, danger)};margin:2px 0;">'
+                f'<a href="{href}" style="text-decoration:none;color:inherit;">{glyph}&nbsp;{desc}</a>{chip}</div>'
+            )
+        else:
+            glyph, color_key = _PLAN_TASK_STATUS_STYLE["TODO"]
+            rows.append(
+                f'<div style="font-size:11.5px;color:{colors.get(color_key, subtle_color)};margin:2px 0;">'
+                f'<a href="{href}" style="text-decoration:none;color:inherit;">{glyph}&nbsp;{desc}</a>{chip}</div>'
+            )
+
+    footer = (
+        f'<div style="margin-top:4px;text-align:right;">'
+        f'<a href="cartogen://clearplan" style="font-size:10px;color:{subtle_color};">Clear plan</a></div>'
+    )
+
+    card = (
+        '<table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:8px 0;"><tr>'
+        f'<td style="border-left:2px solid {border};padding:4px 0 4px 10px;">'
+        f'{heading}{"".join(rows)}{footer}'
+        '</td></tr></table>'
+    )
+    return card
+
+
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
     """One compact summary line for an entire turn's tool calls, replacing the old
     one-line-per-event approach (real user feedback 2026-09-12: "too much visual space", "too

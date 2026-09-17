@@ -784,14 +784,17 @@ class TestChatWidgetLive(unittest.TestCase):
 
     def test_no_tabs_the_dock_hosts_one_continuous_scroll(self):
         """Broadsheet redesign Phase 1 (mockup 1k): the old Chat/Activity QTabWidget
-        split is gone -- ChatTabWidget (with its plan strip) is the dock's only content."""
+        split is gone -- ChatTabWidget is the dock's only content. Task/plan progress
+        (2026-09-17 second pass) no longer lives in a separate docked widget at all --
+        it's a block inside ChatTabWidget's own chat_browser, so there's no sibling
+        widget left to assert the presence of here."""
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         self.assertFalse(hasattr(dock, "tab_widget"))
         self.assertFalse(hasattr(dock, "tasks_tab_widget"))
-        self.assertTrue(hasattr(dock.chat_tab_widget, "plan_strip"))
+        self.assertFalse(hasattr(dock.chat_tab_widget, "plan_strip"))
 
-    def test_plan_strip_progress_bar_flags_a_pending_confirmation(self):
+    def test_plan_card_flags_a_pending_confirmation_in_chat(self):
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
@@ -802,25 +805,53 @@ class TestChatWidgetLive(unittest.TestCase):
                                              rationale="test", is_destructive=True)
         task["pending_tool"] = "field_calculator"
         task["pending_args"] = {"layer_name": "X"}
-        ct.plan_strip.sync_with_agent(agent)
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
 
-        self.assertIn("needs you", ct.plan_strip.plan_progress_bar.format())
+        self.assertIn("needs you", ct.chat_browser.toHtml())
 
-    def test_plan_strip_hides_task_list_when_no_plan_is_active(self):
+    def test_plan_card_absent_when_no_plan_is_active(self):
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
-        ct.plan_strip.sync_with_agent(agent)
-        self.assertFalse(ct.plan_strip.task_list_widget.isVisible())
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        self.assertIsNone(ct._plan_block)
 
-    def test_plan_strip_shows_task_list_once_a_plan_exists(self):
+    def test_plan_card_renders_once_a_plan_exists(self):
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
         agent.task_manager.create_plan("A plan", ["Step one"])
-        ct.plan_strip.sync_with_agent(agent)
-        self.assertTrue(ct.plan_strip.task_list_widget.isVisible())
-        self.assertEqual(ct.plan_strip.task_list_widget.count(), 1)
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        self.assertIsNotNone(ct._plan_block)
+        self.assertIn("Step one", ct.chat_browser.toPlainText())
+
+    def test_plan_card_updates_in_place_not_appended_again(self):
+        """A second plan_updated for the SAME plan title must edit the existing card's
+        tracked span, not append a second copy -- otherwise every tool-call tick during a
+        long-running plan would spam the chat log with duplicate cards."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("A plan", ["Step one", "Step two"])
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        first_block = ct._plan_block
+        agent.task_manager.tasks[0]["status"] = "DONE"
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        self.assertIs(ct._plan_block, first_block)
+        self.assertEqual(ct.chat_browser.toPlainText().count("Step one"), 1)
+
+    def test_new_plan_title_appends_a_fresh_card_leaving_the_old_one_in_scrollback(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("First plan", ["Alpha"])
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        agent.task_manager.clear_plan()
+        agent.task_manager.create_plan("Second plan", ["Beta"])
+        ct._on_live_plan_updated(agent.task_manager.get_plan())
+        text = ct.chat_browser.toPlainText()
+        self.assertIn("Alpha", text)
+        self.assertIn("Beta", text)
 
     def test_task_inspector_dialog_confirm_resolves_via_the_shared_method(self):
         """task_inspector_dialog.py must route through the SAME

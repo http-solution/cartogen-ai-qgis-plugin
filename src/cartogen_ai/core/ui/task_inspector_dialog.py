@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Task inspector dialog -- Broadsheet redesign Phase 1. Rehouses the old Activity tab's
 always-visible "01 Task Inspector and Preview Safety" box (tasks_tab_widget.py, deleted
-in this same change) as a per-task dialog opened from plan_strip_widget.py's task list,
-instead of a box that stayed on screen (mostly empty, "Select a task to inspect details")
+in this same change) as a per-task dialog opened from a click on the in-chat plan card's task rows
+(chat_tab_widget.py's _on_plan_task_clicked), instead of a box that stayed on screen (mostly empty, "Select a task to inspect details")
 even when nothing was selected -- a real 2026-09-16 audit finding about the old tab's
 wasted, always-visible chrome.
 
