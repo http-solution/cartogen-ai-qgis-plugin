@@ -23,7 +23,31 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=v1.15.6-rc6 (2026-09-18):
+changelog=v1.15.6 (2026-09-18):
+    Promoted to stable from v1.15.6-rc6 -- same code, no changes since that candidate. Six
+    release candidates on this line (rc1-rc6) were run and checksum-verified against real QGIS
+    over 5 days: a 27-point security/QGIS/API/performance/code-quality audit remediation (rc1);
+    dependency, GDACS-filter, screen-clamp, and prompt-preview fixes (rc2); a missing-first-
+    message-echo fix and tool-argument shape validation (rc3); the "'str' object has no
+    attribute 'get'" crash finally root-caused for real after 5+ prior same-text incidents, a
+    reverted UI-freezing custom layout, and a Settings/chat/Activity visual pass (rc4); a task-
+    router confidence-floor fix, a field-width data-loss fix, a destructive-action confirmation-
+    gate safety fix, and the full 4-phase Broadsheet redesign -- single-scroll dock, inline
+    safety-gate card, layer context picker (rc5); a dead search-dependency migration found by
+    independently verifying every remaining open item from two rounds of external audit rather
+    than leaving them unverified (rc6). Full detail for every fix: CHANGELOG.md.
+    Known, honestly-tracked open items at this promotion, not resolved by it: PostGIS live
+    read-only-SQL enforcement has never been verified against a real database in this
+    development environment; a live Gemini network observation from this same environment is
+    blocked on an interactive credential-store unlock; imagery feature extraction
+    (ultralytics/torch) is confirmed installable but not end-to-end tested against a real QGIS
+    raster layer; and the Community/Professional/Enterprise licensing path
+    (docs/PRODUCT_TIERS.md) remains an open business/legal decision that does not affect this
+    edition's shipped functionality. See docs/IMPLEMENTATION_TRACKER.md for the current,
+    living list.
+    Full suite: 1754 tests, 0 failures.
+
+v1.15.6-rc6 (2026-09-18):
     Release candidate: one real fix, found while closing out this project's own two-round
     external audit of RC5 by actually verifying every remaining open item rather than leaving
     them as "reported PASS, not independently rerun." search_web's dependency, duckduckgo-search,
