@@ -662,6 +662,15 @@ class ChatTabWidget(QWidget):
             # html's docstring: failures are load-bearing, not opt-in detail).
             self.chat_browser.append(failure_html)
 
+        # Live report, 2026-09-19: "the scroll bar after each message does not scroll to
+        # bottom." _add_message's own force-scroll fix (see its comment, 2026-09-15) only
+        # covers messages added via chat_browser.append() -- this method inserts directly
+        # via QTextCursor instead (needed to track the block's start/end span for the
+        # Details toggle), which bypasses append()'s scroll heuristic entirely, not just the
+        # unreliable case _add_message already worked around. Same fix, same reasoning.
+        scrollbar = self.chat_browser.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
     def _on_live_plan_updated(self, plan_data):
         """Renders/updates the in-chat plan-progress card -- connected to task_manager's
         plan_updated signal in send_message() above. A plan with no title and no tasks
@@ -693,6 +702,14 @@ class ChatTabWidget(QWidget):
                 "title": title, "start": start_pos, "end": end_pos,
                 "spinner_frame": spinner_frame, "plan_data": plan_data,
             }
+            # Same force-scroll fix as _flush_tool_steps_summary above, for the same reason
+            # (a fresh QTextCursor insert bypasses append()'s own scroll heuristic) -- only
+            # for a genuinely NEW card, not every in-place update below: forcing this on
+            # every _tick_plan_spinner tick (every 400ms while a task runs) would yank the
+            # view back to the bottom several times a second, making scrollback unreadable
+            # during a long-running turn.
+            scrollbar = self.chat_browser.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
         else:
             self._plan_block["plan_data"] = plan_data
             self._replace_tracked_block(self._plan_block, html)

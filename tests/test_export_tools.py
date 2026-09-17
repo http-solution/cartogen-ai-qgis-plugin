@@ -519,6 +519,59 @@ class TestExportToCsvSanitizesStringFields(unittest.TestCase):
         self.assertIn("'=cmd|'/calc'!A1", content)
 
 
+class TestExportToCsvDefaultOutputPath(unittest.TestCase):
+    """Live-reported bug, 2026-09-19: output_path was a hard-required argument with no
+    default -- a turn that ran out of tool-call budget before the model supplied a path
+    ended in "please specify a destination file path" after the real analysis had already
+    completed. Same default-derivation convention styling_tools.py's save_layer_style
+    (_derive_style_path) already established: an explicit path always wins; otherwise sit
+    beside the layer's real on-disk source, or fall back to Desktop for a scratch/memory
+    layer."""
+
+    def _fake_layer(self, name="incidents", source=""):
+        layer = MagicMock()
+        layer.name.return_value = name
+        layer.source.return_value = source
+        layer.customProperty.return_value = ""
+        layer.fields.return_value = []
+        return layer
+
+    def test_explicit_output_path_always_wins(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        path, used_fallback = export_tools_mod._derive_csv_path(
+            self._fake_layer(), "/explicit/path.csv")
+        self.assertEqual(path, "/explicit/path.csv")
+        self.assertFalse(used_fallback)
+
+    def test_no_path_falls_back_beside_a_real_on_disk_source(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        import tempfile
+        fd, real_file = tempfile.mkstemp(suffix=".gpkg")
+        os.close(fd)
+        self.addCleanup(lambda: os.path.exists(real_file) and os.remove(real_file))
+        path, used_fallback = export_tools_mod._derive_csv_path(
+            self._fake_layer(source=f"{real_file}|layername=incidents"), None)
+        self.assertEqual(path, f"{os.path.splitext(real_file)[0]}.csv")
+        self.assertFalse(used_fallback)
+
+    def test_no_path_and_no_real_source_falls_back_to_desktop(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        path, used_fallback = export_tools_mod._derive_csv_path(
+            self._fake_layer(name="Scratch Layer", source=""), None)
+        self.assertTrue(path.endswith("Scratch Layer.csv"))
+        self.assertTrue(used_fallback)
+
+    def test_export_to_csv_no_longer_requires_output_path_argument(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        # Calling with only layer_name must not raise TypeError for a missing
+        # required positional argument -- the specific failure mode the live report
+        # hit (the model had no path to give and the argument had no default).
+        with patch.object(export_tools_mod, "_find_layer_by_name", return_value=None):
+            res = export_to_csv("nonexistent")
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+
 def _iso_ago(**timedelta_kwargs):
     """ISO-8601 UTC timestamp `timedelta_kwargs` in the past -- e.g.
     _iso_ago(hours=2) for a 2-hour-old fetch."""
