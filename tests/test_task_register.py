@@ -92,6 +92,37 @@ class TestMatching(unittest.TestCase):
         r = tm.classify("train our field team in GPS collection")
         self.assertEqual(r["best"]["out"], "guidance")
 
+    def test_travel_time_language_prefers_the_service_area_task(self):
+        """Live-reported bug, 2026-09-19: "Health facilities beyond one hour's
+        travel" confidently matched 25c.01 ("Map health facilities", a plain
+        add_layer_from_path task with no calculate_service_area tool at all) over
+        7.23 ("Calculate travel time to health facilities", the actually-correct
+        task) -- purely a side effect of _score's keyword-count normalisation
+        favoring 25c.01's much shorter kw list. The model then had no
+        calculate_service_area in its directive, couldn't find a nonexistent local
+        data file, and burned its whole tool-call budget probing
+        execute_pyqgis_script's sandbox instead. classify() must now surface the
+        service-area task (flagged ambiguous is fine/expected here -- this is a
+        genuine, close call the caller's disambiguation step should confirm, not
+        something to answer with false confidence in either direction)."""
+        r = tm.classify("Health facilities beyond one hour's travel")
+        self.assertEqual(r["best"]["id"], "7.23")
+        self.assertIn("calculate_service_area", r["best"]["tools"])
+
+    def test_travel_time_override_does_not_fire_without_a_service_area_candidate(self):
+        # Travel-time language is present, but no calculate_service_area task
+        # scores at all for this query -- the override must be a no-op rather
+        # than force a nonsensical pick just because the regex matched.
+        r = tm.classify("map flooded areas beyond one hour's drive")
+        self.assertEqual(r["best"]["text"], "Map flooded areas")
+
+    def test_plain_distance_language_is_unaffected(self):
+        # "within 5 km" has no hour/minute unit, so the travel-time override must
+        # not fire here -- this must keep behaving exactly as
+        # test_weak_match_is_flagged_ambiguous already asserts.
+        r = tm.classify("how many people live within 5 km of a health facility")
+        self.assertTrue(r["ambiguous"])
+
 
 class TestOutputContract(unittest.TestCase):
     def test_explicit_dashboard_overrides_the_task_default(self):

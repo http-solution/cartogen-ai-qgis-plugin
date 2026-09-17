@@ -1,6 +1,9 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-09-18, against `v1.15.6-rc6` (169 tools, 1754 tests, 0 failures — see
+**Last updated:** 2026-09-19, against `v1.15.6` stable + 2 unreleased fixes on `main` (169 tools,
+1759 tests, 0 failures — the in-chat plan-progress card and the travel-time task-matcher fix
+below, neither cut as a release yet). Previously stamped 2026-09-18, against `v1.15.6-rc6` (169
+tools, 1754 tests, 0 failures — see
 `docs/BUG_TRACKER.md` for the known-baseline breakdown). Previously stamped 2026-08-31 against
 v1.4.4 — nearly seven weeks and 15 release-candidate/version cycles behind, most notably
 missing this repo getting a real GitHub remote (§2's "No git remote" bullet below was simply
@@ -291,6 +294,45 @@ user base at all, and if so, at what enforcement level.
 
 ---
 
+### 1.8 `task_matcher.py`'s keyword-count normalisation structurally favors short task definitions
+
+**Added 2026-09-19, from a live-reported failure.** `_score()` (task_matcher.py) normalizes each
+task's keyword-overlap score by that TASK's own keyword-list length (`weight / (denom + 1)`,
+comment: "keeps short precise tasks findable"). This has a real, confirmed side effect: a task with
+a short, generic keyword list scores much higher on a 2-word overlap than an equally-strong,
+equally-relevant task with a longer, more specific keyword list scores on a 3-word overlap.
+
+**Live case that surfaced it:** "Health facilities beyond one hour's travel" matched `25c.01` ("Map
+health facilities", kw={facilities,health,map}, score 0.72) over `7.23` ("Calculate travel time to
+health facilities", the actually-correct task, kw={calculate,facilities,health,time,travel}, score
+0.55) -- purely because 7.23's kw list is longer, not because 25c.01 is a better match. `25c.01`'s
+tool hints (`add_layer_from_path`/`apply_categorized_style`/`zoom_to_layer`) assume a local data
+file that doesn't exist for this query; the model had no `calculate_service_area` in its directive,
+couldn't find that file, and burned its entire tool-call budget probing `execute_pyqgis_script`'s
+sandbox internals (blocked `os`/`sys`/`QDir`/`inspect` imports, `dir()`, `.__class__`) instead of
+ever calling the right tool -- a real, user-visible task failure.
+
+**What was fixed already (narrow, not a rewrite):** `classify()` now re-ranks toward a scored
+candidate that has `calculate_service_area` in its tools when the query uses travel-time/access
+phrasing ("beyond one hour's travel", "within 30 minutes", "reachable", "isochrone", etc.) --
+`_ACCESS_TIME_LANGUAGE` in `task_matcher.py`. This closes the ONE confirmed live case (and its
+sibling tasks across every section that share the same `calculate_service_area` tool) without
+touching the shared scoring formula every other task in the 250+-entry register depends on.
+
+**Why the underlying formula itself isn't touched here.** Reweighting `_score()` (e.g. an F1-style
+blend of task-recall and query-precision instead of pure task-recall) would change ranking for
+every task in the register simultaneously, not just the travel-time family -- a much wider blast
+radius that needs its own dedicated review pass (rerun `test_the_matcher_still_finds_every_task_
+from_its_own_title` and spot-check a representative sample of real queries per section, not just
+the handful of tests this session added), not a fix bundled into a live-bug patch.
+
+**Needs:** a decision on whether this general normalization tension is worth a dedicated pass (and
+if so, what the target formula should be), or whether targeted overrides like `_ACCESS_TIME_
+LANGUAGE` are the accepted long-term pattern for closing specific short-vs-long-keyword-list
+collisions as they're found live.
+
+---
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
@@ -343,6 +385,20 @@ user base at all, and if so, at what enforcement level.
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
+- **2026-09-19, two fixes on `main`, not yet cut into a release.**
+  - **In-chat plan-progress card, replacing the docked plan strip.** `plan_strip_widget.py` (the
+    Broadsheet Phase 1 sticky panel above the chat) was live-user-rejected in turn -- "i dont like
+    the design of the multi step task on top of the chat ... with bit of animation" -- as reading
+    like a debug overlay. Deleted outright; task/plan progress now renders as an ordinary block
+    inside `chat_tab_widget.py`'s own chat log (`render_task_progress_html`, `chat_formatting.py`),
+    updated in place via the same tracked-cursor-span technique the tool-steps toggle already
+    used. See `[[project_activity_tab_audit]]`-equivalent detail in memory; commit `a3429b5`.
+  - **Task-router fix: travel-time language now prefers the `calculate_service_area` task.** See
+    §1.8 above for the full writeup -- a live-reported failure ("Health facilities beyond one
+    hour's travel" routed to a plain facility-mapping task with no data-fetch step, then burned
+    its whole tool-call budget probing the `execute_pyqgis_script` sandbox). `task_matcher.py`'s
+    `classify()` now re-ranks toward a scored candidate with `calculate_service_area` in its tools
+    when travel-time/access phrasing is present, without touching the shared scoring formula.
 - **2026-09-11 through 2026-09-18, v1.13.0 through v1.15.6-rc6 — the largest gap this tracker
   has ever gone stale for (this section's own preceding entries stop at 2026-09-12/v1.9.0; this
   one entry covers everything from there to now in one pass, not a day-by-day reconstruction).

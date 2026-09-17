@@ -74,6 +74,34 @@ def match(query, limit=MAX_CANDIDATES):
     return scored[:limit]
 
 
+# Travel-time/access phrasing ("beyond one hour's travel", "within 30 minutes",
+# "reachable in under an hour", "drive time") signals a service-area/travel-time
+# analysis task, not a plain facility-mapping one -- but _score's own normalisation
+# (by the TASK's keyword count, "keeps short precise tasks findable" above)
+# structurally favours short, generic keyword lists over longer, more specific
+# ones: a 2-word hit against a 3-word kw list scores far higher than an equally
+# strong 3-word hit against a 5-word kw list. Live-reported bug, 2026-09-19:
+# "Health facilities beyond one hour's travel" matched 25c.01 ("Map health
+# facilities", score 0.72, kw={facilities,health,map}) over 7.23 ("Calculate
+# travel time to health facilities", the actually-correct task, score 0.55,
+# kw={calculate,facilities,health,time,travel}) purely because 7.23's kw list is
+# longer. 25c.01's tool hints (add_layer_from_path/apply_categorized_style/
+# zoom_to_layer) assume a local data file that doesn't exist; the model then had
+# no calculate_service_area in its directive, couldn't find that file, and burned
+# its entire tool-call budget probing execute_pyqgis_script's sandbox internals
+# instead of ever calling the right tool. Re-ranks toward whichever ALREADY-
+# scored candidate uses calculate_service_area when this language is present,
+# rather than reweighting the shared scoring formula itself (a change with much
+# wider blast radius across every other task in the register -- flagged in
+# docs/IMPLEMENTATION_TRACKER.md as a real, unresolved scoring-design tension,
+# not silently "fixed" by this narrower, targeted re-rank).
+_ACCESS_TIME_LANGUAGE = re.compile(
+    r"\b(within|beyond|under|over)\b.{0,20}\b(hour|hr|minute|min)s?\b|"
+    r"\b(hour|hr|minute|min)'?s?\s+(travel|drive|walk|reach)|"
+    r"\btravel[\s-]?time\b|\bdrive[\s-]?time\b|\breachable\b|\bunreachable\b|\bisochrone\b"
+)
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -91,6 +119,12 @@ def classify(query):
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "no match"}
     best, top = ms[0]
+    if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and \
+            "calculate_service_area" not in best.get("tools", []):
+        for e, s in ms:
+            if "calculate_service_area" in e.get("tools", []):
+                best, top = e, s
+                break
     if top < CONFIDENT_SCORE:
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
