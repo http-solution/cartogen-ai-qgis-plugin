@@ -416,8 +416,11 @@ user base at all, and if so, at what enforcement level.
     development machine has exactly one real, complete QGIS install — the other 3 version
     directories present are bare, unusable OSGeo4W installer shells).
   - `v1.15.6-rc1`-`rc6` are all published GitHub prereleases (checksum-verified against each
-    downloaded asset every time); none has been promoted to "Latest"/stable yet — an explicit,
-    standing "hold off, keep testing" instruction, not an oversight.
+    downloaded asset every time). **`v1.15.6` itself was promoted to stable/"Latest" on
+    2026-09-18** (commit `a709abf`, tag `commercial-plugin-v1.15.6`, same code as rc6 — no
+    changes beyond the version/changelog text marking the promotion), checksum-verified against
+    the downloaded asset the same way every RC was. The known open items listed just above this
+    bullet were not resolved by the promotion — they're carried forward, not silently dropped.
 
 - **Live hazard monitoring (v1.9.0, 2026-09-12).** New `fetch_nasa_active_fires`/
   `fetch_nasa_eonet_events`/`fetch_gdacs_disaster_alerts` plus `generate_situation_dashboard`
