@@ -1,13 +1,24 @@
 # -*- coding: utf-8 -*-
 """Chat tab, extracted from dock_widget.py's CartogenAiDockWidget
 (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
-quick-suggestion chips, prompt-refinement panel, file-attachment analysis, and (Broadsheet
-redesign Phase 1, mockup 1k "no tabs, one scroll") the sticky plan strip
-(self.plan_strip, see plan_strip_widget.py) -- this is now the dock's single continuous
-scroll, not one of two tabs. The old separate Activity tab (tasks_tab_widget.py) is
-deleted; its Task Inspector moved to task_inspector_dialog.py (opened per-task from the
-plan strip) and its Project Notes/Memory section moved to memory_dialog.py (opened from
-a header button in dock_widget.py).
+quick-suggestion chips, prompt-refinement panel, and file-attachment analysis. The old
+separate Activity tab (tasks_tab_widget.py) is deleted; its Task Inspector moved to
+task_inspector_dialog.py (opened per-task, see below) and its Project Notes/Memory
+section moved to memory_dialog.py (opened from a header button in dock_widget.py).
+
+Task/plan progress (2026-09-17, second redesign pass): plan_strip_widget.py's
+always-docked strip above the chat -- itself the Broadsheet Phase 1 replacement for the
+old Activity tab -- was live-user-rejected in turn: a separately pinned panel with its
+own animation read as a debug overlay sitting on top of the conversation, not part of
+it. Task progress now renders as an ordinary block INSIDE the chat log itself
+(render_task_progress_html, see _on_live_plan_updated/_tick_plan_spinner below), updated
+in place while its plan is the active one via the same tracked-cursor-span technique
+_on_step_anchor_clicked already uses for the tool-steps toggle -- no separate widget, no
+plan-history dropdown (scrollback already IS the history), and plan_strip_widget.py is
+no longer imported anywhere in this file. The current task carries a small animated
+spinner glyph (QTimer-driven), the only "motion" this in-chat card has -- deliberately
+quieter than a docked progress bar, matching the direct instruction to keep it "elegant
+but professional," not gimmicky.
 
 Signals (receiveMessageSignal/statusSignal/usageSignal/toolStepSignal/
 refinementFetchedSignal) stay defined on the parent CartogenAiDockWidget, not here
@@ -19,7 +30,7 @@ import threading
 import traceback
 import os
 
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize, QTimer
 from qgis.PyQt.QtGui import QTextCursor
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
@@ -30,7 +41,7 @@ from qgis.core import QgsSettings
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
     render_tool_steps_toggle_html, render_tool_steps_failure_details_html, friendly_tool_name,
-    format_send_error,
+    format_send_error, render_task_progress_html, PLAN_SPINNER_FRAMES,
 )
 from .attachments import read_attached_file as _read_attached_file
 # API-007, 2026-09-14 audit: reused rather than duplicated -- settings_dialog.py's PROVIDERS
@@ -130,6 +141,18 @@ class ChatTabWidget(QWidget):
         # it (and immediately re-records the fresh end position after doing so).
         self._step_blocks = {}
         self._step_block_counter = 0
+        # The in-chat plan/progress card's tracked span (see render_task_progress_html and
+        # _on_live_plan_updated) -- None until the first plan of the session starts. Unlike
+        # _step_blocks above, only ONE entry is ever tracked at a time: once a plan's title
+        # changes (a new plan started), the old card's HTML is left exactly as it last
+        # rendered and this dict is replaced wholesale to point at the new one -- the old
+        # card becomes an ordinary frozen part of scrollback, not something later code can
+        # or should still edit in place.
+        self._plan_block = None  # {"title", "start", "end", "spinner_frame"}
+        self._connected_task_manager = None
+        self._plan_spinner_timer = QTimer(self)
+        self._plan_spinner_timer.setInterval(400)
+        self._plan_spinner_timer.timeout.connect(self._tick_plan_spinner)
         self._pending_contract = None
         self._contract_followup_used = False
         # task_manager task ids whose inline safety-gate card (_show_safety_gate_in_chat,
@@ -248,13 +271,6 @@ class ChatTabWidget(QWidget):
     def init_ui(self):
         chat_layout = QVBoxLayout(self)
         chat_layout.setContentsMargins(4, 4, 4, 4)
-
-        # Broadsheet redesign Phase 1 (mockup 1k, "no tabs, one scroll"): the live plan
-        # collapses into a sticky strip at the top of the thread instead of a separate
-        # Activity tab -- see plan_strip_widget.py.
-        from .plan_strip_widget import PlanStripWidget
-        self.plan_strip = PlanStripWidget(dock=self._dock)
-        chat_layout.addWidget(self.plan_strip)
 
         self.chat_browser = QTextBrowser()
         self.chat_browser.setOpenExternalLinks(True)
@@ -646,15 +662,116 @@ class ChatTabWidget(QWidget):
             # html's docstring: failures are load-bearing, not opt-in detail).
             self.chat_browser.append(failure_html)
 
+    def _on_live_plan_updated(self, plan_data):
+        """Renders/updates the in-chat plan-progress card -- connected to task_manager's
+        plan_updated signal in send_message() above. A plan with no title and no tasks
+        means "nothing active right now": the timer stops but any existing card is left
+        untouched in scrollback (it's a real record of a past plan, not a placeholder to
+        blank out). A DIFFERENT title than the currently-tracked card means a new plan
+        started -- appends a fresh block rather than overwriting the old one, so plan
+        history is just "scroll up" (see this file's module docstring)."""
+        title = plan_data.get("title", "")
+        tasks = plan_data.get("tasks", [])
+        colors = theme_colors()
+
+        if not title and not tasks:
+            self._plan_spinner_timer.stop()
+            return
+
+        is_new_plan = self._plan_block is None or self._plan_block["title"] != title
+        spinner_frame = 0 if is_new_plan else self._plan_block["spinner_frame"]
+        html = render_task_progress_html(plan_data, colors, spinner_frame=spinner_frame)
+
+        if is_new_plan:
+            cursor = QTextCursor(self.chat_browser.document())
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.insertBlock()
+            start_pos = cursor.position()
+            cursor.insertHtml(html)
+            end_pos = cursor.position()
+            self._plan_block = {
+                "title": title, "start": start_pos, "end": end_pos,
+                "spinner_frame": spinner_frame, "plan_data": plan_data,
+            }
+        else:
+            self._plan_block["plan_data"] = plan_data
+            self._replace_tracked_block(self._plan_block, html)
+
+        has_running = any(t.get("status") == "IN_PROGRESS" for t in tasks)
+        if has_running and not self._plan_spinner_timer.isActive():
+            self._plan_spinner_timer.start()
+        elif not has_running:
+            self._plan_spinner_timer.stop()
+
+    def _tick_plan_spinner(self):
+        """Advances the current plan card's spinner glyph one frame -- the only animation
+        this in-chat card has, deliberately quiet (a single cycling braille dot, not a
+        moving progress bar or bouncing icon) per the direct instruction that replaced
+        plan_strip_widget.py's docked-panel-with-animation with this in-chat design."""
+        if self._plan_block is None:
+            self._plan_spinner_timer.stop()
+            return
+        self._plan_block["spinner_frame"] = (self._plan_block["spinner_frame"] + 1) % len(PLAN_SPINNER_FRAMES)
+        colors = theme_colors()
+        html = render_task_progress_html(
+            self._plan_block["plan_data"], colors, spinner_frame=self._plan_block["spinner_frame"],
+        )
+        self._replace_tracked_block(self._plan_block, html)
+
+    def _replace_tracked_block(self, block, new_html):
+        """Shared in-place-edit primitive for any tracked chat_browser span (currently the
+        plan card and the tool-steps toggle in _on_step_anchor_clicked below): replaces the
+        HTML between block['start']/['end'], then shifts every OTHER tracked block (both
+        _step_blocks and, if it isn't the one being edited, _plan_block) whose span starts
+        after the edited one's old end -- the collapsed/expanded or spinner-frame HTML
+        rarely renders to the same character count, so every later block's stored position
+        would silently go stale without this, exactly the bug _on_step_anchor_clicked's own
+        original delta-shift comment already documents for the tool-steps case."""
+        old_end = block["end"]
+        cursor = QTextCursor(self.chat_browser.document())
+        cursor.setPosition(block["start"])
+        cursor.setPosition(old_end, QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertHtml(new_html)
+        new_end = cursor.position()
+        block["end"] = new_end
+
+        delta = new_end - old_end
+        if not delta:
+            return
+        for other_block in self._step_blocks.values():
+            if other_block is not block and other_block["start"] > old_end:
+                other_block["start"] += delta
+                other_block["end"] += delta
+        if self._plan_block is not None and self._plan_block is not block and self._plan_block["start"] > old_end:
+            self._plan_block["start"] += delta
+            self._plan_block["end"] += delta
+
+    def _clear_plan(self):
+        if not self._agent_provider:
+            return
+        agent = self._agent_provider()
+        if not (agent and hasattr(agent, "task_manager")) or not agent.task_manager.tasks:
+            return
+        from qgis.PyQt.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "Clear Plan", "Archive the current plan and reset the tracker?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            agent.task_manager.clear_plan()
+
     def _on_step_anchor_clicked(self, url):
         """Handles clicks on this app's own internal "cartogen://" anchors -- the
         Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
         toggle_html), a welcome-message starter prompt (cartogen://starter/{index}, see
         _populate_initial_chat), a prompt-refinement recommendation (cartogen://refine/
-        {index}, see _show_refinement_in_chat), and the inline safety-gate card's Apply
+        {index}, see _show_refinement_in_chat), the inline safety-gate card's Apply
         edit/Cancel links (cartogen://confirm/{task_id} / cartogen://cancel/{task_id}, see
-        _show_safety_gate_in_chat -- Broadsheet redesign Phase 2). Dispatches on url.host()
-        since all share the scheme. Ignores anything that isn't "cartogen", so real markdown
+        _show_safety_gate_in_chat -- Broadsheet redesign Phase 2), and the in-chat plan
+        card's row/footer links (cartogen://task/{task_id}, cartogen://clearplan -- see
+        render_task_progress_html/_on_live_plan_updated). Dispatches on url.host() since
+        all share the scheme. Ignores anything that isn't "cartogen", so real markdown
         links in AI responses (opened via setOpenExternalLinks(True), untouched by this
         handler) are unaffected."""
         if url.scheme() != "cartogen":
@@ -667,6 +784,12 @@ class ChatTabWidget(QWidget):
             return
         if url.host() in ("confirm", "cancel"):
             self._on_safety_gate_link_clicked(url)
+            return
+        if url.host() == "clearplan":
+            self._clear_plan()
+            return
+        if url.host() == "task":
+            self._on_plan_task_clicked(url)
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -685,27 +808,30 @@ class ChatTabWidget(QWidget):
         new_html = render_tool_steps_toggle_html(
             block["steps"], block_id, colors, expanded=block["expanded"]
         )
+        self._replace_tracked_block(block, new_html)
 
-        old_end = block["end"]
-        cursor = QTextCursor(self.chat_browser.document())
-        cursor.setPosition(block["start"])
-        cursor.setPosition(old_end, QTextCursor.MoveMode.KeepAnchor)
-        cursor.removeSelectedText()
-        cursor.insertHtml(new_html)
-        new_end = cursor.position()
-        block["end"] = new_end
-
-        # The collapsed and expanded HTML render to a different number of characters, so
-        # editing THIS block shifts every character position after it -- including any later
-        # turn's own step block(s) and their stored start/end, which are plain ints, not live
-        # QTextCursor objects Qt would auto-adjust on its own. Shift them by the same delta so a
-        # later toggle click still targets the right span instead of a now-stale one.
-        delta = new_end - old_end
-        if delta:
-            for other_id, other_block in self._step_blocks.items():
-                if other_id != block_id and other_block["start"] > old_end:
-                    other_block["start"] += delta
-                    other_block["end"] += delta
+    def _on_plan_task_clicked(self, url):
+        """cartogen://task/{task_id} from the in-chat plan card -- opens the same Task
+        Inspector dialog the old plan_strip_widget.py's list rows opened on click, looked
+        up fresh from the live agent's task_manager rather than the (possibly stale, if
+        this is an older frozen plan card in scrollback) snapshot the card was rendered
+        from. A task no longer present (plan since cleared) is a silent no-op."""
+        parts = [p for p in url.path().split("/") if p]
+        if not parts:
+            return
+        agent = self._agent_provider() if self._agent_provider else None
+        if not (agent and hasattr(agent, "task_manager")):
+            return
+        task_id = parts[-1]
+        task = next(
+            (t for t in agent.task_manager.get_plan().get("tasks", []) if str(t.get("id")) == task_id),
+            None,
+        )
+        if task is None:
+            return
+        from .task_inspector_dialog import CartogenAiTaskInspectorDialog
+        dialog = CartogenAiTaskInspectorDialog(self._dock, task, read_only=False, parent=self)
+        dialog.exec()
 
     def _on_starter_prompt_clicked(self, url):
         """A cartogen://starter/{index} link, from the welcome message's example-prompt list
@@ -1060,14 +1186,21 @@ class ChatTabWidget(QWidget):
             self._dock.statusSignal.emit("")
             return
 
-        # Sending a new message means "back to work" -- snaps the plan strip out of
-        # history-browsing mode and connects/refreshes the live plan while this request
-        # runs. Broadsheet redesign Phase 1: this used to hand off to the old Activity
-        # tab's TasksTabWidget.sync_with_agent (deleted in this change) -- the live-plan
-        # half of that method moved to plan_strip_widget.py; the memory-panel half moved
-        # to memory_dialog.py, which reads live state fresh on open instead of needing an
-        # eager per-send sync (it's a short-lived modal now, not a permanently docked tab).
-        self.plan_strip.sync_with_agent(agent)
+        # Connects the live task_manager.plan_updated signal once per agent instance (not
+        # once per message -- a Qt-signal-connected-N-times bug already fixed once for the
+        # old Activity tab, see that method's own history in git blame) and renders
+        # whatever plan is currently live into the in-chat card. The memory-panel half of
+        # the old TasksTabWidget.sync_with_agent moved to memory_dialog.py, which reads
+        # live state fresh on open instead of needing an eager per-send sync (it's a
+        # short-lived modal now, not a permanently docked tab).
+        if agent is not None and hasattr(agent, "task_manager"):
+            if self._connected_task_manager is not agent.task_manager:
+                try:
+                    agent.task_manager.plan_updated.connect(self._on_live_plan_updated)
+                    self._connected_task_manager = agent.task_manager
+                except Exception as e:
+                    print(f"[ChatTabWidget] Failed to connect plan_updated signal: {e}")
+            self._on_live_plan_updated(agent.task_manager.get_plan())
 
         from ..agent.task_runner import run_agent_task
         from ..agent.map_context import get_map_context_summary, filter_layers_by_selection

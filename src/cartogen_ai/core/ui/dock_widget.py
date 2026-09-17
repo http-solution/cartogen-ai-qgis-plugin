@@ -2,14 +2,17 @@
 """
 Dock Widget UI for Cartogen AI.
 Broadsheet redesign Phase 1 (mockup state 1k, "no tabs, one scroll"): this hosts ONE
-continuous-scroll widget (ChatTabWidget, which now owns the sticky plan strip too --
-see plan_strip_widget.py), not the old Chat/Activity QTabWidget split. Non-blocking
-execution threads and file attachment handling live in ChatTabWidget.
+continuous-scroll widget (ChatTabWidget), not the old Chat/Activity QTabWidget split.
+Non-blocking execution threads and file attachment handling live in ChatTabWidget.
+Task/plan progress (2026-09-17 second pass, see chat_tab_widget.py's own docstring)
+renders as an ordinary block inside ChatTabWidget's own chat log now, not a separate
+docked widget -- an intermediate design (plan_strip_widget.py, a sticky strip above the
+chat) was live-user-rejected in turn as reading like a debug overlay.
 
 CartogenAiDockWidget is the outer QDockWidget: it owns the cross-widget signals, the
 agent_provider callable, and the header (title/provider switcher/Memory button/settings
 button). The old separate Activity tab (tasks_tab_widget.py) is deleted -- its live plan
-moved into chat_tab_widget.py's plan_strip, its Task Inspector into
+moved into chat_tab_widget.py's in-chat plan card, its Task Inspector into
 task_inspector_dialog.py (opened per-task), and its Project Notes/Memory section into
 memory_dialog.py (opened from the new header button). Help moved out of the dock's own
 tabs and into the QGIS Plugins menu (see plugin_main.py) per a 2026-09-12 real-session
@@ -63,7 +66,7 @@ class CartogenAiDockWidget(QDockWidget):
         self.usageSignal.connect(self.chat_tab_widget._set_usage_label)
         self.toolStepSignal.connect(self.chat_tab_widget._add_tool_step)
         self.refinementFetchedSignal.connect(self.chat_tab_widget._on_refinement_fetched)
-        self.planUpdatedSignal.connect(self.chat_tab_widget.plan_strip._render_plan)
+        self.planUpdatedSignal.connect(self.chat_tab_widget._on_live_plan_updated)
 
         from ..agent.scheduler import get_scheduler
         get_scheduler().workflow_tick_completed.connect(self.chat_tab_widget._on_scheduled_workflow_tick)
@@ -169,10 +172,10 @@ class CartogenAiDockWidget(QDockWidget):
 
         # Broadsheet redesign Phase 1 (mockup 1k, "no tabs, one scroll"): ChatTabWidget is
         # now the dock's single continuous-scroll content, not one of two QTabWidget tabs.
-        # It owns the sticky plan strip (plan_strip_widget.py) above its own chat thread,
-        # which already scrolls its own content internally (chat_browser) -- unlike the old
-        # Activity tab's many stacked sections, nothing here needed the extra QScrollArea
-        # wrapper that tab required to stop forcing the whole dock taller than the screen.
+        # Task/plan progress renders as a block inside its own chat_browser (see that
+        # widget's docstring) -- unlike the old Activity tab's many stacked sections,
+        # nothing here needed the extra QScrollArea wrapper that tab required to stop
+        # forcing the whole dock taller than the screen.
         self.chat_tab_widget = ChatTabWidget(dock=self)
         main_layout.addWidget(self.chat_tab_widget)
 
