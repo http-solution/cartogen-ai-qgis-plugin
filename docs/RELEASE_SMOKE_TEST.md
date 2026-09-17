@@ -64,6 +64,34 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-18 — RC6 candidate — headless, 3 targeted checks against a freshly built
+`dist/cartogen_ai_v1.15.6.zip` (177 entries, extracted fresh to a scratch directory and imported
+from THAT path, not the dev tree). Checksum deliberately NOT recorded here as "the" release
+checksum** -- see the mtime-non-determinism note above (this file is itself packaged into the
+zip, and a rebuild-checksum comparison across sessions is not meaningful with this build script);
+the checksum that matters is step 7's own download-and-diff against the published asset, done at
+release time, not written into this doc where it would immediately go stale.** One real fix on
+top of RC5 (`443e8dd`): `search_web`'s `duckduckgo_search` dependency was found genuinely broken
+(silently returns zero results for a real query) and migrated to `ddgs`. See `CHANGELOG.md`'s
+`[1.15.6-rc6]` entry for full detail, including the two audit false-alarms resolved and the two
+small doc fixes that came out of the same pass.
+
+**3 targeted checks, all passing, against the packaged code (not the dev tree):**
+1. **ddgs import order** -- the packaged `search_web` source actually contains `from ddgs import
+   DDGS` before the `duckduckgo_search` fallback, confirming the fix shipped in the zip, not just
+   in the dev tree.
+2. **deps.py tracking** -- `REQUIRED_PACKAGES` tracks `ddgs`, not the dead `duckduckgo_search`
+   pin, in the packaged code.
+3. **Real live call** -- `search_web("QGIS open source GIS software")` against the packaged code,
+   with `ddgs` actually installed, returned real, current search results (a real Wikipedia/qgis.org
+   hit), not a mocked response -- the same live-network proof used to find the bug in the first
+   place, now re-run against what's actually shipped.
+
+**16-category checklist: not re-run this cycle**, same reasoning as RC5's entry -- this cycle's
+one code change is isolated to `search_web`'s dependency, not the tool surface that checklist
+exercises broadly. PostGIS remains skipped (still no test database available in this environment
+-- Docker Desktop's backend does not start without a one-time interactive first run).
+
 **2026-09-17 — RC5 candidate (commit `3e4427c`) — headless, 6 targeted checks against a freshly
 built `dist/cartogen_ai_v1.15.6.zip` (177 entries, sha256
 `f0f9b92bd93fc0b23edb869fabf3dce2ca1a27384b6bb426d3c87ada78f8a5b7`, extracted fresh to a scratch
