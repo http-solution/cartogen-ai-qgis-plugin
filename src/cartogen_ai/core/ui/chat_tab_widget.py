@@ -38,6 +38,8 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import QgsSettings
 from ..logger import log_warning
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER
+
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
@@ -1457,8 +1459,9 @@ class ChatTabWidget(QWidget):
         specific moment it becomes true for THIS file. Ollama is local -- nothing leaves
         the machine -- so it gets a different, accurate note rather than a generic
         third-party-sending warning that would be false for it."""
-        provider_value = QgsSettings().value("cartogen_ai/provider", "openrouter")
+        provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
         if provider_value == "ollama":
+
             return "This file's content stays local (Ollama) -- nothing is sent to a third party."
         label = next(
             (p["provider_label"] for p in _PROVIDERS if p["value"] == provider_value),

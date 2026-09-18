@@ -11,6 +11,9 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 from ..logger import log_info, log_warning, log_error
+from ...infrastructure.settings_keys import (
+    SETTINGS_PROVIDER, SETTINGS_API_KEY, fallback_credential_key, auth_id_setting_key,
+)
 
 
 class CredentialManager:
@@ -33,11 +36,11 @@ class CredentialManager:
     # other (a prior version used two separate, mismatched mappings — a saved OpenRouter/
     # Ollama key would silently land somewhere get_credential never looked).
     LEGACY_SETTINGS_KEYS = {
-        "openrouter": "cartogen_ai/api_key",
-        "gemini": "cartogen_ai/gemini_key",
-        "ollama": "cartogen_ai/ollama_url",
-        "openai": "cartogen_ai/openai_key",
-        "claude": "cartogen_ai/claude_key",
+        "openrouter": SETTINGS_API_KEY,
+        "gemini": fallback_credential_key("gemini"),
+        "ollama": fallback_credential_key("ollama"),
+        "openai": fallback_credential_key("openai"),
+        "claude": fallback_credential_key("claude"),
     }
 
     @staticmethod
@@ -50,28 +53,21 @@ class CredentialManager:
         CredentialManager._plaintext_fallback_providers.discard(provider)
 
         if QGIS_AVAILABLE:
-            auth_id_setting = f"cartogen_ai/auth_id_{provider}"
+            auth_id_setting = auth_id_setting_key(provider)
             try:
                 auth_mgr = QgsApplication.authManager()
                 if auth_mgr and not auth_mgr.isDisabled():
                     # Create/update QgsAuthMethodConfig
                     settings = QgsSettings()
                     existing_auth_id = settings.value(auth_id_setting, "")
-
                     config = QgsAuthMethodConfig("Basic")
-                    if existing_auth_id:
-                        config.setId(existing_auth_id)
-
-                    config.setName(f"Cartogen AI ({provider})")
-                    config.setConfig("username", provider)
+                    config.setName(f"cartogen_ai_{provider}")
                     config.setConfig("password", key_value)
 
-                    # storeAuthenticationConfig is the QGIS 4.x name (Qt6 migration renamed
-                    # it from saveAuthenticationConfig -- verified against the current
-                    # QgsAuthManager API docs, which no longer list saveAuthenticationConfig
-                    # at all). Try the new name first, fall back to the old one so this still
-                    # works on QGIS 3.x, which this plugin also declares support for.
-                    save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(auth_mgr, "saveAuthenticationConfig", None)
+                    # QGIS 4.x/Qt6 and QGIS 3.x have slightly different method names
+                    save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(
+                        auth_mgr, "storeConfig", None
+                    )
                     if save_fn and save_fn(config):
                         settings.setValue(auth_id_setting, config.id())
                         return True
@@ -101,7 +97,7 @@ class CredentialManager:
             try:
                 settings = QgsSettings()
                 fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(
-                    provider, f"cartogen_ai/{provider}_key"
+                    provider, fallback_credential_key(provider)
                 )
                 settings.setValue(fallback_setting, key_value)
                 CredentialManager._plaintext_fallback_providers.add(provider)
@@ -306,7 +302,7 @@ class CredentialManager:
         try:
             settings = QgsSettings()
             if provider is None:
-                provider = settings.value("cartogen_ai/provider", "openrouter")
+                provider = settings.value(SETTINGS_PROVIDER, "openrouter")
             if provider == "ollama":
                 return None
             if CredentialManager.get_credential(provider):
@@ -322,7 +318,7 @@ class CredentialManager:
             return ""
 
         settings = QgsSettings()
-        auth_id_setting = f"cartogen_ai/auth_id_{provider}"
+        auth_id_setting = auth_id_setting_key(provider)
         auth_id = settings.value(auth_id_setting, "")
 
         if auth_id:
@@ -339,7 +335,7 @@ class CredentialManager:
 
         # Fallback to QgsSettings — same mapping save_credential writes to.
         fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(
-            provider, f"cartogen_ai/{provider}_key"
+            provider, fallback_credential_key(provider)
         )
         value = settings.value(fallback_setting, "")
         if value:
@@ -349,7 +345,8 @@ class CredentialManager:
         # cartogen_ai/{provider}_key (a name get_credential never read back from), so a
         # key entered before this fix would otherwise appear to have vanished. Check there
         # too rather than forcing a re-entry.
-        stray_key = f"cartogen_ai/{provider}_key"
+        stray_key = fallback_credential_key(provider)
         if stray_key != fallback_setting:
             return settings.value(stray_key, "")
         return ""
+

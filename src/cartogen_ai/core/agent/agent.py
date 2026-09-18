@@ -63,6 +63,13 @@ from .transactions import TurnTransactionLog
 from . import learning
 from . import onboarding_profile
 from ..logger import log_info, log_warning, log_error
+from ...infrastructure.settings_keys import (
+    SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
+    SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
+    SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
+    provider_model_list_key,
+)
+
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
 # extraction), and never touch qgis.core/Qt objects. These are safe to run
@@ -251,7 +258,7 @@ class CartogenAi:
 
         from .auth import CredentialManager
         settings = QgsSettings()
-        provider_name = settings.value("cartogen_ai/provider", "openrouter")
+        provider_name = settings.value(SETTINGS_PROVIDER, "openrouter")
         key = CredentialManager.get_credential(provider_name)
 
         # When a model setting is the "auto" sentinel, use the provider's normal
@@ -281,27 +288,27 @@ class CartogenAi:
             return raw or safe_starting_model
 
         if provider_name == "gemini":
-            gemini_model = resolve_model("cartogen_ai/gemini_model", "gemini-flash-latest")
+            gemini_model = resolve_model(SETTINGS_GEMINI_MODEL, "gemini-flash-latest")
             self.client = GeminiClient(api_key=key, model=gemini_model)
         elif provider_name == "ollama":
             url = key if key else "http://localhost:11434/v1/chat/completions"
             if not url.endswith("chat/completions"):
                 url = url.rstrip("/") + "/v1/chat/completions"
-            ollama_model = resolve_model("cartogen_ai/ollama_model", "llama3.1", default_to_auto=False)
+            ollama_model = resolve_model(SETTINGS_OLLAMA_MODEL, "llama3.1", default_to_auto=False)
             self.client = OllamaClient(endpoint_url=url, model=ollama_model)
         elif provider_name == "openai":
-            openai_model = resolve_model("cartogen_ai/openai_model", "gpt-5.6")
+            openai_model = resolve_model(SETTINGS_OPENAI_MODEL, "gpt-5.6")
             self.client = OpenAIClient(api_key=key, model=openai_model)
         elif provider_name == "claude":
-            claude_model = resolve_model("cartogen_ai/claude_model", "claude-opus-5")
+            claude_model = resolve_model(SETTINGS_CLAUDE_MODEL, "claude-opus-5")
             self.client = ClaudeClient(api_key=key, model=claude_model)
         elif provider_name == "cartogen":
-            cartogen_model = resolve_model("cartogen_ai/cartogen_model", CARTOGEN_FALLBACK_MODELS[0])
+            cartogen_model = resolve_model(SETTINGS_CARTOGEN_MODEL, CARTOGEN_FALLBACK_MODELS[0])
             # No gateway is deployed anywhere this repo can reach yet (see
             # providers/cartogen.py's module docstring) -- gateway_url stays None
             # (client falls back to its own GATEWAY_BASE_URL placeholder) unless
             # someone has explicitly set this for local/self-hosted testing.
-            gateway_url = settings.value("cartogen_ai/cartogen_gateway_url", None) or None
+            gateway_url = settings.value(SETTINGS_CARTOGEN_GATEWAY_URL, None) or None
             self.client = CartogenClient(api_key=key, model=cartogen_model, base_url=gateway_url)
         else:
             # OpenRouter already has its own multi-model fallback chain (see
@@ -312,11 +319,12 @@ class CartogenAi:
             # _auto_model_provider, which would otherwise overwrite
             # self.client.model with a single picked model on every request
             # and silently disable OpenRouter's own fallback behavior.
-            openrouter_model = settings.value("cartogen_ai/openrouter_model", AUTO_SENTINEL)
+            openrouter_model = settings.value(SETTINGS_OPENROUTER_MODEL, AUTO_SENTINEL)
             if openrouter_model and openrouter_model != AUTO_SENTINEL:
                 self.client = OpenRouterClient(api_key=key, model=openrouter_model)
             else:
                 self.client = OpenRouterClient(api_key=key)
+
 
         self.memory_manager = SpatialMemoryManager()
         self.task_manager = AgentTaskManager()
@@ -1035,8 +1043,9 @@ class CartogenAi:
             return
         try:
             settings = QgsSettings()
-            raw_list = settings.value(f"cartogen_ai/{self._auto_model_provider}_model_list", "")
+            raw_list = settings.value(provider_model_list_key(self._auto_model_provider), "")
             model_ids = json.loads(raw_list) if raw_list else []
+
             if not model_ids:
                 return
             complexity = classify_complexity(user_query)

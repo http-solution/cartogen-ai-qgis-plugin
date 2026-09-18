@@ -26,25 +26,8 @@ RATE_LIMIT_MAX_RETRIES = 3
 # QGIS Network Access Manager proxy integration (Phase 8):
 # If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
 # extract them so requests calls don't bypass user network configurations.
-def get_qgis_proxy_dict():
-    try:
-        from qgis.core import QgsNetworkAccessManager
-        from qgis.PyQt.QtNetwork import QNetworkProxy
-        nam = QgsNetworkAccessManager.instance()
-        if nam is not None:
-            proxy = nam.fallbackProxySettings()
-            if proxy.type() != QNetworkProxy.ProxyType.NoProxy if hasattr(QNetworkProxy, "ProxyType") else proxy.type() != 0:
-                host = proxy.hostName()
-                port = proxy.port()
-                user = proxy.user()
-                password = proxy.password()
-                if host:
-                    auth = f"{user}:{password}@" if user else ""
-                    proxy_url = f"http://{auth}{host}:{port}"
-                    return {"http": proxy_url, "https": proxy_url}
-    except Exception:
-        pass
-    return None
+from ...proxy import get_qgis_proxy_dict
+
 
 # Only claude.py previously capped output size (its own local DEFAULT_MAX_TOKENS,
 # same value, left as-is there rather than migrated here for no functional

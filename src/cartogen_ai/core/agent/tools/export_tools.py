@@ -43,48 +43,72 @@ def _find_layer_by_name(name):
 
 
 def _check_shapefile_field_names(layer):
-    """Preflight check for ESRI Shapefile export.
-    DBF specifications limit column names to 10 bytes/characters.
-    Detects fields longer than 10 chars, computes their truncated names,
-    and checks for collisions where multiple fields truncate to the same 10-char name.
+    """Preflight check for ESRI Shapefile export replicating OGR/DBF laundering.
+    ESRI Shapefile (DBF) limits field names to 10 characters and is case-insensitive.
+    OGR truncates names to 10 characters and resolves case-insensitive collisions
+    by laundering conflicting names with numeric suffixes (e.g. 'populati_1', 'populati_2').
     Returns (warning_message_or_None, field_mapping_dict).
     """
     if layer is None or not hasattr(layer, "fields"):
         return None, {}
 
     long_fields = []
-    truncated_map = {}  # original_name -> truncated_name
-    collision_groups = {}  # truncated_name -> list of original_names
+    truncated_map = {}  # original_name -> laundered_name
+    used_lower = {}  # lower_case_laundered_name -> count
 
+    field_names = []
     for field in layer.fields():
         name = field.name() if hasattr(field, "name") else str(field)
+        field_names.append(name)
+
+    for name in field_names:
         if len(name) > 10:
             long_fields.append(name)
-            trunc = name[:10]
-            truncated_map[name] = trunc
-            collision_groups.setdefault(trunc, []).append(name)
+            base = name[:10]
         else:
-            trunc = name
-            truncated_map[name] = trunc
-            collision_groups.setdefault(trunc, []).append(name)
+            base = name
 
-    collisions = {trunc: origs for trunc, origs in collision_groups.items() if len(origs) > 1 and any(len(o) > 10 for o in origs)}
+        base_lower = base.lower()
+        if base_lower not in used_lower:
+            laundered = base
+            used_lower[base_lower] = 1
+        else:
+            idx = used_lower[base_lower]
+            used_lower[base_lower] += 1
+            suffix = f"_{idx}"
+            prefix_len = 10 - len(suffix)
+            laundered = f"{base[:prefix_len]}{suffix}"
+            used_lower[laundered.lower()] = 1
 
-    if not long_fields and not collisions:
+        truncated_map[name] = laundered
+
+    # Collisions occurred if any field received a disambiguation suffix or changed from its base
+    has_collisions = any(truncated_map[name] != (name[:10] if len(name) > 10 else name) for name in field_names)
+
+    if not long_fields and not has_collisions:
         return None, truncated_map
 
     warning_parts = []
     if long_fields:
         warning_parts.append(
             f"ESRI Shapefile (DBF) limits field names to 10 characters. {len(long_fields)} field(s) will be truncated: "
-            + ", ".join(f"'{f}' -> '{f[:10]}'" for f in long_fields[:5])
+            + ", ".join(f"'{f}' -> '{truncated_map[f]}'" for f in long_fields[:5])
             + (f" (and {len(long_fields) - 5} more)" if len(long_fields) > 5 else "")
         )
-    if collisions:
-        collision_desc = "; ".join(f"'{trunc}' from {origs}" for trunc, origs in collisions.items())
-        warning_parts.append(f"Name collision(s) detected after truncation: {collision_desc}. Consider exporting to GeoPackage (GPKG) or GeoJSON to preserve full field names.")
+    if has_collisions:
+        collision_examples = [
+            f"'{f}' -> '{truncated_map[f]}'"
+            for f in field_names
+            if truncated_map[f] != (f[:10] if len(f) > 10 else f)
+        ]
+        warning_parts.append(
+            f"Case-insensitive collision(s) detected after truncation. OGR disambiguation will rename: "
+            + ", ".join(collision_examples[:5])
+            + ". Consider exporting to GeoPackage (GPKG) or GeoJSON to preserve full, distinct field names."
+        )
 
     return " ".join(warning_parts), truncated_map
+
 
 
 def _write_vector(layer, output_path, driver_name, layer_options=None):

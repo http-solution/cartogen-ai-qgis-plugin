@@ -6,6 +6,8 @@ Enforces read-only DB role execution guards for SQL queries and provides workflo
 
 import re
 from .registry import register_tool
+from ....infrastructure.settings_keys import workflow_preset_key
+
 
 try:
     from qgis.core import QgsProject, QgsSettings, QgsVectorLayer, QgsDataSourceUri, QgsProviderRegistry
@@ -144,7 +146,7 @@ def save_workflow_preset(preset_name: str, workflow_json: str):
     """Saves workflow preset JSON into project settings or desktop storage."""
     try:
         settings = QgsSettings() if QGIS_AVAILABLE else None
-        key = f"cartogen_ai/workflows/{preset_name}"
+        key = workflow_preset_key(preset_name)
         if settings:
             settings.setValue(key, workflow_json)
         return {"success": True, "preset_name": preset_name, "stored_key": key}
@@ -157,7 +159,7 @@ def load_workflow_preset(preset_name: str):
     """Loads saved workflow preset JSON."""
     try:
         settings = QgsSettings() if QGIS_AVAILABLE else None
-        key = f"cartogen_ai/workflows/{preset_name}"
+        key = workflow_preset_key(preset_name)
         raw = settings.value(key, "") if settings else ""
         if raw:
             return {"success": True, "preset_name": preset_name, "workflow_json": raw}

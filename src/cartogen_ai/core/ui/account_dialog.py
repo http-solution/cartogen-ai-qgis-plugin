@@ -9,8 +9,8 @@ from qgis.core import QgsSettings
 from ..agent.account import CartogenAccountClient, DEFAULT_ACCOUNT_BASE_URL
 from ..agent.auth import CredentialManager
 from ..agent.qgis_compat import enum_member
+from ...infrastructure.settings_keys import SETTINGS_ACCOUNT_BASE_URL as ACCOUNT_URL_KEY
 
-ACCOUNT_URL_KEY = "cartogen_ai/account_base_url"
 
 # QGIS 4.x/Qt6 requires these reached through their enum type
 # (QLineEdit.EchoMode.Password, QDialogButtonBox.StandardButton.Close);

@@ -9,6 +9,8 @@ import re
 import tempfile
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...logger import log_warning, log_error
+
 
 try:
     from qgis.core import (
@@ -332,6 +334,14 @@ def create_shaded_relief(dem_layer, color_ramp="BrBG", azimuth=315, altitude=45,
     if dem is None:
         return {"error": f"Layer '{dem_layer}' not found"}
 
+    # Validate opacity parameter
+    try:
+        opacity_f = float(opacity)
+        if not (0.0 <= opacity_f <= 1.0):
+            return {"error": f"opacity must be between 0.0 and 1.0, got {opacity}"}
+    except (TypeError, ValueError):
+        return {"error": f"opacity must be a valid float between 0.0 and 1.0, got '{opacity}'"}
+
     # 1. Apply hypsometric elevation tinting to DEM
     style_res = apply_raster_stretch(dem_layer, mode="color_ramp", color_ramp=color_ramp)
     if not style_res.get("success"):
@@ -349,30 +359,38 @@ def create_shaded_relief(dem_layer, color_ramp="BrBG", azimuth=315, altitude=45,
 
     # 3. Apply Multiply blend mode to the hillshade layer
     hs_layer = _find_layer_by_name(hs_name)
-    blend_applied = False
-    if hs_layer is not None:
-        if _COMPOSITION_MULTIPLY is not None and hasattr(hs_layer, "setBlendMode"):
-            try:
-                hs_layer.setBlendMode(_COMPOSITION_MULTIPLY)
-                blend_applied = True
-            except Exception:
-                pass
-        if opacity is not None and hasattr(hs_layer, "setOpacity"):
-            try:
-                hs_layer.setOpacity(float(opacity))
-            except Exception:
-                pass
-        if hasattr(hs_layer, "triggerRepaint"):
-            hs_layer.triggerRepaint()
+    if hs_layer is None:
+        return {"error": f"Hillshade layer '{hs_name}' was generated but could not be retrieved from map project."}
+
+    if _COMPOSITION_MULTIPLY is None or not hasattr(hs_layer, "setBlendMode"):
+        log_error("Multiply composition mode is not supported by this QGIS/Qt environment", tag="create_shaded_relief")
+        return {"error": "Multiply composition mode (QPainter.CompositionMode_Multiply) is not supported by this QGIS/Qt environment."}
+
+    try:
+        hs_layer.setBlendMode(_COMPOSITION_MULTIPLY)
+    except Exception as e:
+        log_error(f"Failed to set Multiply blend mode on hillshade layer: {e}", tag="create_shaded_relief")
+        return {"error": f"Failed to set Multiply blend mode on hillshade layer: {e}"}
+
+    try:
+        if hasattr(hs_layer, "setOpacity"):
+            hs_layer.setOpacity(opacity_f)
+    except Exception as e:
+        log_warning(f"Could not adjust opacity on hillshade layer: {e}", tag="create_shaded_relief")
+
+    if hasattr(hs_layer, "triggerRepaint"):
+        hs_layer.triggerRepaint()
 
     return {
         "success": True,
         "dem_layer": dem_layer,
         "hillshade_layer": hs_name,
         "color_ramp": style_res.get("color_ramp", color_ramp),
-        "blend_mode": "Multiply" if blend_applied else "normal",
+        "blend_mode": "Multiply",
+        "opacity": opacity_f,
         "composite_pipeline": "hypsometric_tint + hillshade_multiply",
     }
+
 
 
 @register_tool("slope_analysis", "Calculate slope map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})

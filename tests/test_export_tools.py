@@ -803,13 +803,16 @@ class TestShapefileFieldTruncation(unittest.TestCase):
         layer.fields.return_value = [
             self._make_field("population_density"),
             self._make_field("population_growth"),
+            self._make_field("POPULATION_DENSITY"),
         ]
         warning, mapping = _check_shapefile_field_names(layer)
         self.assertIsNotNone(warning)
         self.assertIn("collision", warning.lower())
         self.assertIn("GeoPackage", warning)
         self.assertEqual(mapping["population_density"], "population")
-        self.assertEqual(mapping["population_growth"], "population")
+        self.assertEqual(mapping["population_growth"], "populati_1")
+        self.assertEqual(mapping["POPULATION_DENSITY"], "POPULATI_2")
+
 
 
 if __name__ == "__main__":

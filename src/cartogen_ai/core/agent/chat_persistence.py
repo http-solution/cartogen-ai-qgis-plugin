@@ -16,8 +16,11 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-CHAT_HISTORY_KEY = "cartogen_ai/chat_history"
-PERSIST_SETTING_KEY = "cartogen_ai/persist_chat_history"
+from ...infrastructure.settings_keys import (
+    SETTINGS_CHAT_HISTORY as CHAT_HISTORY_KEY,
+    SETTINGS_PERSIST_CHAT_HISTORY as PERSIST_SETTING_KEY,
+)
+
 
 
 def is_persist_enabled() -> bool:
