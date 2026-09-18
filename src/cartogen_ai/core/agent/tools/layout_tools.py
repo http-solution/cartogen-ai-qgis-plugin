@@ -4,6 +4,7 @@ Print Layout Composition Tools for Cartogen AI.
 Generates automated QgsPrintLayout compositions with title, map item, legend, scalebar, and north arrow.
 """
 
+import math
 import os
 from .registry import register_tool
 
@@ -12,7 +13,8 @@ try:
         QgsProject, QgsPrintLayout, QgsLayoutItemMap, QgsLayoutItemLegend,
         QgsLayoutItemScaleBar, QgsLayoutItemLabel, QgsLayoutItemPicture,
         QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsLayoutExporter,
-        QgsApplication, QgsCoordinateTransform
+        QgsApplication, QgsCoordinateTransform, QgsLayoutItemMapGrid,
+        QgsLayoutItemMapOverview, QgsRectangle
     )
     from qgis.utils import iface
     try:
@@ -90,6 +92,27 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         return extent
 
 
+def _nice_interval(raw):
+    """Rounds raw (a rough 'one grid line every this many map units' target) up to the
+    nearest 1/2/5 x 10^n -- the same 'nice round number' convention QGIS's own scale bar
+    uses, so graticule lines land on readable values (2 degrees, 0.5 degrees, 50000 meters)
+    instead of an arbitrary fraction. Pure Python, no QGIS needed."""
+    if raw <= 0:
+        return 1.0
+    magnitude = 10 ** math.floor(math.log10(raw))
+    for step in (1, 2, 5, 10):
+        candidate = step * magnitude
+        if candidate >= raw:
+            return candidate
+    return 10 * magnitude
+
+
+def _format_scale_denominator(n):
+    """1:1234567 -> '1:1,234,567' -- the textual representative-fraction scale
+    cartographic convention expects alongside (not instead of) a graphical scale bar."""
+    return f"1:{int(round(n)):,}"
+
+
 @register_tool(
     "create_print_layout",
     "Create a map print layout composition with title, legend, scalebar, north arrow, and an "
@@ -113,7 +136,10 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     "printed/exported layout reads as an authoritative finished document, not a draft, so anything "
     "fabricated here is far more likely to be trusted and acted on than the same claim in chat. Every "
     "export from this tool carries a standing disclaimer footer for exactly this reason, but that "
-    "does not excuse writing fabricated content in the first place.",
+    "does not excuse writing fabricated content in the first place. Also includes a coordinate "
+    "graticule, a CRS/datum + representative-fraction scale label ('1:N', alongside the graphical "
+    "scale bar), and -- when include_inset_map is true -- a small locator/inset map showing where "
+    "the main map sits within a wider surrounding area.",
     {
         "type": "object",
         "properties": {
@@ -123,11 +149,12 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
+            "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = ""):
+def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -191,15 +218,23 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # real overlap once zoom_to_layer above made full-country maps the
         # norm. Only the landscape numbers have been confirmed against a
         # live full-Yemen export; portrait is analogous but unverified.
+        # Fixed budget for the new CRS/datum + representative-fraction-scale info row
+        # (Phase 3, 2026-09-19) -- carved out of map_h in both orientations rather than
+        # touching any already-live-verified footer/body position (BUG-2026-09-11-1's
+        # footer-overlap history is exactly the failure mode this avoids repeating).
+        INFO_ROW_H = 6
+        INFO_ROW_GAP = 2
+
         portrait = page_orientation.lower() == "portrait"
         page_width, page_height = (210, 297) if portrait else (297, 210)
         if portrait:
-            map_x, map_y, map_w, map_h = 15, 26, 180, 190
+            map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
             col_x, col_w = 15, 180
+            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
             # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
             # fund a realistic body_h below -- still ample for the handful of
             # categories a humanitarian export's legend typically carries.
-            legend_y, legend_h = map_y + map_h + 4, 35
+            legend_y, legend_h = info_y + info_h + 4, 35
             scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
             # Footer pinned to a FIXED distance from the page bottom, not
             # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
@@ -224,7 +259,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             north_x, north_y = 175, scalebar_y
             title_w = 180
         else:
-            map_x, map_y, map_w, map_h = 15, 26, 175, 155
+            map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (INFO_ROW_H + INFO_ROW_GAP)
             col_x, col_w = 195, 95
             legend_y, legend_h = map_y, 88
             # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
@@ -232,7 +267,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             # map/legend/scalebar/title numbers confirmed against a live
             # full-Yemen export.
             body_y, body_h = legend_y + legend_h + 4, 78
-            scalebar_y, scalebar_h = map_y + map_h + 3, 12
+            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
+            scalebar_y, scalebar_h = info_y + info_h + 3, 12
             north_x, north_y = map_x + map_w - 12, scalebar_y
             title_w = col_x + col_w - map_x
             # Landscape's footer position is still derived from body_y+body_h
@@ -286,6 +322,84 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         scalebar.attemptMove(QgsLayoutPoint(map_x, scalebar_y, LAYOUT_MM))
         scalebar.attemptResize(QgsLayoutSize(min(90, map_w - 15), scalebar_h, LAYOUT_MM))
 
+        # CRS/datum + textual representative-fraction scale ("1:N") -- ISO 19115/OCHA
+        # cartographic metadata the exported layout previously had no way to show, sitting
+        # alongside (not replacing) the graphical scale bar above, which alone doesn't
+        # state the CRS/datum or an exact numeric ratio. Uses the map item's own crs()/
+        # scale() (set after setExtent() above, so this reflects the actual rendered
+        # extent) rather than the source layer's CRS, since the map item may be
+        # reprojecting on render.
+        info_warning = None
+        try:
+            map_crs = map_item.crs()
+            crs_text = f"{map_crs.authid()} ({map_crs.description()})" if map_crs and map_crs.isValid() else "CRS unknown"
+            scale_text = _format_scale_denominator(map_item.scale())
+            info_label = QgsLayoutItemLabel(layout)
+            info_label.setText(f"{crs_text}   |   Scale {scale_text}")
+            layout.addLayoutItem(info_label)
+            info_label.setId("MAP_INFO")
+            info_label.attemptMove(QgsLayoutPoint(map_x, info_y, LAYOUT_MM))
+            info_label.attemptResize(QgsLayoutSize(map_w, info_h, LAYOUT_MM))
+        except Exception as e:
+            info_warning = f"Could not add the CRS/scale info label to this layout: {e}"
+
+        # Coordinate graticule -- OCHA/humanitarian map standards call for a coordinate
+        # grid for tactical navigation, which the layout previously had no way to show.
+        # Interval derived from the map's own extent (roughly one line per quarter of the
+        # visible width, rounded to a nice 1/2/5 value) so it's proportionate whether the
+        # map is a single city or a full country. Best-effort: wrapped so a grid-API
+        # mismatch on some QGIS version degrades to "no grid" rather than failing the
+        # whole layout, consistent with this file's existing method is None guards
+        # elsewhere for the same class of cross-version risk.
+        grid_warning = None
+        try:
+            grid_extent = map_item.extent()
+            raw_interval = max(grid_extent.width(), grid_extent.height()) / 4.0
+            interval = _nice_interval(raw_interval)
+            grid = QgsLayoutItemMapGrid("Graticule", map_item)
+            grid.setIntervalX(interval)
+            grid.setIntervalY(interval)
+            grid.setEnabled(True)
+            grid.setAnnotationEnabled(True)
+            map_item.grids().addGrid(grid)
+        except Exception as e:
+            grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
+
+        # Locator/inset map -- shows where the main map sits within a wider surrounding
+        # area, an OCHA-standard element the layout previously had no way to show. Zoomed
+        # out from the main map's own extent (same center, ~6x wider) rather than
+        # depending on a separate administrative-boundary layer being present, so this
+        # works on any project. Placed in the map's own top-left corner (the north arrow
+        # already occupies the top-right in both orientations) via a QgsLayoutItemMapOverview
+        # linked back to the main map, which draws the "you are here" outline automatically.
+        inset_warning = None
+        if include_inset_map:
+            try:
+                main_extent = map_item.extent()
+                cx, cy = main_extent.center().x(), main_extent.center().y()
+                zoom_factor = 6.0
+                half_w = main_extent.width() * zoom_factor / 2.0
+                half_h = main_extent.height() * zoom_factor / 2.0
+                inset_extent = QgsRectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+
+                inset_size = 32
+                inset_map = QgsLayoutItemMap(layout)
+                inset_map.setRect(20, 20, 20, 20)
+                inset_map.setExtent(inset_extent)
+                if map_item.crs() and map_item.crs().isValid():
+                    inset_map.setCrs(map_item.crs())
+                layout.addLayoutItem(inset_map)
+                inset_map.setId("INSET_MAP")
+                inset_map.attemptMove(QgsLayoutPoint(map_x + 2, map_y + 2, LAYOUT_MM))
+                inset_map.attemptResize(QgsLayoutSize(inset_size, inset_size, LAYOUT_MM))
+                inset_map.setFrameEnabled(True)
+
+                overview = QgsLayoutItemMapOverview("Locator", inset_map)
+                overview.setLinkedMap(map_item)
+                inset_map.overviews().addOverview(overview)
+            except Exception as e:
+                inset_warning = f"Could not add a locator/inset map to this layout: {e}"
+
         # North Arrow Picture Item
         north_arrow = QgsLayoutItemPicture(layout)
         svg_paths = QgsApplication.svgPaths()
@@ -336,6 +450,12 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, LAYOUT_MM))
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation}
+        if info_warning:
+            res_msg["info_label_warning"] = info_warning
+        if grid_warning:
+            res_msg["grid_warning"] = grid_warning
+        if inset_warning:
+            res_msg["inset_warning"] = inset_warning
 
         if output_path:
             ext = os.path.splitext(output_path)[1].lower()

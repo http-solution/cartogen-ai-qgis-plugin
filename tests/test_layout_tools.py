@@ -23,7 +23,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.tools.layout_tools import (
     create_print_layout, list_layouts, list_layout_items, update_layout_item_text,
-    export_layout_atlas, _fit_text_to_box,
+    export_layout_atlas, _fit_text_to_box, _nice_interval, _format_scale_denominator,
 )
 
 
@@ -86,6 +86,44 @@ class TestFitTextToBox(unittest.TestCase):
         self.assertTrue(result.endswith("…"))
 
 
+class TestNiceInterval(unittest.TestCase):
+    """Phase 3 (2026-09-19), OCHA-standard coordinate graticule: _nice_interval rounds a raw
+    target spacing up to the nearest 1/2/5 x 10^n, the same 'nice round number' convention
+    QGIS's own scale bar uses -- pure Python, no QGIS needed. Live-verified (real QGIS 4.2.2,
+    python-qgis.bat, real QgsLayoutExporter.exportToImage PNG visually inspected) that the
+    grid this feeds actually renders with visible tick annotations on all 4 borders, in both
+    landscape and portrait, with no overlap with the map/legend/scalebar around it."""
+
+    def test_rounds_up_to_nearest_nice_value(self):
+        self.assertEqual(_nice_interval(0.3), 0.5)
+        self.assertEqual(_nice_interval(3), 5)
+        self.assertEqual(_nice_interval(37), 50)
+        self.assertEqual(_nice_interval(150), 200)
+
+    def test_exact_nice_value_returned_unchanged(self):
+        self.assertEqual(_nice_interval(5), 5)
+        self.assertEqual(_nice_interval(100), 100)
+
+    def test_zero_or_negative_falls_back_to_1(self):
+        self.assertEqual(_nice_interval(0), 1.0)
+        self.assertEqual(_nice_interval(-5), 1.0)
+
+
+class TestFormatScaleDenominator(unittest.TestCase):
+    """Phase 3 (2026-09-19): the OCHA-standard textual representative-fraction scale
+    ('1:N') alongside the existing graphical scale bar, which alone never stated an exact
+    numeric ratio."""
+
+    def test_formats_with_thousands_separators(self):
+        self.assertEqual(_format_scale_denominator(1234567), "1:1,234,567")
+
+    def test_rounds_to_nearest_integer(self):
+        self.assertEqual(_format_scale_denominator(50000.6), "1:50,001")
+
+    def test_small_scale(self):
+        self.assertEqual(_format_scale_denominator(500), "1:500")
+
+
 class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
     def test_degrades_gracefully(self):
         res = create_print_layout("Test Layout")
@@ -101,6 +139,11 @@ class TestCreatePrintLayoutDegradesOutsideQgis(unittest.TestCase):
 
     def test_degrades_gracefully_with_zoom_to_layer(self):
         res = create_print_layout("Test Layout", zoom_to_layer="YEM_ADM1_boundary_hdx")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    def test_degrades_gracefully_with_include_inset_map(self):
+        res = create_print_layout("Test Layout", include_inset_map=False)
         self.assertIn("error", res)
         self.assertIn("QGIS not available", res["error"])
 
