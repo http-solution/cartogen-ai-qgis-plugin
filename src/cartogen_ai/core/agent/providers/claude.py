@@ -239,6 +239,20 @@ class ClaudeClient(BaseAiProvider):
         if anthropic_tools:
             anthropic_tools[-1] = {**anthropic_tools[-1], "cache_control": {"type": "ephemeral"}}
             payload["tools"] = anthropic_tools
+        if anthropic_messages:
+            # Cost/performance pass, 2026-09-19: system+tools above cache the fixed prefix, but
+            # every iteration of a multi-tool-call turn (often 5-20+ requests) also resends the
+            # WHOLE growing `messages` list -- each iteration only appends one new tool_result,
+            # yet every prior tool_result was still being reprocessed at full price on every
+            # subsequent call. Confirmed against Anthropic's own docs (platform.claude.com/docs,
+            # "Prompt caching" -- fetched 2026-09-18, not assumed) that a top-level
+            # `cache_control` field on the request auto-places a breakpoint on the last
+            # cacheable message block and walks it forward as the conversation grows, exactly
+            # this shape ("the robust combination for agent loops": one explicit breakpoint on
+            # the static system/tools prefix + automatic caching for the message tail). Uses a
+            # 3rd of the 4 allowed breakpoints (system + tools' explicit markers are the other
+            # 2), so this stays within the request-level limit.
+            payload["cache_control"] = {"type": "ephemeral"}
 
         try:
             response = post_with_retry(self.base_url, headers, json.dumps(payload), timeout=60)

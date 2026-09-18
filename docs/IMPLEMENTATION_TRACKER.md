@@ -407,6 +407,24 @@ or a new explicit `visible: bool` parameter on the tool itself).
   directory no longer misreads as "the private repo exists."
 - **Repo rename / GitHub collaborator items** — external GitHub actions, not verifiable or
   actionable from this sandbox. Source: `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
+- **OpenRouter+Anthropic prompt caching — doc-verified, not yet live-confirmed.** 2026-09-19
+  cost/performance pass (4-provider follow-up to the Gemini-specific pass in `88c4764`):
+  `agent/providers/openrouter.py`'s `_apply_anthropic_cache_control` (system-prompt breakpoint)
+  and the new top-level `cache_control` field (growing message-tail breakpoint) are both
+  confirmed real, supported mechanisms against OpenRouter's own docs
+  (openrouter.ai/docs/features/prompt-caching, fetched 2026-09-18) — but neither has been
+  checked against a live response's `usage.prompt_tokens_details.cached_tokens` field in this
+  environment. Needs a real OpenRouter key routed to an `anthropic/*` model, a 2+ iteration
+  tool-calling turn, and confirmation that `cached_tokens > 0` appears on the second call.
+- **Ollama `keep_alive` — investigated, deliberately NOT implemented.** Same pass: considered
+  adding `keep_alive` to `agent/providers/ollama.py`'s request payload to keep a local model
+  resident between turns (avoiding reload latency) — confirmed via live GitHub issues
+  (ollama/ollama#11458, #9355) that Ollama's `/v1/chat/completions` (OpenAI-compatible)
+  endpoint, which this client uses, silently ignores `keep_alive` in the request body; only the
+  native `/api/chat` endpoint honors it. Adding the field here would be dead code that looks
+  like a real fix. See `ollama.py`'s own comment for the actionable workaround (the
+  `OLLAMA_KEEP_ALIVE` server-side env var) — switching this client to the native endpoint would
+  be a bigger, response-shape-changing decision, flagged here rather than done silently.
 
 ## 3. Deliberately deferred (not a gap — a stated design choice)
 

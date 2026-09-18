@@ -50,11 +50,23 @@ def _apply_anthropic_cache_control(messages, model_id):
     system prompt and tool schemas are near-identical across every iteration
     of a tool-calling turn (often 5-20+ requests), so this should let
     Anthropic serve iterations 2+ from cache instead of reprocessing the
-    ~3,000-4,000 token system prompt on every single request -- unverified
-    against a live response's cache-hit fields in this environment (no
-    network access to test), needs confirming against real usage before
-    being trusted as working. No-op for every other model, including the
-    default free-tier FALLBACK_MODELS chain, none of which are anthropic/*."""
+    ~3,000-4,000 token system prompt on every single request.
+
+    2026-09-19 cost/performance pass: confirmed against OpenRouter's own docs
+    (openrouter.ai/docs/features/prompt-caching, fetched 2026-09-18, not
+    assumed) that this per-block placement is real and that cached/written
+    token counts come back for anthropic/* models in the same
+    usage.prompt_tokens_details shape as every other OpenAI-compatible
+    provider here -- meaning base.extract_openai_style_usage's existing
+    cached_tokens extraction already surfaces OpenRouter+Anthropic cache
+    hits with no further code change needed. Still not confirmed against a
+    LIVE response in this sandbox (no network access) -- see docs/
+    IMPLEMENTATION_TRACKER.md for the open item to verify usage.
+    prompt_tokens_details.cached_tokens > 0 on a real second-iteration call
+    once a live OpenRouter+anthropic/* key is available.
+
+    No-op for every other model, including the default free-tier
+    FALLBACK_MODELS chain, none of which are anthropic/*."""
     if not model_id.startswith("anthropic/"):
         return messages
     marked = []
@@ -106,6 +118,14 @@ class OpenRouterClient(BaseAiProvider):
         }
         if tools:
             payload["tools"] = tools
+        if model_id.startswith("anthropic/"):
+            # Same "robust combination for agent loops" as claude.py's native client: an
+            # explicit breakpoint on the static system prefix (_apply_anthropic_cache_control
+            # above) plus a top-level cache_control field for automatic caching of the
+            # growing messages tail across a multi-iteration tool-calling turn. Confirmed
+            # supported for OpenRouter's anthropic/* models specifically (openrouter.ai/docs/
+            # features/prompt-caching, fetched 2026-09-18) -- no-op for every other model.
+            payload["cache_control"] = {"type": "ephemeral"}
         # A transient 5xx on the CURRENT model gets a short retry here before
         # the outer _request_with_fallback loop gives up on it and moves to
         # the next model in the chain -- retry-then-fallback, not fallback-only.

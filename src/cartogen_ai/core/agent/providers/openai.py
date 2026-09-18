@@ -94,6 +94,18 @@ def grounded_search(api_key, query, model="gpt-5-search-api"):
 FALLBACK_MODELS = ["gpt-5.6", "gpt-5.2-chat-latest", "gpt-5-mini"]
 
 
+# 2026-09-19 cost/performance pass (4-provider follow-up to the Gemini-specific 88c4764):
+# researched whether this client needed its own caching code, the way claude.py sends
+# explicit cache_control breakpoints. Confirmed against OpenAI's docs
+# (developers.openai.com/api/docs/guides/prompt-caching, fetched 2026-09-18) that prompt
+# caching is automatic for prompts >=1024 tokens on OpenAI's side -- no request-shape change
+# needed -- and that the cache-hit count comes back as usage.prompt_tokens_details.
+# cached_tokens on Chat Completions (this client's endpoint), the exact shape
+# base.extract_openai_style_usage already extracts (added for Gemini, but shape-agnostic).
+# So this client already surfaces OpenAI cache hits with zero additional code: nothing to
+# change here. What DOES help caching -- keeping the tools list/system prompt byte-identical
+# across iterations -- is handled generically in tool_router.py/agent.py for every provider,
+# not per-client.
 class OpenAIClient(BaseAiProvider):
     def __init__(self, api_key, model=None, status_callback=None):
         self.api_key = api_key
