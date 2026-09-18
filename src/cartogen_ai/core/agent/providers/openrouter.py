@@ -1,7 +1,10 @@
 import json
 import time
-import requests
-from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
+from .base import (
+    BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
+    extract_openai_style_usage, format_http_error, format_request_exception,
+    requests, HTTPError, RequestException,
+)
 from ..model_selector import filter_chat_model_ids
 
 
@@ -20,7 +23,7 @@ def list_models(api_key=None):
         data = response.json()
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("OpenRouter models list failed", e)}
     except Exception as e:
         return {"error": format_request_exception("OpenRouter models list request failed", e)}
@@ -168,13 +171,13 @@ class OpenRouterClient(BaseAiProvider):
                     except ValueError as e:
                         return {"ok": False, "error": f"Response was not valid JSON: {e}", "model": model_id}
                     return {"ok": True, "data": data, "model": model_id}
-                except requests.exceptions.HTTPError as e:
+                except HTTPError as e:
                     return {
                         "ok": False,
                         "error": format_http_error("HTTP error", e),
                         "model": model_id,
                     }
-                except requests.exceptions.RequestException as e:
+                except RequestException as e:
                     return {"ok": False, "error": format_request_exception("Request failed", e), "model": model_id}
 
             if not any_rate_limited:

@@ -29,9 +29,13 @@ except ImportError:
 from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
 from qgis.core import QgsSettings, QgsProject, QgsApplication
+from cartogen_ai.infrastructure.settings_keys import (
+    SETTINGS_API_KEY,
+    SETTINGS_HELP_LAST_SHOWN_VERSION,
+)
 
-SETTINGS_KEY = "cartogen_ai/api_key"
-HELP_LAST_SHOWN_VERSION_KEY = "cartogen_ai/help_last_shown_version"
+SETTINGS_KEY = SETTINGS_API_KEY
+HELP_LAST_SHOWN_VERSION_KEY = SETTINGS_HELP_LAST_SHOWN_VERSION
 
 
 def _dock_area_right():

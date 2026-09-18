@@ -25,6 +25,7 @@ SETTINGS_PERSIST_CHAT_HISTORY = "cartogen_ai/persist_chat_history"
 SETTINGS_GLOBAL_MEMORY = "cartogen_ai/global_memory"
 SETTINGS_PERSIST_PROJECT_MEMORY = "cartogen_ai/persist_project_memory"
 SETTINGS_ONBOARDING_COMPLETED = "cartogen_ai/onboarding_completed"
+SETTINGS_HELP_LAST_SHOWN_VERSION = "cartogen_ai/help_last_shown_version"
 
 # Prompt Refiner Settings
 SETTINGS_PROMPT_REFINEMENT_ENABLED = "cartogen_ai/prompt_refinement_enabled"
@@ -32,11 +33,17 @@ SETTINGS_PROMPT_PREVIEW_ENABLED = "cartogen_ai/prompt_preview_enabled"
 SETTINGS_USER_PROFILE = "cartogen_ai/user_profile"
 SETTINGS_PROMPT_REFINEMENT_MODEL = "cartogen_ai/prompt_refinement_model"
 
-# Custom Project Properties (stored via QgsProject custom properties)
+# Custom Project & Layer Properties (stored via QgsProject/QgsMapLayer custom properties)
 PROJECT_PROPERTY_MEMORY = "cartogen_ai/project_memory"
 PROJECT_PROPERTY_DATASET_STATUS = "cartogen_ai/dataset_status"
 PROJECT_PROPERTY_LINEAGE = "cartogen_ai/lineage"
 PROJECT_PROPERTY_SENSITIVITY = "cartogen_ai/sensitivity"
+PROJECT_PROPERTY_CONFIDENCE = "cartogen_ai/confidence"
+PROJECT_PROPERTY_FETCHED_AT = "cartogen_ai/fetched_at"
+
+# Workflow Settings Prefixes
+SETTINGS_WORKFLOW_PREFIX = "cartogen_ai/workflows/"
+SETTINGS_WORKFLOW_RUNS_PREFIX = "cartogen_ai/workflow_runs/"
 
 
 def auth_id_setting_key(provider: str) -> str:
@@ -57,3 +64,8 @@ def provider_model_list_key(provider: str) -> str:
 def workflow_preset_key(preset_name: str) -> str:
     """Returns the QgsSettings key used for a saved workflow preset."""
     return f"cartogen_ai/workflows/{preset_name}"
+
+
+def workflow_run_key(run_id: str) -> str:
+    """Returns the QgsSettings key used for a specific workflow run record."""
+    return f"cartogen_ai/workflow_runs/{run_id}"

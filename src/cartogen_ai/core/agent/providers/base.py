@@ -1,7 +1,24 @@
 import time
 from abc import ABC, abstractmethod
 
-import requests
+try:
+    import requests
+    HTTPError = requests.exceptions.HTTPError
+    RequestException = requests.exceptions.RequestException
+    ConnectionError_ = requests.exceptions.ConnectionError
+    Timeout_ = requests.exceptions.Timeout
+except (ImportError, AttributeError):
+    requests = None
+    class HTTPError(Exception):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args)
+            self.response = kwargs.get("response", None)
+    class RequestException(Exception):
+        pass
+    class ConnectionError_(Exception):
+        pass
+    class Timeout_(Exception):
+        pass
 
 # Status codes worth retrying: 429 (rate limited) and the common transient
 # 5xx server errors. Anything else (400/401/403/404/etc.) is a real client-side
@@ -57,7 +74,7 @@ def _request_with_retry(send, timeout, max_retries):
     for attempt in range(total_attempts):
         try:
             response = send()
-        except requests.exceptions.RequestException as e:
+        except RequestException as e:
             last_exc = e
             if attempt < max_retries:
                 time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
@@ -79,6 +96,8 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
     """Shared HTTP POST for every provider's raw requests-based client -- see
     _request_with_retry for the retry behavior. Drop-in replacement for a bare
     requests.post(...) call."""
+    if requests is None:
+        raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()
     return _request_with_retry(
         lambda: requests.post(url, headers=headers, data=payload_json, timeout=timeout, proxies=proxies),
@@ -93,6 +112,8 @@ def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
     (e.g. populating the settings dialog's model dropdown) used to fail outright with no retry,
     inconsistent with every other HTTP call this codebase makes. Same retry/backoff behavior as
     post_with_retry, just for GET -- drop-in replacement for a bare requests.get(...) call."""
+    if requests is None:
+        raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()
     return _request_with_retry(
         lambda: requests.get(url, headers=headers, timeout=timeout, proxies=proxies),
@@ -138,9 +159,9 @@ def format_request_exception(prefix, e):
     exception type (a malformed-response KeyError/IndexError, a JSON decode ValueError, etc.)
     falls through to the original str(e) behavior unchanged -- this only replaces the one
     genuinely common, genuinely unhelpful case."""
-    if isinstance(e, requests.exceptions.ConnectionError):
+    if isinstance(e, ConnectionError_):
         return f"{prefix}: could not reach the server -- check your internet connection. ({e})"
-    if isinstance(e, requests.exceptions.Timeout):
+    if isinstance(e, Timeout_):
         return f"{prefix}: the request timed out -- the server may be slow or unreachable. ({e})"
     return f"{prefix}: {e}"
 

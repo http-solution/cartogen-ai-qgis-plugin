@@ -39,6 +39,12 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
+from ....infrastructure.settings_keys import (
+    PROJECT_PROPERTY_DATASET_STATUS,
+    PROJECT_PROPERTY_SENSITIVITY,
+    PROJECT_PROPERTY_CONFIDENCE,
+)
+
 
 def _find_layer(layer_name):
     if not QGIS_AVAILABLE or not layer_name:
@@ -255,16 +261,16 @@ SNAPSHOT_REGISTRY = {
     "apply_graduated_style": (_snapshot_style, _restore_style),
     "apply_graduated_symbol_style": (_snapshot_style, _restore_style),
     "set_dataset_status": (
-        _make_property_snapshot_fn(_customproperty_getter("cartogen_ai/dataset_status")),
-        _make_property_restore_fn(_customproperty_setter("cartogen_ai/dataset_status")),
+        _make_property_snapshot_fn(_customproperty_getter(PROJECT_PROPERTY_DATASET_STATUS)),
+        _make_property_restore_fn(_customproperty_setter(PROJECT_PROPERTY_DATASET_STATUS)),
     ),
     "set_layer_sensitivity": (
-        _make_property_snapshot_fn(_customproperty_getter("cartogen_ai/sensitivity")),
-        _make_property_restore_fn(_customproperty_setter("cartogen_ai/sensitivity")),
+        _make_property_snapshot_fn(_customproperty_getter(PROJECT_PROPERTY_SENSITIVITY)),
+        _make_property_restore_fn(_customproperty_setter(PROJECT_PROPERTY_SENSITIVITY)),
     ),
     "set_layer_confidence": (
-        _make_property_snapshot_fn(_customproperty_getter("cartogen_ai/confidence")),
-        _make_property_restore_fn(_customproperty_setter("cartogen_ai/confidence")),
+        _make_property_snapshot_fn(_customproperty_getter(PROJECT_PROPERTY_CONFIDENCE)),
+        _make_property_restore_fn(_customproperty_setter(PROJECT_PROPERTY_CONFIDENCE)),
     ),
     "run_query": (
         _make_property_snapshot_fn(_subsetstring_get),

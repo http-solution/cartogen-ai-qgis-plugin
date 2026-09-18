@@ -1,6 +1,9 @@
 import json
-import requests
-from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
+from .base import (
+    BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
+    extract_openai_style_usage, format_http_error, format_request_exception,
+    requests, HTTPError, RequestException,
+)
 from ..model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
@@ -39,7 +42,7 @@ def list_models(api_key):
             name = m.get("name", "")
             ids.append(name.split("/", 1)[-1] if name.startswith("models/") else name)
         return {"success": True, "models": filter_chat_model_ids(ids)}
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("Gemini models list failed", e)}
     except Exception as e:
         return {"error": format_request_exception("Gemini models list request failed", e)}
@@ -103,7 +106,7 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
         result = {"success": True, "text": text, "sources": sources}
         _SEARCH_CACHE.set(cache_key, result)
         return result
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("Gemini grounded search failed", e)}
     except Exception as e:
         return {"error": format_request_exception("Gemini grounded search request failed", e)}
@@ -178,7 +181,7 @@ class GeminiClient(BaseAiProvider):
                 if usage is not None:
                     out["usage"] = usage
                 return out
-            except requests.exceptions.HTTPError as e:
+            except HTTPError as e:
                 return {"error": format_http_error("Gemini API error", e)}
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}

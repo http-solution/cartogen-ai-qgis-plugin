@@ -40,8 +40,11 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 """
 
 import json
-import requests
-from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
+from .base import (
+    BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
+    extract_openai_style_usage, format_http_error, format_request_exception,
+    requests, HTTPError, RequestException,
+)
 from ..model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
@@ -79,7 +82,7 @@ def list_models(api_key, base_url=None):
         data = response.json()
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("Cartogen gateway models list failed", e)}
     except Exception as e:
         return {
@@ -162,7 +165,7 @@ class CartogenClient(BaseAiProvider):
                 if usage is not None:
                     out["usage"] = usage
                 return out
-            except requests.exceptions.HTTPError as e:
+            except HTTPError as e:
                 return {"error": format_http_error("Cartogen gateway API error", e)}
             except Exception as e:
                 return {
