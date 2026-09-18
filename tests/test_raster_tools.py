@@ -902,6 +902,34 @@ class TestCreateShadedRelief(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("dem", res["error"])
 
+    def test_invalid_opacity_rejected(self):
+        with patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name", return_value=MagicMock()):
+            res = create_shaded_relief("elevation", opacity=1.5)
+            self.assertIn("error", res)
+            self.assertIn("opacity", res["error"])
+
+            res2 = create_shaded_relief("elevation", opacity="invalid")
+            self.assertIn("error", res2)
+            self.assertIn("opacity", res2["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.apply_raster_stretch")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_blend_mode_unsupported_returns_error(self, mock_find, mock_stretch, mock_run):
+        dem_mock = MagicMock()
+        hs_mock = MagicMock()
+        del hs_mock.setBlendMode  # Simulate layer lacking setBlendMode
+        mock_find.side_effect = lambda name: dem_mock if name == "elevation" else (hs_mock if name == "elevation_hillshade" else None)
+        mock_stretch.return_value = {"success": True, "color_ramp": "BrBG"}
+        mock_run.return_value = {"success": True, "layer_name": "elevation_hillshade"}
+
+        res = create_shaded_relief("elevation")
+        self.assertIn("error", res)
+        self.assertIn("Multiply", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._COMPOSITION_MULTIPLY", new=13)
     @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
     @patch("cartogen_ai.core.agent.tools.raster_tools.apply_raster_stretch")
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
@@ -915,12 +943,17 @@ class TestCreateShadedRelief(unittest.TestCase):
 
         res = create_shaded_relief("elevation", color_ramp="BrBG", azimuth=315, altitude=45, opacity=0.8)
 
+
+
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["dem_layer"], "elevation")
         self.assertEqual(res["hillshade_layer"], "elevation_hillshade")
+        self.assertEqual(res["blend_mode"], "Multiply")
+        self.assertEqual(res["opacity"], 0.8)
         mock_stretch.assert_called_once_with("elevation", mode="color_ramp", color_ramp="BrBG")
         mock_run.assert_called_once()
         hs_mock.setOpacity.assert_called_once_with(0.8)
+
 
 
 if __name__ == "__main__":

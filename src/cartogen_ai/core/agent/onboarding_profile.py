@@ -32,7 +32,8 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 
-ONBOARDING_COMPLETED_KEY = "cartogen_ai/onboarding_completed"
+from ...infrastructure.settings_keys import SETTINGS_ONBOARDING_COMPLETED as ONBOARDING_COMPLETED_KEY
+
 
 # value -> label. Keys are what gets stored/parsed; labels are what the dialog shows and what
 # gets written into the .md file (round-tripped back via _reverse_lookup()).

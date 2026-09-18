@@ -24,9 +24,18 @@ from ..agent.providers.openai import list_models as _list_openai
 from ..agent.providers.claude import list_models as _list_claude
 from ..agent.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
-
-PROVIDER_KEY = "cartogen_ai/provider"
+from ...infrastructure.settings_keys import (
+    SETTINGS_PROVIDER as PROVIDER_KEY,
+    SETTINGS_OPENROUTER_MODEL,
+    SETTINGS_GEMINI_MODEL,
+    SETTINGS_OLLAMA_MODEL,
+    SETTINGS_OPENAI_MODEL,
+    SETTINGS_CLAUDE_MODEL,
+    SETTINGS_CARTOGEN_MODEL,
+    provider_model_list_key,
+)
 AUTO_LABEL = "auto (recommended)"
+
 
 
 def _extract_theme_palette():
@@ -59,7 +68,7 @@ PROVIDERS = [
     {
         "value": "openrouter", "provider_label": "OpenRouter (Hosted)", "pill_label": "OpenRouter",
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
-        "model_setting_key": "cartogen_ai/openrouter_model", "default_model": AUTO_SENTINEL,
+        "model_setting_key": SETTINGS_OPENROUTER_MODEL, "default_model": AUTO_SENTINEL,
         "key_default": "", "list_fn": _list_openrouter,
         "key_placeholder": "sk-or-v1-...",
         "key_help_url": "https://openrouter.ai/keys",
@@ -80,7 +89,7 @@ PROVIDERS = [
         # the box instead of always landing on the same fixed model.
         # safe_starting_model is still seeded into the dropdown as a concrete
         # option/hint, just not pre-selected.
-        "model_setting_key": "cartogen_ai/gemini_model", "default_model": AUTO_SENTINEL,
+        "model_setting_key": SETTINGS_GEMINI_MODEL, "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gemini-flash-latest",
         # Google has no "-latest" alias for the Pro tier (unlike Flash). gemini-2.5-pro was
         # seeded here before but was removed after a live user hit a 404 "no longer
@@ -105,7 +114,7 @@ PROVIDERS = [
         # don't translate to an arbitrary local model catalog.
         "value": "ollama", "provider_label": "Ollama (Local)", "pill_label": "Ollama · local",
         "key_label": "Ollama Endpoint URL:", "model_label": "Ollama Model:",
-        "model_setting_key": "cartogen_ai/ollama_model", "default_model": "llama3.1",
+        "model_setting_key": SETTINGS_OLLAMA_MODEL, "default_model": "llama3.1",
         "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
         "key_tooltip": "Runs fully locally -- no account or key needed. Leave this as the "
                         "default unless your Ollama server runs somewhere else.",
@@ -113,7 +122,7 @@ PROVIDERS = [
     {
         "value": "openai", "provider_label": "OpenAI (Hosted)", "pill_label": "OpenAI",
         "key_label": "OpenAI API Key (paid):", "model_label": "OpenAI Model:",
-        "model_setting_key": "cartogen_ai/openai_model", "default_model": AUTO_SENTINEL,
+        "model_setting_key": SETTINGS_OPENAI_MODEL, "default_model": AUTO_SENTINEL,
         "safe_starting_model": "gpt-5.6",
         "key_default": "", "list_fn": _list_openai,
         "key_placeholder": "sk-...",
@@ -124,7 +133,7 @@ PROVIDERS = [
     {
         "value": "claude", "provider_label": "Claude / Anthropic (Hosted)", "pill_label": "Claude",
         "key_label": "Claude API Key (paid):", "model_label": "Claude Model:",
-        "model_setting_key": "cartogen_ai/claude_model", "default_model": AUTO_SENTINEL,
+        "model_setting_key": SETTINGS_CLAUDE_MODEL, "default_model": AUTO_SENTINEL,
         "safe_starting_model": "claude-opus-5",
         "key_default": "", "list_fn": _list_claude,
         "key_placeholder": "sk-ant-...",
@@ -140,13 +149,14 @@ PROVIDERS = [
         # experience. Reorder to first once a real gateway exists (see that doc's Phase 1).
         "value": "cartogen", "provider_label": "Cartogen AI (Hosted)", "pill_label": "Cartogen AI",
         "key_label": "Cartogen AI Key:", "model_label": "Cartogen AI Model:",
-        "model_setting_key": "cartogen_ai/cartogen_model", "default_model": AUTO_SENTINEL,
+        "model_setting_key": SETTINGS_CARTOGEN_MODEL, "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
         "key_default": "", "list_fn": _list_cartogen,
         "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable in the "
                         "Community edition today (see docs/PRODUCT_TIERS.md).",
     },
 ]
+
 
 
 class CartogenAiSettingsDialog(QDialog):
@@ -358,8 +368,9 @@ class CartogenAiSettingsDialog(QDialog):
             page_form.addRow(entry["model_label"], model_combo)
             self._model_combos[pv] = model_combo
 
-            cached_raw = self.settings.value(f"cartogen_ai/{pv}_model_list", "")
+            cached_raw = self.settings.value(provider_model_list_key(pv), "")
             if cached_raw:
+
                 try:
                     self._cached_model_lists[pv] = json.loads(cached_raw)
                 except (TypeError, ValueError):
@@ -775,8 +786,9 @@ QPushButton#settingsCancelButton {{
             self.settings.setValue(entry["model_setting_key"], self._resolve_model_value(pv))
             if pv in self._cached_model_lists:
                 self.settings.setValue(
-                    f"cartogen_ai/{pv}_model_list", json.dumps(self._cached_model_lists[pv])
+                    provider_model_list_key(pv), json.dumps(self._cached_model_lists[pv])
                 )
+
             key_text = self._key_edits[pv].text().strip()
             if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_plaintext_fallback(pv):
                 fallback_providers.append(entry.get("provider_label", pv))

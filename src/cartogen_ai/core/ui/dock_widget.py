@@ -30,6 +30,7 @@ from qgis.PyQt.QtWidgets import (
     QPushButton, QComboBox,
 )
 from qgis.core import QgsSettings
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER
 
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
@@ -137,8 +138,9 @@ class CartogenAiDockWidget(QDockWidget):
         self.provider_combo = QComboBox()
         for label, value in PROVIDER_CHOICES:
             self.provider_combo.addItem(label, value)
-        current_provider = QgsSettings().value("cartogen_ai/provider", "openrouter")
+        current_provider = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
         idx = self.provider_combo.findData(current_provider)
+
         if idx >= 0:
             self.provider_combo.setCurrentIndex(idx)
         self.provider_combo.currentIndexChanged.connect(self._on_provider_switch)
@@ -206,7 +208,7 @@ class CartogenAiDockWidget(QDockWidget):
         provider_label = self.provider_combo.currentText()
         if not provider_value:
             return
-        QgsSettings().setValue("cartogen_ai/provider", provider_value)
+        QgsSettings().setValue(SETTINGS_PROVIDER, provider_value)
         if self._agent_provider:
             try:
                 self._agent_provider()
@@ -228,8 +230,9 @@ class CartogenAiDockWidget(QDockWidget):
         if dialog.exec():
             self.statusSignal.emit("Settings saved")
             # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
-            provider_value = QgsSettings().value("cartogen_ai/provider", "openrouter")
+            provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
             idx = self.provider_combo.findData(provider_value)
+
             if idx >= 0:
                 self.provider_combo.blockSignals(True)
                 self.provider_combo.setCurrentIndex(idx)

@@ -76,16 +76,13 @@ _DEFAULT_REFINEMENT_MAX_TOKENS = 400
 # "not required for v1"; a future caller should fall back to the same
 # cheap-tier pick pick_model_for_complexity would choose for a "simple"
 # query when it's unset.
-PROMPT_REFINEMENT_ENABLED_KEY = "cartogen_ai/prompt_refinement_enabled"
-# Unlike refinement, this one defaults ON. Refinement costs an extra API call,
-# so opting in is the right default; the preview costs nothing -- it is a local
-# render of text that has already been composed -- and its whole purpose is
-# that the user sees what is about to be sent on their behalf. Defaulting it
-# off would mean the enrichment happens silently, which is the failure this
-# feature exists to prevent.
-PROMPT_PREVIEW_ENABLED_KEY = "cartogen_ai/prompt_preview_enabled"
-USER_PROFILE_KEY = "cartogen_ai/user_profile"
-PROMPT_REFINEMENT_MODEL_KEY = "cartogen_ai/prompt_refinement_model"
+from ...infrastructure.settings_keys import (
+    SETTINGS_PROMPT_REFINEMENT_ENABLED as PROMPT_REFINEMENT_ENABLED_KEY,
+    SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
+    SETTINGS_USER_PROFILE as USER_PROFILE_KEY,
+    SETTINGS_PROMPT_REFINEMENT_MODEL as PROMPT_REFINEMENT_MODEL_KEY,
+)
+
 
 
 def is_refinement_enabled() -> bool:
