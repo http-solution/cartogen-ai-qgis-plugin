@@ -12,16 +12,19 @@ try:
     from qgis.core import (
         QgsProject, QgsExpression, QgsRasterLayer, QgsVectorLayer,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
-        QgsPalLayerSettings, QgsTextFormat, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
-        QgsField, QgsPointXY, QgsSpatialIndex
+        QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
+        QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes
     )
-    from qgis.PyQt.QtCore import QVariant
+    from qgis.PyQt.QtCore import QVariant, Qt
+    from qgis.PyQt.QtGui import QColor
     import processing
     from qgis.utils import iface
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
     iface = None
+
+from ._qgis_enum_compat import resolve_qgis_enum
 
 
 def _find_layer_by_name(name):
@@ -810,18 +813,22 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
     "and a count combined into one label like \"Sa'dah [YE22 | 4 Orgs]\" via "
     "\"adm1_name || ' [' || adm1_pcode || ' | ' || org_count || ' Orgs]'\" -- instead of hand-writing "
     "QgsPalLayerSettings code via execute_pyqgis_script for a combined label. Pass exactly one of "
-    "target_field/expression.",
+    "target_field/expression. Applies a white text halo/buffer by default so labels stay legible over "
+    "dense polygons or dark rasters, and -- for point layers -- an 8-position ordered placement with "
+    "collision avoidance instead of an arbitrary single position.",
     {
         "type": "object",
         "properties": {
             "layer_name": {"type": "string"},
             "target_field": {"type": "string", "description": "A single field to label from. Omit if using expression instead."},
             "expression": {"type": "string", "description": "A QGIS expression combining multiple fields/literals into one label. Omit if using target_field instead."},
+            "font_size": {"type": "number", "description": "Label text point size. Defaults to 10 -- pass a larger value for higher-hierarchy features (e.g. a capital vs. a village) and a smaller one for dense point layers."},
+            "priority": {"type": "number", "description": "PAL anti-collision priority, 0 (lowest) to 10 (highest). Defaults to 5. Higher-priority labels win when two labels would otherwise overlap."},
         },
         "required": ["layer_name"],
     },
 )
-def apply_labels(layer_name, target_field=None, expression=None):
+def apply_labels(layer_name, target_field=None, expression=None, font_size=10, priority=5):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -834,31 +841,64 @@ def apply_labels(layer_name, target_field=None, expression=None):
     if target_field and expression:
         return {"error": "Pass only one of target_field or expression, not both."}
 
-    settings = QgsPalLayerSettings()
-    text_format = QgsTextFormat()
-    text_format.setSize(10)
-    settings.setFormat(text_format)
-
+    # Validate the label source BEFORE constructing any QGIS style objects below, so a
+    # bad expression/missing field returns cleanly without partially building (and
+    # discarding) a QgsPalLayerSettings/QgsTextFormat pair.
     if expression:
         parsed = QgsExpression(expression)
         if parsed.hasParserError():
             return {"error": f"Invalid expression: {parsed.parserErrorString()}"}
-        settings.fieldName = expression
-        settings.isExpression = True
         label_source = f"expression '{expression}'"
     else:
         field_names = [f.name() for f in layer.fields()]
         if target_field not in field_names:
             return {"error": f"Field '{target_field}' not found on layer '{layer_name}'. Available fields: {field_names}"}
+        label_source = f"field '{target_field}'"
+
+    settings = QgsPalLayerSettings()
+    text_format = QgsTextFormat()
+    text_format.setSize(font_size)
+
+    # OGC SE 1.1.0-style halo/buffer -- 0.8mm, 80%-opacity white, round join -- so labels
+    # stay legible over dense polygon fills or dark satellite/hillshade rasters instead of
+    # sitting directly on top of them with no contrast separation.
+    buffer_settings = QgsTextBufferSettings()
+    buffer_settings.setEnabled(True)
+    buffer_settings.setSize(0.8)
+    buffer_settings.setSizeUnit(QgsUnitTypes.RenderMillimeters)
+    buffer_settings.setColor(QColor(255, 255, 255, 204))
+    buffer_settings.setJoinStyle(Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else Qt.RoundJoin)
+    text_format.setBuffer(buffer_settings)
+    settings.setFormat(text_format)
+
+    settings.priority = priority
+    settings.obstacleSettings().setIsObstacle(True)
+
+    # 8-position ordered placement is only meaningful for point geometries -- line/polygon
+    # placement uses a different enum family entirely (parallel-to-line / around-centroid),
+    # so this only overrides the QGIS default for points and leaves other geometry types on
+    # whatever the (already sane) QGIS default placement is for that type.
+    point_geometry = resolve_qgis_enum(QgsWkbTypes, "GeometryType", "PointGeometry")
+    if point_geometry is not None and layer.geometryType() == point_geometry:
+        ordered_positions = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "OrderedPositionsAroundPoint")
+        if ordered_positions is not None:
+            settings.placement = ordered_positions
+
+    if expression:
+        settings.fieldName = expression
+        settings.isExpression = True
+    else:
         settings.fieldName = target_field
         settings.isExpression = False
-        label_source = f"field '{target_field}'"
 
     layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
     layer.setLabelsEnabled(True)
     layer.triggerRepaint()
 
-    return {"success": True, "message": f"Labels applied to '{layer_name}' using {label_source}."}
+    return {
+        "success": True,
+        "message": f"Labels applied to '{layer_name}' using {label_source} (halo enabled, priority={priority}).",
+    }
 
 
 @register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]})

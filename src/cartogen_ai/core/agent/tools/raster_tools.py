@@ -3,6 +3,7 @@
 Raster & Remote Sensing Processing Tools for Cartogen AI.
 """
 
+import math
 import os
 import re
 import tempfile
@@ -266,6 +267,26 @@ def calculate_ndre(red_edge_layer, nir_layer):
     )
 
 
+def _geographic_z_factor(dem):
+    """Z_FACTOR converts the DEM's vertical unit (assumed meters) into the same unit as
+    its horizontal units for hillshade/slope's internal gradient math. On a projected CRS
+    (meters in both directions) that's 1 -- QGIS's own default. On a geographic CRS
+    (degrees), 1 vertical meter was being treated as 1 horizontal DEGREE (~111km),
+    producing a completely flat, washed-out hillshade/slope. Scales by the DEM's center
+    latitude since a degree of longitude shrinks by cos(latitude) while a degree of
+    latitude stays ~111.32km everywhere -- an approximation (true only exactly at that
+    latitude), not a full per-pixel reprojection, but far closer than the previous
+    hardcoded 1."""
+    try:
+        crs = dem.crs()
+        if crs is None or not crs.isGeographic():
+            return 1
+        center_lat = dem.extent().center().y()
+        return 1.0 / (111320.0 * math.cos(math.radians(center_lat)))
+    except Exception:
+        return 1
+
+
 @register_tool("hillshade", "Generate hillshade surface from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})
 def hillshade(dem_layer):
     if not QGIS_AVAILABLE:
@@ -275,7 +296,7 @@ def hillshade(dem_layer):
         return {"error": f"Layer '{dem_layer}' not found"}
     return _run_raster_and_add(
         "native:hillshade",
-        {"INPUT": dem, "Z_FACTOR": 1, "AZIMUTH": 315, "ALTITUDE": 45},
+        {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem), "AZIMUTH": 315, "ALTITUDE": 45},
         f"{dem_layer}_hillshade",
     )
 
@@ -289,7 +310,7 @@ def slope_analysis(dem_layer):
         return {"error": f"Layer '{dem_layer}' not found"}
     return _run_raster_and_add(
         "native:slope",
-        {"INPUT": dem, "Z_FACTOR": 1},
+        {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem)},
         f"{dem_layer}_slope",
     )
 
@@ -815,9 +836,15 @@ def estimate_population_exposure(population_raster_layer, area_layer):
 # a raster has no attribute table to inspect -- calculate_ndvi/ndwi/ndre's own
 # fixed output names ('NDVI'/'NDWI'/'NDRE') make this a reliable signal.
 _INDEX_RAMPS = {
-    "ndvi": "RdYlGn",
+    # BrBG (brown-blue-green), not RdYlGn (red-yellow-green) -- RdYlGn is a red-green
+    # diverging ramp, the specific combination deuteranopia/protanopia (~8% of males)
+    # cannot distinguish, making severe drought vs. lush vegetation look indistinguishable.
+    # BrBG is a ColorBrewer diverging ramp built for CVD accessibility while keeping the
+    # same "low index = one extreme, high index = the other, centered on 0" cartographic
+    # meaning NDVI/NDRE need.
+    "ndvi": "BrBG",
     "ndwi": "RdBu",
-    "ndre": "RdYlGn",
+    "ndre": "BrBG",
 }
 
 

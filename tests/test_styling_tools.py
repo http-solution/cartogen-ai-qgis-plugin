@@ -9,7 +9,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
     save_layer_style, load_layer_style, _derive_style_path, apply_rule_based_style,
-    apply_heatmap_style,
+    apply_heatmap_style, _logarithmic_breaks, _resolve_classification_method,
 )
 
 
@@ -40,6 +40,70 @@ class TestClassifyValues(unittest.TestCase):
     def test_few_values_skips_skewness_analysis_without_crashing(self):
         result = _classify_values([1, 2])
         self.assertIn("method", result)
+
+    def test_stddev_mode(self):
+        result = _classify_values([1, 2, 3, 4, 5, 6, 7, 8], mode="stddev")
+        self.assertEqual(result["method"], "stddev")
+        self.assertEqual(result["method_label"], "Standard Deviation")
+
+    def test_pretty_mode(self):
+        result = _classify_values([1, 2, 3, 4, 5, 6, 7, 8], mode="pretty")
+        self.assertEqual(result["method"], "pretty")
+        self.assertEqual(result["method_label"], "Pretty Breaks")
+
+    def test_logarithmic_mode_returns_breaks(self):
+        result = _classify_values([1, 10, 100, 1000, 10000], mode="logarithmic", num_classes=5)
+        self.assertEqual(result["method"], "logarithmic")
+        self.assertNotIn("error", result)
+        self.assertEqual(len(result["breaks"]), 4)
+        # Interior breaks must be strictly increasing and inside the data range.
+        self.assertEqual(result["breaks"], sorted(result["breaks"]))
+        self.assertGreater(result["breaks"][0], 1)
+        self.assertLess(result["breaks"][-1], 10000)
+
+    def test_logarithmic_mode_with_non_positive_value_reports_error(self):
+        result = _classify_values([-5, 1, 10, 100], mode="logarithmic")
+        self.assertEqual(result["method"], "logarithmic")
+        self.assertIn("error", result)
+        self.assertNotIn("breaks", result)
+
+    def test_logarithmic_mode_all_identical_values_reports_error(self):
+        result = _classify_values([5, 5, 5], mode="logarithmic")
+        self.assertIn("error", result)
+
+
+class TestLogarithmicBreaks(unittest.TestCase):
+    def test_evenly_spaced_in_log_space(self):
+        breaks = _logarithmic_breaks([1, 10000], num_classes=4)
+        # log10(1)=0, log10(10000)=4 -- 3 interior breaks at 1, 2, 3 in log space.
+        self.assertEqual(len(breaks), 3)
+        for b, expected_log in zip(breaks, [1, 2, 3]):
+            self.assertAlmostEqual(b, 10 ** expected_log, places=6)
+
+    def test_none_when_any_value_non_positive(self):
+        self.assertIsNone(_logarithmic_breaks([0, 5, 10], num_classes=3))
+        self.assertIsNone(_logarithmic_breaks([-1, 5, 10], num_classes=3))
+
+    def test_none_when_all_values_identical(self):
+        self.assertIsNone(_logarithmic_breaks([7, 7, 7], num_classes=3))
+
+    def test_none_for_empty_values(self):
+        self.assertIsNone(_logarithmic_breaks([], num_classes=3))
+
+
+class TestResolveClassificationMethod(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    def test_stddev_and_pretty_resolve_to_distinct_enum_members(self, mock_renderer_cls):
+        mock_renderer_cls.Mode.StdDev = "stddev-sentinel"
+        mock_renderer_cls.Mode.Pretty = "pretty-sentinel"
+        mock_renderer_cls.Mode.Jenks = "jenks-sentinel"
+        self.assertEqual(_resolve_classification_method("stddev"), "stddev-sentinel")
+        self.assertEqual(_resolve_classification_method("pretty"), "pretty-sentinel")
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    def test_unknown_method_falls_back_to_jenks(self, mock_renderer_cls):
+        mock_renderer_cls.Mode.Jenks = "jenks-sentinel"
+        self.assertEqual(_resolve_classification_method("logarithmic"), "jenks-sentinel")
 
 
 class TestMatchClusterColor(unittest.TestCase):
@@ -180,6 +244,70 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
         res = apply_graduated_style("layer", "field", breaks=[])
         self.assertIn("error", res)
         self.assertIn("breaks", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_num_classes_below_2_rejected(self):
+        res = apply_graduated_style("layer", "field", num_classes=1)
+        self.assertIn("error", res)
+        self.assertIn("num_classes", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRendererRange", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsStyle", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_logarithmic_mode_routes_through_manual_breaks_path(
+        self, mock_find, mock_style, mock_symbol, mock_range, mock_renderer_cls, mock_wkb,
+    ):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        layer = self._make_layer([1, 10, 100, 1000, 10000])
+        layer.geometryType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+        mock_renderer_cls.return_value = MagicMock()
+
+        res = apply_graduated_style("districts", "pop_affected", mode="logarithmic", num_classes=5)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["classification_method"], "Manual (defined breaks)")
+        self.assertEqual(len(res["breaks"]), 4)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_logarithmic_mode_with_non_positive_values_reports_error(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        layer = self._make_layer([-5, 10, 100])
+        layer.geometryType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+
+        res = apply_graduated_style("districts", "pop_affected", mode="logarithmic")
+
+        self.assertIn("error", res)
+        self.assertIn("logarithmic", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsStyle", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_num_classes_is_passed_through_to_create_renderer(
+        self, mock_find, mock_style, mock_symbol, mock_renderer_cls, mock_wkb,
+    ):
+        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+        layer = self._make_layer(list(range(1, 21)), field_name="field")
+        layer.geometryType.return_value = "polygon-sentinel"
+        mock_find.return_value = layer
+        mock_renderer_cls.createRenderer.return_value = MagicMock()
+
+        res = apply_graduated_style("layer", "field", mode="quantile", num_classes=7)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["classes"], 7)
+        _, _, classes_arg, *_ = mock_renderer_cls.createRenderer.call_args[0]
+        self.assertEqual(classes_arg, 7)
 
 
 class TestApplyRuleBasedStyle(unittest.TestCase):
@@ -346,6 +474,61 @@ class TestApplyGraduatedSymbolStyleValidation(unittest.TestCase):
         res = apply_graduated_symbol_style("layer", "field", min_size=10, max_size=5)
         self.assertIn("error", res)
         self.assertIn("min_size", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_rejects_num_classes_below_2(self):
+        res = apply_graduated_symbol_style("layer", "field", num_classes=1)
+        self.assertIn("error", res)
+        self.assertIn("num_classes", res["error"])
+
+    def _make_point_layer(self, values, field_name="magnitude"):
+        field_mock = MagicMock()
+        field_mock.name.return_value = field_name
+        layer = MagicMock()
+        layer.fields.return_value = [field_mock]
+        feats = []
+        for v in values:
+            feat = MagicMock()
+            feat.__getitem__.side_effect = lambda key, v=v: v
+            feats.append(feat)
+        layer.getFeatures.return_value = feats
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_rejects_logarithmic_mode(self, mock_find, mock_wkb):
+        mock_wkb.GeometryType.PointGeometry = "point-sentinel"
+        layer = self._make_point_layer([1, 10, 100, 1000, 10000])
+        layer.geometryType.return_value = "point-sentinel"
+        mock_find.return_value = layer
+
+        res = apply_graduated_symbol_style("layer", "magnitude", mode="logarithmic")
+
+        self.assertIn("error", res)
+        self.assertIn("logarithmic", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsSymbol", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsStyle", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_color_parameter_is_used_instead_of_hardcoded_default(
+        self, mock_find, mock_qcolor, mock_style, mock_symbol, mock_renderer_cls, mock_wkb,
+    ):
+        mock_wkb.GeometryType.PointGeometry = "point-sentinel"
+        layer = self._make_point_layer([1, 2, 3, 4, 5, 6, 7, 8], field_name="field")
+        layer.geometryType.return_value = "point-sentinel"
+        mock_find.return_value = layer
+        fake_range = MagicMock()
+        mock_renderer_cls.createRenderer.return_value.ranges.return_value = [fake_range]
+
+        res = apply_graduated_symbol_style("layer", "field", color="#ff0000")
+
+        self.assertTrue(res.get("success"), res)
+        mock_qcolor.assert_called_once_with("#ff0000")
 
 
 class TestGeometrySortKey(unittest.TestCase):

@@ -4,6 +4,7 @@ QGIS-feature-coverage pass, and interpolate_surface/elevation_profile/
 georeference_image/estimate_population_exposure, added in the ArcGIS-parity
 pass. Follows the QGIS_AVAILABLE=False degrade-path convention used
 throughout the rest of the test suite."""
+import math
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
@@ -14,8 +15,93 @@ from cartogen_ai.core.agent.tools.raster_tools import (
     apply_raster_stretch, _auto_raster_style, _describe_population_raster,
     _run_raster_and_add, slope_analysis, aspect_analysis, zonal_statistics,
     raster_clip, unsupervised_classification, supervised_classification,
-    mosaic_rasters, band_composite, pan_sharpening,
+    mosaic_rasters, band_composite, pan_sharpening, hillshade, _geographic_z_factor,
 )
+
+
+class TestGeographicZFactor(unittest.TestCase):
+    """QGIS-006-follow-up: Z_FACTOR was hardcoded to 1 for hillshade/slope regardless of
+    the DEM's CRS -- correct only on a projected (meters) CRS. On a geographic CRS
+    (degrees), 1 vertical meter was being treated as 1 horizontal DEGREE (~111km),
+    producing a flat/washed-out hillshade. _geographic_z_factor scales by the DEM's
+    center latitude so vertical meters and horizontal degrees are comparable again."""
+
+    def test_projected_crs_returns_1(self):
+        dem = MagicMock()
+        dem.crs.return_value.isGeographic.return_value = False
+        self.assertEqual(_geographic_z_factor(dem), 1)
+
+    def test_geographic_crs_at_equator_returns_inverse_of_111320(self):
+        dem = MagicMock()
+        dem.crs.return_value.isGeographic.return_value = True
+        dem.extent.return_value.center.return_value.y.return_value = 0.0
+        self.assertAlmostEqual(_geographic_z_factor(dem), 1.0 / 111320.0, places=9)
+
+    def test_geographic_crs_at_high_latitude_returns_larger_z_factor(self):
+        dem = MagicMock()
+        dem.crs.return_value.isGeographic.return_value = True
+        dem.extent.return_value.center.return_value.y.return_value = 50.0
+        z = _geographic_z_factor(dem)
+        # cos(50 deg) < 1, so 1/(111320*cos(50)) > 1/111320 (the equator value) --
+        # higher latitudes need more vertical exaggeration to compensate for
+        # longitude degrees shrinking, matching the report's own distortion table.
+        self.assertGreater(z, 1.0 / 111320.0)
+
+    def test_crs_lookup_failure_falls_back_to_1(self):
+        dem = MagicMock()
+        dem.crs.side_effect = RuntimeError("no CRS")
+        self.assertEqual(_geographic_z_factor(dem), 1)
+
+    def test_none_crs_falls_back_to_1(self):
+        dem = MagicMock()
+        dem.crs.return_value = None
+        self.assertEqual(_geographic_z_factor(dem), 1)
+
+
+class TestHillshadeUsesGeographicZFactor(unittest.TestCase):
+    def test_hillshade_degrades_outside_qgis(self):
+        res = hillshade("dem")
+        self.assertIn("error", res)
+        self.assertIn("QGIS not available", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name", return_value=None)
+    def test_hillshade_reports_missing_layer(self, mock_find):
+        res = hillshade("ghost_dem")
+        self.assertIn("error", res)
+        self.assertIn("ghost_dem", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_hillshade_passes_computed_z_factor_not_hardcoded_1(self, mock_find, mock_run):
+        dem = MagicMock()
+        dem.crs.return_value.isGeographic.return_value = True
+        dem.extent.return_value.center.return_value.y.return_value = 36.0
+        mock_find.return_value = dem
+        mock_run.return_value = {"success": True, "layer_name": "dem_hillshade"}
+
+        res = hillshade("dem")
+
+        self.assertTrue(res["success"])
+        alg, params, new_name = mock_run.call_args[0]
+        self.assertEqual(alg, "native:hillshade")
+        self.assertAlmostEqual(params["Z_FACTOR"], 1.0 / (111320.0 * math.cos(math.radians(36.0))), places=9)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_hillshade_projected_crs_keeps_z_factor_1(self, mock_find, mock_run):
+        dem = MagicMock()
+        dem.crs.return_value.isGeographic.return_value = False
+        mock_find.return_value = dem
+        mock_run.return_value = {"success": True, "layer_name": "dem_hillshade"}
+
+        res = hillshade("dem")
+
+        self.assertTrue(res["success"])
+        _, params, _ = mock_run.call_args[0]
+        self.assertEqual(params["Z_FACTOR"], 1)
 
 
 class TestVegetationIndexToolsDegradeOutsideQgis(unittest.TestCase):
@@ -345,7 +431,7 @@ class TestAutoRasterStyle(unittest.TestCase):
     tool that consumes this."""
 
     def test_auto_picks_color_ramp_for_ndvi_named_layer(self):
-        self.assertEqual(_auto_raster_style("NDVI", "auto"), ("color_ramp", "RdYlGn"))
+        self.assertEqual(_auto_raster_style("NDVI", "auto"), ("color_ramp", "BrBG"))
 
     def test_auto_matches_case_insensitively_and_as_substring(self):
         self.assertEqual(_auto_raster_style("field3_ndwi_2026", "auto"), ("color_ramp", "RdBu"))
@@ -354,7 +440,7 @@ class TestAutoRasterStyle(unittest.TestCase):
         self.assertEqual(_auto_raster_style("dem_hillshade", "auto"), ("stretch", None))
 
     def test_ndre_maps_to_diverging_ramp(self):
-        self.assertEqual(_auto_raster_style("NDRE", "auto"), ("color_ramp", "RdYlGn"))
+        self.assertEqual(_auto_raster_style("NDRE", "auto"), ("color_ramp", "BrBG"))
 
     def test_explicit_stretch_mode_ignores_name(self):
         self.assertEqual(_auto_raster_style("NDVI", "stretch"), ("stretch", None))
@@ -363,7 +449,7 @@ class TestAutoRasterStyle(unittest.TestCase):
         self.assertEqual(_auto_raster_style("random_raster", "color_ramp"), ("color_ramp", None))
 
     def test_defaults_to_auto_when_mode_is_none(self):
-        self.assertEqual(_auto_raster_style("NDVI", None), ("color_ramp", "RdYlGn"))
+        self.assertEqual(_auto_raster_style("NDVI", None), ("color_ramp", "BrBG"))
 
     def test_invalid_mode_returns_none(self):
         self.assertEqual(_auto_raster_style("NDVI", "bogus"), (None, None))

@@ -462,14 +462,24 @@ class TestApplyLabels(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("syntax error", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.Qt", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextBufferSettings", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
-    def test_valid_expression_sets_is_expression_true(self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls):
+    def test_valid_expression_sets_is_expression_true(
+        self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls,
+        mock_buffer_cls, mock_qt, mock_unit_types, mock_qcolor, mock_wkb,
+    ):
         fake_layer = MagicMock()
+        fake_layer.geometryType.return_value = "NOT_A_POINT"
+        mock_wkb.GeometryType.PointGeometry = "POINT_SENTINEL"
         mock_find.return_value = fake_layer
         mock_expr_cls.return_value.hasParserError.return_value = False
         settings_instance = mock_settings_cls.return_value
@@ -480,6 +490,122 @@ class TestApplyLabels(unittest.TestCase):
         self.assertEqual(settings_instance.fieldName, "a || b")
         self.assertTrue(settings_instance.isExpression)
         fake_layer.setLabelsEnabled.assert_called_once_with(True)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.Qt", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextBufferSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_applies_text_buffer_halo_by_default(
+        self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls,
+        mock_buffer_cls, mock_qt, mock_unit_types, mock_qcolor, mock_wkb,
+    ):
+        fake_layer = MagicMock()
+        fake_layer.geometryType.return_value = "NOT_A_POINT"
+        mock_wkb.GeometryType.PointGeometry = "POINT_SENTINEL"
+        mock_find.return_value = fake_layer
+        mock_expr_cls.return_value.hasParserError.return_value = False
+        buffer_instance = mock_buffer_cls.return_value
+        text_format_instance = mock_fmt_cls.return_value
+
+        res = apply_labels("layer", expression="a")
+
+        self.assertTrue(res.get("success"), res)
+        buffer_instance.setEnabled.assert_called_once_with(True)
+        buffer_instance.setSize.assert_called_once_with(0.8)
+        text_format_instance.setBuffer.assert_called_once_with(buffer_instance)
+        self.assertIn("halo enabled", res["message"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.Qt", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextBufferSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_font_size_and_priority_are_configurable(
+        self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls,
+        mock_buffer_cls, mock_qt, mock_unit_types, mock_qcolor, mock_wkb,
+    ):
+        fake_layer = MagicMock()
+        fake_layer.geometryType.return_value = "NOT_A_POINT"
+        mock_wkb.GeometryType.PointGeometry = "POINT_SENTINEL"
+        mock_find.return_value = fake_layer
+        mock_expr_cls.return_value.hasParserError.return_value = False
+        settings_instance = mock_settings_cls.return_value
+        text_format_instance = mock_fmt_cls.return_value
+
+        res = apply_labels("layer", expression="a", font_size=14, priority=9)
+
+        self.assertTrue(res.get("success"), res)
+        text_format_instance.setSize.assert_called_once_with(14)
+        self.assertEqual(settings_instance.priority, 9)
+        self.assertIn("priority=9", res["message"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.Qt", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextBufferSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_point_layer_gets_ordered_positions_placement(
+        self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls,
+        mock_buffer_cls, mock_qt, mock_unit_types, mock_qcolor, mock_wkb,
+    ):
+        fake_layer = MagicMock()
+        mock_wkb.GeometryType.PointGeometry = "POINT_SENTINEL"
+        fake_layer.geometryType.return_value = "POINT_SENTINEL"
+        mock_find.return_value = fake_layer
+        mock_expr_cls.return_value.hasParserError.return_value = False
+        mock_settings_cls.Placement.OrderedPositionsAroundPoint = "ORDERED_POSITIONS_SENTINEL"
+        settings_instance = mock_settings_cls.return_value
+
+        res = apply_labels("layer", expression="a")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(settings_instance.placement, "ORDERED_POSITIONS_SENTINEL")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsUnitTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.Qt", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextBufferSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsTextFormat", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayerSimpleLabeling", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsExpression", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_sets_obstacle_settings_as_obstacle(
+        self, mock_find, mock_expr_cls, mock_labeling_cls, mock_fmt_cls, mock_settings_cls,
+        mock_buffer_cls, mock_qt, mock_unit_types, mock_qcolor, mock_wkb,
+    ):
+        fake_layer = MagicMock()
+        fake_layer.geometryType.return_value = "NOT_A_POINT"
+        mock_wkb.GeometryType.PointGeometry = "POINT_SENTINEL"
+        mock_find.return_value = fake_layer
+        mock_expr_cls.return_value.hasParserError.return_value = False
+        settings_instance = mock_settings_cls.return_value
+
+        res = apply_labels("layer", expression="a")
+
+        self.assertTrue(res.get("success"), res)
+        settings_instance.obstacleSettings.return_value.setIsObstacle.assert_called_once_with(True)
 
     @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsPalLayerSettings", create=True)

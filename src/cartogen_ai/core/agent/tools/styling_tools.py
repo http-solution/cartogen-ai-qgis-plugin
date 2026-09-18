@@ -3,6 +3,7 @@
 Layer Cartography & Styling Tools for Cartogen AI.
 """
 
+import math
 import os
 
 from .registry import register_tool
@@ -115,14 +116,38 @@ def _derive_style_path(layer, output_path):
     return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.qml"), True
 
 
-def _classify_values(values, mode="auto"):
+def _logarithmic_breaks(values, num_classes):
+    """Computes num_classes-1 interior class-boundary values in log10 space, evenly
+    spaced, then transforms back to the data's real units -- QGIS's own
+    QgsGraduatedSymbolRenderer.Mode enum has no native 'Logarithmic' member (only
+    EqualInterval/Quantile/Jenks/StdDev/Pretty), so this is computed directly in
+    Python and passed through the same explicit-breaks renderer path
+    apply_graduated_style already uses for caller-supplied breaks. Appropriate for
+    heavily right-skewed data spanning orders of magnitude (e.g. population, income)
+    where equal-interval classes would put almost every feature in the lowest class.
+    Returns None if any value is <= 0 (log10 is undefined/complex there) or if every
+    value is identical (nothing to subdivide)."""
+    if not values or min(values) <= 0:
+        return None
+    lo, hi = min(values), max(values)
+    if lo == hi:
+        return None
+    log_lo, log_hi = math.log10(lo), math.log10(hi)
+    step = (log_hi - log_lo) / max(1, num_classes)
+    return [10 ** (log_lo + step * i) for i in range(1, num_classes)]
+
+
+def _classify_values(values, mode="auto", num_classes=5):
     """Pure-Python classification-method + color-ramp selection based on a
     field's value distribution (skewness/cardinality) -- no QGIS import, so
     this is directly unit-testable. Extracted out of apply_graduated_style
     so apply_graduated_symbol_style can reuse the exact same distribution-
     aware logic instead of a copy. Returns a QGIS-independent method NAME
     string; _resolve_classification_method (below) maps that to the real
-    QgsGraduatedSymbolRenderer enum, which needs QGIS to even reference."""
+    QgsGraduatedSymbolRenderer enum, which needs QGIS to even reference.
+    'logarithmic' additionally returns 'breaks' (see _logarithmic_breaks) since
+    it has no native QGIS Mode counterpart -- 'error' is set instead if the
+    data can't be log-transformed (non-positive values, or all-identical)."""
     method, label = "jenks", "Jenks Natural Breaks"
     skewness = 0.0
 
@@ -133,10 +158,21 @@ def _classify_values(values, mode="auto"):
         skewness = sum((x - mean) ** 3 for x in values) / (len(values) * (stddev ** 3)) if stddev > 0 else 0.0
 
     mode_l = (mode or "auto").lower()
+    breaks = None
+    error = None
     if mode_l == "equal":
         method, label = "equal_interval", "Equal Interval"
     elif mode_l == "quantile":
         method, label = "quantile", "Quantile"
+    elif mode_l == "stddev":
+        method, label = "stddev", "Standard Deviation"
+    elif mode_l == "pretty":
+        method, label = "pretty", "Pretty Breaks"
+    elif mode_l == "logarithmic":
+        method, label = "logarithmic", "Logarithmic Intervals"
+        breaks = _logarithmic_breaks(values, num_classes)
+        if breaks is None:
+            error = "logarithmic mode needs all-positive, non-identical values -- got a non-positive value or a single repeated value."
     elif mode_l == "auto" and len(values) > 5:
         if abs(skewness) > 1.5:
             method, label = "jenks", "Jenks Natural Breaks (High Skew)"
@@ -146,7 +182,12 @@ def _classify_values(values, mode="auto"):
             method, label = "quantile", "Quantile (Equal Count)"
 
     ramp = "Viridis" if abs(skewness) < 2 else "Cividis"
-    return {"method": method, "method_label": label, "ramp": ramp, "skewness": round(skewness, 3)}
+    result = {"method": method, "method_label": label, "ramp": ramp, "skewness": round(skewness, 3)}
+    if breaks is not None:
+        result["breaks"] = breaks
+    if error is not None:
+        result["error"] = error
+    return result
 
 
 def _resolve_classification_method(method_name):
@@ -155,12 +196,16 @@ def _resolve_classification_method(method_name):
     itself never needs QGIS to be importable. Resolves both the QGIS 4.x/Qt6
     scoped form (QgsGraduatedSymbolRenderer.Mode.Jenks) and the QGIS 3.x/Qt5
     flat form (QgsGraduatedSymbolRenderer.Jenks) via resolve_qgis_enum,
-    rather than assuming one -- see _qgis_enum_compat.py."""
+    rather than assuming one -- see _qgis_enum_compat.py. 'logarithmic' has
+    no entry here since it's never passed to createRenderer -- see
+    _logarithmic_breaks/_classify_values."""
     jenks = resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Jenks")
     return {
         "jenks": jenks,
         "equal_interval": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "EqualInterval"),
         "quantile": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Quantile"),
+        "stddev": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "StdDev"),
+        "pretty": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Pretty"),
     }.get(method_name, jenks)
 
 
@@ -348,7 +393,8 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         "properties": {
             "layer_name": {"type": "string"},
             "field": {"type": "string"},
-            "mode": {"type": "string", "description": "'auto' (default), 'equal', or 'quantile'. Ignored if breaks is given."},
+            "mode": {"type": "string", "description": "'auto' (default), 'equal', 'quantile', 'stddev' (classes centered on the mean +/- N standard deviations), 'pretty' (rounded, human-friendly breaks for a public-facing map), or 'logarithmic' (log-spaced classes for heavily right-skewed data spanning orders of magnitude, e.g. population or income -- needs all-positive, non-identical values). Ignored if breaks is given."},
+            "num_classes": {"type": "integer", "description": "Number of classes to split the data into. Defaults to 5. Ignored if breaks is given."},
             "opacity": {
                 "type": "number",
                 "description": "0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap "
@@ -371,11 +417,13 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         "required": ["layer_name", "field"],
     },
 )
-def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None):
+def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if breaks is not None and len(breaks) < 1:
         return {"error": "breaks must contain at least one boundary value."}
+    if num_classes < 2:
+        return {"error": "num_classes must be at least 2."}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -388,7 +436,16 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         # below whenever breaks is None, regardless of which ramp branch
         # runs -- a cluster-color match still needs a real classification
         # method/label, only the RAMP choice differs by branch.
-        classification = _classify_values(values, mode)
+        classification = _classify_values(values, mode, num_classes)
+        # 'logarithmic' has no native QGIS Mode -- _classify_values computed explicit
+        # breaks for it instead (or an 'error' if the data can't be log-transformed).
+        # Adopting those as this call's own 'breaks' routes it through the same
+        # manual-breaks renderer path as caller-supplied breaks below, rather than
+        # needing a second, parallel renderer-construction branch.
+        if breaks is None and classification["method"] == "logarithmic":
+            if classification.get("error"):
+                return {"error": classification["error"]}
+            breaks = classification["breaks"]
 
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
@@ -449,12 +506,12 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             renderer = QgsGraduatedSymbolRenderer.createRenderer(
                 layer,
                 field,
-                5,
+                num_classes,
                 method,
                 QgsSymbol.defaultSymbol(layer.geometryType()),
                 color_ramp,
             )
-            classes = 5
+            classes = num_classes
             method_label = classification["method_label"]
         if renderer is None:
             return {"error": "Failed to create graduated renderer"}
@@ -496,16 +553,20 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             "field": {"type": "string"},
             "min_size": {"type": "number", "description": "Smallest symbol size in mm. Defaults to 4."},
             "max_size": {"type": "number", "description": "Largest symbol size in mm. Defaults to 24."},
-            "mode": {"type": "string", "description": "'auto' (default), 'equal', or 'quantile'."},
+            "mode": {"type": "string", "description": "'auto' (default), 'equal', 'quantile', 'stddev', or 'pretty'."},
+            "num_classes": {"type": "integer", "description": "Target number of size classes. Defaults to 5, capped down to the field's actual number of distinct values if fewer."},
+            "color": {"type": "string", "description": "Hex color (e.g. '#3182bd') for every symbol -- size carries the meaning here, not color. Defaults to a semi-transparent blue."},
         },
         "required": ["layer_name", "field"],
     },
 )
-def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mode="auto"):
+def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mode="auto", num_classes=5, color="#3182bd"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if min_size <= 0 or max_size <= min_size:
         return {"error": "min_size must be positive and less than max_size."}
+    if num_classes < 2:
+        return {"error": "num_classes must be at least 2."}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -519,12 +580,18 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         if len(values) < 2:
             return {"error": f"Not enough numeric values in '{field}' to build a graduated symbol style."}
 
-        classification = _classify_values(values, mode)
+        classification = _classify_values(values, mode, num_classes)
+        if classification["method"] == "logarithmic":
+            # Unlike apply_graduated_style, this function has no manual-breaks renderer
+            # path to adopt _logarithmic_breaks' output into -- without this guard,
+            # _resolve_classification_method would silently fall back to Jenks instead
+            # of the logarithmic classes the caller actually asked for.
+            return {"error": "mode='logarithmic' is not supported by apply_graduated_symbol_style -- use apply_graduated_style for log-spaced choropleth classes instead."}
         method = _resolve_classification_method(classification["method"])
         # QGIS-005, 2026-09-14 audit: see the identical guard's comment above (apply_graduated_style).
         if method is None:
             return {"error": "Could not resolve a classification-mode enum in this QGIS version."}
-        num_classes = 5 if len(set(values)) >= 5 else max(2, len(set(values)))
+        num_classes = num_classes if len(set(values)) >= num_classes else max(2, len(set(values)))
 
         renderer = QgsGraduatedSymbolRenderer.createRenderer(
             layer,
@@ -539,8 +606,11 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
 
         # Size (not fill color) carries the meaning here -- one consistent
         # hue across all classes, semi-transparent so overlapping large
-        # circles don't fully obscure the basemap or each other.
-        fixed_color = QColor("#3182bd")
+        # circles don't fully obscure the basemap or each other. color is
+        # caller-configurable (defaults to the original hardcoded blue) so
+        # this can be themed per-map instead of always rendering the same
+        # fixed color regardless of context.
+        fixed_color = QColor(color)
         fixed_color.setAlpha(190)
         ranges = renderer.ranges()
         n = len(ranges)
