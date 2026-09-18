@@ -22,7 +22,7 @@ license=GNU GPL v2
 
 # Recommended items:
 
-hasProcessingProvider=no
+hasProcessingProvider=yes
 changelog=v1.15.6 (2026-09-18):
     Promoted to stable from v1.15.6-rc6 -- same code, no changes since that candidate. Six
     release candidates on this line (rc1-rc6) were run and checksum-verified against real QGIS

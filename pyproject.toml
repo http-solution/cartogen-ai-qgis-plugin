@@ -36,7 +36,42 @@ where = ["src"]
 # own cartogen_ai.pro / cartogen_ai.enterprise packages, and pip merges both
 # installs into one working `cartogen_ai` namespace with no file conflicts --
 # see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md for the full design.
-include = ["cartogen_ai.core", "cartogen_ai.core.*"]
+include = ["cartogen_ai.core", "cartogen_ai.core.*", "cartogen_ai.processing", "cartogen_ai.processing.*"]
 
 [tool.setuptools.package-data]
 "cartogen_ai.core" = ["*.md"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".idea",
+    ".vscode",
+    "branding",
+    "service",
+    "web-platform",
+    "_legacy_stubs",
+    "_to_delete",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]  # line length handled flexibly for descriptive strings
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+exclude = [
+    "branding",
+    "service",
+    "web-platform",
+    "_legacy_stubs",
+    "_to_delete",
+]
+

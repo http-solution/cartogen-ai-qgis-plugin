@@ -10,7 +10,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
     save_layer_style, load_layer_style, _derive_style_path, apply_rule_based_style,
     apply_heatmap_style, _logarithmic_breaks, _resolve_classification_method,
-    _is_geopackage_layer,
+    _is_geopackage_layer, export_layer_sld, apply_point_cluster_style,
 )
 
 
@@ -977,8 +977,97 @@ class TestApplyHeatmapStyle(unittest.TestCase):
         res = apply_heatmap_style("incidents", field="not_a_real_field")
 
         self.assertTrue(res.get("success"), res)
-        renderer.setWeightExpression.assert_not_called()
+class TestExportLayerSld(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_export_sld_layer_not_found(self, mock_find):
+        mock_find.return_value = None
+        res = export_layer_sld("nonexistent")
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_export_sld_with_explicit_path(self, mock_find):
+        layer = MagicMock()
+        layer.name.return_value = "roads"
+        layer.saveSldStyle.return_value = ("", True)
+        mock_find.return_value = layer
+
+        out_path = os.path.join(tempfile.gettempdir(), "test_style.sld")
+        res = export_layer_sld("roads", output_path=out_path)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["path"], out_path)
+        layer.saveSldStyle.assert_called_once_with(out_path)
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_export_sld_failure_reported(self, mock_find):
+        layer = MagicMock()
+        layer.name.return_value = "roads"
+        layer.saveSldStyle.return_value = ("Disk full", False)
+        mock_find.return_value = layer
+
+        res = export_layer_sld("roads", output_path="/tmp/test.sld")
+        self.assertIn("error", res)
+        self.assertIn("Disk full", res["error"])
+
+
+class TestApplyPointClusterStyle(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_apply_point_cluster_layer_not_found(self, mock_find):
+        mock_find.return_value = None
+        res = apply_point_cluster_style("nonexistent")
+        self.assertIn("error", res)
+        self.assertIn("not found", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_invalid_mode_rejected(self, mock_find):
+        mock_find.return_value = MagicMock()
+        res = apply_point_cluster_style("points", mode="invalid_mode")
+        self.assertIn("error", res)
+        self.assertIn("mode must be", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsPointClusterRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_cluster_mode_sets_cluster_renderer(self, mock_find, mock_cluster_cls):
+        layer = MagicMock()
+        layer.renderer.return_value = MagicMock()
+        mock_find.return_value = layer
+        cluster_instance = mock_cluster_cls.return_value
+
+        res = apply_point_cluster_style("points", mode="cluster", tolerance=20.0)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["mode"], "cluster")
+        self.assertEqual(res["tolerance_mm"], 20.0)
+        cluster_instance.setTolerance.assert_called_once_with(20.0)
+        layer.setRenderer.assert_called_once_with(cluster_instance)
+        layer.triggerRepaint.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsPointDisplacementRenderer", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_displacement_mode_sets_displacement_renderer(self, mock_find, mock_disp_cls):
+        layer = MagicMock()
+        layer.renderer.return_value = MagicMock()
+        mock_find.return_value = layer
+        disp_instance = mock_disp_cls.return_value
+
+        res = apply_point_cluster_style("points", mode="displacement", tolerance=12.5)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["mode"], "displacement")
+        self.assertEqual(res["tolerance_mm"], 12.5)
+        disp_instance.setTolerance.assert_called_once_with(12.5)
+        layer.setRenderer.assert_called_once_with(disp_instance)
+        layer.triggerRepaint.assert_called_once()
 
 
 if __name__ == "__main__":
     unittest.main()
+

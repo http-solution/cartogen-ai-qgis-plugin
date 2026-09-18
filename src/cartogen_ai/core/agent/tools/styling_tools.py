@@ -16,6 +16,7 @@ try:
         QgsStyle, QgsHeatmapRenderer,
         QgsSingleSymbolRenderer, QgsWkbTypes, QgsMapLayer, QgsRasterLayer,
         QgsGradientColorRamp, QgsRuleBasedRenderer, QgsExpression,
+        QgsPointClusterRenderer, QgsPointDisplacementRenderer, QgsDistanceArea,
     )
     from qgis.PyQt.QtGui import QColor
     import processing
@@ -1070,3 +1071,131 @@ def load_layer_style(layer_name, style_path):
 
     layer.triggerRepaint()
     return {"success": True, "layer_name": layer_name, "style_path": style_path}
+
+
+@register_tool(
+    "export_layer_sld",
+    "Exports a vector layer's symbology to an OGC SLD (Styled Layer Descriptor 1.1.0/1.0.0) file "
+    "on disk. Use this when publishing styles to GeoServer/MapServer or sharing interoperable "
+    "OGC styling with external GIS portals. Without output_path, saves beside the source file as "
+    "'<source>.sld' (or to Desktop for scratch/memory layers).",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string", "description": "Vector layer to export styling from."},
+            "output_path": {
+                "type": "string",
+                "description": "Optional explicit .sld file path. Defaults to beside the layer's source file.",
+            },
+        },
+        "required": ["layer_name"],
+    },
+)
+def export_layer_sld(layer_name, output_path=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return {"error": f"Layer '{layer_name}' not found"}
+
+    # Derive output path: reuse _derive_style_path logic with .sld extension
+    if output_path:
+        path, used_fallback = output_path, False
+    else:
+        source = ""
+        try:
+            source = layer.source() or ""
+        except Exception:
+            source = ""
+        base_path = source.split("|", 1)[0] if source else ""
+        if base_path and os.path.isfile(base_path):
+            path, used_fallback = f"{base_path}.sld", False
+        else:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            if not os.path.isdir(desktop):
+                desktop = os.path.expanduser("~")
+            path, used_fallback = os.path.join(desktop, f"{_sanitize_filename(layer.name())}.sld"), True
+
+    try:
+        # saveSldStyle returns (msg, ok) or raises depending on QGIS version
+        save_res = layer.saveSldStyle(path)
+        if isinstance(save_res, tuple) and len(save_res) >= 2:
+            msg, ok = save_res[0], save_res[1]
+        elif isinstance(save_res, bool):
+            msg, ok = "", save_res
+        else:
+            msg, ok = "", True
+    except Exception as e:
+        return {"error": f"export_layer_sld failed: {e}"}
+
+    if not ok:
+        return {"error": f"Failed to export SLD: {msg or 'unknown error'}"}
+
+    result = {"success": True, "layer_name": layer_name, "path": path}
+    if used_fallback:
+        result["warning"] = (
+            "Layer has no real on-disk source (a scratch/memory layer, or one QGIS couldn't "
+            "resolve a file path for) -- saved the SLD style to Desktop instead of beside the source data."
+        )
+    return result
+
+
+@register_tool(
+    "apply_point_cluster_style",
+    "Applies a point cluster or point displacement renderer to a point layer so overlapping or densely "
+    "clustered points are cleanly grouped on the map rather than drawing on top of each other. Mode 'cluster' "
+    "(default) aggregates nearby points within a distance threshold into numeric cluster badges; mode "
+    "'displacement' displays co-located or overlapping points arranged in a clean ring/spiral circle around "
+    "the central coordinate.",
+    {
+        "type": "object",
+        "properties": {
+            "layer_name": {"type": "string", "description": "Point layer to apply clustering/displacement to."},
+            "mode": {
+                "type": "string",
+                "enum": ["cluster", "displacement"],
+                "description": "'cluster' (default) for aggregate numeric count badges, 'displacement' for circle/ring offset around overlaps.",
+            },
+            "tolerance": {
+                "type": "number",
+                "description": "Cluster distance tolerance in millimeters (default 15.0 mm).",
+            },
+        },
+        "required": ["layer_name"],
+    },
+)
+def apply_point_cluster_style(layer_name, mode="cluster", tolerance=15.0):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return {"error": f"Layer '{layer_name}' not found"}
+
+    mode_l = (mode or "cluster").strip().lower()
+    if mode_l not in ("cluster", "displacement"):
+        return {"error": "mode must be either 'cluster' or 'displacement'."}
+
+    try:
+        current_renderer = layer.renderer()
+        base_renderer = current_renderer.clone() if current_renderer else QgsSingleSymbolRenderer(QgsSymbol.defaultSymbol(layer.geometryType()))
+
+        if mode_l == "displacement":
+            renderer = QgsPointDisplacementRenderer()
+            renderer.setEmbeddedRenderer(base_renderer)
+            renderer.setTolerance(float(tolerance))
+        else:
+            renderer = QgsPointClusterRenderer()
+            renderer.setEmbeddedRenderer(base_renderer)
+            renderer.setTolerance(float(tolerance))
+
+        layer.setRenderer(renderer)
+        layer.triggerRepaint()
+        return {
+            "success": True,
+            "layer_name": layer_name,
+            "mode": mode_l,
+            "tolerance_mm": float(tolerance),
+        }
+    except Exception as e:
+        return {"error": f"apply_point_cluster_style failed: {e}"}
+
