@@ -51,6 +51,43 @@ def _render_table(rows, text_color, border_color, row_border_color):
     return f'<table style="border-collapse:collapse;margin:6px 0;">' f"<tr>{th}</tr>{''.join(trs)}</table>"
 
 
+# Extensions this project's own tools actually produce as output_path results (print
+# layouts, dashboards, charts, exports, saved styles) -- scoped to these rather than any
+# arbitrary file so a stray "C:\Users\x" mention in unrelated prose (not a tool output)
+# doesn't get linkified. Windows drive-letter paths only (this plugin is a Windows desktop
+# QGIS plugin per its own docs) -- a bare Unix-style "/a/b/c.pdf" is deliberately NOT
+# matched, since that shape is common in ordinary prose/URLs and would produce far more
+# false-positive "links" to a path that was never a real local file in the first place.
+_OUTPUT_FILE_EXTENSIONS = (
+    "pdf", "png", "jpg", "jpeg", "html", "htm", "csv", "xlsx",
+    "geojson", "gpkg", "qml", "docx",
+)
+_OUTPUT_PATH_RE = re.compile(
+    r'[A-Za-z]:[\\/](?:[^\s<>"\']+[\\/])*[^\s<>"\']+\.(?:' + "|".join(_OUTPUT_FILE_EXTENSIONS) + r')\b'
+)
+
+
+def _linkify_output_paths(text):
+    """Turns a bare absolute Windows file path ending in a known tool-output extension
+    (e.g. 'C:\\Users\\x\\situation_map.pdf', as the model's own narration of a tool result
+    writes it -- see e.g. create_print_layout/generate_html_dashboard/generate_chart's
+    output_path results) into a clickable 'file:///...' link, instead of the previous raw,
+    unclickable path string. Relies on the SAME QDesktopServices link-opening path
+    chat_tab_widget.py's QTextBrowser already uses for http(s) markdown links
+    (setOpenExternalLinks(True) opens any external-scheme URL, including file://,
+    independent of setOpenLinks(False) -- see init_ui's own comment) -- no new click
+    handling needed in the widget layer for this to work. Runs on already HTML-escaped
+    text, so the path itself needs no further escaping; only backslashes need converting
+    to forward slashes for a valid file:// URI."""
+    def _replace(m):
+        path = m.group(0)
+        filename = re.split(r'[\\/]', path)[-1]
+        file_url = "file:///" + path.replace("\\", "/")
+        return f'<a href="{file_url}">\U0001F4C4 {filename}</a>'
+
+    return _OUTPUT_PATH_RE.sub(_replace, text)
+
+
 def render_markdown(text, colors=None):
     """colors is the same theme-derived dict derive_bubble_colors() returns
     (text/subtle/border/agent_bg) -- threaded through so code blocks, inline
@@ -152,7 +189,10 @@ def render_markdown(text, colors=None):
         i += 1
     text = "<br>".join(out_lines)
 
-    # 4. Inline formatting.
+    # 4. Inline formatting. Output-path linkification runs first, before inline code --
+    # a tool result path is written as plain prose by the model, not backtick-wrapped, so
+    # this ordering is the common case; see _linkify_output_paths' own docstring.
+    text = _linkify_output_paths(text)
     text = re.sub(
         r'`([^`]+?)`',
         f'<code style="background-color: {code_bg}; color: {text_color}; padding: 2px 4px; border-radius: 3px;">\\1</code>',

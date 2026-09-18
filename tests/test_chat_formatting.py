@@ -5,6 +5,7 @@ from cartogen_ai.core.ui.chat_formatting import (
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
     render_tool_steps_toggle_html, render_tool_steps_failure_details_html,
     build_dock_stylesheet, format_send_error, _brand_accent, BRAND_TEAL, BRAND_ACCENT_BLEND_T,
+    _linkify_output_paths,
 )
 
 
@@ -143,6 +144,57 @@ class TestRenderMarkdown(unittest.TestCase):
 
         hr_html = render_markdown("---", dark_colors)
         self.assertIn("#555555", hr_html)
+
+
+class TestLinkifyOutputPaths(unittest.TestCase):
+    """Phase 4 (2026-09-19): a tool's output_path was previously shown in chat as a raw,
+    unclickable string ('Created report at: C:\\Users\\x\\report.pdf') -- linkified into a
+    file:// link instead, opened via the same QDesktopServices path chat_tab_widget.py
+    already uses for http(s) markdown links (setOpenExternalLinks(True))."""
+
+    def test_pdf_path_becomes_a_file_link(self):
+        text = r"Created report at: C:\Users\alaa\Documents\situation_map.pdf"
+        result = _linkify_output_paths(text)
+        self.assertIn('href="file:///C:/Users/alaa/Documents/situation_map.pdf"', result)
+        self.assertIn("situation_map.pdf", result)
+
+    def test_forward_slash_windows_path_also_matches(self):
+        text = "Saved to C:/tmp/output/dashboard.html"
+        result = _linkify_output_paths(text)
+        self.assertIn('href="file:///C:/tmp/output/dashboard.html"', result)
+
+    def test_only_filename_shown_as_link_text_not_full_path(self):
+        text = r"C:\Users\alaa\Documents\deep\nested\path\chart.png"
+        result = _linkify_output_paths(text)
+        self.assertIn(">\U0001F4C4 chart.png</a>", result)
+        # The full path only appears in the href, not duplicated as visible text.
+        self.assertEqual(result.count("chart.png"), 2)  # once in href, once as link text
+
+    def test_unrecognized_extension_is_not_linkified(self):
+        text = r"See C:\Users\alaa\notes.txt for details"
+        result = _linkify_output_paths(text)
+        self.assertNotIn("<a href", result)
+
+    def test_unix_style_path_is_not_linkified(self):
+        # Deliberately out of scope -- see _linkify_output_paths' own docstring for why
+        # (false-positive risk from ordinary prose/URL path fragments).
+        text = "See /etc/config/report.pdf for details"
+        result = _linkify_output_paths(text)
+        self.assertNotIn("<a href", result)
+
+    def test_multiple_paths_in_one_message_all_linkified(self):
+        text = r"Exported C:\a\one.csv and C:\b\two.xlsx"
+        result = _linkify_output_paths(text)
+        self.assertEqual(result.count("<a href"), 2)
+
+    def test_no_path_present_returns_text_unchanged(self):
+        text = "Nothing to link here."
+        self.assertEqual(_linkify_output_paths(text), text)
+
+    def test_integrates_with_render_markdown(self):
+        text = r"Done -- saved to C:\out\map.png"
+        html = render_markdown(text)
+        self.assertIn('href="file:///C:/out/map.png"', html)
 
 
 class TestRelativeTime(unittest.TestCase):

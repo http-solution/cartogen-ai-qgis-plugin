@@ -7,8 +7,10 @@ timing, and memory behavior need a live QGIS session with a downloaded
 model checkpoint, explicitly out of scope for this suite (see the spec's
 section 9)."""
 import unittest
+from unittest.mock import MagicMock
 from cartogen_ai.core.agent.tools.imagery_extraction import (
     _pixel_to_map, _mask_pixel_count, extract_features_from_imagery,
+    _finalize_extracted_geometry,
 )
 
 
@@ -50,6 +52,83 @@ class TestMaskPixelCount(unittest.TestCase):
             self.skipTest("numpy not available in this environment")
         mask = np.array([[0.9, 0.1], [0.6, 0.2]])
         self.assertEqual(_mask_pixel_count(mask), 2)
+
+
+class TestFinalizeExtractedGeometry(unittest.TestCase):
+    """Phase 4 (2026-09-19): gdal.Polygonize output is a jagged pixel-grid staircase with
+    no simplification/validity/min-area handling beyond min_area_m2 alone -- extracted from
+    extract_features_from_imagery's per-feature loop so this decision logic is directly
+    testable with a mocked QgsGeometry, without the GDAL/OGR/FastSAM pipeline around it."""
+
+    def test_simplifies_by_pixel_size(self):
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = True
+        geom.isEmpty.return_value = False
+        geom.area.return_value = 100.0
+
+        result = _finalize_extracted_geometry(geom, pixel_size=0.5, min_area_m2=None)
+
+        geom.simplify.assert_called_once_with(0.5)
+        self.assertIs(result, geom)
+
+    def test_zero_pixel_size_skips_simplify(self):
+        geom = MagicMock()
+        geom.isGeosValid.return_value = True
+        geom.isEmpty.return_value = False
+        geom.area.return_value = 100.0
+
+        _finalize_extracted_geometry(geom, pixel_size=0, min_area_m2=None)
+
+        geom.simplify.assert_not_called()
+
+    def test_invalid_geometry_gets_repaired(self):
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = False
+        repaired = MagicMock()
+        repaired.isEmpty.return_value = False
+        repaired.area.return_value = 100.0
+        geom.makeValid.return_value = repaired
+
+        result = _finalize_extracted_geometry(geom, pixel_size=0.5, min_area_m2=None)
+
+        geom.makeValid.assert_called_once()
+        self.assertIs(result, repaired)
+
+    def test_empty_after_repair_is_dropped(self):
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = False
+        repaired = MagicMock()
+        repaired.isEmpty.return_value = True
+        geom.makeValid.return_value = repaired
+
+        result = _finalize_extracted_geometry(geom, pixel_size=0.5, min_area_m2=None)
+
+        self.assertIsNone(result)
+
+    def test_below_min_area_is_dropped(self):
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = True
+        geom.isEmpty.return_value = False
+        geom.area.return_value = 5.0
+
+        result = _finalize_extracted_geometry(geom, pixel_size=0.5, min_area_m2=10.0)
+
+        self.assertIsNone(result)
+
+    def test_above_min_area_is_kept(self):
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = True
+        geom.isEmpty.return_value = False
+        geom.area.return_value = 50.0
+
+        result = _finalize_extracted_geometry(geom, pixel_size=0.5, min_area_m2=10.0)
+
+        self.assertIs(result, geom)
 
 
 class TestExtractFeaturesFromImageryTool(unittest.TestCase):

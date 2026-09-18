@@ -17,6 +17,7 @@ try:
     from qgis.core import (
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+        QgsVectorLayer, QgsFeature, QgsFeatureRequest, QgsWkbTypes,
     )
     from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
@@ -557,7 +558,40 @@ def _resolve_popup_kwargs(folium_module, name, features, popup_fields, popup_lab
     return folium_module.GeoJsonPopup(fields=popup_fields, aliases=aliases)
 
 
-def _build_dashboard_html(layers, title=None):
+# Every entry here is a free, no-API-key tile service with a documented usage policy that
+# permits exactly this "embed in a generated standalone HTML page" pattern (the same reason
+# cartodbpositron -- "positron" below -- was chosen as the original default over OSM's own
+# tiles, which explicitly prohibit unattributed bulk/embedded-app use -- see
+# _build_dashboard_html's comment). "satellite" and "hot" answer the "no satellite imagery
+# or Humanitarian OSM toggle" gap directly; folium requires an explicit attr= string for any
+# tiles= value that isn't one of its own small set of built-in named presets.
+_DASHBOARD_BASEMAPS = {
+    "positron": {"tiles": "cartodbpositron", "attr": None},
+    "dark_matter": {"tiles": "cartodbdark_matter", "attr": None},
+    "satellite": {
+        "tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        "attr": "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+    },
+    "hot": {
+        "tiles": "https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+        "attr": "&copy; OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team",
+    },
+}
+_DEFAULT_DASHBOARD_BASEMAP = "positron"
+
+
+def _resolve_basemap_kwargs(basemap):
+    """Returns (folium.Map kwargs dict, warning_or_None). Falls back to the default basemap
+    (with a warning, not a hard error) for an unrecognized key, rather than failing the whole
+    dashboard over a caller typo in an otherwise-optional cosmetic parameter."""
+    key = (basemap or _DEFAULT_DASHBOARD_BASEMAP).lower()
+    entry = _DASHBOARD_BASEMAPS.get(key)
+    if entry is None:
+        return _DASHBOARD_BASEMAPS[_DEFAULT_DASHBOARD_BASEMAP], f"Unknown basemap '{basemap}' -- used the default ('{_DEFAULT_DASHBOARD_BASEMAP}') instead. Valid options: {', '.join(_DASHBOARD_BASEMAPS)}."
+    return entry, None
+
+
+def _build_dashboard_html(layers, title=None, basemap=None):
     """Pure HTML-generation core, no QGIS needed -- takes already-extracted
     GeoJSON per layer and builds a Folium/Leaflet dashboard: one togglable
     overlay per layer, popups on the requested fields, and an optional
@@ -600,17 +634,21 @@ def _build_dashboard_html(layers, title=None):
     # use with no distinguishing User-Agent or local caching) and their
     # servers block misbehaving clients -- reported live as the dashboard's
     # basemap showing a blocked/unavailable tile message instead of real
-    # map tiles. CartoDB Positron is folium's standard permissively-licensed
-    # alternative, built for exactly this "embed a basemap in your own
-    # generated page" case -- also a lighter, less label-heavy basemap that
-    # doesn't compete with the thematic overlay layers on top of it.
-    m = folium.Map(tiles="cartodbpositron")
+    # map tiles. CartoDB Positron remains the default (permissively-licensed,
+    # built for exactly this "embed a basemap in your own generated page"
+    # case, light/unobtrusive under thematic overlays) -- basemap= (see
+    # _DASHBOARD_BASEMAPS) lets a caller opt into satellite imagery or a
+    # Humanitarian OSM Team style instead when that's more useful.
+    basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
+    m = folium.Map(**basemap_kwargs)
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
         m.location, m.zoom_start = [0, 0], 2
 
     warnings = []
+    if basemap_warning:
+        warnings.append(basemap_warning)
     for layer in layers:
         name = layer["name"]
         geojson = layer.get("geojson", {})
@@ -875,7 +913,7 @@ def _json_for_inline_script(value):
     return json.dumps(value).replace("</", "<\\/")
 
 
-def _build_temporal_dashboard_html(layers, title=None, step_days=30):
+def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=None):
     """Pure HTML-generation core for generate_temporal_dashboard -- same
     QGIS-independent split as _build_dashboard_html (takes already-extracted
     GeoJSON, so this is directly unit-testable with synthetic data, no live
@@ -971,12 +1009,17 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30):
     # tiles="OpenStreetMap" hits tile.openstreetmap.org directly with no
     # User-Agent/caching, which OSM's own tile usage policy blocks for
     # exactly this bulk/embedded-app pattern -- reported live as the
-    # dashboard's basemap showing a blocked tile message.
-    m = folium.Map(tiles="cartodbpositron")
+    # dashboard's basemap showing a blocked tile message. basemap= (see
+    # _DASHBOARD_BASEMAPS) opts into satellite/HOT imagery instead of the
+    # CartoDB Positron default, same mechanism as _build_dashboard_html.
+    basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
+    m = folium.Map(**basemap_kwargs)
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
         m.location, m.zoom_start = [0, 0], 2
+    if basemap_warning:
+        warnings.append(basemap_warning)
 
     temporal_js_vars = []
     all_start_ms, all_end_ms = [], []
@@ -1342,6 +1385,79 @@ font-family:sans-serif;min-width:360px;">
     return {"html": m.get_root().render(), "warnings": warnings}
 
 
+_DASHBOARD_MAX_FEATURES = 2500
+
+
+def _prepare_dashboard_layer(layer, max_features=_DASHBOARD_MAX_FEATURES):
+    """Caps feature count and simplifies geometry for a layer about to be exported into an
+    HTML dashboard -- embedding a layer's full, unbounded GeoJSON directly into the page's
+    JavaScript (generate_html_dashboard's approach) previously had no limit, and a >10,000-
+    feature layer with detailed polygon boundaries could produce a 25MB+ HTML file that
+    freezes the viewer's browser on open. Returns (layer_to_export, warning_or_None) --
+    the ORIGINAL layer unchanged when it's already under the cap and simple enough that
+    nothing needs doing (the common case), or a new in-memory layer with a feature subset
+    and Douglas-Peucker-simplified geometries (QgsGeometry.simplify()) otherwise. Tolerance
+    is derived from the layer's own extent (roughly 1/2000th of its diagonal) rather than a
+    fixed constant, since a sensible simplification tolerance in degrees (a country-sized
+    geographic-CRS layer) is a completely different number than in meters (a city-sized
+    projected one). Best-effort: any failure determining whether capping/simplification is
+    even needed (e.g. a degenerate extent) falls back to exporting the original layer
+    unchanged rather than failing the whole dashboard over what is, at worst, a missed file-
+    size optimization."""
+    try:
+        total = layer.featureCount()
+        extent = layer.extent()
+        diagonal = ((extent.width() ** 2) + (extent.height() ** 2)) ** 0.5
+        tolerance = diagonal / 2000.0 if diagonal > 0 else 0
+        needs_work = total > max_features or tolerance > 0
+    except Exception:
+        return layer, None
+    if not needs_work:
+        return layer, None
+
+    try:
+        return _build_capped_simplified_layer(layer, max_features, total, tolerance)
+    except Exception:
+        return layer, None
+
+
+def _build_capped_simplified_layer(layer, max_features, total, tolerance):
+    mem_layer = QgsVectorLayer(
+        f"{QgsWkbTypes.displayString(layer.wkbType())}?crs={layer.crs().authid()}",
+        layer.name(), "memory",
+    )
+    mem_provider = mem_layer.dataProvider()
+    mem_provider.addAttributes(layer.fields())
+    mem_layer.updateFields()
+
+    request = QgsFeatureRequest()
+    truncated = total > max_features
+    if truncated:
+        request.setLimit(max_features)
+
+    out_feats = []
+    for feat in layer.getFeatures(request):
+        new_feat = QgsFeature(mem_layer.fields())
+        new_feat.setAttributes(feat.attributes())
+        geom = feat.geometry()
+        if tolerance > 0 and geom is not None and not geom.isEmpty():
+            geom = geom.simplify(tolerance)
+        new_feat.setGeometry(geom)
+        out_feats.append(new_feat)
+    mem_provider.addFeatures(out_feats)
+    mem_layer.updateExtents()
+
+    warning = None
+    if truncated or tolerance > 0:
+        parts = []
+        if truncated:
+            parts.append(f"showing the first {max_features:,} of {total:,} features")
+        if tolerance > 0:
+            parts.append("geometry simplified for file size")
+        warning = f"'{layer.name()}': {', '.join(parts)} -- large layers are capped/simplified to keep the dashboard file a reasonable size."
+    return mem_layer, warning
+
+
 def _write_layer_geojson_wgs84(layer, output_path):
     """Writes a vector layer to a GeoJSON file reprojected to EPSG:4326
     (WGS84) -- Leaflet/Folium expects lon/lat coordinates, and GeoJSON's own
@@ -1408,11 +1524,12 @@ def _write_layer_geojson_wgs84(layer, output_path):
             },
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a temp file."},
+            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
         },
         "required": ["layers"],
     },
 )
-def generate_html_dashboard(layers, title=None, output_path=None):
+def generate_html_dashboard(layers, title=None, output_path=None, basemap=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -1420,6 +1537,7 @@ def generate_html_dashboard(layers, title=None, output_path=None):
 
     prepared = []
     tmp_files = []
+    size_warnings = []
     try:
         for spec in layers:
             layer_name = spec.get("layer_name")
@@ -1429,10 +1547,14 @@ def generate_html_dashboard(layers, title=None, output_path=None):
             if not layer.isSpatial():
                 return {"error": f"Layer '{layer_name}' has no geometry -- generate_html_dashboard needs spatial vector layers."}
 
+            export_layer, size_warning = _prepare_dashboard_layer(layer)
+            if size_warning:
+                size_warnings.append(size_warning)
+
             fd, tmp_path = tempfile.mkstemp(suffix=".geojson")
             os.close(fd)
             tmp_files.append(tmp_path)
-            write_res = _write_layer_geojson_wgs84(layer, tmp_path)
+            write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
             if "error" in write_res:
                 return write_res
 
@@ -1452,7 +1574,7 @@ def generate_html_dashboard(layers, title=None, output_path=None):
                 "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
-        result = _build_dashboard_html(prepared, title=title)
+        result = _build_dashboard_html(prepared, title=title, basemap=basemap)
         if "error" in result:
             return result
 
@@ -1477,8 +1599,9 @@ def generate_html_dashboard(layers, title=None, output_path=None):
                 "internet access at view time (generating the file itself needed no network)."
             ),
         }
-        if result.get("warnings"):
-            response["warnings"] = result["warnings"]
+        all_warnings = size_warnings + result.get("warnings", [])
+        if all_warnings:
+            response["warnings"] = all_warnings
         return response
     except Exception as e:
         return {"error": f"generate_html_dashboard failed: {e}"}
@@ -1551,11 +1674,12 @@ def _temp_html_path():
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a temp file."},
             "step_days": {"type": "integer", "description": "Slider step size / play-button advance, in days. Defaults to 30."},
+            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
         },
         "required": ["layers"],
     },
 )
-def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30):
+def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -1563,6 +1687,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
 
     prepared = []
     tmp_files = []
+    size_warnings = []
     try:
         for spec in layers:
             layer_name = spec.get("layer_name")
@@ -1572,10 +1697,14 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
             if not layer.isSpatial():
                 return {"error": f"Layer '{layer_name}' has no geometry -- generate_temporal_dashboard needs spatial vector layers."}
 
+            export_layer, size_warning = _prepare_dashboard_layer(layer)
+            if size_warning:
+                size_warnings.append(size_warning)
+
             fd, tmp_path = tempfile.mkstemp(suffix=".geojson")
             os.close(fd)
             tmp_files.append(tmp_path)
-            write_res = _write_layer_geojson_wgs84(layer, tmp_path)
+            write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
             if "error" in write_res:
                 return write_res
 
@@ -1596,7 +1725,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
                 "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
-        result = _build_temporal_dashboard_html(prepared, title=title, step_days=step_days)
+        result = _build_temporal_dashboard_html(prepared, title=title, step_days=step_days, basemap=basemap)
         if "error" in result:
             return result
 
@@ -1614,8 +1743,9 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
                 "internet access at view time (generating the file itself needed no network)."
             ),
         }
-        if result.get("warnings"):
-            response["warnings"] = result["warnings"]
+        all_warnings = size_warnings + result.get("warnings", [])
+        if all_warnings:
+            response["warnings"] = all_warnings
         return response
     except Exception as e:
         return {"error": f"generate_temporal_dashboard failed: {e}"}

@@ -9,6 +9,7 @@ from cartogen_ai.core.agent.tools.reporting_tools import (
     generate_chart, extract_pdf_tables, extract_word_tables, aggregate_data,
     _aggregate_rows, _coerce_number, load_3w_data, _read_tabular_rows,
     _aggregate_3w_presence, _is_missing, generate_sector_coverage_report,
+    _apply_pie_slice_cap, _DEFAULT_CHART_PALETTE,
 )
 
 
@@ -111,6 +112,37 @@ class TestGenerateChartValidation(unittest.TestCase):
         self.assertIn("negative", res["error"])
 
 
+class TestApplyPieSliceCap(unittest.TestCase):
+    """Phase 4 (2026-09-19): a pie chart with too many slices becomes unreadable --
+    pure Python, no matplotlib needed."""
+
+    def test_within_cap_returned_unchanged(self):
+        labels, values, note = _apply_pie_slice_cap(["a", "b", "c"], [1, 2, 3], max_slices=8)
+        self.assertEqual(labels, ["a", "b", "c"])
+        self.assertEqual(values, [1, 2, 3])
+        self.assertIsNone(note)
+
+    def test_over_cap_combines_smallest_into_other(self):
+        labels = [f"cat{i}" for i in range(10)]
+        values = list(range(10))  # cat0=0 ... cat9=9
+        new_labels, new_values, note = _apply_pie_slice_cap(labels, values, max_slices=5)
+        self.assertEqual(len(new_labels), 5)
+        self.assertIn("Other", new_labels)
+        self.assertIsNotNone(note)
+        # The 6 smallest (cat0..cat5, values 0-5) collapse into Other = 15;
+        # the 4 largest (cat6..cat9, values 6-9) are kept individually.
+        other_index = new_labels.index("Other")
+        self.assertEqual(new_values[other_index], sum(range(6)))
+        self.assertEqual(set(new_labels) - {"Other"}, {"cat6", "cat7", "cat8", "cat9"})
+
+    def test_exactly_at_cap_is_unchanged(self):
+        labels = [f"c{i}" for i in range(8)]
+        values = list(range(8))
+        new_labels, new_values, note = _apply_pie_slice_cap(labels, values, max_slices=8)
+        self.assertEqual(new_labels, labels)
+        self.assertIsNone(note)
+
+
 class TestGenerateChartRendersRealFile(unittest.TestCase):
     def setUp(self):
         _skip_if_missing(self, "matplotlib")
@@ -129,6 +161,56 @@ class TestGenerateChartRendersRealFile(unittest.TestCase):
         res = generate_chart("pie", "Funding by Cluster", ["Health", "WASH"], [40, 60])
         try:
             self.assertTrue(res["success"])
+            self.assertTrue(os.path.exists(res["output_path"]))
+        finally:
+            if res.get("output_path") and os.path.exists(res["output_path"]):
+                os.remove(res["output_path"])
+
+    def test_default_dpi_is_300_not_150(self):
+        res = generate_chart("bar", "t", ["a", "b"], [1, 2])
+        try:
+            self.assertTrue(res["success"])
+            from PIL import Image
+            with Image.open(res["output_path"]) as img:
+                width_px, _ = img.size
+            # figsize=(8,5) inches * dpi=300 = 2400px wide, vs the old dpi=150 -> 1200px --
+            # a real, measurable difference in the actual rendered file, not just the
+            # function argument being accepted.
+            self.assertGreater(width_px, 2000)
+        finally:
+            if res.get("output_path") and os.path.exists(res["output_path"]):
+                os.remove(res["output_path"])
+
+    def test_custom_dpi_is_respected(self):
+        res = generate_chart("bar", "t", ["a", "b"], [1, 2], dpi=100)
+        try:
+            self.assertTrue(res["success"])
+            from PIL import Image
+            with Image.open(res["output_path"]) as img:
+                width_px, _ = img.size
+            self.assertLess(width_px, 1000)
+        finally:
+            if res.get("output_path") and os.path.exists(res["output_path"]):
+                os.remove(res["output_path"])
+
+    def test_pie_chart_over_slice_cap_gets_a_warning_and_fewer_slices(self):
+        labels = [f"cat{i}" for i in range(12)]
+        values = list(range(1, 13))
+        res = generate_chart("pie", "Many Categories", labels, values)
+        try:
+            self.assertTrue(res["success"], res)
+            self.assertIn("warning", res)
+            self.assertIn("Other", res["warning"])
+        finally:
+            if res.get("output_path") and os.path.exists(res["output_path"]):
+                os.remove(res["output_path"])
+
+    def test_custom_color_palette_is_accepted(self):
+        res = generate_chart(
+            "bar", "t", ["a", "b"], [1, 2], color_palette=["#123456", "#abcdef"],
+        )
+        try:
+            self.assertTrue(res["success"], res)
             self.assertTrue(os.path.exists(res["output_path"]))
         finally:
             if res.get("output_path") and os.path.exists(res["output_path"]):
