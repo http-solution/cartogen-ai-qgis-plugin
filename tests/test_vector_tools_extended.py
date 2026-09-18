@@ -4,6 +4,8 @@ QGIS-feature-coverage pass (difference, convex hull/Voronoi/Delaunay, nearest-
 feature join, singlepart/simplify, field statistics, select-by-location).
 Follows the same QGIS_AVAILABLE=False degrade-path convention used
 throughout tests/test_new_tools.py and tests/test_styling_tools.py."""
+import os
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.vector_tools import (
@@ -15,6 +17,7 @@ from cartogen_ai.core.agent.tools.vector_tools import (
     rename_layer, toggle_visibility, intersect_layers, union_layers, dissolve_layer,
     merge_layers, reproject_layer, fix_geometries, select_by_attribute,
     get_feature_count, open_attribute_table, verify_crs_compatibility,
+    _ensure_shapefile_encoding, add_layer_from_path, _ensure_spatialite_index,
 )
 
 
@@ -622,6 +625,192 @@ class TestApplyLabels(unittest.TestCase):
 
         self.assertIn("error", res)
         self.assertIn("not found", res["error"])
+
+
+class TestEnsureShapefileEncoding(unittest.TestCase):
+    """No .cpg -> a shapefile's text encoding is whatever GDAL's platform default happens
+    to be (commonly Windows-1252 on Windows), silently corrupting non-Latin-script
+    attribute values (Arabic, Cyrillic) with no error raised anywhere -- relevant given
+    this project's humanitarian/OCHA data. _ensure_shapefile_encoding overrides to UTF-8
+    when no .cpg is present, and leaves GDAL's own encoding detection alone when one is."""
+
+    def test_cpg_present_leaves_encoding_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            shp_path = os.path.join(tmp_dir, "districts.shp")
+            cpg_path = os.path.join(tmp_dir, "districts.cpg")
+            open(shp_path, "w").close()
+            open(cpg_path, "w").close()
+            layer = MagicMock()
+
+            note = _ensure_shapefile_encoding(layer, shp_path)
+
+            self.assertIsNone(note)
+            layer.dataProvider.assert_not_called()
+
+    def test_missing_cpg_sets_utf8_encoding(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            shp_path = os.path.join(tmp_dir, "districts.shp")
+            open(shp_path, "w").close()
+            layer = MagicMock()
+
+            note = _ensure_shapefile_encoding(layer, shp_path)
+
+            self.assertIsNotNone(note)
+            self.assertIn("UTF-8", note)
+            layer.dataProvider.return_value.setEncoding.assert_called_once_with("UTF-8")
+
+    def test_encoding_override_failure_is_reported_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            shp_path = os.path.join(tmp_dir, "districts.shp")
+            open(shp_path, "w").close()
+            layer = MagicMock()
+            layer.dataProvider.side_effect = RuntimeError("no provider")
+
+            note = _ensure_shapefile_encoding(layer, shp_path)
+
+            self.assertIsNotNone(note)
+            self.assertIn("could not override", note.lower())
+
+
+class TestEnsureSpatialiteIndex(unittest.TestCase):
+    def test_index_already_exists_or_created_returns_none(self):
+        layer = MagicMock()
+        layer.dataProvider.return_value.createSpatialIndex.return_value = True
+        self.assertIsNone(_ensure_spatialite_index(layer))
+
+    def test_index_creation_failure_returns_a_note(self):
+        layer = MagicMock()
+        layer.dataProvider.return_value.createSpatialIndex.return_value = False
+        note = _ensure_spatialite_index(layer)
+        self.assertIsNotNone(note)
+        self.assertIn("spatial index", note)
+
+    def test_no_data_provider_returns_none(self):
+        layer = MagicMock()
+        layer.dataProvider.return_value = None
+        self.assertIsNone(_ensure_spatialite_index(layer))
+
+    def test_exception_is_reported_not_raised(self):
+        layer = MagicMock()
+        layer.dataProvider.side_effect = RuntimeError("boom")
+        note = _ensure_spatialite_index(layer)
+        self.assertIsNotNone(note)
+        self.assertIn("boom", note)
+
+
+class TestAddLayerFromPathShapefileEncoding(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_shp_with_no_cpg_reports_encoding_note(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            shp_path = os.path.join(tmp_dir, "districts.shp")
+            open(shp_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(shp_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertIn("encoding_note", res)
+            self.assertIn("UTF-8", res["encoding_note"])
+            fake_layer.dataProvider.return_value.setEncoding.assert_called_once_with("UTF-8")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_shp_with_cpg_has_no_encoding_note(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            shp_path = os.path.join(tmp_dir, "districts.shp")
+            cpg_path = os.path.join(tmp_dir, "districts.cpg")
+            open(shp_path, "w").close()
+            open(cpg_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(shp_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertNotIn("encoding_note", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_non_shapefile_vector_is_unaffected(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            geojson_path = os.path.join(tmp_dir, "districts.geojson")
+            open(geojson_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(geojson_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertNotIn("encoding_note", res)
+            fake_layer.dataProvider.return_value.setEncoding.assert_not_called()
+
+
+class TestAddLayerFromPathSpatialiteIndex(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_sqlite_file_triggers_spatial_index_check(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sqlite_path = os.path.join(tmp_dir, "districts.sqlite")
+            open(sqlite_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            fake_layer.dataProvider.return_value.createSpatialIndex.return_value = True
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(sqlite_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertNotIn("spatial_index_note", res)
+            fake_layer.dataProvider.return_value.createSpatialIndex.assert_called_once()
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_sqlite_index_creation_failure_is_reported(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sqlite_path = os.path.join(tmp_dir, "districts.sqlite")
+            open(sqlite_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            fake_layer.dataProvider.return_value.createSpatialIndex.return_value = False
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(sqlite_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertIn("spatial_index_note", res)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_non_spatialite_file_skips_index_check(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            geojson_path = os.path.join(tmp_dir, "districts.geojson")
+            open(geojson_path, "w").close()
+            fake_layer = MagicMock()
+            fake_layer.isValid.return_value = True
+            fake_layer.name.return_value = "districts"
+            mock_layer_cls.return_value = fake_layer
+
+            res = add_layer_from_path(geojson_path)
+
+            self.assertTrue(res["success"], res)
+            self.assertNotIn("spatial_index_note", res)
+            fake_layer.dataProvider.return_value.createSpatialIndex.assert_not_called()
 
 
 if __name__ == "__main__":

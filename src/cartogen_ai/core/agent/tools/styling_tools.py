@@ -90,6 +90,22 @@ def _sanitize_filename(name):
     return safe or "layer"
 
 
+def _is_geopackage_layer(layer):
+    """True if layer is backed by a GeoPackage (.gpkg) file via the OGR provider --
+    the only case where saveStyleToDatabase (writing into the GeoPackage's own
+    layer_styles table, OGC 12-128r17) is meaningful. Uses the same
+    '|layername=...'-stripping convention as _derive_style_path since a
+    GeoPackage layer's source() is 'C:/path/to/file.gpkg|layername=foo'."""
+    try:
+        if layer.providerType() != "ogr":
+            return False
+        source = layer.source() or ""
+    except Exception:
+        return False
+    base_path = source.split("|", 1)[0] if source else ""
+    return base_path.lower().endswith(".gpkg")
+
+
 def _derive_style_path(layer, output_path):
     """Returns (path, used_desktop_fallback) for save_layer_style. Same
     convention as agent/tools/provenance_tools.py's _derive_sidecar_path:
@@ -963,7 +979,10 @@ def set_layer_order(layer_names):
     "layers or maps instead of rebuilding it with apply_categorized_style/apply_graduated_style "
     "every time. Without output_path, the file is saved beside the layer's own on-disk source "
     "(as '<source>.qml'); for a scratch/memory layer with no real source, it falls back to "
-    "Desktop instead.",
+    "Desktop instead. For a GeoPackage-backed layer, the style is ALSO written into the "
+    "GeoPackage's own layer_styles table (OGC 12-128r17) so it travels with the .gpkg file "
+    "itself -- e.g. opening it in another QGIS install or a different GIS package that reads "
+    "that table -- not just as an external sidecar that can be misplaced or left behind.",
     {
         "type": "object",
         "properties": {
@@ -998,6 +1017,23 @@ def save_layer_style(layer_name, output_path=None):
             "resolve a file path for) -- saved the style to Desktop instead of beside the "
             "source data."
         )
+
+    # GeoPackage-only: also write into the file's own layer_styles table, not just the .qml
+    # sidecar above. Best-effort -- a failure here doesn't undo the .qml save that already
+    # succeeded, it's reported as a warning on an otherwise-successful result instead of an
+    # error, since the .qml sidecar (this function's original, still-working behavior) is
+    # already a real saved style even if the database write fails.
+    if _is_geopackage_layer(layer):
+        try:
+            db_message, db_ok = layer.saveStyleToDatabase(
+                layer.name(), f"Style for {layer.name()}", True, ""
+            )
+        except Exception as e:
+            db_message, db_ok = str(e), False
+        result["saved_to_geopackage_layer_styles"] = bool(db_ok)
+        if not db_ok:
+            result["geopackage_style_warning"] = f"Could not write to the GeoPackage's layer_styles table: {db_message}"
+
     return result
 
 

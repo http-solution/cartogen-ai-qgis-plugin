@@ -10,6 +10,7 @@ from cartogen_ai.core.agent.tools.styling_tools import (
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
     save_layer_style, load_layer_style, _derive_style_path, apply_rule_based_style,
     apply_heatmap_style, _logarithmic_breaks, _resolve_classification_method,
+    _is_geopackage_layer,
 )
 
 
@@ -730,6 +731,90 @@ class TestSaveLayerStyle(unittest.TestCase):
 
         self.assertIn("error", res)
         self.assertIn("permission denied", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_geopackage_layer_also_writes_to_layer_styles_table(self, mock_find):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.gpkg|layername=districts"
+        layer.name.return_value = "districts"
+        layer.saveNamedStyle.return_value = ("Created default style file as foo.qml", True)
+        layer.saveStyleToDatabase.return_value = ("", True)
+        mock_find.return_value = layer
+
+        res = save_layer_style("districts")
+
+        self.assertTrue(res["success"], res)
+        self.assertTrue(res["saved_to_geopackage_layer_styles"])
+        self.assertNotIn("geopackage_style_warning", res)
+        layer.saveStyleToDatabase.assert_called_once_with("districts", "Style for districts", True, "")
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_geopackage_database_write_failure_is_a_warning_not_an_error(self, mock_find):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.gpkg|layername=districts"
+        layer.name.return_value = "districts"
+        layer.saveNamedStyle.return_value = ("Created default style file as foo.qml", True)
+        layer.saveStyleToDatabase.return_value = ("database is locked", False)
+        mock_find.return_value = layer
+
+        res = save_layer_style("districts")
+
+        # The .qml sidecar save already succeeded -- a database-write failure on top of that
+        # is reported, not treated as the whole operation failing.
+        self.assertTrue(res["success"], res)
+        self.assertFalse(res["saved_to_geopackage_layer_styles"])
+        self.assertIn("database is locked", res["geopackage_style_warning"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_non_geopackage_layer_skips_database_write_entirely(self, mock_find):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.shp"
+        layer.name.return_value = "districts"
+        layer.saveNamedStyle.return_value = ("Created default style file as foo.qml", True)
+        mock_find.return_value = layer
+
+        res = save_layer_style("districts")
+
+        self.assertTrue(res["success"], res)
+        self.assertNotIn("saved_to_geopackage_layer_styles", res)
+        layer.saveStyleToDatabase.assert_not_called()
+
+
+class TestIsGeopackageLayer(unittest.TestCase):
+    def test_gpkg_source_via_ogr_provider_is_geopackage(self):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.gpkg|layername=districts"
+        self.assertTrue(_is_geopackage_layer(layer))
+
+    def test_case_insensitive_extension_match(self):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.GPKG|layername=districts"
+        self.assertTrue(_is_geopackage_layer(layer))
+
+    def test_non_ogr_provider_is_not_geopackage(self):
+        layer = MagicMock()
+        layer.providerType.return_value = "spatialite"
+        layer.source.return_value = "/data/districts.gpkg"
+        self.assertFalse(_is_geopackage_layer(layer))
+
+    def test_shapefile_source_is_not_geopackage(self):
+        layer = MagicMock()
+        layer.providerType.return_value = "ogr"
+        layer.source.return_value = "/data/districts.shp"
+        self.assertFalse(_is_geopackage_layer(layer))
+
+    def test_exception_during_lookup_is_not_geopackage(self):
+        layer = MagicMock()
+        layer.providerType.side_effect = RuntimeError("boom")
+        self.assertFalse(_is_geopackage_layer(layer))
 
 
 class TestDeriveStylePath(unittest.TestCase):
