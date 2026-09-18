@@ -38,7 +38,7 @@ try:
     from qgis.core import (
         QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
         QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext,
-        QgsField,
+        QgsField, QgsDistanceArea,
     )
     try:
         from qgis.core import Qgis
@@ -85,6 +85,49 @@ def _check_hub_siting_pair_count(candidate_count, demand_count, tool_name):
             "centroids) before calling this tool."
         )
     return None
+
+
+def _make_distance_area(layer):
+    """QGIS-006 follow-up (2026-09-19): returns a configured QgsDistanceArea for real-world
+    (ellipsoidal/geodesic, WGS84) distance measurement when layer's CRS is geographic, or
+    None when it's already projected -- QgsGeometry.distance() is already correct there (a
+    projected CRS's own linear unit, typically meters), so ellipsoidal measurement would add
+    cost without changing the answer. Returns None on any setup failure too (caller falls
+    back to the previous planar-degrees behavior plus its existing warning in that case --
+    see optimal_hub_siting/location_allocation)."""
+    try:
+        if not layer.crs().isGeographic():
+            return None
+        da = QgsDistanceArea()
+        da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+        # Live-caught 2026-09-19 (python-qgis.bat, real QGIS 4.2.2): a fresh/default
+        # QgsProject.instance().ellipsoid() returns the literal string 'NONE' -- QGIS's own
+        # sentinel for "no ellipsoid configured, use planar Cartesian math" -- which is
+        # truthy in Python, so `or "WGS84"` never caught it and setEllipsoid("NONE") was
+        # silently disabling ellipsoidal mode entirely. Confirmed live: measureLine()
+        # returned the same raw-degree value as the old planar distance() call (1.0, not
+        # the correct ~71km at 50N) until this was fixed to explicitly check for 'NONE'.
+        project_ellipsoid = QgsProject.instance().ellipsoid()
+        da.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+        return da
+    except Exception:
+        return None
+
+
+def _measure_distance(distance_area, geom_a, geom_b):
+    """geom_a/geom_b are point geometries -- both callers (optimal_hub_siting,
+    location_allocation) require point layers, per their own tool descriptions. Returns
+    real-world meters via ellipsoidal QgsDistanceArea.measureLine() when distance_area is
+    given (a geographic-CRS layer, see _make_distance_area), or the previous raw
+    QgsGeometry.distance() (already meters on a projected CRS, or degrees as a last-resort
+    fallback if ellipsoidal measurement itself failed) otherwise. Never raises -- a slightly
+    wrong distance from a fallback is far better than a crashed hub-siting call."""
+    if distance_area is not None:
+        try:
+            return distance_area.measureLine(geom_a.asPoint(), geom_b.asPoint())
+        except Exception:
+            pass
+    return geom_a.distance(geom_b)
 
 
 def _network_direction_speed_params(network, speed_field=None, direction_field=None,
@@ -216,13 +259,14 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         if pair_count_error:
             return {"error": pair_count_error}
 
+        distance_area = _make_distance_area(candidates)
         candidate_distances = {}
         for i, cand_feat in enumerate(candidates.getFeatures()):
             cand_geom = cand_feat.geometry()
             if cand_geom.isEmpty():
                 continue
             name = cand_feat.attribute(0) if cand_feat.fields().count() else f"candidate_{i}"
-            candidate_distances[str(name)] = [cand_geom.distance(dg) for dg in demand_geoms]
+            candidate_distances[str(name)] = [_measure_distance(distance_area, cand_geom, dg) for dg in demand_geoms]
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
@@ -234,19 +278,31 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
             "demand_point_count": len(demand_geoms),
             "ranked_candidates": ranked,
         }
-        # QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis already
-        # warns about (Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) --
-        # cand_geom.distance(dg) above is a raw, unconverted CRS-unit distance, and every
-        # avg_distance/max_distance value in `ranked` is described as "usually meters" in
-        # this tool's own docstring, but is actually degrees on a geographic CRS. Honest
-        # warning, not a guessed reprojection.
+        # QGIS-006, 2026-09-13 audit (fixed 2026-09-19): same CRS-unit-mismatch class
+        # buffer_analysis already warns about (Point 3 of
+        # docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) -- cand_geom.distance(dg)
+        # used to be a raw, unconverted CRS-unit distance (degrees on a geographic CRS,
+        # despite this tool's own docstring describing values as "usually meters"). Now
+        # measured via _make_distance_area/_measure_distance instead: real-world ellipsoidal
+        # meters on a geographic CRS, unchanged planar meters on an already-projected one.
+        # The warning below only fires if ellipsoidal setup itself failed (distance_area is
+        # None on a geographic CRS) -- an honest fallback statement, not a guessed
+        # reprojection, for the one case this fix doesn't cover.
         try:
             if candidates.crs().isGeographic():
-                result["warning"] = (
-                    f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}), so "
-                    "every distance value above is in DEGREES, not meters -- reproject to a "
-                    "projected/UTM CRS first for meaningful distances."
-                )
+                if distance_area is not None:
+                    result["note"] = (
+                        f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}) -- "
+                        "distances above are real-world meters via ellipsoidal (WGS84 geodesic) "
+                        "measurement, not raw planar degrees."
+                    )
+                else:
+                    result["warning"] = (
+                        f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}), but "
+                        "ellipsoidal distance measurement could not be set up, so every distance value "
+                        "above is in DEGREES, not meters -- reproject to a projected/UTM CRS first for "
+                        "meaningful distances."
+                    )
         except Exception:
             pass
         return result
@@ -354,13 +410,14 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         if pair_count_error:
             return {"error": pair_count_error}
 
+        distance_area = _make_distance_area(candidates)
         candidate_distances = {}
         for i, cand_feat in enumerate(candidates.getFeatures()):
             cand_geom = cand_feat.geometry()
             if cand_geom.isEmpty():
                 continue
             name = cand_feat.attribute(0) if cand_feat.fields().count() else f"candidate_{i}"
-            candidate_distances[str(name)] = [cand_geom.distance(dg) for dg in demand_geoms]
+            candidate_distances[str(name)] = [_measure_distance(distance_area, cand_geom, dg) for dg in demand_geoms]
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
@@ -371,6 +428,25 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         result["success"] = True
         result["candidate_count"] = len(candidate_distances)
         result["demand_point_count"] = len(demand_geoms)
+        # Same fix as optimal_hub_siting -- see its own comment for the full history
+        # (QGIS-006, 2026-09-13 audit; fixed 2026-09-19).
+        try:
+            if candidates.crs().isGeographic():
+                if distance_area is not None:
+                    result["note"] = (
+                        f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}) -- "
+                        "distances are real-world meters via ellipsoidal (WGS84 geodesic) measurement, "
+                        "not raw planar degrees."
+                    )
+                else:
+                    result["warning"] = (
+                        f"'{candidate_layer}' is in a geographic CRS ({candidates.crs().authid()}), but "
+                        "ellipsoidal distance measurement could not be set up, so every distance value "
+                        "is in DEGREES, not meters -- reproject to a projected/UTM CRS first for "
+                        "meaningful distances."
+                    )
+        except Exception:
+            pass
         return result
     except Exception as e:
         return {"error": f"location_allocation failed: {e}"}
@@ -507,7 +583,11 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         if network_aware:
             distance_matrix = _build_network_distance_matrix(network, geoms, extra_params)
         else:
-            distance_matrix = [[geoms[i].distance(geoms[j]) for j in range(n)] for i in range(n)]
+            distance_area = _make_distance_area(layer)
+            distance_matrix = [
+                [_measure_distance(distance_area, geoms[i], geoms[j]) for j in range(n)]
+                for i in range(n)
+            ]
 
         tour, total_distance = _optimize_route(distance_matrix, start_index)
         ordered_names = [names[i] for i in tour]
@@ -527,16 +607,25 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                 "is a stop sequence only, not a routable path. Do not render a line through these "
                 "stops as a delivery route; pass road_network_layer to build one."
             )
-            # QGIS-006, 2026-09-13 audit: same CRS-unit-mismatch class buffer_analysis
-            # already warns about -- the straight-line distance_matrix above is a raw,
-            # unconverted CRS-unit distance with no unit label on total_distance at all.
+            # QGIS-006, 2026-09-13 audit (fixed 2026-09-19): the straight-line distance_matrix
+            # above now goes through _make_distance_area/_measure_distance -- real-world
+            # ellipsoidal meters on a geographic CRS, unchanged planar meters on a projected
+            # one. Warning only fires if ellipsoidal setup itself failed.
             try:
                 if layer.crs().isGeographic():
-                    warning += (
-                        f" '{stops_layer}' is also in a geographic CRS ({layer.crs().authid()}), "
-                        "so total_distance is in DEGREES, not any real distance unit -- reproject "
-                        "to a projected/UTM CRS first for a meaningful figure."
-                    )
+                    if distance_area is not None:
+                        warning += (
+                            f" '{stops_layer}' is in a geographic CRS ({layer.crs().authid()}) -- "
+                            "total_distance is real-world meters via ellipsoidal (WGS84 geodesic) "
+                            "measurement, not raw planar degrees."
+                        )
+                    else:
+                        warning += (
+                            f" '{stops_layer}' is also in a geographic CRS ({layer.crs().authid()}), "
+                            "but ellipsoidal distance measurement could not be set up, so "
+                            "total_distance is in DEGREES, not any real distance unit -- reproject "
+                            "to a projected/UTM CRS first for a meaningful figure."
+                        )
             except Exception:
                 pass
             result["warning"] = warning
@@ -1299,12 +1388,26 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     # asserts meters) -- this is the more safety-relevant of the two, since this tool
     # exists specifically to score incident proximity to a route for humanitarian/security
     # decisions. Propagate the warning and extend it to cover both.
+    # Fixed 2026-09-19 (was: raw route_geom.distance(geom) in CRS units, mislabeled as
+    # meters on a geographic CRS -- see the comment above). route_geom is a line, not a
+    # point, so _measure_distance's point-to-point ellipsoidal path doesn't directly apply
+    # here -- nearestPoint() finds the closest point ON the route to each incident first,
+    # then that point and the incident (itself a point, per this tool's own "Point layer of
+    # incidents" schema description) go through the same _make_distance_area/
+    # _measure_distance ellipsoidal measurement optimal_hub_siting/location_allocation use.
+    distance_area = _make_distance_area(route)
     crs_warning = buffer_result.get("warning")
     if crs_warning:
-        crs_warning += (
-            " This also means every 'distance_to_route_m' value below is in DEGREES, not "
-            "meters, despite the field name."
-        )
+        if distance_area is not None:
+            crs_warning += (
+                " 'distance_to_route_m' values below are real-world meters via ellipsoidal "
+                "(WGS84 geodesic) measurement, not raw planar degrees."
+            )
+        else:
+            crs_warning += (
+                " This also means every 'distance_to_route_m' value below is in DEGREES, not "
+                "meters, despite the field name."
+            )
     buffer_layer_name = buffer_result["layer_name"]
     buffer_layer = _find_layer_by_name(buffer_layer_name)
     if buffer_layer is None:
@@ -1339,9 +1442,10 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
             val = feat[weight_field]
             weight = float(val) if isinstance(val, (int, float)) else 1.0
         total_weight += weight
+        nearest_on_route = route_geom.nearestPoint(geom)
         matched.append({
             "incident_id": feat.id(),
-            "distance_to_route_m": round(route_geom.distance(geom), 1),
+            "distance_to_route_m": round(_measure_distance(distance_area, nearest_on_route, geom), 1),
             "date": str(feat[date_field]) if date_field else None,
             "weight": weight if weight_field else None,
         })

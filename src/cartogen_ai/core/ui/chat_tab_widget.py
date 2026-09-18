@@ -1413,7 +1413,8 @@ class ChatTabWidget(QWidget):
 
         try:
             from ..agent.chat_persistence import save_chat_history
-            save_chat_history(getattr(agent, "conversation_history", []))
+            history = agent._read_history_snapshot() if hasattr(agent, "_read_history_snapshot") else getattr(agent, "conversation_history", [])
+            save_chat_history(history)
         except Exception as e:
             print(f"[ChatTabWidget] Failed to save chat history: {e}")
 
@@ -1590,7 +1591,15 @@ class ChatTabWidget(QWidget):
                 ),
             }
         ]
-        messages.extend(getattr(agent, "conversation_history", []))
+        # Reads via the same lock-protected snapshot run() itself uses (see agent.py's
+        # _history_lock) when the real agent provides it -- this vision-analysis call runs
+        # on the main Qt thread while a normal chat turn could be mid-flight on the
+        # background QgsTask thread, appending to this same list concurrently. Falls back
+        # to the raw attribute for a test double that doesn't implement the method.
+        if hasattr(agent, "_read_history_snapshot"):
+            messages.extend(agent._read_history_snapshot())
+        else:
+            messages.extend(getattr(agent, "conversation_history", []))
         messages.append(
             {
                 "role": "user",
@@ -1631,12 +1640,15 @@ class ChatTabWidget(QWidget):
                 "Vision support depends on the model; try a vision-capable model in Settings."
             )
         try:
-            agent.conversation_history.append(
-                {"role": "user", "content": f"[Attached image: {name}]"}
-            )
-            agent.conversation_history.append({"role": "assistant", "content": content})
-            if hasattr(agent, "_trim_history"):
-                agent._trim_history()
+            user_entry = {"role": "user", "content": f"[Attached image: {name}]"}
+            assistant_entry = {"role": "assistant", "content": content}
+            if hasattr(agent, "_append_history"):
+                agent._append_history(user_entry, assistant_entry)
+            else:
+                agent.conversation_history.append(user_entry)
+                agent.conversation_history.append(assistant_entry)
+                if hasattr(agent, "_trim_history"):
+                    agent._trim_history()
         except Exception:
             pass
         return content

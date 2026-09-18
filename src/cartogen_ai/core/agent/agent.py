@@ -6,6 +6,7 @@ Task List Manager, and Thread-Safe Tool Dispatching.
 """
 
 import json
+import threading
 import time
 
 try:
@@ -210,6 +211,17 @@ _COMPACTED_TOOL_RESULT_PLACEHOLDER = json.dumps({
 
 class CartogenAi:
     def __init__(self):
+        # Guards conversation_history against a genuine cross-thread race: run() executes
+        # on the background QgsTask thread (see task_runner.py), but chat_tab_widget.py's
+        # image-attachment handler (_analyze_attached_image or similar) appends to
+        # agent.conversation_history directly from the main Qt thread while a turn could
+        # still be in flight on the background thread. Created first, before anything else
+        # in __init__, so it's always available no matter which of this method's several
+        # conversation_history assignments below runs. RLock (not Lock) since
+        # _append_history() calls _trim_history() internally, both under the same lock --
+        # a plain Lock would deadlock on that reentrant acquisition.
+        self._history_lock = threading.RLock()
+
         from .auth import CredentialManager
         settings = QgsSettings()
         provider_name = settings.value("cartogen_ai/provider", "openrouter")
@@ -334,8 +346,25 @@ class CartogenAi:
     def tools_schema(self):
         return TOOLS_SCHEMA
 
+    def _get_history_lock(self):
+        """__init__ always creates _history_lock, but several tests in this codebase
+        construct CartogenAi via CartogenAi.__new__(CartogenAi) to skip __init__ entirely
+        (avoiding real QGIS/API-key setup) and hand-assign only the attributes they need --
+        confirmed in tests/test_agent_runner.py. Lazily creating the lock here on first use
+        (instead of every call site assuming __init__ ran) means those test doubles keep
+        working without each one needing to know a new attribute exists. A benign race on
+        first creation (two threads both finding no lock yet) isn't a practical concern here
+        -- real usage always goes through __init__ first, which sets it before the instance
+        is ever handed to another thread."""
+        lock = self.__dict__.get("_history_lock")
+        if lock is None:
+            lock = threading.RLock()
+            self._history_lock = lock
+        return lock
+
     def clear_history(self):
-        self.conversation_history = []
+        with self._get_history_lock():
+            self.conversation_history = []
         self.task_manager.clear_plan()
 
     def _accumulate_usage(self, usage):
@@ -405,9 +434,13 @@ class CartogenAi:
         agent instance is cached and reused across projects (see _get_agent()
         in plugin_main.py), so without this its conversation_history would
         stay stuck on whichever project was active when it was constructed.
-        Must be called from the main Qt thread (QgsProject is not thread-safe)."""
+        Must be called from the main Qt thread (QgsProject is not thread-safe). The
+        reassignment itself is still lock-protected, alongside every other
+        conversation_history mutation -- see _history_lock's own comment in __init__."""
         from .chat_persistence import load_chat_history
-        self.conversation_history = load_chat_history()
+        new_history = load_chat_history()
+        with self._get_history_lock():
+            self.conversation_history = new_history
 
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage
@@ -841,8 +874,31 @@ class CartogenAi:
         return {"error": f"Unknown two-phase tool: {name}"}
 
     def _trim_history(self):
-        if len(self.conversation_history) > MAX_HISTORY_MESSAGES:
-            self.conversation_history = self.conversation_history[-MAX_HISTORY_MESSAGES:]
+        with self._get_history_lock():
+            if len(self.conversation_history) > MAX_HISTORY_MESSAGES:
+                self.conversation_history = self.conversation_history[-MAX_HISTORY_MESSAGES:]
+
+    def _append_history(self, *messages):
+        """Appends one or more messages to conversation_history and trims it, all under
+        one lock acquisition -- the safe replacement for the previous unlocked
+        '.append(); .append(); self._trim_history()' pattern repeated at every return point
+        in run() below. Also the method chat_tab_widget.py's image-attachment handler
+        (main thread) now goes through instead of touching conversation_history.append()
+        directly, so a turn finishing concurrently on the background QgsTask thread can't
+        interleave with it mid-mutation."""
+        with self._get_history_lock():
+            self.conversation_history.extend(messages)
+            self._trim_history()
+
+    def _read_history_snapshot(self):
+        """Returns a shallow copy of conversation_history, taken under the lock -- the safe
+        replacement for reading self.conversation_history directly while building a turn's
+        outgoing message list (run()'s messages.extend(...) call), which could otherwise
+        observe a torn read against a concurrent _append_history() call from another
+        thread. The copy itself is safe to iterate/extend from after the lock is released,
+        same as any other already-built list."""
+        with self._get_history_lock():
+            return list(self.conversation_history)
 
     def _compact_old_tool_results(self, messages):
         """Mid-turn context compaction (2026-09-12, see MAX_FULL_TOOL_RESULTS_PER_TURN's own
@@ -1053,7 +1109,7 @@ class CartogenAi:
         )
 
         messages = [{"role": "system", "content": system_prompt_content}]
-        messages.extend(self.conversation_history)
+        messages.extend(self._read_history_snapshot())
         messages.append(user_message)
 
         final_text = None
@@ -1068,9 +1124,7 @@ class CartogenAi:
         for iteration_index in range(MAX_ITERATIONS):
             if should_stop is not None and should_stop():
                 final_text = "[Agent stopped] Stopped by user."
-                self.conversation_history.append(user_message)
-                self.conversation_history.append({"role": "assistant", "content": final_text})
-                self._trim_history()
+                self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
             # Pacing (2026-09-12, see PACING_THRESHOLD_ITERATIONS's own comment): a normal,
             # small turn (<=3 tool-call rounds) never reaches here -- only once a turn is
@@ -1103,9 +1157,7 @@ class CartogenAi:
                 else:
                     final_text = content
                 final_text = self._reconcile_final_text_with_tool_log(final_text, turn_tool_log)
-                self.conversation_history.append(user_message)
-                self.conversation_history.append({"role": "assistant", "content": final_text})
-                self._trim_history()
+                self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
 
             for call in tool_calls:
@@ -1118,9 +1170,7 @@ class CartogenAi:
                 # before the NEXT tool call in the same batch, not just the next LLM call.
                 if should_stop is not None and should_stop():
                     final_text = "[Agent stopped] Stopped by user."
-                    self.conversation_history.append(user_message)
-                    self.conversation_history.append({"role": "assistant", "content": final_text})
-                    self._trim_history()
+                    self._append_history(user_message, {"role": "assistant", "content": final_text})
                     return final_text
                 fn = call.get("function", {}) if isinstance(call, dict) else {}
                 name = fn.get("name", "")
@@ -1179,7 +1229,5 @@ class CartogenAi:
             "rephrasing so it can be done in bulk (e.g. \"create one layer with all of them\"), or break the "
             "request into smaller pieces."
         )
-        self.conversation_history.append(user_message)
-        self.conversation_history.append({"role": "assistant", "content": final_text})
-        self._trim_history()
+        self._append_history(user_message, {"role": "assistant", "content": final_text})
         return final_text

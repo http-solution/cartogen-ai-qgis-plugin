@@ -61,20 +61,30 @@ declared closed:
   further than a user would expect.
 """
 
+import threading
+
 
 class TurnTransactionLog:
-    """Records what happened during one CartogenAi.run() call. Not
-    thread-safe on its own -- agent.py only ever touches it from the
-    dispatcher thread, same as every other piece of live QGIS state it
-    reads while building an entry."""
+    """Records what happened during one CartogenAi.run() call. Each entry's own
+    construction (reading layer ids from the live QgsProject) only ever happens from the
+    dispatcher thread, same as every other piece of live QGIS state agent.py reads while
+    building an entry -- but reset() is called directly from run() on the background
+    QgsTask thread (not marshaled through the dispatcher), so a previous turn's still-
+    in-flight record() (main thread, via a tool call not yet returned when a new turn
+    starts) could race a new turn's reset() (background thread). Internally locked
+    (2026-09-19) to close that narrow cross-turn window -- cheap (simple list ops under a
+    lock held only for the duration of each method), and safe regardless of how narrow
+    the actual race window turns out to be in practice."""
 
     def __init__(self):
         self._entries = []
+        self._lock = threading.Lock()
 
     def reset(self):
         """Called at the start of every run() call -- undo must never reach
         back into a previous turn (see module docstring)."""
-        self._entries = []
+        with self._lock:
+            self._entries = []
 
     def record(self, name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=None):
         """Adds one entry for a completed tool call.
@@ -105,7 +115,6 @@ class TurnTransactionLog:
             undo = None
 
         entry = {
-            "index": len(self._entries),
             "name": name,
             "operation_type": operation_type,
             "success": success,
@@ -113,26 +122,34 @@ class TurnTransactionLog:
             "undo": undo,
             "undone": False,
         }
-        self._entries.append(entry)
+        with self._lock:
+            # index assigned here, under the lock, rather than from a len() read taken
+            # before acquiring it -- avoids a stale index if another record() call
+            # interleaved between that earlier read and this append.
+            entry["index"] = len(self._entries)
+            self._entries.append(entry)
         return entry
 
     def summary(self):
         """Returns every entry recorded so far this turn, oldest first."""
-        return list(self._entries)
+        with self._lock:
+            return list(self._entries)
 
     def last_undoable(self):
         """Returns the most recent not-yet-undone entry with an available
         undo, or None if nothing in this turn qualifies."""
-        for entry in reversed(self._entries):
-            if entry.get("undo") and not entry.get("undone"):
-                return entry
+        with self._lock:
+            for entry in reversed(self._entries):
+                if entry.get("undo") and not entry.get("undone"):
+                    return entry
         return None
 
     def mark_undone(self, index):
         """Marks an entry's undo as applied, so a second undo_last_operation
         call doesn't try to remove already-removed layers."""
-        for entry in self._entries:
-            if entry["index"] == index:
-                entry["undone"] = True
-                return True
+        with self._lock:
+            for entry in self._entries:
+                if entry["index"] == index:
+                    entry["undone"] = True
+                    return True
         return False
