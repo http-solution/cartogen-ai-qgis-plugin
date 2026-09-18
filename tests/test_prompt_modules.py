@@ -159,3 +159,35 @@ class TestBuildSystemPromptIntegration(unittest.TestCase):
     def test_active_tool_names_still_includes_sensitive_cluster_when_relevant(self):
         prompt = prompts.build_system_prompt(active_tool_names={"export_to_csv", "get_layers"})
         self.assertIn("NEVER invent specific real-world security incidents", prompt)
+
+
+class TestRule5NarrowingWhenMapContextHasFields(unittest.TestCase):
+    """Phase 6 (2026-09-19, cost/performance pass): rule 5 used to unconditionally direct the
+    model to call get_attributes(layer_name) before any query/selection op, even when the
+    turn's own CURRENT MAP CONTEXT block (map_context.py) already lists that exact layer's
+    field names. Narrowed the same way rule 4 already handles get_layers() -- only when
+    map_context actually carries field data for at least one layer."""
+
+    def test_no_map_context_keeps_the_original_unconditional_rule_5(self):
+        prompt = prompts.build_system_prompt(map_context=None)
+        self.assertIn(prompts._ALL_RULES[5].strip(), prompt)
+
+    def test_map_context_with_no_field_data_keeps_the_original_rule_5(self):
+        # A raster-only project: layers present, but no 'fields' (rasters have none) --
+        # must behave identically to no map_context at all, not silently relax rule 5.
+        map_context = {"layers": [{"name": "dem.tif", "fields": []}]}
+        prompt = prompts.build_system_prompt(map_context=map_context)
+        self.assertIn(prompts._ALL_RULES[5].strip(), prompt)
+
+    def test_map_context_with_field_data_relaxes_rule_5(self):
+        map_context = {"layers": [{"name": "roads", "fields": ["osm_id", "highway"]}]}
+        prompt = prompts.build_system_prompt(map_context=map_context)
+        self.assertNotIn(prompts._ALL_RULES[5].strip(), prompt)
+        self.assertIn("already listed under CURRENT MAP", prompt)
+        self.assertIn("get_attributes", prompt)
+
+    def test_rule_5_override_does_not_change_base_system_prompt(self):
+        # BASE_SYSTEM_PROMPT is the cached, unfiltered assembly other code relies on staying
+        # exactly the full rule set -- confirms the new rule_overrides parameter is opt-in,
+        # not a change to _assemble_base_prompt's default behavior.
+        self.assertIn(prompts._ALL_RULES[5], prompts.BASE_SYSTEM_PROMPT)

@@ -83,7 +83,7 @@ class _FakeClient:
         self.calls = 0
         self.tool_name = tool_name
 
-    def complete(self, messages, tools=None):
+    def complete(self, messages, tools=None, max_tokens=None):
         self.calls += 1
         if self.calls == 1:
             return {"message": {
@@ -177,10 +177,12 @@ class _CapturingLoopingClient:
         self.calls = 0
         self.tool_name = tool_name
         self.messages_per_call = []
+        self.max_tokens_per_call = []
 
-    def complete(self, messages, tools=None):
+    def complete(self, messages, tools=None, max_tokens=None):
         self.calls += 1
         self.messages_per_call.append([dict(m) for m in messages])  # snapshot, not a live ref
+        self.max_tokens_per_call.append(max_tokens)
         return {"message": {
             "role": "assistant", "content": None,
             "tool_calls": [{"id": f"c{self.calls}", "function": {"name": self.tool_name, "arguments": "{}"}}],
@@ -213,6 +215,18 @@ class TestPacingAndCompaction(unittest.TestCase):
         self.assertEqual(mock_sleep.call_count, expected_pacing_calls)
         for call in mock_sleep.call_args_list:
             self.assertEqual(call.args[0], agent_mod.PACING_DELAY_SECONDS)
+
+    def test_max_tokens_scales_down_after_the_first_iteration(self):
+        # Phase 6 (2026-09-19, cost/performance pass): the first client.complete() call of a
+        # turn always gets the full DEFAULT_MAX_TOKENS (it might be a one-shot final answer,
+        # never safe to cut), every later iteration of the same multi-tool-call turn gets the
+        # reduced INTERMEDIATE_MAX_TOKENS budget instead of padding at full size regardless.
+        client, _ = self._run_looping(lambda self, name, args: {"success": True})
+        self.assertEqual(client.max_tokens_per_call[0], agent_mod.DEFAULT_MAX_TOKENS)
+        self.assertTrue(len(client.max_tokens_per_call) > 1)
+        for later in client.max_tokens_per_call[1:]:
+            self.assertEqual(later, agent_mod.INTERMEDIATE_MAX_TOKENS)
+        self.assertLess(agent_mod.INTERMEDIATE_MAX_TOKENS, agent_mod.DEFAULT_MAX_TOKENS)
 
     def test_old_successful_tool_results_get_compacted_recent_ones_dont(self):
         client, _ = self._run_looping(lambda self, name, args: {"success": True})
@@ -652,6 +666,89 @@ class TestConversationHistoryThreadSafety(unittest.TestCase):
         writer_thread.join()
 
         self.assertEqual(errors, [])
+
+
+class TestHistoryDigestOnTrim(unittest.TestCase):
+    """Phase 6 (2026-09-19, cost/performance pass): _trim_history() used to just slice off
+    and discard the oldest messages once conversation_history exceeded MAX_HISTORY_MESSAGES
+    -- older turns vanished from the model's context with no trace at all. It now collapses
+    the dropped messages into a single synthetic role="system" digest entry (extractive, not
+    an LLM call -- see _summarize_dropped_messages's own docstring) prepended ahead of the
+    kept tail, and grows/re-caps that same digest entry on every subsequent trim instead of
+    losing the earlier summary each time."""
+
+    def _agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.conversation_history = []
+        return agent
+
+    def test_trim_beyond_cap_produces_a_leading_digest_message(self):
+        agent = self._agent()
+        original_max = agent_mod.MAX_HISTORY_MESSAGES
+        agent_mod.MAX_HISTORY_MESSAGES = 10
+        try:
+            for i in range(20):
+                agent._append_history({"role": "user", "content": f"turn {i}"})
+            history = agent.conversation_history
+            self.assertEqual(len(history), 11)
+            self.assertTrue(agent_mod.CartogenAi._is_digest_message(history[0]))
+            self.assertIn("turn 0", history[0]["content"])
+            self.assertIn("turn 9", history[0]["content"])
+            # The kept tail is untouched, ordinary messages -- only what overflowed the cap
+            # was summarized away.
+            self.assertEqual(history[1]["content"], "turn 10")
+            self.assertEqual(history[-1]["content"], "turn 19")
+        finally:
+            agent_mod.MAX_HISTORY_MESSAGES = original_max
+
+    def test_digest_grows_across_multiple_trims_instead_of_being_overwritten(self):
+        agent = self._agent()
+        original_max = agent_mod.MAX_HISTORY_MESSAGES
+        agent_mod.MAX_HISTORY_MESSAGES = 4
+        try:
+            for i in range(6):
+                agent._append_history({"role": "user", "content": f"a{i}"})
+            first_digest = agent.conversation_history[0]["content"]
+            self.assertIn("a0", first_digest)
+            for i in range(6, 12):
+                agent._append_history({"role": "user", "content": f"a{i}"})
+            second_digest = agent.conversation_history[0]["content"]
+            # Both the earliest-dropped and the next-dropped batch's content survive in the
+            # single digest message -- growth, not replacement.
+            self.assertIn("a0", second_digest)
+            self.assertIn("a6", second_digest)
+        finally:
+            agent_mod.MAX_HISTORY_MESSAGES = original_max
+
+    def test_digest_content_is_capped_and_never_unbounded(self):
+        agent = self._agent()
+        original_max = agent_mod.MAX_HISTORY_MESSAGES
+        agent_mod.MAX_HISTORY_MESSAGES = 2
+        try:
+            for i in range(200):
+                agent._append_history({"role": "user", "content": f"message number {i} " * 3})
+            digest = agent.conversation_history[0]["content"]
+            self.assertLessEqual(
+                len(digest), len(agent_mod._HISTORY_DIGEST_MARKER) + agent_mod._HISTORY_DIGEST_MAX_CHARS + 1
+            )
+        finally:
+            agent_mod.MAX_HISTORY_MESSAGES = original_max
+
+    def test_digest_message_is_excluded_from_persisted_history_on_reload(self):
+        # chat_persistence.load_chat_history()/load_chat_history_with_timestamps() both
+        # filter to role in ("user", "assistant") -- confirms the digest's role="system"
+        # choice means it never round-trips back in as a fake chat bubble or fake API turn
+        # after a project reopen, without needing to special-case it in chat_persistence.py.
+        from cartogen_ai.core.agent.chat_persistence import _load_raw_entries
+        digest_entry = {"role": "system", "content": f"{agent_mod._HISTORY_DIGEST_MARKER}\nstuff"}
+        real_entry = {"role": "user", "content": "hello"}
+        with patch(
+            "cartogen_ai.core.agent.chat_persistence._load_raw_entries",
+            return_value=[digest_entry, real_entry],
+        ):
+            from cartogen_ai.core.agent.chat_persistence import load_chat_history
+            restored = load_chat_history()
+        self.assertEqual(restored, [{"role": "user", "content": "hello"}])
 
     def test_history_lock_is_lazily_created_for_bypassed_init(self):
         """CartogenAi.__new__(CartogenAi) (this file's own established test pattern, used

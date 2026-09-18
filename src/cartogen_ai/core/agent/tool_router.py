@@ -6,7 +6,6 @@ to prevent LLM system prompt context overload.
 """
 
 import difflib
-import random
 import re
 from typing import List, Dict
 
@@ -217,17 +216,24 @@ class ToolRouter:
         }
         _FALLBACK_TOOL = "execute_pyqgis_script"
 
-        # Shuffled so ties (most commonly many tools scoring 0) break
-        # differently on every call instead of Python's stable sort always
-        # favoring whichever tools happen to be registered earliest across
-        # agent/tools/*.py -- that was a silent, consistent bias toward the
-        # same tools on every query that didn't score enough real matches,
-        # not an actual relevance signal. This doesn't fix a query that
-        # genuinely needs a specific low/no-score tool (see the alias list
-        # above for that), it just stops the filler slots from being
-        # systematically unfair.
-        shuffled = list(self.full_schema_list)
-        random.shuffle(shuffled)
+        # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
+        # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool
+        # list on every single call, which meant the serialized `tools` array in the request
+        # body was almost never byte-identical between two calls even when they carried the
+        # exact same tool SET, defeating prefix-based caching for that segment of the request
+        # (Gemini's implicit caching -- automatic on 2.5+ models, no config needed -- discounts
+        # a repeated prefix by 90%, confirmed against ai.google.dev/gemini-api/docs/caching and
+        # ai.google.dev/gemini-api/docs/pricing, not assumed). Live-measured via a real 12-turn
+        # Gemini session after this change: 6 of 23 calls reported real cached_tokens in the
+        # response, a mechanism no run before this fix ever showed evidence of. Ties (0-score
+        # filler tools) now break alphabetically, replacing the deliberate per-call randomness
+        # the removed comment above described -- a real trade-off, not a pure improvement: that
+        # randomness existed specifically so the same handful of filler tools didn't get a
+        # permanent, arbitrary advantage every time nothing else matched (see the git history of
+        # this line). Deterministic tie-breaking reintroduces that specific bias in exchange for
+        # the caching win -- acceptable since filler tools are, by definition, not a real match
+        # for the query either way, but worth knowing if that older bias ever matters again.
+        shuffled = sorted(list(self.full_schema_list), key=lambda x: x.get("function", {}).get("name", ""))
 
         scored_tools = []
         for tool_obj in shuffled:
@@ -306,12 +312,15 @@ class ToolRouter:
 
         # Sort by score descending and take top_k
         scored_tools.sort(key=lambda x: x[0], reverse=True)
-        if nothing_else_matched:
-            # Genuinely no real signal at all (e.g. a plain "hi") -- only the always-relevant
-            # core tools + the fallback (9 total) are actually useful; padding out to top_k with
-            # random 0-score filler tools (still sorted, just no real relevance) was pure waste,
-            # found from a live report: it was costing ~8K tokens in irrelevant tool schemas for
-            # a one-word greeting. A query WITH any real signal is completely unaffected by this
-            # -- it still gets the full top_k candidate pool exactly as before.
-            return [tool for score, tool in scored_tools if score > 0][:top_k]
-        return [tool for _, tool in scored_tools[:top_k]]
+        # Drop zero-score filler tools even on a partial-signal query, not just the
+        # nothing_else_matched case -- 2026-09-19 follow-up to the "hi" fix above. A query
+        # that scores real relevance against 12 tools was still padding the returned set out
+        # to the full top_k=40 with 0-score tools purely because they happened to sort within
+        # the slice, which is the same wasted-token problem as the all-zero case, just
+        # partially masked by the real matches sitting alongside it. Since scored_tools is
+        # sorted descending, every positive-score tool already sorts before every 0-score
+        # tool, so slicing to top_k first and then dropping 0-scores is equivalent to (not a
+        # behavior change from) filtering positives first and slicing second -- this is a
+        # strict simplification/extension of the prior nothing_else_matched-only logic, not a
+        # separate code path, and unconditionally applies to every query now.
+        return [tool for score, tool in scored_tools[:top_k] if score > 0]

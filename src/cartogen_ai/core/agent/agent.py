@@ -48,6 +48,7 @@ except ImportError:
 from .providers import (
     OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient, CartogenClient,
 )
+from .providers.base import DEFAULT_MAX_TOKENS
 from .providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
 from .model_selector import AUTO_SENTINEL, classify_complexity, pick_model_for_complexity
 from .memory import SpatialMemoryManager
@@ -131,7 +132,11 @@ class ToolDispatcher(QObject):
             result_container.append({"error": str(e)})
 
 
-MAX_HISTORY_MESSAGES = 20
+MAX_HISTORY_MESSAGES = 10
+# Cross-turn history digest: trimmed messages are collapsed into a compact micro-summary
+# capped at 600 chars (approx 120-150 tokens) to prevent context inflation across turns.
+_HISTORY_DIGEST_MARKER = "[Earlier conversation digest -- older turns summarized, not verbatim]"
+_HISTORY_DIGEST_MAX_CHARS = 600
 # Was "Task completed successfully!" -- an empty model response means the
 # model asserted nothing at all, so claiming success here was an unearned
 # claim with zero evidence, directly contradicting prompt rules 12/15 (never
@@ -164,6 +169,27 @@ MAX_ITERATIONS = 20
 # getting -- throttling exactly the requests that are actually at risk, not every request.
 PACING_THRESHOLD_ITERATIONS = 3
 PACING_DELAY_SECONDS = 1.2
+
+# Dynamic max_tokens scaling by iteration (2026-09-19, cost/performance pass): every
+# client.complete() call in the loop below used to request the same DEFAULT_MAX_TOKENS
+# (providers/base.py) regardless of what that particular call was actually likely to produce.
+# A mid-turn tool-dispatch response (just a tool_calls block, little/no prose) genuinely never
+# needs anywhere near the full budget, but the FIRST call of a turn is deliberately exempted
+# from any cut -- it's the single most common shape a turn takes (a plain question with no
+# tool call at all), and that's exactly the response most likely to be a long free-text
+# synthesis needing the full budget, so capping it would risk truncating a normal one-shot
+# answer. Every call after that is known to be a continuation of an already-in-progress
+# tool-calling turn -- still allowed a materially smaller budget (half, not a hard 1-tool-call
+# minimum) since even half of DEFAULT_MAX_TOKENS remains far larger than any real final-
+# synthesis reply this plugin has produced, keeping the truncation risk low while still
+# recovering real savings on the iterations that are, in practice, mostly short tool calls.
+INTERMEDIATE_MAX_TOKENS = DEFAULT_MAX_TOKENS // 2
+
+
+def _max_tokens_for_iteration(iteration_index):
+    """See INTERMEDIATE_MAX_TOKENS's own comment -- iteration 0 always gets the full budget,
+    every later iteration of the same turn gets the reduced one."""
+    return DEFAULT_MAX_TOKENS if iteration_index == 0 else INTERMEDIATE_MAX_TOKENS
 
 # Live-reported, 2026-09-19: on two separate runs of the identical "Health facilities
 # beyond one hour's travel" request -- even WITH a correct task_directive already in the
@@ -873,10 +899,55 @@ class CartogenAi:
 
         return {"error": f"Unknown two-phase tool: {name}"}
 
+    @staticmethod
+    def _is_digest_message(msg):
+        return (
+            isinstance(msg, dict) and msg.get("role") == "system"
+            and isinstance(msg.get("content"), str)
+            and msg["content"].startswith(_HISTORY_DIGEST_MARKER)
+        )
+
+    @staticmethod
+    def _summarize_dropped_messages(dropped):
+        """Extractive, non-LLM summary of messages about to be trimmed off conversation_history
+        -- one short line per message, not a call to an LLM. Deliberately not an API call:
+        summarizing on every trim would add its own cost/latency to the exact code path this
+        phase exists to make cheaper, and _trim_history() runs synchronously inside every
+        _append_history() call."""
+        lines = []
+        for msg in dropped:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role", "?")
+            content = msg.get("content", "")
+            if not isinstance(content, str):
+                content = str(content)
+            content = " ".join(content.split())
+            if len(content) > 100:
+                content = content[:100] + "..."
+            if content:
+                lines.append(f"- {role}: {content}")
+        return "\n".join(lines)
+
     def _trim_history(self):
         with self._get_history_lock():
-            if len(self.conversation_history) > MAX_HISTORY_MESSAGES:
-                self.conversation_history = self.conversation_history[-MAX_HISTORY_MESSAGES:]
+            history = self.conversation_history
+            has_digest = bool(history) and self._is_digest_message(history[0])
+            body = history[1:] if has_digest else history
+            if len(body) <= MAX_HISTORY_MESSAGES:
+                return
+            overflow = len(body) - MAX_HISTORY_MESSAGES
+            dropped, kept = body[:overflow], body[overflow:]
+            new_lines = self._summarize_dropped_messages(dropped)
+            if not new_lines:
+                self.conversation_history = ([history[0]] if has_digest else []) + kept
+                return
+            prior_body = history[0]["content"][len(_HISTORY_DIGEST_MARKER):].strip() if has_digest else ""
+            digest_body = (prior_body + "\n" + new_lines).strip() if prior_body else new_lines
+            if len(digest_body) > _HISTORY_DIGEST_MAX_CHARS:
+                digest_body = digest_body[-_HISTORY_DIGEST_MAX_CHARS:]
+            digest_msg = {"role": "system", "content": f"{_HISTORY_DIGEST_MARKER}\n{digest_body}"}
+            self.conversation_history = [digest_msg] + kept
 
     def _append_history(self, *messages):
         """Appends one or more messages to conversation_history and trims it, all under
@@ -1134,7 +1205,9 @@ class CartogenAi:
             if iteration_index >= PACING_THRESHOLD_ITERATIONS:
                 time.sleep(PACING_DELAY_SECONDS)
             try:
-                result = self.client.complete(messages, tools=active_tools)
+                result = self.client.complete(
+                    messages, tools=active_tools, max_tokens=_max_tokens_for_iteration(iteration_index)
+                )
             except Exception as e:
                 return f"[API error] {e}"
 
