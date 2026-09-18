@@ -572,5 +572,99 @@ class TestPreviewRequiredCreatesADedicatedTask(unittest.TestCase):
         self.assertEqual(agent.task_manager.tasks[0]["pending_tool"], "field_calculator")
 
 
+class TestConversationHistoryThreadSafety(unittest.TestCase):
+    """Phase 5 (2026-09-19): conversation_history is mutated from run() on the background
+    QgsTask thread AND from chat_tab_widget.py's image-attachment handler on the main Qt
+    thread, with no lock -- a genuine cross-thread race. Real threading.Thread stress
+    tests, not mocks, since this is one of the few things in this codebase actually
+    testable without a live QGIS session (pure Python list + threading.Lock, no qgis.core
+    involved) -- per the standing verify-before-closing rule, a real concurrency test is
+    preferred over "trust the lock exists" whenever one is feasible."""
+
+    def _agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.conversation_history = []
+        return agent
+
+    def test_concurrent_appends_from_many_threads_lose_no_messages(self):
+        agent = self._agent()
+        # MAX_HISTORY_MESSAGES trimming would make a lost-message check ambiguous (a
+        # message "missing" at the end could just be correctly trimmed) -- temporarily
+        # raise it high enough that this test's own message count never triggers a trim,
+        # so every successful append is expected to still be present at the end.
+        original_max = agent_mod.MAX_HISTORY_MESSAGES
+        agent_mod.MAX_HISTORY_MESSAGES = 100_000
+        try:
+            threads_n, appends_per_thread = 20, 50
+
+            def worker(thread_id):
+                for i in range(appends_per_thread):
+                    agent._append_history({"role": "user", "content": f"t{thread_id}-{i}"})
+
+            threads = [
+                __import__("threading").Thread(target=worker, args=(t,))
+                for t in range(threads_n)
+            ]
+            for th in threads:
+                th.start()
+            for th in threads:
+                th.join()
+
+            self.assertEqual(len(agent.conversation_history), threads_n * appends_per_thread)
+            # No duplicate/corrupted entries -- every (thread_id, i) pair appears exactly
+            # once, which a lost update or a torn append could otherwise violate.
+            seen = {m["content"] for m in agent.conversation_history}
+            self.assertEqual(len(seen), threads_n * appends_per_thread)
+        finally:
+            agent_mod.MAX_HISTORY_MESSAGES = original_max
+
+    def test_concurrent_read_snapshot_and_append_never_raises_or_corrupts(self):
+        """_read_history_snapshot() (the run()-message-building read) racing against
+        _append_history() (a concurrent turn/image-attachment write) must never raise
+        and must always return a list of well-formed dicts -- never a torn/partial
+        read."""
+        agent = self._agent()
+        errors = []
+        stop = __import__("threading").Event()
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                agent._append_history({"role": "user", "content": f"msg-{i}"})
+                i += 1
+
+        def reader():
+            for _ in range(500):
+                try:
+                    snapshot = agent._read_history_snapshot()
+                    for m in snapshot:
+                        assert isinstance(m, dict) and "role" in m and "content" in m
+                except Exception as e:
+                    errors.append(e)
+
+        import threading as _threading
+        writer_thread = _threading.Thread(target=writer)
+        reader_thread = _threading.Thread(target=reader)
+        writer_thread.start()
+        reader_thread.start()
+        reader_thread.join()
+        stop.set()
+        writer_thread.join()
+
+        self.assertEqual(errors, [])
+
+    def test_history_lock_is_lazily_created_for_bypassed_init(self):
+        """CartogenAi.__new__(CartogenAi) (this file's own established test pattern, used
+        throughout) skips __init__ entirely, so _history_lock never gets created the
+        normal way -- _get_history_lock() must still work rather than raising
+        AttributeError, exactly the regression this test guards against."""
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.conversation_history = []
+        lock = agent._get_history_lock()
+        self.assertTrue(hasattr(lock, "acquire") and hasattr(lock, "release"))
+        # Same lock instance on a second call, not a fresh one each time.
+        self.assertIs(agent._get_history_lock(), lock)
+
+
 if __name__ == "__main__":
     unittest.main()

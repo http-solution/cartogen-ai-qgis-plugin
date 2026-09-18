@@ -12,8 +12,102 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
     score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
-    _build_network_distance_matrix,
+    _build_network_distance_matrix, _make_distance_area, _measure_distance,
 )
+
+
+class TestMakeDistanceArea(unittest.TestCase):
+    """QGIS-006 follow-up (2026-09-19): geographic-CRS layers previously measured distance
+    in raw planar degrees -- _make_distance_area sets up real ellipsoidal (WGS84 geodesic)
+    measurement instead, when the layer's CRS is geographic."""
+
+    def test_projected_crs_returns_none(self):
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = False
+        self.assertIsNone(_make_distance_area(layer))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_geographic_crs_configures_a_distance_area(self, mock_project, mock_da_cls):
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = True
+        mock_project.instance.return_value.ellipsoid.return_value = "WGS84"
+        da_instance = mock_da_cls.return_value
+
+        result = _make_distance_area(layer)
+
+        self.assertIs(result, da_instance)
+        da_instance.setSourceCrs.assert_called_once()
+        da_instance.setEllipsoid.assert_called_once_with("WGS84")
+
+    def test_exception_during_setup_returns_none(self):
+        layer = MagicMock()
+        layer.crs.side_effect = RuntimeError("boom")
+        self.assertIsNone(_make_distance_area(layer))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_project_ellipsoid_none_sentinel_falls_back_to_wgs84(self, mock_project, mock_da_cls):
+        """Live-caught 2026-09-19 (real QGIS 4.2.2): a fresh/default
+        QgsProject.instance().ellipsoid() returns the literal string 'NONE' -- QGIS's own
+        sentinel meaning 'no ellipsoid configured, use planar Cartesian math' -- which is
+        truthy in Python. An earlier version of this fix used `ellipsoid() or "WGS84"`,
+        which never caught this because 'NONE' is a non-empty, truthy string -- silently
+        leaving ellipsoidal mode OFF (measureLine returned the same wrong value as the old
+        planar distance() call). Must explicitly check for the 'NONE' sentinel, not just
+        falsiness."""
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = True
+        mock_project.instance.return_value.ellipsoid.return_value = "NONE"
+        da_instance = mock_da_cls.return_value
+
+        _make_distance_area(layer)
+
+        da_instance.setEllipsoid.assert_called_once_with("WGS84")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_real_project_ellipsoid_is_used_when_set(self, mock_project, mock_da_cls):
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = True
+        mock_project.instance.return_value.ellipsoid.return_value = "EPSG:7030"
+        da_instance = mock_da_cls.return_value
+
+        _make_distance_area(layer)
+
+        da_instance.setEllipsoid.assert_called_once_with("EPSG:7030")
+
+
+class TestMeasureDistance(unittest.TestCase):
+    def test_none_distance_area_uses_planar_distance(self):
+        geom_a, geom_b = MagicMock(), MagicMock()
+        geom_a.distance.return_value = 42.0
+
+        result = _measure_distance(None, geom_a, geom_b)
+
+        self.assertEqual(result, 42.0)
+        geom_a.distance.assert_called_once_with(geom_b)
+
+    def test_distance_area_given_uses_ellipsoidal_measurement(self):
+        distance_area = MagicMock()
+        distance_area.measureLine.return_value = 123456.7
+        geom_a, geom_b = MagicMock(), MagicMock()
+
+        result = _measure_distance(distance_area, geom_a, geom_b)
+
+        self.assertEqual(result, 123456.7)
+        distance_area.measureLine.assert_called_once_with(geom_a.asPoint(), geom_b.asPoint())
+        geom_a.distance.assert_not_called()
+
+    def test_ellipsoidal_failure_falls_back_to_planar_distance(self):
+        distance_area = MagicMock()
+        distance_area.measureLine.side_effect = RuntimeError("boom")
+        geom_a, geom_b = MagicMock(), MagicMock()
+        geom_a.distance.return_value = 7.0
+
+        result = _measure_distance(distance_area, geom_a, geom_b)
+
+        self.assertEqual(result, 7.0)
 
 
 class TestRankHubCandidates(unittest.TestCase):
@@ -907,6 +1001,49 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         res = optimal_hub_siting("candidates", "demand")
         self.assertIn("warning", res)
         self.assertIn("DEGREES", res["warning"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_geographic_crs_with_working_ellipsoidal_setup_gets_a_note_not_a_warning(
+        self, mock_find, mock_project, mock_da_cls,
+    ):
+        """When ellipsoidal measurement CAN be set up (unlike the mocked-failure test
+        above, where QgsDistanceArea isn't configured to succeed), the old DEGREES alarm
+        is replaced by an informational note -- the distances are now real meters, not a
+        caveat about them being wrong."""
+        demand_layer = MagicMock()
+        g = MagicMock()
+        g.isEmpty.return_value = False
+        f = MagicMock()
+        f.geometry.return_value = g
+        demand_layer.getFeatures.return_value = [f]
+
+        candidates_layer = MagicMock()
+        cand_geom = MagicMock()
+        cand_geom.isEmpty.return_value = False
+        cand_feat = MagicMock()
+        cand_feat.geometry.return_value = cand_geom
+        cand_feat.fields.return_value.count.return_value = 1
+        cand_feat.attribute.return_value = "A"
+        candidates_layer.getFeatures.return_value = [cand_feat]
+        candidates_layer.featureCount.return_value = 1
+        candidates_layer.crs.return_value.isGeographic.return_value = True
+        candidates_layer.crs.return_value.authid.return_value = "EPSG:4326"
+
+        mock_project.instance.return_value.ellipsoid.return_value = "WGS84"
+        mock_da_cls.return_value.measureLine.return_value = 111000.0
+
+        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+
+        res = optimal_hub_siting("candidates", "demand")
+
+        self.assertNotIn("warning", res)
+        self.assertIn("note", res)
+        self.assertIn("ellipsoidal", res["note"])
+        self.assertNotIn("DEGREES", res["note"])
+        self.assertEqual(res["ranked_candidates"][0]["avg_distance"], 111000.0)
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
