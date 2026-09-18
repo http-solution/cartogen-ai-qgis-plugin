@@ -7,7 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
-| [1.16.0](#v1-16-0) | 2026-09-19 | **Major.** QGIS Processing Provider, OGC SLD export, point cluster renderers, OCHA layout elements, geodetics, token economy & caching, structured logging, proxy support, and architecture subdivisions |
+| [1.5.7-rc1](#v1-5-7-rc1) | 2026-09-19 | **Release candidate 1.** QGIS Processing Provider, OGC SLD export, point cluster renderers, OCHA layout elements, geodetics, token economy & caching, structured logging, proxy support, and architecture subdivisions |
 | [1.15.6](#v1-15-6) | 2026-09-18 | **Stable.** Promoted from rc6, no code changes -- security/audit remediation, crash root-causes, rate-limit resilience, the orchestrator reliability pass, and the full Broadsheet UI redesign, across 6 release candidates |
 | [1.15.6-rc6](#v1-15-6-rc6) | 2026-09-18 | Release candidate: search_web's dead duckduckgo-search dependency migrated to ddgs, found via an independent audit-verification pass of every RC5 open item |
 | [1.15.6-rc5](#v1-15-6-rc5) | 2026-09-17 | Release candidate: router-confidence, field-width, and confirmation-gate fixes, plus the full Broadsheet redesign (single-scroll dock, inline safety-gate card, layer context picker) |
@@ -39,8 +39,8 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
 
-<a id="v1-16-0"></a>
-## [1.16.0] — 2026-09-19 — Major: QGIS Processing Provider, OGC renderers, geodetics, and architecture remediation
+<a id="v1-5-7-rc1"></a>
+## [1.5.7-rc1] — 2026-09-19 — Release candidate 1: QGIS Processing Provider, OGC renderers, geodetics, and architecture remediation
 
 Major release executing the full Part A remediation plan, closing all confirmed architecture, cartography, OGC, and performance gaps:
 

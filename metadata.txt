@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0
+version=1.5.7-rc1
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,8 +23,8 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0 (2026-09-19):
-    Major release closing all confirmed architectural and cartographic gaps (Part A remediation):
+changelog=v1.5.7-rc1 (2026-09-19):
+    Release candidate 1 for 1.5.7: major architectural and cartographic remediation (Part A):
     - Added native QGIS Processing Provider (cartogen_ai.processing) with OptimalHubSitingAlgorithm
       and CalculateServiceAreaAlgorithm for Graphical Model Designer, batch processing, and headless
       qgis_process CLI execution. Updated metadata to hasProcessingProvider=yes.
