@@ -5,6 +5,7 @@ Vector Geoprocessing & Spatial Tool implementations for Cartogen AI.
 
 import difflib
 import math
+import os
 import random
 from .registry import register_tool
 
@@ -431,6 +432,53 @@ def _prefetch_url_to_temp(file_path):
     return tmp_path, True
 
 
+_SPATIALITE_EXTS = {".sqlite", ".db"}
+
+
+def _ensure_spatialite_index(layer):
+    """SpatiaLite has no automatic spatial-indexing verification -- a table loaded without
+    one (e.g. exported by a tool that never ran CreateSpatialIndex) silently falls back to
+    a full table scan for every spatial predicate/join against it, with nothing surfacing
+    that to the caller. QgsVectorDataProvider.createSpatialIndex() is the standard PyQGIS
+    way to check-and-create one: a no-op returning True if the provider doesn't support
+    indexes or one already exists, best-effort creation otherwise. Returns a note if index
+    creation was attempted and failed, or None if nothing needed reporting (already
+    indexed, or the provider doesn't support spatial indexes at all)."""
+    try:
+        provider = layer.dataProvider()
+        if provider is None:
+            return None
+        ok = provider.createSpatialIndex()
+    except Exception as e:
+        return f"Could not verify/create a spatial index on this SpatiaLite layer: {e}"
+    if not ok:
+        return "Could not create a spatial index on this SpatiaLite layer -- spatial queries against it may be slow on large tables."
+    return None
+
+
+def _ensure_shapefile_encoding(layer, shp_path):
+    """A .shp has no built-in text encoding of its own -- a sibling .cpg file (or the
+    now-legacy .dbf codepage byte) is the only place that's ever recorded, and plenty of
+    real-world shapefiles (especially older exports) have neither. Without one, GDAL/OGR
+    falls back to a platform-dependent default (commonly Windows-1252 on Windows), which
+    silently corrupts non-Latin-script attribute values (Arabic, Cyrillic, etc. --
+    directly relevant to this project's humanitarian/OCHA data). When no .cpg is present,
+    explicitly sets the layer's provider encoding to UTF-8 instead of leaving it to that
+    default -- UTF-8 won't help a shapefile that was actually written in some OTHER
+    non-UTF-8 encoding with no .cpg to say so, but it's a materially safer default than
+    Windows-1252 for the common case of a UTF-8-exported shapefile missing its .cpg.
+    Returns a human-readable note on what happened, or None if a .cpg was found (nothing
+    to override -- GDAL already knows the real encoding)."""
+    cpg_path = os.path.splitext(shp_path)[0] + ".cpg"
+    if os.path.isfile(cpg_path):
+        return None
+    try:
+        layer.dataProvider().setEncoding("UTF-8")
+    except Exception:
+        return "No .cpg file found and could not override the provider encoding -- attribute values in a non-UTF-8/non-ASCII script may be garbled."
+    return "No .cpg file found alongside this shapefile -- assumed UTF-8 instead of the platform default. If attribute text looks garbled, the shapefile may actually be in a different encoding (e.g. Windows-1256 for Arabic)."
+
+
 @register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]})
 def add_layer_from_path(file_path, layer_name=None):
     if not QGIS_AVAILABLE:
@@ -454,16 +502,26 @@ def add_layer_from_path(file_path, layer_name=None):
         ext = os.path.splitext(clean_path)[1].lower()
         raster_exts = {".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg"}
 
+        encoding_note = None
         if ext in raster_exts:
             layer = QgsRasterLayer(local_path, name)
         else:
             layer = QgsVectorLayer(local_path, name, "ogr")
+            if ext == ".shp":
+                encoding_note = _ensure_shapefile_encoding(layer, local_path)
 
         if not layer.isValid():
             return {"error": f"Invalid layer: {file_path}"}
 
         QgsProject.instance().addMapLayer(layer)
-        return {"success": True, "layer_name": layer.name()}
+        result = {"success": True, "layer_name": layer.name()}
+        if encoding_note:
+            result["encoding_note"] = encoding_note
+        if ext in _SPATIALITE_EXTS:
+            spatial_index_note = _ensure_spatialite_index(layer)
+            if spatial_index_note:
+                result["spatial_index_note"] = spatial_index_note
+        return result
     finally:
         if is_temp:
             try:
