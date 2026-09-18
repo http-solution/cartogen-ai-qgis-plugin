@@ -55,10 +55,9 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
-# Read by export_tools.py's generate_html_dashboard/generate_temporal_dashboard to render a
-# freshness badge -- same custom-property storage pattern as sensitivity.py/confidence.py, no
-# new storage mechanism. An ISO-8601 UTC timestamp string.
-FETCHED_AT_PROPERTY_KEY = "cartogen_ai/fetched_at"
+from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
+
+FETCHED_AT_PROPERTY_KEY = PROJECT_PROPERTY_FETCHED_AT
 
 
 def _stamp_fetched_at(layer):

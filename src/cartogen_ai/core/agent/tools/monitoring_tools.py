@@ -54,8 +54,13 @@ _ALLOWED_WORKFLOW_TOOLS = {
     "estimate_population_exposure",
 }
 
-_WORKFLOW_KEY_PREFIX = "cartogen_ai/workflows/"
-_RUN_KEY_PREFIX = "cartogen_ai/workflow_runs/"
+from ....infrastructure.settings_keys import (
+    SETTINGS_WORKFLOW_PREFIX,
+    SETTINGS_WORKFLOW_RUNS_PREFIX,
+)
+
+_WORKFLOW_KEY_PREFIX = SETTINGS_WORKFLOW_PREFIX
+_RUN_KEY_PREFIX = SETTINGS_WORKFLOW_RUNS_PREFIX
 
 
 def _load_steps(preset_name):

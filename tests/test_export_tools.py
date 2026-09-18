@@ -813,6 +813,38 @@ class TestShapefileFieldTruncation(unittest.TestCase):
         self.assertEqual(mapping["population_growth"], "populati_1")
         self.assertEqual(mapping["POPULATION_DENSITY"], "POPULATI_2")
 
+    def test_collision_when_existing_field_already_has_suffix_name(self):
+        # A real field named "populati_1" already exists before or after a field
+        # that truncates and needs suffix disambiguation
+        layer = MagicMock()
+        layer.fields.return_value = [
+            self._make_field("population_density"),
+            self._make_field("populati_1"),
+            self._make_field("population_growth"),
+        ]
+        warning, mapping = _check_shapefile_field_names(layer)
+        self.assertIsNotNone(warning)
+        self.assertIn("collision", warning.lower())
+        self.assertEqual(mapping["population_density"], "population")
+        self.assertEqual(mapping["populati_1"], "populati_1")
+        # Since populati_1 was taken, population_growth must loop to populati_2
+        self.assertEqual(mapping["population_growth"], "populati_2")
+        # Ensure all laundered names are distinct
+        self.assertEqual(len(set(mapping.values())), 3)
+
+    def test_collision_when_suffix_named_field_appears_first(self):
+        layer = MagicMock()
+        layer.fields.return_value = [
+            self._make_field("populati_1"),
+            self._make_field("population_density"),
+            self._make_field("population_growth"),
+        ]
+        warning, mapping = _check_shapefile_field_names(layer)
+        self.assertIsNotNone(warning)
+        self.assertEqual(mapping["populati_1"], "populati_1")
+        self.assertEqual(mapping["population_density"], "population")
+        self.assertEqual(mapping["population_growth"], "populati_2")
+        self.assertEqual(len(set(mapping.values())), 3)
 
 
 if __name__ == "__main__":

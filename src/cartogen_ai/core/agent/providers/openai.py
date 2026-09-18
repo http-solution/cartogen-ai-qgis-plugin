@@ -1,6 +1,9 @@
 import json
-import requests
-from .base import BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS, extract_openai_style_usage, format_http_error, format_request_exception
+from .base import (
+    BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
+    extract_openai_style_usage, format_http_error, format_request_exception,
+    requests, HTTPError, RequestException,
+)
 from ..model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
@@ -19,7 +22,7 @@ def list_models(api_key):
         data = response.json()
         ids = [m.get("id", "") for m in data.get("data", [])]
         return {"success": True, "models": filter_chat_model_ids(ids)}
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("OpenAI models list failed", e)}
     except Exception as e:
         return {"error": format_request_exception("OpenAI models list request failed", e)}
@@ -77,7 +80,7 @@ def grounded_search(api_key, query, model="gpt-5-search-api"):
         result = {"success": True, "text": text, "sources": sources}
         _SEARCH_CACHE.set(cache_key, result)
         return result
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("OpenAI grounded search failed", e)}
     except Exception as e:
         return {"error": format_request_exception("OpenAI grounded search request failed", e)}
@@ -157,7 +160,7 @@ class OpenAIClient(BaseAiProvider):
                 if usage is not None:
                     out["usage"] = usage
                 return out
-            except requests.exceptions.HTTPError as e:
+            except HTTPError as e:
                 return {"error": format_http_error("OpenAI API error", e)}
             except Exception as e:
                 return {"error": format_request_exception("OpenAI API request failed", e)}

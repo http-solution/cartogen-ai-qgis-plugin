@@ -44,7 +44,9 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-DATASET_STATUS_PROPERTY_KEY = "cartogen_ai/dataset_status"
+from ...infrastructure.settings_keys import PROJECT_PROPERTY_DATASET_STATUS
+
+DATASET_STATUS_PROPERTY_KEY = PROJECT_PROPERTY_DATASET_STATUS
 
 # Order matters: this list IS the state machine. advance_dataset_status()
 # only allows moving to the very next state in this sequence (or re-stating

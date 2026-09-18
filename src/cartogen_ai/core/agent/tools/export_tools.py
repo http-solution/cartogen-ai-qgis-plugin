@@ -54,7 +54,7 @@ def _check_shapefile_field_names(layer):
 
     long_fields = []
     truncated_map = {}  # original_name -> laundered_name
-    used_lower = {}  # lower_case_laundered_name -> count
+    used_lower = set()  # set of all allocated laundered names (lowercase)
 
     field_names = []
     for field in layer.fields():
@@ -71,19 +71,27 @@ def _check_shapefile_field_names(layer):
         base_lower = base.lower()
         if base_lower not in used_lower:
             laundered = base
-            used_lower[base_lower] = 1
+            used_lower.add(base_lower)
         else:
-            idx = used_lower[base_lower]
-            used_lower[base_lower] += 1
-            suffix = f"_{idx}"
-            prefix_len = 10 - len(suffix)
-            laundered = f"{base[:prefix_len]}{suffix}"
-            used_lower[laundered.lower()] = 1
+            idx = 1
+            while True:
+                suffix = f"_{idx}"
+                prefix_len = 10 - len(suffix)
+                cand = f"{base[:prefix_len]}{suffix}"
+                cand_lower = cand.lower()
+                if cand_lower not in used_lower:
+                    laundered = cand
+                    used_lower.add(cand_lower)
+                    break
+                idx += 1
 
         truncated_map[name] = laundered
 
-    # Collisions occurred if any field received a disambiguation suffix or changed from its base
-    has_collisions = any(truncated_map[name] != (name[:10] if len(name) > 10 else name) for name in field_names)
+    # Collisions occurred if any field received a disambiguation suffix or changed from its base prefix
+    has_collisions = any(
+        truncated_map[name].lower() != (name[:10].lower() if len(name) > 10 else name.lower())
+        for name in field_names
+    )
 
     if not long_fields and not has_collisions:
         return None, truncated_map
@@ -475,12 +483,9 @@ def _categorical_color_map(values):
     return color_map
 
 
-# Same custom-property key hazard_monitoring_tools.py's fetch tools stamp on the layers they
-# create/refresh (FETCHED_AT_PROPERTY_KEY there) -- duplicated as a literal here rather than
-# imported, matching this codebase's existing convention of small cross-module constants/helpers
-# being self-contained per file (e.g. _find_layer_by_name is duplicated per tool module) rather
-# than reaching across domains for a one-line value.
-_FETCHED_AT_PROPERTY_KEY = "cartogen_ai/fetched_at"
+from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
+
+_FETCHED_AT_PROPERTY_KEY = PROJECT_PROPERTY_FETCHED_AT
 
 _FRESHNESS_FRESH_MAX_SECONDS = 3600    # < 1h old -> fresh
 _FRESHNESS_STALE_MAX_SECONDS = 86400   # < 24h old -> stale; >= 24h -> very stale

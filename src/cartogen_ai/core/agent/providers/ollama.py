@@ -1,6 +1,9 @@
 import json
-import requests
-from .base import BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, get_with_retry, format_http_error, format_request_exception
+from .base import (
+    BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, get_with_retry,
+    format_http_error, format_request_exception,
+    requests, HTTPError, RequestException,
+)
 
 
 def _server_root(endpoint_url):
@@ -26,7 +29,7 @@ def list_models(endpoint_url):
         data = response.json()
         ids = sorted({m.get("name", "") for m in data.get("models", []) if m.get("name")})
         return {"success": True, "models": ids}
-    except requests.exceptions.HTTPError as e:
+    except HTTPError as e:
         return {"error": format_http_error("Ollama models list failed", e)}
     except Exception as e:
         return {"error": format_request_exception("Ollama models list request failed", e) + " (is Ollama running?)"}
@@ -80,9 +83,9 @@ class OllamaClient(BaseAiProvider):
                 self.base_url, headers, json.dumps(payload), timeout=180,
             )
             response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
+        except HTTPError as e:
             return {"error": format_http_error("Ollama HTTP error", e)}
-        except requests.exceptions.RequestException as e:
+        except RequestException as e:
             return {"error": format_request_exception("Ollama connection failed", e) + " (is Ollama running?)"}
 
         # API-006, 2026-09-14 audit: response.json() used to be inside the try block above,

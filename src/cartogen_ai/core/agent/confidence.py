@@ -20,7 +20,9 @@ free."""
 
 import json
 
-CONFIDENCE_PROPERTY_KEY = "cartogen_ai/confidence"
+from ...infrastructure.settings_keys import PROJECT_PROPERTY_CONFIDENCE
+
+CONFIDENCE_PROPERTY_KEY = PROJECT_PROPERTY_CONFIDENCE
 CONFIDENCE_LEVELS = ["OBSERVED", "DERIVED", "MODELED", "INFERRED", "UNKNOWN"]
 
 

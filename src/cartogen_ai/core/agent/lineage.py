@@ -13,7 +13,9 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-LINEAGE_PROPERTY_KEY = "cartogen_ai/lineage"
+from ...infrastructure.settings_keys import PROJECT_PROPERTY_LINEAGE
+
+LINEAGE_PROPERTY_KEY = PROJECT_PROPERTY_LINEAGE
 
 
 def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None) -> bool:

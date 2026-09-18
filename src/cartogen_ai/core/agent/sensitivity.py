@@ -20,7 +20,9 @@ in a layer custom property, survives project save/reload for free."""
 
 import json
 
-SENSITIVITY_PROPERTY_KEY = "cartogen_ai/sensitivity"
+from ...infrastructure.settings_keys import PROJECT_PROPERTY_SENSITIVITY
+
+SENSITIVITY_PROPERTY_KEY = PROJECT_PROPERTY_SENSITIVITY
 SENSITIVITY_LEVELS = ["PUBLIC", "INTERNAL", "RESTRICTED", "SENSITIVE"]
 
 # Only these two levels trigger an export-time advisory warning -- PUBLIC/
