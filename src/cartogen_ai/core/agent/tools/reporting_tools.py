@@ -17,6 +17,38 @@ from .registry import register_tool
 _CHART_TYPES = {"bar", "pie", "line"}
 _AGG_FUNCS = {"sum", "count", "mean", "min", "max"}
 
+# Default categorical palette instead of matplotlib's raw default cycle (Tab10's blue/
+# orange/green/...) -- a colorblind-safe qualitative set (Okabe-Ito, the standard
+# accessible-palette reference for categorical data) so charts remain distinguishable to
+# deuteranopia/protanopia viewers without the caller needing to think about it. Caller-
+# supplied color_palette overrides this entirely.
+_DEFAULT_CHART_PALETTE = [
+    "#0072B2", "#E69F00", "#009E73", "#CC79A7",
+    "#D55E00", "#56B4E9", "#F0E442", "#999999",
+]
+
+# Cartographic/data-viz convention: a pie chart with too many slices becomes unreadable --
+# beyond this many, the smallest slices are aggregated into a single "Other" wedge instead
+# of drawing (or rejecting outright) an unreadable chart.
+_PIE_MAX_SLICES = 8
+
+
+def _apply_pie_slice_cap(labels, values, max_slices=_PIE_MAX_SLICES):
+    """Returns (labels, values, note_or_None). Unchanged if already within max_slices;
+    otherwise keeps the (max_slices - 1) largest values as-is and sums the rest into a
+    single 'Other' slice, sorted so 'Other' doesn't visually dominate a chart where it's
+    actually the smallest meaningful grouping. Pure Python, no matplotlib needed."""
+    if len(labels) <= max_slices:
+        return labels, values, None
+    paired = sorted(zip(labels, values), key=lambda lv: lv[1], reverse=True)
+    kept = paired[: max_slices - 1]
+    rest = paired[max_slices - 1 :]
+    other_total = sum(v for _, v in rest)
+    new_labels = [l for l, _ in kept] + ["Other"]
+    new_values = [v for _, v in kept] + [other_total]
+    note = f"{len(rest)} smallest categories combined into 'Other' to keep the pie chart at {max_slices} slices or fewer (was {len(labels)})."
+    return new_labels, new_values, note
+
 
 def _temp_png_path():
     fd, path = tempfile.mkstemp(suffix=".png")
@@ -40,11 +72,13 @@ def _temp_png_path():
             "x_label": {"type": "string", "description": "X-axis label. Ignored for pie charts."},
             "y_label": {"type": "string", "description": "Y-axis label. Ignored for pie charts."},
             "output_path": {"type": "string", "description": "Where to save the PNG. Defaults to a temp file."},
+            "color_palette": {"type": "array", "items": {"type": "string"}, "description": "Optional list of hex colors (e.g. ['#0072B2', '#E69F00']) to use instead of the default colorblind-safe palette -- cycled if there are more categories than colors."},
+            "dpi": {"type": "integer", "description": "Export resolution in DPI. Defaults to 300 (print quality)."},
         },
         "required": ["chart_type", "title", "labels", "values"],
     },
 )
-def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None, output_path=None):
+def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None, output_path=None, color_palette=None, dpi=300):
     chart_type = (chart_type or "").lower()
     if chart_type not in _CHART_TYPES:
         return {"error": f"chart_type must be one of {sorted(_CHART_TYPES)}."}
@@ -62,27 +96,36 @@ def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None
     except ImportError:
         return {"error": "matplotlib is required for chart generation. Install via qpip, or in the OSGeo4W Shell: python -m pip install matplotlib"}
 
+    palette = color_palette or _DEFAULT_CHART_PALETTE
+    pie_note = None
+    if chart_type == "pie":
+        labels, values, pie_note = _apply_pie_slice_cap(labels, values)
+
     path = output_path or _temp_png_path()
     try:
         fig, ax = plt.subplots(figsize=(8, 5))
+        colors = [palette[i % len(palette)] for i in range(len(labels))]
         if chart_type == "bar":
-            ax.bar(labels, values)
+            ax.bar(labels, values, color=colors)
             ax.set_xlabel(x_label or "")
             ax.set_ylabel(y_label or "")
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
         elif chart_type == "line":
-            ax.plot(labels, values, marker="o")
+            ax.plot(labels, values, marker="o", color=palette[0])
             ax.set_xlabel(x_label or "")
             ax.set_ylabel(y_label or "")
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
         else:  # pie
-            ax.pie(values, labels=labels, autopct="%1.1f%%")
+            ax.pie(values, labels=labels, autopct="%1.1f%%", colors=colors)
             ax.axis("equal")
         ax.set_title(title)
         fig.tight_layout()
-        fig.savefig(path, dpi=150)
+        fig.savefig(path, dpi=dpi)
         plt.close(fig)
-        return {"success": True, "output_path": path, "chart_type": chart_type}
+        result = {"success": True, "output_path": path, "chart_type": chart_type}
+        if pie_note:
+            result["warning"] = pie_note
+        return result
     except Exception as e:
         return {"error": f"generate_chart failed: {e}"}
 

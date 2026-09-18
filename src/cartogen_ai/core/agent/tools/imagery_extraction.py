@@ -78,6 +78,27 @@ def _mask_pixel_count(mask, threshold=0.5):
         return sum(1 for row in mask for v in row if v > threshold)
 
 
+def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2):
+    """Simplifies a raw gdal.Polygonize-traced geometry (smooths the jagged pixel-grid
+    "staircase" boundary by roughly one pixel width, Douglas-Peucker via
+    QgsGeometry.simplify()), repairs it if simplification introduced a self-intersection
+    (QgsGeometry.makeValid()), and applies the min_area_m2 filter -- extracted from
+    extract_features_from_imagery's per-feature loop so this decision logic is directly
+    unit-testable with a mocked QgsGeometry, without needing the GDAL/OGR/FastSAM
+    pipeline around it (out of scope for this suite -- see this file's own test module
+    docstring). Returns the finalized geometry, or None if it should be dropped
+    (empty/invalid after repair, or below min_area_m2)."""
+    if pixel_size > 0:
+        qgs_geom = qgs_geom.simplify(pixel_size)
+    if not qgs_geom.isGeosValid():
+        qgs_geom = qgs_geom.makeValid()
+    if qgs_geom is None or qgs_geom.isEmpty():
+        return None
+    if min_area_m2 is not None and qgs_geom.area() < min_area_m2:
+        return None
+    return qgs_geom
+
+
 @register_tool(
     "extract_features_from_imagery",
     "Extract object boundary polygons from a loaded raster using a class-agnostic segmentation "
@@ -234,12 +255,21 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         # only the detected (1-valued) region gets polygonized.
         gdal.Polygonize(band, None, ogr_layer, -1)
 
+        # gdal.Polygonize traces the raw pixel grid, so every boundary is a jagged
+        # "staircase" of right angles at the mask's own pixel resolution -- not a real
+        # cartographic edge. Simplifying by roughly one pixel width (Douglas-Peucker via
+        # QgsGeometry.simplify(), same algorithm/API the OCHA/cartography-guide fixes
+        # elsewhere in this project use) smooths that staircase without losing real shape
+        # detail beyond what the source imagery's own resolution could show anyway.
+        pixel_size = abs(mask_geotransform[1])
+
         for ogr_feat in ogr_layer:
             geom = ogr_feat.GetGeometryRef()
             if geom is None or geom.IsEmpty():
                 continue
             qgs_geom = QgsGeometry.fromWkt(geom.ExportToWkt())
-            if min_area_m2 is not None and qgs_geom.area() < min_area_m2:
+            qgs_geom = _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2)
+            if qgs_geom is None:
                 continue
             new_feat = QgsFeature(out_layer.fields())
             new_feat.setGeometry(qgs_geom)

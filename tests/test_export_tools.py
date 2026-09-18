@@ -12,6 +12,7 @@ from cartogen_ai.core.agent.tools.export_tools import (
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
     _write_vector, export_layer, export_to_csv, _sanitize_csv_formula_injection,
     _classify_freshness, _humanize_age, _freshness_legend_html,
+    _resolve_basemap_kwargs, _prepare_dashboard_layer, _DASHBOARD_BASEMAPS,
 )
 import datetime
 
@@ -21,6 +22,99 @@ def _skip_if_missing(test_case, module_name):
         __import__(module_name)
     except ImportError:
         test_case.skipTest(f"{module_name} not installed")
+
+
+class TestResolveBasemapKwargs(unittest.TestCase):
+    """Phase 4 (2026-09-19): the dashboard's basemap was hardcoded to CartoDB Positron with
+    no satellite/HOT toggle -- _resolve_basemap_kwargs adds that without needing an API key
+    or reintroducing OSM's own directly-embedded tiles (the exact pattern OSM's tile usage
+    policy blocks, already documented in _build_dashboard_html's own comment)."""
+
+    def test_default_is_positron_when_none_given(self):
+        kwargs, warning = _resolve_basemap_kwargs(None)
+        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["positron"])
+        self.assertIsNone(warning)
+
+    def test_known_basemap_resolves_case_insensitively(self):
+        kwargs, warning = _resolve_basemap_kwargs("SATELLITE")
+        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["satellite"])
+        self.assertIsNone(warning)
+
+    def test_hot_basemap_has_required_attribution(self):
+        kwargs, warning = _resolve_basemap_kwargs("hot")
+        self.assertIn("Humanitarian", kwargs["attr"])
+        self.assertIsNone(warning)
+
+    def test_unknown_basemap_falls_back_to_default_with_warning(self):
+        kwargs, warning = _resolve_basemap_kwargs("bogus_basemap")
+        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["positron"])
+        self.assertIsNotNone(warning)
+        self.assertIn("bogus_basemap", warning)
+
+
+class TestPrepareDashboardLayer(unittest.TestCase):
+    """Phase 4 (2026-09-19): generate_html_dashboard/generate_temporal_dashboard previously
+    embedded a layer's full, unbounded GeoJSON with no feature cap or simplification -- a
+    large/detailed layer could produce a 25MB+ HTML file that freezes the viewer's browser."""
+
+    def test_small_simple_layer_is_returned_unchanged(self):
+        layer = MagicMock()
+        layer.featureCount.return_value = 10
+        layer.extent.return_value.width.return_value = 0.0
+        layer.extent.return_value.height.return_value = 0.0
+
+        result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
+
+        self.assertIs(result_layer, layer)
+        self.assertIsNone(warning)
+
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsWkbTypes", create=True)
+    def test_over_cap_layer_is_truncated_with_warning(self, mock_wkb, mock_layer_cls, mock_feat_cls, mock_request_cls):
+        layer = MagicMock()
+        layer.featureCount.return_value = 5000
+        layer.extent.return_value.width.return_value = 0.0
+        layer.extent.return_value.height.return_value = 0.0
+        layer.getFeatures.return_value = []
+        mem_layer = mock_layer_cls.return_value
+
+        result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
+
+        self.assertIs(result_layer, mem_layer)
+        self.assertIsNotNone(warning)
+        self.assertIn("2,500", warning)
+        self.assertIn("5,000", warning)
+        mock_request_cls.return_value.setLimit.assert_called_once_with(2500)
+
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsWkbTypes", create=True)
+    def test_large_extent_simplifies_geometry_with_warning(self, mock_wkb, mock_layer_cls, mock_feat_cls, mock_request_cls):
+        layer = MagicMock()
+        layer.featureCount.return_value = 10
+        layer.extent.return_value.width.return_value = 4000.0
+        layer.extent.return_value.height.return_value = 3000.0
+        fake_feat = MagicMock()
+        fake_feat.geometry.return_value.isEmpty.return_value = False
+        layer.getFeatures.return_value = [fake_feat]
+
+        result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
+
+        self.assertIsNotNone(warning)
+        self.assertIn("simplified", warning)
+        fake_feat.geometry.return_value.simplify.assert_called_once()
+
+    def test_exception_during_inspection_falls_back_to_original_layer(self):
+        layer = MagicMock()
+        layer.featureCount.side_effect = RuntimeError("boom")
+
+        result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
+
+        self.assertIs(result_layer, layer)
+        self.assertIsNone(warning)
 
 
 class TestLayerProvenanceEntries(unittest.TestCase):
