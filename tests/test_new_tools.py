@@ -1215,7 +1215,7 @@ class TestNewTools(unittest.TestCase):
         # mocked since this drives the loop to MAX_ITERATIONS, which now includes real pacing
         # delays (2026-09-12, PACING_THRESHOLD_ITERATIONS) -- unmocked this test took ~21s.
         class LoopingClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {
                         "role": "assistant",
@@ -1244,7 +1244,7 @@ class TestNewTools(unittest.TestCase):
         # that call's usage into session_usage and be reflected in
         # get_session_usage_text().
         class UsageReportingClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {"role": "assistant", "content": "Done."},
                     "model": "fake",
@@ -1265,7 +1265,7 @@ class TestNewTools(unittest.TestCase):
 
     def test_agent_run_usage_accumulates_across_multiple_turns(self):
         class UsageReportingClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {"role": "assistant", "content": "Done."},
                     "model": "fake",
@@ -1292,7 +1292,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIsNone(agent.get_session_usage_text())
 
         class NoUsageClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {"message": {"role": "assistant", "content": "Done."}, "model": "fake"}
 
         agent.conversation_history = []
@@ -1310,7 +1310,7 @@ class TestNewTools(unittest.TestCase):
         calls = {"n": 0}
 
         class MixedUsageClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 calls["n"] += 1
                 msg = {"role": "assistant", "content": "Done."}
                 if calls["n"] == 1:
@@ -1333,7 +1333,7 @@ class TestNewTools(unittest.TestCase):
         # from_anthropic_response) must accumulate across calls and show up in the
         # session-usage text, so prompt caching's effect is actually visible.
         class CachingClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {"role": "assistant", "content": "Done."},
                     "model": "fake",
@@ -1356,7 +1356,7 @@ class TestNewTools(unittest.TestCase):
         # cache miss) -- the summary text must look exactly like it did before this feature,
         # no "0 served from cache" clause fabricated onto it.
         class NoCacheClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {"role": "assistant", "content": "Done."},
                     "model": "fake",
@@ -1380,7 +1380,7 @@ class TestNewTools(unittest.TestCase):
         class LoopingClient:
             call_count = 0
 
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 LoopingClient.call_count += 1
                 return {
                     "message": {
@@ -1414,7 +1414,7 @@ class TestNewTools(unittest.TestCase):
                 return self.calls > self.stop_after
 
         class LoopingClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {
                         "role": "assistant",
@@ -1441,7 +1441,7 @@ class TestNewTools(unittest.TestCase):
         NEXT round's API call, after the whole batch had already run. Now checked before
         each individual tool call within a batch too."""
         class OneRoundTwoToolsClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {
                     "message": {
                         "role": "assistant", "content": None,
@@ -1489,7 +1489,7 @@ class TestNewTools(unittest.TestCase):
         agent.conversation_history = []
 
         class SimpleClient:
-            def complete(self, messages, tools=None):
+            def complete(self, messages, tools=None, max_tokens=None):
                 return {"message": {"role": "assistant", "content": "hi", "tool_calls": None}, "model": "fake"}
 
         agent.client = SimpleClient()

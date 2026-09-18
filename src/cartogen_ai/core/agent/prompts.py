@@ -578,13 +578,20 @@ def _build_domain_trigger_tools():
 _DOMAIN_RULE_TRIGGER_TOOLS = _build_domain_trigger_tools()
 
 
-def _assemble_base_prompt(active_tool_names):
+def _assemble_base_prompt(active_tool_names, rule_overrides=None):
     """Core is always included. When active_tool_names is None, every rule is included too --
     reproduces this file's pre-modularization content exactly, in original ascending rule
     order (see BASE_SYSTEM_PROMPT below, and build_system_prompt()'s own docstring for why None
     is the safe default for any caller that doesn't pass the new parameter). Included rule
     numbers are always emitted in ascending order, not tier/declaration order -- keeps a partial
-    prompt just as naturally readable as the full one."""
+    prompt just as naturally readable as the full one.
+
+    rule_overrides, added 2026-09-19: an optional {rule_num: replacement_text} map -- used by
+    build_system_prompt() to swap in a map-context-aware rendering of rule 5 (see
+    _rule_5_text's own docstring) without needing a second inclusion/exclusion mechanism
+    alongside the tool-trigger one above. A rule number not present in rule_overrides falls
+    back to its normal static _ALL_RULES text, unchanged from before this parameter existed --
+    BASE_SYSTEM_PROMPT below passes no overrides at all, so it's completely unaffected."""
     included = set(CORE_RULE_NUMBERS)
     if active_tool_names is None:
         included |= set(_ALL_RULES)
@@ -600,14 +607,45 @@ def _assemble_base_prompt(active_tool_names):
             if not trigger_tools or (active_set & trigger_tools):
                 included.add(rule_num)
 
+    overrides = rule_overrides or {}
     parts = [_PREAMBLE]
-    parts.extend(_ALL_RULES[n] for n in sorted(included))
+    parts.extend(overrides.get(n, _ALL_RULES[n]) for n in sorted(included))
     return "".join(parts)
 
 
 # Kept as the full, unfiltered assembly (every rule, nothing omitted, original order) -- see
 # module docstring for who still relies on this being the complete rule set.
 BASE_SYSTEM_PROMPT = _assemble_base_prompt(None)
+
+
+def _rule_5_text(map_context):
+    """Rule 5 is core (always included, see CORE_RULE_NUMBERS) and used to be a single
+    unconditional 'ALWAYS call get_attributes(layer_name)' directive regardless of what the
+    turn's own CURRENT MAP CONTEXT block already told the model -- map_context.py's
+    get_map_context_summary() already includes each loaded layer's field names (capped at
+    MAX_FIELDS_PER_LAYER=8) specifically so simple questions don't need a get_attributes()
+    round-trip at all (see rule 4's own similar wording for get_layers()). Rule 5 alone never
+    got the same treatment, so the model was still directed to call get_attributes() even when
+    the exact information it returns was already sitting in the system prompt one section
+    above it -- a real, avoidable tool-call/token cost on the majority of turns, where at least
+    one loaded layer's fields are already known. Only relaxed when map_context actually
+    contains at least one layer with a non-empty fields list; with no map_context (or every
+    layer's fields empty, e.g. a raster-only project) this returns the original unconditional
+    text unchanged, so behavior on a project with no field data is bit-for-bit identical to
+    before this function existed."""
+    layers = (map_context or {}).get("layers") or []
+    has_field_data = any(
+        isinstance(layer, dict) and layer.get("fields") for layer in layers
+    )
+    if not has_field_data:
+        return _ALL_RULES[5]
+    return (
+        '5. Field names for currently loaded layers are already listed under CURRENT MAP '
+        'CONTEXT below -- use them directly for query or selection operations when the target '
+        "layer is listed there with its fields. Call `get_attributes(layer_name)` only when "
+        "the layer isn't listed there, its field list there looks truncated/incomplete, or you "
+        'need value-level detail (types, sample values, ranges) beyond just field names.\n'
+    )
 
 
 def _format_map_context(map_context: dict) -> str:
@@ -662,7 +700,7 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
     the model can't even call this turn is moot regardless of its domain. None (the default, not
     supplied) includes every rule unconditionally, exactly matching this function's behavior
     before this parameter existed -- the safe default for any caller that doesn't pass it."""
-    prompt_parts = [_assemble_base_prompt(active_tool_names)]
+    prompt_parts = [_assemble_base_prompt(active_tool_names, rule_overrides={5: _rule_5_text(map_context)})]
 
     map_ctx_text = _format_map_context(map_context)
     if map_ctx_text:

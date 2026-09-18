@@ -2,7 +2,6 @@
 import ast
 import inspect
 import unittest
-from unittest.mock import patch
 from cartogen_ai.core.agent.tool_router import ToolRouter
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
 import cartogen_ai.core.agent.tool_router as tool_router_module
@@ -121,6 +120,19 @@ class TestNoSignalQueryStaysSmall(unittest.TestCase):
         names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("buffer_analysis", names)
         self.assertEqual(len(filtered), 40)
+
+    def test_partial_signal_query_also_drops_zero_score_filler(self):
+        # 2026-09-19 follow-up: a query with SOME real signal (not the all-zero "hi" case
+        # above) was still padded out to the full top_k=40 with unrelated 0-score tools just
+        # to fill the slice -- same wasted-token problem, just partially masked by the real
+        # matches sitting alongside the filler. "calculate ndvi" genuinely matches ~24 tools
+        # (name/description/alias overlap with vegetation, index, and other calculate_*
+        # tools) but far fewer than 40 -- every returned tool must have scored above 0.
+        filtered = self.router.filter_relevant_tools("calculate ndvi", top_k=40)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("calculate_ndvi", names)
+        self.assertLess(len(filtered), 40)
+        self.assertNotIn("execute_pyqgis_script", names)
 
 
 class TestToolRouterAliasCoverage(unittest.TestCase):
@@ -328,11 +340,13 @@ class TestToolRouterRecallRegression(unittest.TestCase):
 
 
 class TestToolRouterTieBreak(unittest.TestCase):
-    @patch("cartogen_ai.core.agent.tool_router.random.shuffle")
-    def test_shuffles_candidates_before_scoring_to_avoid_fixed_tie_break_order(self, mock_shuffle):
+    def test_deterministic_candidate_order_for_cache_prefix_stability(self):
         router = ToolRouter(TOOLS_SCHEMA)
-        router.filter_relevant_tools("some query with no strong matches", top_k=40)
-        mock_shuffle.assert_called_once()
+        res1 = router.filter_relevant_tools("some query with no strong matches", top_k=40)
+        res2 = router.filter_relevant_tools("some query with no strong matches", top_k=40)
+        names1 = [t.get("function", {}).get("name") for t in res1]
+        names2 = [t.get("function", {}).get("name") for t in res2]
+        self.assertEqual(names1, names2)
 
 
 if __name__ == "__main__":
