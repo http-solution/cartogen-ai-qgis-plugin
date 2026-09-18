@@ -42,10 +42,60 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+def _check_shapefile_field_names(layer):
+    """Preflight check for ESRI Shapefile export.
+    DBF specifications limit column names to 10 bytes/characters.
+    Detects fields longer than 10 chars, computes their truncated names,
+    and checks for collisions where multiple fields truncate to the same 10-char name.
+    Returns (warning_message_or_None, field_mapping_dict).
+    """
+    if layer is None or not hasattr(layer, "fields"):
+        return None, {}
+
+    long_fields = []
+    truncated_map = {}  # original_name -> truncated_name
+    collision_groups = {}  # truncated_name -> list of original_names
+
+    for field in layer.fields():
+        name = field.name() if hasattr(field, "name") else str(field)
+        if len(name) > 10:
+            long_fields.append(name)
+            trunc = name[:10]
+            truncated_map[name] = trunc
+            collision_groups.setdefault(trunc, []).append(name)
+        else:
+            trunc = name
+            truncated_map[name] = trunc
+            collision_groups.setdefault(trunc, []).append(name)
+
+    collisions = {trunc: origs for trunc, origs in collision_groups.items() if len(origs) > 1 and any(len(o) > 10 for o in origs)}
+
+    if not long_fields and not collisions:
+        return None, truncated_map
+
+    warning_parts = []
+    if long_fields:
+        warning_parts.append(
+            f"ESRI Shapefile (DBF) limits field names to 10 characters. {len(long_fields)} field(s) will be truncated: "
+            + ", ".join(f"'{f}' -> '{f[:10]}'" for f in long_fields[:5])
+            + (f" (and {len(long_fields) - 5} more)" if len(long_fields) > 5 else "")
+        )
+    if collisions:
+        collision_desc = "; ".join(f"'{trunc}' from {origs}" for trunc, origs in collisions.items())
+        warning_parts.append(f"Name collision(s) detected after truncation: {collision_desc}. Consider exporting to GeoPackage (GPKG) or GeoJSON to preserve full field names.")
+
+    return " ".join(warning_parts), truncated_map
+
+
 def _write_vector(layer, output_path, driver_name, layer_options=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     try:
+        shp_warning = None
+        shp_mapping = None
+        if driver_name == "ESRI Shapefile":
+            shp_warning, shp_mapping = _check_shapefile_field_names(layer)
+
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = driver_name
         options.fileEncoding = "UTF-8"
@@ -58,29 +108,21 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
             QgsCoordinateTransformContext(),
             options,
         )
-        # QGIS-004, 2026-09-13 audit: a real, currently-latent correctness bug --
-        # _VFW_NO_ERROR is None only when resolve_qgis_enum failed to resolve EITHER
-        # QGIS 4.x's scoped or QGIS 3.x's flat form (a future QGIS API change neither
-        # form survives). `error` from a real writeAsVectorFormatV2() call is never
-        # None -- so `error != _VFW_NO_ERROR` would then be `error != None`, which is
-        # ALWAYS True for a real (non-None) success code, meaning a fully successful
-        # export would silently report itself as failed. This doesn't crash, so
-        # nothing would have caught it -- the wrong answer would just ship. Checked
-        # explicitly and named, instead of comparing against a possibly-None sentinel.
         if _VFW_NO_ERROR is None:
             return {"error": "Could not resolve QgsVectorFileWriter.WriterError.NoError in this QGIS version -- export result cannot be verified."}
         if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
         result = {"success": True, "output_path": output_path}
-        # Point 24 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:
-        # advisory only, never blocks -- see agent/sensitivity.py's own
-        # docstring for why a hard export-blocking gate isn't built here.
+        if shp_warning:
+            result["shapefile_truncation_warning"] = shp_warning
+            result["field_name_mapping"] = shp_mapping
         warning = _sens.export_warning_for(layer)
         if warning:
             result["warning"] = warning
         return result
     except Exception as e:
         return {"error": f"_write_vector failed: {e}"}
+
 
 
 @register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "format": {"type": "string"}}, "required": ["layer_name", "output_path", "format"]})

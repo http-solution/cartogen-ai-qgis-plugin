@@ -16,6 +16,7 @@ try:
         QgsSingleBandPseudoColorRenderer, QgsContrastEnhancement, QgsRasterShader,
         QgsColorRampShader, QgsRasterBandStats, QgsStyle,
     )
+    from qgis.PyQt.QtGui import QPainter
     import qgis.core as _qgis_core_module
     import processing
     QGIS_AVAILABLE = True
@@ -26,6 +27,8 @@ try:
     _RBS_MAX = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Max")
     _STRETCH_MINMAX = resolve_qgis_enum(QgsContrastEnhancement, "ContrastEnhancementAlgorithm", "StretchToMinimumMaximum")
     _RAMP_INTERPOLATED = resolve_qgis_enum(QgsColorRampShader, "Type", "Interpolated")
+    # QPainter.CompositionMode.CompositionMode_Multiply (Qt6/PyQt6) vs QPainter.CompositionMode_Multiply (Qt5/PyQt5)
+    _COMPOSITION_MULTIPLY = resolve_qgis_enum(QPainter, "CompositionMode", "CompositionMode_Multiply")
     # QGIS 4.x moved this from a standalone qgis.core.QgsColorRampShaderItem
     # class to a nested QgsColorRampShader.ColorRampItem -- confirmed live
     # against a real QGIS 4.2.2 install, where the old top-level import
@@ -43,6 +46,8 @@ except ImportError:
     _STRETCH_MINMAX = None
     _RAMP_INTERPOLATED = None
     _COLOR_RAMP_SHADER_ITEM = None
+    _COMPOSITION_MULTIPLY = None
+
 
 
 def _find_layer_by_name(name):
@@ -299,6 +304,75 @@ def hillshade(dem_layer):
         {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem), "AZIMUTH": 315, "ALTITUDE": 45},
         f"{dem_layer}_hillshade",
     )
+
+
+@register_tool(
+    "create_shaded_relief",
+    "Generate a publication-grade shaded relief composite from a DEM layer combining hypsometric "
+    "elevation tinting with hillshade using Multiply blending (QPainter.CompositionMode_Multiply). "
+    "First styles the DEM with a pseudocolor elevation color ramp (e.g. 'BrBG', 'Spectral', or 'Terrain'), "
+    "generates or links the hillshade layer, and applies the Multiply blend mode so the topography modulates "
+    "the elevation colors cleanly without flattening.",
+    {
+        "type": "object",
+        "properties": {
+            "dem_layer": {"type": "string", "description": "Name of the DEM/elevation raster layer."},
+            "color_ramp": {"type": "string", "description": "Color ramp name for hypsometric tinting. Defaults to 'BrBG' (CVD-safe diverging ramp)."},
+            "azimuth": {"type": "number", "description": "Sun azimuth angle in degrees (default 315)."},
+            "altitude": {"type": "number", "description": "Sun altitude angle in degrees (default 45)."},
+            "opacity": {"type": "number", "description": "Hillshade layer opacity between 0.0 and 1.0 (default 1.0)."},
+        },
+        "required": ["dem_layer"],
+    },
+)
+def create_shaded_relief(dem_layer, color_ramp="BrBG", azimuth=315, altitude=45, opacity=1.0):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    dem = _find_layer_by_name(dem_layer)
+    if dem is None:
+        return {"error": f"Layer '{dem_layer}' not found"}
+
+    # 1. Apply hypsometric elevation tinting to DEM
+    style_res = apply_raster_stretch(dem_layer, mode="color_ramp", color_ramp=color_ramp)
+    if not style_res.get("success"):
+        return {"error": f"Failed to style DEM with hypsometric tint: {style_res.get('error')}"}
+
+    # 2. Generate hillshade layer
+    hs_name = f"{dem_layer}_hillshade"
+    hs_res = _run_raster_and_add(
+        "native:hillshade",
+        {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem), "AZIMUTH": azimuth, "ALTITUDE": altitude},
+        hs_name,
+    )
+    if not hs_res.get("success"):
+        return {"error": f"Failed to generate hillshade: {hs_res.get('error')}"}
+
+    # 3. Apply Multiply blend mode to the hillshade layer
+    hs_layer = _find_layer_by_name(hs_name)
+    blend_applied = False
+    if hs_layer is not None:
+        if _COMPOSITION_MULTIPLY is not None and hasattr(hs_layer, "setBlendMode"):
+            try:
+                hs_layer.setBlendMode(_COMPOSITION_MULTIPLY)
+                blend_applied = True
+            except Exception:
+                pass
+        if opacity is not None and hasattr(hs_layer, "setOpacity"):
+            try:
+                hs_layer.setOpacity(float(opacity))
+            except Exception:
+                pass
+        if hasattr(hs_layer, "triggerRepaint"):
+            hs_layer.triggerRepaint()
+
+    return {
+        "success": True,
+        "dem_layer": dem_layer,
+        "hillshade_layer": hs_name,
+        "color_ramp": style_res.get("color_ramp", color_ramp),
+        "blend_mode": "Multiply" if blend_applied else "normal",
+        "composite_pipeline": "hypsometric_tint + hillshade_multiply",
+    }
 
 
 @register_tool("slope_analysis", "Calculate slope map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})

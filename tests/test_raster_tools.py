@@ -16,7 +16,9 @@ from cartogen_ai.core.agent.tools.raster_tools import (
     _run_raster_and_add, slope_analysis, aspect_analysis, zonal_statistics,
     raster_clip, unsupervised_classification, supervised_classification,
     mosaic_rasters, band_composite, pan_sharpening, hillshade, _geographic_z_factor,
+    create_shaded_relief,
 )
+
 
 
 class TestGeographicZFactor(unittest.TestCase):
@@ -882,6 +884,43 @@ class TestMosaicBandCompositePanSharpening(unittest.TestCase):
         self.assertEqual(alg, "gdal:pansharpening")
         self.assertIs(params["SPECTRAL"], ms)
         self.assertIs(params["PANCHROMATIC"], pan)
+
+
+class TestCreateShadedRelief(unittest.TestCase):
+    """Part B remediation: combines hypsometric elevation tint with hillshade
+    using Multiply blending mode (QPainter.CompositionMode_Multiply)."""
+
+    def test_degrades_outside_qgis(self):
+        res = create_shaded_relief("dem")
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_reports_missing_dem_layer(self, mock_find):
+        mock_find.return_value = None
+        res = create_shaded_relief("dem")
+        self.assertIn("error", res)
+        self.assertIn("dem", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.apply_raster_stretch")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_successful_shaded_relief_pipeline(self, mock_find, mock_stretch, mock_run):
+        dem_mock = MagicMock()
+        hs_mock = MagicMock()
+        mock_find.side_effect = lambda name: dem_mock if name == "elevation" else (hs_mock if name == "elevation_hillshade" else None)
+        mock_stretch.return_value = {"success": True, "color_ramp": "BrBG"}
+        mock_run.return_value = {"success": True, "layer_name": "elevation_hillshade"}
+
+        res = create_shaded_relief("elevation", color_ramp="BrBG", azimuth=315, altitude=45, opacity=0.8)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["dem_layer"], "elevation")
+        self.assertEqual(res["hillshade_layer"], "elevation_hillshade")
+        mock_stretch.assert_called_once_with("elevation", mode="color_ramp", color_ramp="BrBG")
+        mock_run.assert_called_once()
+        hs_mock.setOpacity.assert_called_once_with(0.8)
 
 
 if __name__ == "__main__":

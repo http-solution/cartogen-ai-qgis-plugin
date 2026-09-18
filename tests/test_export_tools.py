@@ -13,7 +13,9 @@ from cartogen_ai.core.agent.tools.export_tools import (
     _write_vector, export_layer, export_to_csv, _sanitize_csv_formula_injection,
     _classify_freshness, _humanize_age, _freshness_legend_html,
     _resolve_basemap_kwargs, _prepare_dashboard_layer, _DASHBOARD_BASEMAPS,
+    _check_shapefile_field_names,
 )
+
 import datetime
 
 
@@ -771,5 +773,45 @@ class TestBuildDashboardHtmlFreshnessIntegration(unittest.TestCase):
         self.assertNotIn("Data freshness", res["html"])
 
 
+class TestShapefileFieldTruncation(unittest.TestCase):
+    """Part B remediation: ESRI Shapefile exports must detect field names > 10 chars
+    and report warnings and collision mappings."""
+
+    def _make_field(self, name):
+        f = MagicMock()
+        f.name.return_value = name
+        return f
+
+    def test_short_fields_produce_no_warning(self):
+        layer = MagicMock()
+        layer.fields.return_value = [self._make_field("id"), self._make_field("pop_total")]
+        warning, mapping = _check_shapefile_field_names(layer)
+        self.assertIsNone(warning)
+        self.assertEqual(mapping, {"id": "id", "pop_total": "pop_total"})
+
+    def test_field_longer_than_10_chars_triggers_warning(self):
+        layer = MagicMock()
+        layer.fields.return_value = [self._make_field("population_density_2026")]
+        warning, mapping = _check_shapefile_field_names(layer)
+        self.assertIsNotNone(warning)
+        self.assertIn("10 characters", warning)
+        self.assertIn("population_density_2026", warning)
+        self.assertEqual(mapping["population_density_2026"], "population")
+
+    def test_collision_detected_when_two_fields_truncate_to_same_prefix(self):
+        layer = MagicMock()
+        layer.fields.return_value = [
+            self._make_field("population_density"),
+            self._make_field("population_growth"),
+        ]
+        warning, mapping = _check_shapefile_field_names(layer)
+        self.assertIsNotNone(warning)
+        self.assertIn("collision", warning.lower())
+        self.assertIn("GeoPackage", warning)
+        self.assertEqual(mapping["population_density"], "population")
+        self.assertEqual(mapping["population_growth"], "population")
+
+
 if __name__ == "__main__":
     unittest.main()
+
