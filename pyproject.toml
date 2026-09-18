@@ -36,7 +36,14 @@ where = ["src"]
 # own cartogen_ai.pro / cartogen_ai.enterprise packages, and pip merges both
 # installs into one working `cartogen_ai` namespace with no file conflicts --
 # see docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md for the full design.
-include = ["cartogen_ai.core", "cartogen_ai.core.*", "cartogen_ai.processing", "cartogen_ai.processing.*"]
+include = [
+    "cartogen_ai.core",
+    "cartogen_ai.core.*",
+    "cartogen_ai.processing",
+    "cartogen_ai.processing.*",
+    "cartogen_ai.infrastructure",
+    "cartogen_ai.infrastructure.*",
+]
 
 [tool.setuptools.package-data]
 "cartogen_ai.core" = ["*.md"]
