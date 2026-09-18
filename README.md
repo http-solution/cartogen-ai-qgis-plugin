@@ -19,14 +19,14 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.15.6 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.16.0 · GNU GPL v2 · QGIS 3.0–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green, while the
+> **Project status:** active Community edition. The automated suite is green (1,904 passed, 0 failures, 38 skipped), while the
 > full pre-release checklist still requires verification in an interactive QGIS session.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
@@ -63,15 +63,20 @@ black-box answer.
 - **Multi-provider**: OpenRouter, Google Gemini, OpenAI, Anthropic Claude, or a local
   Ollama server — switch anytime, bring your own API key (OpenRouter has a free tier;
   Ollama is free and fully local).
-- **169 tools** covering vector and raster geoprocessing, styling and labeling, print
-  layouts, exports, humanitarian data (HDX / OpenStreetMap / geoBoundaries / building
-  footprints), satellite imagery search, database queries, trend forecasting, humanitarian
-  severity/needs indexing (JIAF/INFORM-style composite scoring for fund-allocation
-  prioritization), 3W/4W operational-presence analysis and coverage-gap detection, live hazard
-  monitoring (NASA FIRMS active fires, NASA EONET natural events, GDACS disaster alerts) with
-  recurring-workflow tracking, an interactive HTML situation dashboard export with per-layer
-  freshness badges for non-QGIS audiences, geoprivacy obfuscation for sensitive point data (Do
-  No Harm), and workflow presets — see
+- **Native QGIS Processing Provider**: Registered under `QgsApplication.processingRegistry()`
+  (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
+  `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
+  batch processing, and headless `qgis_process` CLI execution.
+- **171 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+  and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
+  layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
+  OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
+  trend forecasting, humanitarian severity/needs indexing (JIAF/INFORM-style composite scoring for
+  fund-allocation prioritization), 3W/4W operational-presence analysis and coverage-gap detection, live
+  hazard monitoring (NASA FIRMS active fires, NASA EONET natural events, GDACS disaster alerts) with
+  recurring-workflow tracking, an interactive HTML situation dashboard export with per-layer freshness
+  badges, ellipsoidal geodetic distance measurement (`QgsDistanceArea`), geoprivacy obfuscation for
+  sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
 - **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
   matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
@@ -79,6 +84,12 @@ black-box answer.
   facility type); and checks the response against what the task promised, with one automatic,
   disclosed follow-up if a promised dashboard, export, or chart didn't actually get produced.
   See [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+- **API Token Economy & Caching**: Deterministic tool tie-breaking designed for Gemini 2.5+
+  implicit prefix caching (up to 90% prompt discount), Claude/OpenRouter prompt cache control breakpoints,
+  and dynamic token budgeting per turn.
+- **Enterprise & Network Integration**: Native `QgsMessageLog` structured logging under the "Cartogen AI"
+  panel, custom exception hierarchy (`CartogenError`), and automatic `QgsNetworkAccessManager` proxy
+  detection for restricted corporate or field environments.
 - **Task Manager**: multi-step requests get a visible plan with progress tracking,
   retry, and edit-and-resend for failed steps.
 - **File attachments**: PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be
@@ -246,16 +257,18 @@ CI runs the same test suite automatically on every push/PR — see
 this repo.
 
 The codebase is organized as:
-- `agent/` — provider clients (`agent/providers/`), tools (`agent/tools/`), the
-  tool-calling loop and dispatcher (`agent/agent.py`), task/memory management.
-- `ui/` — the dock widget, settings dialog, canvas highlighting.
-- `tests/` — unit tests, runnable outside QGIS.
-- `docs/` — user guide, tool reference, specs/proposals, and living trackers
-  (see the Documentation table above).
-- `service/` — a standalone hosted-gateway/monetization prototype for the
-  planned Professional tier (see [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md)).
-  Not part of the QGIS plugin itself; excluded from the release zip.
-- `branding/` — brand guidelines and logo assets.
+- `src/cartogen_ai/processing/` — Native QGIS Processing provider (`CartogenProcessingProvider`) and algorithms for Processing Toolbox / Model Designer.
+- `src/cartogen_ai/infrastructure/` — Infrastructure boundary (QGIS proxy settings, credentials, environment abstractions).
+- `src/cartogen_ai/core/` (PEP 420 namespace package):
+  - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
+  - `validators/` — Schema contract and P-code depth validation engines.
+  - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 171 tools across 30 domain modules.
+  - `ui/` — Dock widget, settings, layer context picker, and theme integration.
+  - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
+- `tests/` — 1,904 automated unit and integration tests, runnable outside QGIS.
+- `docs/` — User guide, auto-generated tools reference, living implementation tracker, and specs.
+- `branding/` — Logo and visual assets.
 
 This is a single tree — there is no second copy to keep in sync. (An earlier
 version of this project did maintain two parallel trees; see the note at the
