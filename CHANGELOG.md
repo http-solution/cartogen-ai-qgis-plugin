@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0](#v1-16-0) | 2026-09-19 | **Major.** QGIS Processing Provider, OGC SLD export, point cluster renderers, OCHA layout elements, geodetics, token economy & caching, structured logging, proxy support, and architecture subdivisions |
 | [1.15.6](#v1-15-6) | 2026-09-18 | **Stable.** Promoted from rc6, no code changes -- security/audit remediation, crash root-causes, rate-limit resilience, the orchestrator reliability pass, and the full Broadsheet UI redesign, across 6 release candidates |
 | [1.15.6-rc6](#v1-15-6-rc6) | 2026-09-18 | Release candidate: search_web's dead duckduckgo-search dependency migrated to ddgs, found via an independent audit-verification pass of every RC5 open item |
 | [1.15.6-rc5](#v1-15-6-rc5) | 2026-09-17 | Release candidate: router-confidence, field-width, and confirmation-gate fixes, plus the full Broadsheet redesign (single-scroll dock, inline safety-gate card, layer context picker) |
@@ -37,6 +38,61 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0"></a>
+## [1.16.0] — 2026-09-19 — Major: QGIS Processing Provider, OGC renderers, geodetics, and architecture remediation
+
+Major release executing the full Part A remediation plan, closing all confirmed architecture, cartography, OGC, and performance gaps:
+
+- **Native QGIS Processing Provider (`cartogen_ai.processing`)**:
+  - Implemented `CartogenProcessingProvider` registered with `QgsApplication.processingRegistry()`.
+  - Added native `OptimalHubSitingAlgorithm` and `CalculateServiceAreaAlgorithm` callable from the Processing Toolbox, Graphical Model Designer, batch processor, and headless `qgis_process` CLI.
+  - Manifest updated: `hasProcessingProvider=yes`.
+  - Lifecycle cleaned up in `plugin_main.py` (proper registration in `initProcessing()`, removal in `unload()`, and `QTimer.singleShot` tracking/cancellation).
+
+- **OGC SLD 1.1.0 Export & Cluster Renderers (`styling_tools.py`)**:
+  - Added `export_layer_sld(layer_name, output_path)` exporting OGC SLD 1.1.0/1.0.0 via `layer.saveSldStyle()`, with desktop fallback for memory layers. Classified as `PUBLISH` in `tool_operations.py`.
+  - Added `apply_point_cluster_style(layer_name, mode, tolerance)` supporting native `QgsPointClusterRenderer` and `QgsPointDisplacementRenderer` via `setEmbeddedRenderer()`. Classified as `MODIFY` in `tool_operations.py`.
+
+- **Architectural Boundary Subdivisions**:
+  - `src/cartogen_ai/infrastructure/`: Dedicated boundary exporting `CredentialManager` and `get_qgis_proxy_dict`.
+  - `src/cartogen_ai/core/models/`: Domain models (`TurnTransactionLog`, `STATUS_ORDER`, sensitivity/confidence models).
+  - `src/cartogen_ai/core/validators/`: Schema contracts and P-code depth validation (`list_contracts`, `validate_layer_schema`, P-code uniqueness/hierarchy).
+  - `src/cartogen_ai/core/services/`: Core orchestration (`refine`, `ToolRouter`, `AgentQgsTask`, `maybe_infer_preferences`).
+  - Updated `pyproject.toml` setuptools package discovery list.
+
+- **OCHA Print Layout Elements (`layout_tools.py`)**:
+  - Added coordinate graticule/grid with auto-interval rounding (`_nice_interval()`).
+  - Added MAP_INFO metadata label displaying CRS authid/description and representative-fraction scale (`1:50,000`).
+  - Added 32x32mm inset overview locator map with linked `QgsLayoutItemMapOverview` rectangle.
+
+- **Geodetics & Concurrency**:
+  - Added ellipsoidal distance calculations via `QgsDistanceArea` for geographic-CRS layers in `optimal_hub_siting`, `location_allocation`, and routing. Fixed `'NONE'` ellipsoid string fallback.
+  - Added thread-safe synchronization across background tasks and GUI thread via `RLock` in `agent.py` and `Lock` in `transactions.TurnTransactionLog`.
+
+- **API Token Economy & Performance**:
+  - Stabilized serialized request bodies with deterministic alphabetical tie-breaking in `tool_router.py`, enabling Gemini 2.5+ implicit prefix caching (up to 90% prompt discount).
+  - Narrowed Prompt Rule 5 to avoid redundant `get_attributes()` round-trips when fields are pre-injected in map context.
+  - Scaled token budgets dynamically per agent iteration.
+  - Added tail-message prompt caching for Claude and OpenRouter providers.
+
+- **Observability & Networking**:
+  - Created custom exception hierarchy (`cartogen_ai.core.exceptions`).
+  - Integrated structured logging with QGIS Message Log (`QgsMessageLog.logMessage`) under "Cartogen AI".
+  - Added QGIS Network Access Manager proxy detection (`get_qgis_proxy_dict`) across provider HTTP sessions.
+
+- **Cartography & Layer Format Defaults**:
+  - ColorBrewer CVD-safe `BrBG` ramps for NDVI/NDRE.
+  - Text buffer halos (0.8mm round-join), priority configuration, and obstacle avoidance in `apply_labels`.
+  - StdDev, Pretty Breaks, and Logarithmic classification modes in `apply_graduated_style`.
+  - Dynamic `_geographic_z_factor()` for DEM hillshade and slope on geographic CRS.
+  - GeoPackage database style persistence (`saveStyleToDatabase`), UTF-8 shapefile encoding fallback, and SpatiaLite spatial index creation.
+
+- **Code Quality, CI & Verification**:
+  - Configured `[tool.ruff]` and `[tool.mypy]` in `pyproject.toml`.
+  - Enhanced `.github/workflows/tests.yml` with ruff linting and release zip integrity verification.
+  - Total tests passing: **1,904 tests, 0 failures, 0 errors, 38 skipped** (+133 tests added).
+  - Package size verified: `cartogen_ai.zip` at **1.41 MB**.
 
 <a id="v1-15-6"></a>
 ## [1.15.6] — 2026-09-18 — Stable, promoted from rc6

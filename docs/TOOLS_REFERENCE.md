@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (169 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (171 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -163,12 +163,12 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file.
+Export layer attribute table to CSV file. output_path is optional -- omit it to save beside the layer's own source file (or to Desktop for a scratch/memory layer with no on-disk source).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `output_path` | string | yes |  |
+| `output_path` | string | no |  |
 
 ### `generate_html_dashboard`
 
@@ -179,6 +179,7 @@ Generate an interactive HTML situation dashboard (Leaflet/Folium map with layer 
 | `layers` | array[object] | yes | One or more layers to include, each rendered as its own toggleable overlay. |
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
 | `output_path` | string | no | Where to save the HTML file. Defaults to a temp file. |
+| `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
 
 ### `generate_report`
 
@@ -210,6 +211,7 @@ Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or m
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
 | `output_path` | string | no | Where to save the HTML file. Defaults to a temp file. |
 | `step_days` | integer | no | Slider step size / play-button advance, in days. Defaults to 30. |
+| `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
 
 ### `print_map`
 
@@ -452,7 +454,7 @@ Cancel a recurring workflow schedule started with schedule_recurring_workflow.
 
 ### `create_print_layout`
 
-Create a map print layout composition with title, legend, scalebar, north arrow, and an optional summary text panel -- then optionally export it. Exports at output_path if given: '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image at the given dpi (default 300, print quality). ALWAYS use this instead of hand-writing QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter code via execute_pyqgis_script, even for a richer composition than this tool's parameters look like they cover -- body_text accepts multi-line text (use \n between bullets/findings for a summary panel), and the legend/scale bar/north arrow are already included, so accepting this tool's defaults for those is strongly preferred over reimplementing the object-graph by hand. Hand-written layout code has repeatedly produced silently broken exports in live testing (a blank map area with no visible error, and real PyQGIS/Qt API mistakes, e.g. QFont.Italic and QgsLegendStyle.Item are not real attributes) that this tool doesn't have. The map area captures whatever extent is currently on screen -- pass zoom_to_layer to fit a specific layer's full extent first (e.g. the national boundary layer for a country-wide sitrep map); otherwise a stale or zoomed-in canvas view produces a cropped map missing large parts of the area of interest. `title` and `body_text` must only describe real, verified findings -- never invent incidents, casualties, threat assessments, severity ratings, or other real-world claims to make a report look complete. If you don't have verified data for what's being asked, say so in your chat response instead of writing placeholder or invented content into this layout -- a printed/exported layout reads as an authoritative finished document, not a draft, so anything fabricated here is far more likely to be trusted and acted on than the same claim in chat. Every export from this tool carries a standing disclaimer footer for exactly this reason, but that does not excuse writing fabricated content in the first place.
+Create a map print layout composition with title, legend, scalebar, north arrow, and an optional summary text panel -- then optionally export it. Exports at output_path if given: '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image at the given dpi (default 300, print quality). ALWAYS use this instead of hand-writing QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter code via execute_pyqgis_script, even for a richer composition than this tool's parameters look like they cover -- body_text accepts multi-line text (use \n between bullets/findings for a summary panel), and the legend/scale bar/north arrow are already included, so accepting this tool's defaults for those is strongly preferred over reimplementing the object-graph by hand. Hand-written layout code has repeatedly produced silently broken exports in live testing (a blank map area with no visible error, and real PyQGIS/Qt API mistakes, e.g. QFont.Italic and QgsLegendStyle.Item are not real attributes) that this tool doesn't have. The map area captures whatever extent is currently on screen -- pass zoom_to_layer to fit a specific layer's full extent first (e.g. the national boundary layer for a country-wide sitrep map); otherwise a stale or zoomed-in canvas view produces a cropped map missing large parts of the area of interest. `title` and `body_text` must only describe real, verified findings -- never invent incidents, casualties, threat assessments, severity ratings, or other real-world claims to make a report look complete. If you don't have verified data for what's being asked, say so in your chat response instead of writing placeholder or invented content into this layout -- a printed/exported layout reads as an authoritative finished document, not a draft, so anything fabricated here is far more likely to be trusted and acted on than the same claim in chat. Every export from this tool carries a standing disclaimer footer for exactly this reason, but that does not excuse writing fabricated content in the first place. Also includes a coordinate graticule, a CRS/datum + representative-fraction scale label ('1:N', alongside the graphical scale bar), and -- when include_inset_map is true -- a small locator/inset map showing where the main map sits within a wider surrounding area.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -462,6 +464,7 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `dpi` | integer | no | Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality). |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
+| `include_inset_map` | boolean | no | Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true. |
 
 ### `export_layout_atlas`
 
@@ -771,6 +774,8 @@ Generate a bar, pie, or line chart image from labeled numeric data -- for statis
 | `x_label` | string | no | X-axis label. Ignored for pie charts. |
 | `y_label` | string | no | Y-axis label. Ignored for pie charts. |
 | `output_path` | string | no | Where to save the PNG. Defaults to a temp file. |
+| `color_palette` | array[string] | no | Optional list of hex colors (e.g. ['#0072B2', '#E69F00']) to use instead of the default colorblind-safe palette -- cycled if there are more categories than colors. |
+| `dpi` | integer | no | Export resolution in DPI. Defaults to 300 (print quality). |
 
 ### `generate_sector_coverage_report`
 
@@ -849,7 +854,8 @@ Apply smart graduated choropleth style analyzing field distribution for optimal 
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `field` | string | yes |  |
-| `mode` | string | no | 'auto' (default), 'equal', or 'quantile'. Ignored if breaks is given. |
+| `mode` | string | no | 'auto' (default), 'equal', 'quantile', 'stddev' (classes centered on the mean +/- N standard deviations), 'pretty' (rounded, human-friendly breaks for a public-facing map), or 'logarithmic' (log-spaced classes for heavily right-skewed data spanning orders of magnitude, e.g. population or income -- needs all-positive, non-identical values). Ignored if breaks is given. |
+| `num_classes` | integer | no | Number of classes to split the data into. Defaults to 5. Ignored if breaks is given. |
 | `opacity` | number | no | 0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap underneath stay visible) and 100 for points/lines. |
 | `cluster` | string | no | Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp toward that cluster's color instead of the auto-selected one. |
 | `breaks` | array[number] | no | Optional explicit class-boundary values (e.g. operational response thresholds), sorted ascending -- when given, these define the classes directly instead of an auto-selected classification method, overriding 'mode'. Data's actual min/max become the outer class bounds. |
@@ -864,7 +870,9 @@ Apply a graduated (proportional) SYMBOL SIZE style to a point layer -- circles s
 | `field` | string | yes |  |
 | `min_size` | number | no | Smallest symbol size in mm. Defaults to 4. |
 | `max_size` | number | no | Largest symbol size in mm. Defaults to 24. |
-| `mode` | string | no | 'auto' (default), 'equal', or 'quantile'. |
+| `mode` | string | no | 'auto' (default), 'equal', 'quantile', 'stddev', or 'pretty'. |
+| `num_classes` | integer | no | Target number of size classes. Defaults to 5, capped down to the field's actual number of distinct values if fewer. |
+| `color` | string | no | Hex color (e.g. '#3182bd') for every symbol -- size carries the meaning here, not color. Defaults to a semi-transparent blue. |
 
 ### `apply_heatmap_style`
 
@@ -874,6 +882,16 @@ Apply heatmap renderer to point layer.
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `field` | string | no |  |
+
+### `apply_point_cluster_style`
+
+Applies a point cluster or point displacement renderer to a point layer so overlapping or densely clustered points are cleanly grouped on the map rather than drawing on top of each other. Mode 'cluster' (default) aggregates nearby points within a distance threshold into numeric cluster badges; mode 'displacement' displays co-located or overlapping points arranged in a clean ring/spiral circle around the central coordinate.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Point layer to apply clustering/displacement to. |
+| `mode` | string | no | 'cluster' (default) for aggregate numeric count badges, 'displacement' for circle/ring offset around overlaps. |
+| `tolerance` | number | no | Cluster distance tolerance in millimeters (default 15.0 mm). |
 
 ### `apply_rule_based_style`
 
@@ -901,6 +919,15 @@ Change layer symbol fill/line color using hex string.
 | `color_hex` | string | yes |  |
 | `opacity` | number | no | Optional, 0-100. Leaves current opacity unchanged if omitted. |
 
+### `export_layer_sld`
+
+Exports a vector layer's symbology to an OGC SLD (Styled Layer Descriptor 1.1.0/1.0.0) file on disk. Use this when publishing styles to GeoServer/MapServer or sharing interoperable OGC styling with external GIS portals. Without output_path, saves beside the source file as '<source>.sld' (or to Desktop for scratch/memory layers).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Vector layer to export styling from. |
+| `output_path` | string | no | Optional explicit .sld file path. Defaults to beside the layer's source file. |
+
 ### `hotspot_analysis`
 
 Compute a kernel density estimation surface from a point layer -- a real statistical density raster (higher values = more points/higher intensity nearby), not just a visual-only renderer. apply_heatmap_style changes how a layer LOOKS on screen but produces no reusable data; this tool produces an actual raster you can run zonal_statistics against (e.g. rank districts by incident density) or feed into weighted_overlay_analysis for risk-surface analysis. Use this for real hotspot/risk-concentration analysis, apply_heatmap_style for a quick visual only.
@@ -923,7 +950,7 @@ Loads a previously saved .qml style file (from save_layer_style, or exported man
 
 ### `save_layer_style`
 
-Saves a layer's current symbology (renderer, colors, classification, labeling) to a real .qml style file on disk, so it can be reapplied later to this or another layer with load_layer_style -- for reusing a standard color scheme/classification across multiple layers or maps instead of rebuilding it with apply_categorized_style/apply_graduated_style every time. Without output_path, the file is saved beside the layer's own on-disk source (as '<source>.qml'); for a scratch/memory layer with no real source, it falls back to Desktop instead.
+Saves a layer's current symbology (renderer, colors, classification, labeling) to a real .qml style file on disk, so it can be reapplied later to this or another layer with load_layer_style -- for reusing a standard color scheme/classification across multiple layers or maps instead of rebuilding it with apply_categorized_style/apply_graduated_style every time. Without output_path, the file is saved beside the layer's own on-disk source (as '<source>.qml'); for a scratch/memory layer with no real source, it falls back to Desktop instead. For a GeoPackage-backed layer, the style is ALSO written into the GeoPackage's own layer_styles table (OGC 12-128r17) so it travels with the .gpkg file itself -- e.g. opening it in another QGIS install or a different GIS package that reads that table -- not just as an external sidecar that can be misplaced or left behind.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1063,13 +1090,15 @@ Load vector or raster file from a local path or remote URL (e.g. a GeoJSON downl
 
 ### `apply_labels`
 
-Apply text labels to a vector layer, either from a single field (target_field) or a QGIS expression combining multiple fields/literals (expression) -- e.g. a governorate name, P-code, and a count combined into one label like "Sa'dah [YE22 | 4 Orgs]" via "adm1_name || ' [' || adm1_pcode || ' | ' || org_count || ' Orgs]'" -- instead of hand-writing QgsPalLayerSettings code via execute_pyqgis_script for a combined label. Pass exactly one of target_field/expression.
+Apply text labels to a vector layer, either from a single field (target_field) or a QGIS expression combining multiple fields/literals (expression) -- e.g. a governorate name, P-code, and a count combined into one label like "Sa'dah [YE22 | 4 Orgs]" via "adm1_name || ' [' || adm1_pcode || ' | ' || org_count || ' Orgs]'" -- instead of hand-writing QgsPalLayerSettings code via execute_pyqgis_script for a combined label. Pass exactly one of target_field/expression. Applies a white text halo/buffer by default so labels stay legible over dense polygons or dark rasters, and -- for point layers -- an 8-position ordered placement with collision avoidance instead of an arbitrary single position.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `target_field` | string | no | A single field to label from. Omit if using expression instead. |
 | `expression` | string | no | A QGIS expression combining multiple fields/literals into one label. Omit if using target_field instead. |
+| `font_size` | number | no | Label text point size. Defaults to 10 -- pass a larger value for higher-hierarchy features (e.g. a capital vs. a village) and a smaller one for dense point layers. |
+| `priority` | number | no | PAL anti-collision priority, 0 (lowest) to 10 (highest). Defaults to 5. Higher-priority labels win when two labels would otherwise overlap. |
 
 ### `buffer_analysis`
 
@@ -1521,12 +1550,13 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 
 ### `fetch_gdacs_disaster_alerts` _(two-phase)_
 
-Fetch current UN-coordinated disaster alerts from GDACS (Global Disaster Alert and Coordination System) -- earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts -- each with a human-assigned Green/Orange/Red severity, and load them as a point layer. GDACS's own terms of use (verified 2026-09-12) state that its automated alerts and impact estimations 'may require further validation' and 'should not be used for decision making without prior confirmation of their validity' -- pass this caveat along if a user asks about acting on a specific alert. Free, no API key. Defaults to Orange and above (excludes minor/localized Green advisories) -- pass min_alert_level='Green' to include everything. IMPORTANT: bbox (when given) is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_active_fires and fetch_nasa_eonet_events. Re-running this tool REPLACES the layer's features with the latest fetch, so it's safe to schedule on a recurring interval.
+Fetch current UN-coordinated disaster alerts from GDACS (Global Disaster Alert and Coordination System) -- earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts -- each with a human-assigned Green/Orange/Red severity, and load them as a point layer. GDACS's own terms of use (verified 2026-09-12) state that its automated alerts and impact estimations 'may require further validation' and 'should not be used for decision making without prior confirmation of their validity' -- pass this caveat along if a user asks about acting on a specific alert. Free, no API key. Defaults to Orange and above (excludes minor/localized Green advisories) -- pass min_alert_level='Green' to include everything. IMPORTANT: bbox (when given) is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_active_fires and fetch_nasa_eonet_events. IMPORTANT: if the user names a specific place ('the latest GDACS alerts for Yemen') rather than giving coordinates, pass country (e.g. country='Yemen') -- omitting BOTH bbox and country returns every alert worldwide, which is very rarely what a place-scoped request actually wants. Re-running this tool REPLACES the layer's features with the latest fetch, so it's safe to schedule on a recurring interval.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage. |
 | `min_alert_level` | string | no | Minimum alert level to include: 'Green', 'Orange' (default), or 'Red'. |
+| `country` | string | no | Optional country name to scope results to (case-insensitive substring match against GDACS's own per-alert country field, e.g. 'Yemen'). Use this or bbox (or both) whenever the user named a specific place -- don't leave both empty for a place-scoped request. |
 | `layer_name` | string | no | Name for the layer. Defaults to 'GDACS Disaster Alerts'. Re-fetching with the same name replaces its features rather than duplicating them. |
 
 ### `fetch_nasa_active_fires` _(two-phase)_
