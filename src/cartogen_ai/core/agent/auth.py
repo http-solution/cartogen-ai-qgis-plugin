@@ -10,6 +10,8 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
+from ..logger import log_info, log_warning, log_error
+
 
 class CredentialManager:
     """Manages API keys securely using QgsAuthManager when available."""
@@ -85,7 +87,7 @@ class CredentialManager:
                     if existing_auth_id:
                         settings.remove(auth_id_setting)
             except Exception as e:
-                print(f"[CredentialManager] QgsAuthManager save failed, falling back to QgsSettings: {e}")
+                log_warning(f"QgsAuthManager save failed, falling back to QgsSettings: {e}", tag="CredentialManager")
                 try:
                     QgsSettings().remove(auth_id_setting)
                 except Exception:
@@ -104,7 +106,7 @@ class CredentialManager:
                 CredentialManager._plaintext_fallback_providers.add(provider)
                 return True
             except Exception as e:
-                print(f"[CredentialManager] QgsSettings save failed: {e}")
+                log_error(f"QgsSettings save failed: {e}", tag="CredentialManager")
         return False
 
     @staticmethod
@@ -332,7 +334,7 @@ class CredentialManager:
                         if pwd:
                             return pwd
             except Exception as e:
-                print(f"[CredentialManager] QgsAuthManager load failed: {e}")
+                log_warning(f"QgsAuthManager load failed: {e}", tag="CredentialManager")
 
         # Fallback to QgsSettings — same mapping save_credential writes to.
         fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(

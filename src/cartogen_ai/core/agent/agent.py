@@ -55,13 +55,14 @@ from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
 from .prompts import build_system_prompt
 from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
+from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from .tools._snapshot_registry import get_snapshot_fn
 from . import tool_operations
 from .transactions import TurnTransactionLog
 from . import learning
 from . import onboarding_profile
+from ..logger import log_info, log_warning, log_error
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
 # extraction), and never touch qgis.core/Qt objects. These are safe to run
@@ -1255,7 +1256,7 @@ class CartogenAi:
                 # recurs, this sequence in the QGIS Python Console will show whether an
                 # earlier call in the same turn errored and the model silently recovered
                 # from it without updating its final summary to match.
-                print(f"[Agent] Tool call: {name}({str(arguments)[:300]})")
+                log_info(f"Tool call: {name}({str(arguments)[:300]})", tag="Agent")
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "running", None)
@@ -1264,7 +1265,10 @@ class CartogenAi:
                 tool_result = self._execute_tool(name, arguments)
                 is_error = isinstance(tool_result, dict) and "error" in tool_result
                 turn_tool_log.append((name, is_error, tool_result.get("error") if is_error else None))
-                print(f"[Agent] Tool {name} {'FAILED' if is_error else 'succeeded'}: {str(tool_result)[:300]}")
+                if is_error:
+                    log_error(f"Tool {name} FAILED: {str(tool_result)[:300]}", tag="Agent")
+                else:
+                    log_info(f"Tool {name} succeeded: {str(tool_result)[:300]}", tag="Agent")
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "failed" if is_error else "done", tool_result.get("error") if is_error else None)

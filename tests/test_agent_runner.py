@@ -763,5 +763,30 @@ class TestHistoryDigestOnTrim(unittest.TestCase):
         self.assertIs(agent._get_history_lock(), lock)
 
 
+class TestExceptionsAndLogging(unittest.TestCase):
+    def test_cartogen_exception_hierarchy(self):
+        from cartogen_ai.core.exceptions import (
+            CartogenError, ApiError, SpatialValidationError, SecuritySandboxError
+        )
+        e = ApiError("rate limited", provider="gemini", status_code=429)
+        self.assertIsInstance(e, CartogenError)
+        d = e.to_dict()
+        self.assertIn("error", d)
+        self.assertEqual(d["details"]["status_code"], 429)
+
+        s = SpatialValidationError("CRS mismatch", layer_name="roads")
+        self.assertEqual(s.details["layer_name"], "roads")
+
+        sec = SecuritySandboxError("import os blocked", blocked_ident="os")
+        self.assertEqual(sec.blocked_ident, "os")
+
+    def test_logger_functions(self):
+        from cartogen_ai.core.logger import log_info, log_warning, log_error
+        # Verify logging executes cleanly without throwing
+        log_info("Test informational message", tag="Test")
+        log_warning("Test warning message", tag="Test")
+        log_error("Test error message", tag="Test")
+
+
 if __name__ == "__main__":
     unittest.main()
