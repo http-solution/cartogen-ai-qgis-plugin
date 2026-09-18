@@ -272,12 +272,14 @@ TOOL_OPERATION_TYPES = {
     "apply_graduated_symbol_style": MODIFY,
     "apply_rule_based_style": MODIFY,
     "apply_heatmap_style": MODIFY,
+    "apply_point_cluster_style": MODIFY,
     "hotspot_analysis": CREATE,
     "change_layer_color": MODIFY,
     "set_layer_transparency": MODIFY,
     "auto_arrange_layer_order": MODIFY,
     "set_layer_order": MODIFY,
     "save_layer_style": PUBLISH,
+    "export_layer_sld": PUBLISH,
     "load_layer_style": MODIFY,
 
     # -- cartographic_advisory_tools.py --

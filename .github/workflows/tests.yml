@@ -55,3 +55,15 @@ jobs:
       - name: Byte-compile check
         run: |
           find . -name "*.py" -not -path "./.git/*" -print0 | xargs -0 -n1 python -m py_compile
+
+      - name: Lint with Ruff
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Verify release zip packaging
+        run: |
+          python plugin_upload.py
+          test -f cartogen_ai.zip
+          test -f dist/cartogen_ai_v*.zip
+          python -c "import zipfile, os; z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist(); assert any('cartogen-ai/metadata.txt' in n for n in names); assert any('cartogen-ai/src/cartogen_ai/core/agent/agent.py' in n for n in names); size_mb = os.path.getsize('cartogen_ai.zip') / (1024*1024); assert size_mb < 20.0, f'Package exceeds 20MB limit: {size_mb}MB'; print(f'Release ZIP verified: {len(names)} files, {size_mb:.2f}MB')"

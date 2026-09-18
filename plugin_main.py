@@ -28,7 +28,7 @@ except ImportError:
 
 from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
-from qgis.core import QgsSettings, QgsProject
+from qgis.core import QgsSettings, QgsProject, QgsApplication
 
 SETTINGS_KEY = "cartogen_ai/api_key"
 HELP_LAST_SHOWN_VERSION_KEY = "cartogen_ai/help_last_shown_version"
@@ -79,6 +79,8 @@ class CartogenAi:
         self._help_dialog = None
         self._agent = None
         self._agent_key = None
+        self._first_use_timer = None
+        self._processing_provider = None
 
     def tr(self, message):
         return QCoreApplication.translate("CartogenAi", message)
@@ -116,6 +118,7 @@ class CartogenAi:
         help_action.triggered.connect(self.show_help)
         self.iface.addPluginToMenu(self.menu, help_action)
         self.actions.append(help_action)
+        self.initProcessing()
 
         # The agent instance and dock widget are cached/reused across QGIS
         # project switches (see _get_agent()), so without this the chat panel
@@ -132,7 +135,22 @@ class CartogenAi:
         # runs it on the next pass of the Qt event loop instead, once QGIS has finished
         # settling -- the same "defer heavy/UI work out of initGui()" caution this codebase
         # already follows elsewhere.
-        QTimer.singleShot(0, self._maybe_show_first_use_dialogs)
+        timer = QTimer(self.iface.mainWindow() if self.iface else None)
+        timer.setSingleShot(True)
+        timer.timeout.connect(self._maybe_show_first_use_dialogs)
+        self._first_use_timer = timer
+        timer.start(0)
+
+    def initProcessing(self):
+        """Registers Cartogen AI's Processing algorithms with QGIS Processing Framework."""
+        if self._processing_provider is None:
+            try:
+                from cartogen_ai.processing.provider import CartogenProcessingProvider
+                self._processing_provider = CartogenProcessingProvider()
+                QgsApplication.processingRegistry().addProvider(self._processing_provider)
+                print("[CartogenAi] Processing provider registered")
+            except Exception as e:
+                print(f"[CartogenAi] Processing provider registration failed: {e}")
 
     def _maybe_show_first_use_dialogs(self):
         """First-use onboarding (role/experience/communication-style profile, real-session
@@ -152,6 +170,7 @@ class CartogenAi:
         if last_shown_version != current_version:
             self.show_help()
             settings.setValue(HELP_LAST_SHOWN_VERSION_KEY, current_version)
+        self._first_use_timer = None
 
     def _on_project_changed(self, *_args):
         if self._agent is not None:
@@ -167,6 +186,13 @@ class CartogenAi:
 
     def unload(self):
         print("[CartogenAi] unload()")
+        if self._first_use_timer is not None:
+            try:
+                self._first_use_timer.stop()
+            except Exception:
+                pass
+            self._first_use_timer = None
+
         try:
             project = QgsProject.instance()
             project.readProject.disconnect(self._on_project_changed)
@@ -179,6 +205,14 @@ class CartogenAi:
             get_scheduler().stop_all()
         except Exception as e:
             print(f"[CartogenAi] scheduler stop_all failed: {e}")
+
+        if self._processing_provider is not None:
+            try:
+                QgsApplication.processingRegistry().removeProvider(self._processing_provider)
+                print("[CartogenAi] Processing provider removed")
+            except Exception as e:
+                print(f"[CartogenAi] Processing provider removal failed: {e}")
+            self._processing_provider = None
 
         if self.dock_widget is not None:
             # QGIS-002, 2026-09-13 audit: an in-flight AgentQgsTask used to keep running on
