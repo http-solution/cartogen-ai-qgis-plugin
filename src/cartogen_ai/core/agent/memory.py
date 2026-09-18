@@ -16,10 +16,12 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-
-PROJECT_MEMORY_KEY = "cartogen_ai/project_memory"
-GLOBAL_MEMORY_KEY = "cartogen_ai/global_memory"
-PERSIST_PROJECT_MEMORY_KEY = "cartogen_ai/persist_project_memory"
+from ...infrastructure.settings_keys import (
+    PROJECT_PROPERTY_MEMORY as PROJECT_MEMORY_KEY,
+    SETTINGS_GLOBAL_MEMORY as GLOBAL_MEMORY_KEY,
+    SETTINGS_PERSIST_PROJECT_MEMORY as PERSIST_PROJECT_MEMORY_KEY,
+)
+from ..logger import log_warning, log_error
 
 
 def is_project_memory_persist_enabled() -> bool:
@@ -184,8 +186,8 @@ class SpatialMemoryManager:
             conn.close()
             for k, v in rows:
                 self._in_memory_project_notes[k] = v
-        except Exception:
-            pass
+        except Exception as e:
+            log_warning(f"Failed to read project memory from SQLite: {e}", tag="MemoryManager")
 
         if QGIS_AVAILABLE:
             try:
@@ -194,8 +196,8 @@ class SpatialMemoryManager:
                     loaded = json.loads(raw)
                     if isinstance(loaded, dict):
                         self._in_memory_project_notes.update(loaded)
-            except Exception:
-                pass
+            except Exception as e:
+                log_warning(f"Failed to read project memory from QgsProject: {e}", tag="MemoryManager")
 
         return dict(self._in_memory_project_notes)
 
@@ -209,7 +211,7 @@ class SpatialMemoryManager:
                 notes[key] = value
                 settings.setValue(GLOBAL_MEMORY_KEY, json.dumps(notes))
             except Exception as e:
-                print(f"[MemoryManager] Failed to persist global note: {e}")
+                log_error(f"Failed to persist global note: {e}", tag="MemoryManager")
         return {"success": True, "key": key, "value": value, "scope": "global"}
 
     def get_global_notes(self) -> dict:
@@ -222,8 +224,8 @@ class SpatialMemoryManager:
                     loaded = json.loads(raw)
                     if isinstance(loaded, dict):
                         self._in_memory_global_notes.update(loaded)
-            except Exception:
-                pass
+            except Exception as e:
+                log_warning(f"Failed to read global notes from QgsSettings: {e}", tag="MemoryManager")
         return dict(self._in_memory_global_notes)
 
     def clear_global_notes(self) -> dict:
@@ -246,7 +248,7 @@ class SpatialMemoryManager:
                 settings = QgsSettings()
                 settings.setValue(GLOBAL_MEMORY_KEY, json.dumps({}))
             except Exception as e:
-                print(f"[MemoryManager] Failed to clear global notes: {e}")
+                log_error(f"Failed to clear global notes: {e}", tag="MemoryManager")
         return {"success": True, "scope": "global"}
 
     def delete_global_note(self, key: str) -> dict:
@@ -264,7 +266,7 @@ class SpatialMemoryManager:
                 settings = QgsSettings()
                 settings.setValue(GLOBAL_MEMORY_KEY, json.dumps(self._in_memory_global_notes))
             except Exception as e:
-                print(f"[MemoryManager] Failed to persist global note deletion: {e}")
+                log_error(f"Failed to persist global note deletion: {e}", tag="MemoryManager")
         return {"success": True, "key": key, "existed": existed, "scope": "global"}
 
     def log_spatial_action(self, action: str, details: str):
@@ -280,8 +282,9 @@ class SpatialMemoryManager:
             cursor.execute("INSERT INTO spatial_actions (action, details) VALUES (?, ?)", (action, details))
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log_warning(f"Failed to log spatial action to SQLite: {e}", tag="MemoryManager")
+
 
     def get_action_history(self) -> list:
         return list(self._in_memory_actions)

@@ -83,6 +83,11 @@ Major release executing the full Part A remediation plan, closing all confirmed 
 
 - **Cartography & Layer Format Defaults**:
   - ColorBrewer CVD-safe `BrBG` ramps for NDVI/NDRE.
+  - Added `create_shaded_relief(dem_layer, color_ramp, azimuth, altitude, opacity)` combining hypsometric pseudocolor elevation tinting with hillshade using Multiply blending (`QPainter.CompositionMode_Multiply`).
+  - Added preflight checks in `export_layer` for ESRI Shapefile exports detecting field names > 10 characters and post-truncation name collisions, warning users and suggesting GeoPackage.
+  - Centralized all `cartogen_ai/*` QgsSettings and QgsProject properties into `infrastructure.settings_keys`.
+  - Replaced silent `except Exception: pass` sites with structured logging in `memory.py`, `auth.py`, and `chat_tab_widget.py`.
+
   - Text buffer halos (0.8mm round-join), priority configuration, and obstacle avoidance in `apply_labels`.
   - StdDev, Pretty Breaks, and Logarithmic classification modes in `apply_graduated_style`.
   - Dynamic `_geographic_z_factor()` for DEM hillshade and slope on geographic CRS.

@@ -37,6 +37,7 @@ from qgis.PyQt.QtWidgets import (
     QPushButton, QTextEdit, QGroupBox,
 )
 from qgis.core import QgsSettings
+from ..logger import log_warning
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
@@ -451,8 +452,8 @@ class ChatTabWidget(QWidget):
                         self._pending_restore_ts = entry.get("ts")
                         self._dock.receiveMessageSignal.emit("user" if role == "user" else "ai", content)
                         restored = True
-            except Exception:
-                pass
+            except Exception as e:
+                log_warning(f"Failed to restore chat history: {e}", tag="ChatTabWidget")
 
         if restored:
             self._dock.receiveMessageSignal.emit("ai", "_(Restored previous conversation for this project.)_")

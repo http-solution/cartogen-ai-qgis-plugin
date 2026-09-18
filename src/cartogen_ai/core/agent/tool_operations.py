@@ -232,6 +232,7 @@ TOOL_OPERATION_TYPES = {
     "georeference_image": CREATE,
     "estimate_population_exposure": READ,
     "apply_raster_stretch": MODIFY,
+    "create_shaded_relief": CREATE,
 
     # -- reporting_tools.py --
     "generate_chart": PUBLISH,

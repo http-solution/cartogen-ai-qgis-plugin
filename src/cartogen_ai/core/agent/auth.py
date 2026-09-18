@@ -90,8 +90,9 @@ class CredentialManager:
                 log_warning(f"QgsAuthManager save failed, falling back to QgsSettings: {e}", tag="CredentialManager")
                 try:
                     QgsSettings().remove(auth_id_setting)
-                except Exception:
-                    pass
+                except Exception as ex:
+                    log_warning(f"Could not remove stale auth_id_setting: {ex}", tag="CredentialManager")
+
 
         # Fallback to QgsSettings — uses the SAME key mapping get_credential reads from.
         # This path stores the key in plaintext (on Windows, the registry), unlike
