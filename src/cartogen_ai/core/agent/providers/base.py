@@ -23,6 +23,29 @@ DEFAULT_BACKOFF_SECONDS = 1.5
 RATE_LIMIT_BACKOFF_SECONDS = 10
 RATE_LIMIT_MAX_RETRIES = 3
 
+# QGIS Network Access Manager proxy integration (Phase 8):
+# If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
+# extract them so requests calls don't bypass user network configurations.
+def get_qgis_proxy_dict():
+    try:
+        from qgis.core import QgsNetworkAccessManager
+        from qgis.PyQt.QtNetwork import QNetworkProxy
+        nam = QgsNetworkAccessManager.instance()
+        if nam is not None:
+            proxy = nam.fallbackProxySettings()
+            if proxy.type() != QNetworkProxy.ProxyType.NoProxy if hasattr(QNetworkProxy, "ProxyType") else proxy.type() != 0:
+                host = proxy.hostName()
+                port = proxy.port()
+                user = proxy.user()
+                password = proxy.password()
+                if host:
+                    auth = f"{user}:{password}@" if user else ""
+                    proxy_url = f"http://{auth}{host}:{port}"
+                    return {"http": proxy_url, "https": proxy_url}
+    except Exception:
+        pass
+    return None
+
 # Only claude.py previously capped output size (its own local DEFAULT_MAX_TOKENS,
 # same value, left as-is there rather than migrated here for no functional
 # reason). Every other raw-requests client sent no max_tokens at all -- rarely
@@ -73,8 +96,9 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
     """Shared HTTP POST for every provider's raw requests-based client -- see
     _request_with_retry for the retry behavior. Drop-in replacement for a bare
     requests.post(...) call."""
+    proxies = get_qgis_proxy_dict()
     return _request_with_retry(
-        lambda: requests.post(url, headers=headers, data=payload_json, timeout=timeout),
+        lambda: requests.post(url, headers=headers, data=payload_json, timeout=timeout, proxies=proxies),
         timeout, max_retries,
     )
 
@@ -86,8 +110,9 @@ def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
     (e.g. populating the settings dialog's model dropdown) used to fail outright with no retry,
     inconsistent with every other HTTP call this codebase makes. Same retry/backoff behavior as
     post_with_retry, just for GET -- drop-in replacement for a bare requests.get(...) call."""
+    proxies = get_qgis_proxy_dict()
     return _request_with_retry(
-        lambda: requests.get(url, headers=headers, timeout=timeout),
+        lambda: requests.get(url, headers=headers, timeout=timeout, proxies=proxies),
         timeout, max_retries,
     )
 

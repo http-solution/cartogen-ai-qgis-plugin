@@ -1249,5 +1249,18 @@ class TestClaudePromptCaching(unittest.TestCase):
         self.assertNotIn("cache_control", sent_payload)
 
 
+class TestQgisProxyIntegration(unittest.TestCase):
+    @patch("cartogen_ai.core.agent.providers.base.get_qgis_proxy_dict")
+    @patch("cartogen_ai.core.agent.providers.base.requests.post")
+    def test_post_with_retry_uses_qgis_proxies(self, mock_post, mock_get_proxy):
+        from cartogen_ai.core.agent.providers.base import post_with_retry
+        mock_get_proxy.return_value = {"http": "http://proxy.local:8080", "https": "http://proxy.local:8080"}
+        mock_resp = MagicMock(status_code=200)
+        mock_post.return_value = mock_resp
+
+        post_with_retry("https://api.test.com", {}, "{}", timeout=10)
+        self.assertEqual(mock_post.call_args[1]["proxies"], {"http": "http://proxy.local:8080", "https": "http://proxy.local:8080"})
+
+
 if __name__ == "__main__":
     unittest.main()
