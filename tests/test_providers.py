@@ -1091,6 +1091,24 @@ class TestOpenRouterAnthropicCacheControl(unittest.TestCase):
             sent_payload["messages"][0]["content"][0]["cache_control"], {"type": "ephemeral"}
         )
 
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
+    def test_top_level_cache_control_set_for_anthropic_model(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+        client = openrouter_mod.OpenRouterClient(api_key="dummy", model="anthropic/claude-opus-5")
+        client._post([{"role": "user", "content": "hi"}], None, "anthropic/claude-opus-5")
+
+        sent_payload = json.loads(mock_post.call_args[0][2])
+        self.assertEqual(sent_payload["cache_control"], {"type": "ephemeral"})
+
+    @patch("cartogen_ai.core.agent.providers.openrouter.post_with_retry")
+    def test_no_top_level_cache_control_for_non_anthropic_model(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+        client = openrouter_mod.OpenRouterClient(api_key="dummy")
+        client._post([{"role": "user", "content": "hi"}], None, openrouter_mod.FALLBACK_MODELS[0])
+
+        sent_payload = json.loads(mock_post.call_args[0][2])
+        self.assertNotIn("cache_control", sent_payload)
+
 
 class TestMaxTokensCap(unittest.TestCase):
     """Only Claude's client capped output size before this (its own local
@@ -1205,6 +1223,30 @@ class TestClaudePromptCaching(unittest.TestCase):
         self.assertEqual(sent_payload["system"][0]["cache_control"], {"type": "ephemeral"})
         self.assertNotIn("cache_control", sent_payload["tools"][0])
         self.assertEqual(sent_payload["tools"][-1]["cache_control"], {"type": "ephemeral"})
+
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
+    def test_top_level_cache_control_set_for_growing_message_tail(self, mock_post):
+        # 2026-09-19 cost/performance pass: a top-level cache_control field auto-places a
+        # breakpoint on the last cacheable message block (confirmed against Anthropic's own
+        # docs), so a multi-iteration tool-calling turn's growing messages list stops being
+        # reprocessed at full price on every call.
+        mock_post.return_value = _mock_get_response({"content": [{"type": "text", "text": "hi"}], "model": "claude-opus-5"})
+        client = ClaudeClient(api_key="dummy")
+        client.complete([{"role": "user", "content": "hi"}])
+
+        sent_payload = json.loads(mock_post.call_args[0][2])
+        self.assertEqual(sent_payload["cache_control"], {"type": "ephemeral"})
+
+    @patch("cartogen_ai.core.agent.providers.claude.post_with_retry")
+    def test_no_top_level_cache_control_when_no_messages(self, mock_post):
+        # Nothing to cache in the tail when there are no anthropic_messages at all -- avoid
+        # sending a breakpoint with nothing behind it.
+        mock_post.return_value = _mock_get_response({"content": [{"type": "text", "text": "hi"}], "model": "claude-opus-5"})
+        client = ClaudeClient(api_key="dummy")
+        client.complete([{"role": "system", "content": "sys only, no user turn"}])
+
+        sent_payload = json.loads(mock_post.call_args[0][2])
+        self.assertNotIn("cache_control", sent_payload)
 
 
 if __name__ == "__main__":

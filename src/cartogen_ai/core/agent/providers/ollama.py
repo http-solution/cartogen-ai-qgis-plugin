@@ -32,6 +32,18 @@ def list_models(endpoint_url):
         return {"error": format_request_exception("Ollama models list request failed", e) + " (is Ollama running?)"}
 
 
+# Ollama is local compute -- no per-token $ cost, so the 2026-09-19 cost/performance pass
+# (a 4-provider follow-up to the Gemini-specific 88c4764) focused this client on
+# latency/throughput instead. One real lever was investigated and rejected: adding
+# "keep_alive" to the payload below to keep the model resident in memory between turns
+# (avoiding a multi-second reload). Confirmed via live GitHub issues (ollama/ollama#11458,
+# #9355) that keep_alive in the request BODY is silently ignored on the
+# /v1/chat/completions (OpenAI-compatible) endpoint this client uses -- only the native
+# /api/chat endpoint honors it. Adding it here would be dead code masquerading as a fix.
+# The real workaround is server-side (setting the OLLAMA_KEEP_ALIVE env var when starting
+# the Ollama server), which this client has no way to do for the user -- see
+# docs/IMPLEMENTATION_TRACKER.md §2 for the full note. max_tokens (below) already benefits
+# from agent.py's dynamic per-iteration scaling generically, same as every other provider.
 class OllamaClient(BaseAiProvider):
     def __init__(self, endpoint_url="http://localhost:11434/v1/chat/completions", model="llama3.1", status_callback=None):
         self.base_url = endpoint_url
