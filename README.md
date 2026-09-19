@@ -26,7 +26,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (1,904 passed, 0 failures, 38 skipped), while the
+> **Project status:** active Community edition. The automated suite is green (1,916 passed, 0 failures, 38 skipped), while the
 > full pre-release checklist still requires verification in an interactive QGIS session.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.

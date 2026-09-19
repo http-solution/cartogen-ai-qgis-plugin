@@ -24,7 +24,7 @@ license=GNU GPL v2
 
 hasProcessingProvider=yes
 changelog=v1.5.7-rc1 (2026-09-19):
-    Release candidate 1 for 1.5.7: major architectural and cartographic remediation (Part A):
+    Release candidate 1 for 1.5.7: major architectural and cartographic remediation (Part A & Part B):
     - Added native QGIS Processing Provider (cartogen_ai.processing) with OptimalHubSitingAlgorithm
       and CalculateServiceAreaAlgorithm for Graphical Model Designer, batch processing, and headless
       qgis_process CLI execution. Updated metadata to hasProcessingProvider=yes.
@@ -44,13 +44,16 @@ changelog=v1.5.7-rc1 (2026-09-19):
     - Added custom exception hierarchy (cartogen_ai.core.exceptions) and structured logging
       integrated directly with QGIS Message Log (QgsMessageLog) under "Cartogen AI" panel.
     - Integrated QGIS Network Access Manager proxy settings (get_qgis_proxy_dict) into HTTP sessions.
+    - Added create_shaded_relief combining hypsometric tinting with hillshade via Multiply blend mode and opacity validation.
+    - Added Shapefile preflight laundering with collision-loop disambiguation and DBF 10-char warnings.
+    - 100% centralized settings and layer properties into infrastructure.settings_keys with graceful provider import decoupling.
     - Improved cartography defaults: ColorBrewer CVD-safe BrBG ramps, text buffer halos (0.8mm),
       obstacle placement priority, and StdDev/Pretty/Logarithmic classification modes.
     - Added GeoPackage database style persistence, UTF-8 shapefile encoding fallback, and SpatiaLite
       spatial indexing.
     - Enforced thread safety across background task worker threads and GUI thread with RLock guards.
     - Configured ruff and mypy in pyproject.toml, added CI linting and zip packaging validation (<20MB).
-    - Full test suite passing: 1,904 tests (0 failures, 38 skipped; +133 tests added).
+    - Full test suite passing: 1,916 tests (0 failures, 38 skipped; +145 tests added).
 
 v1.15.6 (2026-09-18):
     Promoted to stable from v1.15.6-rc6 -- same code, no changes since that candidate. Six
