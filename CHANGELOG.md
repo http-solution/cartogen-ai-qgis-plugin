@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.5.7-rc2](#v1-5-7-rc2) | 2026-09-19 | **Release candidate 2.** Centralized settings keys, decoupled provider dependencies, hardened shapefile DBF laundering, shaded relief with blend mode, full-phase engineering self-review, and docs synchronization |
 | [1.5.7-rc1](#v1-5-7-rc1) | 2026-09-19 | **Release candidate 1.** QGIS Processing Provider, OGC SLD export, point cluster renderers, OCHA layout elements, geodetics, token economy & caching, structured logging, proxy support, shaded relief, shapefile laundering, settings centralization, and architecture subdivisions |
 | [1.15.6](#v1-15-6) | 2026-09-18 | **Stable.** Promoted from rc6, no code changes -- security/audit remediation, crash root-causes, rate-limit resilience, the orchestrator reliability pass, and the full Broadsheet UI redesign, across 6 release candidates |
 | [1.15.6-rc6](#v1-15-6-rc6) | 2026-09-18 | Release candidate: search_web's dead duckduckgo-search dependency migrated to ddgs, found via an independent audit-verification pass of every RC5 open item |
@@ -38,6 +39,27 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-5-7-rc2"></a>
+## [1.5.7-rc2] — 2026-09-19 — Release candidate 2: Settings centralization, provider decoupling, shapefile DBF laundering, and release stabilization
+
+Release candidate 2 addresses all feedback and remediation items following RC1:
+
+- **100% Settings Centralization (`src/cartogen_ai/infrastructure/settings_keys.py`)**:
+  - Unified all persistent configuration strings, layer custom property keys, and QgsSettings lookup paths into `settings_keys.py`.
+  - Replaced literal key definitions across `plugin_main.py`, `system_tools.py`, dataset sensitivity/status/lineage, layer metadata snapshots, and test suites.
+- **Provider Import Decoupling**:
+  - Made external network library dependencies (`requests`) lazy inside `CartogenProviderBase` and specific provider classes.
+  - Allowed `cartogen_ai.infrastructure` and `settings_keys` to be imported and tested cleanly in minimal Python test environments.
+- **Robust Shapefile Preflight DBF Laundering (`export_tools.py`)**:
+  - Upgraded field name laundering to compute encoded byte length (UTF-8) rather than naive character slices.
+  - Implemented iterative while-loop disambiguation (`_{i}`) to guarantee zero field collisions against pre-existing identically-truncated field names.
+- **Enhanced Shaded Relief Pipeline (`raster_tools.py`)**:
+  - Combined hypsometric tinting with hillshade using QGIS `Multiply` blend mode (`QPainter.CompositionMode_Multiply`).
+  - Added strict opacity validation (0.0–1.0) with explicit exception handling if layer composition fails.
+- **Verification & Testing**:
+  - 100% test pass rate across 1,916 tests (0 failures, 0 errors, 38 skipped).
+  - Packaged and verified release archives (`dist/cartogen_ai_v1.5.7-rc2.zip` and `cartogen_ai.zip`).
 
 <a id="v1-5-7-rc1"></a>
 ## [1.5.7-rc1] — 2026-09-19 — Release candidate 1: QGIS Processing Provider, OGC renderers, geodetics, and architecture remediation
