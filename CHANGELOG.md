@@ -7,6 +7,8 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.5.7-rc4](#v1-5-7-rc4) | 2026-09-20 | **Release candidate 4.** `ingest_osm_features` two-phase OSM vector ingestion + AST sandbox prompt guardrails, and a code-review pass fixing 7 real correctness/security bugs (credential rotation, silent over-export, a reintroduced agent-turn-stalling dialog, an equator/prime-meridian data-loss bug, an opacity-clobber regression, a profiler misclassification) plus a latent circular import |
+| [1.5.7-rc3](#v1-5-7-rc3) | 2026-09-19 | **Release candidate 3.** Pre-release audit remediation and PyQGIS API modernization: minimum QGIS version reconciled to 3.28, `writeAsVectorFormatV3`/`QgsClassificationMethodRegistry` migrations replacing deprecated APIs |
 | [1.5.7-rc2](#v1-5-7-rc2) | 2026-09-19 | **Release candidate 2.** Centralized settings keys, decoupled provider dependencies, hardened shapefile DBF laundering, shaded relief with blend mode, full-phase engineering self-review, and docs synchronization |
 | [1.5.7-rc1](#v1-5-7-rc1) | 2026-09-19 | **Release candidate 1.** QGIS Processing Provider, OGC SLD export, point cluster renderers, OCHA layout elements, geodetics, token economy & caching, structured logging, proxy support, shaded relief, shapefile laundering, settings centralization, and architecture subdivisions |
 | [1.15.6](#v1-15-6) | 2026-09-18 | **Stable.** Promoted from rc6, no code changes -- security/audit remediation, crash root-causes, rate-limit resilience, the orchestrator reliability pass, and the full Broadsheet UI redesign, across 6 release candidates |
@@ -39,6 +41,74 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-5-7-rc4"></a>
+## [1.5.7-rc4] — 2026-09-20 — Release candidate 4: OSM feature ingestion, AST sandbox guardrails, and a 7-bug code-review remediation pass
+
+**Correction to RC3's own changelog entry, found while preparing this release**: a later commit
+(`9f8e146`) directly edited RC3's already-tagged, already-pushed changelog text to retroactively
+claim `ingest_osm_features` and the AST sandbox guardrails shipped in RC3 -- confirmed via `git
+show` against the actual `commercial-plugin-v1.5.7-rc3` tag that neither was present in that
+release. The already-public RC3 tag/entry is left as-is (tags are never rewritten once pushed,
+per this project's own convention), but both features are accurately new here, in RC4, where they
+actually first ship. `CHANGELOG.md`'s own missing `[1.5.7-rc3]` section (this file, unlike
+`metadata.txt`, never got one written at all) is backfilled below this entry.
+
+- **`ingest_osm_features` two-phase vector ingestion tool** (`humanitarian_tools.py`): fetches OSM
+  nodes and polygon ways via the Overpass API into a temporary GeoJSON on the background thread,
+  then safely instantiates the `QgsVectorLayer` on the main Qt thread -- lets the agent
+  autonomously populate an empty project with real facilities/infrastructure data for a given area
+  instead of stalling for lack of a starting layer.
+- **AST sandbox prompt guardrails** (`prompts.py` Rule 6): hardened against the model attempting to
+  bypass `execute_pyqgis_script`'s security sandbox to fetch external data itself, steering it to
+  `ingest_osm_features` instead when a needed layer is simply missing.
+- **Code-review remediation, 7 confirmed correctness/security bugs** (a full multi-angle
+  `/code-review` pass over every commit since the last verified checkpoint, each finding verified
+  against the real current code -- not just the paraphrase -- before being fixed):
+  - `auth.py`: `save_credential()` now reuses the existing `QgsAuthMethodConfig` id on re-save
+    instead of leaking a new orphaned auth-database entry on every API key rotation.
+  - `auth.py`: `get_credential("ollama")` now falls back to the pre-rename
+    `cartogen_ai/ollama_url` setting, so an endpoint configured before the settings-centralization
+    pass isn't silently invisible after upgrading.
+  - `export_tools.py`: `only_selected=True` with nothing actually selected now errors instead of
+    silently exporting the entire layer.
+  - `export_tools.py`: `export_layer`/`_derive_csv_path`/`print_map` no longer pop a blocking modal
+    dialog when `output_path` is omitted -- reverts a regression that reintroduced exactly the
+    agent-turn-stall risk a prior fix (RC-era) had removed.
+  - `humanitarian_tools.py`: `ingest_osm_features_network_phase` no longer drops OSM features
+    sitting exactly on the equator or prime meridian (a falsy-zero `or` bug on `lat`/`lon` `0.0`).
+  - `styling_tools.py`: `change_layer_color()` no longer resets opacity to a geometry-type default
+    when the `opacity` argument is omitted, matching its own documented contract.
+  - `representation/profiler.py`: fixed a vacuous-truth bug that misclassified all-negative
+    numeric fields as `positive_quantity`.
+- **One additional latent bug found while testing the above**: a real circular import between
+  `core.agent.auth` and `infrastructure/__init__.py` (only reproducible when `auth.py` is imported
+  in isolation, which is why the full test suite never caught it) -- fixed by making the
+  `CredentialManager` re-export lazy via `PEP 562` module `__getattr__`.
+- **Verification & Testing**: 1,958 automated tests passing (0 failures, 0 errors, 38 skipped), up
+  from RC3's 1,947 -- 11 new regression tests, one per fix, each reproducing the real bug against
+  the real code before confirming the fix.
+
+<a id="v1-5-7-rc3"></a>
+## [1.5.7-rc3] — 2026-09-19 — Release candidate 3: Pre-release audit remediation and PyQGIS API modernization
+
+Backfilled into this file 2026-09-20 while preparing RC4 -- this section describes what commit
+`9845cb2` (the commit the `commercial-plugin-v1.5.7-rc3` tag actually points to) shipped, matching
+`metadata.txt`'s changelog text for RC3 as it read at that commit, before a later commit edited it
+in place (see the RC4 entry above).
+
+- Reconciled minimum supported QGIS version to 3.28 (Firenze LTR), matching the `Python >=3.9`
+  requirement.
+- Replaced deprecated `QgsVectorFileWriter.writeAsVectorFormatV2` with `writeAsVectorFormatV3` in
+  `export_tools.py`.
+- Replaced deprecated `QgsGraduatedSymbolRenderer.createRenderer` with
+  `QgsClassificationMethodRegistry` in `styling_tools.py`.
+- Packaged and synchronized release archives (`cartogen_ai.zip` and
+  `dist/cartogen_ai_v1.5.7-rc3.zip`) with all 176 tools, the Map Intelligence Engine, and the
+  Intelligent Representation Planner (both introduced earlier in the RC3 development range, on top
+  of RC2).
+- Validated 1,937 automated unit/integration tests passing (38 skipped) and 5/5 live headless QGIS
+  pipeline tests with zero deprecation warnings.
 
 <a id="v1-5-7-rc2"></a>
 ## [1.5.7-rc2] — 2026-09-19 — Release candidate 2: Settings centralization, provider decoupling, shapefile DBF laundering, and release stabilization

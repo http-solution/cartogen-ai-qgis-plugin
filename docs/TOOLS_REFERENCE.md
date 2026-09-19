@@ -164,7 +164,7 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file. output_path is optional -- omit it to prompt a standard Save As dialog (or fall back to Desktop for scratch layers in tests). If features are selected on the layer, only selected features are exported by default.
+Export layer attribute table to CSV file. output_path is optional -- omit it to save beside the layer's own on-disk source (or fall back to Desktop for a scratch/memory layer with no real source file). Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -217,11 +217,11 @@ Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or m
 
 ### `print_map`
 
-Export current QGIS map canvas view to a PDF document or PNG/JPG image. If output_path is omitted or empty in an interactive session, a Save File dialog is presented to the user.
+Export current QGIS map canvas view to a PDF document or PNG/JPG image. output_path is optional -- if omitted, saves a PNG to Desktop without prompting.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `output_path` | string | no | Optional file path with .pdf, .png, or .jpg extension. If omitted, prompts with Save As dialog. |
+| `output_path` | string | no | Optional file path with .pdf, .png, or .jpg extension. If omitted, saves a PNG to Desktop. |
 
 ## Humanitarian Data (HDX / OSM / geoBoundaries)
 
