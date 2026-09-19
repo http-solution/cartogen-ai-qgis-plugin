@@ -761,7 +761,7 @@ def apply_rule_based_style(layer_name, field, rules):
         return {"error": f"apply_rule_based_style failed: {e}"}
 
 
-@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
 def apply_heatmap_style(layer_name, field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -769,12 +769,40 @@ def apply_heatmap_style(layer_name, field=None):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     try:
+        from qgis.core import QgsGradientColorRamp, QgsGradientStop, QgsUnitTypes
+        from qgis.PyQt.QtGui import QColor
+
         renderer = QgsHeatmapRenderer()
         if field and field in [f.name() for f in layer.fields()]:
             renderer.setWeightExpression(f'"{field}"')
-        renderer.setRadius(10)
+        renderer.setRadius(12.0)
+        renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+
+        # CRITICAL: Baseline stop (0.0) MUST have alpha = 0 (100% transparent) so
+        # zero-density areas do not blot out the basemap with solid purple/dark color!
+        color1 = QColor(68, 1, 84, 0)       # 100% transparent zero stop
+        color2 = QColor(253, 231, 37, 255)  # Peak yellow hotspot
+        stops = [
+            QgsGradientStop(0.15, QColor(65, 68, 135, 110)),
+            QgsGradientStop(0.35, QColor(42, 120, 142, 170)),
+            QgsGradientStop(0.60, QColor(35, 168, 119, 215)),
+            QgsGradientStop(0.80, QColor(115, 208, 85, 245)),
+        ]
+        ramp = QgsGradientColorRamp(color1, color2, False, stops)
+        renderer.setColorRamp(ramp)
+
+        # Disable point text labels on heatmap layer: continuous density field clashes
+        # with dense point label text boxes sitting directly over the hotspots
+        if hasattr(layer, "setLabelsEnabled"):
+            layer.setLabelsEnabled(False)
+
         layer.setRenderer(renderer)
         layer.triggerRepaint()
+
+        # Focus canvas on layer extent
+        from .map_tools import zoom_to_layer
+        zoom_to_layer(layer_name)
+
         return {"success": True, "layer_name": layer_name}
     except Exception as e:
         return {"error": f"Heatmap style failed: {e}"}

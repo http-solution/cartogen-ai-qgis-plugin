@@ -343,15 +343,89 @@ def export_to_csv(layer_name, output_path=None, only_selected=None):
     return result
 
 
-@register_tool("print_map", "Export current QGIS map canvas view to PNG image.", {"type": "object", "properties": {"output_path": {"type": "string"}}, "required": ["output_path"]})
-def print_map(output_path):
+@register_tool(
+    "print_map",
+    "Export current QGIS map canvas view to a PDF document or PNG/JPG image. If output_path is omitted or empty in an interactive session, a Save File dialog is presented to the user.",
+    {
+        "type": "object",
+        "properties": {
+            "output_path": {
+                "type": "string",
+                "description": "Optional file path with .pdf, .png, or .jpg extension. If omitted, prompts with Save As dialog.",
+            }
+        },
+    },
+)
+def print_map(output_path=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if iface is None:
-        return {"error": "QGIS interface not available"}
+    if iface is None or iface.mapCanvas() is None:
+        return {"error": "QGIS interface or map canvas not available"}
+
+    canvas = iface.mapCanvas()
+
+    # If no output path provided, open Save As dialog
+    if not output_path:
+        if hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
+            try:
+                from qgis.PyQt.QtWidgets import QFileDialog
+                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                default_path = os.path.join(desktop, "qgis_map_export.pdf")
+                chosen_path, _ = QFileDialog.getSaveFileName(
+                    iface.mainWindow(),
+                    "Export Map Canvas",
+                    default_path,
+                    "PDF Document (*.pdf);;PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*.*)",
+                )
+                if not chosen_path:
+                    return {"cancelled": True, "message": "Map export cancelled by user."}
+                output_path = chosen_path
+            except Exception:
+                pass
+        if not output_path:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            output_path = os.path.join(desktop, "qgis_map_export.png")
+
+    out_ext = os.path.splitext(output_path)[1].lower()
+
     try:
-        iface.mapCanvas().saveAsImage(output_path)
-        return {"success": True, "output_path": output_path}
+        if out_ext == ".pdf":
+            from qgis.PyQt.QtGui import QPainter, QPdfWriter, QPageSize
+            from qgis.PyQt.QtCore import QSizeF
+            from qgis.core import QgsMapSettings, QgsMapRendererCustomPainterJob
+
+            # Size writer to canvas aspect ratio or standard A4 landscape
+            c_size = canvas.size()
+            c_w = max(100, c_size.width())
+            c_h = max(100, c_size.height())
+
+            # Convert canvas dimensions to mm at 96 DPI
+            w_mm = max(100.0, (c_w / 96.0) * 25.4)
+            h_mm = max(100.0, (c_h / 96.0) * 25.4)
+
+            writer = QPdfWriter(output_path)
+            writer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Millimeter))
+            writer.setResolution(300)
+
+            painter = QPainter(writer)
+            try:
+                settings = QgsMapSettings(canvas.mapSettings())
+                paint_rect = writer.layout().paintRectPixels(300)
+                settings.setOutputSize(paint_rect.size())
+                settings.setOutputDpi(300)
+
+                job = QgsMapRendererCustomPainterJob(settings, painter)
+                job.start()
+                job.waitForFinished()
+            finally:
+                painter.end()
+
+            return {"success": True, "output_path": output_path, "format": "pdf"}
+
+        # Raster format (PNG, JPG)
+        canvas.saveAsImage(output_path)
+        return {"success": True, "output_path": output_path, "format": out_ext.lstrip(".")}
+
     except Exception as e:
         return {"error": f"print_map failed: {e}"}
 

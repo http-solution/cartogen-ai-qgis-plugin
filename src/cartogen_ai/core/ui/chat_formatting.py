@@ -177,11 +177,30 @@ def render_markdown(text, colors=None):
 
         # Bullet -- indentation (2 spaces/level) maps to nesting depth, so a
         # sub-list under a bullet reads as visually nested instead of flat.
-        b = re.match(r'^(\s*)[-*]\s+(.*)$', line)
+        # Supports standard markdown hyphens/asterisks (-/*) as well as unicode bullets (•).
+        b = re.match(r'^(\s*)[-*\u2022]\s+(.*)$', line)
         if b:
             indent_level = len(b.group(1)) // 2
             pad = "&nbsp;&nbsp;" * (2 + indent_level * 2)
-            out_lines.append(f'{pad}&bull; {b.group(2)}')
+            content = b.group(2).strip()
+
+            # Auto-linkify plain text next steps into cartogen action chips if not already linked:
+            # e.g., "🔍 Zoom to Layer Extent" or "Export to CSV" or "Reproject to UTM Zone 36N"
+            if not re.search(r'\[.+?\]\(.+?\)', content):
+                zoom_match = re.search(r'(?:🔍\s*)?(?:Zoom\s+to|zoom\s+to)\s+(?:extent\s+of\s+)?([A-Za-z0-9_,\.\-]+)', content, re.IGNORECASE)
+                csv_match = re.search(r'(?:📁\s*)?Export\s+(?:layer\s+|table\s+)?([A-Za-z0-9_,\.\-]+)?\s*(?:to\s+CSV|\.csv)', content, re.IGNORECASE)
+                if zoom_match:
+                    layer_target = zoom_match.group(1).strip()
+                    content = f'<a href="cartogen://zoom/{layer_target}">{content}</a>'
+                elif csv_match:
+                    layer_target = (csv_match.group(1) or "").strip()
+                    content = f'<a href="cartogen://export/{layer_target}">{content}</a>'
+                elif any(action_kw in content.lower() for action_kw in ["reproject", "calculate", "generate", "analyze", "buffer", "heatmap", "kde", "filter"]):
+                    import urllib.parse
+                    encoded_prompt = urllib.parse.quote(content)
+                    content = f'<a href="cartogen://prompt/{encoded_prompt}">{content}</a>'
+
+            out_lines.append(f'{pad}&bull; {content}')
             i += 1
             continue
 
@@ -219,6 +238,15 @@ def render_markdown(text, colors=None):
         return f'<a href="{url}">{label}</a>'
 
     text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\s)]+)\)', _style_link, text)
+
+    # Style any direct cartogen:// anchor tags generated during block parsing that lack style attributes:
+    chip_css = (
+        f"display: inline-block; padding: 2px 8px; margin: 2px 2px; "
+        f"border: 1px solid {border_color}; border-radius: 6px; "
+        f"background-color: {colors.get('agent_bg', '#eef0f2')}; "
+        f"color: {text_color}; text-decoration: none; font-size: 11.5px; font-weight: 500;"
+    )
+    text = re.sub(r'<a href="(cartogen://[^"]+)">', rf'<a href="\1" style="{chip_css}">', text)
 
     # 5. Restore code blocks as styled, non-wrapping blocks.
     for idx, code in enumerate(code_blocks):
