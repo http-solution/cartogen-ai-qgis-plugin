@@ -202,8 +202,11 @@ def plan_representations(
     # -----------------------------------------------------------------------
     elif profile.geometry == "polygon":
         # Candidate A: Normalized Choropleth (Rate/Percentage)
-        rate_field = target_field
-        if not rate_field:
+        rate_field = None
+        if target_field:
+            if target_field in profile.fields:
+                rate_field = target_field
+        else:
             for fn, fp in profile.fields.items():
                 if fp.semantic_type == "rate_percentage" and fp.is_numeric:
                     rate_field = fn
@@ -214,7 +217,7 @@ def plan_representations(
             is_raw_count = field_profile.semantic_type == "positive_quantity"
             stat_honesty = 0.40 if is_raw_count else 0.98
             misleading_risk = 0.45 if is_raw_count else 0.0
-            sem_fit = 0.50 if is_raw_count else (0.98 if intent_type == "rate" else 0.80)
+            sem_fit = 0.50 if is_raw_count else (0.98 if intent_type == "rate" else 0.85)
 
             rate_score = CandidateScore(
                 total_score=0.0,
@@ -259,10 +262,10 @@ def plan_representations(
 
         # Candidate B: Raw Count on Unequal Areas -> Proportional Circles over Centroids!
         count_field = None
-        if target_field and target_field in profile.fields:
-            if profile.fields[target_field].semantic_type == "positive_quantity":
+        if target_field:
+            if target_field in profile.fields and profile.fields[target_field].semantic_type == "positive_quantity":
                 count_field = target_field
-        if not count_field:
+        else:
             for fn, fp in profile.fields.items():
                 if fp.semantic_type == "positive_quantity" and fp.is_numeric:
                     count_field = fn
