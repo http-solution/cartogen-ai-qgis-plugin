@@ -6,6 +6,7 @@ Exposes optimal hub siting and multi-band service area calculations to QGIS Proc
 
 try:
     from qgis.core import (
+        QgsProcessing,
         QgsProcessingProvider,
         QgsProcessingAlgorithm,
         QgsProcessingParameterFeatureSource,
@@ -31,10 +32,16 @@ try:
     )
     from qgis.PyQt.QtCore import QCoreApplication, QVariant
     from qgis.PyQt.QtGui import QIcon
-    import processing
+    try:
+        import processing
+    except ImportError:
+        processing = None
     QGIS_PROCESSING_AVAILABLE = True
 except ImportError:
     QGIS_PROCESSING_AVAILABLE = False
+    class QgsProcessing:
+        TypeVectorPoint = 0
+        TypeVectorLine = 1
     class QgsProcessingProvider:
         pass
     class QgsProcessingAlgorithm:
@@ -85,14 +92,14 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT_CANDIDATES,
                 self.tr("Candidate Hub Locations"),
-                [QgsProcessingAlgorithm.TypeVectorPoint],
+                [QgsProcessing.TypeVectorPoint],
             )
         )
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_DEMAND,
                 self.tr("Demand Points"),
-                [QgsProcessingAlgorithm.TypeVectorPoint],
+                [QgsProcessing.TypeVectorPoint],
             )
         )
         self.addParameter(
@@ -108,7 +115,7 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT,
                 self.tr("Ranked Candidates"),
-                type=QgsProcessingAlgorithm.TypeVectorPoint,
+                type=QgsProcessing.TypeVectorPoint,
             )
         )
 
@@ -241,14 +248,14 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT_FACILITIES,
                 self.tr("Facility Point Locations"),
-                [QgsProcessingAlgorithm.TypeVectorPoint],
+                [QgsProcessing.TypeVectorPoint],
             )
         )
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_NETWORK,
                 self.tr("Road / Transport Network"),
-                [QgsProcessingAlgorithm.TypeVectorLine],
+                [QgsProcessing.TypeVectorLine],
             )
         )
         self.addParameter(
@@ -297,7 +304,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT_LINES,
                 self.tr("Reachable Network Lines"),
-                type=QgsProcessingAlgorithm.TypeVectorLine,
+                type=QgsProcessing.TypeVectorLine,
             )
         )
 
