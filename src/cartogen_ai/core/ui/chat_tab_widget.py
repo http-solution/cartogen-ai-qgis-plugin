@@ -811,6 +811,12 @@ class ChatTabWidget(QWidget):
         if url.host() == "task":
             self._on_plan_task_clicked(url)
             return
+        if url.host() == "action":
+            self._on_chat_action_clicked(url)
+            return
+        if url.host() == "export":
+            self._on_export_action_clicked(url)
+            return
 
         parts = [p for p in url.path().split("/") if p]
         if not parts and url.host():
@@ -852,6 +858,74 @@ class ChatTabWidget(QWidget):
         from .task_inspector_dialog import CartogenAiTaskInspectorDialog
         dialog = CartogenAiTaskInspectorDialog(self._dock, task, read_only=False, parent=self)
         dialog.exec()
+
+    def _on_chat_action_clicked(self, url):
+        """Resolves and dispatches a typed ChatAction from ChatActionRegistry."""
+        parts = [p for p in url.path().split("/") if p]
+        act_id = parts[-1] if parts else None
+        if not act_id:
+            return
+        from ..agent.map_intelligence import ChatActionRegistry
+        action = ChatActionRegistry.get(act_id)
+        if action is None:
+            self._dock.receiveMessageSignal.emit(
+                "ai", "_This action is no longer available (session expired or project changed)._"
+            )
+            return
+
+        kind = action.kind
+        payload = action.payload or {}
+        layer_name = payload.get("layer_name")
+
+        if kind == "export":
+            from ..agent.tools.export_tools import export_to_csv
+            res = export_to_csv(layer_name, only_selected=payload.get("only_selected", True))
+            if res.get("cancelled"):
+                self._dock.statusSignal.emit("Export cancelled.")
+            elif res.get("success"):
+                cnt = res.get("feature_count", "all")
+                path = res.get("output_path", "")
+                self._dock.receiveMessageSignal.emit(
+                    "ai", f"✅ **Exported {layer_name}:** Saved {cnt} feature(s) to `{path}`"
+                )
+            else:
+                err = res.get("error", "Export failed")
+                self._dock.receiveMessageSignal.emit("ai", f"❌ **Export Error:** {err}")
+            return
+
+        if kind == "zoom":
+            from ..agent.tools.map_tools import zoom_to_layer
+            res = zoom_to_layer(layer_name)
+            if res.get("success"):
+                self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
+            return
+
+        if kind == "prompt":
+            prompt_text = payload.get("text", "")
+            if prompt_text:
+                self.input_edit.setPlainText(prompt_text)
+                self.input_edit.setFocus()
+            return
+
+    def _on_export_action_clicked(self, url):
+        """cartogen://export/{layer_name} direct export action with Save As dialog."""
+        parts = [p for p in url.path().split("/") if p]
+        layer_name = parts[-1] if parts else None
+        if not layer_name:
+            return
+        from ..agent.tools.export_tools import export_to_csv
+        res = export_to_csv(layer_name, only_selected=True)
+        if res.get("cancelled"):
+            self._dock.statusSignal.emit("Export cancelled.")
+        elif res.get("success"):
+            cnt = res.get("feature_count", "all")
+            path = res.get("output_path", "")
+            self._dock.receiveMessageSignal.emit(
+                "ai", f"✅ **Exported {layer_name}:** Saved {cnt} feature(s) to `{path}`"
+            )
+        else:
+            err = res.get("error", "Export failed")
+            self._dock.receiveMessageSignal.emit("ai", f"❌ **Export Error:** {err}")
 
     def _on_starter_prompt_clicked(self, url):
         """A cartogen://starter/{index} link, from the welcome message's example-prompt list

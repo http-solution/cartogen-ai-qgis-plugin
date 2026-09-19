@@ -119,7 +119,7 @@ def _check_shapefile_field_names(layer):
 
 
 
-def _write_vector(layer, output_path, driver_name, layer_options=None):
+def _write_vector(layer, output_path, driver_name, layer_options=None, only_selected=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     try:
@@ -131,8 +131,18 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = driver_name
         options.fileEncoding = "UTF-8"
-        if layer_options:
-            options.layerOptions = layer_options
+        has_selection = False
+        if hasattr(layer, "selectedFeatureCount"):
+            try:
+                cnt = layer.selectedFeatureCount()
+                if isinstance(cnt, (int, float)) and cnt > 0:
+                    has_selection = True
+            except Exception:
+                has_selection = False
+
+        use_selection = only_selected if only_selected is not None else has_selection
+        if use_selection and has_selection:
+            options.onlySelectedFeatures = True
 
         error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
             layer,
@@ -144,7 +154,21 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
             return {"error": "Could not resolve QgsVectorFileWriter.WriterError.NoError in this QGIS version -- export result cannot be verified."}
         if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
-        result = {"success": True, "output_path": output_path}
+        
+        exported_count = 0
+        try:
+            cnt = layer.selectedFeatureCount() if (use_selection and has_selection) else layer.featureCount()
+            if isinstance(cnt, (int, float)):
+                exported_count = cnt
+        except Exception:
+            exported_count = 0
+
+        result = {
+            "success": True,
+            "output_path": output_path,
+            "feature_count": exported_count,
+            "only_selected_features": bool(use_selection and has_selection),
+        }
         if shp_warning:
             result["shapefile_truncation_warning"] = shp_warning
             result["field_name_mapping"] = shp_mapping
@@ -157,22 +181,45 @@ def _write_vector(layer, output_path, driver_name, layer_options=None):
 
 
 
-@register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "format": {"type": "string"}}, "required": ["layer_name", "output_path", "format"]})
-def export_layer(layer_name, output_path, format):
+@register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
+def export_layer(layer_name, format, output_path=None, only_selected=None):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
     fmt_map = {
-        "shp": "ESRI Shapefile",
-        "shapefile": "ESRI Shapefile",
-        "geojson": "GeoJSON",
-        "gpkg": "GPKG",
-        "geopackage": "GPKG",
-        "kml": "KML",
+        "shp": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),
+        "shapefile": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),
+        "geojson": ("GeoJSON", ".geojson", "GeoJSON (*.geojson)"),
+        "gpkg": ("GPKG", ".gpkg", "GeoPackage (*.gpkg)"),
+        "geopackage": ("GPKG", ".gpkg", "GeoPackage (*.gpkg)"),
+        "kml": ("KML", ".kml", "KML (*.kml)"),
     }
-    driver = fmt_map.get(format.lower(), format)
-    return _write_vector(layer, output_path, driver)
+    fmt_key = format.lower()
+    driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
+
+    if not output_path:
+        if iface is not None and hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
+            try:
+                from qgis.PyQt.QtWidgets import QFileDialog
+                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                default_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
+                chosen_path, _ = QFileDialog.getSaveFileName(
+                    iface.mainWindow(),
+                    f"Export '{layer.name()}' As {driver}",
+                    default_path,
+                    f"{filter_str};;All Files (*.*)",
+                )
+                if not chosen_path:
+                    return {"cancelled": True, "message": "Export cancelled by user."}
+                output_path = chosen_path
+            except Exception:
+                pass
+        if not output_path:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            output_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
+
+    return _write_vector(layer, output_path, driver, only_selected=only_selected)
 
 
 # SEC-002, 2026-09-13 audit: a value beginning with one of these characters is interpreted
@@ -225,19 +272,30 @@ def _sanitize_filename(name):
 
 
 def _derive_csv_path(layer, output_path):
-    """Returns (path, used_desktop_fallback) for export_to_csv. Same convention as
-    styling_tools.py's _derive_style_path/provenance_tools.py's _derive_sidecar_path: an
-    explicit output_path always wins; otherwise sits the .csv beside the layer's own
-    on-disk source when that resolves to a real file, falling back to Desktop (named after
-    the layer) for a scratch/memory layer -- exactly the shape most `export_to_csv` calls
-    are in practice (a facility/analysis layer built in-session from tool output, never
-    saved to disk itself). Live-reported bug, 2026-09-19: `output_path` was a hard-required
-    argument with no default, so a turn that ran out of tool-call budget before the model
-    happened to invent a path ended in "please specify a destination file path" -- a dead
-    end after real analysis had already completed, for an argument this codebase already
-    has an established default-derivation pattern for everywhere else it appears."""
+    """Returns (path, used_desktop_fallback) for export_to_csv. If output_path is omitted
+    in interactive QGIS, prompts the user with the standard Windows Save As dialog.
+    In headless/test mode, falls back to Desktop or source directory."""
     if output_path:
         return output_path, False
+
+    # Interactive QGIS: prompt user with standard Save As dialog
+    if iface is not None and hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
+        try:
+            from qgis.PyQt.QtWidgets import QFileDialog
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            default_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}.csv")
+            chosen_path, _ = QFileDialog.getSaveFileName(
+                iface.mainWindow(),
+                f"Save '{layer.name()}' As CSV",
+                default_path,
+                "CSV Files (*.csv);;All Files (*.*)",
+            )
+            if chosen_path:
+                return chosen_path, False
+            # User cancelled the Save As dialog
+            return None, False
+        except Exception:
+            pass
 
     source = ""
     try:
@@ -255,19 +313,22 @@ def _derive_csv_path(layer, output_path):
 
 
 @register_tool("export_to_csv", "Export layer attribute table to CSV file. output_path is optional -- "
-               "omit it to save beside the layer's own source file (or to Desktop for a scratch/memory "
-               "layer with no on-disk source).",
-               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["layer_name"]})
-def export_to_csv(layer_name, output_path=None):
+               "omit it to prompt a standard Save As dialog (or fall back to Desktop for scratch layers in tests). "
+               "If features are selected on the layer, only selected features are exported by default.",
+               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
+def export_to_csv(layer_name, output_path=None, only_selected=None):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     path, used_fallback = _derive_csv_path(layer, output_path)
+    if path is None:
+        return {"cancelled": True, "message": "Export cancelled by user (no destination file selected)."}
     result = _write_vector(
         layer,
         path,
         "CSV",
         layer_options=["GEOMETRY=AS_WKT", "SEPARATOR=COMMA"],
+        only_selected=only_selected,
     )
     if result.get("success"):
         string_field_names = {f.name() for f in layer.fields() if f.type() == QVariant.String}

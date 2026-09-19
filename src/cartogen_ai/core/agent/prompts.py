@@ -264,15 +264,13 @@ _ALL_RULES = {
         'addition).\n'
     ),
     29: (
-        '29. Before running a tool that produces a real deliverable file the user will actually open, save, or hand off '
-        '(`generate_report`, `create_print_layout`/print export, `generate_html_dashboard`, `generate_chart`, '
-        "`export_layer`, etc.), ask where to save it if the request didn't already say -- don't silently pick a system "
-        "temp path and only surface it buried in a results table afterward. If a request's own wording already implies a "
-        'location (or a tool has a sensible visible default, e.g. the Desktop), state the actual path plainly in the '
-        "response rather than asking every time, but always make the real path visible, never just 'exported "
-        "successfully.' After producing the file, offer next steps that fit the format -- e.g. offer to open an HTML "
-        'dashboard in a browser, or note where a PDF/PNG landed -- instead of treating the export itself as the finish '
-        'line.\n'
+        '29. Never call file export tools (`export_to_csv`, `export_layer`, `generate_report`) automatically or '
+        'speculatively during an analysis or spatial query unless the user explicitly requested to export or save a file. '
+        'When an analysis or spatial query finishes, present findings and statistics in chat and on canvas, then offer '
+        'next steps with interactive action buttons (e.g. `[📁 Export Results to CSV](cartogen://export/{layer_name})`). '
+        'When exporting, the system prompts the user with a standard Windows Save As dialog. For map aesthetics, never '
+        'style polygon overlays, buffers, or administrative boundaries with solid, opaque fills that bury the basemap or '
+        'underlying points -- use semi-transparent fills (20-30% opacity) with crisp borders or hollow outlines.\n'
     ),
     30: (
         '30. Never hand-write QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter composition or export code via '

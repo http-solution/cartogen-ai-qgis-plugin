@@ -262,10 +262,9 @@ def _layer_geometry_kind(layer):
 
 
 def _default_opacity_for_geometry(geometry_type):
-    """Polygon fills are the usual culprit for burying whatever's underneath
+    """Polygon fills are the primary culprit for burying whatever's underneath
     them -- default those to a semi-transparent value. Point/line symbols
-    stay fully opaque by default; a washed-out marker is harder to read, not
-    easier, and they're rarely what's doing the burying."""
+    stay fully opaque by default."""
     return 75 if geometry_type == QgsWkbTypes.GeometryType.PolygonGeometry else 100
 
 
@@ -870,8 +869,8 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         else:
             renderer.symbol().setColor(color)
         result = {"success": True, "layer_name": layer_name, "color": color_hex}
-        if opacity is not None:
-            result["opacity_percent"] = _apply_opacity(layer, opacity)
+        target_opacity = opacity if opacity is not None else _default_opacity_for_geometry(layer.geometryType())
+        result["opacity_percent"] = _apply_opacity(layer, target_opacity)
         layer.triggerRepaint()
         return result
     except Exception as e:

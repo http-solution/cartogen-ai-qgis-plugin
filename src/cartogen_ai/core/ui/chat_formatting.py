@@ -202,9 +202,20 @@ def render_markdown(text, colors=None):
     text = re.sub(r'~~(.+?)~~', r'<s>\1</s>', text)
     # cartogen:// alongside https?:// -- this app's own internal anchor scheme (see
     # chat_tab_widget.py's _on_step_anchor_clicked), used so markdown-authored content like
-    # the welcome message's starter prompts can link to an in-app action (fill the input box)
-    # instead of only ever linking out to the web.
-    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\s)]+)\)', r'<a href="\2">\1</a>', text)
+    # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
+    def _style_link(m):
+        label, url = m.group(1), m.group(2)
+        if url.startswith("cartogen://action/") or url.startswith("cartogen://export/"):
+            chip_style = (
+                f"display: inline-block; padding: 2px 8px; margin: 2px 2px; "
+                f"border: 1px solid {border_color}; border-radius: 6px; "
+                f"background-color: {colors.get('agent_bg', '#eef0f2')}; "
+                f"color: {text_color}; text-decoration: none; font-size: 11.5px; font-weight: 500;"
+            )
+            return f'<a href="{url}" style="{chip_style}">{label}</a>'
+        return f'<a href="{url}">{label}</a>'
+
+    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\s)]+)\)', _style_link, text)
 
     # 5. Restore code blocks as styled, non-wrapping blocks.
     for idx, code in enumerate(code_blocks):
