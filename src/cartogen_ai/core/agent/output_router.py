@@ -56,7 +56,7 @@ def satisfied(contract, executed_tools):
         # A layer contract is met by anything that puts a layer on the canvas,
         # not only by the two styling tools in `render` -- styling an
         # unstyleable layer is not a failure to deliver.
-        return any(t.startswith(("add_layer", "fetch_", "load_", "geocode_",
+        return any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
                                  "interpolate_", "buffer_", "clip_", "merge_",
                                  "intersect_", "union_", "dissolve_", "spatial_join",
                                  "extract_features_from_imagery", "georeference_image"))
@@ -64,7 +64,7 @@ def satisfied(contract, executed_tools):
     return any(t in ran for t in needed)
 
 
-def followup_instruction(contract, executed_tools, already_retried=False):
+def followup_instruction(contract, executed_tools, already_retried=False, has_layers=None):
     """The one extra turn to send, or None when nothing is owed.
 
     Returns a plain instruction, not a scolding: it names the deliverable, the
@@ -74,9 +74,30 @@ def followup_instruction(contract, executed_tools, already_retried=False):
         return None
     kind = contract.get("kind")
     needed = required_renderers(contract)
-    if not needed:
+    if not needed and kind != "layer":
         return None
-    writer = file_io.writer_for(kind) or needed[0]
+
+    # If the deliverable is a layer and no layer creation tool was executed (or the project has no layers),
+    # we must explicitly instruct the agent to CREATE the layer rather than asking it to style a non-existent layer!
+    if kind == "layer":
+        ran_creator = any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
+                                        "interpolate_", "buffer_", "clip_", "merge_",
+                                        "intersect_", "union_", "dissolve_", "spatial_join",
+                                        "extract_features_from_imagery", "georeference_image"))
+                          for t in (executed_tools or []))
+        has_canvas_layer = (has_layers is True) or (ran_creator and has_layers is not False)
+        if not has_canvas_layer:
+            return (
+                "The deliverable for this task is a layer on the QGIS canvas, and no layer has been created yet. "
+                "Call an appropriate layer creation tool now (such as add_point_layer, add_vector_layer, "
+                "geocode_and_enrich, fetch_osm_features, fetch_gdacs_disaster_alerts, or execute_pyqgis_script) "
+                "to create and display the requested spatial layer on the canvas. If real-time or live external feeds "
+                "are unavailable, generate an operational/representative sample dataset on the canvas with appropriate "
+                "attributes and coordinates so the user has the requested spatial layer. Do not answer in prose alone "
+                "without creating the layer."
+            )
+
+    writer = file_io.writer_for(kind) or (needed[0] if needed else "apply_categorized_style")
     artifact = file_io.artifact_sentence(kind)
     return (
         "The deliverable for this task is %s, and it has not been produced yet. "

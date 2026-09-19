@@ -205,7 +205,10 @@ def render_markdown(text, colors=None):
     # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
     def _style_link(m):
         label, url = m.group(1), m.group(2)
-        if url.startswith("cartogen://action/") or url.startswith("cartogen://export/"):
+        if (url.startswith("cartogen://action/") or
+            url.startswith("cartogen://export/") or
+            url.startswith("cartogen://prompt/") or
+            url.startswith("cartogen://zoom/")):
             chip_style = (
                 f"display: inline-block; padding: 2px 8px; margin: 2px 2px; "
                 f"border: 1px solid {border_color}; border-radius: 6px; "
