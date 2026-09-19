@@ -17,6 +17,7 @@ try:
         QgsSingleSymbolRenderer, QgsWkbTypes, QgsMapLayer, QgsRasterLayer,
         QgsGradientColorRamp, QgsGradientStop, QgsUnitTypes, QgsRuleBasedRenderer, QgsExpression,
         QgsPointClusterRenderer, QgsPointDisplacementRenderer, QgsDistanceArea,
+        QgsApplication,
     )
     from qgis.PyQt.QtGui import QColor
     import processing
@@ -42,6 +43,7 @@ except ImportError:
     QgsPointClusterRenderer = None
     QgsPointDisplacementRenderer = None
     QgsDistanceArea = None
+    QgsApplication = None
     QColor = None
     processing = None
     QGIS_AVAILABLE = False
@@ -246,6 +248,50 @@ def _resolve_classification_method(method_name):
         "stddev": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "StdDev"),
         "pretty": resolve_qgis_enum(QgsGraduatedSymbolRenderer, "Mode", "Pretty"),
     }.get(method_name, jenks)
+
+
+def _create_graduated_renderer(layer, field, num_classes, method_name, method_enum, symbol, color_ramp):
+    """Creates a QgsGraduatedSymbolRenderer.
+    Prefers the modern QGIS 3.10+ / 4.x QgsClassificationMethodRegistry path
+    (which avoids the QgsGraduatedSymbolRenderer.createRenderer deprecation warning),
+    falling back to createRenderer() when running outside an active QgsApplication or
+    in lean test environments where QgsApplication is mocked or uninitialized.
+    """
+    renderer = None
+    if QgsApplication is not None and hasattr(QgsApplication, "classificationMethodRegistry"):
+        try:
+            reg = QgsApplication.classificationMethodRegistry()
+            if reg is not None:
+                method_id_map = {
+                    "jenks": "Jenks",
+                    "equal_interval": "EqualInterval",
+                    "quantile": "Quantile",
+                    "stddev": "StdDev",
+                    "pretty": "Pretty",
+                }
+                method_id = method_id_map.get(method_name, "Jenks")
+                method_obj = reg.method(method_id)
+                if method_obj is not None:
+                    renderer = QgsGraduatedSymbolRenderer(field)
+                    renderer.setClassificationMethod(method_obj)
+                    if symbol is not None:
+                        renderer.setSourceSymbol(symbol)
+                    if color_ramp is not None:
+                        renderer.setSourceColorRamp(color_ramp)
+                    renderer.updateClasses(layer, num_classes)
+        except Exception:
+            renderer = None
+
+    if renderer is None and QgsGraduatedSymbolRenderer is not None and hasattr(QgsGraduatedSymbolRenderer, "createRenderer"):
+        renderer = QgsGraduatedSymbolRenderer.createRenderer(
+            layer,
+            field,
+            num_classes,
+            method_enum,
+            symbol,
+            color_ramp,
+        )
+    return renderer
 
 
 # Lower value = drawn on top. Points and lines are small features that a
@@ -541,10 +587,11 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # identical class of gap). Today inert (all 3 resolve fine currently).
             if method is None:
                 return {"error": "Could not resolve a classification-mode enum in this QGIS version."}
-            renderer = QgsGraduatedSymbolRenderer.createRenderer(
+            renderer = _create_graduated_renderer(
                 layer,
                 field,
                 num_classes,
+                classification["method"],
                 method,
                 QgsSymbol.defaultSymbol(layer.geometryType()),
                 color_ramp,
@@ -631,10 +678,11 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
             return {"error": "Could not resolve a classification-mode enum in this QGIS version."}
         num_classes = num_classes if len(set(values)) >= num_classes else max(2, len(set(values)))
 
-        renderer = QgsGraduatedSymbolRenderer.createRenderer(
+        renderer = _create_graduated_renderer(
             layer,
             field,
             num_classes,
+            classification["method"],
             method,
             QgsSymbol.defaultSymbol(layer.geometryType()),
             QgsStyle.defaultStyle().colorRamp(classification["ramp"]),

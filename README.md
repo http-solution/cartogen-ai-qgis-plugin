@@ -19,14 +19,14 @@
   <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
 </p>
 
-**Community edition · Version 1.5.7-rc2 · GNU GPL v2 · QGIS 3.0–4.99**
+**Community edition · Version 1.5.7-rc3 · GNU GPL v2 · QGIS 3.28–4.99**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (1,916 passed, 0 failures, 38 skipped), while the
+> **Project status:** active Community edition. The automated suite is green (1,937 passed, 0 failures, 38 skipped), while the
 > full pre-release checklist still requires verification in an interactive QGIS session.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
