@@ -74,6 +74,15 @@ zip). Per the established resolution, a rebuild-and-correction follow-up happens
 release-prep commit lands, and step 7's own download-and-diff against the published GitHub asset
 is the real source of truth, not this entry.
 
+**Correction (same day, after the release-prep commit `3ac76ce` landed):** as expected, rebuilding
+at that commit changed the zip's bytes (this file's own edit, plus `CHANGELOG.md`/`metadata.txt`/
+`README.md`/`docs/TOOLS_REFERENCE.md`). The real, final pre-tag build's sha256 is
+`aeba0710155f41afe3bcdc34dc7c86848f3cfc3f32d629039775554c19b9c673` -- the 11 targeted checks above
+were all re-confirmed against source content unaffected by this second build (only docs/metadata
+changed between the two builds, no `.py` source), so they still stand without re-running. The
+`commercial-plugin-v1.5.7-rc4` tag is placed on this correction commit, not `3ac76ce`, and step 7's
+download-and-diff is the actual source of truth either way.
+
 A code-review pass over every commit since the last verified checkpoint found and fixed 7 real
 correctness/security bugs plus 1 latent circular import (see `CHANGELOG.md`'s `[1.5.7-rc4]` entry
 for full per-fix detail), on top of the `ingest_osm_features` tool and AST sandbox guardrails.
