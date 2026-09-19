@@ -144,12 +144,21 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         if use_selection and has_selection:
             options.onlySelectedFeatures = True
 
-        error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
-            layer,
-            output_path,
-            QgsCoordinateTransformContext(),
-            options,
-        )
+        if hasattr(QgsVectorFileWriter, "writeAsVectorFormatV3"):
+            res = QgsVectorFileWriter.writeAsVectorFormatV3(
+                layer,
+                output_path,
+                QgsCoordinateTransformContext(),
+                options,
+            )
+            error, message = res[0], res[1]
+        else:
+            error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
+                layer,
+                output_path,
+                QgsCoordinateTransformContext(),
+                options,
+            )
         if _VFW_NO_ERROR is None:
             return {"error": "Could not resolve QgsVectorFileWriter.WriterError.NoError in this QGIS version -- export result cannot be verified."}
         if error != _VFW_NO_ERROR:
@@ -1684,9 +1693,15 @@ def _write_layer_geojson_wgs84(layer, output_path):
         if layer.crs() != wgs84:
             options.ct = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance())
 
-        error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
-            layer, output_path, QgsCoordinateTransformContext(), options,
-        )
+        if hasattr(QgsVectorFileWriter, "writeAsVectorFormatV3"):
+            res = QgsVectorFileWriter.writeAsVectorFormatV3(
+                layer, output_path, QgsCoordinateTransformContext(), options,
+            )
+            error, message = res[0], res[1]
+        else:
+            error, message = QgsVectorFileWriter.writeAsVectorFormatV2(
+                layer, output_path, QgsCoordinateTransformContext(), options,
+            )
         if error != _VFW_NO_ERROR:
             return {"error": f"GeoJSON export failed: {message} (code {error})"}
         return {"success": True}

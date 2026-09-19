@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (171 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (176 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -145,8 +145,9 @@ Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `output_path` | string | yes |  |
 | `format` | string | yes |  |
+| `output_path` | string | no |  |
+| `only_selected` | boolean | no |  |
 
 ### `export_temporal_animation_frames`
 
@@ -163,12 +164,13 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file. output_path is optional -- omit it to save beside the layer's own source file (or to Desktop for a scratch/memory layer with no on-disk source).
+Export layer attribute table to CSV file. output_path is optional -- omit it to prompt a standard Save As dialog (or fall back to Desktop for scratch layers in tests). If features are selected on the layer, only selected features are exported by default.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `output_path` | string | no |  |
+| `only_selected` | boolean | no |  |
 
 ### `generate_html_dashboard`
 
@@ -215,11 +217,11 @@ Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or m
 
 ### `print_map`
 
-Export current QGIS map canvas view to PNG image.
+Export current QGIS map canvas view to a PDF document or PNG/JPG image. If output_path is omitted or empty in an interactive session, a Save File dialog is presented to the user.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `output_path` | string | yes |  |
+| `output_path` | string | no | Optional file path with .pdf, .png, or .jpg extension. If omitted, prompts with Save As dialog. |
 
 ## Humanitarian Data (HDX / OSM / geoBoundaries)
 
@@ -604,6 +606,18 @@ Calculate NDWI (Normalized Difference Water Index) from Green and Near-Infrared 
 | `green_layer` | string | yes |  |
 | `nir_layer` | string | yes |  |
 
+### `create_shaded_relief`
+
+Generate a publication-grade shaded relief composite from a DEM layer combining hypsometric elevation tinting with hillshade using Multiply blending (QPainter.CompositionMode_Multiply). First styles the DEM with a pseudocolor elevation color ramp (e.g. 'BrBG', 'Spectral', or 'Terrain'), generates or links the hillshade layer, and applies the Multiply blend mode so the topography modulates the elevation colors cleanly without flattening.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `dem_layer` | string | yes | Name of the DEM/elevation raster layer. |
+| `color_ramp` | string | no | Color ramp name for hypsometric tinting. Defaults to 'BrBG' (CVD-safe diverging ramp). |
+| `azimuth` | number | no | Sun azimuth angle in degrees (default 315). |
+| `altitude` | number | no | Sun altitude angle in degrees (default 45). |
+| `opacity` | number | no | Hillshade layer opacity between 0.0 and 1.0 (default 1.0). |
+
 ### `elevation_profile`
 
 Sample a DEM raster along a line to produce a distance/elevation profile -- e.g. terrain along a proposed route, or a valley cross-section. Returns distance-along-line and elevation arrays of equal length; feed them into generate_chart (chart_type='line') for a real elevation-profile chart.
@@ -876,7 +890,7 @@ Apply a graduated (proportional) SYMBOL SIZE style to a point layer -- circles s
 
 ### `apply_heatmap_style`
 
-Apply heatmap renderer to point layer.
+Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1673,6 +1687,44 @@ Assembles a QA checklist for one map product -- a layer, optionally paired with 
 | `layer_name` | string | yes |  |
 | `layout_name` | string | no | Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section. |
 | `output_path` | string | no | Optional exported file path (e.g. create_print_layout's own output_path) to verify it actually exists on disk with real content. Omit to skip the export-integrity section. |
+
+## representation_tools
+
+### `analyze_layer_for_visualization`
+
+Analyze a layer's geometry, feature count, spatial density, overlap ratio, and attribute semantics (rates vs raw counts, nominals, temporal) to inform cartographic representation decisions.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Name of the layer in the QGIS project to analyze. |
+
+### `apply_recommended_representation`
+
+Apply a recommended representation candidate (e.g. 'point_cluster', 'point_displacement', 'point_heatmap', 'polygon_choropleth_rate', 'polygon_proportional_centroid') to a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `representation_id` | string | yes | Candidate representation id to apply, e.g. 'point_cluster', 'point_heatmap', 'polygon_choropleth_rate'. |
+| `target_field` | string | no | Optional attribute field if the representation requires one. |
+
+### `explain_current_representation`
+
+Inspect a layer's active renderer and explain whether it fits the data distribution and geometry, flagging potential cartographic issues (such as raw count choropleth distortion or dense point crowding).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `recommend_map_representation`
+
+Evaluate candidate map representations for a layer based on spatial density, geometry, and analytical question (e.g. 'Where are they concentrated', 'Which are largest', 'What category'). Returns scored candidates and interactive action options.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Name of the layer to evaluate. |
+| `user_intent` | string | no | The analytical question or intent, e.g. 'show density', 'compare size', 'show status category'. |
+| `target_field` | string | no | Optional attribute field to style or symbolize by. |
 
 ## schema_contract_tools
 

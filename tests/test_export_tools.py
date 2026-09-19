@@ -443,6 +443,7 @@ class TestWriteVectorSensitivityWarning(unittest.TestCase):
              patch.object(export_tools_mod, "QgsCoordinateTransformContext", MagicMock(), create=True), \
              patch.object(export_tools_mod, "_VFW_NO_ERROR", 0):
             fake_writer.writeAsVectorFormatV2.return_value = (0, "")
+            fake_writer.writeAsVectorFormatV3.return_value = (0, "", "", "")
             return _write_vector(layer, "/tmp/out.gpkg", "GPKG")
 
     def test_sensitive_layer_gets_a_warning_but_still_succeeds(self):
@@ -500,6 +501,7 @@ class TestWriteVectorUnresolvedNoErrorSentinel(unittest.TestCase):
             # looks like. Before the fix, this was misreported as a failure purely
             # because the sentinel itself failed to resolve, an unrelated fact.
             fake_writer.writeAsVectorFormatV2.return_value = (0, "")
+            fake_writer.writeAsVectorFormatV3.return_value = (0, "", "", "")
             res = _write_vector(layer, "/tmp/out.gpkg", "GPKG")
 
         self.assertIn("error", res)
@@ -582,9 +584,10 @@ class TestExportToCsvSanitizesStringFields(unittest.TestCase):
         def fake_write(layer, output_path, ctx, options):
             with open(output_path, "w", newline="", encoding="utf-8") as f:
                 f.write("name,WKT\n=cmd|'/calc'!A1,POINT (1 2)\n")
-            return (0, "")
+            return (0, "", "", "")
 
         fake_writer.writeAsVectorFormatV2.side_effect = fake_write
+        fake_writer.writeAsVectorFormatV3.side_effect = fake_write
 
         name_field = MagicMock()
         name_field.name.return_value = "name"

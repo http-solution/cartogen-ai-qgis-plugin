@@ -5,10 +5,10 @@
 
 [general]
 name=Cartogen AI
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.5.7-rc2
+version=1.5.7-rc3
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,15 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.5.7-rc2 (2026-09-19):
+changelog=v1.5.7-rc3 (2026-09-19):
+    Release candidate 3 for 1.5.7: pre-release audit remediation, PyQGIS API modernization, and package synchronization:
+    - Packaged and synchronized release archives (cartogen_ai.zip and dist/cartogen_ai_v1.5.7-rc3.zip) with all 176 tools, Map Intelligence Engine, and Intelligent Representation Planner.
+    - Reconciled minimum supported QGIS version to 3.28 (Firenze LTR) matching Python >=3.9 requirement.
+    - Replaced deprecated QgsVectorFileWriter.writeAsVectorFormatV2 with writeAsVectorFormatV3 in export_tools.py.
+    - Replaced deprecated QgsGraduatedSymbolRenderer.createRenderer with QgsClassificationMethodRegistry in styling_tools.py.
+    - Validated all 1,937 automated unit/integration tests passing (38 skipped) and 5/5 live headless QGIS pipeline tests with zero deprecation warnings.
+
+v1.5.7-rc2 (2026-09-19):
     Release candidate 2 for 1.5.7: documentation synchronization, full-phase engineering self-review,
     and release candidate stabilization:
     - Centralized all settings keys and QgsSettings layer property lookups into infrastructure.settings_keys.

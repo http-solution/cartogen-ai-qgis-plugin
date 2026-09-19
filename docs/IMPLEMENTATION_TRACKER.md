@@ -105,9 +105,9 @@ reading every provider client, all of which call that provider's own official AP
 no Cartogen-operated intermediary live today (the "Cartogen AI (Hosted)" option in Settings is a
 stub pointed at an undeployed placeholder domain).
 
-**1 CRITICAL finding:** global memory notes (`agent/memory.py`) have no deletion path anywhere
+**1 CRITICAL finding [RESOLVED / CLOSED 2026-09-04 — see update below; `SpatialMemoryManager.clear_global_notes()` implemented and wired to UI]:** global memory notes (`agent/memory.py`) previously had no deletion path anywhere
 in the code -- always-on, machine-wide, indefinite retention, no `clear_global_notes()` method
-exists. See `SECURITY.md`'s Data Protection section for detail.
+existed. See `SECURITY.md`'s Data Protection section and the 2026-09-04 update below for resolution details.
 
 **4 HIGH findings:** no privacy notice anywhere in the product; no documented international-
 transfer mechanism for any of the 4 cloud providers; no DPA/sub-processor visibility surfaced to
