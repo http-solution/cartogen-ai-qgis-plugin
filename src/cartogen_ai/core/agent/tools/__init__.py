@@ -38,6 +38,7 @@ from . import impedance_tools
 from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
 from . import representation_tools
+from . import map_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -76,4 +77,5 @@ __all__ = [
     "cartographic_advisory_tools",
     "hazard_monitoring_tools",
     "representation_tools",
+    "map_tools",
 ]
