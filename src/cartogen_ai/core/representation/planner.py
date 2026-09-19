@@ -53,10 +53,10 @@ def plan_representations(
         # Candidate A: Point Cluster Renderer
         cluster_score = CandidateScore(
             total_score=0.0,
-            semantic_fit=0.85 if intent_type in ("density", "location", "general") else 0.60,
+            semantic_fit=0.90 if intent_type == "density" else (0.85 if intent_type in ("location", "general") else 0.60),
             geometry_fit=1.0,
             scale_fit=0.90,
-            density_fit=0.95 if profile.spatial_density in ("high", "extreme") else 0.40,
+            density_fit=0.95 if profile.spatial_density in ("high", "extreme") else (0.75 if intent_type == "density" else 0.40),
             statistical_honesty=0.90,
             readability=0.95,
             accessibility=0.90,
@@ -88,12 +88,12 @@ def plan_representations(
             semantic_fit=0.98 if intent_type == "density" else 0.65,
             geometry_fit=0.95,
             scale_fit=0.85,
-            density_fit=0.95 if profile.spatial_density in ("high", "extreme") else 0.30,
+            density_fit=0.95 if profile.spatial_density in ("high", "extreme") else (0.85 if intent_type == "density" else 0.35),
             statistical_honesty=0.85,
-            readability=0.85,
+            readability=0.90 if intent_type == "density" else 0.85,
             accessibility=0.80,
             clutter_risk=0.0,
-            misleading_risk=0.10,
+            misleading_risk=0.05 if intent_type == "density" else 0.10,
         )
         total_b = (
             heatmap_score.semantic_fit * 0.30
@@ -125,7 +125,7 @@ def plan_representations(
             field_prof = profile.fields[qty_field]
             prop_score = CandidateScore(
                 total_score=0.0,
-                semantic_fit=0.95 if intent_type == "magnitude" else 0.70,
+                semantic_fit=0.95 if intent_type == "magnitude" else (0.45 if intent_type == "density" else 0.70),
                 geometry_fit=0.95,
                 scale_fit=0.80,
                 density_fit=0.60 if profile.spatial_density in ("high", "extreme") else 0.90,
@@ -167,10 +167,10 @@ def plan_representations(
             cat_prof = profile.fields[cat_field]
             cat_score = CandidateScore(
                 total_score=0.0,
-                semantic_fit=0.98 if intent_type == "category" else 0.75,
+                semantic_fit=0.98 if intent_type == "category" else (0.35 if intent_type == "density" else 0.75),
                 geometry_fit=0.95,
                 scale_fit=0.85,
-                density_fit=0.55 if profile.spatial_density == "extreme" else 0.85,
+                density_fit=0.55 if profile.spatial_density == "extreme" else (0.60 if intent_type == "density" else 0.85),
                 statistical_honesty=0.95,
                 readability=0.85,
                 accessibility=0.85,

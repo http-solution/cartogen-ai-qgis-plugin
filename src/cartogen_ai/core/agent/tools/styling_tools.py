@@ -800,7 +800,7 @@ def apply_heatmap_style(layer_name, field=None):
         layer.triggerRepaint()
 
         # Focus canvas on layer extent
-        from .map_tools import zoom_to_layer
+        from .vector_tools import zoom_to_layer
         zoom_to_layer(layer_name)
 
         return {"success": True, "layer_name": layer_name}

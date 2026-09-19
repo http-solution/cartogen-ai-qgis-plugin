@@ -223,11 +223,21 @@ def render_markdown(text, colors=None):
     # chat_tab_widget.py's _on_step_anchor_clicked), used so markdown-authored content like
     # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
     def _style_link(m):
-        label, url = m.group(1), m.group(2)
+        label, url = m.group(1), m.group(2).strip()
         if (url.startswith("cartogen://action/") or
             url.startswith("cartogen://export/") or
             url.startswith("cartogen://prompt/") or
             url.startswith("cartogen://zoom/")):
+            if url.startswith("cartogen://prompt/"):
+                raw_prompt = url[len("cartogen://prompt/"):]
+                import urllib.parse
+                if " " in raw_prompt:
+                    url = f"cartogen://prompt/{urllib.parse.quote(urllib.parse.unquote(raw_prompt))}"
+            elif url.startswith("cartogen://zoom/"):
+                raw_zoom = url[len("cartogen://zoom/"):].strip()
+                import urllib.parse
+                if " " in raw_zoom:
+                    url = f"cartogen://zoom/{urllib.parse.quote(urllib.parse.unquote(raw_zoom))}"
             chip_style = (
                 f"display: inline-block; padding: 2px 8px; margin: 2px 2px; "
                 f"border: 1px solid {border_color}; border-radius: 6px; "
@@ -237,7 +247,7 @@ def render_markdown(text, colors=None):
             return f'<a href="{url}" style="{chip_style}">{label}</a>'
         return f'<a href="{url}">{label}</a>'
 
-    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\s)]+)\)', _style_link, text)
+    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\n)]+)\)', _style_link, text)
 
     # Style any direct cartogen:// anchor tags generated during block parsing that lack style attributes:
     chip_css = (
