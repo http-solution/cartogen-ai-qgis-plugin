@@ -125,6 +125,7 @@ TOOL_OPERATION_TYPES = {
     "fetch_fts_funding_data": READ,
     # Returns a JSON feature summary only; does not add a layer.
     "fetch_osm_features": READ,
+    "ingest_osm_features": CREATE,
     "fetch_hdx_admin_boundaries": CREATE,
     "fetch_building_footprints": CREATE,
     "fetch_geoboundaries": CREATE,

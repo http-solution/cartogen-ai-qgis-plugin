@@ -101,6 +101,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
+    "ingest_osm_features",
 })
 
 
@@ -905,6 +906,32 @@ class CartogenAi:
             if "error" in config:
                 return config
             return grounded_search(config["api_key"], filtered_args.get("query", ""))
+
+        if name == "ingest_osm_features":
+            from .tools.humanitarian_tools import (
+                ingest_osm_features_network_phase, add_osm_layer_main_thread_phase,
+            )
+            fetch_result = ingest_osm_features_network_phase(
+                key=filtered_args.get("key", ""),
+                value=filtered_args.get("value", ""),
+                bbox=filtered_args.get("bbox"),
+                center_lat=filtered_args.get("center_lat"),
+                center_lon=filtered_args.get("center_lon"),
+                radius_km=filtered_args.get("radius_km"),
+                layer_name=filtered_args.get("layer_name"),
+            )
+            try:
+                res = self._run_on_main_thread(add_osm_layer_main_thread_phase, fetch_result)
+            finally:
+                local_path = fetch_result.get("local_path")
+                if local_path:
+                    import os
+                    try:
+                        os.remove(local_path)
+                    except OSError:
+                        pass
+            self._log_tool_success(name, filtered_args, res)
+            return res
 
         return {"error": f"Unknown two-phase tool: {name}"}
 

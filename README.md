@@ -26,7 +26,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (1,937 passed, 0 failures, 38 skipped), while the
+> **Project status:** active Community edition. The automated suite is green (1,947 passed, 0 failures, 38 skipped), while the
 > full pre-release checklist still requires verification in an interactive QGIS session.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
@@ -67,7 +67,7 @@ black-box answer.
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **171 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **177 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,

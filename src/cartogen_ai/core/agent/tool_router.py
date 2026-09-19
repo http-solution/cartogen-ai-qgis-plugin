@@ -85,6 +85,13 @@ _TOOL_ALIASES = {
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "list of locations", "multiple locations",
     ],
+    "ingest_osm_features": [
+        "hospital", "hospitals", "clinic", "clinics", "health facilit",
+        "health facilities", "doctors", "pharmacy", "osm data",
+        "download facilities", "fetch facilities", "osm features",
+        "infrastructure", "schools", "road network", "highways",
+        "osm", "amenities", "amenity",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

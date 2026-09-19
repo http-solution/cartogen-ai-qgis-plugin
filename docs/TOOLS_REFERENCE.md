@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (176 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (177 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -309,6 +309,20 @@ Download a country's gridded population raster from WorldPop (open, free populat
 |---|---|---|---|
 | `iso3` | string | yes | 3-letter ISO country code, e.g. 'YEM'. |
 | `year` | string | no | Population year, e.g. '2020'. Omit to use the most recent available. |
+
+### `ingest_osm_features` _(two-phase)_
+
+Download OpenStreetMap vector features via Overpass API (e.g. key='amenity', value='hospital', or value='hospital|clinic|doctors', or key='highway', value='primary|secondary') for a bounding box or around a center coordinate and directly add them as a new vector layer to the active QGIS project. Use this whenever you need to ingest facilities, infrastructure, or road networks into an empty or new project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `key` | string | yes | OSM tag key, e.g. 'amenity', 'highway', 'building' |
+| `value` | string | yes | OSM tag value or regex pipe-separated values, e.g. 'hospital', 'hospital|clinic|doctors' |
+| `bbox` | array[number] | no | Optional bounding box [south, west, north, east] |
+| `center_lat` | number | no | Optional center latitude for radius search |
+| `center_lon` | number | no | Optional center longitude for radius search |
+| `radius_km` | number | no | Optional search radius in km around center (default: 10 km) |
+| `layer_name` | string | no | Optional name for the created QGIS vector layer |
 
 ### `search_hdx_datasets` _(network-only)_
 
