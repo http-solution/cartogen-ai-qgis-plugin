@@ -900,6 +900,27 @@ class ChatTabWidget(QWidget):
                 self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
             return
 
+        if kind == "apply_style":
+            from ..agent.tools.representation_tools import apply_recommended_representation
+            rep_id = payload.get("representation_id", "")
+            target_field = payload.get("target_field")
+            res = apply_recommended_representation(layer_name, rep_id, target_field)
+            if res.get("success"):
+                self._dock.statusSignal.emit(f"Applied {rep_id} to {layer_name}")
+                self._dock.receiveMessageSignal.emit(
+                    "ai", f"🎨 **Applied Representation:** Configured `{rep_id}` on `{layer_name}`."
+                )
+                try:
+                    from qgis.utils import iface
+                    if iface and iface.mapCanvas():
+                        iface.mapCanvas().refresh()
+                except Exception:
+                    pass
+            else:
+                err = res.get("error", "Failed to apply representation")
+                self._dock.receiveMessageSignal.emit("ai", f"❌ **Style Error:** {err}")
+            return
+
         if kind == "prompt":
             prompt_text = payload.get("text", "")
             if prompt_text:

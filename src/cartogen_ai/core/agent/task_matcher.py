@@ -286,7 +286,7 @@ def output_contract(entry, query=None):
         "layout":    ["create_print_layout", "print_map"],
         "dashboard": ["generate_html_dashboard"],
         "report":    ["generate_report", "generate_spatial_report"],
-        "analysis":  ["field_statistics"],
+        "analysis":  ["field_statistics", "export_to_csv"],
         "dataset":   ["export_layer", "export_to_csv"],
         "guidance":  [],
     }

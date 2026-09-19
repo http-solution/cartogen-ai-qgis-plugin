@@ -17,13 +17,14 @@ try:
         QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes
     )
     from qgis.PyQt.QtCore import QVariant, Qt
-    from qgis.PyQt.QtGui import QColor
+    from qgis.PyQt.QtGui import QColor, QFont
     import processing
     from qgis.utils import iface
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
     iface = None
+    QFont = None
 
 from ._qgis_enum_compat import resolve_qgis_enum
 
@@ -929,7 +930,11 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
 
     settings = QgsPalLayerSettings()
     text_format = QgsTextFormat()
-    text_format.setFont(QFont("Source Sans 3", int(font_size)))
+    if QFont is not None:
+        try:
+            text_format.setFont(QFont("Source Sans 3", int(font_size)))
+        except Exception:
+            pass
     text_format.setColor(QColor("#1C1C1E"))
     text_format.setSize(font_size)
 
@@ -946,6 +951,7 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     settings.setFormat(text_format)
 
     settings.priority = priority
+    settings.obstacleSettings().setIsObstacle(True)
 
     # Geometry-specific placement and obstacle strategy (QGIS 4.2 cookbook)
     point_geometry = resolve_qgis_enum(QgsWkbTypes, "GeometryType", "PointGeometry")
@@ -956,12 +962,10 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
         ordered_positions = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "OrderedPositionsAroundPoint")
         if ordered_positions is not None:
             settings.placement = ordered_positions
-        settings.obstacleSettings().setIsObstacle(True)
     elif line_geometry is not None and layer.geometryType() == line_geometry:
         curved = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "Curved")
         if curved is not None:
             settings.placement = curved
-        settings.obstacleSettings().setIsObstacle(True)
     elif polygon_geometry is not None and layer.geometryType() == polygon_geometry:
         horizontal = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "Horizontal")
         if horizontal is not None:
@@ -971,10 +975,10 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
         poly_boundary = resolve_qgis_enum(QgsLabelObstacleSettings, "ObstacleType", "PolygonBoundary")
         if poly_boundary is not None:
             settings.obstacleSettings().setType(poly_boundary)
-        settings.obstacleSettings().setIsObstacle(True)
 
     # Scale-aware visibility heuristics to prevent massive label clouds
-    if hasattr(layer, "featureCount") and layer.featureCount() > 500:
+    fc = layer.featureCount() if hasattr(layer, "featureCount") else 0
+    if isinstance(fc, (int, float)) and fc > 500:
         settings.scaleVisibility = True
         settings.minimumScale = 150000
 
