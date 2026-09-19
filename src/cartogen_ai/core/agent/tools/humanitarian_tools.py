@@ -279,6 +279,201 @@ def fetch_osm_features(key: str, value: str, bbox: list):
         return {"error": f"Overpass API request failed: {e}"}
 
 
+def ingest_osm_features_network_phase(
+    key: str,
+    value: str,
+    bbox: list = None,
+    center_lat: float = None,
+    center_lon: float = None,
+    radius_km: float = None,
+    layer_name: str = None,
+) -> dict:
+    """Pure network phase: queries Overpass API for OSM features and dumps a GeoJSON FeatureCollection
+    to a temporary local file. Safe to run on a background thread."""
+    if not key or not value:
+        return {"error": "'key' and 'value' parameters are required (e.g. key='amenity', value='hospital')."}
+
+    if bbox is not None and isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        s, w, n, e = [float(x) for x in bbox]
+    elif center_lat is not None and center_lon is not None:
+        r = float(radius_km) if (radius_km is not None and radius_km > 0) else 10.0
+        lat_delta = r / 111.0
+        cos_lat = math.cos(math.radians(float(center_lat)))
+        lon_delta = r / (111.0 * max(0.01, abs(cos_lat)))
+        s = float(center_lat) - lat_delta
+        n = float(center_lat) + lat_delta
+        w = float(center_lon) - lon_delta
+        e = float(center_lon) + lon_delta
+    else:
+        return {"error": "Either 'bbox' ([south, west, north, east]) or ('center_lat', 'center_lon') must be provided."}
+
+    if s >= n or w >= e:
+        return {"error": f"Invalid bounding box: south ({s}) must be < north ({n}) and west ({w}) < east ({e})."}
+
+    clean_key = re.sub(r'[^a-zA-Z0-9_:-]', '', key)
+    clean_value = value.replace('\\', '\\\\').replace('"', '\\"')
+    op = "~" if "|" in clean_value else "="
+
+    overpass_ql = (
+        f'[out:json][timeout:30];'
+        f'('
+        f'node["{clean_key}"{op}"{clean_value}"]({s},{w},{n},{e});'
+        f'way["{clean_key}"{op}"{clean_value}"]({s},{w},{n},{e});'
+        f');'
+        f'out center body;'
+        f'>;'
+        f'out skel qt;'
+    )
+    url = "https://overpass-api.de/api/interpreter"
+
+    try:
+        req = urllib.request.Request(
+            url,
+            data=overpass_ql.encode('utf-8'),
+            headers={'User-Agent': 'QGIS-AI-Assistant'}
+        )
+        with urllib.request.urlopen(req, timeout=35) as response:
+            res_json = json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        return {"error": f"Overpass API request failed: {e}"}
+
+    elements = res_json.get("elements", [])
+    features = []
+    for elem in elements:
+        elem_type = elem.get("type")
+        lat = elem.get("lat") or elem.get("center", {}).get("lat")
+        lon = elem.get("lon") or elem.get("center", {}).get("lon")
+        if lat is None or lon is None:
+            continue
+
+        tags = elem.get("tags", {})
+        feature_name = tags.get("name:en") or tags.get("name") or tags.get("operator") or f"{clean_key}_{elem.get('id')}"
+        props = {
+            "id": elem.get("id"),
+            "osm_type": elem_type,
+            "name": str(feature_name),
+            clean_key: str(tags.get(clean_key, clean_value)),
+        }
+        for k, v in tags.items():
+            if k not in props and isinstance(v, (str, int, float, bool)):
+                props[k] = v
+
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(lon), float(lat)],
+            },
+            "properties": props,
+        })
+
+    if not features:
+        return {
+            "error": f"No OSM features found matching {clean_key}{op}'{clean_value}' in the requested region [{s:.4f}, {w:.4f}, {n:.4f}, {e:.4f}]."
+        }
+
+    if not layer_name:
+        clean_tag = re.sub(r'[^a-zA-Z0-9_]', '_', clean_value)
+        layer_name = f"OSM_{clean_key}_{clean_tag}"
+
+    import tempfile
+    import os
+    fd, tmp_path = tempfile.mkstemp(suffix=".geojson")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump({"type": "FeatureCollection", "features": features}, f)
+
+    return {
+        "success": True,
+        "key": clean_key,
+        "value": clean_value,
+        "feature_count": len(features),
+        "bbox": [s, w, n, e],
+        "local_path": tmp_path,
+        "layer_name": layer_name,
+        "sample_names": [f["properties"]["name"] for f in features[:5]],
+    }
+
+
+def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
+    """Main-thread phase: creates the QgsVectorLayer from the temporary GeoJSON file
+    and adds it to QgsProject. Local disk I/O only."""
+    if "error" in fetch_result:
+        return fetch_result
+
+    local_path = fetch_result.get("local_path")
+    layer_name = fetch_result.get("layer_name", "OSM_Features")
+    result = {k: v for k, v in fetch_result.items() if k != "local_path"}
+
+    if not local_path or not QGIS_AVAILABLE:
+        return result
+
+    layer = QgsVectorLayer(local_path, layer_name, "ogr")
+    if layer.isValid():
+        QgsProject.instance().addMapLayer(layer)
+        result["layer_id"] = layer.id()
+        result["layer_name"] = layer_name
+        result["success"] = True
+    else:
+        result["error"] = f"Failed to instantiate QGIS vector layer from '{local_path}'"
+        result["success"] = False
+
+    return result
+
+
+@register_tool(
+    "ingest_osm_features",
+    "Download OpenStreetMap vector features via Overpass API (e.g. key='amenity', value='hospital', "
+    "or value='hospital|clinic|doctors', or key='highway', value='primary|secondary') for a bounding "
+    "box or around a center coordinate and directly add them as a new vector layer to the active QGIS project. "
+    "Use this whenever you need to ingest facilities, infrastructure, or road networks into an empty or new project.",
+    {
+        "type": "object",
+        "properties": {
+            "key": {"type": "string", "description": "OSM tag key, e.g. 'amenity', 'highway', 'building'"},
+            "value": {"type": "string", "description": "OSM tag value or regex pipe-separated values, e.g. 'hospital', 'hospital|clinic|doctors'"},
+            "bbox": {"type": "array", "items": {"type": "number"}, "description": "Optional bounding box [south, west, north, east]"},
+            "center_lat": {"type": "number", "description": "Optional center latitude for radius search"},
+            "center_lon": {"type": "number", "description": "Optional center longitude for radius search"},
+            "radius_km": {"type": "number", "description": "Optional search radius in km around center (default: 10 km)"},
+            "layer_name": {"type": "string", "description": "Optional name for the created QGIS vector layer"}
+        },
+        "required": ["key", "value"]
+    }
+)
+def ingest_osm_features(
+    key: str,
+    value: str,
+    bbox: list = None,
+    center_lat: float = None,
+    center_lon: float = None,
+    radius_km: float = None,
+    layer_name: str = None,
+) -> dict:
+    """Direct standalone entrypoint: runs network fetch and main-thread layer creation."""
+    fetch_result = ingest_osm_features_network_phase(
+        key=key,
+        value=value,
+        bbox=bbox,
+        center_lat=center_lat,
+        center_lon=center_lon,
+        radius_km=radius_km,
+        layer_name=layer_name,
+    )
+    if "error" in fetch_result:
+        return fetch_result
+
+    local_path = fetch_result.get("local_path")
+    try:
+        return add_osm_layer_main_thread_phase(fetch_result)
+    finally:
+        if local_path:
+            import os
+            try:
+                os.remove(local_path)
+            except OSError:
+                pass
+
+
 def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> dict:
     """Pure network phase: queries the geoBoundaries API and downloads the actual
     geojson boundary file to a local temp file. No qgis.core access -- safe to

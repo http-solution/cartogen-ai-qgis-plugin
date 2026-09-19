@@ -646,6 +646,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("fetch_hdx_admin_boundaries", TWO_PHASE_TOOLS)
         self.assertIn("gemini_grounded_search", TWO_PHASE_TOOLS)
         self.assertIn("openai_grounded_search", TWO_PHASE_TOOLS)
+        self.assertIn("ingest_osm_features", TWO_PHASE_TOOLS)
         self.assertNotIn("remove_layer", TWO_PHASE_TOOLS)
         # Never both -- a tool dispatched via NETWORK_ONLY_TOOLS never touches
         # QgsSettings/QgsProject, so the two sets must stay disjoint.
