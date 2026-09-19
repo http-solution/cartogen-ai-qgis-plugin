@@ -357,6 +357,12 @@ TOOL_OPERATION_TYPES = {
     # same category as remove_layer, and gated by the identical
     # confirmed=False -> PREVIEW_REQUIRED pattern.
     "undo_last_operation": DELETE,
+
+    # -- representation_tools.py --
+    "analyze_layer_for_visualization": READ,
+    "recommend_map_representation": READ,
+    "explain_current_representation": READ,
+    "apply_recommended_representation": MODIFY,
 }
 
 
