@@ -477,6 +477,77 @@ class TestWriteVectorSensitivityWarning(unittest.TestCase):
         self.assertNotIn("warning", res)
 
 
+class TestExportLayerNoPathNeverPrompts(unittest.TestCase):
+    """Same regression as TestExportToCsvDefaultOutputPath's own no-prompt test, for
+    export_layer specifically: a prior version popped a blocking QFileDialog when
+    output_path was omitted and an interactive session (iface/iface.mainWindow() both
+    truthy) was present -- found in a code-review pass (2026-09-20). print_map has the
+    identical fix but isn't covered here: it hits QGIS_AVAILABLE's early-return before
+    reaching the output-path logic at all in this headless test environment, same as
+    other QGIS-object-graph-heavy code in this codebase (see layout_tools.py's own tests'
+    docstring for the same, already-established convention) -- only reachable via a real
+    QGIS session, not a unit test."""
+
+    def test_no_path_never_prompts_even_when_an_interactive_session_is_present(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        fake_iface = MagicMock()
+        fake_iface.mainWindow.return_value = MagicMock()
+        layer = MagicMock()
+        layer.name.return_value = "Scratch Layer"
+        captured = {}
+
+        def fake_write_vector(layer, output_path, driver, layer_options=None, only_selected=None):
+            captured["output_path"] = output_path
+            return {"success": True}
+
+        with patch.object(export_tools_mod, "iface", fake_iface), \
+             patch.object(export_tools_mod, "_find_layer_by_name", return_value=layer), \
+             patch.object(export_tools_mod, "_write_vector", side_effect=fake_write_vector):
+            res = export_tools_mod.export_layer("Scratch Layer", "gpkg")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertTrue(captured["output_path"].endswith("Scratch Layer.gpkg"))
+        # export_layer no longer reads iface at all -- confirms no dialog branch was reached.
+        fake_iface.mainWindow.assert_not_called()
+
+
+class TestWriteVectorOnlySelectedWithNoSelection(unittest.TestCase):
+    """Real bug found in a code-review pass (2026-09-20): only_selected=True with zero
+    features actually selected used to silently fall through to a full-layer export (
+    `use_selection and has_selection` is False either way), reporting only_selected_features
+    as False with no warning at all -- an explicit "just the selected records" request was
+    silently downgraded. Now fails loudly instead, since an export tool silently returning
+    MORE data than requested is a real risk for sensitive/humanitarian layers."""
+
+    def _run_write_vector(self, only_selected):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+
+        fake_writer = MagicMock()
+        fake_writer.SaveVectorOptions.return_value = MagicMock()
+        layer = MagicMock()
+        layer.customProperty.return_value = ""
+        layer.selectedFeatureCount.return_value = 0
+
+        with patch.object(export_tools_mod, "QGIS_AVAILABLE", True), \
+             patch.object(export_tools_mod, "QgsVectorFileWriter", fake_writer, create=True), \
+             patch.object(export_tools_mod, "QgsCoordinateTransformContext", MagicMock(), create=True), \
+             patch.object(export_tools_mod, "_VFW_NO_ERROR", 0):
+            fake_writer.writeAsVectorFormatV2.return_value = (0, "")
+            fake_writer.writeAsVectorFormatV3.return_value = (0, "", "", "")
+            return _write_vector(layer, "/tmp/out.gpkg", "GPKG", only_selected=only_selected)
+
+    def test_only_selected_true_with_no_selection_errors_instead_of_exporting_everything(self):
+        res = self._run_write_vector(only_selected=True)
+        self.assertIn("error", res)
+        self.assertNotIn("success", res)
+
+    def test_only_selected_omitted_with_no_selection_still_exports_the_full_layer(self):
+        # Unaffected case -- only_selected=None (not requested at all) must still export
+        # the whole layer normally, same as before this fix.
+        res = self._run_write_vector(only_selected=None)
+        self.assertTrue(res["success"])
+
+
 class TestWriteVectorUnresolvedNoErrorSentinel(unittest.TestCase):
     """QGIS-004, 2026-09-13 audit: _VFW_NO_ERROR being None (resolve_qgis_enum failed to
     resolve either QGIS 4.x's scoped or QGIS 3.x's flat WriterError.NoError -- a future QGIS
@@ -659,6 +730,27 @@ class TestExportToCsvDefaultOutputPath(unittest.TestCase):
             self._fake_layer(name="Scratch Layer", source=""), None)
         self.assertTrue(path.endswith("Scratch Layer.csv"))
         self.assertTrue(used_fallback)
+
+    def test_no_path_never_prompts_even_when_an_interactive_session_is_present(self):
+        # Real bug found in a code-review pass (2026-09-20): a prior version of
+        # _derive_csv_path briefly reintroduced a blocking QFileDialog.getSaveFileName()
+        # call whenever `iface`/`iface.mainWindow()` were both truthy (i.e. a real
+        # interactive QGIS session) -- reversing the whole point of this class's own
+        # documented fix (a live-reported agent-turn stall). Mocks iface as present here
+        # specifically because the OTHER tests in this class run with iface=None (headless
+        # test env), which is exactly why that regression slipped past them silently: the
+        # dialog branch was simply never reached by any existing test.
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        fake_iface = MagicMock()
+        fake_iface.mainWindow.return_value = MagicMock()
+        with patch.object(export_tools_mod, "iface", fake_iface):
+            path, used_fallback = export_tools_mod._derive_csv_path(
+                self._fake_layer(name="Scratch Layer", source=""), None)
+        self.assertTrue(path.endswith("Scratch Layer.csv"))
+        self.assertTrue(used_fallback)
+        # _derive_csv_path no longer reads `iface` at all -- confirms no dialog branch
+        # was reached (a dialog path would have called mainWindow() to parent the prompt).
+        fake_iface.mainWindow.assert_not_called()
 
     def test_export_to_csv_no_longer_requires_output_path_argument(self):
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod

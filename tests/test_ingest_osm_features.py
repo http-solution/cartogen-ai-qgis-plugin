@@ -111,6 +111,44 @@ class TestIngestOsmFeatures(unittest.TestCase):
         os.remove(res["local_path"])
 
     @patch("urllib.request.urlopen")
+    def test_network_phase_keeps_features_exactly_on_equator_or_prime_meridian(self, mock_urlopen):
+        # Real bug found in a code-review pass (2026-09-20): `elem.get("lat") or
+        # elem.get("center", {}).get("lat")` treats a genuine lat/lon of 0.0 as falsy,
+        # falling through to the (nonexistent, for a plain node) "center" lookup and
+        # silently dropping the feature -- relevant for real humanitarian mapping near the
+        # equator/prime meridian (e.g. Ghana, Togo).
+        mock_response_data = {
+            "elements": [
+                {
+                    "type": "node", "id": 3003, "lat": 0.0, "lon": 35.0,
+                    "tags": {"amenity": "hospital", "name": "Equator Clinic"},
+                },
+                {
+                    "type": "node", "id": 3004, "lat": 6.0, "lon": 0.0,
+                    "tags": {"amenity": "hospital", "name": "Prime Meridian Clinic"},
+                },
+            ]
+        }
+        mock_cm = MagicMock()
+        mock_cm.read.return_value = json.dumps(mock_response_data).encode("utf-8")
+        mock_cm.__enter__.return_value = mock_cm
+        mock_urlopen.return_value = mock_cm
+
+        res = ingest_osm_features_network_phase(
+            key="amenity", value="hospital",
+            center_lat=3.0, center_lon=17.5, radius_km=2000.0,
+        )
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["feature_count"], 2)
+        with open(res["local_path"], "r", encoding="utf-8") as f:
+            data = json.load(f)
+        coords = [tuple(f["geometry"]["coordinates"]) for f in data["features"]]
+        self.assertIn((35.0, 0.0), coords)
+        self.assertIn((0.0, 6.0), coords)
+        os.remove(res["local_path"])
+
+    @patch("urllib.request.urlopen")
     def test_network_phase_no_features_found(self, mock_urlopen):
         mock_cm = MagicMock()
         mock_cm.read.return_value = json.dumps({"elements": []}).encode("utf-8")

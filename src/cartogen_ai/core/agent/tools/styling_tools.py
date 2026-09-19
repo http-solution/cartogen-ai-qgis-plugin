@@ -966,8 +966,13 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         else:
             renderer.symbol().setColor(color)
         result = {"success": True, "layer_name": layer_name, "color": color_hex}
-        target_opacity = opacity if opacity is not None else _default_opacity_for_geometry(layer.geometryType())
-        result["opacity_percent"] = _apply_opacity(layer, target_opacity)
+        # Bug found in a code-review pass (2026-09-20): this used to always apply
+        # _default_opacity_for_geometry() when opacity was omitted, silently clobbering any
+        # previously-configured transparency (e.g. via set_layer_transparency) even though
+        # the caller never asked to touch opacity at all -- directly contradicting this
+        # tool's own schema doc above ("Leaves current opacity unchanged if omitted").
+        if opacity is not None:
+            result["opacity_percent"] = _apply_opacity(layer, opacity)
         layer.triggerRepaint()
         return result
     except Exception as e:

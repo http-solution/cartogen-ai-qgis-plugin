@@ -140,6 +140,18 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
             except Exception:
                 has_selection = False
 
+        # Real bug found in a code-review pass (2026-09-20): only_selected=True with
+        # has_selection=False used to silently fall through to a full-layer export --
+        # `use_selection and has_selection` is False either way, so the caller's explicit
+        # "just the selected records" request was downgraded with no warning at all. Fail
+        # loudly instead: an export tool silently returning MORE data than asked for is a
+        # real risk for humanitarian/sensitive layers, not just a minor UX surprise.
+        if only_selected and not has_selection:
+            return {
+                "error": "only_selected=True was requested, but the layer has no features "
+                "currently selected. Select features first, or omit only_selected to export "
+                "the full layer intentionally."
+            }
         use_selection = only_selected if only_selected is not None else has_selection
         if use_selection and has_selection:
             options.onlySelectedFeatures = True
@@ -207,26 +219,17 @@ def export_layer(layer_name, format, output_path=None, only_selected=None):
     fmt_key = format.lower()
     driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
 
+    # No blocking QFileDialog here -- this tool is called by the LLM agent's unattended
+    # tool-calling loop (agent/agent.py), not only from direct human UI interaction. A
+    # code-review pass (2026-09-20) found a prior version of this function DID pop a modal
+    # Save As dialog when output_path was omitted, reintroducing exactly the stall risk a
+    # headless-safe default was previously added to fix: an agent turn with no output_path
+    # would block on the QGIS main thread waiting for a human click that might never come.
+    # Explicit output_path always wins; otherwise this always derives a Desktop path with
+    # no prompt, matching export_to_csv's/_derive_csv_path's own headless-safe convention.
     if not output_path:
-        if iface is not None and hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
-            try:
-                from qgis.PyQt.QtWidgets import QFileDialog
-                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-                default_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
-                chosen_path, _ = QFileDialog.getSaveFileName(
-                    iface.mainWindow(),
-                    f"Export '{layer.name()}' As {driver}",
-                    default_path,
-                    f"{filter_str};;All Files (*.*)",
-                )
-                if not chosen_path:
-                    return {"cancelled": True, "message": "Export cancelled by user."}
-                output_path = chosen_path
-            except Exception:
-                pass
-        if not output_path:
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            output_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        output_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
 
     return _write_vector(layer, output_path, driver, only_selected=only_selected)
 
@@ -281,30 +284,20 @@ def _sanitize_filename(name):
 
 
 def _derive_csv_path(layer, output_path):
-    """Returns (path, used_desktop_fallback) for export_to_csv. If output_path is omitted
-    in interactive QGIS, prompts the user with the standard Windows Save As dialog.
-    In headless/test mode, falls back to Desktop or source directory."""
+    """Returns (path, used_desktop_fallback) for export_to_csv. explicit output_path always
+    wins; otherwise this sits the .csv beside the layer's own on-disk source, falling back
+    to Desktop for a scratch/memory layer with no real source file -- never prompts, since
+    this tool is called by the LLM agent's unattended tool-calling loop (agent/agent.py), not
+    only from direct human UI interaction.
+
+    A prior version of this function briefly reintroduced a blocking QFileDialog.
+    getSaveFileName() call here when output_path was omitted -- found and reverted in a
+    code-review pass (2026-09-20): that's exactly the interactive-stall risk this headless-
+    safe design was originally built to avoid (a live-reported bug where an agent turn ran
+    out of tool-call budget ending in "please specify a destination file path" -- a modal
+    dialog on an unattended turn is the same failure mode, just silent instead of loud)."""
     if output_path:
         return output_path, False
-
-    # Interactive QGIS: prompt user with standard Save As dialog
-    if iface is not None and hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
-        try:
-            from qgis.PyQt.QtWidgets import QFileDialog
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            default_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}.csv")
-            chosen_path, _ = QFileDialog.getSaveFileName(
-                iface.mainWindow(),
-                f"Save '{layer.name()}' As CSV",
-                default_path,
-                "CSV Files (*.csv);;All Files (*.*)",
-            )
-            if chosen_path:
-                return chosen_path, False
-            # User cancelled the Save As dialog
-            return None, False
-        except Exception:
-            pass
 
     source = ""
     try:
@@ -322,7 +315,8 @@ def _derive_csv_path(layer, output_path):
 
 
 @register_tool("export_to_csv", "Export layer attribute table to CSV file. output_path is optional -- "
-               "omit it to prompt a standard Save As dialog (or fall back to Desktop for scratch layers in tests). "
+               "omit it to save beside the layer's own on-disk source (or fall back to Desktop for a "
+               "scratch/memory layer with no real source file). Never prompts interactively. "
                "If features are selected on the layer, only selected features are exported by default.",
                {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
 def export_to_csv(layer_name, output_path=None, only_selected=None):
@@ -330,8 +324,6 @@ def export_to_csv(layer_name, output_path=None, only_selected=None):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     path, used_fallback = _derive_csv_path(layer, output_path)
-    if path is None:
-        return {"cancelled": True, "message": "Export cancelled by user (no destination file selected)."}
     result = _write_vector(
         layer,
         path,
@@ -354,13 +346,13 @@ def export_to_csv(layer_name, output_path=None, only_selected=None):
 
 @register_tool(
     "print_map",
-    "Export current QGIS map canvas view to a PDF document or PNG/JPG image. If output_path is omitted or empty in an interactive session, a Save File dialog is presented to the user.",
+    "Export current QGIS map canvas view to a PDF document or PNG/JPG image. output_path is optional -- if omitted, saves a PNG to Desktop without prompting.",
     {
         "type": "object",
         "properties": {
             "output_path": {
                 "type": "string",
-                "description": "Optional file path with .pdf, .png, or .jpg extension. If omitted, prompts with Save As dialog.",
+                "description": "Optional file path with .pdf, .png, or .jpg extension. If omitted, saves a PNG to Desktop.",
             }
         },
     },
@@ -373,27 +365,13 @@ def print_map(output_path=None):
 
     canvas = iface.mapCanvas()
 
-    # If no output path provided, open Save As dialog
+    # No blocking QFileDialog here -- see export_layer's own comment on this same fix
+    # (code-review pass, 2026-09-20): this tool runs from the LLM agent's unattended
+    # tool-calling loop, so a modal Save As dialog on a missing output_path risks stalling
+    # a turn indefinitely instead of just picking a sane headless default.
     if not output_path:
-        if hasattr(iface, "mainWindow") and iface.mainWindow() is not None:
-            try:
-                from qgis.PyQt.QtWidgets import QFileDialog
-                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-                default_path = os.path.join(desktop, "qgis_map_export.pdf")
-                chosen_path, _ = QFileDialog.getSaveFileName(
-                    iface.mainWindow(),
-                    "Export Map Canvas",
-                    default_path,
-                    "PDF Document (*.pdf);;PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*.*)",
-                )
-                if not chosen_path:
-                    return {"cancelled": True, "message": "Map export cancelled by user."}
-                output_path = chosen_path
-            except Exception:
-                pass
-        if not output_path:
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            output_path = os.path.join(desktop, "qgis_map_export.png")
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        output_path = os.path.join(desktop, "qgis_map_export.png")
 
     out_ext = os.path.splitext(output_path)[1].lower()
 
