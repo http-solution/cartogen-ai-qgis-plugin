@@ -341,8 +341,16 @@ def ingest_osm_features_network_phase(
     features = []
     for elem in elements:
         elem_type = elem.get("type")
-        lat = elem.get("lat") or elem.get("center", {}).get("lat")
-        lon = elem.get("lon") or elem.get("center", {}).get("lon")
+        # `or` here silently drops any feature sitting exactly on the equator/prime
+        # meridian: 0.0 is falsy in Python, so `elem.get("lat") or ...` (a real bug found
+        # in a code-review pass, 2026-09-20) would fall through to the center lookup for a
+        # plain node with lat=0.0, find no "center" key there, and get None -- discarding a
+        # genuinely valid feature at the very next `is None` check below. Explicit `is not
+        # None` checks instead, so a real 0.0 stays 0.0.
+        elem_lat, elem_lon = elem.get("lat"), elem.get("lon")
+        center = elem.get("center") or {}
+        lat = elem_lat if elem_lat is not None else center.get("lat")
+        lon = elem_lon if elem_lon is not None else center.get("lon")
         if lat is None or lon is None:
             continue
 

@@ -19,6 +19,31 @@ class TestArchitectureBoundaries(unittest.TestCase):
         self.assertTrue(hasattr(infra, "get_qgis_proxy_dict"))
         self.assertTrue(callable(infra.get_qgis_proxy_dict))
 
+    def test_auth_importable_without_infrastructure_already_loaded(self):
+        # Real bug found in a code-review pass (2026-09-20): cartogen_ai.infrastructure's
+        # __init__.py used to eagerly `from ..core.agent.auth import CredentialManager`,
+        # while auth.py itself does `from ...infrastructure.settings_keys import ...` --
+        # a genuine circular import. It only stayed hidden because the full test suite's
+        # discovery order happened to import some other module that finished loading
+        # cartogen_ai.core.agent.auth BEFORE tests/test_auth_and_deps.py ran; running that
+        # one file in isolation (`python -m unittest discover ... -p "test_auth_and_deps.py"`,
+        # or any CI/tool that imports auth.py first) crashed with "cannot import name
+        # 'CredentialManager' from partially initialized module." Reproduces that exact
+        # ordering in a subprocess with a clean sys.modules, rather than relying on this
+        # test file's own import order in the full suite (which could just as easily mask
+        # the bug again the same way).
+        import subprocess
+        import sys
+        import os
+
+        src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+        result = subprocess.run(
+            [sys.executable, "-c", "from cartogen_ai.core.agent.auth import CredentialManager"],
+            capture_output=True, text=True,
+            env={**os.environ, "PYTHONPATH": src_dir},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_processing_boundary(self):
         import cartogen_ai.processing as proc
 

@@ -61,6 +61,8 @@ class CredentialManager:
                     settings = QgsSettings()
                     existing_auth_id = settings.value(auth_id_setting, "")
                     config = QgsAuthMethodConfig("Basic")
+                    if existing_auth_id:
+                        config.setId(existing_auth_id)
                     config.setName(f"cartogen_ai_{provider}")
                     config.setConfig("password", key_value)
 
@@ -347,6 +349,20 @@ class CredentialManager:
         # too rather than forcing a re-entry.
         stray_key = fallback_credential_key(provider)
         if stray_key != fallback_setting:
-            return settings.value(stray_key, "")
+            value = settings.value(stray_key, "")
+            if value:
+                return value
+
+        # Second recovery path, Ollama-specific: before the settings-centralization pass
+        # (LEGACY_SETTINGS_KEYS moved "ollama" from the literal "cartogen_ai/ollama_url"
+        # to fallback_credential_key("ollama") == "cartogen_ai/ollama_key"), any endpoint
+        # URL saved under the old literal name is invisible to both lookups above -- the
+        # stray_key check just above resolves to the SAME new key for ollama, so it can
+        # never reach the old one. Confirmed via a code-review pass (2026-09-20) that no
+        # other migration path exists; a user who configured Ollama before this rename
+        # would otherwise have get_credential("ollama") silently return "" and OllamaClient
+        # fall back to its http://localhost:11434 default with no error at all.
+        if provider == "ollama":
+            return settings.value("cartogen_ai/ollama_url", "")
         return ""
 

@@ -623,6 +623,38 @@ class TestLayerOrderingToolsValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("opacity", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor")
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_change_layer_color_leaves_opacity_untouched_when_omitted(self, mock_find, mock_qcolor):
+        # Real bug found in a code-review pass (2026-09-20): omitting `opacity` used to
+        # still unconditionally apply a geometry-type DEFAULT opacity, clobbering any
+        # previously-configured custom transparency -- directly contradicting this tool's
+        # own schema doc ("Leaves current opacity unchanged if omitted").
+        mock_qcolor.return_value.isValid.return_value = True
+        layer = MagicMock()
+        mock_find.return_value = layer
+
+        res = change_layer_color("layer", "#ff0000")
+
+        self.assertTrue(res.get("success"), res)
+        self.assertNotIn("opacity_percent", res)
+        layer.setOpacity.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor")
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    def test_change_layer_color_still_applies_opacity_when_explicitly_given(self, mock_find, mock_qcolor):
+        mock_qcolor.return_value.isValid.return_value = True
+        layer = MagicMock()
+        mock_find.return_value = layer
+
+        res = change_layer_color("layer", "#ff0000", opacity=42)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["opacity_percent"], 42)
+        layer.setOpacity.assert_called_once_with(0.42)
+
 
 class TestHotspotAnalysisDegradesOutsideQgis(unittest.TestCase):
     def test_degrades(self):

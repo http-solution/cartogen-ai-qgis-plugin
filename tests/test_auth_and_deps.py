@@ -99,6 +99,60 @@ class TestAuthAndDeps(unittest.TestCase):
 
         self.assertEqual(key, "brand-new-key")
 
+    def test_save_credential_reuses_existing_auth_id_on_resave(self):
+        # Real bug found in a code-review pass (2026-09-20): save_credential() used to build
+        # a QgsAuthMethodConfig() with no id() reuse at all, so re-saving/rotating an
+        # already-configured provider's key created a brand-new auth-DB entry every time
+        # instead of updating the existing one in place -- the old entry was never removed.
+        # Confirmed via git log that a `config.setId(existing_auth_id)` call existed before
+        # commit 308aaab silently dropped it.
+        store = {"cartogen_ai/auth_id_test_resave_provider": "existing-auth-id-abc"}
+
+        class FakeSettings:
+            def value(self, key, default=""):
+                return store.get(key, default)
+
+            def setValue(self, key, value):
+                store[key] = value
+
+            def remove(self, key):
+                store.pop(key, None)
+
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = False
+        fake_auth_mgr.storeAuthenticationConfig.return_value = True
+        fake_config = MagicMock()
+
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", return_value=fake_config, create=True):
+            mock_app.authManager.return_value = fake_auth_mgr
+            result = CredentialManager.save_credential("test_resave_provider", "rotated-key-value")
+
+        self.assertTrue(result)
+        fake_config.setId.assert_called_once_with("existing-auth-id-abc")
+
+    def test_get_credential_ollama_falls_back_to_legacy_url_key(self):
+        # Real bug found in a code-review pass (2026-09-20): LEGACY_SETTINGS_KEYS['ollama']
+        # was renamed from the literal 'cartogen_ai/ollama_url' to the generic
+        # 'cartogen_ai/ollama_key' pattern with no migration -- a user who saved an Ollama
+        # endpoint URL before the rename would have get_credential('ollama') silently return
+        # "" after upgrading, with no error, falling back to the localhost default.
+        fake_settings = MagicMock()
+
+        def fake_value(key, default=""):
+            if key == "cartogen_ai/ollama_url":
+                return "http://my-remote-ollama-host:11434/v1/chat/completions"
+            return default
+
+        fake_settings.value.side_effect = fake_value
+        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True):
+            key = CredentialManager.get_credential("ollama")
+
+        self.assertEqual(key, "http://my-remote-ollama-host:11434/v1/chat/completions")
+
     def test_missing_credential_message_none_outside_qgis(self):
         # QGIS_AVAILABLE is False in this test environment -- no real settings
         # store exists, so the no-client fallback path must return None

@@ -74,6 +74,37 @@ class TestRepresentationProfiler(unittest.TestCase):
         self.assertEqual(prof.fields["bed_count"].semantic_type, "positive_quantity")
         self.assertEqual(prof.fields["occupancy_rate"].semantic_type, "rate_percentage")
 
+    def test_all_negative_field_is_not_misclassified_as_positive_quantity(self):
+        # Real bug found in a code-review pass (2026-09-20): the "raw count" check used
+        # `all(v.is_integer() for v in numeric_values if v >= 0)` -- for a field with ONLY
+        # negative fractional values, the filtered generator is empty, and Python's all() on
+        # an empty iterable is vacuously True, so the field was wrongly classified
+        # "positive_quantity" despite being entirely negative.
+        mock_layer = MagicMock()
+        mock_layer.name.return_value = "Terrain_Points"
+        mock_layer.isValid.return_value = True
+        mock_layer.geometryType.return_value = 0
+        mock_layer.featureCount.return_value = 3
+
+        f1 = MagicMock()
+        f1.name.return_value = "depth_change"
+        f1.isNumeric.return_value = True
+        f1.typeName.return_value = "Real"
+        mock_layer.fields.return_value = [f1]
+
+        values = [-1.5, -2.3, -10.7]
+        feats = []
+        for v in values:
+            feat = MagicMock()
+            feat.geometry.return_value.isEmpty.return_value = False
+            feat.geometry.return_value.boundingBox.return_value = MagicMock()
+            feat.__getitem__.side_effect = (lambda val: (lambda k: val if k == "depth_change" else None))(v)
+            feats.append(feat)
+        mock_layer.getFeatures.return_value = feats
+
+        prof = profile_layer(mock_layer)
+        self.assertEqual(prof.fields["depth_change"].semantic_type, "nominal")
+
 
 class TestRepresentationPlanner(unittest.TestCase):
     def test_point_dense_recommends_cluster_or_heatmap(self):

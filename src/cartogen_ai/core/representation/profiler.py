@@ -119,8 +119,14 @@ def _classify_field_semantics(name: str, values: List[Any], field_type_name: str
     # Rate / Percentage check
     elif any(k in name_lower for k in _RATE_KEYWORDS) or (0 <= min_val and max_val <= 1.0001) or (0 <= min_val and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
         sem_type = "rate_percentage"
-    # Raw count check
-    elif any(k in name_lower for k in _COUNT_KEYWORDS) or all(v.is_integer() for v in numeric_values if v >= 0):
+    # Raw count check. Bug found in a code-review pass (2026-09-20): the previous
+    # `all(v.is_integer() for v in numeric_values if v >= 0)` is a vacuous-truth trap -- a
+    # field with ONLY negative values (e.g. elevation deltas -1.5, -2.3) filters to an empty
+    # generator, and Python's all() on an empty iterable is True, so it was misclassified as
+    # "positive_quantity" despite being entirely negative. Requiring min_val >= 0 up front
+    # (already computed above) and checking is_integer() over the full, unfiltered
+    # numeric_values makes this an honest "every value is a non-negative integer" check.
+    elif any(k in name_lower for k in _COUNT_KEYWORDS) or (min_val >= 0 and all(v.is_integer() for v in numeric_values)):
         sem_type = "positive_quantity"
     else:
         sem_type = "positive_quantity" if min_val >= 0 else "nominal"
