@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.5.7-rc1
+version=1.5.7-rc2
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.5.7-rc1 (2026-09-19):
+changelog=v1.5.7-rc2 (2026-09-19):
+    Release candidate 2 for 1.5.7: documentation synchronization, full-phase engineering self-review,
+    and release candidate stabilization:
+    - Centralized all settings keys and QgsSettings layer property lookups into infrastructure.settings_keys.
+    - Decoupled requests import across all AI provider modules allowing lean testing environments.
+    - Added DBF byte-length shapefile preflight laundering with while-loop candidate disambiguation.
+    - Added create_shaded_relief combining hypsometric tinting with hillshade via Multiply blend mode.
+    - Validated all 1,916 automated tests passing across core, processing, and agent systems.
+    - Packaged and verified release archives (dist/cartogen_ai_v1.5.7-rc2.zip and cartogen_ai.zip).
+
+v1.5.7-rc1 (2026-09-19):
     Release candidate 1 for 1.5.7: major architectural and cartographic remediation (Part A & Part B):
     - Added native QGIS Processing Provider (cartogen_ai.processing) with OptimalHubSitingAlgorithm
       and CalculateServiceAreaAlgorithm for Graphical Model Designer, batch processing, and headless
