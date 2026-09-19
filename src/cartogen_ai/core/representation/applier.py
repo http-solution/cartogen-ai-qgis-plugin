@@ -116,7 +116,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
             layer.triggerRepaint()
 
             # Auto zoom to layer
-            from ..agent.tools.map_tools import zoom_to_layer
+            from ..agent.tools.vector_tools import zoom_to_layer
             zoom_to_layer(layer.name())
 
             return {"success": True, "applied": "point_heatmap", "layer_name": layer.name()}

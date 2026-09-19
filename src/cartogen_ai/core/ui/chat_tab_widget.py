@@ -805,42 +805,60 @@ class ChatTabWidget(QWidget):
             return
         if url.scheme() != "cartogen":
             return
-        if url.host() == "starter":
+        host = url.host()
+        path = url.path()
+        if not host and path:
+            path_parts = [p for p in path.split("/") if p]
+            if path_parts:
+                host = path_parts[0]
+                path = "/" + "/".join(path_parts[1:])
+
+        if host == "starter":
             self._on_starter_prompt_clicked(url)
             return
-        if url.host() == "refine":
+        if host == "refine":
             self._on_refinement_card_clicked(url)
             return
-        if url.host() in ("confirm", "cancel"):
+        if host in ("confirm", "cancel"):
             self._on_safety_gate_link_clicked(url)
             return
-        if url.host() == "clearplan":
+        if host == "clearplan":
             self._clear_plan()
             return
-        if url.host() == "task":
+        if host == "task":
             self._on_plan_task_clicked(url)
             return
-        if url.host() == "action":
+        if host == "action":
             self._on_chat_action_clicked(url)
             return
-        if url.host() == "export":
+        if host == "export":
             self._on_export_action_clicked(url)
             return
-        if url.host() == "prompt":
+        if host == "prompt":
             import urllib.parse
-            prompt_text = urllib.parse.unquote(url.path().lstrip("/"))
+            prompt_text = urllib.parse.unquote(path.lstrip("/"))
             if not prompt_text and url.hasQuery():
-                prompt_text = urllib.parse.unquote(url.query())
+                from qgis.PyQt.QtCore import QUrlQuery
+                q = QUrlQuery(url)
+                prompt_text = q.queryItemValue("text") or urllib.parse.unquote(url.query())
             if prompt_text:
                 self.input_edit.setPlainText(prompt_text)
+                from qgis.PyQt.QtGui import QTextCursor
+                cursor = self.input_edit.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.input_edit.setTextCursor(cursor)
                 self.input_edit.setFocus()
+                if self._dock:
+                    self._dock.statusSignal.emit("Staged prompt in chat input.")
             return
-        if url.host() == "zoom":
-            parts = [p for p in url.path().split("/") if p]
+        if host == "zoom":
+            parts = [p for p in path.split("/") if p]
             layer_name = parts[-1] if parts else None
-            from ..agent.tools.map_tools import zoom_to_layer
+            from ..agent.tools.vector_tools import zoom_to_layer
             if layer_name and layer_name != "zoom":
-                zoom_to_layer(layer_name)
+                res = zoom_to_layer(layer_name)
+                if self._dock and res.get("success"):
+                    self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
             else:
                 try:
                     from qgis.utils import iface
@@ -909,8 +927,10 @@ class ChatTabWidget(QWidget):
             # Fallback for dynamic action URLs like cartogen://action/zoom/Layer or cartogen://action/export/Layer
             action_parts = [p for p in url.path().split("/") if p]
             if len(action_parts) >= 2 and action_parts[0] == "zoom":
-                from ..agent.tools.map_tools import zoom_to_layer
-                zoom_to_layer(action_parts[1])
+                from ..agent.tools.vector_tools import zoom_to_layer
+                res = zoom_to_layer(action_parts[1])
+                if self._dock and res.get("success"):
+                    self._dock.statusSignal.emit(f"Zoomed to {action_parts[1]}")
                 return
             if len(action_parts) >= 2 and action_parts[0] == "export":
                 from qgis.PyQt.QtCore import QUrl
@@ -919,6 +939,10 @@ class ChatTabWidget(QWidget):
             clean_text = " ".join(action_parts).replace("_", " ")
             if clean_text and not clean_text.startswith("act_"):
                 self.input_edit.setPlainText(clean_text)
+                from qgis.PyQt.QtGui import QTextCursor
+                cursor = self.input_edit.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.input_edit.setTextCursor(cursor)
                 self.input_edit.setFocus()
                 return
             self._dock.receiveMessageSignal.emit(
@@ -947,7 +971,7 @@ class ChatTabWidget(QWidget):
             return
 
         if kind == "zoom":
-            from ..agent.tools.map_tools import zoom_to_layer
+            from ..agent.tools.vector_tools import zoom_to_layer
             res = zoom_to_layer(layer_name)
             if res.get("success"):
                 self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
