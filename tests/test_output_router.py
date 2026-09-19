@@ -42,6 +42,12 @@ class TestSatisfied(unittest.TestCase):
         self.assertFalse(router.satisfied(c, ["get_layers", "get_attributes"]))
         self.assertFalse(router.satisfied(c, []))
 
+    def test_a_layer_contract_is_met_by_point_layer_creation(self):
+        c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        self.assertTrue(router.satisfied(c, ["add_point_layer"]))
+        self.assertTrue(router.satisfied(c, ["add_incident_point"]))
+        self.assertTrue(router.satisfied(c, ["create_memory_layer"]))
+
     def test_every_contract_kind_in_the_register_is_handled(self):
         for kind in reg.OUTPUTS:
             # must not raise, and must give a definite answer either way
@@ -70,6 +76,26 @@ class TestFollowup(unittest.TestCase):
 
     def test_a_contract_with_no_renderer_never_asks_for_anything(self):
         self.assertIsNone(router.followup_instruction({"kind": "guidance", "render": []}, []))
+
+    def test_missing_layer_followup_demands_layer_creation(self):
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        # When no layer was created in the turn
+        msg = router.followup_instruction(layer_contract, ["get_layers", "get_attributes"])
+        self.assertIn("no layer has been created yet", msg)
+        self.assertIn("add_point_layer", msg)
+        self.assertNotIn("Do not redo", msg)
+
+    def test_missing_layer_followup_with_has_layers_false(self):
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        msg = router.followup_instruction(layer_contract, [], has_layers=False)
+        self.assertIn("Call an appropriate layer creation tool now", msg)
+
+    def test_layer_followup_with_existing_layer_demands_styling(self):
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        # When a layer was created but styling didn't run and satisfied() returned False
+        msg = router.followup_instruction(layer_contract, ["custom_layer_creator"], has_layers=True)
+        self.assertIn("apply_categorized_style", msg)
+        self.assertIn("Do not redo the analysis", msg)
 
 
 class TestNotes(unittest.TestCase):

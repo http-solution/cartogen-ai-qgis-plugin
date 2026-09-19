@@ -40,6 +40,21 @@ class TestToolRouter(unittest.TestCase):
         self.assertIn("calculate_ndvi", tool_names)
         self.assertIn("get_layers", tool_names)  # Always included core tool
 
+    def test_explicit_tool_mention_guaranteed_in_candidates(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        # Even with a small top_k, a tool explicitly mentioned by name is guaranteed to be included
+        filtered = router.filter_relevant_tools(
+            "call apply_categorized_style now to produce styled layers on the QGIS canvas", top_k=10
+        )
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("apply_categorized_style", names)
+
+    def test_snake_case_query_words_expand_and_match(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        filtered = router.filter_relevant_tools("add_point_layer for incidents", top_k=10)
+        names = [t.get("function", {}).get("name") for t in filtered]
+        self.assertIn("add_point_layer", names)
+
 
 class TestExecutePyqgisScriptFallbackOnly(unittest.TestCase):
     """Point 1 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md:

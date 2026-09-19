@@ -276,14 +276,11 @@ class ChatTabWidget(QWidget):
         chat_layout.setContentsMargins(4, 4, 4, 4)
 
         self.chat_browser = QTextBrowser()
-        self.chat_browser.setOpenExternalLinks(True)
-        # openLinks=False so a real (internal-looking) anchor doesn't trigger QTextBrowser's own
-        # page-navigation via setSource() -- independent of openExternalLinks above, which still
-        # opens genuine http(s) links from markdown responses via QDesktopServices exactly as
-        # before. anchorClicked fires either way; this just intercepts the one internal scheme
-        # (cartogen://) this codebase's first-ever clickable in-chat control uses (the tool-steps
-        # Details toggle, added 2026-09-12 -- see _flush_tool_steps_summary/render_tool_steps_
-        # toggle_html) without letting Qt try to "navigate" to it as if it were a real page.
+        # openExternalLinks=False is REQUIRED so Qt's anchorClicked signal fires for custom
+        # schemes like cartogen:// (Qt specification: openExternalLinks=True suppresses anchorClicked
+        # for non-empty schemes and hands them to QDesktopServices). Real http(s) and file links
+        # are forwarded to QDesktopServices inside _on_step_anchor_clicked.
+        self.chat_browser.setOpenExternalLinks(False)
         self.chat_browser.setOpenLinks(False)
         self.chat_browser.anchorClicked.connect(self._on_step_anchor_clicked)
         chat_layout.addWidget(self.chat_browser)
@@ -794,6 +791,11 @@ class ChatTabWidget(QWidget):
         all share the scheme. Ignores anything that isn't "cartogen", so real markdown
         links in AI responses (opened via setOpenExternalLinks(True), untouched by this
         handler) are unaffected."""
+        # Handle standard external schemes via QDesktopServices
+        if url.scheme() in ("http", "https", "file"):
+            from qgis.PyQt.QtGui import QDesktopServices
+            QDesktopServices.openUrl(url)
+            return
         if url.scheme() != "cartogen":
             return
         if url.host() == "starter":
@@ -816,6 +818,22 @@ class ChatTabWidget(QWidget):
             return
         if url.host() == "export":
             self._on_export_action_clicked(url)
+            return
+        if url.host() == "prompt":
+            import urllib.parse
+            prompt_text = urllib.parse.unquote(url.path().lstrip("/"))
+            if not prompt_text and url.hasQuery():
+                prompt_text = urllib.parse.unquote(url.query())
+            if prompt_text:
+                self.input_edit.setPlainText(prompt_text)
+                self.input_edit.setFocus()
+            return
+        if url.host() == "zoom":
+            parts = [p for p in url.path().split("/") if p]
+            layer_name = parts[-1] if parts else None
+            if layer_name:
+                from ..agent.tools.map_tools import zoom_to_layer
+                zoom_to_layer(layer_name)
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -868,6 +886,21 @@ class ChatTabWidget(QWidget):
         from ..agent.map_intelligence import ChatActionRegistry
         action = ChatActionRegistry.get(act_id)
         if action is None:
+            # Fallback for dynamic action URLs like cartogen://action/zoom/Layer or cartogen://action/export/Layer
+            action_parts = [p for p in url.path().split("/") if p]
+            if len(action_parts) >= 2 and action_parts[0] == "zoom":
+                from ..agent.tools.map_tools import zoom_to_layer
+                zoom_to_layer(action_parts[1])
+                return
+            if len(action_parts) >= 2 and action_parts[0] == "export":
+                from qgis.PyQt.QtCore import QUrl
+                self._on_export_action_clicked(QUrl(f"cartogen://export/{action_parts[1]}"))
+                return
+            clean_text = " ".join(action_parts).replace("_", " ")
+            if clean_text and not clean_text.startswith("act_"):
+                self.input_edit.setPlainText(clean_text)
+                self.input_edit.setFocus()
+                return
             self._dock.receiveMessageSignal.emit(
                 "ai", "_This action is no longer available (session expired or project changed)._"
             )
@@ -879,7 +912,7 @@ class ChatTabWidget(QWidget):
 
         if kind == "export":
             from ..agent.tools.export_tools import export_to_csv
-            res = export_to_csv(layer_name, only_selected=payload.get("only_selected", True))
+            res = export_to_csv(layer_name, only_selected=payload.get("only_selected"))
             if res.get("cancelled"):
                 self._dock.statusSignal.emit("Export cancelled.")
             elif res.get("success"):
@@ -935,7 +968,8 @@ class ChatTabWidget(QWidget):
         if not layer_name:
             return
         from ..agent.tools.export_tools import export_to_csv
-        res = export_to_csv(layer_name, only_selected=True)
+        # only_selected=None allows export_to_csv to export selection if active, or all features if no selection
+        res = export_to_csv(layer_name, only_selected=None)
         if res.get("cancelled"):
             self._dock.statusSignal.emit("Export cancelled.")
         elif res.get("success"):
@@ -1429,8 +1463,16 @@ class ChatTabWidget(QWidget):
             self._contract_followup_used = False
             return
 
+        has_layers = None
+        try:
+            from qgis.core import QgsProject
+            has_layers = bool(QgsProject.instance().mapLayers())
+        except Exception:
+            pass
+
         instruction = output_router.followup_instruction(
-            contract, executed, already_retried=self._contract_followup_used)
+            contract, executed, already_retried=self._contract_followup_used,
+            has_layers=has_layers)
         if instruction is None:
             # Already retried once. Say so plainly rather than trying again.
             self._dock.receiveMessageSignal.emit(

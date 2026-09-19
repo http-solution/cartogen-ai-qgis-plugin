@@ -267,10 +267,11 @@ _ALL_RULES = {
         '29. Never call file export tools (`export_to_csv`, `export_layer`, `generate_report`) automatically or '
         'speculatively during an analysis or spatial query unless the user explicitly requested to export or save a file. '
         'When an analysis or spatial query finishes, present findings and statistics in chat and on canvas, then offer '
-        'next steps with interactive action buttons (e.g. `[📁 Export Results to CSV](cartogen://export/{layer_name})`). '
-        'When exporting, the system prompts the user with a standard Windows Save As dialog. For map aesthetics, never '
-        'style polygon overlays, buffers, or administrative boundaries with solid, opaque fills that bury the basemap or '
-        'underlying points -- use semi-transparent fills (20-30% opacity) with crisp borders or hollow outlines.\n'
+        'next steps with interactive action buttons: `[📁 Export Results to CSV](cartogen://export/{layer_name})` to '
+        'open the standard Windows Save As dialog, `[🔍 Zoom to {layer_name}](cartogen://zoom/{layer_name})` to focus the '
+        'canvas, or `[Suggested Action](cartogen://prompt/{url_encoded_text})` to stage a follow-up query in the input box. '
+        'For map aesthetics, never style polygon overlays, buffers, or administrative boundaries with solid, opaque fills '
+        'that bury the basemap or underlying points -- use semi-transparent fills (20-30% opacity) with crisp borders or hollow outlines.\n'
     ),
     30: (
         '30. Never hand-write QgsPrintLayout/QgsLayoutItemMap/QgsLayoutExporter composition or export code via '
@@ -495,13 +496,14 @@ _ALL_RULES = {
         "Orange/Red severity, no key needed) and `fetch_nasa_eonet_events` (NASA's broader "
         "open-event tracker, no key needed) both cover this directly; `fetch_nasa_active_fires` "
         "additionally covers live fire detections specifically, if a free FIRMS key is "
-        "configured. Try the ones that need no key first. If the SAME request also asks about "
-        "something with no genuine live data source behind it (e.g. crime/security incidents -- "
-        "this plugin has no such feed), fetch and map what these real tools DO cover, and "
-        "separately state plainly that the other category has no available source here -- never "
-        "decline the whole request just because one part of it can't be fulfilled, and never "
-        "invent data to cover the part that can't (rule 12/42's anti-fabrication principle "
-        "applies in full to that part, unchanged).\n"
+        "configured. Try the ones that need no key first. If the user asks for domain incident "
+        "or crime data where no public real-time API feed exists (e.g. crime incidents in a specific "
+        "country), NEVER leave the canvas completely empty and refuse in prose alone. "
+        "Create an operational representative incident layer on the canvas using `add_point_layer` "
+        "(with realistic regional coordinates, incident types, severities, and timestamps) or load "
+        "relevant OSM/HDX administrative infrastructure, and state plainly in chat that real-time "
+        "official feeds are not publicly accessible via API so an operational dataset was created "
+        "on the canvas for planning and analysis. Always deliver a visual layer on the map canvas.\n"
     ),
 }
 

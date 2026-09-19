@@ -196,11 +196,26 @@ class ToolRouter:
         # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
         # check below) keeps every word, since a multi-word alias phrase like "rank the
         # districts" is matched as a whole substring, not word-by-word.
-        query_words = set(re.findall(r'\w+', query_lower)) - _STOPWORDS
+        query_tokens = set(re.findall(r'\w+', query_lower))
+        query_words = set()
+        for token in query_tokens:
+            if token not in _STOPWORDS:
+                query_words.add(token)
+            if "_" in token:
+                query_words.update(w for w in token.split("_") if w not in _STOPWORDS)
+
         # Alias matching only -- see _FUZZY_TYPO_VOCAB's docstring. Never touches query_words
         # itself, so name/description scoring (and every existing test asserting on it) is
         # unaffected; only the alias substring check below sees the corrected words.
         alias_query_lower = _expand_query_with_fuzzy_corrections(query_words, query_lower)
+
+        # Tools explicitly requested by exact name in user_query/follow-up prompt get guaranteed inclusion
+        explicit_tool_names = {
+            t.get("function", {}).get("name", "")
+            for t in self.full_schema_list
+            if t.get("function", {}).get("name", "").lower() in query_lower
+            and len(t.get("function", {}).get("name", "")) >= 4
+        }
 
         # Always include core agent/task/memory tools. execute_pyqgis_script is
         # handled separately below (point 1 of
@@ -213,7 +228,7 @@ class ToolRouter:
             "get_layers", "get_attributes", "create_plan", "update_task",
             "set_task_preview", "store_project_memory", "store_global_memory",
             "generate_spatial_report"
-        }
+        } | explicit_tool_names
         _FALLBACK_TOOL = "execute_pyqgis_script"
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
