@@ -181,8 +181,22 @@ def buffer_analysis(layer_name, distance):
         new_layer = output["OUTPUT"]
         new_name = f"{layer_name}_buffer_{distance}"
         new_layer.setName(new_name)
-        QgsProject.instance().addMapLayer(new_layer)
-        result = {"success": True, "layer_name": new_name}
+
+        # Map Intelligence Engine: local role-based insertion (below source layer) & component symbology (20% fill, 100% stroke)
+        from ..map_intelligence import process_map_output
+        intel_res = process_map_output(
+            new_layer,
+            output_role="proximity_buffer",
+            source_layer_id=layer.id() if hasattr(layer, "id") else None,
+        )
+
+        result = {
+            "success": True,
+            "layer_name": new_name,
+            "action_chips": intel_res.get("action_chips", []),
+        }
+        if intel_res.get("findings"):
+            result["map_quality_findings"] = intel_res["findings"]
         # Point 3 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md,
         # confirmed live against real QGIS 4.2.2: native:buffer's DISTANCE is
         # applied in the input layer's own CRS units with no conversion --
@@ -915,6 +929,8 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
 
     settings = QgsPalLayerSettings()
     text_format = QgsTextFormat()
+    text_format.setFont(QFont("Source Sans 3", int(font_size)))
+    text_format.setColor(QColor("#1C1C1E"))
     text_format.setSize(font_size)
 
     # OGC SE 1.1.0-style halo/buffer -- 0.8mm, 80%-opacity white, round join -- so labels
@@ -930,17 +946,37 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     settings.setFormat(text_format)
 
     settings.priority = priority
-    settings.obstacleSettings().setIsObstacle(True)
 
-    # 8-position ordered placement is only meaningful for point geometries -- line/polygon
-    # placement uses a different enum family entirely (parallel-to-line / around-centroid),
-    # so this only overrides the QGIS default for points and leaves other geometry types on
-    # whatever the (already sane) QGIS default placement is for that type.
+    # Geometry-specific placement and obstacle strategy (QGIS 4.2 cookbook)
     point_geometry = resolve_qgis_enum(QgsWkbTypes, "GeometryType", "PointGeometry")
+    line_geometry = resolve_qgis_enum(QgsWkbTypes, "GeometryType", "LineGeometry")
+    polygon_geometry = resolve_qgis_enum(QgsWkbTypes, "GeometryType", "PolygonGeometry")
+
     if point_geometry is not None and layer.geometryType() == point_geometry:
         ordered_positions = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "OrderedPositionsAroundPoint")
         if ordered_positions is not None:
             settings.placement = ordered_positions
+        settings.obstacleSettings().setIsObstacle(True)
+    elif line_geometry is not None and layer.geometryType() == line_geometry:
+        curved = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "Curved")
+        if curved is not None:
+            settings.placement = curved
+        settings.obstacleSettings().setIsObstacle(True)
+    elif polygon_geometry is not None and layer.geometryType() == polygon_geometry:
+        horizontal = resolve_qgis_enum(QgsPalLayerSettings, "Placement", "Horizontal")
+        if horizontal is not None:
+            settings.placement = horizontal
+        settings.fitInPolygonOnly = True
+        # For polygons, boundary obstacle prevents label suppression across adjacent areas
+        poly_boundary = resolve_qgis_enum(QgsLabelObstacleSettings, "ObstacleType", "PolygonBoundary")
+        if poly_boundary is not None:
+            settings.obstacleSettings().setType(poly_boundary)
+        settings.obstacleSettings().setIsObstacle(True)
+
+    # Scale-aware visibility heuristics to prevent massive label clouds
+    if hasattr(layer, "featureCount") and layer.featureCount() > 500:
+        settings.scaleVisibility = True
+        settings.minimumScale = 150000
 
     if expression:
         settings.fieldName = expression

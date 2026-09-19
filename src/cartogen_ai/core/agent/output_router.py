@@ -27,8 +27,8 @@ unit tested for real rather than mocked.
 from . import file_io
 
 # A contract with no renderer is satisfied the moment the turn ends: guidance
-# is prose, and a layer contract is satisfied by the layers themselves.
-_NO_RENDER = ("guidance",)
+# is prose, and an analysis contract is satisfied by numeric results in chat/canvas.
+_NO_RENDER = ("guidance", "analysis")
 
 # One follow-up per turn. This is the whole loop guard: the caller records that
 # a follow-up was issued and passes already_retried=True the second time.
