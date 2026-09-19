@@ -64,6 +64,52 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-20 — RC4 candidate (1.5.7-rc4), pre-release-commit build — headless, 11 targeted checks
+against a freshly built `dist/cartogen_ai_v1.5.7-rc4.zip` (194 entries, sha256
+`a22a44c30ddfbfd061a9706377f5f4374ca878cb0d05f22aa725a266e1073738`, extracted fresh to a scratch
+directory and imported from THAT path via real QGIS 4.2.2, not the dev tree).** This checksum is
+from the pre-release-commit build -- it will go stale the moment this very file is committed (the
+same self-reference trap noted in the RC3/RC5 entries below: this doc is itself packaged into the
+zip). Per the established resolution, a rebuild-and-correction follow-up happens after the
+release-prep commit lands, and step 7's own download-and-diff against the published GitHub asset
+is the real source of truth, not this entry.
+
+A code-review pass over every commit since the last verified checkpoint found and fixed 7 real
+correctness/security bugs plus 1 latent circular import (see `CHANGELOG.md`'s `[1.5.7-rc4]` entry
+for full per-fix detail), on top of the `ingest_osm_features` tool and AST sandbox guardrails.
+
+**11 targeted checks, all passing, against the packaged code (not the dev tree), each confirming
+the FIX'S OWN CODE is present in what actually got zipped, not just that the dev tree has it:**
+1. Circular import genuinely fixed -- `from cartogen_ai.core.agent.auth import CredentialManager`
+   succeeds in a fresh subprocess with only the packaged `src/` on `PYTHONPATH`, reproducing the
+   exact ordering that crashed before the fix.
+2. `cartogen_ai.infrastructure.CredentialManager`'s lazy `__getattr__` resolves to the same class
+   object as importing it directly from `core.agent.auth`.
+3. `auth.py`'s packaged `save_credential` source contains the `config.setId(existing_auth_id)`
+   reuse line.
+4. `auth.py`'s packaged `get_credential` source contains the `cartogen_ai/ollama_url` legacy
+   fallback.
+5. `export_layer`/`_derive_csv_path`/`print_map`'s packaged source contains no
+   `QFileDialog.getSaveFileName` call.
+6. `_write_vector`'s packaged source contains the `only_selected=True` no-selection error path.
+7. `ingest_osm_features_network_phase`'s packaged source no longer uses the falsy-zero `or` chain
+   for `lat`/`lon`.
+8. `change_layer_color`'s packaged source only applies opacity `if opacity is not None`.
+9. `representation/profiler.py`'s packaged source uses the `min_val >= 0 and all(...)` guard, not
+   the vacuous-truth `all(... if v >= 0)` form.
+10. The full 177-tool registry loads from the packaged code with `ingest_osm_features` present.
+11. The plugin's real entry point (`__init__.py`'s `classFactory`) imports and is callable from the
+    packaged code.
+
+**16-category checklist: not re-run this cycle** -- this cycle's changes are backend logic fixes
+(credential handling, export path derivation, a data-loss bug, a styling regression, a
+classification bug) verified directly against their own code paths above, not broad UI-surface
+changes the full checklist exists to catch. PostGIS remains skipped (still no test database
+available in this environment). `print_map`'s dialog-removal fix specifically (the one UI-adjacent
+change here) could not be exercised interactively in this headless environment -- confirmed only
+via source inspection (check 5 above), not a live click-through; worth a manual pass before a
+final (non-RC) release if that matters.
+
 **2026-09-18 — v1.15.6 STABLE, promoted from rc6 — no code changes, so no new tool-level testing
 against this build specifically.** Every real verification this version carries is the rc1-rc6
 history below and above: 6 release candidates, each checksum-verified against a real QGIS session

@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.5.7-rc3
+version=1.5.7-rc4
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,18 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.5.7-rc3 (2026-09-19):
+changelog=v1.5.7-rc4 (2026-09-20):
+    Release candidate 4 for 1.5.7: ingest_osm_features two-phase OSM vector ingestion, AST sandbox prompt guardrails, and a code-review remediation pass fixing 7 real correctness/security bugs plus 1 latent circular import:
+    - Added ingest_osm_features two-phase vector ingestion tool (Overpass API -> GeoJSON -> QgsVectorLayer) enabling autonomous fetching of facilities and infrastructure for empty projects and coordinates.
+    - Hardened agent prompt guardrails (Rule 6) around execute_pyqgis_script AST security sandbox to steer to ingest_osm_features when layers are missing.
+    - Fixed auth.py credential rotation leaking orphaned QgsAuthMethodConfig entries, and an Ollama settings-key rename with no migration path.
+    - Fixed export_tools.py silently exporting a full layer when only_selected=True finds nothing selected, and a regression that reintroduced a blocking modal dialog on the autonomous agent's export path.
+    - Fixed humanitarian_tools.py dropping OSM features exactly on the equator/prime meridian (falsy-zero bug), styling_tools.py silently clobbering layer opacity, and a vacuous-truth misclassification bug in the new representation profiler.
+    - Fixed a latent circular import between core.agent.auth and infrastructure/__init__.py (CredentialManager re-export made lazy).
+    - Correction: RC3's own changelog entry was found to have been edited in place by a later commit to retroactively claim ingest_osm_features/AST guardrails shipped in RC3 -- confirmed via git show against the actual RC3 tag that neither was present. Left RC3's already-tagged entry as-is; both features accurately ship here, in RC4.
+    - Validated all 1,958 automated unit/integration tests passing (38 skipped), up from RC3's 1,947 -- 11 new regression tests, one per fix.
+
+v1.5.7-rc3 (2026-09-19):
     Release candidate 3 for 1.5.7: pre-release audit remediation, PyQGIS API modernization, and autonomous vector ingestion:
     - Packaged and synchronized release archives (cartogen_ai.zip and dist/cartogen_ai_v1.5.7-rc3.zip) with all 177 tools, Map Intelligence Engine, and Intelligent Representation Planner.
     - Added ingest_osm_features two-phase vector ingestion tool (Overpass API -> GeoJSON -> QgsVectorLayer) enabling autonomous fetching of facilities and infrastructure for empty projects and coordinates.
