@@ -235,10 +235,14 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     stroke_color.setAlpha(profile["stroke_alpha"])
 
     symbol_layer = QgsSimpleFillSymbolLayer()
+    no_brush = Qt.BrushStyle.NoBrush if hasattr(Qt, "BrushStyle") else getattr(Qt, "NoBrush", 0)
+    solid_brush = Qt.BrushStyle.SolidPattern if hasattr(Qt, "BrushStyle") else getattr(Qt, "SolidPattern", 1)
+    round_join = Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else getattr(Qt, "RoundJoin", 64)
+
     if profile["fill_alpha"] == 0:
-        symbol_layer.setBrushStyle(Qt.NoBrush)
+        symbol_layer.setBrushStyle(no_brush)
     else:
-        symbol_layer.setBrushStyle(Qt.SolidPattern)
+        symbol_layer.setBrushStyle(solid_brush)
         symbol_layer.setFillColor(fill_color)
 
     symbol_layer.setStrokeColor(stroke_color)
@@ -246,7 +250,7 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     symbol_layer.setStrokeWidthUnit(QgsUnitTypes.RenderMillimeters)
 
     if profile.get("join_style") == "round":
-        symbol_layer.setPenJoinStyle(Qt.RoundJoin)
+        symbol_layer.setPenJoinStyle(round_join)
 
     symbol = QgsFillSymbol()
     symbol.changeSymbolLayer(0, symbol_layer)
@@ -288,7 +292,8 @@ def configure_intelligent_labels(
     buf.setSize(0.8)
     buf.setSizeUnit(QgsUnitTypes.RenderMillimeters)
     buf.setColor(QColor(255, 255, 255, 204))
-    buf.setJoinStyle(Qt.RoundJoin)
+    pen_round = Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else getattr(Qt, "RoundJoin", 64)
+    buf.setJoinStyle(pen_round)
     text_format.setBuffer(buf)
     settings.setFormat(text_format)
 
