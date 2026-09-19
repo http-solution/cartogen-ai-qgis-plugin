@@ -283,6 +283,10 @@ class ChatTabWidget(QWidget):
         self.chat_browser.setOpenExternalLinks(False)
         self.chat_browser.setOpenLinks(False)
         self.chat_browser.anchorClicked.connect(self._on_step_anchor_clicked)
+        # Keep chat scrolled to bottom as asynchronous document layout updates geometry
+        sb = self.chat_browser.verticalScrollBar()
+        if sb:
+            sb.rangeChanged.connect(self._on_scrollbar_range_changed)
         chat_layout.addWidget(self.chat_browser)
 
         self.status_label = QLabel("")
@@ -582,20 +586,31 @@ class ChatTabWidget(QWidget):
         """
 
         self.chat_browser.append(html)
-        # Force-scroll to the newly added bubble rather than trusting QTextBrowser.append()'s
-        # own "was already at the bottom" heuristic. Real live report, 2026-09-15: "still my
-        # first massage is not showing in the chat" -- confirmed via screenshot that the message
-        # WAS actually in the log (an older, previously-rendered bubble from the same session was
-        # still visible at the current scroll position), it just never scrolled into view. That
-        # heuristic is unreliable right after a dock is (re)created or right after a large HTML
-        # table block lands -- the scrollbar's reported max/value at the moment of the very next
-        # append() doesn't always reflect the just-inserted content yet. Setting the scrollbar to
-        # its maximum explicitly, after the insert, has no such race.
-        scrollbar = self.chat_browser.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        self._scroll_to_bottom()
         self.input_edit.clear()
         self.send_btn.setEnabled(True)
         self.status_label.setText("")
+
+    def _scroll_to_bottom(self):
+        """Scrolls to the bottom reliably, scheduling layout-settling checks."""
+        from qgis.PyQt.QtCore import QTimer
+        from qgis.PyQt.QtGui import QTextCursor
+
+        def _do_scroll():
+            self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
+            sb = self.chat_browser.verticalScrollBar()
+            if sb:
+                sb.setValue(sb.maximum())
+
+        _do_scroll()
+        QTimer.singleShot(50, _do_scroll)
+        QTimer.singleShot(150, _do_scroll)
+
+    def _on_scrollbar_range_changed(self, min_val, max_val):
+        """When document geometry changes asynchronously, follow to bottom if user was near bottom."""
+        sb = self.chat_browser.verticalScrollBar()
+        if sb and (max_val - sb.value() < 160):
+            sb.setValue(max_val)
 
     def _set_status(self, text):
         self.status_label.setText(text)
@@ -662,14 +677,7 @@ class ChatTabWidget(QWidget):
             # html's docstring: failures are load-bearing, not opt-in detail).
             self.chat_browser.append(failure_html)
 
-        # Live report, 2026-09-19: "the scroll bar after each message does not scroll to
-        # bottom." _add_message's own force-scroll fix (see its comment, 2026-09-15) only
-        # covers messages added via chat_browser.append() -- this method inserts directly
-        # via QTextCursor instead (needed to track the block's start/end span for the
-        # Details toggle), which bypasses append()'s scroll heuristic entirely, not just the
-        # unreliable case _add_message already worked around. Same fix, same reasoning.
-        scrollbar = self.chat_browser.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        self._scroll_to_bottom()
 
     def _on_live_plan_updated(self, plan_data):
         """Renders/updates the in-chat plan-progress card -- connected to task_manager's
@@ -708,8 +716,7 @@ class ChatTabWidget(QWidget):
             # every _tick_plan_spinner tick (every 400ms while a task runs) would yank the
             # view back to the bottom several times a second, making scrollback unreadable
             # during a long-running turn.
-            scrollbar = self.chat_browser.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
+            self._scroll_to_bottom()
         else:
             self._plan_block["plan_data"] = plan_data
             self._replace_tracked_block(self._plan_block, html)
@@ -831,9 +838,22 @@ class ChatTabWidget(QWidget):
         if url.host() == "zoom":
             parts = [p for p in url.path().split("/") if p]
             layer_name = parts[-1] if parts else None
-            if layer_name:
-                from ..agent.tools.map_tools import zoom_to_layer
+            from ..agent.tools.map_tools import zoom_to_layer
+            if layer_name and layer_name != "zoom":
                 zoom_to_layer(layer_name)
+            else:
+                try:
+                    from qgis.utils import iface
+                    from qgis.core import QgsProject
+                    layers = list(QgsProject.instance().mapLayers().values())
+                    if iface and iface.activeLayer():
+                        zoom_to_layer(iface.activeLayer().name())
+                    elif layers:
+                        zoom_to_layer(layers[0].name())
+                    elif iface and iface.mapCanvas():
+                        iface.mapCanvas().zoomToFullExtent()
+                except Exception:
+                    pass
             return
 
         parts = [p for p in url.path().split("/") if p]

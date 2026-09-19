@@ -89,15 +89,36 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
 
         # 3. Continuous Heatmap Renderer
         if renderer_id == "point_heatmap":
+            from qgis.core import QgsGradientColorRamp, QgsGradientStop
+            from qgis.PyQt.QtGui import QColor
             heatmap_renderer = QgsHeatmapRenderer()
-            heatmap_renderer.setRadius(10.0)
+            heatmap_renderer.setRadius(12.0)
             heatmap_renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
-            style = QgsStyle.defaultStyle()
-            ramp = style.colorRamp("Viridis") or style.colorRamp("Spectral")
-            if ramp:
-                heatmap_renderer.setColorRamp(ramp)
+
+            # CRITICAL: Stop 0.0 MUST have alpha = 0 (100% transparent) so
+            # zero-density areas do not blot out the basemap with solid dark purple!
+            color1 = QColor(68, 1, 84, 0)
+            color2 = QColor(253, 231, 37, 255)
+            stops = [
+                QgsGradientStop(0.15, QColor(65, 68, 135, 110)),
+                QgsGradientStop(0.35, QColor(42, 120, 142, 170)),
+                QgsGradientStop(0.60, QColor(35, 168, 119, 215)),
+                QgsGradientStop(0.80, QColor(115, 208, 85, 245)),
+            ]
+            ramp = QgsGradientColorRamp(color1, color2, False, stops)
+            heatmap_renderer.setColorRamp(ramp)
+
+            # Disable point text labels so continuous density field is clean
+            if hasattr(layer, "setLabelsEnabled"):
+                layer.setLabelsEnabled(False)
+
             layer.setRenderer(heatmap_renderer)
             layer.triggerRepaint()
+
+            # Auto zoom to layer
+            from ..agent.tools.map_tools import zoom_to_layer
+            zoom_to_layer(layer.name())
+
             return {"success": True, "applied": "point_heatmap", "layer_name": layer.name()}
 
         # 4. Proportional Circles
