@@ -1106,6 +1106,33 @@ def _style_incident_layer(layer):
     layer.setLabelsEnabled(True)
 
 
+def _clip_to_field_width(layer, fname, value):
+    """Clip a string value to its field's declared width before setAttribute.
+
+    Same fix as hazard_monitoring_tools.py's identically-named helper (duplicated here
+    rather than imported, matching this codebase's existing per-file-helper convention --
+    see _find_layer_by_name's ~18 independent copies across agent/tools/): this file's
+    Incidents/add_point_layer schemas also use fixed shapefile-era widths
+    (name/description:string(255) etc.), and setAttribute on a QGIS memory-provider layer
+    silently rejects (and drops) any value wider than the field's declared length rather
+    than raising -- confirmed for the sibling GDACS layer via a real "Could not store
+    attribute" Qt log line, 2026-09-16. Clipping defensively here covers both write sites
+    below regardless of which field a future caller happens to overflow."""
+    if not isinstance(value, str):
+        return value
+    # Best-effort: this file's own test suite stands layers in with a bare MagicMock()
+    # (no real QgsFields), so .field(fname).length() there returns another MagicMock,
+    # not an int -- treat anything that isn't a real QGIS field width as unbounded
+    # rather than raising or mis-clipping against a mock's identity.
+    try:
+        width = layer.fields().field(fname).length()
+    except Exception:
+        return value
+    if isinstance(width, int) and width > 0 and len(value) > width:
+        return value[:width]
+    return value
+
+
 @register_tool(
     "add_incident_point",
     "Plot a single real-world incident/event as a labeled point on the map, using consistent professional "
@@ -1141,33 +1168,6 @@ def _style_incident_layer(layer):
         "required": ["lat", "lon", "date", "description"],
     },
 )
-def _clip_to_field_width(layer, fname, value):
-    """Clip a string value to its field's declared width before setAttribute.
-
-    Same fix as hazard_monitoring_tools.py's identically-named helper (duplicated here
-    rather than imported, matching this codebase's existing per-file-helper convention --
-    see _find_layer_by_name's ~18 independent copies across agent/tools/): this file's
-    Incidents/add_point_layer schemas also use fixed shapefile-era widths
-    (name/description:string(255) etc.), and setAttribute on a QGIS memory-provider layer
-    silently rejects (and drops) any value wider than the field's declared length rather
-    than raising -- confirmed for the sibling GDACS layer via a real "Could not store
-    attribute" Qt log line, 2026-09-16. Clipping defensively here covers both write sites
-    below regardless of which field a future caller happens to overflow."""
-    if not isinstance(value, str):
-        return value
-    # Best-effort: this file's own test suite stands layers in with a bare MagicMock()
-    # (no real QgsFields), so .field(fname).length() there returns another MagicMock,
-    # not an int -- treat anything that isn't a real QGIS field width as unbounded
-    # rather than raising or mis-clipping against a mock's identity.
-    try:
-        width = layer.fields().field(fname).length()
-    except Exception:
-        return value
-    if isinstance(width, int) and width > 0 and len(value) > width:
-        return value[:width]
-    return value
-
-
 def add_incident_point(
     lat: float, lon: float, date: str, description: str, severity: str = None,
     event_type: str = None, sub_event_type: str = None,

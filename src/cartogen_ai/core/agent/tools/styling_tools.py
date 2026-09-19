@@ -15,13 +15,35 @@ try:
         QgsGraduatedSymbolRenderer, QgsRendererRange, QgsSymbol,
         QgsStyle, QgsHeatmapRenderer,
         QgsSingleSymbolRenderer, QgsWkbTypes, QgsMapLayer, QgsRasterLayer,
-        QgsGradientColorRamp, QgsRuleBasedRenderer, QgsExpression,
+        QgsGradientColorRamp, QgsGradientStop, QgsUnitTypes, QgsRuleBasedRenderer, QgsExpression,
         QgsPointClusterRenderer, QgsPointDisplacementRenderer, QgsDistanceArea,
     )
     from qgis.PyQt.QtGui import QColor
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
+    QgsProject = None
+    QgsCategorizedSymbolRenderer = None
+    QgsRendererCategory = None
+    QgsGraduatedSymbolRenderer = None
+    QgsRendererRange = None
+    QgsSymbol = None
+    QgsStyle = None
+    QgsHeatmapRenderer = None
+    QgsSingleSymbolRenderer = None
+    QgsWkbTypes = None
+    QgsMapLayer = None
+    QgsRasterLayer = None
+    QgsGradientColorRamp = None
+    QgsGradientStop = None
+    QgsUnitTypes = None
+    QgsRuleBasedRenderer = None
+    QgsExpression = None
+    QgsPointClusterRenderer = None
+    QgsPointDisplacementRenderer = None
+    QgsDistanceArea = None
+    QColor = None
+    processing = None
     QGIS_AVAILABLE = False
 
 
@@ -769,27 +791,26 @@ def apply_heatmap_style(layer_name, field=None):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     try:
-        from qgis.core import QgsGradientColorRamp, QgsGradientStop, QgsUnitTypes
-        from qgis.PyQt.QtGui import QColor
-
         renderer = QgsHeatmapRenderer()
         if field and field in [f.name() for f in layer.fields()]:
             renderer.setWeightExpression(f'"{field}"')
         renderer.setRadius(12.0)
-        renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+        if QgsUnitTypes is not None and hasattr(QgsUnitTypes, "RenderMillimeters"):
+            renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
 
         # CRITICAL: Baseline stop (0.0) MUST have alpha = 0 (100% transparent) so
         # zero-density areas do not blot out the basemap with solid purple/dark color!
-        color1 = QColor(68, 1, 84, 0)       # 100% transparent zero stop
-        color2 = QColor(253, 231, 37, 255)  # Peak yellow hotspot
-        stops = [
-            QgsGradientStop(0.15, QColor(65, 68, 135, 110)),
-            QgsGradientStop(0.35, QColor(42, 120, 142, 170)),
-            QgsGradientStop(0.60, QColor(35, 168, 119, 215)),
-            QgsGradientStop(0.80, QColor(115, 208, 85, 245)),
-        ]
-        ramp = QgsGradientColorRamp(color1, color2, False, stops)
-        renderer.setColorRamp(ramp)
+        if QColor is not None and QgsGradientColorRamp is not None and QgsGradientStop is not None:
+            color1 = QColor(68, 1, 84, 0)       # 100% transparent zero stop
+            color2 = QColor(253, 231, 37, 255)  # Peak yellow hotspot
+            stops = [
+                QgsGradientStop(0.15, QColor(65, 68, 135, 110)),
+                QgsGradientStop(0.35, QColor(42, 120, 142, 170)),
+                QgsGradientStop(0.60, QColor(35, 168, 119, 215)),
+                QgsGradientStop(0.80, QColor(115, 208, 85, 245)),
+            ]
+            ramp = QgsGradientColorRamp(color1, color2, False, stops)
+            renderer.setColorRamp(ramp)
 
         # Disable point text labels on heatmap layer: continuous density field clashes
         # with dense point label text boxes sitting directly over the hotspots

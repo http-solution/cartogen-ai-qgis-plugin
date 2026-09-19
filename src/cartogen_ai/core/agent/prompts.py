@@ -499,7 +499,7 @@ _ALL_RULES = {
         "configured. Try the ones that need no key first. If the user asks for domain incident "
         "or crime data where no public real-time API feed exists (e.g. crime incidents in a specific "
         "country), NEVER leave the canvas completely empty and refuse in prose alone. "
-        "Create an operational representative incident layer on the canvas using `add_point_layer` "
+        "Create an operational representative incident layer on the canvas using add_point_layer "
         "(with realistic regional coordinates, incident types, severities, and timestamps) or load "
         "relevant OSM/HDX administrative infrastructure, and state plainly in chat that real-time "
         "official feeds are not publicly accessible via API so an operational dataset was created "
