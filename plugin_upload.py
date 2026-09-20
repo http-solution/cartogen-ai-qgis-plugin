@@ -68,6 +68,12 @@ EXCLUDE_DIRS = {
     # FUSE-mount unlink restriction allows it (see docs/BUG_TRACKER.md's
     # rm/mv finding) -- by definition nothing here belongs in a release.
     "_to_delete",
+    # graphify (installed 2026-09-20, .claude/skills/graphify/) writes its
+    # generated knowledge graph here -- graph.json/graph.html/GRAPH_REPORT.md
+    # plus intermediates, several MB, fully regenerable via `graphify update .`
+    # and gitignored for the same reason. A dev-tool artifact, not plugin code;
+    # without this exclusion it would ship inside the actual QGIS plugin zip.
+    "graphify-out",
 }
 # Directory names excluded ONLY at the plugin root, not wherever they occur --
 # unlike EXCLUDE_DIRS above, these bare names ("agent", "ui") also legitimately

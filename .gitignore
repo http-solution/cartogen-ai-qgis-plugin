@@ -239,3 +239,9 @@ _to_delete/
 # Working/dev-only scratch content (e.g. artifact drafts) -- already excluded from the release
 # zip via plugin_upload.py's EXCLUDE_DIRS, but was never actually gitignored until this line.
 /scratch/
+
+# graphify (installed 2026-09-20 as a project-scoped Claude Code skill, .claude/skills/graphify/)
+# writes its generated knowledge graph here -- several MB (graph.json alone), fully regenerable
+# locally via `graphify update .`, same "derived artifact, not source" reasoning as /dist/ above.
+# Also excluded from the release zip in plugin_upload.py's EXCLUDE_DIRS.
+/graphify-out/
