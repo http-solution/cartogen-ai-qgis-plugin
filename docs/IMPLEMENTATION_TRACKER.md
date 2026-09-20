@@ -1,11 +1,14 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-09-20, against `v1.5.7-rc4` (177 tools per the live registry -- not the
-182 raw `@register_tool` decorator sites a naive grep finds, several of which are duplicate
-positional-arg call sites the registry itself dedupes; the 177 figure is queried straight from
+**Last updated:** 2026-09-20 (same day, second pass), against `v1.5.7-rc4` plus an unreleased
+Phase 11 completion pass on `main` (177 tools per the live registry -- not the 182 raw
+`@register_tool` decorator sites a naive grep finds, several of which are duplicate positional-arg
+call sites the registry itself dedupes; the 177 figure is queried straight from
 `registry.TOOL_REGISTRY` at runtime, not assumed. `docs/TOOLS_REFERENCE.md` regenerated the same
 day to match. 1,958 tests, 0 failures, 38 skipped -- independently re-run in this pass, not just
-copied from `CHANGELOG.md`).
+copied from `CHANGELOG.md`). This second same-day pass finished 3 of Phase 11's 4 target areas for
+real (§4's Phase 11 entry has the "Update, 2026-09-20" detail) after the first pass caught it
+false-complete a few hours earlier — not yet cut into a release.
 Previously stamped 2026-09-19, against `v1.15.6` stable + 5 unreleased fixes on `main` (169
 tools, 1771 tests, 0 failures). That previous sync predates essentially all of the work this
 update covers: the entire 11-phase Part A remediation plan (`docs/../` -- tracked in project
@@ -529,6 +532,52 @@ no visibility flag, unchanged from when this item was written.
     architectural boundaries") reading like a completion. This is the one phase of the plan
     worth a deliberate follow-up decision: finish the real move, or accept the facade layer as
     the final state and update the plan's own stated goal to match reality.
+
+    **Update, 2026-09-20 — the real move, done for 3 of the plan's 4 target areas, verified by
+    re-running the full suite after every single-group step (never batched):**
+    - `infrastructure/`, `core/models/`, `core/validators/`, `core/services/` are no longer
+      facades — `auth.py`, `deps.py`, `providers/` physically moved into `infrastructure/`;
+      `transactions.py`, `dataset_status.py`, `sensitivity.py`, `confidence.py` into
+      `core/models/`; `schema_contracts.py` + `pcode_validation.py` (and their `contracts/*.json`
+      data files, easy to miss since they're loaded via a path relative to `__file__` — caught by
+      the suite going from a clean pass to 11 failures until the data directory moved too) into
+      `core/validators/`; `prompt_refiner.py`, `tool_router.py`, `task_runner.py`, `learning.py`
+      into `core/services/`. Every internal relative import, every external call site
+      (`agent.py`, `tools/*.py`, `ui/*.py`, `plugin_main.py`), and every test `@patch`
+      string/import across `test_providers.py`, `test_auth_and_deps.py`, `test_dataset_status.py`,
+      `test_schema_contracts.py`, `test_pcode_validation.py`, `test_transactions.py`,
+      `test_prompt_refiner.py`, `test_tool_router.py`, `test_task_runner.py`, `test_learning.py`,
+      and others updated to the real new paths — not left pointing at a location that happened
+      to still work by accident. `infrastructure/__init__.py`'s PEP 562 `__getattr__` workaround
+      for `CredentialManager` (added specifically to dodge a circular import between two packages)
+      was also simplified back to a plain eager import, since physically moving `auth.py` into
+      `infrastructure/` means the cycle it was dodging can no longer exist by construction.
+    - `agent.py`'s god-class decomposition: 3 of the plan's 4 named files now exist for real —
+      `tool_dispatcher.py` (pure file move, `ToolDispatcher` was already self-contained),
+      `usage_tracker.py`, and `history_manager.py` (both extracted via delegation — `CartogenAi.
+      conversation_history`/`session_usage` are now properties backed by the extracted classes,
+      and every externally-called method name — `_accumulate_usage`, `get_session_usage_text`,
+      `_append_history`, `_trim_history`, `_read_history_snapshot`, `_get_history_lock`,
+      `_is_digest_message` as an unbound classmethod call — kept its exact signature so
+      `chat_tab_widget.py` and `test_agent_runner.py`/`test_new_tools.py`'s ~85 direct references
+      didn't need to change). `agent.py`: 1,346 → 1,170 lines. Worth knowing for anyone touching
+      `history_manager.py` later: `trim()`/`append()`/`compact_old_tool_results()` take their
+      thresholds (`MAX_HISTORY_MESSAGES` etc.) as call arguments rather than owning their own
+      copies, specifically because `test_agent_runner.py` monkeypatches
+      `agent_mod.MAX_HISTORY_MESSAGES` directly mid-test — moving the constant itself into
+      `history_manager.py` would silently break that monkeypatch (a `from .history_manager import
+      MAX_HISTORY_MESSAGES` re-export creates an independent binding, not a live link).
+    - **Deliberately still not done, not silently claimed:** renaming `agent.py` itself to
+      `agent_orchestrator.py` (the plan's 4th named file), and splitting `chat_tab_widget.py`
+      into `chat_view_presenter.py`/`chat_input_controller.py`. The three real extractions above
+      already achieve Phase 11's actual goal (single-responsibility separation) — a pure rename
+      of the module every other file imports `CartogenAi` from (`chat_tab_widget.py`,
+      `task_runner.py`, `plugin_main.py`, dozens of test files) has real regression risk and zero
+      behavioral benefit on its own, and `chat_tab_widget.py`'s split is the same risk profile as
+      `agent.py`'s was, in a different, still-1,839-line file — it deserves its own dedicated
+      pass with the same one-group-at-a-time, test-after-every-step discipline this update used,
+      not a rushed addition to an already-large one. `1,958` tests, 0 failures, 38 skipped —
+      re-confirmed after every extraction step in this update, not just at the end.
   - **Also in this arc but outside the original 11-phase plan's scope:** `ingest_osm_features`
     (two-phase OSM Overpass-API ingestion), AST sandbox prompt guardrails, the Map Intelligence
     Engine, the Intelligent Representation Planner, a live end-to-end QGIS 4.2 pipeline test, and
