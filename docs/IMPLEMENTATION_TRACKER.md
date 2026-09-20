@@ -1069,6 +1069,44 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
     a stable-release decision** — genuinely blocked on a real interactive QGIS GUI session this
     sandbox cannot provide, unchanged from every prior entry that's said so.
 
+- **2026-09-21 — the post-test CI segfault fixed at the root, not just waived.** A fourth review
+  correctly rejected the prior day's waiver as unproven: it asserted an environment-level cause
+  ("numpy/matplotlib ABI mismatch") without demonstrating it, and didn't rule out a real plugin
+  teardown regression. Implemented the review's own recommended methodology instead of arguing
+  the point further:
+  - **Pinned both `qgis-live-tests` images by immutable manifest digest** (`qgis/qgis@sha256:...`)
+    instead of a floating tag, closing the moving-tag risk that had already bitten this job once.
+  - **Added a minimal QGIS-only control process** (`tests/_ci_qgis_control_process.py`, never
+    imports `cartogen_ai` or anything under `src/`) as its own CI step, to test whether a
+    plugin-code-free QGIS session hits the same crash independent of this repo.
+  - **Added explicit `QgsApplication.exitQgis()` teardown** (`tests/_ci_run_live_tests.py`,
+    replacing the bare `python3 -m unittest ...` invocation) so Qt/QGIS's C++ objects get an
+    orderly shutdown instead of whatever Python's implicit interpreter-exit does.
+  - **Found a real bug in step 3's own script** (invoked as a bare script instead of `-m`, so the
+    repo root was never on `sys.path` — fixed to `python3 -m tests._ci_run_live_tests`) and, once
+    that was fixed, **reproduced the actual crash locally** — on Windows/QGIS 4.2.2, independent
+    of CI's Linux image and unrelated to the numpy/matplotlib warning previously assumed to be the
+    cause. The crash happened between `runner.run()` returning and the next line of Python
+    executing, before `exitQgis()` was even reached.
+  - **Root-caused it for real:** each of the ~40 test methods across `test_chat_widget_live.py`/
+    `test_plugin_main_live.py` creates a real `QDockWidget` via `addCleanup(dock.close)` —
+    `.close()` alone doesn't destroy the underlying C++ object, so ~40 live-but-closed widgets
+    (each owning child `QTimer`s, e.g. `chat_tab_widget.py`'s `_plan_spinner_timer`) accumulated
+    for the whole run and only got garbage-collected whenever Python's refcounting happened to
+    drop the last reference — landing unpredictably, evidently sometimes inside the interpreter's
+    own shutdown sequence.
+  - **Fix:** `gc.collect()` + pump the Qt event loop (a 300ms `QEventLoop`/`QTimer.singleShot`)
+    before calling `exitQgis()`, so any `deleteLater()`-deferred C++ destruction actually runs
+    while `QApplication` is still fully alive. Verified 4/4 clean local runs after the fix (vs. a
+    reliable crash before it), then confirmed in CI: both `qgis-live-tests` legs now complete with
+    `exitQgis() returned normally` and zero `Segmentation fault` — the waiver logic never
+    triggers, it's dead code now rather than something still relied upon. Final confirmed-green
+    run, all 5 jobs, no waiver used:
+    https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/runs/35538330552
+  - The segfault-waiver code itself is left in place (harmless if truly dead, and cheap insurance
+    against a future regression reintroducing the same pattern) but should not be relied upon as
+    the CI matrix's actual passing mechanism going forward — it isn't one anymore.
+
 ## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 
 | Doc | Status |
