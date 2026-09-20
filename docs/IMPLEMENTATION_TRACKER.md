@@ -577,6 +577,52 @@ not this release-process one.
     (`python-qgis.bat -m unittest tests.test_plugin_main_live`). Zero `ResourceWarning`s under
     `-W error::ResourceWarning`, per a second-review check.
 
+- **2026-09-20, same day — the 2 "mitigated" findings above closed for real, per the user's own
+  explicit strict-policy decision (not decided unilaterally — both were surfaced as open product
+  calls after the second review, and the user chose the strict option for both).**
+  - **Plaintext credential fallback — now CLOSED, not just mitigated.** The
+    `allow_plaintext_persist=True` opt-in path is removed from `save_credential()` entirely — there
+    is no longer any code path, consent-gated or otherwise, that can write a new key to plaintext
+    `QgsSettings`. Session-only in-memory storage is the only fallback when `QgsAuthManager` is
+    unavailable, unconditionally. `ui/settings_dialog.py`'s `accept()` changed from a
+    `QMessageBox.question` (offering plaintext persistence) to a `QMessageBox.information` (states
+    plainly that the key is session-only and re-entry will be needed, with no alternative offered).
+    Migration code that only *reads*/*removes* legacy plaintext keys written by older versions of
+    this file (`LEGACY_SETTINGS_KEYS` fallback read in `get_credential`, `_delete_plaintext_fallback`
+    on a successful encrypted save) is retained, per the user's explicit instruction — existing
+    users' already-stored plaintext keys still work and get cleaned up opportunistically, but no
+    *new* plaintext write can ever happen again.
+  - **Sensitive logging — now CLOSED, not just secret-leakage-mitigated.** `core/logger.py` gained
+    `log_event(event, tag=, error=False, **fields)`: structured, metadata-only logging with a hard
+    allowlist (`_SAFE_EVENT_FIELDS = {tool, status, duration_ms, correlation_id, provider,
+    error_class, count}`) — any kwarg not in that set is silently dropped, so a future call site
+    can't widen what gets logged just by passing a new field. `agent_orchestrator.py`'s tool-call
+    logging and `task_runner.py`'s turn-start/turn-end logging both switched from raw truncated
+    content (even redacted) to `log_event` calls carrying only tool name/status/duration/
+    correlation ID (new: `uuid.uuid4().hex[:8]` generated once per turn in `run()`)/provider (the
+    client class name)/error class (`type(e).__name__`, now also attached to the `{"error": ...}`
+    dicts `_real_execute_tool`/`_execute_tool`'s exception handlers already returned). Zero raw
+    prompt, response, tool-argument, or tool-result content is logged by default anymore — not even
+    truncated/redacted, matching the audit's actual ask (structured logging over free-form content).
+    A new explicit, OFF-by-default escape hatch, `log_diagnostic()`, exists for a developer actively
+    debugging locally: gated behind `cartogen_ai/debug_verbose_logging` (never set by default, not
+    a normal Settings UI toggle), prints a visible one-time warning the first time it actually
+    emits in a process, and is a true no-op (confirmed by test) otherwise. `_redact`'s
+    secret-pattern scrubbing stays on `log_info`/`log_warning`/`log_error` as defense-in-depth for
+    anything else that still logs a free-form string (including inside `log_diagnostic` itself).
+  - New tests: `tests/test_logger.py` extended with `TestLogEvent` (3 tests: only safe fields ever
+    appear in output, an unsafe kwarg is silently dropped rather than passed through, `error=True`
+    routes to stderr) and `TestLogDiagnostic` (2 tests: true no-op outside QGIS, disabled by
+    default). `tests/test_auth_and_deps.py`'s plaintext-persist-opt-in test replaced with one
+    asserting the parameter doesn't exist on `save_credential`'s signature at all (`inspect.signature`).
+  - Full headless suite: 1978 passing (up from 1973; +5 new logger tests, net-even on auth tests
+    after removing 1 and adding 2), 44 skipped.
+  - **What's still open:** the CI-matrix item stays open until an actual GitHub Actions run is
+    confirmed green (per the user's own instruction, this is the next step — validate the pinned
+    QGIS CI jobs before cutting `1.16.0-rc2`), and §1.10's exact-ZIP clean-profile install/upgrade
+    test remains genuinely blocked on a real interactive QGIS GUI session this sandbox can't
+    provide.
+
 - **2026-09-19/20, `v1.5.7-rc1` through `-rc4` — the full 11-phase Part A remediation plan
   (all ~35 confirmed gaps from the 2026-09-19 external-audit/architecture-guide passes),
   sequenced isolated-fixes-first, architecture-restructuring-last. Full per-item detail is in

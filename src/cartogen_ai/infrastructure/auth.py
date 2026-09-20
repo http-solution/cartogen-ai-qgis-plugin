@@ -10,7 +10,7 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-from ..core.logger import log_info, log_warning, log_error
+from ..core.logger import log_warning
 from .settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_API_KEY, fallback_credential_key, auth_id_setting_key,
 )
@@ -21,24 +21,16 @@ class CredentialManager:
 
     AUTH_KEY_PREFIX = "cartogen_ai_auth_id_"
 
-    # Providers whose most recent save_credential() call fell back to plaintext
-    # QgsSettings storage instead of the encrypted QgsAuthManager. Checked by
-    # ui/settings_dialog.py after saving, so the user gets a one-time warning
-    # instead of the fallback happening silently. Only ever populated when the
-    # caller passed allow_plaintext_persist=True -- see save_credential.
-    _plaintext_fallback_providers = set()
-
-    # P1 fix, 2026-09-20 audit: providers whose key is held ONLY in this
-    # process's memory because QgsAuthManager was unavailable/failed and the
-    # caller did not opt into persistent plaintext storage. Never written to
-    # disk, never survives a QGIS restart. This is the default fallback now,
-    # replacing the old always-persist-in-plaintext behavior.
+    # P1 fix, 2026-09-20 audit + explicit product policy decision (strict option
+    # chosen over an opt-in plaintext-persist path): providers whose key is held
+    # ONLY in this process's memory because QgsAuthManager was unavailable/failed.
+    # Never written to disk, never survives a QGIS restart. This is now the ONLY
+    # fallback -- save_credential() has no way to persist a new key in plaintext,
+    # by design, regardless of user consent. See LEGACY_SETTINGS_KEYS/get_credential
+    # below for the separate, retained migration path that only READS/REMOVES
+    # plaintext keys written by OLDER versions of this file, before this policy.
     _session_credentials = {}
     _session_only_providers = set()
-
-    @classmethod
-    def used_plaintext_fallback(cls, provider: str) -> bool:
-        return provider in cls._plaintext_fallback_providers
 
     @classmethod
     def used_session_only_fallback(cls, provider: str) -> bool:
@@ -57,19 +49,21 @@ class CredentialManager:
     }
 
     @staticmethod
-    def save_credential(provider: str, key_value: str, allow_plaintext_persist: bool = False) -> bool:
-        """Saves API key securely into QgsAuthManager, storing auth ID reference in QgsSettings.
-
-        allow_plaintext_persist: only relevant when QgsAuthManager is unavailable or
-        fails. False (the default) keeps the key in memory for this session only --
-        it is never written to disk. True persists it to plaintext QgsSettings (the
-        old, always-on behavior) and must only be passed after the UI has explicitly
-        asked the user and gotten a yes -- see ui/settings_dialog.py's accept()."""
+    def save_credential(provider: str, key_value: str) -> bool:
+        """Saves API key securely into QgsAuthManager, storing auth ID reference in
+        QgsSettings. If QgsAuthManager is unavailable or fails, the key is held in
+        memory for this session only -- it is NEVER written to disk in plaintext.
+        Product policy decision, 2026-09-20 (strict option): there is deliberately
+        no way to opt into persistent plaintext storage of a NEW key, even with
+        explicit user consent -- the audit's standard ("do not store tokens in
+        plain QgsSettings") is treated as a hard requirement, not something
+        informed consent can waive. A user without a working QgsAuthManager must
+        re-enter their key each QGIS session; see auth_system_status() for why
+        QgsAuthManager might be disabled and how to fix that at the QGIS level."""
         if not key_value or not key_value.strip():
             return False
 
         key_value = key_value.strip()
-        CredentialManager._plaintext_fallback_providers.discard(provider)
         CredentialManager._session_only_providers.discard(provider)
         CredentialManager._session_credentials.pop(provider, None)
 
@@ -114,30 +108,13 @@ class CredentialManager:
                     log_warning(f"Could not remove stale auth_id_setting: {ex}", tag="CredentialManager")
 
 
-        # P1 fix, 2026-09-20 audit: QgsAuthManager unavailable/failed. This used to
-        # always persist the key to plaintext QgsSettings (the Windows registry) --
-        # silently downgrading the storage guarantee any time the encrypted store
-        # was disabled (see auth_system_status()'s documented causes). Default is
-        # now session-only, in-memory storage: the key still works for the rest of
-        # this session, but nothing touches disk unless the caller explicitly opted
-        # into persistent plaintext storage after asking the user (see docstring).
-        if not allow_plaintext_persist:
-            CredentialManager._session_credentials[provider] = key_value
-            CredentialManager._session_only_providers.add(provider)
-            return True
-
-        if QGIS_AVAILABLE:
-            try:
-                settings = QgsSettings()
-                fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(
-                    provider, fallback_credential_key(provider)
-                )
-                settings.setValue(fallback_setting, key_value)
-                CredentialManager._plaintext_fallback_providers.add(provider)
-                return True
-            except Exception as e:
-                log_error(f"QgsSettings save failed: {e}", tag="CredentialManager")
-        return False
+        # QgsAuthManager unavailable/failed. Session-only, in-memory storage is the
+        # only fallback -- see this method's docstring and the class-level comment
+        # above _session_credentials for why persistent plaintext was removed
+        # entirely rather than made opt-in.
+        CredentialManager._session_credentials[provider] = key_value
+        CredentialManager._session_only_providers.add(provider)
+        return True
 
     @staticmethod
     def _delete_plaintext_fallback(provider: str) -> None:

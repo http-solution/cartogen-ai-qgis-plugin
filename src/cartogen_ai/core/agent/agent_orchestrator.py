@@ -13,6 +13,7 @@ extractions already existed, to match docs/IMPLEMENTATION_TRACKER.md's own plan 
 
 import json
 import time
+import uuid
 
 try:
     from qgis.PyQt.QtCore import QThread
@@ -48,7 +49,7 @@ from . import tool_operations
 from ..models.transactions import TurnTransactionLog
 from ..services import learning
 from . import onboarding_profile
-from ..logger import log_info, log_warning, log_error
+from ..logger import log_info, log_warning, log_error, log_event
 from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
@@ -477,9 +478,9 @@ class CartogenAi:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
             return res
         except TypeError as e:
-            return {"error": f"Invalid arguments for {name}: {e}"}
+            return {"error": f"Invalid arguments for {name}: {e}", "error_class": type(e).__name__}
         except Exception as e:
-            return {"error": f"Tool {name} failed: {e}"}
+            return {"error": f"Tool {name} failed: {e}", "error_class": type(e).__name__}
 
     def _on_dispatcher_thread(self):
         """True if the calling thread is already the dispatcher's own thread (normally
@@ -572,7 +573,7 @@ class CartogenAi:
         try:
             result = self._execute_tool_dispatch(name, arguments)
         except Exception as e:
-            result = {"error": f"Tool {name} failed unexpectedly: {e}"}
+            result = {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
         layer_ids_after = self._live_layer_ids()
         operation_type = tool_operations.get_tool_operation_type(name)
         self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=snapshot)
@@ -1009,6 +1010,11 @@ class CartogenAi:
         in try/except so a UI-side rendering bug can never break the actual
         agent loop -- worst case is a missed visual update, not a failed turn."""
         from ..services.tool_router import ToolRouter
+        # Structured-logging policy, 2026-09-20: every tool-call log line for this
+        # turn carries the same correlation_id so a QgsMessageLog reader can group
+        # them without any of the log content itself being the user's actual query.
+        correlation_id = uuid.uuid4().hex[:8]
+        provider_name = type(getattr(self, "client", None)).__name__
         # New turn -- undo must never reach back into a previous one (see
         # transactions.py's docstring).
         self._transaction_log.reset()
@@ -1122,19 +1128,36 @@ class CartogenAi:
                 # recurs, this sequence in the QGIS Python Console will show whether an
                 # earlier call in the same turn errored and the model silently recovered
                 # from it without updating its final summary to match.
-                log_info(f"Tool call: {name}({str(arguments)[:300]})", tag="Agent")
+                #
+                # Structured-logging policy, 2026-09-20 audit (strict option chosen): this
+                # used to log the tool's actual arguments/result content (secret-redacted,
+                # but still free-form -- names, coordinates, file paths, feature attributes
+                # could all appear here). log_event below logs ONLY tool name, status,
+                # duration, correlation_id, provider, and (on failure) an error class --
+                # never argument/result content. See core/logger.py's log_event docstring.
+                # Use log_diagnostic() (off by default) if raw content is ever needed while
+                # actively debugging a specific issue locally.
+                log_event("tool_call", tag="Agent", tool=name, status="running",
+                           correlation_id=correlation_id, provider=provider_name)
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "running", None)
                     except Exception:
                         pass
+                _tool_start = time.monotonic()
                 tool_result = self._execute_tool(name, arguments)
+                _duration_ms = int((time.monotonic() - _tool_start) * 1000)
                 is_error = isinstance(tool_result, dict) and "error" in tool_result
                 turn_tool_log.append((name, is_error, tool_result.get("error") if is_error else None))
                 if is_error:
-                    log_error(f"Tool {name} FAILED: {str(tool_result)[:300]}", tag="Agent")
+                    error_class = tool_result.get("error_class", "ToolError") if isinstance(tool_result, dict) else "ToolError"
+                    log_event("tool_call", tag="Agent", tool=name, status="failed",
+                               duration_ms=_duration_ms, correlation_id=correlation_id,
+                               provider=provider_name, error_class=error_class, error=True)
                 else:
-                    log_info(f"Tool {name} succeeded: {str(tool_result)[:300]}", tag="Agent")
+                    log_event("tool_call", tag="Agent", tool=name, status="done",
+                               duration_ms=_duration_ms, correlation_id=correlation_id,
+                               provider=provider_name)
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "failed" if is_error else "done", tool_result.get("error") if is_error else None)
