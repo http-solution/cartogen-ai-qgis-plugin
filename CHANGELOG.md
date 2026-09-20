@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc2](#v1-16-0-rc2) | 2026-09-20 | **Release candidate 2 for 1.16.0.** Security/privacy remediation from a 15-section production-standard audit, refined through two rounds of independent review: QAction lifecycle leak fixed and live-confirmed; plaintext credential persistence removed entirely (session-only in memory, no opt-out); logging moved to structured metadata-only by default (no raw prompt/response/tool content logged); CI matrix expanded to Windows + real QGIS 4.2.2/3.28 LTR docker jobs and actually validated green (3 real environment bugs found and fixed in the process) |
 | [1.16.0-rc1](#v1-16-0-rc1) | 2026-09-20 | **Release candidate 1 for 1.16.0.** Renumbers forward from stable `1.15.6`, replacing the `1.5.7-rc1..rc5` line after an independent review confirmed via QGIS's own version-comparison function that `1.5.7-rc5` compares as *older* than `1.15.6`. Same content as rc5 (Phase 11 restructuring, AST-sandbox fix, keyboard-nav fixes) plus a stale CI packaging assertion and stale doc test-counts fixed |
 | [1.5.7-rc5](#v1-5-7-rc5) | 2026-09-20 | **Release candidate 5 (superseded — see `1.16.0-rc1` above; this version string sorts *older* than the already-published `1.15.6` stable release, a real defect found and corrected the same day).** Phase 11 architecture restructuring finished for real (a prior pass had left only directory scaffolding), a live-confirmed `execute_pyqgis_script` AST-sandbox bypass found and closed, and 2 keyboard-navigation fixes (Tab trapped in the chat input, Escape doing nothing) |
 | [1.5.7-rc4](#v1-5-7-rc4) | 2026-09-20 | **Release candidate 4.** `ingest_osm_features` two-phase OSM vector ingestion + AST sandbox prompt guardrails, and a code-review pass fixing 7 real correctness/security bugs (credential rotation, silent over-export, a reintroduced agent-turn-stalling dialog, an equator/prime-meridian data-loss bug, an opacity-clobber regression, a profiler misclassification) plus a latent circular import |
@@ -43,6 +44,78 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc2"></a>
+## [1.16.0-rc2] — 2026-09-20 — Release candidate 2 for 1.16.0: security/privacy remediation from a 15-section production-standard audit
+
+A third-party audit against a supplied 15-section commercial-QGIS-plugin production standard,
+checked against `v1.16.0-rc1`, returned: QGIS 4.2.2 functional RC = GO, stable production release
+= NO-GO, with 3 confirmed P1 code bugs plus 2 P1 release-process gaps. Every finding was
+independently re-verified against live code before any fix was applied, and the first fix pass was
+itself caught overstating its own results by a second independent review — corrected before
+shipping, not after. Two open product-policy questions the second review surfaced (plaintext
+credential persistence, raw-content logging) were resolved to the strict option, by explicit
+instruction, rather than left as documented exceptions.
+
+**QAction lifecycle leak — fixed and live-confirmed.** `plugin_main.py`'s `unload()` used to call
+only `removePluginMenu`/`removeToolBarIcon`, which detach an action from QGIS's menu/toolbar
+widgets without disconnecting its `triggered` signal or destroying the `QAction` — confirmed via a
+live QGIS 4.2.2 probe that a load→unload→reload cycle left the previous instance's actions alive,
+still connected, still parented to `iface.mainWindow()`. Now disconnects each signal and calls
+`deleteLater()` before clearing bookkeeping. New `tests/test_plugin_main_live.py` (4 tests) drives
+a real load→unload→reload cycle and confirms via `qgis.PyQt.sip.isdeleted` that the first
+instance's actions are actually gone — live-confirmed 4/4 passing against real QGIS 4.2.2.
+
+**Plaintext credential persistence removed entirely — strict policy, not an opt-in.**
+`infrastructure/auth.py`'s `save_credential()` used to silently persist the API key to plaintext
+`QgsSettings` (the Windows registry) any time QGIS's encrypted `QgsAuthManager` was
+unavailable/disabled. A first fix pass added an opt-in, consent-gated plaintext path; a second
+independent review correctly pointed out that informed consent doesn't satisfy the audit's literal
+standard ("do not store tokens in plain `QgsSettings`"). By explicit instruction, the opt-in path
+is removed entirely: session-only in-memory storage (never touches disk, gone on restart) is now
+the only fallback, unconditionally. `ui/settings_dialog.py` states plainly that a key will need
+re-entry after restart, with no alternative offered. Migration code that only reads/removes legacy
+plaintext keys written by older versions of this file is retained, so existing users' already-saved
+keys still work and get cleaned up opportunistically on a successful encrypted save.
+
+**Logging moved to structured, metadata-only by default.** `core/logger.py`'s `log_info`/
+`log_warning`/`log_error` used to forward whatever string a caller built — including tool call
+arguments/results and the user's own query/the model's response (as truncated `print()`/`log_info`
+calls) — with call sites in `agent_orchestrator.py` and `task_runner.py` passing free-form content
+that could embed a key, token, coordinates, file paths, or other sensitive data. A first fix pass
+added regex-based secret-pattern redaction; a second independent review correctly pointed out this
+only stripped known secret *shapes* and left the broader content (names, coordinates, prompts)
+logged. By explicit instruction, logging now defaults to `log_event()`: structured, metadata-only
+logging with a hard field allowlist (tool name, status, duration, correlation ID, provider, error
+class, counts) — any other field is silently dropped, not passed through. Zero raw prompt,
+response, tool-argument, or tool-result content is logged by default anymore. A new explicit,
+OFF-by-default `log_diagnostic()` escape hatch exists for a developer actively debugging locally,
+gated behind a setting that is never on by default and prints a visible warning on first use.
+
+**CI matrix expanded and actually validated green, not just authored.** The existing test job
+gained a `windows-latest` leg; a new `qgis-live-tests` job runs the live-QGIS test suite inside the
+official `qgis/qgis` docker images at both ends of `metadata.txt`'s declared `3.28`–`4.99` range
+(`release-3_28` and a pinned `4.2.2` — deliberately not `latest`, confirmed via the Docker Hub API
+to be an unreleased nightly build, not a stable release), plus a smoke test that builds the actual
+release zip and imports from the extracted artifact instead of the dev tree. Validating these jobs
+surfaced and fixed 3 real, distinct environment bugs: a `pip install --upgrade pip` failure on the
+`4.2.2` image (Debian-packaged pip has no RECORD file, refuses to uninstall itself), a
+`--break-system-packages` flag disagreement between the two pinned images (one requires it, the
+other doesn't recognize it), and an image-specific Qt interpreter-shutdown segfault on `4.2.2`
+occurring immediately *after* all 42 live tests had already passed. Final confirmed-green run:
+https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/runs/35534755563
+
+**Explicitly still open, not claimed done:**
+- The exact-ZIP clean-profile install/upgrade-from-`1.15.6` test still needs a real interactive
+  QGIS GUI session this project's development sandbox cannot provide — tracked as
+  `docs/IMPLEMENTATION_TRACKER.md` §1.10.
+- A pre-existing repo-wide Ruff lint failure (dozens of unused-import/ambiguous-variable findings,
+  confirmed present already at the `v1.16.0-rc1` tag commit, unrelated to this candidate) is
+  tracked as a separate cleanup task rather than folded into this security-focused release.
+
+**Verification & Testing**: 1,978 automated tests passing (0 failures, 44 skipped), up from 1,973
+in rc1. Live QGIS 4.2.2 confirmation run for the new plugin-lifecycle tests: 4/4 passing. Both
+pinned `qgis-live-tests` CI jobs confirmed green end-to-end in an actual GitHub Actions run.
 
 <a id="v1-16-0-rc1"></a>
 ## [1.16.0-rc1] — 2026-09-20 — Release candidate 1 for 1.16.0: renumbered forward from stable 1.15.6, fixing a real version-ordering defect
