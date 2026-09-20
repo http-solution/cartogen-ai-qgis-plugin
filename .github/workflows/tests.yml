@@ -223,7 +223,7 @@ jobs:
         # combination is no longer confirmed to be environment-level.
         run: |
           set +e
-          python3 tests/_ci_run_live_tests.py > /tmp/live_test.log 2>&1
+          python3 -m tests._ci_run_live_tests > /tmp/live_test.log 2>&1
           status=$?
           cat /tmp/live_test.log
           if [ "$status" -eq 139 ] \
