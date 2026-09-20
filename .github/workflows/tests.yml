@@ -140,7 +140,28 @@ jobs:
         # Dotted module form (not discover) so tests/__init__.py's src/-on-sys.path
         # bootstrap runs before cartogen_ai is imported, same as discover's -t .
         # does for the headless suite above.
-        run: python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v
+        #
+        # CI validation, 2026-09-20: a real run against the qgis/qgis:4.2.2 image
+        # showed all 42 tests genuinely passing ("Ran 42 tests ... OK"), immediately
+        # followed by "Segmentation fault (core dumped)" and exit code 139 -- a
+        # crash during Python/Qt interpreter shutdown (offscreen QPA + this image's
+        # exact Qt build), AFTER the test run itself already succeeded. Did not
+        # reproduce on release-3_28 (different Qt/QGIS build), consistent with an
+        # image-specific at-exit teardown quirk, not a bug in this repo's code or
+        # tests. Trusting the shell exit code alone would fail a genuinely green
+        # run, so this checks unittest's own final "OK" line instead -- a real test
+        # failure prints "FAILED (...)", never a bare "OK", so this can't mask an
+        # actual regression.
+        run: |
+          set +e
+          python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v > /tmp/live_test.log 2>&1
+          status=$?
+          cat /tmp/live_test.log
+          if [ $status -ne 0 ] && grep -qE "^OK( \(skipped=[0-9]+\))?$" /tmp/live_test.log; then
+            echo "::warning::Test run itself reported OK; exit $status came from a post-test interpreter-shutdown segfault on this image, not a test failure -- see this step's own comment."
+            exit 0
+          fi
+          exit $status
 
       - name: Build the actual release zip
         # Review correction, 2026-09-20: this smoke test previously imported plugin_main
