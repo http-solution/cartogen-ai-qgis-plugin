@@ -3,7 +3,7 @@
 Agent-facing view onto models/transactions.py's TurnTransactionLog -- see
 that module's docstring for exactly what is and isn't tracked/undoable.
 Follows the same module-level bind pattern task_tools.py already uses for
-TaskManager/MemoryManager (bind_agent_context): agent.py calls
+TaskManager/MemoryManager (bind_agent_context): agent_orchestrator.py calls
 bind_transaction_log() once per CartogenAi instance so these free
 functions can reach the live, per-turn log without every tool call having
 to thread an agent reference through TOOL_REGISTRY's plain

@@ -117,7 +117,7 @@ class TestClaudeTranslation(unittest.TestCase):
         self.assertEqual(json.loads(call["function"]["arguments"]), {"x": 1})
 
     def test_round_trip_assistant_tool_call_survives_reingestion(self):
-        # Simulates agent.py: the OpenAI-shaped message returned by complete()
+        # Simulates agent_orchestrator.py: the OpenAI-shaped message returned by complete()
         # gets appended to history verbatim and fed back in on the next call.
         data = {
             "content": [{"type": "tool_use", "id": "toolu_9", "name": "buffer_analysis", "input": {"distance": 100}}],
@@ -657,14 +657,14 @@ class TestOllamaRetryAndErrorHandling(unittest.TestCase):
 
 
 class TestProviderReturnContract(unittest.TestCase):
-    """agent.py's tool-calling loop depends on every provider client's
+    """agent_orchestrator.py's tool-calling loop depends on every provider client's
     complete() returning exactly one of two shapes: {"message": ..., "model":
     ...} on success, or {"error": ...} on failure -- nothing else, no extra
-    top-level keys agent.py doesn't know to look for. This is the shared
+    top-level keys agent_orchestrator.py doesn't know to look for. This is the shared
     contract docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md §2.5 flagged as
     worth enforcing explicitly so a future provider (or a change to an
     existing one) can't silently drift from it and only be noticed when
-    agent.py's loop breaks somewhere downstream. Covers all 6 provider
+    agent_orchestrator.py's loop breaks somewhere downstream. Covers all 6 provider
     clients, including the not-yet-wired-in cartogen.py stub -- the contract
     should hold for it too, same as every real client."""
 

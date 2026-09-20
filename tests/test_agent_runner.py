@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.prompts import build_system_prompt
 from cartogen_ai.core.agent.memory import SpatialMemoryManager
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
-import cartogen_ai.core.agent.agent as agent_mod
+import cartogen_ai.core.agent.agent_orchestrator as agent_mod
 from cartogen_ai.core.models.transactions import TurnTransactionLog
 
 
@@ -122,8 +122,8 @@ class TestToolStepCallback(unittest.TestCase):
 
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: tool_result), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers", tool_step_callback=lambda n, s, e: steps.append((n, s, e)))
         return final_text, steps
 
@@ -145,8 +145,8 @@ class TestToolStepCallback(unittest.TestCase):
         agent = _make_bare_agent(client)
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers")
         self.assertEqual(final_text, "All done.")
 
@@ -161,8 +161,8 @@ class TestToolStepCallback(unittest.TestCase):
 
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []):
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []):
             final_text = agent.run("list my layers", tool_step_callback=broken_callback)
         self.assertEqual(final_text, "All done.")
 
@@ -194,16 +194,16 @@ class TestPacingAndCompaction(unittest.TestCase):
     pacing, and re-send every prior tool result in full on every call -- real risk of tripping a
     provider's rate limit or a context-length ceiling on a genuinely large task. See
     PACING_THRESHOLD_ITERATIONS/PACING_DELAY_SECONDS and MAX_FULL_TOOL_RESULTS_PER_TURN's own
-    comments in agent.py."""
+    comments in agent_orchestrator.py."""
 
     def _run_looping(self, execute_tool_fn):
         client = _CapturingLoopingClient()
         agent = _make_bare_agent(client)
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", execute_tool_fn), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
-             patch("cartogen_ai.core.agent.agent.time.sleep") as mock_sleep:
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.time.sleep") as mock_sleep:
             agent.run("do something with many steps")
         return client, mock_sleep
 
@@ -254,9 +254,9 @@ class TestPacingAndCompaction(unittest.TestCase):
         agent.conversation_history = ["a malformed history entry, not a {\"role\":...} dict"]
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
-             patch("cartogen_ai.core.agent.agent.time.sleep"):
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.time.sleep"):
             final_text = agent.run("do something with a tool call")
         self.assertNotIn("has no attribute 'get'", final_text or "")
 
@@ -325,9 +325,9 @@ class TestSandboxFlailingNudgeInjectedMidTurn(unittest.TestCase):
         rejected = {"error": "Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script."}
         with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
              patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: dict(rejected)), \
-             patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
-             patch("cartogen_ai.core.agent.agent.TOOLS_SCHEMA", []), \
-             patch("cartogen_ai.core.agent.agent.time.sleep"):
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.time.sleep"):
             agent.run("find some health facility data")
         return client
 
@@ -355,7 +355,7 @@ class TestSandboxFlailingNudgeInjectedMidTurn(unittest.TestCase):
 
 
 class TestExecuteToolTransactionRecording(unittest.TestCase):
-    """_execute_tool (agent.py) wraps every tool call with a before/after
+    """_execute_tool (agent_orchestrator.py) wraps every tool call with a before/after
     live-layer-id snapshot and records it into self._transaction_log --
     point 20's transaction log (see models/transactions.py). This exercises
     that wrapper directly, independent of run()'s loop."""
@@ -435,9 +435,9 @@ class TestExecuteToolTransactionRecording(unittest.TestCase):
         earlier reports of the same bare "Error: 'str' object has no attribute 'get'" text
         with no traceback to confirm the site:
 
-            File "agent.py", line ~1056, in run
+            File "agent_orchestrator.py", line ~1056, in run
                 tool_result = self._execute_tool(name, arguments)
-            File "agent.py", line ~515, in _execute_tool
+            File "agent_orchestrator.py", line ~515, in _execute_tool
                 snapshot = snapshot_fn(arguments) if snapshot_fn else None
             File "_snapshot_registry.py", line 157, in _snapshot_style
                 layer = _find_layer(arguments.get("layer_name"))

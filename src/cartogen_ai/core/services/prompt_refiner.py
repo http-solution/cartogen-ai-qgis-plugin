@@ -153,7 +153,7 @@ def build_refinement_messages(query: str, profile: str) -> list:
 
 
 def parse_refinement_response(raw_content) -> dict:
-    """Defensive parsing matching agent.py's _real_execute_tool pattern
+    """Defensive parsing matching agent_orchestrator.py's _real_execute_tool pattern
     (json.loads wrapped in try/except, degrading rather than raising).
     Returns None for anything that isn't a complete, well-shaped response --
     that's the single signal the caller (dock_widget.py's send_message)

@@ -82,7 +82,7 @@ class AgentTaskManager(QObject):
         Unlike create_plan (which replaces the whole plan and archives the old one),
         this is for a single task that needs to exist alongside whatever plan is
         already active -- e.g. a destructive-action confirmation gate that fires
-        mid-plan. Real live bug, 2026-09-16: agent.py's PREVIEW_REQUIRED handling
+        mid-plan. Real live bug, 2026-09-16: agent_orchestrator.py's PREVIEW_REQUIRED handling
         used to glue the pending-confirmation state onto tasks[0] of whichever plan
         happened to be active (only starting a fresh plan when there were no tasks
         at all), which silently overwrote an unrelated, already-DONE task's status

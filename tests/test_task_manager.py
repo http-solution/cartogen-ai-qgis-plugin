@@ -9,7 +9,7 @@ from cartogen_ai.core.agent.task_manager import AgentTaskManager
 
 
 class TestAddTask(unittest.TestCase):
-    """2026-09-16 live bug: agent.py's PREVIEW_REQUIRED handling used to only start a
+    """2026-09-16 live bug: agent_orchestrator.py's PREVIEW_REQUIRED handling used to only start a
     fresh plan when the task list was completely empty, otherwise reusing tasks[0] of
     whatever plan was already active -- silently overwriting an unrelated task. add_task()
     is the fix's building block: append one task without touching what's already there."""
@@ -43,7 +43,7 @@ class TestAddTask(unittest.TestCase):
         self.assertEqual(res["task"]["id"], "1")
 
     def test_returned_task_is_the_same_object_stored_in_tasks(self):
-        # agent.py's PREVIEW_REQUIRED handling mutates the dict add_task() returns
+        # agent_orchestrator.py's PREVIEW_REQUIRED handling mutates the dict add_task() returns
         # (setting pending_tool/pending_args) and expects that to be reflected in
         # tm.tasks -- this must be a reference, not a copy.
         tm = AgentTaskManager()

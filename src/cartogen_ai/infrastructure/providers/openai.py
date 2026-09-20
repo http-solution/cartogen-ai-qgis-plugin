@@ -107,7 +107,7 @@ FALLBACK_MODELS = ["gpt-5.6", "gpt-5.2-chat-latest", "gpt-5-mini"]
 # base.extract_openai_style_usage already extracts (added for Gemini, but shape-agnostic).
 # So this client already surfaces OpenAI cache hits with zero additional code: nothing to
 # change here. What DOES help caching -- keeping the tools list/system prompt byte-identical
-# across iterations -- is handled generically in tool_router.py/agent.py for every provider,
+# across iterations -- is handled generically in tool_router.py/agent_orchestrator.py for every provider,
 # not per-client.
 class OpenAIClient(BaseAiProvider):
     def __init__(self, api_key, model=None, status_callback=None):

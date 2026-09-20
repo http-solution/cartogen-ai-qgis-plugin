@@ -40,7 +40,7 @@ class WorkflowScheduler(QObject):
     """Registry of active recurring-workflow QTimers, keyed by preset name.
     Everything here is expected to run on the main Qt thread: start()/stop()
     are only ever called from registered tool functions, which the
-    dispatcher (agent.py's _execute_tool) already guarantees run on the main
+    dispatcher (agent_orchestrator.py's _execute_tool) already guarantees run on the main
     thread -- the same assumption every other QGIS-facing module in this
     codebase makes, so no extra locking is done here."""
 

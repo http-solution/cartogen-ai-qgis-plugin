@@ -2,7 +2,7 @@
 """
 Conversation history storage, trimming, and mid-turn compaction for Cartogen AI.
 
-Extracted from agent.py's CartogenAi class (2026-09-20, Phase 11 architecture
+Extracted from agent_orchestrator.py's CartogenAi class (2026-09-20, Phase 11 architecture
 restructuring -- docs/IMPLEMENTATION_TRACKER.md §4), the harder half of that file's
 god-class decomposition (ToolDispatcher and UsageTracker, extracted in the same pass,
 were both already self-contained enough to be a pure file move -- this one owns real
@@ -14,10 +14,10 @@ storing them as instance/class attributes on this module: test_agent_runner.py d
 monkeypatches `agent_mod.MAX_HISTORY_MESSAGES = <value>` mid-test to exercise trimming/
 digest behavior at a controlled size, then calls agent._append_history(...) on an
 already-constructed agent. Those constants have to stay live module-level globals in
-agent.py itself (where CartogenAi._trim_history()/_append_history() read them fresh on
+agent_orchestrator.py itself (where CartogenAi._trim_history()/_append_history() read them fresh on
 every call via normal Python name lookup) for that monkeypatch to keep working -- a
 plain `from .history_manager import MAX_HISTORY_MESSAGES` re-export would silently break
-it, since reassigning agent_mod.MAX_HISTORY_MESSAGES only rebinds agent.py's own
+it, since reassigning agent_mod.MAX_HISTORY_MESSAGES only rebinds agent_orchestrator.py's own
 namespace, not a separate copy living in this module. Passing them through as call
 arguments is also just the more correct design regardless of testing: it's what lets one
 HistoryManager instance be reused correctly even if these thresholds were ever made
@@ -30,7 +30,7 @@ import threading
 class HistoryManager:
     def __init__(self):
         # RLock (not Lock): append() calls trim() internally under the same lock -- a
-        # plain Lock would deadlock on that reentrant acquisition. See agent.py's
+        # plain Lock would deadlock on that reentrant acquisition. See agent_orchestrator.py's
         # CartogenAi.__init__ for the original comment on why this needs to be an RLock
         # and why it must exist before anything else that might touch history.
         self.lock = threading.RLock()

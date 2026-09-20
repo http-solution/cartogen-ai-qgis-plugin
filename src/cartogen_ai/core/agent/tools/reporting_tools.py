@@ -7,7 +7,7 @@ and a "beneficiaries reached vs. target" sector-coverage report preset --
 complements the map-styling tools, which can't express non-spatial comparisons
 (funding by cluster, incidents over time, casualties by district). None of
 these touch qgis.core/Qt objects, so they run off the main thread like the
-network-only tools (see NETWORK_ONLY_TOOLS in agent/agent.py).
+network-only tools (see NETWORK_ONLY_TOOLS in agent/agent_orchestrator.py).
 """
 
 import os

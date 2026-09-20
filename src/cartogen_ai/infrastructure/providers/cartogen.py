@@ -2,7 +2,7 @@
 Cartogen API gateway provider client -- STUB, NOT WIRED IN.
 
 This client is not registered in `infrastructure/providers/__init__.py`'s exports (deliberately --
-importing it there would invite `ui/settings_dialog.py` or `agent/agent.py` to start
+importing it there would invite `ui/settings_dialog.py` or `agent/agent_orchestrator.py` to start
 offering it as a real provider option before it's one), not exposed anywhere in
 `ui/settings_dialog.py`'s provider dropdown, and not connected to any live backend.
 
@@ -49,7 +49,7 @@ from ...core.agent.model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
 # service/gateway/ only runs locally (see service/README.md). Now overridable via
-# QgsSettings("cartogen_ai/cartogen_gateway_url") -- see agent.py's construction of
+# QgsSettings("cartogen_ai/cartogen_gateway_url") -- see agent_orchestrator.py's construction of
 # this client -- with this constant as the fallback default, per
 # docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.4.
 GATEWAY_BASE_URL = "https://gateway.cartogen.ai/v1/chat/completions"

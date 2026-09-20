@@ -437,7 +437,7 @@ def friendly_tool_name(name):
 
 def render_tool_step_html(name, status, error, colors):
     """Pure Python -- builds the small, muted inline-chat line shown for one
-    tool-call step (see agent.py's run() tool_step_callback and
+    tool-call step (see agent_orchestrator.py's run() tool_step_callback and
     dock_widget.py's _add_tool_step). Deliberately NOT a full chat bubble --
     smaller font, no avatar/label row, so a turn with many tool calls doesn't
     visually compete with the actual conversation.
@@ -618,7 +618,7 @@ def render_safety_gate_html(task, colors):
     thing that mutates data, nothing else in this app uses these two colors.
 
     `task` is a task_manager.py task dict that has `pending_tool`/`pending_args` set (see
-    agent.py's `_real_execute_tool` PREVIEW_REQUIRED handling) -- this function only reads
+    agent_orchestrator.py's `_real_execute_tool` PREVIEW_REQUIRED handling) -- this function only reads
     it, never mutates it. The Confirm/Cancel links are `cartogen://confirm/{task_id}` and
     `cartogen://cancel/{task_id}`; chat_tab_widget.py's `_on_step_anchor_clicked` resolves
     the task by id and calls `_resolve_pending_confirmation` -- the exact same deterministic

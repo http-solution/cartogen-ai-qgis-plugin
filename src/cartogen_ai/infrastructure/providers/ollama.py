@@ -46,7 +46,7 @@ def list_models(endpoint_url):
 # The real workaround is server-side (setting the OLLAMA_KEEP_ALIVE env var when starting
 # the Ollama server), which this client has no way to do for the user -- see
 # docs/IMPLEMENTATION_TRACKER.md §2 for the full note. max_tokens (below) already benefits
-# from agent.py's dynamic per-iteration scaling generically, same as every other provider.
+# from agent_orchestrator.py's dynamic per-iteration scaling generically, same as every other provider.
 class OllamaClient(BaseAiProvider):
     def __init__(self, endpoint_url="http://localhost:11434/v1/chat/completions", model="llama3.1", status_callback=None):
         self.base_url = endpoint_url

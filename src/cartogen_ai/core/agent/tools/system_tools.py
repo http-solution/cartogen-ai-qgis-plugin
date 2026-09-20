@@ -307,7 +307,7 @@ def search_web(query: str, max_results: int = 3):
 
 def resolve_gemini_search_config():
     """Reads the active provider/model and Gemini credential from QgsSettings/
-    QgsAuthManager. Fast, local-only -- but still QGIS state, so agent.py's
+    QgsAuthManager. Fast, local-only -- but still QGIS state, so agent_orchestrator.py's
     two-phase dispatch runs this on the main thread (same as any other
     QgsSettings/QgsProject access) and only sends the slow network call in
     grounded_search() to the background thread."""
@@ -343,7 +343,7 @@ def resolve_gemini_search_config():
 )
 def gemini_grounded_search(query: str):
     """Standalone entry point: does both phases inline, so it still works when
-    called directly (e.g. in tests) rather than through agent.py's two-phase
+    called directly (e.g. in tests) rather than through agent_orchestrator.py's two-phase
     dispatch."""
     config = resolve_gemini_search_config()
     if "error" in config:
@@ -385,7 +385,7 @@ def resolve_openai_search_config():
 )
 def openai_grounded_search(query: str):
     """Standalone entry point: does both phases inline, so it still works when
-    called directly (e.g. in tests) rather than through agent.py's two-phase
+    called directly (e.g. in tests) rather than through agent_orchestrator.py's two-phase
     dispatch."""
     config = resolve_openai_search_config()
     if "error" in config:

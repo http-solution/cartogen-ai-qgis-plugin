@@ -84,7 +84,7 @@ class AgentQgsTask(QgsTask):
             # `RuntimeError: wrapped C/C++ object has been deleted` from inside a
             # QGIS-task-manager-invoked callback with nothing to catch it. Matches this
             # codebase's own established convention (tool_step_callback's identical
-            # try/except in agent.py's run()): a UI-side failure here must never look like
+            # try/except in agent_orchestrator.py's run()): a UI-side failure here must never look like
             # the agent run itself failed, and must never propagate into QGIS's own task-
             # manager machinery uncaught.
             try:
@@ -104,7 +104,7 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
     caller (see agent/map_context.py) -- this function and everything it
     schedules may run in a background thread. on_tool_step(name, status, error),
     if given, fires around every individual tool call the agent makes during
-    this turn (status "running" then "done"/"failed") -- see agent.py's run()
+    this turn (status "running" then "done"/"failed") -- see agent_orchestrator.py's run()
     docstring."""
     if QGIS_TASK_AVAILABLE:
         try:

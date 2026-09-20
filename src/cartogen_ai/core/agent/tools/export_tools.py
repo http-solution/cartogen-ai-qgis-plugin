@@ -220,7 +220,7 @@ def export_layer(layer_name, format, output_path=None, only_selected=None):
     driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
 
     # No blocking QFileDialog here -- this tool is called by the LLM agent's unattended
-    # tool-calling loop (agent/agent.py), not only from direct human UI interaction. A
+    # tool-calling loop (agent/agent_orchestrator.py), not only from direct human UI interaction. A
     # code-review pass (2026-09-20) found a prior version of this function DID pop a modal
     # Save As dialog when output_path was omitted, reintroducing exactly the stall risk a
     # headless-safe default was previously added to fix: an agent turn with no output_path
@@ -287,7 +287,7 @@ def _derive_csv_path(layer, output_path):
     """Returns (path, used_desktop_fallback) for export_to_csv. explicit output_path always
     wins; otherwise this sits the .csv beside the layer's own on-disk source, falling back
     to Desktop for a scratch/memory layer with no real source file -- never prompts, since
-    this tool is called by the LLM agent's unattended tool-calling loop (agent/agent.py), not
+    this tool is called by the LLM agent's unattended tool-calling loop (agent/agent_orchestrator.py), not
     only from direct human UI interaction.
 
     A prior version of this function briefly reintroduced a blocking QFileDialog.
@@ -420,7 +420,7 @@ def print_map(output_path=None):
 def _layer_provenance_entries(source_layers):
     """For each named layer, returns lineage.py's tracked history (if any) --
     what tool created/modified it, with what parameters and source layers,
-    and when (see agent/lineage.py and agent.py's automatic tag_layer_lineage
+    and when (see agent/lineage.py and agent_orchestrator.py's automatic tag_layer_lineage
     calls on every successful layer-producing tool). Powers the optional
     provenance section on generate_report/generate_spatial_report.
 

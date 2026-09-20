@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-import cartogen_ai.core.agent.agent as agent_mod
-from cartogen_ai.core.agent.agent import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
+import cartogen_ai.core.agent.agent_orchestrator as agent_mod
+from cartogen_ai.core.agent.agent_orchestrator import CartogenAi, NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
 from cartogen_ai.core.agent.tools.db_and_workflow_tools import execute_read_only_sql, _enforce_db_read_only, load_workflow_preset
 from cartogen_ai.core.agent.tools.vector_tools import (
     spatial_join, remove_layer, field_calculator,
@@ -1209,7 +1209,7 @@ class TestNewTools(unittest.TestCase):
         res = add_point_layer("Embassies", [])
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.agent.time.sleep")
+    @patch("cartogen_ai.core.agent.agent_orchestrator.time.sleep")
     def test_agent_run_saves_history_when_iteration_limit_hit(self, mock_sleep):
         # A client that never returns a final answer -- always another tool call --
         # simulates the exact failure mode from the embassy-layer bug report. time.sleep is

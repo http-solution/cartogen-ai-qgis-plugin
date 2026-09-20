@@ -396,7 +396,7 @@ def _prefetch_url_to_temp(file_path):
     network I/O, no qgis.core access -- safe to run on a background thread)
     and returns (temp_path, True). Otherwise returns (file_path, False)
     unchanged. Caller is responsible for deleting the temp file when done.
-    Used by agent.py's two-phase dispatch to keep the download off the QGIS
+    Used by agent_orchestrator.py's two-phase dispatch to keep the download off the QGIS
     main GUI thread; add_layer_from_path also calls this itself so it still
     works correctly when invoked directly (e.g. outside the agent, in tests).
 
@@ -502,7 +502,7 @@ def add_layer_from_path(file_path, layer_name=None):
     import os
 
     # Downloads here if called directly with a URL (e.g. in tests, or outside the
-    # agent). When dispatched through agent.py's two-phase handling, file_path has
+    # agent). When dispatched through agent_orchestrator.py's two-phase handling, file_path has
     # already been swapped to a local temp path there, so this is a no-op.
     try:
         local_path, is_temp = _prefetch_url_to_temp(file_path)

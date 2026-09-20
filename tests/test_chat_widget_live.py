@@ -102,11 +102,11 @@ class _FakeClient:
 
 
 class _FakeAgent:
-    """Minimal stand-in for agent.py's real Agent, matching the exact shape
+    """Minimal stand-in for agent_orchestrator.py's real Agent, matching the exact shape
     task_runner.AgentQgsTask calls: run(user_text, map_context, should_stop,
     tool_step_callback) -> str. Real TOOL_REGISTRY tool names are reported
     through tool_step_callback so agent/output_router.satisfied() sees real
-    names, the same as the live agent does via agent.py's tool-call loop."""
+    names, the same as the live agent does via agent_orchestrator.py's tool-call loop."""
 
     def __init__(self, script):
         self.client = _FakeClient(script)

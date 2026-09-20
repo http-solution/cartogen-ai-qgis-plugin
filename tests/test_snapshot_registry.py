@@ -210,7 +210,7 @@ class TestPropertySnapshotShapes(unittest.TestCase):
     """set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query
     all share the generic property-snapshot shape -- exercised via the real
     registered entries rather than the private factory functions directly,
-    since that's what agent.py actually calls."""
+    since that's what agent_orchestrator.py actually calls."""
 
     def _run(self, tool_name, layer, arguments):
         snapshot_fn, _ = SNAPSHOT_REGISTRY[tool_name]

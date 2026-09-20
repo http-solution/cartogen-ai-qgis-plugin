@@ -34,14 +34,14 @@ except ImportError:
 #    external source, so that part is safe. PERF-001 (2026-09-13 audit): fetch_nasa_active_fires/
 #    fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts were allowed here, but
 #    run_monitoring_workflow calls each step's plain combined function directly -- unlike a
-#    normal single call to one of these tools (dispatched through agent.py's TWO_PHASE_TOOLS,
+#    normal single call to one of these tools (dispatched through agent_orchestrator.py's TWO_PHASE_TOOLS,
 #    which runs the network fetch off the main thread), a scheduled/manual WORKFLOW run executes
 #    the combined network+QGIS function synchronously on the main Qt thread (scheduler.py's
 #    QTimer fires _fire() there, and run_monitoring_workflow is called directly from it) --
 #    repeatedly, every tick, for as long as a schedule runs. That freezes the whole QGIS GUI for
 #    each fetch's HTTP round-trip. Deliberately excluded here until run_monitoring_workflow (or
 #    the scheduler tick) is reworked to dispatch a network step's own *_network_phase function
-#    off-thread first, mirroring agent.py's _execute_two_phase_tool -- see the register for why
+#    off-thread first, mirroring agent_orchestrator.py's _execute_two_phase_tool -- see the register for why
 #    that's a real design decision, not a same-session mechanical fix. Manually calling one of
 #    these 3 tools (not via a workflow) is unaffected -- that path already dispatches correctly.
 _ALLOWED_WORKFLOW_TOOLS = {

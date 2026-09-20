@@ -163,7 +163,7 @@ class TestAllowedWorkflowTools(unittest.TestCase):
         """PERF-001, 2026-09-13 audit: run_monitoring_workflow calls each step's plain
         combined function directly, synchronously on the main Qt thread (scheduler.py's
         QTimer fires there) -- unlike a normal single call to fetch_nasa_active_fires/
-        fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts, which agent.py's
+        fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts, which agent_orchestrator.py's
         TWO_PHASE_TOOLS dispatch correctly runs off-thread. Using one of these 3 as a
         workflow step would freeze the whole QGIS GUI for its HTTP round-trip, every tick,
         for as long as a schedule runs. Excluded here until run_monitoring_workflow itself

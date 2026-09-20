@@ -259,7 +259,7 @@ class CartogenAi:
 
         if self._agent is None or getattr(self, "_agent_key", None) != agent_hash:
             try:
-                from cartogen_ai.core.agent.agent import CartogenAi as AgentCore
+                from cartogen_ai.core.agent.agent_orchestrator import CartogenAi as AgentCore
                 self._agent = AgentCore()
                 self._agent_key = agent_hash
             except Exception as e:
