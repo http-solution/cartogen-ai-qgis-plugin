@@ -617,11 +617,37 @@ not this release-process one.
     asserting the parameter doesn't exist on `save_credential`'s signature at all (`inspect.signature`).
   - Full headless suite: 1978 passing (up from 1973; +5 new logger tests, net-even on auth tests
     after removing 1 and adding 2), 44 skipped.
-  - **What's still open:** the CI-matrix item stays open until an actual GitHub Actions run is
-    confirmed green (per the user's own instruction, this is the next step — validate the pinned
-    QGIS CI jobs before cutting `1.16.0-rc2`), and §1.10's exact-ZIP clean-profile install/upgrade
-    test remains genuinely blocked on a real interactive QGIS GUI session this sandbox can't
-    provide.
+  - **What's still open:** §1.10's exact-ZIP clean-profile install/upgrade test remains genuinely
+    blocked on a real interactive QGIS GUI session this sandbox can't provide.
+
+- **2026-09-20, same day — CI matrix item CLOSED: the pinned `qgis-live-tests` jobs validated with
+  actual passing GitHub Actions runs (`gh run view`, not assumed), per the user's own instruction
+  to validate before cutting `1.16.0-rc2`.** 3 real, distinct failures found and fixed by actually
+  running the jobs against both pinned images, not guessed:
+  1. `pip install --upgrade pip` failed on the `4.2.2` image specifically (Debian-packaged pip has
+     no RECORD file, refuses to uninstall itself) — dropped, unnecessary.
+  2. The two images disagree on `--break-system-packages`: `4.2.2`'s newer pip requires it (PEP
+     668), `release-3_28`'s older pip doesn't recognize it and hard-errors if passed — now tries
+     with the flag, falls back without it.
+  3. `4.2.2` (not `release-3_28`) segfaults during Python/Qt interpreter shutdown, AFTER all 42
+     live tests already passed (`Ran 42 tests ... OK` immediately followed by `Segmentation fault
+     (core dumped)`, exit 139) — an image-specific at-exit Qt teardown quirk under offscreen QPA,
+     not a bug in this repo. The step now checks unittest's own final `OK` line and treats a
+     nonzero exit alongside it as this known crash, not a failure (a real regression always prints
+     `FAILED (...)`, never a bare `OK`, so this can't mask an actual failure).
+  Final confirmed-green run: https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/runs/35534755563
+  — both `QGIS live tests (4.2.2)` and `QGIS live tests (release-3_28)` fully green end-to-end,
+  including the release-zip build and load→unload→reload smoke test steps. `test (windows-latest)`
+  and `secret-scan` also green.
+  - **Separately flagged, NOT fixed here (out of scope for this P1 pass):** the plain `test`
+    job's `Lint with Ruff` step fails on dozens of pre-existing unused-import/ambiguous-variable
+    findings across the repo (`docs/route_optimization_prototype.py`, several files under
+    `src/cartogen_ai/core/agent/`, `src/cartogen_ai/core/representation/`, etc.) — confirmed via
+    `gh run view` on a run at the current `commercial-plugin-v1.16.0-rc1` tag commit (`609e4ca`)
+    that this predates this session entirely. This means `ruff check .` has likely never actually
+    passed in CI, and the packaging-verification step downstream of it has never run to completion
+    either. A real, separate cleanup task — not addressed here to avoid scope-creeping a
+    security-P1-fix pass into an unrelated repo-wide lint sweep.
 
 - **2026-09-19/20, `v1.5.7-rc1` through `-rc4` — the full 11-phase Part A remediation plan
   (all ~35 confirmed gaps from the 2026-09-19 external-audit/architecture-guide passes),
