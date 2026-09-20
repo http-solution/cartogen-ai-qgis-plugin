@@ -187,7 +187,8 @@ class TestNewTools(unittest.TestCase):
         self.assertIsNone(_detect_geometry_fields(["id", "name", "value"]))
 
     def test_sniff_csv_header(self):
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".csv")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -208,7 +209,8 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("not found", res["error"])
 
     def test_load_tabular_data_as_layer_rejects_unsupported_extension(self):
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".shp")
         os.close(fd)
         try:
@@ -220,7 +222,8 @@ class TestNewTools(unittest.TestCase):
             os.remove(path)
 
     def test_load_tabular_data_as_layer_suggests_fields_when_ambiguous(self):
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".csv")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -236,7 +239,8 @@ class TestNewTools(unittest.TestCase):
         # Regression test for the bug this was built to fix: geometry-column
         # auto-detection previously only ran for CSV, so an Excel file with
         # lat/lon columns was always loaded as a plain non-spatial table.
-        import tempfile, os
+        import tempfile
+        import os
         pd = pytest_importorskip_pandas(self)
         fd, path = tempfile.mkstemp(suffix=".xlsx")
         os.close(fd)
@@ -267,7 +271,8 @@ class TestNewTools(unittest.TestCase):
         self.assertIsNone(_validate_wgs84_coordinates([], []))
 
     def test_sample_xy_values_from_csv(self):
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".csv")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -279,7 +284,8 @@ class TestNewTools(unittest.TestCase):
             os.remove(path)
 
     def test_sample_xy_values_from_excel(self):
-        import tempfile, os
+        import tempfile
+        import os
         pd = pytest_importorskip_pandas(self)
         fd, path = tempfile.mkstemp(suffix=".xlsx")
         os.close(fd)
@@ -295,7 +301,8 @@ class TestNewTools(unittest.TestCase):
         # Integration-level regression test: this validation runs before any
         # QGIS layer object is touched, so it's reachable without mocking
         # QgsVectorLayer/QgsGeometry internals.
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".csv")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

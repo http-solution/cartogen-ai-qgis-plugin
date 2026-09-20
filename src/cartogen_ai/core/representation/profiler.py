@@ -6,16 +6,14 @@ Inspects live QGIS layers and extracts statistical, spatial, and semantic
 metadata into a structured LayerSemanticProfile.
 """
 
-import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from .models import LayerSemanticProfile, FieldSemanticProfile
 
 try:
     from qgis.core import (
-        QgsProject, QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
-        QgsWkbTypes, QgsCoordinateReferenceSystem,
+        QgsMapLayer,
+        QgsWkbTypes,
     )
-    from qgis.PyQt.QtCore import QVariant
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False

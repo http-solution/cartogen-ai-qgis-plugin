@@ -1237,7 +1237,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
     # and hull layers "..._service_area_{i}" -- only the hulls (the actual
     # reachable-area polygons) are wanted here.
     hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
-    hull_layers = [l for l in (_find_layer_by_name(n) for n in hull_names) if l is not None]
+    hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
     if not hull_layers:
         return {"error": "calculate_service_area produced no reachable-area polygons to check coverage against."}
 

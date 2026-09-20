@@ -2,11 +2,9 @@
 """Unit tests for the Map Intelligence Engine and ChatActionRegistry."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from cartogen_ai.core.agent.map_intelligence import (
-    MapOutputDescriptor,
     ChatActionRegistry,
-    ChatAction,
     STYLE_PROFILES,
     process_map_output,
 )

@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 
 from .registry import register_tool
 from ....infrastructure.auth import CredentialManager
+from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 from ...models.confidence import set_layer_confidence
 # API-003, 2026-09-14 audit: these 3 fetches had no retry/backoff at all, unlike every LLM
 # provider call (post_with_retry/get_with_retry since 2026-09-12) -- a single transient
@@ -54,8 +55,6 @@ def _find_layer_by_name(name):
         return None
     return layers[0]
 
-
-from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 
 FETCHED_AT_PROPERTY_KEY = PROJECT_PROPERTY_FETCHED_AT
 

@@ -49,7 +49,7 @@ from . import tool_operations
 from ..models.transactions import TurnTransactionLog
 from ..services import learning
 from . import onboarding_profile
-from ..logger import log_info, log_warning, log_error, log_event
+from ..logger import log_event
 from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,

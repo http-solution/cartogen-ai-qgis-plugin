@@ -13,16 +13,15 @@ Responsibilities:
 5. Typed ChatActionRegistry for secure, interactive in-chat action chips.
 """
 
-import math
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 try:
     from qgis.core import (
         QgsProject, QgsMapLayer, QgsVectorLayer, QgsWkbTypes,
-        QgsSimpleFillSymbolLayer, QgsSimpleLineSymbolLayer, QgsSimpleMarkerSymbolLayer,
-        QgsFillSymbol, QgsLineSymbol, QgsMarkerSymbol, QgsSingleSymbolRenderer,
+        QgsSimpleFillSymbolLayer,
+        QgsFillSymbol, QgsSingleSymbolRenderer,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,
         QgsVectorLayerSimpleLabeling, QgsUnitTypes, QgsLabelObstacleSettings,
         QgsLayerTreeLayer,
@@ -68,7 +67,7 @@ class ChatAction:
 
 class ChatActionRegistry:
     """In-memory session registry mapping opaque IDs (act_...) to validated actions."""
-    
+
     _actions: Dict[str, ChatAction] = {}
 
     @classmethod
@@ -430,7 +429,7 @@ def process_map_output(
     # 5. Generate Safe Contextual Chat Actions
     action_chips = []
     layer_name = layer.name() if hasattr(layer, "name") else "Layer"
-    
+
     # Export action
     act_export = ChatActionRegistry.register(
         kind="export",

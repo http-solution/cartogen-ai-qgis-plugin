@@ -49,7 +49,7 @@ class TestFilterLayersBySelection(unittest.TestCase):
     def test_a_layer_explicitly_unchecked_is_excluded(self):
         ctx = self._ctx()
         result = filter_layers_by_selection(ctx, {"Beneficiary Registry": False})
-        names = [l["name"] for l in result["layers"]]
+        names = [layer["name"] for layer in result["layers"]]
         self.assertEqual(names, ["Health Facilities"])
         self.assertEqual(result["layer_count"], 1)
 
@@ -59,7 +59,7 @@ class TestFilterLayersBySelection(unittest.TestCase):
         # dict at all, and must still be sent, not silently dropped.
         ctx = self._ctx()
         result = filter_layers_by_selection(ctx, {"Beneficiary Registry": False})
-        names = [l["name"] for l in result["layers"]]
+        names = [layer["name"] for layer in result["layers"]]
         self.assertIn("Health Facilities", names)
 
     def test_original_context_object_is_never_mutated(self):

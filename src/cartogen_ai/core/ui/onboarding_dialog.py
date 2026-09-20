@@ -12,7 +12,6 @@ itself, ask the user" feeling via narrative prose + simple pickers instead, with
 dependency.
 """
 
-from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton,
 )

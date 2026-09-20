@@ -132,7 +132,7 @@ def find_mentioned_layers(text, project_layers, max_matches=2):
         return []
 
     lowered = text.lower()
-    candidates = sorted(project_layers, key=lambda l: len(l.name()), reverse=True)
+    candidates = sorted(project_layers, key=lambda layer: len(layer.name()), reverse=True)
     matches = []
     for layer in candidates:
         name = layer.name()

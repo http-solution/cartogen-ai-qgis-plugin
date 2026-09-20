@@ -167,7 +167,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
 
         project = QgsProject.instance()
         layout_name = f"Layout_{title.replace(' ', '_')}"
-        
+
         # Remove existing layout if present
         layout_manager = project.layoutManager()
         for existing in layout_manager.printLayouts():

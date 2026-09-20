@@ -75,7 +75,7 @@ class SpatialMemoryManager:
                     return os.path.join(base_dir, f"{proj_name}_spatial_memory.sqlite")
             except Exception:
                 pass
-        
+
         home_dir = os.path.expanduser("~")
         return os.path.join(home_dir, "cartogen_ai_spatial_memory.sqlite")
 

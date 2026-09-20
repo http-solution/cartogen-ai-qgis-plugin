@@ -84,8 +84,8 @@ class TestRenderMarkdown(unittest.TestCase):
     def test_nested_bullets_indent_further_than_top_level(self):
         html = render_markdown("- top\n  - nested")
         lines = html.split("<br>")
-        top_line = next(l for l in lines if "top" in l)
-        nested_line = next(l for l in lines if "nested" in l)
+        top_line = next(line for line in lines if "top" in line)
+        nested_line = next(line for line in lines if "nested" in line)
         self.assertGreater(nested_line.count("&nbsp;"), top_line.count("&nbsp;"))
 
     def test_numbered_list(self):

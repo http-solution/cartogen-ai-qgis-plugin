@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.export_tools import (
     generate_report, generate_spatial_report, _layer_provenance_entries, _format_lineage_entry,
     generate_html_dashboard, _build_dashboard_html, _iter_geojson_coords, _humanize_field_name,
-    _write_vector, export_layer, export_to_csv, _sanitize_csv_formula_injection,
+    _write_vector, export_to_csv, _sanitize_csv_formula_injection,
     _classify_freshness, _humanize_age, _freshness_legend_html,
     _resolve_basemap_kwargs, _prepare_dashboard_layer, _DASHBOARD_BASEMAPS,
     _check_shapefile_field_names,

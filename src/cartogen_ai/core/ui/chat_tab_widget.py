@@ -32,14 +32,13 @@ from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize, QTimer
 from qgis.PyQt.QtGui import QTextCursor
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser,
-    QPushButton, QTextEdit, QGroupBox,
+    QPushButton, QTextEdit,
 )
 from ..logger import log_warning
 
 
 from .chat_formatting import (
-    render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
-    render_tool_steps_toggle_html,
+    render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
     format_send_error,
 )
 from .theme import theme_colors, extract_theme_palette
@@ -623,7 +622,6 @@ class ChatTabWidget(QWidget):
     def _scroll_to_bottom(self):
         """Scrolls to the bottom reliably, scheduling layout-settling checks."""
         from qgis.PyQt.QtCore import QTimer
-        from qgis.PyQt.QtGui import QTextCursor
 
         def _do_scroll():
             self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
@@ -1149,7 +1147,6 @@ class ChatTabWidget(QWidget):
         as settings_dialog.py's modelsFetchedSignal/_fetch_models. Delivers
         the result back via refinementFetchedSignal, which Qt auto-queues
         onto the main thread for _on_refinement_fetched."""
-        import threading
         from ..services.prompt_refiner import refine, get_user_profile
 
         self._dock.statusSignal.emit("Refining prompt...")

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from cartogen_ai.processing.provider import (
     CartogenProcessingProvider,

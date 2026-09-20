@@ -202,7 +202,7 @@ class AgentTaskManager(QObject):
                 icon = "🟢"
             elif task["status"] == "FAILED":
                 icon = "🔴"
-            
+
             res_str = f" → {task['result']}" if task["result"] else ""
             lines.append(f"{task['id']}. [{icon} {task['status']}] {task['description']}{res_str}")
             # Real live bug, 2026-09-16: a user confirmed a destructive-action gate

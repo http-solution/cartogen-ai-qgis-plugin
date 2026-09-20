@@ -9,7 +9,7 @@ from cartogen_ai.core.agent.tools.reporting_tools import (
     generate_chart, extract_pdf_tables, extract_word_tables, aggregate_data,
     _aggregate_rows, _coerce_number, load_3w_data, _read_tabular_rows,
     _aggregate_3w_presence, _is_missing, generate_sector_coverage_report,
-    _apply_pie_slice_cap, _DEFAULT_CHART_PALETTE,
+    _apply_pie_slice_cap,
 )
 
 

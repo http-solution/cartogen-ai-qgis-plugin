@@ -737,7 +737,6 @@ def render_task_progress_html(plan_data, colors, spinner_frame=0):
     Clicking any row opens the Task Inspector dialog exactly like the old strip's list
     did (cartogen://task/{id}, resolved by chat_tab_widget._on_step_anchor_clicked); a
     small "Clear plan" link at the bottom is cartogen://clearplan."""
-    text_color = colors.get("text", "#1c1c1c")
     subtle_color = colors.get("subtle", "#666666")
     accent = colors.get("accent", "#0b6ea3")
     danger = colors.get("danger", "#A3255A")
