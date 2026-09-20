@@ -59,7 +59,7 @@ from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
 from . import tool_operations
-from .transactions import TurnTransactionLog
+from ..models.transactions import TurnTransactionLog
 from . import learning
 from . import onboarding_profile
 from ..logger import log_info, log_warning, log_error

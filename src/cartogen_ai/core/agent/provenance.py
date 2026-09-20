@@ -65,7 +65,7 @@ def build_provenance_record(layer) -> dict:
         return {"error": "build_provenance_record requires a QGIS layer object."}
 
     from .lineage import get_layer_lineage
-    from .dataset_status import get_dataset_status
+    from ..models.dataset_status import get_dataset_status
 
     return {
         "layer_name": layer.name(),

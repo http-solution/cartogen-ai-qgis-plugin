@@ -18,7 +18,7 @@ This module closes the first two of those three:
     admin2 'YE1201' under admin1 'YE12'). This is a pure string-prefix
     check on two sibling attributes, not a spatial one: real COD-AB
     admin2 layers already carry their parent's P-code denormalized onto
-    every row (see agent/contracts/admin2.json, which requires both
+    every row (see validators/contracts/admin2.json, which requires both
     admin2_pcode and admin1_pcode on one layer) -- so this needs no
     second "parent layer" argument or spatial join at all. The SEPARATE
     question of whether an admin2 polygon spatially sits inside its

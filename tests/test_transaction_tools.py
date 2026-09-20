@@ -8,7 +8,7 @@ patch convention for the QGIS-touching half of undo_last_operation."""
 import unittest
 from unittest.mock import patch, MagicMock
 
-from cartogen_ai.core.agent.transactions import TurnTransactionLog
+from cartogen_ai.core.models.transactions import TurnTransactionLog
 from cartogen_ai.core.agent.tools.transaction_tools import (
     bind_transaction_log, get_turn_transaction_log, undo_last_operation,
 )

@@ -5,7 +5,7 @@ from cartogen_ai.core.agent.prompts import build_system_prompt
 from cartogen_ai.core.agent.memory import SpatialMemoryManager
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 import cartogen_ai.core.agent.agent as agent_mod
-from cartogen_ai.core.agent.transactions import TurnTransactionLog
+from cartogen_ai.core.models.transactions import TurnTransactionLog
 
 
 class TestAgentRunner(unittest.TestCase):

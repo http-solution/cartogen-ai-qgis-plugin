@@ -9,7 +9,7 @@ duck-typed on fields()/getFeatures(), so they're directly unit-testable
 without a live QGIS install."""
 import unittest
 
-from cartogen_ai.core.agent.pcode_validation import (
+from cartogen_ai.core.validators.pcode_validation import (
     check_pcode_uniqueness,
     check_pcode_hierarchy,
 )

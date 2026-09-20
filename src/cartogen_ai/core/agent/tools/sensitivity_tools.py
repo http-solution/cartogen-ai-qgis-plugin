@@ -8,7 +8,7 @@ export-blocking gate.
 """
 
 from .registry import register_tool
-from .. import sensitivity as _sens
+from ...models import sensitivity as _sens
 
 try:
     from qgis.core import QgsProject

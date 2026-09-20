@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 from cartogen_ai.core.agent.provenance import build_provenance_record
 from cartogen_ai.core.agent.lineage import tag_layer_lineage
-from cartogen_ai.core.agent.dataset_status import set_initial_status
+from cartogen_ai.core.models.dataset_status import set_initial_status
 
 
 class FakeLayer:

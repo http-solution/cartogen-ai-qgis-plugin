@@ -5,7 +5,7 @@ module's docstring for exactly what this narrow undo mechanism covers
 MODIFY edits, DELETE calls, anything from a previous turn)."""
 import unittest
 
-from cartogen_ai.core.agent.transactions import TurnTransactionLog
+from cartogen_ai.core.models.transactions import TurnTransactionLog
 
 
 class TestRecord(unittest.TestCase):

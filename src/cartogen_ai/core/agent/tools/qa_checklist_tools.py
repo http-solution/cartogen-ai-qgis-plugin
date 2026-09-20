@@ -33,7 +33,7 @@ TRANSITIONS entry for "map_qa")."""
 import os
 
 from .registry import register_tool
-from .. import sensitivity as _sens
+from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
 from .layout_tools import list_layout_items
