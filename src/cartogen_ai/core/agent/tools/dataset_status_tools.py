@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Dataset Status / QA-Gate tools for Cartogen AI -- the agent-facing surface
-of agent/dataset_status.py (point 2 of
+of models/dataset_status.py (point 2 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: a dataset-lifecycle
 state machine, INGESTED -> STAGED -> VALIDATED -> ANALYSIS_READY ->
 CARTOGRAPHY_READY -> PUBLICATION_READY, tracked per-layer). See that

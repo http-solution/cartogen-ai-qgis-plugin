@@ -171,7 +171,7 @@ def fetch_nasa_active_fires_network_phase(bbox, days=1, min_confidence="nominal"
     Needs a free FIRMS API key (MAP_KEY), separate from any LLM provider key -- get one at
     https://firms.modaps.eosdis.nasa.gov/api/area/, then add it in Cartogen AI's Settings dialog
     ("NASA FIRMS API Key"). Stored/read via the same CredentialManager every LLM provider key
-    already uses (agent/auth.py), keyed by provider string "firms"."""
+    already uses (infrastructure/auth.py), keyed by provider string "firms"."""
     bbox_error = _validate_bbox(bbox)
     if bbox_error:
         return {"error": bbox_error}

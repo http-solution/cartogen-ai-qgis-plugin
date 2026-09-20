@@ -278,8 +278,8 @@ def analyze_request(query, context=None, attachments=None):
     without asking: {"aoi": "current canvas extent", "admin_level": "admin2"}.
     """
     try:
-        from . import task_matcher as tmatch
-        from . import task_register as reg_module
+        from ..agent import task_matcher as tmatch
+        from ..agent import task_register as reg_module
     except Exception as e:  # pragma: no cover - diagnostic path
         print("[PromptRefiner] task register unavailable: %s" % e)
         return _empty_analysis(query)

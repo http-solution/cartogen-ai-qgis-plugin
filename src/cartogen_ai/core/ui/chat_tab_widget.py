@@ -1137,7 +1137,7 @@ class ChatTabWidget(QWidget):
         # needs clearing, so a stale click on an old card's link can't resurrect it.
         self._pending_refinement_cards = None
 
-        from ..agent.prompt_refiner import (
+        from ..services.prompt_refiner import (
             analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
         )
         try:
@@ -1257,7 +1257,7 @@ class ChatTabWidget(QWidget):
         the result back via refinementFetchedSignal, which Qt auto-queues
         onto the main thread for _on_refinement_fetched."""
         import threading
-        from ..agent.prompt_refiner import refine, get_user_profile
+        from ..services.prompt_refiner import refine, get_user_profile
 
         self._dock.statusSignal.emit("Refining prompt...")
         # Blocks a second Send/Enter from starting a second refine() call
@@ -1395,7 +1395,7 @@ class ChatTabWidget(QWidget):
                     print(f"[ChatTabWidget] Failed to connect plan_updated signal: {e}")
             self._on_live_plan_updated(agent.task_manager.get_plan())
 
-        from ..agent.task_runner import run_agent_task
+        from ..services.task_runner import run_agent_task
         from ..agent.map_context import get_map_context_summary, filter_layers_by_selection
 
         # Gathered here, on the main thread, before the background QgsTask

@@ -3,7 +3,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock
 
-from cartogen_ai.core.agent.task_runner import AgentQgsTask, run_agent_task, QGIS_TASK_AVAILABLE
+from cartogen_ai.core.services.task_runner import AgentQgsTask, run_agent_task, QGIS_TASK_AVAILABLE
 
 
 class _FakeAgent:

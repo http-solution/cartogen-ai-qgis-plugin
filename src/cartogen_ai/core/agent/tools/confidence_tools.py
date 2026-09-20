@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Confidence/uncertainty classification tools for Cartogen AI -- the
-agent-facing surface of agent/confidence.py (point 23 of
+agent-facing surface of models/confidence.py (point 23 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). See that module's
 own docstring for the full design.
 """

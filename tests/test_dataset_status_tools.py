@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for agent/tools/dataset_status_tools.py -- the registered-tool
-surface over agent/dataset_status.py's QA-gate state machine (point 2 of
+surface over models/dataset_status.py's QA-gate state machine (point 2 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).
 
 Degrade-path tests run with no QGIS_AVAILABLE patch (matching this dev

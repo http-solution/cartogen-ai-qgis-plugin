@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for agent/learning.py -- the adaptive self-learning helpers added
+"""Tests for services/learning.py -- the adaptive self-learning helpers added
 2026-09-02 (see BUG_TRACKER.md and learning.py's module docstring for the
 feature request and the deliberate scoping of each mechanism).
 
@@ -11,7 +11,7 @@ SpatialMemoryManager() per test is a clean slate for global notes."""
 import unittest
 
 from cartogen_ai.core.agent.memory import SpatialMemoryManager
-from cartogen_ai.core.agent import learning
+from cartogen_ai.core.services import learning
 
 
 class TestUsageTracking(unittest.TestCase):

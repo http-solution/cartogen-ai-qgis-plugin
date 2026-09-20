@@ -18,7 +18,7 @@ it is ~218 KB, and the plugin must not pay that cost on every import. It is
 loaded lazily on first use and cached.
 
 Why matching happens here and not in the model: the full register is roughly
-40 KB of prose. agent/prompt_refiner.py deliberately keeps its system message
+40 KB of prose. services/prompt_refiner.py deliberately keeps its system message
 under ~500 characters. Sending the register -- once, let alone per call --
 is not affordable, so a query is matched locally and only the ONE matched
 task's contract is injected.

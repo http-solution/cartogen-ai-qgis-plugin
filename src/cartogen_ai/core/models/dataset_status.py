@@ -197,7 +197,7 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
     to report; invalid_geometries keeps its original fail-closed .get(..., 1)
     default.
 
-    schema_contract, via agent/schema_contracts.py (point 5) -- requires a
+    schema_contract, via validators/schema_contracts.py (point 5) -- requires a
     contract_name (advance_dataset_status only sets check_name to
     "schema_contract" at all when one was actually supplied; see that
     function). Duck-types on hasattr(layer, "fields") for the same reason

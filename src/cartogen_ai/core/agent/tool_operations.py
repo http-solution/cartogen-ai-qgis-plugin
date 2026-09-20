@@ -6,7 +6,7 @@ Closes half of point 20's real gap in
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: "No READ/CREATE/
 MODIFY/DELETE/PUBLISH taxonomy exists in code -- that part is a genuine
 real gap, unchanged." (The other half -- a snapshot/rollback mechanism
-for partial multi-step failure -- is agent/transactions.py; see that
+for partial multi-step failure -- is models/transactions.py; see that
 module's docstring for what it does and does not cover.)
 
 Five categories, defined by their effect on project/external state, not

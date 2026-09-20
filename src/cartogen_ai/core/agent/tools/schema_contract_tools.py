@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Schema-contract tools for Cartogen AI -- the agent-facing surface of
-agent/schema_contracts.py (point 5 of
+validators/schema_contracts.py (point 5 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: machine-readable
 YAML/JSON dataset schema contracts, closing the REAL GAP that column
 meaning was only ever inferred by the model at call time, never

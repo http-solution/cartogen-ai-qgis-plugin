@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 P-code depth tools for Cartogen AI -- the agent-facing surface of
-agent/pcode_validation.py (point 6 of
+validators/pcode_validation.py (point 6 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: P-code uniqueness
 and parent/child hierarchy validation, extending
 HUMANITARIAN_CARTOGRAPHY_STANDARDS.md Section I's already-logged basic

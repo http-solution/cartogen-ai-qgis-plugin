@@ -13,7 +13,7 @@ from ..agent.chat_persistence import PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
 from ..agent.model_selector import AUTO_SENTINEL
-from ..agent.prompt_refiner import (
+from ..services.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
     PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
 )

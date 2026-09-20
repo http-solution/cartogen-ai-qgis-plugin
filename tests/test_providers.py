@@ -1156,7 +1156,7 @@ class TestMaxTokensCap(unittest.TestCase):
         self.assertEqual(sent_payload["max_tokens"], DEFAULT_MAX_TOKENS)
 
     # An explicit max_tokens override reaches the payload for every client --
-    # needed for agent/prompt_refiner.py (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md
+    # needed for services/prompt_refiner.py (docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md
     # §5.2), whose refinement call needs a few hundred tokens, not
     # DEFAULT_MAX_TOKENS=8096. Each test picks a value distinct from the
     # default so a regression to "always DEFAULT_MAX_TOKENS" would fail loudly.

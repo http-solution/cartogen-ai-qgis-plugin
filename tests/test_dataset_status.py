@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for agent/dataset_status.py -- the QA-gate lifecycle state machine
+"""Tests for models/dataset_status.py -- the QA-gate lifecycle state machine
 that closes point 2 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md
 (first pass: the state machine + sequential gate + one real automated check,
 geometry_validity, wired to STAGED -> VALIDATED via the existing
@@ -324,7 +324,7 @@ class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
 class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
     """INGESTED -> STAGED runs a pcode_depth check (point 6): P-code
     uniqueness + parent/child hierarchy prefix-match, via
-    agent/pcode_validation.py. Unlike the schema_contract gate, this one is
+    validators/pcode_validation.py. Unlike the schema_contract gate, this one is
     NOT opt-in -- it auto-detects P-code-shaped fields and passes as
     "not applicable" when none exist, so it never blocks a non-admin-
     boundary layer. The default FakeLayer has no fields at all

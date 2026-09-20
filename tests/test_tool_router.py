@@ -2,9 +2,9 @@
 import ast
 import inspect
 import unittest
-from cartogen_ai.core.agent.tool_router import ToolRouter
+from cartogen_ai.core.services.tool_router import ToolRouter
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
-import cartogen_ai.core.agent.tool_router as tool_router_module
+import cartogen_ai.core.services.tool_router as tool_router_module
 
 
 class TestToolAliasesNoDuplicateKeys(unittest.TestCase):
@@ -274,14 +274,14 @@ class TestFuzzyTypoCorrectionForHazardQueries(unittest.TestCase):
         # A short query word (e.g. "hi", already covered by the v1.13.1 stopword/word-boundary
         # fix) must not gain a spurious alias hit through the fuzzy path either -- confirms the
         # length-5 floor actually gates the correction, not just the stopword list.
-        from cartogen_ai.core.agent.tool_router import _expand_query_with_fuzzy_corrections
+        from cartogen_ai.core.services.tool_router import _expand_query_with_fuzzy_corrections
         result = _expand_query_with_fuzzy_corrections({"hi"}, "hi")
         self.assertEqual(result, "hi")
 
     def test_unrelated_long_word_is_not_corrected(self):
         # A genuinely unrelated 5+ char word shouldn't fuzzy-match into the small hazard
         # vocabulary just because it happens to share some characters.
-        from cartogen_ai.core.agent.tool_router import _expand_query_with_fuzzy_corrections
+        from cartogen_ai.core.services.tool_router import _expand_query_with_fuzzy_corrections
         result = _expand_query_with_fuzzy_corrections({"buffer"}, "buffer this layer")
         self.assertEqual(result, "buffer this layer")
 

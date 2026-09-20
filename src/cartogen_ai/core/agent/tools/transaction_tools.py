@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Agent-facing view onto agent/transactions.py's TurnTransactionLog -- see
+Agent-facing view onto models/transactions.py's TurnTransactionLog -- see
 that module's docstring for exactly what is and isn't tracked/undoable.
 Follows the same module-level bind pattern task_tools.py already uses for
 TaskManager/MemoryManager (bind_agent_context): agent.py calls

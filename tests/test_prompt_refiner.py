@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import MagicMock
 import pathlib
-from cartogen_ai.core.agent.prompt_refiner import (
+from cartogen_ai.core.services.prompt_refiner import (
     should_refine, build_refinement_messages, parse_refinement_response, refine,
     analyze_request, build_disambiguation_messages, parse_disambiguation_response,
     PROFILE_LABELS, DEFAULT_PROFILE,

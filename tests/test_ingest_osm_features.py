@@ -14,7 +14,7 @@ from cartogen_ai.core.agent.tools.humanitarian_tools import (
     ingest_osm_features,
 )
 from cartogen_ai.core.agent.tools import TOOL_REGISTRY, TOOLS_SCHEMA
-from cartogen_ai.core.agent.tool_router import ToolRouter
+from cartogen_ai.core.services.tool_router import ToolRouter
 
 
 class TestIngestOsmFeatures(unittest.TestCase):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for agent/tools/sensitivity_tools.py -- the registered-tool surface
-over agent/sensitivity.py (point 24 of
+over models/sensitivity.py (point 24 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Degrade-path tests
 run with no QGIS_AVAILABLE patch (matching this dev environment's real
 state); layer-lookup tests patch QGIS_AVAILABLE True and QgsProject,

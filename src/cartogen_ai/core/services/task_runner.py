@@ -5,7 +5,7 @@ Executes non-blocking background LLM requests while keeping the QGIS GUI fully r
 """
 
 import traceback
-from .tools._qgis_enum_compat import resolve_qgis_enum
+from ..agent.tools._qgis_enum_compat import resolve_qgis_enum
 
 try:
     from qgis.core import QgsTask, QgsApplication
