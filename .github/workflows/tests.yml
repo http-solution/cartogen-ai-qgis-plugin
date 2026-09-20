@@ -98,12 +98,16 @@ jobs:
     # NOT "the two ends" of the full 3.28-4.99 range. 4.2.2 is not the literal
     # upper bound (4.99), which doesn't correspond to any actual QGIS release
     # yet; it's the exact version this repo is developed/live-tested against
-    # locally (see reference_local_qgis_installs). release-3_28 is also not a
-    # pinned immutable version -- it's a moving branch tag that tracks
-    # whatever the latest 3.28.x patch release currently is, confirmed via the
-    # Docker Hub API (2026-09-20) to always be a real released 3.28 build, but
-    # its exact patch version can change under this same tag name over time.
-    # Deliberately NOT qgis/qgis:latest -- confirmed via the Docker Hub API
+    # locally (see reference_local_qgis_installs). release-3_28 WAS, at that
+    # point, not a pinned immutable version -- it was a moving branch tag that
+    # tracked whatever the latest 3.28.x patch release currently was, confirmed
+    # via the Docker Hub API (2026-09-20) to always be a real released 3.28
+    # build, but one whose exact patch version could change under this same tag
+    # name over time. That moving-tag behavior is exactly what the
+    # fourth-review correction further below fixed by pinning to a digest --
+    # this paragraph is a historical record of the reasoning at the time, not
+    # this job's current pinning state; see that later comment for what's
+    # actually in effect now. Deliberately NOT qgis/qgis:latest -- confirmed via the Docker Hub API
     # that `latest` and `nightly` currently share the same image digest, i.e.
     # `latest` is an unreleased dev build, not a stable QGIS version; using it
     # here would make results depend on whatever nightly happened to build

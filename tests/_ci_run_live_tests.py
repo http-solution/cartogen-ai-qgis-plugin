@@ -37,6 +37,14 @@ result = runner.run(suite)
 # trigger. Forcing collection AND pumping the Qt event loop HERE, while
 # QApplication is still fully alive, makes any deferred deleteLater() cleanup
 # actually run now instead of landing in that unsafe window.
+# Second-review correction, 2026-09-21: both blocks below used to catch their own
+# exception and only print it -- teardown_ok tracked nothing, so a real failure in
+# either the cleanup pump or exitQgis() itself was invisible to the final exit code.
+# For a process-stability gate, a teardown exception must fail the run, not just be
+# logged -- this whole script exists to prove teardown completes cleanly, so an
+# exception here IS the failure being tested for.
+teardown_ok = True
+
 try:
     from qgis.PyQt.QtCore import QCoreApplication, QEventLoop, QTimer
     gc.collect()
@@ -48,6 +56,7 @@ try:
     print("Post-test gc.collect() + Qt event loop pump completed.")
 except Exception as e:
     print(f"Post-test cleanup pump itself raised: {e!r}")
+    teardown_ok = False
 
 try:
     from qgis.core import QgsApplication
@@ -58,5 +67,6 @@ try:
         print("exitQgis() returned normally.")
 except Exception as e:
     print(f"exitQgis() teardown itself raised: {e!r}")
+    teardown_ok = False
 
-sys.exit(0 if result.wasSuccessful() else 1)
+sys.exit(0 if (result.wasSuccessful() and teardown_ok) else 1)
