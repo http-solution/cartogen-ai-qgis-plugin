@@ -8,6 +8,7 @@ falling back gracefully to standard Python logging / sys.stderr in headless or t
 
 import re
 import sys
+import time
 
 # P1 fix, 2026-09-20 audit: log_info/log_warning/log_error used to forward
 # whatever string a caller built -- including tool arguments and tool results,
@@ -46,7 +47,7 @@ def _redact(message: str) -> str:
 
 
 try:
-    from qgis.core import QgsMessageLog, Qgis
+    from qgis.core import QgsMessageLog, Qgis, QgsSettings
     QGIS_LOG_AVAILABLE = True
 except ImportError:
     QGIS_LOG_AVAILABLE = False
@@ -125,38 +126,65 @@ def log_event(event: str, tag: str = TAG, error=False, **fields) -> None:
     (log_error if error else log_info)(line, tag=tag)
 
 
-_DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging"
+_DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging_until"
 _diagnostic_warning_shown = False
+_DEFAULT_DIAGNOSTIC_DURATION_SECONDS = 3600  # 1 hour
+
+
+def enable_diagnostic_logging(duration_seconds: int = _DEFAULT_DIAGNOSTIC_DURATION_SECONDS) -> None:
+    """Turns on log_diagnostic() output for the next duration_seconds (default
+    1 hour), then it automatically expires on its own. Second-review correction,
+    2026-09-20: a plain boolean toggle doesn't meet the "explicit, TIME-BOUND
+    diagnostic mode" policy -- a developer could flip it on and forget to flip
+    it back off, leaving raw-content logging silently active indefinitely.
+    Storing an expiry timestamp instead means it can only ever be on for a
+    bounded window, no matter what. Call this from QGIS's own Python console
+    when actively debugging; there is no Settings UI toggle for it by design."""
+    if not QGIS_LOG_AVAILABLE:
+        return
+    try:
+        QgsSettings().setValue(_DIAGNOSTIC_SETTING, time.time() + duration_seconds)
+    except Exception:
+        pass
+
+
+def disable_diagnostic_logging() -> None:
+    """Ends diagnostic logging immediately, without waiting for it to expire."""
+    if not QGIS_LOG_AVAILABLE:
+        return
+    try:
+        QgsSettings().remove(_DIAGNOSTIC_SETTING)
+    except Exception:
+        pass
 
 
 def _diagnostic_logging_enabled() -> bool:
-    """Explicit, local-only, OFF-by-default escape hatch for raw-content
-    diagnostic logging. log_event above is always metadata-only; this exists
-    only for a developer actively debugging a specific issue on their own
-    machine, never set by default and never synced/shared. Not exposed as a
-    normal Settings UI toggle -- set cartogen_ai/debug_verbose_logging=true
-    via QGIS's own Settings > Options > Advanced editor (or the Python
-    console) when deliberately debugging, and unset it afterward."""
+    """Explicit, local-only, OFF-by-default, TIME-BOUND escape hatch for
+    raw-content diagnostic logging. log_event above is always metadata-only;
+    this exists only for a developer actively debugging a specific issue on
+    their own machine, never on by default and never synced/shared. See
+    enable_diagnostic_logging's docstring for why this checks an expiry
+    timestamp rather than a persistent boolean."""
     if not QGIS_LOG_AVAILABLE:
         return False
     try:
-        from qgis.core import QgsSettings
-        return bool(QgsSettings().value(_DIAGNOSTIC_SETTING, False, type=bool))
+        expiry = QgsSettings().value(_DIAGNOSTIC_SETTING, 0.0, type=float)
+        return bool(expiry) and time.time() < expiry
     except Exception:
         return False
 
 
 def log_diagnostic(message: str, tag: str = TAG) -> None:
-    """Explicit, temporary, local-only raw-content diagnostic logging.
-    Does nothing unless cartogen_ai/debug_verbose_logging is explicitly set
-    (see _diagnostic_logging_enabled's docstring) -- silently a no-op
-    otherwise, so it's safe to leave calls to this in place without them
-    ever logging anything by default. The first time it actually emits in a
-    process, it logs a visible warning that raw content is being logged
-    locally, so this is never a silent exception to the metadata-only
-    default. Still passes through _redact (via log_warning/log_info) as
-    defense-in-depth against known secret shapes, even in this explicit
-    debugging mode."""
+    """Explicit, temporary, local-only, time-bound raw-content diagnostic
+    logging. Does nothing unless enable_diagnostic_logging() has been called
+    and its window hasn't expired yet (see _diagnostic_logging_enabled's
+    docstring) -- silently a no-op otherwise, so it's safe to leave calls to
+    this in place without them ever logging anything by default. The first
+    time it actually emits in a process, it logs a visible warning that raw
+    content is being logged locally, so this is never a silent exception to
+    the metadata-only default. Still passes through _redact (via
+    log_warning/log_info) as defense-in-depth against known secret shapes,
+    even in this explicit debugging mode."""
     if not _diagnostic_logging_enabled():
         return
     global _diagnostic_warning_shown
@@ -165,8 +193,8 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
             "Verbose diagnostic logging is ON -- raw prompt/response/tool "
             "content may now be logged locally to QgsMessageLog, which can "
             "include sensitive data (coordinates, file paths, personal "
-            "information). Turn off cartogen_ai/debug_verbose_logging in "
-            "QGIS Settings when done debugging.",
+            "information). This window expires automatically; call "
+            "disable_diagnostic_logging() to end it immediately instead.",
             tag=tag,
         )
         _diagnostic_warning_shown = True
