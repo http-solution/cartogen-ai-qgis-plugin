@@ -20,6 +20,9 @@ class TestUrlopenWithRetry(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools._urllib_retry.urllib.request.urlopen")
     def test_retries_on_transient_503_then_succeeds(self, mock_urlopen, mock_sleep):
         err = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, io.BytesIO())
+        # See test_hazard_monitoring_tools.py's identical comment -- a pure stdlib
+        # ResourceWarning artifact of HTTPError itself, not project code.
+        self.addCleanup(err.close)
         mock_urlopen.side_effect = [err, "the response"]
         result = urlopen_with_retry("req", timeout=10)
         self.assertEqual(result, "the response")
@@ -29,6 +32,9 @@ class TestUrlopenWithRetry(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools._urllib_retry.urllib.request.urlopen")
     def test_does_not_retry_on_permanent_404(self, mock_urlopen, mock_sleep):
         err = urllib.error.HTTPError("url", 404, "Not Found", {}, io.BytesIO())
+        # See test_hazard_monitoring_tools.py's identical comment -- a pure stdlib
+        # ResourceWarning artifact of HTTPError itself, not project code.
+        self.addCleanup(err.close)
         mock_urlopen.side_effect = err
         with self.assertRaises(urllib.error.HTTPError):
             urlopen_with_retry("req", timeout=10)

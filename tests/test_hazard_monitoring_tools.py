@@ -99,6 +99,12 @@ class TestFetchNasaActiveFiresNetworkPhase(unittest.TestCase):
             "31.95,35.93,330.5,0.4,0.4,2026-09-12,0130,N,high,2.0NRT,290.1,12.3,N\n"
         )
         err = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, io.BytesIO())
+        # urllib.error.HTTPError wraps a tempfile-style closer internally regardless of the
+        # `fp` argument -- letting it be garbage-collected without an explicit close() fires a
+        # ResourceWarning ("Implicitly cleaning up <HTTPError ...>") on later Python versions.
+        # Confirmed via isolated repro this is a pure stdlib artifact, not project code; found
+        # in a 2026-09-20 release review of this suite's own output.
+        self.addCleanup(err.close)
         mock_urlopen.side_effect = [err, _mock_response(csv_body)]
         res = hz.fetch_nasa_active_fires_network_phase([34.9, 30.9, 35.2, 31.3])
         self.assertTrue(res.get("success"), res)
