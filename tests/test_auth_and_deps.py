@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-from cartogen_ai.core.agent.auth import CredentialManager
-from cartogen_ai.core.agent.deps import verify_dependencies, get_dependency_warning_message
+from cartogen_ai.infrastructure.auth import CredentialManager
+from cartogen_ai.infrastructure.deps import verify_dependencies, get_dependency_warning_message
 
 
 class TestAuthAndDeps(unittest.TestCase):
@@ -23,9 +23,9 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_settings = MagicMock()
         fake_settings.value.return_value = ""
 
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             result = CredentialManager.save_credential("test_flagged_provider", "sk-fake-value")
 
@@ -41,10 +41,10 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_settings = MagicMock()
         fake_settings.value.return_value = ""
 
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
-             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True), \
+             patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             CredentialManager._plaintext_fallback_providers.add("test_clear_provider")
             result = CredentialManager.save_credential("test_clear_provider", "sk-fake-value")
@@ -78,10 +78,10 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_auth_mgr.isDisabled.return_value = False
         fake_auth_mgr.storeAuthenticationConfig.return_value = False  # simulates the collision failure
 
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
-             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             result = CredentialManager.save_credential("test_stale_provider", "brand-new-key")
 
@@ -90,10 +90,10 @@ class TestAuthAndDeps(unittest.TestCase):
         # The stale auth_id reference must be cleared, not left dangling.
         self.assertNotIn("cartogen_ai/auth_id_test_stale_provider", store)
 
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
-             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             key = CredentialManager.get_credential("test_stale_provider")
 
@@ -123,10 +123,10 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_auth_mgr.storeAuthenticationConfig.return_value = True
         fake_config = MagicMock()
 
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app, \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", side_effect=FakeSettings, create=True), \
-             patch("cartogen_ai.core.agent.auth.QgsAuthMethodConfig", return_value=fake_config, create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", return_value=fake_config, create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             result = CredentialManager.save_credential("test_resave_provider", "rotated-key-value")
 
@@ -147,8 +147,8 @@ class TestAuthAndDeps(unittest.TestCase):
             return default
 
         fake_settings.value.side_effect = fake_value
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True):
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True):
             key = CredentialManager.get_credential("ollama")
 
         self.assertEqual(key, "http://my-remote-ollama-host:11434/v1/chat/completions")
@@ -190,8 +190,8 @@ class TestAuthAndDeps(unittest.TestCase):
     def test_missing_credential_message_no_client_reads_settings(self):
         fake_settings = MagicMock()
         fake_settings.value.return_value = "openrouter"
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True), \
              patch.object(CredentialManager, "get_credential", return_value=""):
             msg = CredentialManager.missing_credential_message()
         self.assertIsNotNone(msg)
@@ -201,8 +201,8 @@ class TestAuthAndDeps(unittest.TestCase):
         # an empty one still means "the default local server", not "missing".
         fake_settings = MagicMock()
         fake_settings.value.return_value = "ollama"
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.auth.QgsSettings", return_value=fake_settings, create=True), \
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True), \
              patch.object(CredentialManager, "get_credential", return_value=""):
             msg = CredentialManager.missing_credential_message(provider="ollama")
         self.assertIsNone(msg)
@@ -234,7 +234,7 @@ class TestAuthSystemDiagnostic(unittest.TestCase):
     def test_reports_not_disabled_when_auth_manager_is_fine(self):
         fake_auth_mgr = MagicMock()
         fake_auth_mgr.isDisabled.return_value = False
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app:
             mock_app.authManager.return_value = fake_auth_mgr
             status = CredentialManager.auth_system_status()
             message = CredentialManager.get_auth_system_diagnostic_message()
@@ -245,7 +245,7 @@ class TestAuthSystemDiagnostic(unittest.TestCase):
     def test_reports_disabled_with_known_causes(self):
         fake_auth_mgr = MagicMock()
         fake_auth_mgr.isDisabled.return_value = True
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app:
             mock_app.authManager.return_value = fake_auth_mgr
             status = CredentialManager.auth_system_status()
             message = CredentialManager.get_auth_system_diagnostic_message()
@@ -266,14 +266,14 @@ class TestAuthSystemDiagnostic(unittest.TestCase):
         # QgsApplication.authManager() returning None is a real possibility
         # (e.g. called too early in QGIS startup) -- must be handled the
         # same as isDisabled() True, not crash on .isDisabled() of None.
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app:
             mock_app.authManager.return_value = None
             status = CredentialManager.auth_system_status()
 
         self.assertTrue(status["disabled"])
 
     def test_exception_querying_auth_manager_is_handled(self):
-        with patch("cartogen_ai.core.agent.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.auth.QgsApplication", create=True) as mock_app:
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True),              patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app:
             mock_app.authManager.side_effect = RuntimeError("boom")
             status = CredentialManager.auth_system_status()
             message = CredentialManager.get_auth_system_diagnostic_message()

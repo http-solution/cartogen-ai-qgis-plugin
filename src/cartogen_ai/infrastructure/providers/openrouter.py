@@ -5,7 +5,7 @@ from .base import (
     extract_openai_style_usage, format_http_error, format_request_exception,
     requests, HTTPError, RequestException,
 )
-from ..model_selector import filter_chat_model_ids
+from ...core.agent.model_selector import filter_chat_model_ids
 
 
 def list_models(api_key=None):
@@ -47,7 +47,7 @@ def _short_name(model_id):
 
 def _apply_anthropic_cache_control(messages, model_id):
     """Marks the system prompt with an Anthropic cache_control breakpoint,
-    the same mechanism agent/providers/claude.py's native client already
+    the same mechanism infrastructure/providers/claude.py's native client already
     uses -- OpenRouter documents passing this field through unmodified to
     the underlying Anthropic API for anthropic/* models specifically. The
     system prompt and tool schemas are near-identical across every iteration

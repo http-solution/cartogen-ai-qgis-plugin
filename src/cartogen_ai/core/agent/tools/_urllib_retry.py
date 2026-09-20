@@ -2,7 +2,7 @@
 """
 Shared retry/backoff for urllib.request-based fetches -- API-003, 2026-09-14 audit.
 
-Mirrors agent/providers/base.py's post_with_retry/get_with_retry (LLM provider HTTP calls
+Mirrors infrastructure/providers/base.py's post_with_retry/get_with_retry (LLM provider HTTP calls
 already had this resilience since 2026-09-12) -- humanitarian/hazard urllib fetch tools had
 none at all, so a single transient network hiccup or a 5xx from an external data source
 (NASA FIRMS/EONET, GDACS, HDX, geoBoundaries, etc.) failed the whole tool call outright with

@@ -20,7 +20,7 @@ class TestAccountUiContract(unittest.TestCase):
         self.assertIn('_open_account_dialog', source)
 
     def test_session_storage_is_separate_from_provider_key_storage(self):
-        source = (ROOT / 'src' / 'cartogen_ai' / 'core' / 'agent' / 'auth.py').read_text(encoding='utf-8')
+        source = (ROOT / 'src' / 'cartogen_ai' / 'infrastructure' / 'auth.py').read_text(encoding='utf-8')
         self.assertIn('save_account_session', source)
         self.assertIn('account_session', source)
         self.assertIn('cartogen_ai_auth_id_', source)

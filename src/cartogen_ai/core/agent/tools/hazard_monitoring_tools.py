@@ -31,7 +31,7 @@ import urllib.error
 from datetime import datetime, timezone
 
 from .registry import register_tool
-from ..auth import CredentialManager
+from ....infrastructure.auth import CredentialManager
 from ..confidence import set_layer_confidence
 # API-003, 2026-09-14 audit: these 3 fetches had no retry/backoff at all, unlike every LLM
 # provider call (post_with_retry/get_with_retry since 2026-09-12) -- a single transient

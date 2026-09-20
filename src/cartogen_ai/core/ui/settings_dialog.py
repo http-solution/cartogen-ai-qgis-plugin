@@ -17,12 +17,12 @@ from ..agent.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
     PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
 )
-from ..agent.providers.openrouter import list_models as _list_openrouter
-from ..agent.providers.gemini import list_models as _list_gemini
-from ..agent.providers.ollama import list_models as _list_ollama
-from ..agent.providers.openai import list_models as _list_openai
-from ..agent.providers.claude import list_models as _list_claude
-from ..agent.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
+from ...infrastructure.providers.openrouter import list_models as _list_openrouter
+from ...infrastructure.providers.gemini import list_models as _list_gemini
+from ...infrastructure.providers.ollama import list_models as _list_ollama
+from ...infrastructure.providers.openai import list_models as _list_openai
+from ...infrastructure.providers.claude import list_models as _list_claude
+from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER as PROVIDER_KEY,
@@ -188,7 +188,7 @@ class CartogenAiSettingsDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
-        from ..agent.auth import CredentialManager
+        from ...infrastructure.auth import CredentialManager
 
         # Real live report, 2026-09-15: "the setting window unable to save NASA free Api key,
         # and the window is too long can not press ok or cancel" -- confirmed via screenshot.
@@ -771,7 +771,7 @@ QPushButton#settingsCancelButton {{
         return text
 
     def accept(self):
-        from ..agent.auth import CredentialManager
+        from ...infrastructure.auth import CredentialManager
         provider = self._active_provider
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())

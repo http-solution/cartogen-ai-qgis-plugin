@@ -3,7 +3,7 @@ from .base import (
     BaseAiProvider, post_with_retry, get_with_retry, format_http_error, format_request_exception,
     requests, HTTPError, RequestException,
 )
-from ..model_selector import filter_chat_model_ids
+from ...core.agent.model_selector import filter_chat_model_ids
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MAX_TOKENS = 8096

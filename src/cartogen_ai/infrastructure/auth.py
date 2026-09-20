@@ -10,8 +10,8 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-from ..logger import log_info, log_warning, log_error
-from ...infrastructure.settings_keys import (
+from ..core.logger import log_info, log_warning, log_error
+from .settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_API_KEY, fallback_credential_key, auth_id_setting_key,
 )
 

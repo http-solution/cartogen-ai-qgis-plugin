@@ -322,7 +322,7 @@ def resolve_gemini_search_config():
     if provider != "gemini":
         return {"error": "gemini_grounded_search is only available when the active provider is Gemini. Use search_web instead."}
 
-    from ..auth import CredentialManager
+    from ....infrastructure.auth import CredentialManager
     api_key = CredentialManager.get_credential("gemini")
     if not api_key:
         return {"error": "No Gemini API key configured."}
@@ -348,7 +348,7 @@ def gemini_grounded_search(query: str):
     config = resolve_gemini_search_config()
     if "error" in config:
         return config
-    from ..providers.gemini import grounded_search
+    from ....infrastructure.providers.gemini import grounded_search
     return grounded_search(config["api_key"], query, model=config["model"])
 
 
@@ -368,7 +368,7 @@ def resolve_openai_search_config():
     if provider != "openai":
         return {"error": "openai_grounded_search is only available when the active provider is OpenAI. Use search_web instead."}
 
-    from ..auth import CredentialManager
+    from ....infrastructure.auth import CredentialManager
     api_key = CredentialManager.get_credential("openai")
     if not api_key:
         return {"error": "No OpenAI API key configured."}
@@ -390,7 +390,7 @@ def openai_grounded_search(query: str):
     config = resolve_openai_search_config()
     if "error" in config:
         return config
-    from ..providers.openai import grounded_search
+    from ....infrastructure.providers.openai import grounded_search
     return grounded_search(config["api_key"], query)
 
 
