@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for agent/tools/schema_contract_tools.py -- the registered-tool
-surface over agent/schema_contracts.py (point 5 of
+surface over validators/schema_contracts.py (point 5 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).
 
 Degrade-path tests run with no QGIS_AVAILABLE patch (matching this dev

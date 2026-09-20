@@ -2,7 +2,7 @@
 """Snapshot/restore pairs for a priority subset of MODIFY/DELETE tools --
 the real, still-open half of point 20 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md that
-agent/transactions.py's own docstring names but doesn't close: "no
+models/transactions.py's own docstring names but doesn't close: "no
 rollback exists for a MODIFY call... or a DELETE call."
 
 Explicit {tool_name: (snapshot_fn, restore_fn)} registry, not one generic

@@ -965,7 +965,7 @@ class TestChatWidgetLive(unittest.TestCase):
         }
         captured = {}
         real_run_agent_task = None
-        from cartogen_ai.core.agent import task_runner as task_runner_mod
+        from cartogen_ai.core.services import task_runner as task_runner_mod
         real_run_agent_task = task_runner_mod.run_agent_task
 
         def _spy_run_agent_task(**kwargs):

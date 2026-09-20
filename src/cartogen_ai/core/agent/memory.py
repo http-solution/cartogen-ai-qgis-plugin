@@ -293,7 +293,7 @@ class SpatialMemoryManager:
         """Formats active memory into a markdown block for agent system prompt injection.
 
         Global notes are bucketed by key prefix (pref:/rule:/usage:) rather than
-        dumped into one flat "User Global Preferences" list -- see agent/learning.py,
+        dumped into one flat "User Global Preferences" list -- see services/learning.py,
         which is what actually writes pref:*/rule:*/usage:* entries via
         store_global_note/get_global_notes. Splitting them here gives the model (and
         the memory panel in ui/memory_dialog.py, which renders this same string)

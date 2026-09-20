@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for agent/tools/confidence_tools.py -- the registered-tool surface
-over agent/confidence.py (point 23 of
+over models/confidence.py (point 23 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Mirrors
 tests/test_sensitivity_tools.py (point 24) exactly, since confidence.py was
 deliberately built to the same shape as sensitivity.py. Degrade-path tests

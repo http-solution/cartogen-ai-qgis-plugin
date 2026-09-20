@@ -15,7 +15,7 @@ approach point 17's own provenance sidecar used.
 
 v1.8.0 workstream 2: the disclosure section used to be a static reminder
 ("no automated classification exists yet") even though point 24's real
-classification (agent/sensitivity.py, set_layer_sensitivity/
+classification (models/sensitivity.py, set_layer_sensitivity/
 get_layer_sensitivity) already existed -- this checklist simply never
 read it. Fixed by reading the layer's real sensitivity tag directly.
 
@@ -131,7 +131,7 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         }
 
     # v1.8.0 workstream 2: reads the layer's real sensitivity tag (point 24,
-    # agent/sensitivity.py) instead of a static "no classification exists"
+    # models/sensitivity.py) instead of a static "no classification exists"
     # reminder -- that classification has existed since point 24 shipped,
     # this checklist just never read it until now.
     sensitivity_record = _sens.get_layer_sensitivity(layer)

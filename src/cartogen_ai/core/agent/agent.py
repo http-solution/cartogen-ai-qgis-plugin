@@ -60,7 +60,7 @@ from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
 from . import tool_operations
 from ..models.transactions import TurnTransactionLog
-from . import learning
+from ..services import learning
 from . import onboarding_profile
 from ..logger import log_info, log_warning, log_error
 from ...infrastructure.settings_keys import (
@@ -1178,7 +1178,7 @@ class CartogenAi:
         and the final answer, no matter how many tools ran in between). Wrapped
         in try/except so a UI-side rendering bug can never break the actual
         agent loop -- worst case is a missed visual update, not a failed turn."""
-        from .tool_router import ToolRouter
+        from ..services.tool_router import ToolRouter
         # New turn -- undo must never reach back into a previous one (see
         # transactions.py's docstring).
         self._transaction_log.reset()

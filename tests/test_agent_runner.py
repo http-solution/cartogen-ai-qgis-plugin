@@ -102,7 +102,7 @@ def _make_bare_agent(client):
     agent.memory_manager = MagicMock()
     agent._auto_model_provider = None
     # run() resets this unconditionally at the top of every call (point 20's
-    # transaction log, see agent/transactions.py) -- a bare __new__()'d agent
+    # transaction log, see models/transactions.py) -- a bare __new__()'d agent
     # needs one too, even though these tests patch _execute_tool itself and
     # never exercise the log's actual recording.
     agent._transaction_log = TurnTransactionLog()
@@ -357,7 +357,7 @@ class TestSandboxFlailingNudgeInjectedMidTurn(unittest.TestCase):
 class TestExecuteToolTransactionRecording(unittest.TestCase):
     """_execute_tool (agent.py) wraps every tool call with a before/after
     live-layer-id snapshot and records it into self._transaction_log --
-    point 20's transaction log (see agent/transactions.py). This exercises
+    point 20's transaction log (see models/transactions.py). This exercises
     that wrapper directly, independent of run()'s loop."""
 
     def _make_agent(self):

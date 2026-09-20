@@ -47,7 +47,7 @@ class TestGenerateMapProductQaChecklist(unittest.TestCase):
         self.assertFalse(res["categories"]["data"]["tracked"])
         self.assertIn("note", res["categories"]["cartography"])
         # A plain MagicMock layer's customProperty() returns a MagicMock,
-        # not a real stored JSON string -- agent/sensitivity.py's own
+        # not a real stored JSON string -- models/sensitivity.py's own
         # get_layer_sensitivity() (real, unmocked here) correctly reads
         # that as "never tagged" (level=None), the same as a real untagged
         # layer would.

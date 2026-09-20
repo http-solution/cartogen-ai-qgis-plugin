@@ -292,7 +292,7 @@ class CredentialManager:
         nudge, which may run before any agent has been constructed yet.
         Outside QGIS there is no real settings store (and no UI to show the
         message in), so this always returns None there -- same
-        QGIS_AVAILABLE-guard shape as agent/prompt_refiner.py's
+        QGIS_AVAILABLE-guard shape as services/prompt_refiner.py's
         is_prompt_preview_enabled(), never raises."""
         if client is not None:
             if not hasattr(client, "api_key"):

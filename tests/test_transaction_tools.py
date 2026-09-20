@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for agent/tools/transaction_tools.py -- the registered-tool
-surface over agent/transactions.py's TurnTransactionLog (point 20).
+surface over models/transactions.py's TurnTransactionLog (point 20).
 Follows the same bind-then-patch convention as tests/test_task_tools.py
 (bind_agent_context) for the module-level global this file's tools read
 from, and tests/test_sensitivity_tools.py's QGIS_AVAILABLE/QgsProject

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Sensitivity / disclosure classification tools for Cartogen AI -- the
-agent-facing surface of agent/sensitivity.py (point 24 of
+agent-facing surface of models/sensitivity.py (point 24 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). See that module's
 own docstring for the full design and why this is advisory, not a hard
 export-blocking gate.

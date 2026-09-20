@@ -47,7 +47,7 @@ provider-dependent field.typeName() string, which varies by data source
 QGIS install to verify against.
 
 This module is a validator, not an enforcer: nothing here blocks a tool
-from running on non-conforming data by itself. agent/dataset_status.py's
+from running on non-conforming data by itself. models/dataset_status.py's
 QA gate is what actually gates a transition (VALIDATED -> ANALYSIS_READY)
 on a schema-contract result, and only when a contract_name is explicitly
 supplied -- not every dataset has a contract yet, so this is opt-in per
