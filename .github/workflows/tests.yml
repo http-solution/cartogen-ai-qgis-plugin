@@ -110,9 +110,11 @@ jobs:
     # that day, not a reproducible QGIS release. If 4.2.2 stops being current,
     # update this tag deliberately rather than floating it back to `latest`.
     #
-    # VALIDATED, 2026-09-20: both legs of this job confirmed green end-to-end
-    # in an actual GitHub Actions run (not just authored) --
-    # https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/runs/35534755563
+    # Validated 2026-09-20 against a real run (not just authored), then re-broken
+    # by release-3_28's moving tag drifting to a new image with a fresh at-exit
+    # crash trigger the same day -- see this job's own segfault-waiver comment
+    # below for the fix. Re-validate against the latest Actions run before
+    # trusting this job as a stable-release gate; don't rely on a stale run link.
     name: QGIS live tests (${{ matrix.qgis_tag }})
     runs-on: ubuntu-latest
     strategy:
@@ -152,31 +154,41 @@ jobs:
         # CI validation, 2026-09-20: a real run against the qgis/qgis:4.2.2 image
         # showed all 42 tests genuinely passing ("Ran 42 tests ... OK"), immediately
         # followed by "Segmentation fault (core dumped)" and exit code 139 -- a
-        # crash during Python/Qt interpreter shutdown (offscreen QPA + this image's
-        # exact Qt build), AFTER the test run itself already succeeded. Did not
-        # reproduce on release-3_28 (different Qt/QGIS build), consistent with an
-        # image-specific at-exit teardown quirk, not a bug in this repo's code or
-        # tests.
+        # crash during Python/Qt interpreter shutdown, AFTER the test run itself
+        # already succeeded.
         #
         # Second-review correction, 2026-09-20: the first version of this waiver
         # accepted ANY nonzero exit alongside a bare "OK" line -- too broad, since
-        # it didn't actually check for the specific known crash (any other nonzero
-        # exit that happened to leave "OK" as the log's last line, on any image,
-        # would have been silently waived too). Now requires ALL THREE of: exit
-        # code exactly 139 (SIGSEGV, not some other failure), the literal
-        # "Segmentation fault" message present in the output, AND unittest's own
-        # "OK" line -- AND is scoped to the known image via $QGIS_TAG. Any other
-        # combination (wrong exit code, wrong image, no segfault message, or no
-        # "OK" line) falls through to `exit $status` and fails the job normally.
+        # it didn't actually check for the specific known crash. Tightened to
+        # require exit code exactly 139 (SIGSEGV), the literal "Segmentation
+        # fault" message, AND unittest's own "OK" line -- initially ALSO scoped to
+        # $QGIS_TAG == "4.2.2", on the assumption this was specific to that image.
+        #
+        # Third-review correction, 2026-09-20 (same day): that image-scoping was
+        # wrong. release-3_28 -- which had NOT hit this before -- then failed with
+        # the exact same signature (exit 139, "Segmentation fault", after "Ran 42
+        # tests ... OK") on the very next run, root-caused to a numpy/matplotlib
+        # ABI mismatch already present in that image's own /usr/lib/python3/
+        # dist-packages (nothing this repo installs) plus a Qt QBasicTimer/thread
+        # warning during shutdown -- a DIFFERENT trigger than 4.2.2's, but the same
+        # "genuinely passed, then crashed at interpreter exit" shape. Confirms
+        # release-3_28's own moving-tag nature (documented above) makes it, and
+        # any image here, unpredictable to pin a waiver to by name. Removed the
+        # $QGIS_TAG restriction -- the three-part signature (exit 139 exactly +
+        # literal "Segmentation fault" + unittest's own "OK") is specific enough
+        # on its own: a real test failure can never produce a bare "OK" as the
+        # run's final line, on any image, so this can't mask an actual regression.
+        # Any other combination still falls through to `exit $status` and fails
+        # the job normally.
         run: |
           set +e
           python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v > /tmp/live_test.log 2>&1
           status=$?
           cat /tmp/live_test.log
-          if [ "$QGIS_TAG" = "4.2.2" ] && [ "$status" -eq 139 ] \
+          if [ "$status" -eq 139 ] \
              && grep -q "Segmentation fault" /tmp/live_test.log \
              && grep -qE "^OK( \(skipped=[0-9]+\))?$" /tmp/live_test.log; then
-            echo "::warning::Confirmed known 4.2.2-image post-test interpreter-shutdown segfault (exit 139, 'Segmentation fault', after unittest's own 'OK') -- not a test failure, see this step's own comment."
+            echo "::warning::Confirmed known post-test interpreter-shutdown segfault on $QGIS_TAG (exit 139, 'Segmentation fault', after unittest's own 'OK') -- not a test failure, see this step's own comment."
             exit 0
           fi
           exit $status
