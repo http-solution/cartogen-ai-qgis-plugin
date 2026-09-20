@@ -94,16 +94,24 @@ jobs:
     # official QGIS docker images, across the two ends of metadata.txt's
     # declared qgisMinimumVersion=3.28 / qgisMaximumVersion=4.99 range.
     # UNVERIFIED: authored and reviewed, but not run end-to-end in a live
-    # GitHub Actions execution from this environment -- the docker image tags
-    # below (see https://hub.docker.com/r/qgis/qgis/tags) should be confirmed
-    # to still exist the first time this job runs, and adjusted if the QGIS
-    # project has renamed/retired them since.
+    # GitHub Actions execution from this environment. Tags confirmed to exist
+    # via the Docker Hub API (2026-09-20): release-3_28 tracks the 3.28.x LTR
+    # branch (always a real released 3.28 patch, per metadata.txt's
+    # qgisMinimumVersion floor); 4.2.2 is pinned to the exact released version
+    # this repo is developed/live-tested against locally (see
+    # reference_local_qgis_installs). Deliberately NOT qgis/qgis:latest --
+    # confirmed via the Docker Hub API that `latest` and `nightly` currently
+    # share the same image digest, i.e. `latest` is an unreleased dev build,
+    # not a stable QGIS version; using it here would make results depend on
+    # whatever nightly happened to build that day, not a reproducible QGIS
+    # release. If 4.2.2 stops being the top of the supported range, update
+    # this tag deliberately rather than floating it back to `latest`.
     name: QGIS live tests (${{ matrix.qgis_tag }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        qgis_tag: [release-3_28, latest]
+        qgis_tag: [release-3_28, "4.2.2"]
     container:
       image: qgis/qgis:${{ matrix.qgis_tag }}
     env:
@@ -122,11 +130,28 @@ jobs:
         # does for the headless suite above.
         run: python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v
 
+      - name: Build the actual release zip
+        # Review correction, 2026-09-20: this smoke test previously imported plugin_main
+        # straight from the checkout's own src/ tree, which proves the dev tree loads --
+        # not that the packaged artifact a user actually installs does (plugin_upload.py's
+        # EXCLUDE_DIRS/EXCLUDE_FILES could in principle drop something the plugin needs at
+        # runtime without any of the tests above catching it). This does not replace the
+        # still-open exact-ZIP clean-profile install test in
+        # docs/IMPLEMENTATION_TRACKER.md §1.10 -- there's no fresh QGIS *profile* here, no
+        # QGIS restart, and no upgrade-from-1.15.6 check -- but it closes the narrower gap
+        # of "does the packaged zip's own file set actually import," which this smoke test
+        # can check inside CI.
+        run: python3 plugin_upload.py
+
       - name: Smoke-test plugin load -> unload -> reload against a real QgsApplication
         run: |
+          mkdir -p /tmp/cartogen_ai_smoke
+          python3 -c "import zipfile; zipfile.ZipFile('cartogen_ai.zip').extractall('/tmp/cartogen_ai_smoke')"
           python3 -c "
           import sys, os
-          sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
+          plugin_root = '/tmp/cartogen_ai_smoke/cartogen-ai'
+          sys.path.insert(0, plugin_root)
+          sys.path.insert(0, os.path.join(plugin_root, 'src'))
           from qgis.core import QgsApplication
           app = QgsApplication([], False)
           app.initQgis()
