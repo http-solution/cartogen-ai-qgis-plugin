@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc1
+version=1.16.0-rc2
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,16 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc1 (2026-09-20):
+changelog=v1.16.0-rc2 (2026-09-20):
+    Release candidate 2 for 1.16.0. Security/privacy remediation from an independently re-verified 15-section production-standard audit against v1.16.0-rc1, with two rounds of independent review catching real gaps in the first fix pass:
+    - QAction lifecycle leak fixed: plugin_main.py's unload() now disconnects each toolbar/menu action's triggered signal and calls deleteLater() before clearing bookkeeping -- previously only removePluginMenu/removeToolBarIcon were called, leaving actions alive and connected across a load->unload->reload cycle (confirmed via a live QGIS 4.2.2 before/after action-count probe). New tests/test_plugin_main_live.py (4 tests, live-confirmed).
+    - Plaintext credential persistence removed entirely (strict policy, not an opt-in consent path): infrastructure/auth.py's save_credential() has no code path left that can write a new API key to plaintext QgsSettings. When QGIS's encrypted QgsAuthManager is unavailable, the key is held in memory for that session only and must be re-entered after restart. Migration code that reads/removes legacy plaintext keys from older versions is retained.
+    - Logging moved to structured, metadata-only by default: core/logger.py's new log_event() logs only an allowlisted set of safe fields (tool name, status, duration, correlation ID, provider, error class, counts) -- tool-call and agent-turn logging no longer emit any raw prompt, response, tool-argument, or tool-result content, not even truncated/redacted. An explicit, OFF-by-default log_diagnostic() escape hatch exists for local debugging only, gated behind a setting that is never on by default and warns visibly when used.
+    - CI matrix expanded and, critically, actually validated with real passing GitHub Actions runs (not just authored): added a windows-latest leg to the existing test job, and a new qgis-live-tests job running the live-QGIS test suite inside the official qgis/qgis 4.2.2 and release-3_28 docker images (matching metadata.txt's declared 3.28-4.99 range), plus a smoke test that builds the actual release zip and imports from the extracted artifact rather than the dev tree. Fixed 3 real environment-specific CI bugs surfaced by actually running these jobs: a pip self-upgrade failure on the 4.2.2 image, a --break-system-packages flag disagreement between the two pinned images, and an image-specific Qt interpreter-shutdown segfault on 4.2.2 occurring AFTER all tests already passed.
+    Two items remain explicitly open, not claimed done: the exact-ZIP clean-profile install/upgrade-from-1.15.6 test still needs a real interactive QGIS GUI session (docs/IMPLEMENTATION_TRACKER.md §1.10), and a pre-existing repo-wide Ruff lint failure (present already at the v1.16.0-rc1 tag commit, unrelated to this candidate) is tracked separately rather than folded into this security-focused release.
+    Full automated suite: 1,978 tests passing, 44 skipped.
+
+v1.16.0-rc1 (2026-09-20):
     Release candidate 1 for 1.16.0. Renumbers forward from the already-published v1.15.6 stable release, replacing the v1.5.7-rc1..rc5 line: an independent review confirmed via QGIS's own pyplugin_installer.version_compare.compareVersions() that "1.5.7-rc5" compares as OLDER than "1.15.6" (result: 1.15.6 is newer) -- a real version-ordering defect traced back to a 2026-09-19 renumbering decision, inherited unquestioned through rc1-rc5. 1.16.0 was the version originally intended before that renumbering and was never actually released under any tag, so it is reused here rather than skipping ahead further. compareVersions('1.16.0-rc1', '1.15.6') independently re-verified to return the correct newer-than result before this bump.
     All functional content is identical to v1.5.7-rc5 (see that entry below for full detail: the real Phase 11 architecture restructuring, the AST-sandbox bypass fix, and the 2 keyboard-navigation fixes), plus 2 more real defects the same external review found and this candidate fixes:
     - .github/workflows/tests.yml's release-zip packaging check still asserted the packaged zip contains core/agent/agent.py, renamed to agent_orchestrator.py during the Phase 11 work -- the next CI run would have failed this assertion despite the package itself being correct. Verified the fix locally against the real built zip before committing.
