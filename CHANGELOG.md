@@ -86,8 +86,8 @@ top of them.
   clear the input box (deliberately narrow: doesn't cancel an in-flight request or touch any
   pending requirement/preview-reply state). 2 new permanent regression tests.
 - **Verification & Testing**: 1,962 automated tests passing (0 failures, 40 skipped), up from
-  RC4's 1,958. The full 38-test live headless-QGIS Qt suite (`tests/test_agent_live.py` +
-  `tests/test_chat_widget_live.py`) re-run against a real QGIS 4.2.2 session and confirmed
+  RC4's 1,958. The full 39-test live headless-QGIS Qt suite (`tests/test_agent_live.py`'s 1 test +
+  `tests/test_chat_widget_live.py`'s 38) re-run against a real QGIS 4.2.2 session and confirmed
   passing before this release was cut.
 
 <a id="v1-5-7-rc4"></a>
