@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.5.7-rc4
+version=1.5.7-rc5
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,14 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.5.7-rc4 (2026-09-20):
+changelog=v1.5.7-rc5 (2026-09-20):
+    Release candidate 5 for 1.5.7: real Phase 11 architecture restructuring (a prior pass had left it as directory scaffolding only), a live-confirmed AST-sandbox bypass fix, and 2 keyboard-navigation fixes:
+    - Phase 11 architecture restructuring finished for real: infrastructure/ (auth.py, deps.py, providers/), core/models/, core/validators/, core/services/ are now genuine physical file moves, not the thin re-export facade a prior pass left behind. agent.py decomposed into 4 files (tool_dispatcher.py, usage_tracker.py, history_manager.py extracted; agent.py itself renamed to agent_orchestrator.py) and chat_tab_widget.py split into 2 subsystems (chat_view_presenter.py, chat_input_controller.py).
+    - Security fix: found and closed a novel execute_pyqgis_script AST-sandbox bypass -- type.__dict__['__subclasses__'] reached the same dangerous method the already-blocked classic escape chain uses, via a dict subscript the AST attribute-name check never sees. Live-verified before and after the fix against the real restricted-builtins exec environment.
+    - Fixed 2 real keyboard-navigation gaps found via live QTest verification: Tab pressed inside the chat input box only inserted a literal tab character (nothing past the input was reachable by keyboard); Escape did nothing. Both fixed and regression-tested.
+    - Validated all 1,962 automated unit/integration tests passing (40 skipped), and the full 38-test live headless-QGIS Qt suite (tests/test_chat_widget_live.py) passing against a real QGIS session.
+
+v1.5.7-rc4 (2026-09-20):
     Release candidate 4 for 1.5.7: ingest_osm_features two-phase OSM vector ingestion, AST sandbox prompt guardrails, and a code-review remediation pass fixing 7 real correctness/security bugs plus 1 latent circular import:
     - Added ingest_osm_features two-phase vector ingestion tool (Overpass API -> GeoJSON -> QgsVectorLayer) enabling autonomous fetching of facilities and infrastructure for empty projects and coordinates.
     - Hardened agent prompt guardrails (Rule 6) around execute_pyqgis_script AST security sandbox to steer to ingest_osm_features when layers are missing.

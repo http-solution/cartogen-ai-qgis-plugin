@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.5.7-rc5](#v1-5-7-rc5) | 2026-09-20 | **Release candidate 5.** Phase 11 architecture restructuring finished for real (a prior pass had left only directory scaffolding), a live-confirmed `execute_pyqgis_script` AST-sandbox bypass found and closed, and 2 keyboard-navigation fixes (Tab trapped in the chat input, Escape doing nothing) |
 | [1.5.7-rc4](#v1-5-7-rc4) | 2026-09-20 | **Release candidate 4.** `ingest_osm_features` two-phase OSM vector ingestion + AST sandbox prompt guardrails, and a code-review pass fixing 7 real correctness/security bugs (credential rotation, silent over-export, a reintroduced agent-turn-stalling dialog, an equator/prime-meridian data-loss bug, an opacity-clobber regression, a profiler misclassification) plus a latent circular import |
 | [1.5.7-rc3](#v1-5-7-rc3) | 2026-09-19 | **Release candidate 3.** Pre-release audit remediation and PyQGIS API modernization: minimum QGIS version reconciled to 3.28, `writeAsVectorFormatV3`/`QgsClassificationMethodRegistry` migrations replacing deprecated APIs |
 | [1.5.7-rc2](#v1-5-7-rc2) | 2026-09-19 | **Release candidate 2.** Centralized settings keys, decoupled provider dependencies, hardened shapefile DBF laundering, shaded relief with blend mode, full-phase engineering self-review, and docs synchronization |
@@ -41,6 +42,53 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-5-7-rc5"></a>
+## [1.5.7-rc5] — 2026-09-20 — Release candidate 5: real Phase 11 restructuring, an AST-sandbox bypass fix, and keyboard-navigation fixes
+
+- **Phase 11 architecture restructuring, finished for real.** `docs/IMPLEMENTATION_TRACKER.md`'s
+  own resync at the start of this pass caught the prior "Phase 11 complete" claim as false: only
+  thin re-export facades and empty scaffolding existed, with all the actual code still sitting in
+  `core/agent/`. This RC does the real move:
+  - `infrastructure/` now really holds `auth.py`, `deps.py`, and `providers/` (physically moved,
+    not re-exported). `core/models/` holds `transactions.py`, `dataset_status.py`,
+    `sensitivity.py`, `confidence.py`. `core/validators/` holds `schema_contracts.py` +
+    `pcode_validation.py` (plus their `contracts/*.json` data files). `core/services/` holds
+    `prompt_refiner.py`, `tool_router.py`, `task_runner.py`, `learning.py`.
+  - `agent.py`'s god-class decomposition: extracted `tool_dispatcher.py`, `usage_tracker.py`, and
+    `history_manager.py` from `CartogenAi` (via delegation, so every method/attribute external
+    code and tests already depended on by name kept working unchanged), then renamed `agent.py`
+    itself to `agent_orchestrator.py` to match the plan's own naming. 1,346 → 1,170 lines.
+  - `chat_tab_widget.py` split into `chat_view_presenter.py` (tool-step/plan-progress rendering)
+    and `chat_input_controller.py` (file-attachment reading/analysis) — the two subsystems that
+    were genuinely self-contained; the rest of that file stays composed as one unit, since tracing
+    every method found input-handling and view-rendering woven together too tightly elsewhere in
+    it to split further without much larger risk for questionable benefit. 1,839 → 1,522 lines.
+  - Verified after every single step (never batched): the full test suite, and the live
+    36→38-test headless-QGIS Qt suite (`tests/test_chat_widget_live.py`, real `QTest` widget
+    clicks against a real QGIS session) run both before touching UI code (clean baseline) and
+    after (confirm no regression).
+- **Security fix: a novel `execute_pyqgis_script` AST-sandbox bypass, found and closed.**
+  `type.__dict__['__subclasses__']` retrieves the exact same dangerous method the already-blocked
+  classic `().__class__.__bases__[0].__subclasses__()` escape chain uses, but via a dict subscript
+  on `.__dict__` (never in the blocklist) instead of a literal `.__subclasses__` attribute access
+  — invisible to the AST walk's attribute-name check, since the dangerous name only ever appears
+  as a string constant inside an `ast.Subscript`. Live-verified before the fix: the exact PoC
+  script passed `_validate_script_safety` and, run through the real restricted-`__builtins__` exec
+  environment, successfully enumerated all 178 currently-loaded subclasses of `object`. Closed by
+  adding `__dict__` to `_BLOCKED_DUNDER_ATTRS` in `system_tools.py`; re-verified the PoC is now
+  rejected. 2 new regression tests.
+- **2 real keyboard-navigation gaps found via live `QTest` verification, both fixed.** Tab pressed
+  inside the chat input box only inserted a literal tab character (`QTextEdit`'s own default) —
+  live-confirmed a genuine dead end: nothing after the input box (Send, Stop, everything else in
+  the dock) was reachable by keyboard at all. Fixed with `ChatInputEdit.setTabChangesFocus(True)`.
+  Escape did nothing — live-confirmed typed text survived an Escape press unchanged. Fixed to
+  clear the input box (deliberately narrow: doesn't cancel an in-flight request or touch any
+  pending requirement/preview-reply state). 2 new permanent regression tests.
+- **Verification & Testing**: 1,962 automated tests passing (0 failures, 40 skipped), up from
+  RC4's 1,958. The full 38-test live headless-QGIS Qt suite (`tests/test_agent_live.py` +
+  `tests/test_chat_widget_live.py`) re-run against a real QGIS 4.2.2 session and confirmed
+  passing before this release was cut.
 
 <a id="v1-5-7-rc4"></a>
 ## [1.5.7-rc4] — 2026-09-20 — Release candidate 4: OSM feature ingestion, AST sandbox guardrails, and a 7-bug code-review remediation pass

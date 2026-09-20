@@ -1,5 +1,11 @@
 # Cartogen AI — Implementation Tracker
 
+**Cut as `v1.5.7-rc5`, 2026-09-20** — the Phase 11 completion, the AST-sandbox bypass fix, and the
+2 keyboard-navigation fixes this file's own entries below describe as "not yet cut into a release"
+are now released as rc5 (`commercial-plugin-v1.5.7-rc5`). Left the paragraph below as it was
+written (a same-day snapshot at the time), rather than rewritten, per this doc's own
+append-don't-rewrite convention.
+
 **Last updated:** 2026-09-20 (same day, second pass), against `v1.5.7-rc4` plus an unreleased
 Phase 11 completion pass on `main` (177 tools per the live registry -- not the 182 raw
 `@register_tool` decorator sites a naive grep finds, several of which are duplicate positional-arg
