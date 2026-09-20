@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from cartogen_ai.core.agent.tools import TOOL_REGISTRY, TOOLS_SCHEMA  # noqa: E402
-from cartogen_ai.core.agent.agent import NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS  # noqa: E402
+from cartogen_ai.core.agent.agent_orchestrator import NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS  # noqa: E402
 
 
 def _group_key(name):

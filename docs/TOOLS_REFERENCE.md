@@ -1744,7 +1744,7 @@ Evaluate candidate map representations for a layer based on spatial density, geo
 
 ### `list_schema_contracts`
 
-List the machine-readable dataset schema contracts available to validate_schema (currently health_facilities and admin2 -- see agent/contracts/*.json). Each contract declares required fields (by acceptable name aliases, since real-world admin/pcode field names vary by source), expected field types, and optional controlled-vocabulary domains.
+List the machine-readable dataset schema contracts available to validate_schema (currently health_facilities and admin2 -- see validators/contracts/*.json). Each contract declares required fields (by acceptable name aliases, since real-world admin/pcode field names vary by source), expected field types, and optional controlled-vocabulary domains.
 
 _No parameters._
 
