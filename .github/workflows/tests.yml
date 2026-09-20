@@ -120,15 +120,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install test-only Python dependencies
-        # CI validation, 2026-09-20: the 4.2.2 image's newer Debian base enforces
-        # PEP 668 ("externally-managed-environment") -- confirmed via an actual failed
-        # run of this exact job (release-3_28's older base didn't hit this, which is
-        # why it wasn't caught until 4.2.2 was added). --break-system-packages is safe
-        # here: this is an ephemeral, single-purpose CI container, not a real QGIS
-        # install a user manages long-term.
+        # CI validation, 2026-09-20: two real, distinct failures found by actually
+        # running this job against both images (not guessed).
+        # (1) `pip install --upgrade pip` failed on the 4.2.2 image specifically:
+        # its Debian-packaged pip has no RECORD file, so pip refuses to uninstall
+        # itself to upgrade ("uninstall-no-record-file"). Dropped entirely -- the
+        # preinstalled pip is fine for installing requirements, no upgrade needed.
+        # (2) The two images disagree on --break-system-packages: 4.2.2's newer,
+        # PEP-668-enforcing pip requires it; release-3_28's older pip doesn't
+        # recognize the flag at all ("no such option") and errors immediately if
+        # it's passed. Tried with the flag first, falls back without it on failure,
+        # rather than hardcoding a choice that only works on one of the two images.
         run: |
-          python3 -m pip install --upgrade pip --break-system-packages
-          grep -v -E "^ultralytics|^#|^$" requirements.txt | xargs -r python3 -m pip install --break-system-packages
+          grep -v -E "^ultralytics|^#|^$" requirements.txt > /tmp/reqs.txt
+          xargs -r python3 -m pip install --break-system-packages < /tmp/reqs.txt || \
+          xargs -r python3 -m pip install < /tmp/reqs.txt
 
       - name: Run live QGIS tests (real QgsApplication, real Qt widgets)
         # Dotted module form (not discover) so tests/__init__.py's src/-on-sys.path
