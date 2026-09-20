@@ -1,9 +1,20 @@
 # Cartogen AI — Implementation Tracker
 
-**Last updated:** 2026-09-19, against `v1.15.6` stable + 5 unreleased fixes on `main` (169 tools,
-1771 tests, 0 failures — the in-chat plan-progress card, the travel-time task-matcher fix, the
-chat scroll-to-bottom fix, `export_to_csv`'s default output path, and the execute_pyqgis_script
-sandbox-flailing circuit breaker, none cut as a release yet).
+**Last updated:** 2026-09-20, against `v1.5.7-rc4` (177 tools per the live registry -- not the
+182 raw `@register_tool` decorator sites a naive grep finds, several of which are duplicate
+positional-arg call sites the registry itself dedupes; the 177 figure is queried straight from
+`registry.TOOL_REGISTRY` at runtime, not assumed. `docs/TOOLS_REFERENCE.md` regenerated the same
+day to match. 1,958 tests, 0 failures, 38 skipped -- independently re-run in this pass, not just
+copied from `CHANGELOG.md`).
+Previously stamped 2026-09-19, against `v1.15.6` stable + 5 unreleased fixes on `main` (169
+tools, 1771 tests, 0 failures). That previous sync predates essentially all of the work this
+update covers: the entire 11-phase Part A remediation plan (`docs/../` -- tracked in project
+memory as `project_followup_task_list_2026-09-19`, plan file
+`jiggly-sparking-corbato.md`) merged and shipped as `v1.5.7-rc1` through `-rc4` the very same day
+that previous sync was stamped and the days after, so none of it made it into that pass. §4 below
+gets one consolidated entry for it, same convention as every prior gap. **`v1.5.7` has not been
+promoted to stable/"Latest" on GitHub yet** -- `v1.15.6` (2026-09-17) is still the "Latest"
+release; `rc1`-`rc4` are prereleases only.
 Previously stamped 2026-09-18, against `v1.15.6-rc6` (169
 tools, 1754 tests, 0 failures — see
 `docs/BUG_TRACKER.md` for the known-baseline breakdown). Previously stamped 2026-08-31 against
@@ -368,6 +379,13 @@ layers it means to keep visible) — a real design call, not an obvious fix.
 explicit follow-up to show it; hidden only when the model didn't bother naming the output layer;
 or a new explicit `visible: bool` parameter on the tool itself).
 
+**Still open as of 2026-09-20.** Not to be confused with the new `CartogenProcessingProvider`
+(Processing Toolbox provider, §4 below) that shipped in `v1.5.7-rc1` — that's a different, newer
+mechanism (2 tools wrapped as real `QgsProcessingAlgorithm` classes) and doesn't touch this tool
+or its layer-visibility behavior at all. Re-checked this pass: `run_allowlisted_processing_algorithm`
+(`processing_allowlist_tools.py`) still calls `QgsProject.instance().addMapLayer(new_layer)` with
+no visibility flag, unchanged from when this item was written.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
@@ -397,10 +415,12 @@ or a new explicit `visible: bool` parameter on the tool itself).
   diff), not written up as its own doc in this repo but applied identically every time. plugins.qgis.org submission
   specifically has not happened (the remote is still private, not a public listing) — that's the
   one piece of this bullet still genuinely open.
-- **Test baseline, current: 1754 tests, 0 failures, 36 skipped** (`python -m unittest discover
-  -s tests -t . -p "test_*.py"`, 2026-09-18, against `v1.15.6-rc6`). The FUSE-sandbox-specific
-  2-failure baseline this bullet used to describe (`folium` absence mishandling) was fixed long
-  ago per this bullet's own 2026-08-22 update and hasn't recurred in any measurement since.
+- **Test baseline, current: 1,958 tests, 0 failures, 38 skipped** (`python -m unittest discover
+  -s tests -t . -p "test_*.py"`, re-run and confirmed 2026-09-20 against `v1.5.7-rc4` — matches
+  `CHANGELOG.md`'s own rc4 figure exactly, independently verified rather than copied). The
+  FUSE-sandbox-specific 2-failure baseline this bullet used to describe (`folium` absence
+  mishandling) was fixed long ago per this bullet's own 2026-08-22 update and hasn't recurred in
+  any measurement since.
 - ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
   2026-08-22** — both now hold a placeholder `README.md` pointing at
   `docs/archive/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
@@ -439,6 +459,90 @@ or a new explicit `visible: bool` parameter on the tool itself).
 ---
 
 ## 4. Resolved since the last full status review (informational — for traceability)
+
+- **2026-09-19/20, `v1.5.7-rc1` through `-rc4` — the full 11-phase Part A remediation plan
+  (all ~35 confirmed gaps from the 2026-09-19 external-audit/architecture-guide passes),
+  sequenced isolated-fixes-first, architecture-restructuring-last. Full per-item detail is in
+  `CHANGELOG.md`'s `[1.5.7-rcN]` entries and project memory (`project_followup_task_list_2026-09-19`,
+  plan file `jiggly-sparking-corbato.md`); this is the index pointer, not a restatement.**
+  - **Phases 1-5 (cartography, layer formats, OCHA print layout, dashboards/reporting/imagery,
+    domain tools)** — label buffers/placement/priority, geographic-CRS-aware hillshade Z-factor,
+    a colorblind-safe NDVI ramp, `stddev`/`pretty`/`logarithmic` classification modes,
+    GeoPackage `layer_styles` persistence, shapefile encoding detection, SpatiaLite spatial
+    indexing, a real coordinate graticule/CRS label/inset map on print layouts (live-verified via
+    real rendered PNGs, not just mocked), dashboard feature-count capping + basemap choice, a
+    colorblind-safe chart palette + pie-slice cap + 300dpi export, `QgsDistanceArea`-based
+    ellipsoidal distance in the logistics tools (this one caught a real live bug —
+    `QgsProject.instance().ellipsoid()` defaults to the literal string `'NONE'`, truthy in
+    Python, so a naive `ellipsoid() or "WGS84"` fallback never actually triggered and silently
+    left planar math on), and a `threading.RLock()` around `conversation_history`/
+    `_transaction_log`. Humanitarian severity/category controlled-vocabulary was deliberately
+    **not** touched — the code's own comment documents it as a prior explicit product decision
+    with no external standard to validate against.
+  - **Phase 6 (cost/performance, `88c4764`)** — `tool_router.py` zero-score-drop logic extended to
+    partial-signal queries (not just all-zero), a cross-turn history digest beyond
+    `MAX_HISTORY_MESSAGES`, `max_tokens` scaled down for intermediate tool-dispatch iterations
+    (full budget reserved for final synthesis), Rule 5's `get_attributes()` directive narrowed to
+    skip when the fields are already in `map_context`, and deterministic tool ordering added for
+    Gemini prefix caching. This is the same pass §2 below's "OpenRouter+Anthropic prompt caching"
+    bullet already described as doc-verified-not-live-confirmed — that caveat still applies
+    unchanged; nothing about landing the code changed whether it's been checked against a real
+    billing response.
+  - **Phase 7 (error handling/logging) + Phase 8 (networking), both in one commit (`b0fb5ab`)** —
+    a small exception hierarchy (`CartogenError`/`ApiError`/`ValidationError`/
+    `SecuritySandboxError`), a `QgsMessageLog`-wrapping logging helper replacing the confirmed
+    raw `print()` calls, and `QgsNetworkAccessManager`-derived proxy-awareness added to the
+    existing `requests.Session`-based provider HTTP calls (the already-working
+    `post_with_retry()` backoff/429-handling was left intact, only proxy support was added on
+    top). This is the concrete engineering answer to the architecture guide's "no
+    `QgsNetworkAccessManager`" gap noted in `[[project_architecture_guide_alignment]]`.
+  - **Phase 9 (code-quality tooling/CI)** — `[tool.ruff]`/`[tool.mypy]` sections now exist in
+    `pyproject.toml` (confirmed present, this pass). CI matrix/packaging-test scope from the
+    original plan not independently re-verified in this resync pass — worth a follow-up check,
+    not asserted here either way.
+  - **Phase 10 (Processing framework integration, `21d8296`)** — a real
+    `CartogenProcessingProvider(QgsProcessingProvider)` with `OptimalHubSitingAlgorithm` and
+    `CalculateServiceAreaAlgorithm`; `metadata.txt`'s `hasProcessingProvider` flipped `no` → `yes`
+    (confirmed live in this pass). Also OGC SLD export and point cluster renderers, closing the
+    two items §-tracked as confirmed gaps in `project_followup_task_list_2026-09-19`'s Part A6a.
+    **This is a distinct mechanism from `run_allowlisted_processing_algorithm`** (the
+    agent-callable tool in `processing_allowlist_tools.py`, §1.9 below) — Phase 10 added a
+    Processing *Toolbox* provider wrapping 2 specific algorithms as their own typed
+    `QgsProcessingAlgorithm` classes; it did not touch the allowlist tool or its always-visible
+    output-layer behavior. §1.9 is unaffected and still open.
+  - **Phase 11 (architecture restructuring, `91d4233`) — landed only partially, verified in this
+    pass by actually reading the diff and the resulting files, not by trusting the commit
+    message.** What's real: `src/cartogen_ai/infrastructure/` and `src/cartogen_ai/processing/`
+    now exist as real packages, and `core/models/`, `core/services/`, `core/validators/` exist
+    too — but the latter three are thin re-export facades (45/32/22 lines each, `from
+    ..agent.transactions import TurnTransactionLog` etc.), not the actual code moved. The
+    original files (`agent/transactions.py`, `agent/dataset_status.py`, `agent/sensitivity.py`,
+    `agent/confidence.py`, and everything else in `core/agent/`) are still exactly where they
+    were. `infrastructure/` itself holds only `settings_keys.py` — `auth.py`, `deps.py`, and
+    `providers/` were **not** moved there as the plan specified. The two god classes the plan
+    named are **not** decomposed: `agent.py` is 1,346 lines today (was 1,185 when the plan was
+    written — it grew, it didn't shrink), `chat_tab_widget.py` is 1,839 lines (was 1,642). A new
+    `tests/test_architecture_boundaries.py` exists and passes, but it's asserting boundaries
+    around the facade packages, not around a real physical decomposition. **Net effect: Phase 11
+    is scaffolding + a namespace layer, not the restructuring itself — treat this as still open,
+    not closed**, despite the commit message ("add core subdivision packages and verify
+    architectural boundaries") reading like a completion. This is the one phase of the plan
+    worth a deliberate follow-up decision: finish the real move, or accept the facade layer as
+    the final state and update the plan's own stated goal to match reality.
+  - **Also in this arc but outside the original 11-phase plan's scope:** `ingest_osm_features`
+    (two-phase OSM Overpass-API ingestion), AST sandbox prompt guardrails, the Map Intelligence
+    Engine, the Intelligent Representation Planner, a live end-to-end QGIS 4.2 pipeline test, and
+    a `/code-review`-driven pass fixing 7 correctness/security bugs (credential-rotation orphan
+    entries, a silent full-layer export on empty selection, a reintroduced blocking-dialog
+    regression, an equator/prime-meridian falsy-zero data-loss bug, an opacity-clobber
+    regression, a profiler vacuous-truth misclassification) plus one latent circular import
+    between `auth.py` and `infrastructure/__init__.py`. Full detail in `CHANGELOG.md`'s
+    `[1.5.7-rc3]`/`[1.5.7-rc4]` entries.
+  - **Versioning note, for anyone confused by the jump:** `metadata.txt` briefly read `1.16.0`
+    before that number was ever tagged or released — the same commit that started the `rc1` cycle
+    (`91752da`) renumbered it down to `1.5.7-rc1` in one step. No public `1.16.0` release ever
+    existed; this isn't a downgrade of shipped code, just a pre-release renumbering. The `git tag`
+    history confirms no `commercial-plugin-v1.16.0*` tag exists.
 
 - **2026-09-19, a code-level circuit breaker on `main` from a THIRD live-reported transcript of
   the identical "Health facilities beyond one hour's travel" request -- proving the task router
