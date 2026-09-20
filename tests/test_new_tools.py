@@ -989,7 +989,11 @@ class TestNewTools(unittest.TestCase):
     def test_hdx_admin_boundaries_network_phase_reports_404_as_no_coverage(self, mock_urlopen):
         import io
         import urllib.error
-        mock_urlopen.side_effect = urllib.error.HTTPError("url", 404, "Not Found", {}, io.BytesIO())
+        err = urllib.error.HTTPError("url", 404, "Not Found", {}, io.BytesIO())
+        # See test_hazard_monitoring_tools.py's identical comment -- a pure stdlib
+        # ResourceWarning artifact of HTTPError itself, not project code.
+        self.addCleanup(err.close)
+        mock_urlopen.side_effect = err
         res = fetch_hdx_admin_boundaries_network_phase("ATA", "ADM1")
         self.assertIn("error", res)
         self.assertIn("coverage isn't universal", res["error"])
