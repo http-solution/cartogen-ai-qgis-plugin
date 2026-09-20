@@ -790,6 +790,12 @@ class TestNewTools(unittest.TestCase):
         finally:
             vt._is_safe_url = original_is_safe_url
             srv.shutdown()
+            # shutdown() only stops the serve_forever() loop -- it does not close the
+            # listening socket itself (a real gotcha in socketserver.TCPServer/HTTPServer's
+            # own API split). Without server_close() too, the socket stays open until
+            # garbage collection, which is exactly the "unclosed socket" ResourceWarning
+            # found in a 2026-09-20 release review of this suite's own output.
+            srv.server_close()
             thread.join(timeout=5)
 
     def test_prefetch_url_to_temp_enforces_size_cap_and_cleans_up(self):
@@ -828,6 +834,8 @@ class TestNewTools(unittest.TestCase):
             vt._MAX_DOWNLOAD_BYTES = original_cap
             vt._is_safe_url = original_is_safe_url
             srv.shutdown()
+            # See the sibling test above for why server_close() is also required.
+            srv.server_close()
             thread.join(timeout=5)
 
     def test_add_layer_from_path_rejects_unsafe_url_cleanly(self):

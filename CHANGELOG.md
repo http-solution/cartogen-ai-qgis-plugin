@@ -7,7 +7,8 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
-| [1.5.7-rc5](#v1-5-7-rc5) | 2026-09-20 | **Release candidate 5.** Phase 11 architecture restructuring finished for real (a prior pass had left only directory scaffolding), a live-confirmed `execute_pyqgis_script` AST-sandbox bypass found and closed, and 2 keyboard-navigation fixes (Tab trapped in the chat input, Escape doing nothing) |
+| [1.16.0-rc1](#v1-16-0-rc1) | 2026-09-20 | **Release candidate 1 for 1.16.0.** Renumbers forward from stable `1.15.6`, replacing the `1.5.7-rc1..rc5` line after an independent review confirmed via QGIS's own version-comparison function that `1.5.7-rc5` compares as *older* than `1.15.6`. Same content as rc5 (Phase 11 restructuring, AST-sandbox fix, keyboard-nav fixes) plus a stale CI packaging assertion and stale doc test-counts fixed |
+| [1.5.7-rc5](#v1-5-7-rc5) | 2026-09-20 | **Release candidate 5 (superseded — see `1.16.0-rc1` above; this version string sorts *older* than the already-published `1.15.6` stable release, a real defect found and corrected the same day).** Phase 11 architecture restructuring finished for real (a prior pass had left only directory scaffolding), a live-confirmed `execute_pyqgis_script` AST-sandbox bypass found and closed, and 2 keyboard-navigation fixes (Tab trapped in the chat input, Escape doing nothing) |
 | [1.5.7-rc4](#v1-5-7-rc4) | 2026-09-20 | **Release candidate 4.** `ingest_osm_features` two-phase OSM vector ingestion + AST sandbox prompt guardrails, and a code-review pass fixing 7 real correctness/security bugs (credential rotation, silent over-export, a reintroduced agent-turn-stalling dialog, an equator/prime-meridian data-loss bug, an opacity-clobber regression, a profiler misclassification) plus a latent circular import |
 | [1.5.7-rc3](#v1-5-7-rc3) | 2026-09-19 | **Release candidate 3.** Pre-release audit remediation and PyQGIS API modernization: minimum QGIS version reconciled to 3.28, `writeAsVectorFormatV3`/`QgsClassificationMethodRegistry` migrations replacing deprecated APIs |
 | [1.5.7-rc2](#v1-5-7-rc2) | 2026-09-19 | **Release candidate 2.** Centralized settings keys, decoupled provider dependencies, hardened shapefile DBF laundering, shaded relief with blend mode, full-phase engineering self-review, and docs synchronization |
@@ -42,6 +43,47 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc1"></a>
+## [1.16.0-rc1] — 2026-09-20 — Release candidate 1 for 1.16.0: renumbered forward from stable 1.15.6, fixing a real version-ordering defect
+
+**Why this version jumps from `1.5.7-rc5` to `1.16.0-rc1`, not `1.5.7-rc6`.** An independent
+external review of the just-published `v1.5.7-rc5` release checked it against QGIS's own
+`pyplugin_installer.version_compare.compareVersions()` and found `"1.5.7-rc5"` compares as
+**older** than the already-published stable `"1.15.6"` — confirmed by directly running that exact
+function in a real QGIS 4.2.2 session: `compareVersions('1.5.7-rc5', '1.15.6')` returns `2`
+(second argument is newer). This traces back to a 2026-09-19 decision (predating this RC's own
+work) to renumber an in-progress `1.16.0` down to `1.5.7-rc1`, inherited unquestioned through
+every RC since, including `rc5`. `1.16.0` was the version actually intended at that point and was
+never released under any tag, so it's reused here rather than skipping further ahead.
+`compareVersions('1.16.0-rc1', '1.15.6')` was independently re-verified to return `1` (correctly
+newer) before this bump. The already-tagged `v1.5.7-rc1` through `v1.5.7-rc5` releases are left as
+published — per this project's own convention, tags are never rewritten after the fact — and are
+superseded by this line going forward; see the `[1.5.7-rc5]` entry directly below for what that
+line's own content was.
+
+All functional content carries forward unchanged from `v1.5.7-rc5` (the real Phase 11
+architecture restructuring, the AST-sandbox bypass fix, and the 2 keyboard-navigation fixes — full
+detail in that entry below), plus 2 more real, independently-confirmed defects the same review
+found in the rc5 release itself:
+
+- **CI packaging assertion was stale.** `.github/workflows/tests.yml`'s "Verify release zip
+  packaging" step still asserted the packaged zip contains `core/agent/agent.py` — renamed to
+  `agent_orchestrator.py` during the Phase 11 work earlier the same day. The next CI run would
+  have failed this assertion even though the package itself was correct (the rename sweep that
+  found and fixed every other reference to the old path had only searched `src/` and `tests/`,
+  missing this workflow file and, separately, `docs/generate_tools_reference.py`). Fixed and
+  verified locally against the real built zip before committing.
+- **Stale test counts in released docs.** `README.md` carried two leftover figures (`1,947`
+  passed/`38` skipped, and `1,904` tests) from before this cycle's work ever started; the
+  `v1.5.7-rc5` changelog entry's own "38-test live suite" claim undercounted itself by 1 (it named
+  both `test_agent_live.py` and `test_chat_widget_live.py` but only counted the latter's tests).
+  Corrected everywhere to the real, independently re-run current numbers.
+
+**Verification & Testing**: 1,962 automated tests passing (0 failures, 40 skipped) — unchanged
+from rc5, re-run again after these fixes. The full 39-test live headless-QGIS Qt suite
+(`tests/test_agent_live.py` + `tests/test_chat_widget_live.py`) re-confirmed passing against a
+real QGIS 4.2.2 session before this release was cut.
 
 <a id="v1-5-7-rc5"></a>
 ## [1.5.7-rc5] — 2026-09-20 — Release candidate 5: real Phase 11 restructuring, an AST-sandbox bypass fix, and keyboard-navigation fixes
