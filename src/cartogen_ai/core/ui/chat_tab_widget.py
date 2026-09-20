@@ -69,9 +69,34 @@ class ChatInputEdit(QTextEdit):
     """Multi-line input that sends on Enter and inserts a newline on Shift+Enter."""
     sendRequested = pyqtSignal()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Part B §9 UX verification, 2026-09-20: live-tested (QTest.keyClick against a
+        # real widget, not just read) that Tab pressed while focus was in this box did
+        # nothing but insert a literal tab character -- QTextEdit's own default, since
+        # multi-line editors generally want Tab available for indentation. This input
+        # has no such use for it (Shift+Enter already covers "insert a newline"; there
+        # is no code/indentation content a user would ever type here), and the effect
+        # was a real keyboard-navigation dead end: nothing after this widget (send_btn,
+        # stop_btn) was reachable by Tab at all. setTabChangesFocus is Qt's own built-in
+        # switch for exactly this case -- no custom key handling needed.
+        self.setTabChangesFocus(True)
+
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
             self.sendRequested.emit()
+            return
+        # Same verification pass: Escape did nothing at all (confirmed live -- typed
+        # text survived an Escape press unchanged). Clearing the box on Escape is the
+        # ordinary convention for a single-purpose text input (most chat/search boxes),
+        # and deliberately narrow -- it only clears whatever's currently typed, it does
+        # NOT cancel an in-flight request (that's the Stop button's own, separate job,
+        # already reachable via Tab once this fix is in) and does NOT touch any pending
+        # requirement/preview-reply state (chat_tab_widget.py's own _awaiting_* flags),
+        # since guessing at "cancel the whole pending flow" from one ambiguous key is a
+        # bigger, real product decision this fix isn't making unilaterally.
+        if event.key() == Qt.Key.Key_Escape and self.toPlainText():
+            self.clear()
             return
         super().keyPressEvent(event)
 
