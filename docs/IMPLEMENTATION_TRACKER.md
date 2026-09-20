@@ -567,17 +567,35 @@ no visibility flag, unchanged from when this item was written.
       `agent_mod.MAX_HISTORY_MESSAGES` directly mid-test — moving the constant itself into
       `history_manager.py` would silently break that monkeypatch (a `from .history_manager import
       MAX_HISTORY_MESSAGES` re-export creates an independent binding, not a live link).
-    - **Deliberately still not done, not silently claimed:** renaming `agent.py` itself to
-      `agent_orchestrator.py` (the plan's 4th named file), and splitting `chat_tab_widget.py`
-      into `chat_view_presenter.py`/`chat_input_controller.py`. The three real extractions above
-      already achieve Phase 11's actual goal (single-responsibility separation) — a pure rename
-      of the module every other file imports `CartogenAi` from (`chat_tab_widget.py`,
-      `task_runner.py`, `plugin_main.py`, dozens of test files) has real regression risk and zero
-      behavioral benefit on its own, and `chat_tab_widget.py`'s split is the same risk profile as
-      `agent.py`'s was, in a different, still-1,839-line file — it deserves its own dedicated
-      pass with the same one-group-at-a-time, test-after-every-step discipline this update used,
-      not a rushed addition to an already-large one. `1,958` tests, 0 failures, 38 skipped —
-      re-confirmed after every extraction step in this update, not just at the end.
+    - **Update, 2026-09-20, later same day — the remaining two items done too, on request.**
+      `agent.py` → `agent_orchestrator.py`: reassessed and the blast radius was smaller than
+      first estimated — only 5 files reference the module by its `cartogen_ai.core.agent.agent`
+      path (`plugin_main.py`, `test_agent_live.py`, `test_agent_runner.py`,
+      `test_analysis_tools.py`, `test_new_tools.py`); nothing inside `core/agent/` itself imports
+      it by name. Renamed, all 5 references + ~36 files' stray comments updated, re-verified
+      clean (one self-referential `X.py -> X.py` mangling from the blind comment sed caught and
+      fixed by hand in two files' own docstrings).
+      `chat_tab_widget.py`: split, but **not as a full view/controller bisection** — tracing every
+      method's cross-calls found input-handling and view-rendering woven together too tightly
+      through most of the file (`send_message`/`_dispatch_message`, the anchor-click router,
+      message rendering) for that split to reduce real complexity rather than just add ~40
+      pass-through delegators for questionable benefit. Extracted the two subsystems that
+      actually stood on their own instead: `chat_view_presenter.py` (tool-step/plan-progress
+      rendering) and `chat_input_controller.py` (file-attachment reading/analysis).
+      `chat_tab_widget.py`: 1,839 → 1,522 lines. Both new classes operate on the widget instance
+      passed to their constructor rather than owning separate state, since `dock_widget.py`'s
+      signal wiring and `test_chat_widget_live.py`'s live Qt tests reach several of these
+      methods/attributes by their original widget-level names — every such name stayed a thin
+      delegator, same pattern as `agent_orchestrator.py`'s extraction.
+      **Verified two ways for the UI change, not just the headless suite**: 1,958 tests / 0
+      failures / 38 skipped as usual, AND the full 36-test live Qt suite
+      (`tests/test_chat_widget_live.py`) actually run against a real QGIS install
+      (`C:\Program Files\QGIS 4.2.2\bin\python-qgis.bat`, `QT_QPA_PLATFORM=offscreen`) — real
+      `QTest` widget construction and mouse-click interaction, run once as a clean baseline
+      before touching the file and again after, both passing 36/36. This is the concrete answer
+      to a real standing risk this project's own history flagged (`feedback_synthetic_
+      screenshots_have_limits`): headless/static verification alone has missed a real
+      interactive Qt bug before.
   - **Also in this arc but outside the original 11-phase plan's scope:** `ingest_osm_features`
     (two-phase OSM Overpass-API ingestion), AST sandbox prompt guardrails, the Map Intelligence
     Engine, the Intelligent Representation Planner, a live end-to-end QGIS 4.2 pipeline test, and
