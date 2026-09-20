@@ -407,6 +407,26 @@ or its layer-visibility behavior at all. Re-checked this pass: `run_allowlisted_
 (`processing_allowlist_tools.py`) still calls `QgsProject.instance().addMapLayer(new_layer)` with
 no visibility flag, unchanged from when this item was written.
 
+### 1.10 Exact-ZIP clean-profile install and upgrade test — needs a human with a real QGIS profile
+
+**Added 2026-09-20, from the 15-section production-standard audit's P1 findings.** 4 of the 5 P1
+findings from that audit were fixable/verifiable from this sandbox and are closed — see §4's
+2026-09-20 entry. This 5th one structurally cannot be: it requires installing the exact published
+release ZIP into a **fresh QGIS profile** (not this dev tree), restarting QGIS, confirming a clean
+load, then testing an in-place upgrade from the previously-published `v1.15.6`, and a full run of
+`docs/RELEASE_SMOKE_TEST.md`'s 16-category checklist against that installed copy. All of that needs
+a real interactive QGIS GUI session and a second, older release ZIP already in hand — neither
+exists in this sandbox. `RELEASE_SMOKE_TEST.md`'s own run log is still only complete for an RC4
+build; no entry exists yet for `v1.16.0-rc1` or later.
+
+**Needs:** a human, on a machine with QGIS installed, to: (1) create a fresh QGIS profile, (2)
+install `v1.16.0-rc1`'s published ZIP into it, restart, confirm clean load with no errors, (3)
+separately test upgrading an existing `v1.15.6` install in place, (4) run the RELEASE_SMOKE_TEST.md
+checklist against the result and append a dated entry to its Run log. Until this is done, this
+audit's overall "GO for QGIS 4.2.2 functional RC, NO-GO for stable production release" verdict
+should be taken as accurate — the automated/live-headless fixes in §4 close the *code-level* P1s,
+not this release-process one.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
@@ -480,6 +500,56 @@ no visibility flag, unchanged from when this item was written.
 ---
 
 ## 4. Resolved since the last full status review (informational — for traceability)
+
+- **2026-09-20 — 4 of 5 P1 findings from a 15-section production-standard audit, independently
+  verified against live code before fixing (not applied on the audit's word alone).**
+  - **QAction lifecycle leak (`plugin_main.py` `unload()`)** — confirmed via a live-QGIS probe
+    before the fix: `before_unload_actions`/`after_unload_actions` were identical, proving
+    `removePluginMenu`/`removeToolBarIcon` alone left the toolbar/menu `QAction`s alive, still
+    parented to `iface.mainWindow()`, still connected. Fixed: `unload()` now disconnects each
+    action's `triggered` signal and calls `deleteLater()` before clearing `self.actions`/
+    `self.toolbar_action`. New live test module `tests/test_plugin_main_live.py` (4 tests) drives
+    a real `initGui()` -> `unload()` -> `initGui()` reload cycle against a real `QMainWindow` and
+    confirms (via `qgis.PyQt.sip.isdeleted`) that the first instance's actions are actually gone
+    before the second instance's are created — the exact regression scenario (QGIS's Plugin
+    Reloader, or disable/re-enable).
+  - **Plaintext credential fallback (`infrastructure/auth.py`)** — confirmed: `save_credential()`
+    silently wrote the API key to plaintext `QgsSettings` (Windows registry) any time
+    `QgsAuthManager` was unavailable/disabled, with only a post-hoc UI warning. Fixed: default
+    fallback is now session-only in-memory storage (`CredentialManager._session_credentials`,
+    never touches disk, gone on QGIS restart) — persistent plaintext requires a new explicit
+    `allow_plaintext_persist=True` argument, which `ui/settings_dialog.py`'s `accept()` only
+    passes after asking the user directly via a `QMessageBox.question` and getting Yes. A
+    successful encrypted save now also migrates away any stale plaintext key for that provider
+    (`_delete_plaintext_fallback`, skips `ollama` since that key holds an endpoint URL, not a
+    secret). `tests/test_auth_and_deps.py` updated/extended accordingly.
+  - **Unsanitized prompt/tool-arg/result logging (`core/logger.py`)** — confirmed:
+    `log_info`/`log_warning`/`log_error` forwarded whatever string a caller built, with call sites
+    in `agent_orchestrator.py` (tool call args/results) and `task_runner.py` (user query, agent
+    response, via raw `print()`) passing free-form content that can embed a key or token. Fixed:
+    centralized regex-based redaction (`core/logger.py`'s `_redact`) applied inside all three
+    log functions — covers OpenRouter/OpenAI-, Gemini-, and Anthropic-style key formats, `Bearer`
+    tokens, and generic `api_key`/`password`/`token`/`secret`-named fields — so every existing
+    call site is covered without having to remember to sanitize at each one. `task_runner.py`'s
+    two content-bearing `print()` calls switched to `log_info` so they get the same redaction.
+    New `tests/test_logger.py` (6 tests) drives the public `log_*` functions end-to-end.
+  - **CI matrix (`.github/workflows/tests.yml`)** — confirmed: ubuntu-only, Python 3.11 only, no
+    QGIS anywhere in the workflow, despite `metadata.txt` advertising `qgisMinimumVersion=3.28`
+    through `qgisMaximumVersion=4.99` and this being a Windows-developed plugin. Fixed: the
+    existing `test` job gained a `windows-latest` leg (POSIX-only steps like the packaging/lint
+    checks scoped to Linux via `if: runner.os == 'Linux'`); a new `qgis-live-tests` job runs
+    `tests/test_chat_widget_live.py` + the new `tests/test_plugin_main_live.py` inside the
+    official `qgis/qgis` docker images at both ends of the declared version range
+    (`release-3_28` and `latest`), plus a real load/unload/reload plugin smoke test.
+    **Unverified from this sandbox** (GitHub Actions can't be executed here) — authored and
+    reviewed, not yet confirmed green on an actual run; the docker image tags should be checked
+    against https://hub.docker.com/r/qgis/qgis/tags the first time this job runs.
+  - **5th P1 (exact-ZIP clean-profile install/upgrade test) intentionally left open** — needs a
+    real interactive QGIS GUI session this sandbox cannot provide; tracked as new item §1.10
+    above rather than claimed done.
+  - Full headless suite: 1973 passing (up from 1966; +5 new logger tests, +... auth test
+    additions), 44 skipped, after every change above. Live QGIS 4.2.2 confirmation run for the
+    plugin-lifecycle tests: 4/4 passing (`python-qgis.bat -m unittest tests.test_plugin_main_live`).
 
 - **2026-09-19/20, `v1.5.7-rc1` through `-rc4` — the full 11-phase Part A remediation plan
   (all ~35 confirmed gaps from the 2026-09-19 external-audit/architecture-guide passes),

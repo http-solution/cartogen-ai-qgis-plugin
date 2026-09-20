@@ -780,7 +780,13 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
-        fallback_providers = []
+        # P1 fix, 2026-09-20 audit: save_credential() no longer persists plaintext by
+        # default when QgsAuthManager is unavailable -- it holds the key in memory for
+        # this session only. session_only_entries collects (label, provider, key_text)
+        # for anything that landed there, so the user can be asked explicitly whether
+        # to persist it to disk in plaintext instead (informed consent, not a silent
+        # downgrade of the storage guarantee).
+        session_only_entries = []
         for entry in PROVIDERS:
             pv = entry["value"]
             self.settings.setValue(entry["model_setting_key"], self._resolve_model_value(pv))
@@ -790,22 +796,34 @@ QPushButton#settingsCancelButton {{
                 )
 
             key_text = self._key_edits[pv].text().strip()
-            if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_plaintext_fallback(pv):
-                fallback_providers.append(entry.get("provider_label", pv))
+            if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_session_only_fallback(pv):
+                session_only_entries.append((entry.get("provider_label", pv), pv, key_text))
 
         firms_key_text = self.firms_key_edit.text().strip()
-        if firms_key_text and CredentialManager.save_credential("firms", firms_key_text) and CredentialManager.used_plaintext_fallback("firms"):
-            fallback_providers.append("NASA FIRMS")
+        if firms_key_text and CredentialManager.save_credential("firms", firms_key_text) and CredentialManager.used_session_only_fallback("firms"):
+            session_only_entries.append(("NASA FIRMS", "firms", firms_key_text))
 
-        if fallback_providers:
+        if session_only_entries:
+            labels = ", ".join(label for label, _pv, _key in session_only_entries)
             message = (
                 "QGIS's encrypted credential store (QgsAuthManager) wasn't available, so the "
-                "API key for " + ", ".join(fallback_providers) + " was saved in plain text "
-                "instead. This still works, but the key isn't encrypted at rest."
+                "API key for " + labels + " will only be kept for this QGIS session -- it has "
+                "NOT been saved to disk, and you'll need to re-enter it next time you start "
+                "QGIS.\n\nAlternatively, it can be saved in plain text instead (still works "
+                "across restarts, but is not encrypted at rest -- readable by anything with "
+                "access to this device)."
             )
             diagnostic = CredentialManager.get_auth_system_diagnostic_message()
             if diagnostic:
                 message += "\n\n" + diagnostic
-            QMessageBox.warning(self, "Key stored without encryption", message)
+            choice = QMessageBox.question(
+                self, "Encrypted storage unavailable",
+                message + "\n\nSave in plain text instead, so it persists across restarts?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if choice == QMessageBox.StandardButton.Yes:
+                for _label, pv, key_text in session_only_entries:
+                    CredentialManager.save_credential(pv, key_text, allow_plaintext_persist=True)
 
         super().accept()

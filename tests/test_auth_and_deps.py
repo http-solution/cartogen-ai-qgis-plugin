@@ -13,11 +13,11 @@ class TestAuthAndDeps(unittest.TestCase):
         key = CredentialManager.get_credential("test_provider")
         self.assertIsInstance(key, str)
 
-    def test_plaintext_fallback_flag_set_when_auth_manager_disabled(self):
-        # A4: when QgsAuthManager is unavailable/disabled, save_credential
-        # falls back to plaintext QgsSettings -- used_plaintext_fallback must
-        # report that so the Settings dialog can warn the user, instead of it
-        # happening silently.
+    def test_session_only_fallback_flag_set_when_auth_manager_disabled(self):
+        # P1 fix, 2026-09-20 audit: when QgsAuthManager is unavailable/disabled,
+        # save_credential's DEFAULT is now session-only in-memory storage, not
+        # plaintext QgsSettings -- used_session_only_fallback must report that so
+        # the Settings dialog can ask the user before ever touching disk.
         fake_auth_mgr = MagicMock()
         fake_auth_mgr.isDisabled.return_value = True  # simulates auth manager unavailable
         fake_settings = MagicMock()
@@ -28,9 +28,36 @@ class TestAuthAndDeps(unittest.TestCase):
              patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             result = CredentialManager.save_credential("test_flagged_provider", "sk-fake-value")
+            retrieved = CredentialManager.get_credential("test_flagged_provider")
 
         self.assertTrue(result)
-        self.assertTrue(CredentialManager.used_plaintext_fallback("test_flagged_provider"))
+        self.assertTrue(CredentialManager.used_session_only_fallback("test_flagged_provider"))
+        self.assertFalse(CredentialManager.used_plaintext_fallback("test_flagged_provider"))
+        # Nothing was written to QgsSettings -- it's in-memory only.
+        fake_settings.setValue.assert_not_called()
+        self.assertEqual(retrieved, "sk-fake-value")
+
+    def test_plaintext_persist_requires_explicit_opt_in(self):
+        # The old always-on plaintext-persist behavior must still be reachable,
+        # but only when the caller explicitly opts in (the Settings dialog does
+        # this only after the user says yes to a direct question).
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = True
+        fake_settings = MagicMock()
+        fake_settings.value.return_value = ""
+
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", return_value=fake_settings, create=True):
+            mock_app.authManager.return_value = fake_auth_mgr
+            result = CredentialManager.save_credential(
+                "test_explicit_plaintext_provider", "sk-fake-value", allow_plaintext_persist=True
+            )
+
+        self.assertTrue(result)
+        self.assertTrue(CredentialManager.used_plaintext_fallback("test_explicit_plaintext_provider"))
+        self.assertFalse(CredentialManager.used_session_only_fallback("test_explicit_plaintext_provider"))
+        fake_settings.setValue.assert_called_once()
         # The actual secret value must never appear in the flag/state itself
         self.assertNotIn("sk-fake-value", str(CredentialManager._plaintext_fallback_providers))
 
@@ -47,10 +74,12 @@ class TestAuthAndDeps(unittest.TestCase):
              patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", create=True):
             mock_app.authManager.return_value = fake_auth_mgr
             CredentialManager._plaintext_fallback_providers.add("test_clear_provider")
+            CredentialManager._session_only_providers.add("test_clear_provider")
             result = CredentialManager.save_credential("test_clear_provider", "sk-fake-value")
 
         self.assertTrue(result)
         self.assertFalse(CredentialManager.used_plaintext_fallback("test_clear_provider"))
+        self.assertFalse(CredentialManager.used_session_only_fallback("test_clear_provider"))
 
     def test_save_after_stale_auth_id_failure_returns_new_value_not_old(self):
         # Real bug, reproduced live 2026-09-16 (see commit 7da0112's message):
@@ -86,7 +115,7 @@ class TestAuthAndDeps(unittest.TestCase):
             result = CredentialManager.save_credential("test_stale_provider", "brand-new-key")
 
         self.assertTrue(result)
-        self.assertTrue(CredentialManager.used_plaintext_fallback("test_stale_provider"))
+        self.assertTrue(CredentialManager.used_session_only_fallback("test_stale_provider"))
         # The stale auth_id reference must be cleared, not left dangling.
         self.assertNotIn("cartogen_ai/auth_id_test_stale_provider", store)
 

@@ -6,6 +6,7 @@ Executes non-blocking background LLM requests while keeping the QGIS GUI fully r
 
 import traceback
 from ..agent.tools._qgis_enum_compat import resolve_qgis_enum
+from ..logger import log_info
 
 try:
     from qgis.core import QgsTask, QgsApplication
@@ -42,7 +43,10 @@ class AgentQgsTask(QgsTask):
 
     def run(self):
         """Executes in background worker thread."""
-        print(f"[TaskRunner] AgentQgsTask.run() started for query: {self.user_text[:60]!r}")
+        # P1 fix, 2026-09-20 audit: log_info (not print) so this goes through
+        # core/logger.py's centralized secret redaction -- user_text is free-form
+        # user input and could itself contain a pasted API key or token.
+        log_info(f"AgentQgsTask.run() started for query: {self.user_text[:60]!r}", tag="TaskRunner")
         client = getattr(self.agent, "client", None)
         try:
             if client is not None and hasattr(client, "set_status_callback") and self.on_status:
@@ -58,7 +62,10 @@ class AgentQgsTask(QgsTask):
                 self.user_text, map_context=self.map_context, should_stop=self.isCanceled,
                 tool_step_callback=self.on_tool_step,
             )
-            print(f"[TaskRunner] agent.run() returned: {str(self.response)[:200]!r}")
+            # Same redaction reasoning as the start-of-run log above -- the model's
+            # response can echo back content (including a key a user pasted earlier
+            # in the conversation, or one embedded in a tool result it summarized).
+            log_info(f"agent.run() returned: {str(self.response)[:200]!r}", tag="TaskRunner")
             return True
         except Exception as e:
             self.error = e

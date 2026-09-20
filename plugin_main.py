@@ -245,10 +245,25 @@ class CartogenAi:
                 print(f"[CartogenAi] closing Help dialog failed: {e}")
             self._help_dialog = None
 
+        # P1 lifecycle bug, 2026-09-20 audit: removePluginMenu/removeToolBarIcon only
+        # pull the action out of QGIS's menu/toolbar widgets -- they don't disconnect
+        # its triggered signal or destroy the QAction. Actions are parented to
+        # iface.mainWindow() (see initGui()), so an undisconnected/undeleted action
+        # survives unload as a live child of the main window, keeping this whole
+        # CartogenAi instance reachable through its bound triggered slot. Live probe
+        # confirmed before this fix: main-window action count and receiver count were
+        # unchanged across a real load->unload cycle. disconnect() before deleteLater()
+        # so a signal fired during the deletion itself can't still reach the old slot.
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
+            try:
+                action.triggered.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            action.deleteLater()
         self.actions = []
+        self.toolbar_action = None
 
     def _get_agent(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
