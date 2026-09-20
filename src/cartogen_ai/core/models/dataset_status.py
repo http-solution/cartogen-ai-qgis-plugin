@@ -80,7 +80,7 @@ _AUTOMATED_CHECK_TRANSITIONS = {
     # Opt-in, not automatic: this only actually runs when the caller passes
     # a contract_name to advance_dataset_status (see that function and
     # _run_automated_check below) -- not every dataset has a schema
-    # contract yet (agent/contracts/ currently has two: health_facilities,
+    # contract yet (validators/contracts/ currently has two: health_facilities,
     # admin2), so a layer with no matching contract still falls through to
     # the ordinary "no automated check, note required" path rather than
     # being blocked by a check that has nothing to check against.
@@ -219,7 +219,7 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
     if check_name == "geometry_validity":
         if not hasattr(layer, "getFeatures"):
             return False, {"error": "geometry_validity only applies to vector layers."}
-        from .tools.vector_tools import diagnose_topology
+        from ..agent.tools.vector_tools import diagnose_topology
         result = diagnose_topology(layer.name())
         if "error" in result:
             return False, result
@@ -234,7 +234,7 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
             return False, {"error": "schema_contract check requires a contract_name."}
         if not hasattr(layer, "fields"):
             return False, {"error": "schema_contract only applies to vector layers with fields()."}
-        from .schema_contracts import validate_layer_schema
+        from ..validators.schema_contracts import validate_layer_schema
         result = validate_layer_schema(layer, contract_name)
         if "error" in result:
             return False, result
@@ -247,7 +247,7 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
             # This check should never be what blocks a non-admin-boundary
             # layer from reaching STAGED.
             return True, {"applicable": False, "reason": "Layer has no fields() -- not a P-code-bearing vector layer."}
-        from .pcode_validation import check_pcode_uniqueness, check_pcode_hierarchy
+        from ..validators.pcode_validation import check_pcode_uniqueness, check_pcode_hierarchy
         uniqueness = check_pcode_uniqueness(layer)
         has_uniqueness_field = "error" not in uniqueness
         hierarchy = check_pcode_hierarchy(layer)
@@ -270,7 +270,7 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
     if check_name == "map_qa":
         if layout_name is None:
             return False, {"error": "map_qa check requires a layout_name."}
-        from .tools.qa_checklist_tools import generate_map_product_qa_checklist
+        from ..agent.tools.qa_checklist_tools import generate_map_product_qa_checklist
         result = generate_map_product_qa_checklist(layer.name(), layout_name=layout_name)
         if "error" in result:
             return False, result
@@ -308,7 +308,7 @@ def advance_dataset_status(layer, target_status, note=None, override=False, cont
     contract_name is specific to the VALIDATED -> ANALYSIS_READY transition
     (see _AUTOMATED_CHECK_TRANSITIONS): the schema_contract check registered
     there only actually runs when contract_name is supplied here. Not every
-    dataset has a contract yet (see agent/contracts/), so omitting it simply
+    dataset has a contract yet (see validators/contracts/), so omitting it simply
     falls through to the ordinary unchecked-transition path (a note is
     required instead) rather than failing a check that has nothing to check
     against.

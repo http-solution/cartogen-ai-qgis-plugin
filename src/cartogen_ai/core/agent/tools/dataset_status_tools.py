@@ -12,7 +12,7 @@ deliberately not built yet.
 """
 
 from .registry import register_tool
-from .. import dataset_status as _ds
+from ...models import dataset_status as _ds
 
 try:
     from qgis.core import QgsProject

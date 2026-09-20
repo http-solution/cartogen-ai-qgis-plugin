@@ -11,7 +11,7 @@ reuse).
 """
 
 from .registry import register_tool
-from .. import pcode_validation as _pv
+from ...validators import pcode_validation as _pv
 
 try:
     from qgis.core import QgsProject

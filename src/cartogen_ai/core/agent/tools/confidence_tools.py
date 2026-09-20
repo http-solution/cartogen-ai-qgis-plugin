@@ -7,7 +7,7 @@ own docstring for the full design.
 """
 
 from .registry import register_tool
-from .. import confidence as _conf
+from ...models import confidence as _conf
 
 try:
     from qgis.core import QgsProject

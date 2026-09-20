@@ -12,7 +12,7 @@ see the "Unlike lineage.py" comment in dataset_status.py."""
 import unittest
 from unittest.mock import patch
 
-from cartogen_ai.core.agent.dataset_status import (
+from cartogen_ai.core.models.dataset_status import (
     STATUS_ORDER,
     get_dataset_status,
     set_initial_status,
@@ -269,9 +269,9 @@ class TestAdvanceDatasetStatusStrengthenedGate(unittest.TestCase):
 class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
     """VALIDATED -> ANALYSIS_READY runs a schema_contract check (point 5),
     but ONLY when contract_name is supplied -- opt-in, since not every
-    dataset has a contract yet (see agent/contracts/)."""
+    dataset has a contract yet (see validators/contracts/)."""
 
-    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    @patch("cartogen_ai.core.validators.schema_contracts.validate_layer_schema")
     def test_passes_when_contract_validates_clean(self, mock_validate):
         mock_validate.return_value = {
             "success": True, "passed": True, "missing_fields": [],
@@ -283,7 +283,7 @@ class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(get_dataset_status(layer)["status"], "ANALYSIS_READY")
 
-    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    @patch("cartogen_ai.core.validators.schema_contracts.validate_layer_schema")
     def test_blocks_when_contract_fails_and_no_override(self, mock_validate):
         mock_validate.return_value = {
             "success": True, "passed": False, "missing_fields": ["admin1_pcode"],
@@ -295,7 +295,7 @@ class TestAdvanceDatasetStatusSchemaContractGate(unittest.TestCase):
         self.assertIn("error", result)
         self.assertEqual(get_dataset_status(layer)["status"], "VALIDATED")
 
-    @patch("cartogen_ai.core.agent.schema_contracts.validate_layer_schema")
+    @patch("cartogen_ai.core.validators.schema_contracts.validate_layer_schema")
     def test_override_with_note_bypasses_a_failed_contract_check(self, mock_validate):
         mock_validate.return_value = {
             "success": True, "passed": False, "missing_fields": ["admin1_pcode"],
@@ -340,8 +340,8 @@ class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(get_dataset_status(layer)["status"], "STAGED")
 
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_uniqueness")
     def test_blocks_when_uniqueness_check_fails(self, mock_uniqueness, mock_hierarchy):
         mock_uniqueness.return_value = {
             "success": True, "passed": False, "pcode_field": "admin2_pcode",
@@ -354,8 +354,8 @@ class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
         self.assertIn("error", result)
         self.assertEqual(get_dataset_status(layer)["status"], "INGESTED")
 
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_uniqueness")
     def test_blocks_when_hierarchy_check_fails(self, mock_uniqueness, mock_hierarchy):
         mock_uniqueness.return_value = {"error": "No P-code field found or specified."}
         mock_hierarchy.return_value = {
@@ -368,8 +368,8 @@ class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
         self.assertIn("error", result)
         self.assertEqual(get_dataset_status(layer)["status"], "INGESTED")
 
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_uniqueness")
     def test_override_with_note_bypasses_a_failed_pcode_check(self, mock_uniqueness, mock_hierarchy):
         mock_uniqueness.return_value = {"success": True, "passed": False, "duplicate_pcodes": {"YE1201": [0, 2]}}
         mock_hierarchy.return_value = {"error": "Could not find both a child and parent P-code field on this layer."}
@@ -380,8 +380,8 @@ class TestAdvanceDatasetStatusPcodeDepthGate(unittest.TestCase):
         )
         self.assertTrue(result["success"])
 
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_hierarchy")
-    @patch("cartogen_ai.core.agent.pcode_validation.check_pcode_uniqueness")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_hierarchy")
+    @patch("cartogen_ai.core.validators.pcode_validation.check_pcode_uniqueness")
     def test_passes_when_both_checks_pass(self, mock_uniqueness, mock_hierarchy):
         mock_uniqueness.return_value = {"success": True, "passed": True, "duplicate_pcodes": {}}
         mock_hierarchy.return_value = {"success": True, "passed": True, "mismatches": []}

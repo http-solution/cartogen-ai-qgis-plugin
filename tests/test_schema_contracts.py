@@ -7,13 +7,13 @@ Uses plain fake field/feature/layer objects (not QGIS mocks) for the same
 reason dataset_status.py's tests do: the validator is deliberately
 duck-typed on fields()/getFeatures(), so it's directly unit-testable
 without a live QGIS install. Real contract JSON files
-(agent/contracts/health_facilities.json, admin2.json) are read from disk
+(validators/contracts/health_facilities.json, admin2.json) are read from disk
 as-is -- not mocked -- so a change to those files that breaks the contract
 shape would actually fail these tests, not just a stale copy of them."""
 import unittest
 from unittest.mock import patch
 
-from cartogen_ai.core.agent.schema_contracts import list_contracts, validate_layer_schema
+from cartogen_ai.core.validators.schema_contracts import list_contracts, validate_layer_schema
 
 
 class FakeField:
@@ -119,8 +119,8 @@ class TestValidateLayerSchemaBasics(unittest.TestCase):
 
 
 class TestValidateLayerSchemaTypeChecking(unittest.TestCase):
-    @patch("cartogen_ai.core.agent.schema_contracts.QGIS_AVAILABLE", True)
-    @patch("cartogen_ai.core.agent.schema_contracts.QVariant", create=True)
+    @patch("cartogen_ai.core.validators.schema_contracts.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.validators.schema_contracts.QVariant", create=True)
     def test_type_mismatch_is_reported(self, mock_qvariant):
         mock_qvariant.String = "QV_STRING"
         layer = FakeLayer([
@@ -133,8 +133,8 @@ class TestValidateLayerSchemaTypeChecking(unittest.TestCase):
         self.assertEqual(len(result["type_mismatches"]), 1)
         self.assertEqual(result["type_mismatches"][0]["field"], "admin2_pcode")
 
-    @patch("cartogen_ai.core.agent.schema_contracts.QGIS_AVAILABLE", True)
-    @patch("cartogen_ai.core.agent.schema_contracts.QVariant", create=True)
+    @patch("cartogen_ai.core.validators.schema_contracts.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.validators.schema_contracts.QVariant", create=True)
     def test_matching_types_pass(self, mock_qvariant):
         mock_qvariant.String = "QV_STRING"
         layer = FakeLayer([

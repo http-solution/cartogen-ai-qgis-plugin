@@ -11,7 +11,7 @@ one fixed name.
 """
 
 from .registry import register_tool
-from .. import schema_contracts as _sc
+from ...validators import schema_contracts as _sc
 
 try:
     from qgis.core import QgsProject
@@ -32,7 +32,7 @@ def _find_layer_by_name(name):
 @register_tool(
     "list_schema_contracts",
     "List the machine-readable dataset schema contracts available to validate_schema (currently "
-    "health_facilities and admin2 -- see agent/contracts/*.json). Each contract declares required "
+    "health_facilities and admin2 -- see validators/contracts/*.json). Each contract declares required "
     "fields (by acceptable name aliases, since real-world admin/pcode field names vary by source), "
     "expected field types, and optional controlled-vocabulary domains.",
     {"type": "object", "properties": {}, "required": []},

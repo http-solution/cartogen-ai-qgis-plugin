@@ -9,7 +9,7 @@ import tempfile
 import datetime
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum
-from .. import sensitivity as _sens
+from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
 
