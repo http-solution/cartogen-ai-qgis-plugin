@@ -7,7 +7,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import QgsSettings
 
 from ..agent.account import CartogenAccountClient, DEFAULT_ACCOUNT_BASE_URL
-from ..agent.auth import CredentialManager
+from ...infrastructure.auth import CredentialManager
 from ..agent.qgis_compat import enum_member
 from ...infrastructure.settings_keys import SETTINGS_ACCOUNT_BASE_URL as ACCOUNT_URL_KEY
 

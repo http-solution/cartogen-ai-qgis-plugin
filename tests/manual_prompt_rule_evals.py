@@ -22,7 +22,7 @@ Usage (from a real QGIS session, or any environment with a configured
 provider client available):
 
     from tests.manual_prompt_rule_evals import EVAL_CASES, run_case
-    from cartogen_ai.core.agent.providers.claude import ClaudeClient   # or whichever provider
+    from cartogen_ai.infrastructure.providers.claude import ClaudeClient   # or whichever provider
     client = ClaudeClient(api_key="...")
     for case in EVAL_CASES:
         run_case(case, client)   # prints the response and the checklist

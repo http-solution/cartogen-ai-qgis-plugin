@@ -20,25 +20,26 @@ class TestArchitectureBoundaries(unittest.TestCase):
         self.assertTrue(callable(infra.get_qgis_proxy_dict))
 
     def test_auth_importable_without_infrastructure_already_loaded(self):
-        # Real bug found in a code-review pass (2026-09-20): cartogen_ai.infrastructure's
-        # __init__.py used to eagerly `from ..core.agent.auth import CredentialManager`,
-        # while auth.py itself does `from ...infrastructure.settings_keys import ...` --
-        # a genuine circular import. It only stayed hidden because the full test suite's
-        # discovery order happened to import some other module that finished loading
-        # cartogen_ai.core.agent.auth BEFORE tests/test_auth_and_deps.py ran; running that
-        # one file in isolation (`python -m unittest discover ... -p "test_auth_and_deps.py"`,
-        # or any CI/tool that imports auth.py first) crashed with "cannot import name
-        # 'CredentialManager' from partially initialized module." Reproduces that exact
-        # ordering in a subprocess with a clean sys.modules, rather than relying on this
-        # test file's own import order in the full suite (which could just as easily mask
-        # the bug again the same way).
+        # Originally added for a real bug found in a code-review pass (2026-09-20):
+        # cartogen_ai.infrastructure's __init__.py used to eagerly
+        # `from ..core.agent.auth import CredentialManager` while auth.py itself still lived
+        # in core.agent and reached back into infrastructure.settings_keys -- a genuine
+        # circular import, masked by test discovery order (see git history of this file for
+        # the original writeup). Superseded 2026-09-20 by the real Phase 11 architecture
+        # move (docs/IMPLEMENTATION_TRACKER.md §4): auth.py now physically lives in
+        # cartogen_ai.infrastructure itself, so the cross-package cycle this test guarded
+        # against can no longer exist by construction -- infrastructure/__init__.py now
+        # imports CredentialManager from its own sibling module eagerly, no __getattr__
+        # deferral needed. Kept as a plain regression check (import in a clean subprocess,
+        # from the new real location) rather than deleted outright, so a future change that
+        # reintroduces a real cycle here still gets caught.
         import subprocess
         import sys
         import os
 
         src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
         result = subprocess.run(
-            [sys.executable, "-c", "from cartogen_ai.core.agent.auth import CredentialManager"],
+            [sys.executable, "-c", "from cartogen_ai.infrastructure.auth import CredentialManager"],
             capture_output=True, text=True,
             env={**os.environ, "PYTHONPATH": src_dir},
         )

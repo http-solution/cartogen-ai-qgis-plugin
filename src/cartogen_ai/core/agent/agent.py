@@ -45,11 +45,11 @@ except ImportError:
         def value(self, k, default=""): return default
         def setValue(self, k, v): pass
 
-from .providers import (
+from ...infrastructure.providers import (
     OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient, CartogenClient,
 )
-from .providers.base import DEFAULT_MAX_TOKENS
-from .providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
+from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
+from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
 from .model_selector import AUTO_SENTINEL, classify_complexity, pick_model_for_complexity
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -257,7 +257,7 @@ class CartogenAi:
         # a plain Lock would deadlock on that reentrant acquisition.
         self._history_lock = threading.RLock()
 
-        from .auth import CredentialManager
+        from ...infrastructure.auth import CredentialManager
         settings = QgsSettings()
         provider_name = settings.value(SETTINGS_PROVIDER, "openrouter")
         key = CredentialManager.get_credential(provider_name)
@@ -892,7 +892,7 @@ class CartogenAi:
             # is fast and goes first on the main thread; the slow network call
             # to Gemini goes second, on the calling (background) thread.
             from .tools.system_tools import resolve_gemini_search_config
-            from .providers.gemini import grounded_search
+            from ...infrastructure.providers.gemini import grounded_search
             config = self._run_on_main_thread(lambda _: resolve_gemini_search_config(), None)
             if "error" in config:
                 return config
@@ -901,7 +901,7 @@ class CartogenAi:
         if name == "openai_grounded_search":
             # Same two-phase split as gemini_grounded_search above.
             from .tools.system_tools import resolve_openai_search_config
-            from .providers.openai import grounded_search
+            from ...infrastructure.providers.openai import grounded_search
             config = self._run_on_main_thread(lambda _: resolve_openai_search_config(), None)
             if "error" in config:
                 return config

@@ -1,7 +1,7 @@
 """
 Cartogen API gateway provider client -- STUB, NOT WIRED IN.
 
-This client is not registered in `agent/providers/__init__.py`'s exports (deliberately --
+This client is not registered in `infrastructure/providers/__init__.py`'s exports (deliberately --
 importing it there would invite `ui/settings_dialog.py` or `agent/agent.py` to start
 offering it as a real provider option before it's one), not exposed anywhere in
 `ui/settings_dialog.py`'s provider dropdown, and not connected to any live backend.
@@ -9,7 +9,7 @@ offering it as a real provider option before it's one), not exposed anywhere in
 Why this exists now: `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` (a proposal, not a
 decision) scopes a Cartogen-operated model gateway as the default connectivity path for
 its proposed Community/Pro tiers, and section 6 item 2 of that document calls out that
-`agent/providers/cartogen.py` was the one missing piece on the client side -- every other
+`infrastructure/providers/cartogen.py` was the one missing piece on the client side -- every other
 provider (`openrouter.py`, `gemini.py`, `openai.py`, `claude.py`, `ollama.py`) already has
 a client here, this one didn't. `service/README.md`'s own punch list lists "pointing the
 actual QGIS plugin at this gateway as a provider option" as the last, not-yet-done item,
@@ -23,7 +23,7 @@ What this is NOT, on purpose (do not extend this file to do any of the following
 first confirming the backend and the tier/licensing decision from the proposal doc are
 actually resolved):
   - Not imported by `ui/settings_dialog.py` or any provider-selection UI.
-  - Not imported by `agent/providers/__init__.py`'s `__all__`.
+  - Not imported by `infrastructure/providers/__init__.py`'s `__all__`.
   - Not connected to any tier/license gating concept (none exists in this codebase yet).
   - Not pointed at a real, deployed gateway -- `GATEWAY_BASE_URL` below is a placeholder
     domain, not a live endpoint. `service/gateway/` only runs locally per its own README,
@@ -45,7 +45,7 @@ from .base import (
     extract_openai_style_usage, format_http_error, format_request_exception,
     requests, HTTPError, RequestException,
 )
-from ..model_selector import filter_chat_model_ids
+from ...core.agent.model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
 # service/gateway/ only runs locally (see service/README.md). Now overridable via

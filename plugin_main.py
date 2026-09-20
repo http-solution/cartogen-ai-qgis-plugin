@@ -251,7 +251,7 @@ class CartogenAi:
         self.actions = []
 
     def _get_agent(self):
-        from cartogen_ai.core.agent.auth import CredentialManager
+        from cartogen_ai.infrastructure.auth import CredentialManager
         settings = QgsSettings()
         provider = settings.value("cartogen_ai/provider", "openrouter")
         key = CredentialManager.get_credential(provider)

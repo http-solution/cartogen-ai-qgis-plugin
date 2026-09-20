@@ -174,7 +174,7 @@ class ChatTabWidget(QWidget):
         # "send nothing".
         self._layer_context_selection = {}
 
-        from ..agent.deps import get_dependency_warning_message
+        from ...infrastructure.deps import get_dependency_warning_message
         self._dep_warning = get_dependency_warning_message()
 
         self.init_ui()
@@ -485,7 +485,7 @@ class ChatTabWidget(QWidget):
             )
             self._add_message("ai", "", _raw_html=welcome_html)
 
-        from ..agent.auth import CredentialManager
+        from ...infrastructure.auth import CredentialManager
         missing_key_msg = CredentialManager.missing_credential_message(
             client=getattr(agent, "client", None) if agent is not None else None)
         if missing_key_msg:
@@ -1368,7 +1368,7 @@ class ChatTabWidget(QWidget):
         # chat_formatting.format_send_error for the general case below) --
         # this specific, extremely common first-run scenario gets a direct
         # answer instead of a round trip that was always going to fail.
-        from ..agent.auth import CredentialManager
+        from ...infrastructure.auth import CredentialManager
         no_agent_msg = "**Agent could not be initialized.** Check the QGIS Python console for details."
         block_msg = no_agent_msg if agent is None else \
             CredentialManager.missing_credential_message(client=getattr(agent, "client", None))
@@ -1705,7 +1705,7 @@ class ChatTabWidget(QWidget):
 
     def _analyze_file(self, agent, name, path, data):
         try:
-            from ..agent.auth import CredentialManager
+            from ...infrastructure.auth import CredentialManager
             no_agent_msg = "**Agent could not be initialized.** Check the QGIS Python console for details."
             block_msg = no_agent_msg if agent is None else \
                 CredentialManager.missing_credential_message(client=getattr(agent, "client", None))
