@@ -25,7 +25,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test:
-    runs-on: ubuntu-latest
+    # P1 fix, 2026-09-20 audit: this job used to run ubuntu-only. metadata.txt
+    # ships to Windows users (this dev environment itself is Windows) and the
+    # test suite has already caught real Windows-vs-POSIX path-handling bugs
+    # in local runs -- ubuntu-only CI can't catch those before they reach a
+    # release. windows-latest added to the matrix; py_compile/ruff/packaging
+    # steps below are POSIX-shell (`find`, `grep`, `xargs`), so they're kept
+    # ubuntu-only via a per-step `if:` rather than ported to run cross-platform.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,11 +52,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           grep -v -E "^ultralytics|^#|^$" requirements.txt | xargs -r pip install
+        shell: bash
 
       - name: Run test suite
-        # No QGIS installation in CI -- every module degrades gracefully via its
-        # own QGIS_AVAILABLE guard (see CONTRIBUTING.md #4), so this is expected
-        # to run the full suite outside QGIS, same as local development.
+        # No QGIS installation in this job -- every module degrades gracefully via
+        # its own QGIS_AVAILABLE guard (see CONTRIBUTING.md #4), so this is expected
+        # to run the full suite outside QGIS, same as local development. Real QGIS
+        # coverage (both the 3.28 LTR floor and a current 4.x release, matching
+        # metadata.txt's qgisMinimumVersion/qgisMaximumVersion) lives in the
+        # separate qgis-live-tests job below.
         # -t . is required: without an explicit top-level directory, discover()
         # treats -s tests as its own top level and never runs tests/__init__.py's
         # src/-on-sys.path bootstrap, so every cartogen_ai.core.* import fails --
@@ -53,17 +68,90 @@ jobs:
         run: python -m unittest discover -s tests -t . -p "test_*.py" -v
 
       - name: Byte-compile check
+        if: runner.os == 'Linux'
         run: |
           find . -name "*.py" -not -path "./.git/*" -print0 | xargs -0 -n1 python -m py_compile
 
       - name: Lint with Ruff
+        if: runner.os == 'Linux'
         run: |
           pip install ruff
           ruff check .
 
       - name: Verify release zip packaging
+        if: runner.os == 'Linux'
         run: |
           python plugin_upload.py
           test -f cartogen_ai.zip
           test -f dist/cartogen_ai_v*.zip
           python -c "import zipfile, os; z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist(); assert any('cartogen-ai/metadata.txt' in n for n in names); assert any('cartogen-ai/src/cartogen_ai/core/agent/agent_orchestrator.py' in n for n in names); size_mb = os.path.getsize('cartogen_ai.zip') / (1024*1024); assert size_mb < 20.0, f'Package exceeds 20MB limit: {size_mb}MB'; print(f'Release ZIP verified: {len(names)} files, {size_mb:.2f}MB')"
+
+  qgis-live-tests:
+    # P1 fix, 2026-09-20 audit: no job in this workflow ever ran inside a real
+    # QGIS process -- every check above runs with QGIS_AVAILABLE False. This
+    # exercises the tests that specifically need real qgis.core/qgis.PyQt
+    # bindings (test_chat_widget_live.py, test_plugin_main_live.py) inside the
+    # official QGIS docker images, across the two ends of metadata.txt's
+    # declared qgisMinimumVersion=3.28 / qgisMaximumVersion=4.99 range.
+    # UNVERIFIED: authored and reviewed, but not run end-to-end in a live
+    # GitHub Actions execution from this environment -- the docker image tags
+    # below (see https://hub.docker.com/r/qgis/qgis/tags) should be confirmed
+    # to still exist the first time this job runs, and adjusted if the QGIS
+    # project has renamed/retired them since.
+    name: QGIS live tests (${{ matrix.qgis_tag }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        qgis_tag: [release-3_28, latest]
+    container:
+      image: qgis/qgis:${{ matrix.qgis_tag }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test-only Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          grep -v -E "^ultralytics|^#|^$" requirements.txt | xargs -r python3 -m pip install
+
+      - name: Run live QGIS tests (real QgsApplication, real Qt widgets)
+        # Dotted module form (not discover) so tests/__init__.py's src/-on-sys.path
+        # bootstrap runs before cartogen_ai is imported, same as discover's -t .
+        # does for the headless suite above.
+        run: python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v
+
+      - name: Smoke-test plugin load -> unload -> reload against a real QgsApplication
+        run: |
+          python3 -c "
+          import sys, os
+          sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
+          from qgis.core import QgsApplication
+          app = QgsApplication([], False)
+          app.initQgis()
+          import plugin_main
+          class _Iface:
+              def __init__(self, w): self._w = w
+              def mainWindow(self): return self._w
+              def addToolBarIcon(self, a): pass
+              def removeToolBarIcon(self, a): pass
+              def addPluginToMenu(self, n, a): pass
+              def removePluginMenu(self, n, a): pass
+              def addDockWidget(self, area, w): pass
+              def removeDockWidget(self, w): pass
+              def messageBar(self):
+                  class _MB:
+                      def pushWarning(self, *a, **k): pass
+                      def pushMessage(self, *a, **k): pass
+                  return _MB()
+          from qgis.PyQt.QtWidgets import QMainWindow
+          main_window = QMainWindow()
+          p = plugin_main.CartogenAi(_Iface(main_window))
+          p.initGui()
+          p.unload()
+          p2 = plugin_main.CartogenAi(_Iface(main_window))
+          p2.initGui()
+          p2.unload()
+          print('plugin_main load->unload->reload smoke test OK')
+          "
