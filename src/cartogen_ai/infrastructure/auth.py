@@ -96,12 +96,12 @@ class CredentialManager:
                     # %1 is not unique"). If we leave the stale auth_id_{provider}
                     # setting in place, get_credential() will find it, successfully load
                     # the OLD auth-manager entry, and return the OLD key -- silently
-                    # ignoring the new value we're about to write to the plaintext
-                    # fallback below. Clear it so get_credential() falls through instead.
+                    # ignoring the new value we're about to fall back to session-only
+                    # storage below. Clear it so get_credential() falls through instead.
                     if existing_auth_id:
                         settings.remove(auth_id_setting)
             except Exception as e:
-                log_warning(f"QgsAuthManager save failed, falling back to QgsSettings: {e}", tag="CredentialManager")
+                log_warning(f"QgsAuthManager save failed, falling back to session-only in-memory storage: {e}", tag="CredentialManager")
                 try:
                     QgsSettings().remove(auth_id_setting)
                 except Exception as ex:
@@ -143,8 +143,8 @@ class CredentialManager:
     def auth_system_status() -> dict:
         """Reports whether QGIS's encrypted credential store (QgsAuthManager)
         is disabled, and if so, the documented causes and fixes -- so a
-        plaintext-fallback save isn't left as an unexplained "wasn't
-        available" message (see used_plaintext_fallback above).
+        session-only-storage fallback isn't left as an unexplained "wasn't
+        available" message (see used_session_only_fallback above).
 
         QGIS's own API gives no machine-readable reason for isDisabled()
         (there is no authManager().disabledReason() or similar) -- so this
@@ -200,9 +200,9 @@ class CredentialManager:
     @staticmethod
     def get_auth_system_diagnostic_message() -> str:
         """Formats auth_system_status() into a short, user-facing explanation
-        for ui/settings_dialog.py's plaintext-fallback warning. Empty string
+        for ui/settings_dialog.py's session-only-storage notice. Empty string
         when the auth system isn't disabled (or QGIS/status can't be read) --
-        nothing to add to the warning in that case."""
+        nothing to add to the notice in that case."""
         status = CredentialManager.auth_system_status()
         if not status.get("disabled"):
             return ""

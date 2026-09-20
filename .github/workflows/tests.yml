@@ -91,21 +91,28 @@ jobs:
     # QGIS process -- every check above runs with QGIS_AVAILABLE False. This
     # exercises the tests that specifically need real qgis.core/qgis.PyQt
     # bindings (test_chat_widget_live.py, test_plugin_main_live.py) inside the
-    # official QGIS docker images, across the two ends of metadata.txt's
-    # declared qgisMinimumVersion=3.28 / qgisMaximumVersion=4.99 range.
-    # UNVERIFIED: authored and reviewed, but not run end-to-end in a live
-    # GitHub Actions execution from this environment. Tags confirmed to exist
-    # via the Docker Hub API (2026-09-20): release-3_28 tracks the 3.28.x LTR
-    # branch (always a real released 3.28 patch, per metadata.txt's
-    # qgisMinimumVersion floor); 4.2.2 is pinned to the exact released version
-    # this repo is developed/live-tested against locally (see
-    # reference_local_qgis_installs). Deliberately NOT qgis/qgis:latest --
-    # confirmed via the Docker Hub API that `latest` and `nightly` currently
-    # share the same image digest, i.e. `latest` is an unreleased dev build,
-    # not a stable QGIS version; using it here would make results depend on
-    # whatever nightly happened to build that day, not a reproducible QGIS
-    # release. If 4.2.2 stops being the top of the supported range, update
-    # this tag deliberately rather than floating it back to `latest`.
+    # official QGIS docker images.
+    #
+    # Second-review correction, 2026-09-20: this job covers metadata.txt's
+    # declared qgisMinimumVersion=3.28 floor and a current QGIS 4.x release --
+    # NOT "the two ends" of the full 3.28-4.99 range. 4.2.2 is not the literal
+    # upper bound (4.99), which doesn't correspond to any actual QGIS release
+    # yet; it's the exact version this repo is developed/live-tested against
+    # locally (see reference_local_qgis_installs). release-3_28 is also not a
+    # pinned immutable version -- it's a moving branch tag that tracks
+    # whatever the latest 3.28.x patch release currently is, confirmed via the
+    # Docker Hub API (2026-09-20) to always be a real released 3.28 build, but
+    # its exact patch version can change under this same tag name over time.
+    # Deliberately NOT qgis/qgis:latest -- confirmed via the Docker Hub API
+    # that `latest` and `nightly` currently share the same image digest, i.e.
+    # `latest` is an unreleased dev build, not a stable QGIS version; using it
+    # here would make results depend on whatever nightly happened to build
+    # that day, not a reproducible QGIS release. If 4.2.2 stops being current,
+    # update this tag deliberately rather than floating it back to `latest`.
+    #
+    # VALIDATED, 2026-09-20: both legs of this job confirmed green end-to-end
+    # in an actual GitHub Actions run (not just authored) --
+    # https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/runs/35534755563
     name: QGIS live tests (${{ matrix.qgis_tag }})
     runs-on: ubuntu-latest
     strategy:
@@ -116,6 +123,7 @@ jobs:
       image: qgis/qgis:${{ matrix.qgis_tag }}
     env:
       QT_QPA_PLATFORM: offscreen
+      QGIS_TAG: ${{ matrix.qgis_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -148,17 +156,27 @@ jobs:
         # exact Qt build), AFTER the test run itself already succeeded. Did not
         # reproduce on release-3_28 (different Qt/QGIS build), consistent with an
         # image-specific at-exit teardown quirk, not a bug in this repo's code or
-        # tests. Trusting the shell exit code alone would fail a genuinely green
-        # run, so this checks unittest's own final "OK" line instead -- a real test
-        # failure prints "FAILED (...)", never a bare "OK", so this can't mask an
-        # actual regression.
+        # tests.
+        #
+        # Second-review correction, 2026-09-20: the first version of this waiver
+        # accepted ANY nonzero exit alongside a bare "OK" line -- too broad, since
+        # it didn't actually check for the specific known crash (any other nonzero
+        # exit that happened to leave "OK" as the log's last line, on any image,
+        # would have been silently waived too). Now requires ALL THREE of: exit
+        # code exactly 139 (SIGSEGV, not some other failure), the literal
+        # "Segmentation fault" message present in the output, AND unittest's own
+        # "OK" line -- AND is scoped to the known image via $QGIS_TAG. Any other
+        # combination (wrong exit code, wrong image, no segfault message, or no
+        # "OK" line) falls through to `exit $status` and fails the job normally.
         run: |
           set +e
           python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v > /tmp/live_test.log 2>&1
           status=$?
           cat /tmp/live_test.log
-          if [ $status -ne 0 ] && grep -qE "^OK( \(skipped=[0-9]+\))?$" /tmp/live_test.log; then
-            echo "::warning::Test run itself reported OK; exit $status came from a post-test interpreter-shutdown segfault on this image, not a test failure -- see this step's own comment."
+          if [ "$QGIS_TAG" = "4.2.2" ] && [ "$status" -eq 139 ] \
+             && grep -q "Segmentation fault" /tmp/live_test.log \
+             && grep -qE "^OK( \(skipped=[0-9]+\))?$" /tmp/live_test.log; then
+            echo "::warning::Confirmed known 4.2.2-image post-test interpreter-shutdown segfault (exit 139, 'Segmentation fault', after unittest's own 'OK') -- not a test failure, see this step's own comment."
             exit 0
           fi
           exit $status

@@ -8,6 +8,7 @@ redaction gets applied at the public API is caught, not just in the regex."""
 import io
 import sys
 import unittest
+from unittest.mock import patch, MagicMock
 
 from cartogen_ai.core import logger
 
@@ -127,6 +128,53 @@ class TestLogDiagnostic(unittest.TestCase):
 
     def test_diagnostic_logging_disabled_by_default(self):
         self.assertFalse(logger._diagnostic_logging_enabled())
+
+
+class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
+    """Second-review correction, 2026-09-20: a plain persistent boolean setting
+    doesn't meet the "explicit, TIME-BOUND diagnostic mode" policy -- a developer
+    could enable it and forget to turn it back off. enable_diagnostic_logging()
+    now stores an expiry timestamp instead of a boolean; these tests drive that
+    mechanism directly with a mocked QgsSettings (real QgsSettings isn't
+    available in this headless test environment)."""
+
+    def test_enabled_immediately_after_enable_call(self):
+        store = {}
+        fake_settings = MagicMock()
+        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
+
+        with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
+             patch("cartogen_ai.core.logger.QgsSettings", return_value=fake_settings, create=True):
+            logger.enable_diagnostic_logging(duration_seconds=3600)
+            self.assertTrue(logger._diagnostic_logging_enabled())
+
+    def test_expires_on_its_own_without_manual_disable(self):
+        store = {}
+        fake_settings = MagicMock()
+        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
+
+        with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
+             patch("cartogen_ai.core.logger.QgsSettings", return_value=fake_settings, create=True):
+            # Already-expired window (negative duration) -- simulates time having
+            # passed without anyone calling disable_diagnostic_logging().
+            logger.enable_diagnostic_logging(duration_seconds=-1)
+            self.assertFalse(logger._diagnostic_logging_enabled())
+
+    def test_disable_ends_it_immediately(self):
+        store = {}
+        fake_settings = MagicMock()
+        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.remove.side_effect = lambda k: store.pop(k, None)
+        fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
+
+        with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
+             patch("cartogen_ai.core.logger.QgsSettings", return_value=fake_settings, create=True):
+            logger.enable_diagnostic_logging(duration_seconds=3600)
+            self.assertTrue(logger._diagnostic_logging_enabled())
+            logger.disable_diagnostic_logging()
+            self.assertFalse(logger._diagnostic_logging_enabled())
 
 
 if __name__ == "__main__":
