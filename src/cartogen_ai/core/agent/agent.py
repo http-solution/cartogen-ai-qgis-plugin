@@ -6,37 +6,14 @@ Task List Manager, and Thread-Safe Tool Dispatching.
 """
 
 import json
-import threading
 import time
 
 try:
-    from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot, Qt, QThread
+    from qgis.PyQt.QtCore import QThread
     from qgis.core import QgsSettings
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    class QObject:
-        pass
-    def pyqtSignal(*args, **kwargs):
-        class SignalMock:
-            def emit(self, *a, **kw): pass
-            def connect(self, *a, **kw): pass
-        return SignalMock()
-    def pyqtSlot(*args, **kwargs):
-        return lambda fn: fn
-    class Qt:
-        # Mirrors the Qt6 shape the real code now uses. The plugin reaches enum
-        # members through their enum type (Qt.ConnectionType.X) because Qt6
-        # requires it, so this stub has to expose the nested type too -- not
-        # just the flat name -- or every no-QGIS path that builds a
-        # ToolDispatcher raises AttributeError. Caught by the test suite:
-        # 21 tests in test_new_tools.py failed on
-        # "type object 'Qt' has no attribute 'ConnectionType'".
-        # The flat alias is kept so any older call site still resolves.
-        class ConnectionType:
-            BlockingQueuedConnection = 1
-
-        BlockingQueuedConnection = 1
     class QThread:
         @staticmethod
         def currentThread():
@@ -51,6 +28,9 @@ from ...infrastructure.providers import (
 from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
 from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
 from .model_selector import AUTO_SENTINEL, classify_complexity, pick_model_for_complexity
+from .tool_dispatcher import ToolDispatcher
+from .usage_tracker import UsageTracker
+from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
 from .prompts import build_system_prompt
@@ -103,42 +83,6 @@ TWO_PHASE_TOOLS = frozenset({
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
     "ingest_osm_features",
 })
-
-
-class ToolDispatcher(QObject):
-    # The result-container parameter is `object`, NOT `list` -- this is the actual fix for
-    # a confirmed bug (diagnosed live, not guessed): PyQt's `list`-typed signal parameters
-    # get converted to QVariantList for queued delivery and reconstructed as a NEW Python
-    # list on the receiving side, so `result_container.append(...)` inside the slot mutated
-    # a copy, never the original list the caller kept waiting on -- the slot always computed
-    # the right answer, but the caller always saw an empty list and fell through to the
-    # generic "Execution failed unexpectedly." PyQt's `object` type is specifically exempt
-    # from QVariant round-tripping and preserves exact Python object identity across queued
-    # connections (including BlockingQueuedConnection), which is what this "mutate a
-    # container to get a result back across threads" pattern actually requires.
-    request_execution = pyqtSignal(str, object, object)
-    request_callable = pyqtSignal(object, object, object)
-
-    def __init__(self, agent):
-        super().__init__()
-        self.agent = agent
-        # Connect to slots on the thread where this object was created (main Qt thread).
-        self.request_execution.connect(self._do_execute, Qt.ConnectionType.BlockingQueuedConnection)
-        self.request_callable.connect(self._do_execute_callable, Qt.ConnectionType.BlockingQueuedConnection)
-
-    @pyqtSlot(str, object, object)
-    def _do_execute(self, name, arguments, result_container):
-        try:
-            result_container.append(self.agent._real_execute_tool(name, arguments))
-        except Exception as e:
-            result_container.append({"error": f"_do_execute raised: {e}"})
-
-    @pyqtSlot(object, object, object)
-    def _do_execute_callable(self, func, arg, result_container):
-        try:
-            result_container.append(func(arg))
-        except Exception as e:
-            result_container.append({"error": str(e)})
 
 
 MAX_HISTORY_MESSAGES = 10
@@ -252,10 +196,9 @@ class CartogenAi:
         # agent.conversation_history directly from the main Qt thread while a turn could
         # still be in flight on the background thread. Created first, before anything else
         # in __init__, so it's always available no matter which of this method's several
-        # conversation_history assignments below runs. RLock (not Lock) since
-        # _append_history() calls _trim_history() internally, both under the same lock --
-        # a plain Lock would deadlock on that reentrant acquisition.
-        self._history_lock = threading.RLock()
+        # conversation_history assignments below runs. See history_manager.py for why the
+        # RLock (not Lock) lives there now, alongside the history list itself.
+        self._history_manager = HistoryManager()
 
         from ...infrastructure.auth import CredentialManager
         settings = QgsSettings()
@@ -359,44 +302,54 @@ class CartogenAi:
         self.conversation_history = load_chat_history()
         self.dispatcher = ToolDispatcher(self)
 
-        # Session-scoped token usage totals (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md
-        # SS3.2: "no cost/usage visibility in the UI despite real, documented cost-
-        # engineering work"). Not persisted across QGIS restarts or project
-        # switches -- this agent instance IS the session (see _get_agent() in
-        # plugin_main.py), so a fresh instance naturally means a fresh count,
-        # matching how a user would think about "this session's usage."
-        # calls_without_usage tracks turns where the provider's response didn't
-        # include token counts at all, so the UI can caveat the total as a
-        # partial figure instead of presenting it as exact when it isn't.
-        # cached_tokens (2026-09-13, "implement gemini caching"): how many of
-        # input_tokens were actually served from a provider-side prompt cache --
-        # see providers/base.py's extract_openai_style_usage / providers/claude.py's
-        # from_anthropic_response docstrings for exactly what this does and doesn't
-        # mean per provider.
-        self.session_usage = {
-            "input_tokens": 0, "output_tokens": 0, "cached_tokens": 0,
-            "calls_with_usage": 0, "calls_without_usage": 0,
-        }
+        # Session-scoped token usage totals -- see usage_tracker.py's own docstring for
+        # the "why" (docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2).
+        self._usage_tracker = UsageTracker()
 
     @property
     def tools_schema(self):
         return TOOLS_SCHEMA
 
-    def _get_history_lock(self):
-        """__init__ always creates _history_lock, but several tests in this codebase
+    def _get_usage_tracker(self):
+        """Mirrors _get_history_lock()'s own lazy-init pattern (see its docstring):
+        tests that construct CartogenAi via __new__() to skip __init__ entirely still
+        get a working tracker on first access instead of an AttributeError."""
+        tracker = self.__dict__.get("_usage_tracker")
+        if tracker is None:
+            tracker = UsageTracker()
+            self._usage_tracker = tracker
+        return tracker
+
+    @property
+    def session_usage(self):
+        return self._get_usage_tracker().usage
+
+    def _get_history_manager(self):
+        """__init__ always creates _history_manager, but several tests in this codebase
         construct CartogenAi via CartogenAi.__new__(CartogenAi) to skip __init__ entirely
         (avoiding real QGIS/API-key setup) and hand-assign only the attributes they need --
-        confirmed in tests/test_agent_runner.py. Lazily creating the lock here on first use
+        confirmed in tests/test_agent_runner.py. Lazily creating it here on first use
         (instead of every call site assuming __init__ ran) means those test doubles keep
         working without each one needing to know a new attribute exists. A benign race on
-        first creation (two threads both finding no lock yet) isn't a practical concern here
+        first creation (two threads both finding none yet) isn't a practical concern here
         -- real usage always goes through __init__ first, which sets it before the instance
         is ever handed to another thread."""
-        lock = self.__dict__.get("_history_lock")
-        if lock is None:
-            lock = threading.RLock()
-            self._history_lock = lock
-        return lock
+        manager = self.__dict__.get("_history_manager")
+        if manager is None:
+            manager = HistoryManager()
+            self._history_manager = manager
+        return manager
+
+    def _get_history_lock(self):
+        return self._get_history_manager().lock
+
+    @property
+    def conversation_history(self):
+        return self._get_history_manager().history
+
+    @conversation_history.setter
+    def conversation_history(self, value):
+        self._get_history_manager().history = value
 
     def clear_history(self):
         with self._get_history_lock():
@@ -405,64 +358,18 @@ class CartogenAi:
 
     def _accumulate_usage(self, usage):
         """Adds one API call's token usage into the session running total.
-        usage is either the normalized {'input_tokens', 'output_tokens'} dict a
-        provider's complete() returns, or None if that provider/response didn't
-        report it -- counted separately (calls_without_usage) rather than as
-        zero, so get_session_usage_text() can honestly caveat the total instead
-        of understating it.
-
-        Lazily initializes session_usage if missing rather than assuming
-        __init__ ran -- tests/test_agent_runner.py's _make_bare_agent()
-        constructs a CartogenAi via __new__() (bypassing __init__ entirely)
-        to isolate run()'s tool-calling loop from real provider/task-manager
-        setup, a pattern this shouldn't have to know about or require every
-        such bare-agent helper to replicate."""
-        if not hasattr(self, "session_usage"):
-            self.session_usage = {
-                "input_tokens": 0, "output_tokens": 0, "cached_tokens": 0,
-                "calls_with_usage": 0, "calls_without_usage": 0,
-            }
-        if isinstance(usage, dict) and ("input_tokens" in usage or "output_tokens" in usage):
-            self.session_usage["input_tokens"] += usage.get("input_tokens") or 0
-            self.session_usage["output_tokens"] += usage.get("output_tokens") or 0
-            self.session_usage["cached_tokens"] += usage.get("cached_tokens") or 0
-            self.session_usage["calls_with_usage"] += 1
-        else:
-            self.session_usage["calls_without_usage"] += 1
+        See usage_tracker.UsageTracker.accumulate for the real logic -- this
+        stays a thin delegator (rather than being removed) because
+        chat_tab_widget.py and test_new_tools.py's usage-reporting suite call
+        it directly on the agent object."""
+        self._get_usage_tracker().accumulate(usage)
 
     def get_session_usage_text(self):
         """Short, human-readable summary of this session's token usage for
-        ui/dock_widget.py's usage_label -- e.g. '~4,230 tokens this session
-        (12 calls)' or '~4,230 tokens this session (12 calls; 3 calls with no
-        usage reported)' once at least one provider call has actually reported
-        usage. Returns None (not a misleading '0 tokens') if no call so far
-        has reported usage at all -- e.g. a fresh session, or a provider/model
-        that never reports it. Intentionally no dollar-cost estimate: accurate
-        per-model pricing across 5 providers would need a pricing table that's
-        guaranteed to go stale and mislead; see
-        docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md's reasoning for a similar
-        accuracy-over-completeness call on a different feature.
-
-        cached_tokens (2026-09-13, "implement gemini caching"), when any calls
-        reported it, gets its own clause -- e.g. '~9,316 tokens this session
-        (6 calls, ~7,200 served from cache)'. This is what makes prompt caching's
-        effect (Claude's already-implemented cache_control breakpoints, Gemini
-        2.5+/3.x's automatic implicit caching) actually visible instead of a
-        silent, unverifiable assumption -- see providers/base.py's
-        extract_openai_style_usage and providers/claude.py's
-        from_anthropic_response for where this number comes from per provider."""
-        u = getattr(self, "session_usage", None)
-        if u is None:
-            return None
-        if u["calls_with_usage"] == 0:
-            return None
-        total = u["input_tokens"] + u["output_tokens"]
-        calls_clause = f"{u['calls_with_usage']} calls"
-        if u["calls_without_usage"] > 0:
-            calls_clause += f"; {u['calls_without_usage']} call(s) with no usage reported"
-        if u.get("cached_tokens"):
-            calls_clause += f", ~{u['cached_tokens']:,} served from cache"
-        return f"~{total:,} tokens this session ({calls_clause})"
+        ui/dock_widget.py's usage_label. See usage_tracker.UsageTracker.summary_text
+        for the real logic and its full rationale -- this stays a thin delegator for
+        the same reason as _accumulate_usage above."""
+        return self._get_usage_tracker().summary_text()
 
     def reload_chat_history(self):
         """Re-reads project-bound chat history from QgsProject. Call this after
@@ -472,7 +379,7 @@ class CartogenAi:
         stay stuck on whichever project was active when it was constructed.
         Must be called from the main Qt thread (QgsProject is not thread-safe). The
         reassignment itself is still lock-protected, alongside every other
-        conversation_history mutation -- see _history_lock's own comment in __init__."""
+        conversation_history mutation -- see history_manager.py's own docstring."""
         from .chat_persistence import load_chat_history
         new_history = load_chat_history()
         with self._get_history_lock():
@@ -937,128 +844,45 @@ class CartogenAi:
 
     @staticmethod
     def _is_digest_message(msg):
-        return (
-            isinstance(msg, dict) and msg.get("role") == "system"
-            and isinstance(msg.get("content"), str)
-            and msg["content"].startswith(_HISTORY_DIGEST_MARKER)
-        )
+        # See history_manager.py's module docstring for why the threshold constants stay
+        # module-level globals here rather than living on HistoryManager itself --
+        # test_agent_runner.py monkeypatches them directly on this module.
+        return HistoryManager.is_digest_message(msg, _HISTORY_DIGEST_MARKER)
 
     @staticmethod
     def _summarize_dropped_messages(dropped):
-        """Extractive, non-LLM summary of messages about to be trimmed off conversation_history
-        -- one short line per message, not a call to an LLM. Deliberately not an API call:
-        summarizing on every trim would add its own cost/latency to the exact code path this
-        phase exists to make cheaper, and _trim_history() runs synchronously inside every
-        _append_history() call."""
-        lines = []
-        for msg in dropped:
-            if not isinstance(msg, dict):
-                continue
-            role = msg.get("role", "?")
-            content = msg.get("content", "")
-            if not isinstance(content, str):
-                content = str(content)
-            content = " ".join(content.split())
-            if len(content) > 100:
-                content = content[:100] + "..."
-            if content:
-                lines.append(f"- {role}: {content}")
-        return "\n".join(lines)
+        return HistoryManager.summarize_dropped_messages(dropped)
 
     def _trim_history(self):
-        with self._get_history_lock():
-            history = self.conversation_history
-            has_digest = bool(history) and self._is_digest_message(history[0])
-            body = history[1:] if has_digest else history
-            if len(body) <= MAX_HISTORY_MESSAGES:
-                return
-            overflow = len(body) - MAX_HISTORY_MESSAGES
-            dropped, kept = body[:overflow], body[overflow:]
-            new_lines = self._summarize_dropped_messages(dropped)
-            if not new_lines:
-                self.conversation_history = ([history[0]] if has_digest else []) + kept
-                return
-            prior_body = history[0]["content"][len(_HISTORY_DIGEST_MARKER):].strip() if has_digest else ""
-            digest_body = (prior_body + "\n" + new_lines).strip() if prior_body else new_lines
-            if len(digest_body) > _HISTORY_DIGEST_MAX_CHARS:
-                digest_body = digest_body[-_HISTORY_DIGEST_MAX_CHARS:]
-            digest_msg = {"role": "system", "content": f"{_HISTORY_DIGEST_MARKER}\n{digest_body}"}
-            self.conversation_history = [digest_msg] + kept
+        self._get_history_manager().trim(MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
     def _append_history(self, *messages):
         """Appends one or more messages to conversation_history and trims it, all under
-        one lock acquisition -- the safe replacement for the previous unlocked
-        '.append(); .append(); self._trim_history()' pattern repeated at every return point
-        in run() below. Also the method chat_tab_widget.py's image-attachment handler
-        (main thread) now goes through instead of touching conversation_history.append()
-        directly, so a turn finishing concurrently on the background QgsTask thread can't
+        one lock acquisition -- see history_manager.HistoryManager.append for the real
+        logic. Also the method chat_tab_widget.py's image-attachment handler (main
+        thread) goes through instead of touching conversation_history.append() directly,
+        so a turn finishing concurrently on the background QgsTask thread can't
         interleave with it mid-mutation."""
-        with self._get_history_lock():
-            self.conversation_history.extend(messages)
-            self._trim_history()
+        self._get_history_manager().append(messages, MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
     def _read_history_snapshot(self):
-        """Returns a shallow copy of conversation_history, taken under the lock -- the safe
-        replacement for reading self.conversation_history directly while building a turn's
-        outgoing message list (run()'s messages.extend(...) call), which could otherwise
-        observe a torn read against a concurrent _append_history() call from another
-        thread. The copy itself is safe to iterate/extend from after the lock is released,
-        same as any other already-built list."""
-        with self._get_history_lock():
-            return list(self.conversation_history)
+        """Returns a shallow copy of conversation_history, taken under the lock -- see
+        history_manager.HistoryManager.snapshot for the real logic. The safe replacement
+        for reading self.conversation_history directly while building a turn's outgoing
+        message list (run()'s messages.extend(...) call), which could otherwise observe
+        a torn read against a concurrent _append_history() call from another thread."""
+        return self._get_history_manager().snapshot()
 
     def _compact_old_tool_results(self, messages):
-        """Mid-turn context compaction (2026-09-12, see MAX_FULL_TOOL_RESULTS_PER_TURN's own
-        comment) -- mutates `messages` in place, keeping the most recent
-        MAX_FULL_TOOL_RESULTS_PER_TURN "tool"-role messages' content untouched and replacing
-        older ones with a short placeholder. A tool result whose content contains an "error" key
-        is NEVER compacted, at any age -- failures are load-bearing information the model may
-        still need to reason about later in the same turn, not detail safe to drop just because
-        it's old (the identical call this session's chat tool-steps redesign made for the
-        identical reason, ui/chat_formatting.py's render_tool_steps_failure_details_html).
-
-        A second, size-based rule (2026-09-16, see _LARGE_TOOL_RESULT_CHAR_THRESHOLD's own
-        comment): a tool result whose content is unusually large -- in practice, a base64 image
-        payload like inspect_canvas_visually's, hundreds of times bigger than any normal JSON
-        tool result -- gets compacted as soon as it's no longer the LATEST tool result, even if
-        it's still within the count-based window above. A single oversized result can blow the
-        provider's token ceiling on its own; waiting for MAX_FULL_TOOL_RESULTS_PER_TURN other
-        tool calls to also happen first (the original rule's assumption) doesn't hold for it.
-
-        Idempotent -- safe to call every iteration; already-compacted entries are skipped.
-
-        Real live report, 2026-09-16, recurring across this whole session at every tool-call
-        count tried (18, then 3, then 1) -- a bare, context-free "Error: 'str' object has no
-        attribute 'get'" with no [API error] prefix, meaning it escaped run() as a raw
-        exception rather than being returned as a normal error string (see the client.complete()
-        try/except a few lines above this method's own call site -- anything raised INSIDE that
-        call is already caught there; this is the next unguarded .get() reachable afterward, on
-        every turn that has at least one tool call -- matching every reported occurrence, at
-        every different tool count). `m.get("role")` assumed every entry in `messages` (built
-        from conversation_history + this turn's own messages) is a dict; if a malformed non-dict
-        entry is ever present -- the exact mechanism was not conclusively identified by code
-        reading alone, no traceback was available to confirm the precise origin -- this crashed
-        with exactly that text. Guarded defensively either way, matching this same function's own
-        established precedent (2026-09-13 QGIS-audit comment on _execute_tool, a few hundred
-        lines below: fix the specific site if found, AND add the general safety net here)."""
-        tool_indices = [i for i, m in enumerate(messages) if isinstance(m, dict) and m.get("role") == "tool"]
-        if not tool_indices:
-            return
-        most_recent = tool_indices[-1]
-        keep_full_by_count = (
-            set(tool_indices) if len(tool_indices) <= MAX_FULL_TOOL_RESULTS_PER_TURN
-            else set(tool_indices[-MAX_FULL_TOOL_RESULTS_PER_TURN:])
+        """Mid-turn context compaction -- see history_manager.HistoryManager.
+        compact_old_tool_results for the real logic and its full rationale (why a
+        count-based AND a size-based rule both exist, and the live "'str' object has no
+        attribute 'get'" bug this was hardened against). Kept as a thin delegator on the
+        agent since it's called from several points in run() below by that name."""
+        HistoryManager.compact_old_tool_results(
+            messages, MAX_FULL_TOOL_RESULTS_PER_TURN, _LARGE_TOOL_RESULT_CHAR_THRESHOLD,
+            _COMPACTED_TOOL_RESULT_PLACEHOLDER,
         )
-        for i in tool_indices:
-            content = messages[i].get("content", "")
-            if not isinstance(content, str):
-                continue
-            if content == _COMPACTED_TOOL_RESULT_PLACEHOLDER or '"error"' in content:
-                continue
-            oversized = i != most_recent and len(content) > _LARGE_TOOL_RESULT_CHAR_THRESHOLD
-            if i in keep_full_by_count and not oversized:
-                continue
-            messages[i]["content"] = _COMPACTED_TOOL_RESULT_PLACEHOLDER
 
     def _apply_auto_model_selection(self, user_query):
         """If the active provider's model setting is "auto", pick a concrete
