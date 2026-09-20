@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc3](#v1-16-0-rc3) | 2026-09-21 | **Release candidate 3 for 1.16.0.** Closes both stable-release gates rc2 left open: Ruff lint fixed for real (125 violations → 0, not accepted as debt, incl. a real `QgsLabelObstacleSettings` import bug found and live-fixed), and the CI post-test segmentation fault root-caused and fixed rather than waived (~40 accumulated live `QDockWidget`s crashing at interpreter shutdown; fixed with explicit `gc.collect()` + Qt event-loop pump before `exitQgis()`), through five rounds of independent review. Both `qgis-live-tests` images now pinned by immutable digest. Only remaining gate before stable: the exact-ZIP clean-profile install/upgrade test, which needs a real interactive QGIS GUI session |
 | [1.16.0-rc2](#v1-16-0-rc2) | 2026-09-20 | **Release candidate 2 for 1.16.0.** Security/privacy remediation from a 15-section production-standard audit, refined through two rounds of independent review: QAction lifecycle leak fixed and live-confirmed; plaintext credential persistence removed entirely (session-only in memory, no opt-out); logging moved to structured metadata-only by default (no raw prompt/response/tool content logged); CI matrix expanded to Windows + real QGIS 4.2.2/3.28 LTR docker jobs and actually validated green (3 real environment bugs found and fixed in the process) |
 | [1.16.0-rc1](#v1-16-0-rc1) | 2026-09-20 | **Release candidate 1 for 1.16.0.** Renumbers forward from stable `1.15.6`, replacing the `1.5.7-rc1..rc5` line after an independent review confirmed via QGIS's own version-comparison function that `1.5.7-rc5` compares as *older* than `1.15.6`. Same content as rc5 (Phase 11 restructuring, AST-sandbox fix, keyboard-nav fixes) plus a stale CI packaging assertion and stale doc test-counts fixed |
 | [1.5.7-rc5](#v1-5-7-rc5) | 2026-09-20 | **Release candidate 5 (superseded — see `1.16.0-rc1` above; this version string sorts *older* than the already-published `1.15.6` stable release, a real defect found and corrected the same day).** Phase 11 architecture restructuring finished for real (a prior pass had left only directory scaffolding), a live-confirmed `execute_pyqgis_script` AST-sandbox bypass found and closed, and 2 keyboard-navigation fixes (Tab trapped in the chat input, Escape doing nothing) |
@@ -44,6 +45,72 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc3"></a>
+## [1.16.0-rc3] — 2026-09-21 — Release candidate 3 for 1.16.0: Ruff and CI-stability gates closed for real
+
+`v1.16.0-rc2`'s own changelog entry left two stable-release gates explicitly open: a pre-existing
+Ruff lint failure, and a CI post-test segmentation fault that had only been waived, not
+root-caused. This candidate closes both, each through multiple rounds of independent review that
+caught real gaps in earlier attempts before they shipped.
+
+**Ruff: 125 violations fixed to 0, not accepted as documented technical debt.** Every finding was
+individually verified against live usage (grep for other references) before removal, rather than
+trusting `ruff --fix` blindly — which caught one real false positive from the tool itself: `--fix`
+removed `requests` imports from 5 provider-client files as "unused," but `tests/test_providers.py`
+patches e.g. `cartogen_ai.infrastructure.providers.gemini.requests.get`, which requires the name
+to still be importable in that module even though nothing in the file calls it directly (the
+actual HTTP calls route through `providers/base.py`'s shared `requests` object, and patching that
+same object's attribute via any importer's name still affects every caller). Restored with a
+`# noqa: F401` explaining why in the 5 files tests depend on; left removed in the one file
+(`cartogen.py`) no test patches.
+
+A real bug was found and fixed along the way: `vector_tools.py`'s `apply_labels()` referenced
+`QgsLabelObstacleSettings` for polygon obstacle-avoidance labeling without ever importing it — a
+`NameError` on every real call to that code path, silently caught by the tool's own broad
+exception handling and returned as a generic error rather than crashing visibly. Live-confirmed
+the fix against real QGIS 4.2.2: `apply_labels()` on a polygon layer now succeeds.
+
+**CI segmentation fault: root-caused and fixed, not waived.** An earlier pass had wrapped the
+crash in a waiver, first assuming it was specific to the `4.2.2` docker image's Qt build, then
+(after `release-3_28` also hit it) blaming a numpy/matplotlib ABI mismatch already present in that
+image. A fourth review correctly refused to accept either explanation without evidence, and asked
+for the standard the review itself proposed: pin the images by immutable digest, reproduce the
+crash with a plugin-code-free control process, and only waive if that control also crashes with
+the identical signature. Doing that work — not just writing a more convincing waiver — surfaced
+the real cause: ~40 test methods across `test_chat_widget_live.py`/`test_plugin_main_live.py` each
+create a real `QDockWidget` via `addCleanup(dock.close)`. `.close()` alone never destroys the
+underlying C++ object, so ~40 live-but-closed widgets (each owning child `QTimer`s) accumulated
+for the whole run and only got garbage-collected whenever Python's own refcounting happened to
+drop the last reference — landing unpredictably, evidently sometimes inside the interpreter's own
+shutdown sequence. Reproduced independently on Windows/QGIS 4.2.2 locally AND Linux CI, ruling out
+both prior environment-specific theories. Fixed with an explicit `gc.collect()` + a short Qt
+event-loop pump before `QgsApplication.exitQgis()`, so any `deleteLater()`-deferred C++ destruction
+actually runs while `QApplication` is still fully alive. Verified 4/4 clean local runs after the
+fix versus a reliable crash before it; confirmed in CI with zero `Segmentation fault`s on either
+image and the fallback waiver never triggering.
+
+Two smaller findings from the same review rounds were also fixed: a CI teardown script that caught
+its own cleanup/`exitQgis()` exceptions but still reported success if test assertions alone
+passed (now requires both to succeed), and a workflow comment that read as self-contradictory
+after the digest-pinning fix landed (reworded to past tense with a pointer to the current state).
+
+**CI hardening beyond the crash fix itself:** both `qgis-live-tests` images (`4.2.2`,
+`release-3_28`) are now pinned by immutable Docker manifest digest instead of a floating tag —
+`release-3_28`'s own moving tag had drifted mid-session and briefly reintroduced the crash under a
+different underlying trigger, which is exactly the failure mode a digest pin exists to prevent. A
+plugin-code-free control process (`tests/_ci_qgis_control_process.py`) now runs alongside the real
+live-test step, so any future reliance on the fallback waiver is evidence-conditioned against that
+same run's control result, not asserted independently.
+
+**Explicitly still open, not claimed done:** the exact-ZIP clean-profile install/upgrade-from-
+`1.15.6` test needs a real interactive QGIS GUI session this project's development environment
+cannot provide (`docs/IMPLEMENTATION_TRACKER.md` §1.10) — the only remaining item before a stable
+production-release decision.
+
+**Verification & Testing**: 1,981 automated tests passing (0 failures, 44 skipped), up from 1,978
+in rc2. Zero Ruff violations (down from 125). Both `qgis-live-tests` CI legs confirmed green in an
+actual GitHub Actions run, with the segfault waiver's fallback logic never triggering.
 
 <a id="v1-16-0-rc2"></a>
 ## [1.16.0-rc2] — 2026-09-20 — Release candidate 2 for 1.16.0: security/privacy remediation from a 15-section production-standard audit
