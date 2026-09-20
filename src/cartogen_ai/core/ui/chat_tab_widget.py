@@ -27,31 +27,25 @@ emitted from dock-header code (open_settings) and the two dialogs above. This wi
 reaches them via self._dock, the same pattern those dialogs use too."""
 
 import threading
-import traceback
-import os
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize, QTimer
 from qgis.PyQt.QtGui import QTextCursor
 from qgis.PyQt.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QTextBrowser,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser,
     QPushButton, QTextEdit, QGroupBox,
 )
-from qgis.core import QgsSettings
 from ..logger import log_warning
-from ...infrastructure.settings_keys import SETTINGS_PROVIDER
 
 
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_step_html,
-    render_tool_steps_toggle_html, render_tool_steps_failure_details_html, friendly_tool_name,
-    format_send_error, render_task_progress_html, PLAN_SPINNER_FRAMES,
+    render_tool_steps_toggle_html,
+    format_send_error,
 )
-from .attachments import read_attached_file as _read_attached_file
-# API-007, 2026-09-14 audit: reused rather than duplicated -- settings_dialog.py's PROVIDERS
-# is already the single source of truth for each provider's display name.
-from .settings_dialog import PROVIDERS as _PROVIDERS
 from .theme import theme_colors, extract_theme_palette
 from .icons import themed_icon
+from .chat_view_presenter import ChatViewPresenter
+from .chat_input_controller import ChatInputController
 
 # _ask_preview_in_chat's reply interpretation (2026-09-15 boxed-panel-to-in-chat conversion):
 # the old "Send this / Send as typed instead / Cancel" 3-way button choice now resolves from
@@ -86,6 +80,16 @@ class ChatTabWidget(QWidget):
     def __init__(self, dock, parent=None):
         super().__init__(parent)
         self._dock = dock
+        # Composed rather than inlined (2026-09-20, Phase 11 architecture restructuring --
+        # docs/IMPLEMENTATION_TRACKER.md §4): chat_view_presenter.py owns tool-step/plan-
+        # progress rendering, chat_input_controller.py owns file-attachment analysis -- the
+        # two genuinely self-contained subsystems this file's own module docstring flags.
+        # Both operate on `self` (this widget) directly rather than owning separate state,
+        # since test_chat_widget_live.py's live Qt tests and dock_widget.py's signal wiring
+        # both reach several of these methods/attributes by their original widget-level
+        # names -- see each class's own module docstring.
+        self.presenter = ChatViewPresenter(self)
+        self.input_controller = ChatInputController(self)
         self._active_highlights = []  # keeps QgsHighlight objects alive until their timer fires
         self._active_task = None  # the running QgsTask, if any -- lets _stop_current_task cancel it
         self._pending_refinement_cards = None  # recommendations list while in-chat cards are showing
@@ -619,171 +623,35 @@ class ChatTabWidget(QWidget):
         self.usage_label.setText(text)
 
     def _add_tool_step(self, name, status, error):
-        """Live per-tool-call progress signal, fired twice per tool call (once starting, once
-        finishing) -- see agent_orchestrator.py's run() tool_step_callback. Previously every one of those
-        events appended its own line directly into the chat scrollback; real user feedback
-        (2026-09-12) called that too much visual space/raw detail/noise for a multi-tool-call
-        turn. Redesigned: "running" is transient, live-progress-only -- it now updates
-        status_label in place (the same label already used for "Thinking...") instead of adding
-        a permanent scrollback line. Terminal statuses ("done"/"failed") are collected into
-        self._current_turn_steps instead of rendered immediately; _flush_tool_steps_summary()
-        (called once, from _dispatch_message's on_complete when the whole turn finishes) turns
-        the collected list into ONE compact summary block."""
-        status_lower = (status or "").lower()
-        if status_lower == "running":
-            self.status_label.setText(f"⚙️ {friendly_tool_name(name)}…")
-            return
-        colors = theme_colors()
-        # Also the record agent/output_router.py checks the output contract
-        # against. Only completed steps count -- a tool that started and failed
-        # did not produce the deliverable.
-        if name and status_lower in ("done", "ok", "finished", "completed", "success"):
-            self._executed_tools.append(name)
-        self._current_turn_steps.append({
-            "name": name,
-            "status": "failed" if status_lower == "failed" else "done",
-            "error": error or None,
-        })
+        """See chat_view_presenter.ChatViewPresenter.add_tool_step for the real logic and
+        its full rationale. Thin delegator, kept under its original name since dock_widget.py
+        connects toolStepSignal straight to it."""
+        self.presenter.add_tool_step(name, status, error)
 
     def _flush_tool_steps_summary(self):
-        """Renders self._current_turn_steps (accumulated by _add_tool_step above) as one
-        compact summary block, then clears the list. Called once per turn, from
-        _dispatch_message's on_complete() -- which already runs on the main GUI thread (it
-        calls receiveMessageSignal.emit directly with no extra thread-marshalling), so this is
-        safe to call directly without another signal hop. A no-op when no tools ran this turn
-        (a plain conversational reply with no tool calls) -- nothing is appended at all."""
-        steps = self._current_turn_steps
-        self._current_turn_steps = []
-        if not steps:
-            return
-        colors = theme_colors()
-        self._step_block_counter += 1
-        block_id = self._step_block_counter
-
-        cursor = QTextCursor(self.chat_browser.document())
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertBlock()  # a fresh paragraph, matching .append()'s own behavior elsewhere
-        start_pos = cursor.position()
-        cursor.insertHtml(render_tool_steps_toggle_html(steps, block_id, colors, expanded=False))
-        end_pos = cursor.position()
-        self._step_blocks[block_id] = {
-            "steps": steps, "expanded": False, "start": start_pos, "end": end_pos,
-        }
-
-        failure_html = render_tool_steps_failure_details_html(steps, colors)
-        if failure_html:
-            # Outside the tracked start/end span on purpose -- always visible, never part of
-            # what the toggle above collapses/expands (see render_tool_steps_failure_details_
-            # html's docstring: failures are load-bearing, not opt-in detail).
-            self.chat_browser.append(failure_html)
-
-        self._scroll_to_bottom()
+        """See chat_view_presenter.ChatViewPresenter.flush_tool_steps_summary."""
+        self.presenter.flush_tool_steps_summary()
 
     def _on_live_plan_updated(self, plan_data):
-        """Renders/updates the in-chat plan-progress card -- connected to task_manager's
-        plan_updated signal in send_message() above. A plan with no title and no tasks
-        means "nothing active right now": the timer stops but any existing card is left
-        untouched in scrollback (it's a real record of a past plan, not a placeholder to
-        blank out). A DIFFERENT title than the currently-tracked card means a new plan
-        started -- appends a fresh block rather than overwriting the old one, so plan
-        history is just "scroll up" (see this file's module docstring)."""
-        title = plan_data.get("title", "")
-        tasks = plan_data.get("tasks", [])
-        colors = theme_colors()
-
-        if not title and not tasks:
-            self._plan_spinner_timer.stop()
-            return
-
-        is_new_plan = self._plan_block is None or self._plan_block["title"] != title
-        spinner_frame = 0 if is_new_plan else self._plan_block["spinner_frame"]
-        html = render_task_progress_html(plan_data, colors, spinner_frame=spinner_frame)
-
-        if is_new_plan:
-            cursor = QTextCursor(self.chat_browser.document())
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            cursor.insertBlock()
-            start_pos = cursor.position()
-            cursor.insertHtml(html)
-            end_pos = cursor.position()
-            self._plan_block = {
-                "title": title, "start": start_pos, "end": end_pos,
-                "spinner_frame": spinner_frame, "plan_data": plan_data,
-            }
-            # Same force-scroll fix as _flush_tool_steps_summary above, for the same reason
-            # (a fresh QTextCursor insert bypasses append()'s own scroll heuristic) -- only
-            # for a genuinely NEW card, not every in-place update below: forcing this on
-            # every _tick_plan_spinner tick (every 400ms while a task runs) would yank the
-            # view back to the bottom several times a second, making scrollback unreadable
-            # during a long-running turn.
-            self._scroll_to_bottom()
-        else:
-            self._plan_block["plan_data"] = plan_data
-            self._replace_tracked_block(self._plan_block, html)
-
-        has_running = any(t.get("status") == "IN_PROGRESS" for t in tasks)
-        if has_running and not self._plan_spinner_timer.isActive():
-            self._plan_spinner_timer.start()
-        elif not has_running:
-            self._plan_spinner_timer.stop()
+        """See chat_view_presenter.ChatViewPresenter.on_live_plan_updated. Thin delegator,
+        kept under its original name since dock_widget.py connects planUpdatedSignal (and
+        _dispatch_message connects task_manager.plan_updated) straight to it, and
+        test_chat_widget_live.py calls it directly."""
+        self.presenter.on_live_plan_updated(plan_data)
 
     def _tick_plan_spinner(self):
-        """Advances the current plan card's spinner glyph one frame -- the only animation
-        this in-chat card has, deliberately quiet (a single cycling braille dot, not a
-        moving progress bar or bouncing icon) per the direct instruction that replaced
-        plan_strip_widget.py's docked-panel-with-animation with this in-chat design."""
-        if self._plan_block is None:
-            self._plan_spinner_timer.stop()
-            return
-        self._plan_block["spinner_frame"] = (self._plan_block["spinner_frame"] + 1) % len(PLAN_SPINNER_FRAMES)
-        colors = theme_colors()
-        html = render_task_progress_html(
-            self._plan_block["plan_data"], colors, spinner_frame=self._plan_block["spinner_frame"],
-        )
-        self._replace_tracked_block(self._plan_block, html)
+        """See chat_view_presenter.ChatViewPresenter.tick_plan_spinner."""
+        self.presenter.tick_plan_spinner()
 
     def _replace_tracked_block(self, block, new_html):
-        """Shared in-place-edit primitive for any tracked chat_browser span (currently the
-        plan card and the tool-steps toggle in _on_step_anchor_clicked below): replaces the
-        HTML between block['start']/['end'], then shifts every OTHER tracked block (both
-        _step_blocks and, if it isn't the one being edited, _plan_block) whose span starts
-        after the edited one's old end -- the collapsed/expanded or spinner-frame HTML
-        rarely renders to the same character count, so every later block's stored position
-        would silently go stale without this, exactly the bug _on_step_anchor_clicked's own
-        original delta-shift comment already documents for the tool-steps case."""
-        old_end = block["end"]
-        cursor = QTextCursor(self.chat_browser.document())
-        cursor.setPosition(block["start"])
-        cursor.setPosition(old_end, QTextCursor.MoveMode.KeepAnchor)
-        cursor.removeSelectedText()
-        cursor.insertHtml(new_html)
-        new_end = cursor.position()
-        block["end"] = new_end
-
-        delta = new_end - old_end
-        if not delta:
-            return
-        for other_block in self._step_blocks.values():
-            if other_block is not block and other_block["start"] > old_end:
-                other_block["start"] += delta
-                other_block["end"] += delta
-        if self._plan_block is not None and self._plan_block is not block and self._plan_block["start"] > old_end:
-            self._plan_block["start"] += delta
-            self._plan_block["end"] += delta
+        """See chat_view_presenter.ChatViewPresenter.replace_tracked_block. Kept as a thin
+        delegator since _on_step_anchor_clicked below (the tool-steps toggle click handler)
+        calls it by this name."""
+        self.presenter.replace_tracked_block(block, new_html)
 
     def _clear_plan(self):
-        if not self._agent_provider:
-            return
-        agent = self._agent_provider()
-        if not (agent and hasattr(agent, "task_manager")) or not agent.task_manager.tasks:
-            return
-        from qgis.PyQt.QtWidgets import QMessageBox
-        reply = QMessageBox.question(
-            self, "Clear Plan", "Archive the current plan and reset the tracker?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            agent.task_manager.clear_plan()
+        """See chat_view_presenter.ChatViewPresenter.clear_plan."""
+        self.presenter.clear_plan()
 
     def _on_step_anchor_clicked(self, url):
         """Handles clicks on this app's own internal "cartogen://" anchors -- the
@@ -1632,208 +1500,23 @@ class ChatTabWidget(QWidget):
 
     @staticmethod
     def _attachment_disclosure_note():
-        """API-007, 2026-09-14 audit: no inline notice existed at the moment of file
-        attachment telling the user that its content (including image bytes, for an
-        image attachment) is about to be sent to whichever AI provider is currently
-        configured -- the general privacy posture is documented in SECURITY.md/the
-        provider settings dialog's own key_tooltip text, but nothing surfaced it at the
-        specific moment it becomes true for THIS file. Ollama is local -- nothing leaves
-        the machine -- so it gets a different, accurate note rather than a generic
-        third-party-sending warning that would be false for it."""
-        provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
-        if provider_value == "ollama":
-
-            return "This file's content stays local (Ollama) -- nothing is sent to a third party."
-        label = next(
-            (p["provider_label"] for p in _PROVIDERS if p["value"] == provider_value),
-            provider_value,
-        )
-        return f"This file's content will be sent to {label} for analysis."
+        """See chat_input_controller.ChatInputController.attachment_disclosure_note."""
+        return ChatInputController.attachment_disclosure_note()
 
     def attach_file(self):
-        filters = (
-            "Supported files (*.pdf *.docx *.png *.jpg *.jpeg *.csv *.xlsx);;"
-            "PDF (*.pdf);;Word (*.docx);;Images (*.png *.jpg *.jpeg);;"
-            "CSV (*.csv);;Excel (*.xlsx);;All files (*)"
-        )
-        path, _ = QFileDialog.getOpenFileName(self, "Attach file", "", filters)
-        if not path:
-            return
-
-        name = os.path.basename(path)
-        disclosure = self._attachment_disclosure_note()
-        self._dock.receiveMessageSignal.emit(
-            "ai", f"📎 **Attaching:** {name}\n\n_{disclosure}_\n\nReading...")
-        self._dock.statusSignal.emit("Reading file...")
-
-        agent = None
-        if self._agent_provider:
-            agent = self._agent_provider()
-
-        thread = threading.Thread(
-            target=self._read_and_analyze_file, args=(agent, name, path), daemon=True
-        )
-        thread.start()
+        """See chat_input_controller.ChatInputController.attach_file."""
+        self.input_controller.attach_file()
 
     def _read_and_analyze_file(self, agent, name, path):
-        """PERF-005, 2026-09-13 audit: read_attached_file (pypdf/docx/pandas parsing) used
-        to run synchronously on the Qt main thread inside attach_file(), before the
-        background analysis thread below was even started -- a large PDF/DOCX/table-heavy
-        file could freeze the whole GUI while it parsed. read_attached_file has zero Qt/QGIS
-        dependency (see its own docstring), so it's safe to run here instead, on the same
-        background thread that was already doing the LLM analysis. Logic below is otherwise
-        unchanged from what attach_file() used to do synchronously."""
-        data, err = _read_attached_file(path)
-        if err is not None:
-            self._dock.receiveMessageSignal.emit("ai", f"Error reading {name}: {err}")
-            return
-
-        # Remembered for the next chat message so the file becomes part of the
-        # task, not just a one-off analysis -- see analyze_request(attachments=).
-        if path not in self._attached_paths:
-            self._attached_paths.append(path)
-
-        from ..agent import file_io
-        kind = file_io.classify(path)
-        carried = (" It will also be used with your next message as a %s input."
-                   % kind) if kind else ""
-        self._dock.receiveMessageSignal.emit(
-            "ai", f"📎 **File attached:** {name}{carried}\n\nAnalyzing...")
-        self._dock.statusSignal.emit("Analyzing...")
-
-        self._analyze_file(agent, name, path, data)
+        """See chat_input_controller.ChatInputController.read_and_analyze_file. Thin
+        delegator, kept under its original name since test_chat_widget_live.py calls it
+        directly to drive the attachment flow without a real QFileDialog."""
+        self.input_controller.read_and_analyze_file(agent, name, path)
 
     def _analyze_file(self, agent, name, path, data):
-        try:
-            from ...infrastructure.auth import CredentialManager
-            no_agent_msg = "**Agent could not be initialized.** Check the QGIS Python console for details."
-            block_msg = no_agent_msg if agent is None else \
-                CredentialManager.missing_credential_message(client=getattr(agent, "client", None))
-            if block_msg:
-                self._dock.receiveMessageSignal.emit("ai", block_msg)
-                return
-
-            client = getattr(agent, "client", None)
-            if client is not None and hasattr(client, "set_status_callback"):
-                client.set_status_callback(lambda msg: self._dock.statusSignal.emit(msg))
-
-            if data.get("is_image"):
-                response = self._analyze_image(agent, name, data)
-            else:
-                ext = os.path.splitext(path)[1].lower()
-                # CSV/Excel previews (see _read_attached_file) are capped to a
-                # handful of sample rows to keep the prompt small -- without the
-                # real path, the model had no way to act on anything past that
-                # preview. Pointing it at load_tabular_data_as_layer (which reads
-                # the WHOLE file, not a preview) lets it actually load the full
-                # dataset as a layer when that's what the user wants.
-                if ext in (".csv", ".xlsx", ".xls"):
-                    load_hint = (
-                        f"The content below is only a PREVIEW (first few rows) of the attached "
-                        f"file -- the full file is saved at: {path}\n"
-                        "If the user wants this data actually loaded into the project (not just "
-                        "described), call load_tabular_data_as_layer with that exact file_path -- "
-                        "it reads the ENTIRE file, not just this preview.\n\n"
-                    )
-                else:
-                    load_hint = f"The full file is saved at: {path}\n\n"
-                prompt = (
-                    f"I have attached a file: {name}\n\n"
-                    f"{load_hint}"
-                    f"File content:\n{data.get('text') or ''}\n\n"
-                    "Please analyze this file and suggest what can be done with it in QGIS."
-                )
-                response = agent.run(prompt)
-
-            if client is not None and hasattr(client, "set_status_callback"):
-                client.set_status_callback(None)
-
-            self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
-        except Exception as e:
-            traceback.print_exc()
-            self._dock.receiveMessageSignal.emit("ai", f"**Error analyzing file:** {e}")
-        finally:
-            self._dock.statusSignal.emit("")
-            # Covers both branches above: the non-image path's agent.run(prompt)
-            # already accumulated usage internally, and _analyze_image's direct
-            # client.complete() call accumulates it itself (see that method) --
-            # this is just the one place that refreshes what the label shows
-            # after either one, same as _after_successful_response does for the
-            # main chat send path.
-            self._refresh_usage_label(agent)
+        """See chat_input_controller.ChatInputController.analyze_file."""
+        self.input_controller.analyze_file(agent, name, path, data)
 
     def _analyze_image(self, agent, name, data):
-        b64 = data.get("b64", "")
-        mime = data.get("mime", "png")
-        data_url = f"data:image/{mime};base64,{b64}"
-
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a QGIS spatial analysis assistant. The user has attached an image; "
-                    "describe what it shows and suggest how it could be used inside QGIS."
-                ),
-            }
-        ]
-        # Reads via the same lock-protected snapshot run() itself uses (see agent_orchestrator.py's
-        # _history_lock) when the real agent provides it -- this vision-analysis call runs
-        # on the main Qt thread while a normal chat turn could be mid-flight on the
-        # background QgsTask thread, appending to this same list concurrently. Falls back
-        # to the raw attribute for a test double that doesn't implement the method.
-        if hasattr(agent, "_read_history_snapshot"):
-            messages.extend(agent._read_history_snapshot())
-        else:
-            messages.extend(getattr(agent, "conversation_history", []))
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            f"I have attached an image: {name}. "
-                            "Please analyze it and suggest what can be done with it in QGIS."
-                        ),
-                    },
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            }
-        )
-
-        client = getattr(agent, "client", None)
-        if client is None:
-            return "Agent has no API client configured."
-
-        result = client.complete(messages)
-        if not isinstance(result, dict):
-            return "[API error] Unexpected response from model client."
-        if "error" in result:
-            return f"[API error] {result['error']}"
-        # This call bypasses agent.run() entirely (image attachments go straight
-        # to client.complete()), so it's the one call site outside run() that
-        # would otherwise silently miss the session usage total.
-        if hasattr(agent, "_accumulate_usage"):
-            agent._accumulate_usage(result.get("usage"))
-        message = result.get("message")
-        if not isinstance(message, dict):
-            message = {}
-        content = message.get("content")
-        if not content:
-            return (
-                "The current model did not return any analysis. "
-                "Vision support depends on the model; try a vision-capable model in Settings."
-            )
-        try:
-            user_entry = {"role": "user", "content": f"[Attached image: {name}]"}
-            assistant_entry = {"role": "assistant", "content": content}
-            if hasattr(agent, "_append_history"):
-                agent._append_history(user_entry, assistant_entry)
-            else:
-                agent.conversation_history.append(user_entry)
-                agent.conversation_history.append(assistant_entry)
-                if hasattr(agent, "_trim_history"):
-                    agent._trim_history()
-        except Exception:
-            pass
-        return content
+        """See chat_input_controller.ChatInputController.analyze_image."""
+        return self.input_controller.analyze_image(agent, name, data)
