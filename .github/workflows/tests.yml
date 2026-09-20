@@ -112,20 +112,30 @@ jobs:
     #
     # Validated 2026-09-20 against a real run (not just authored), then re-broken
     # by release-3_28's moving tag drifting to a new image with a fresh at-exit
-    # crash trigger the same day -- see this job's own segfault-waiver comment
-    # below for the fix. Re-validate against the latest Actions run before
-    # trusting this job as a stable-release gate; don't rely on a stale run link.
-    name: QGIS live tests (${{ matrix.qgis_tag }})
+    # crash trigger the same day.
+    #
+    # Fourth-review correction, 2026-09-20/21: pinned both images by immutable
+    # manifest digest (via `repo@sha256:...`, not `repo:tag`) instead of a
+    # floating tag -- release-3_28 moving underneath this job mid-session is
+    # exactly the failure mode a digest pin exists to prevent. Digests below
+    # captured from the Docker Hub API for tags 4.2.2 / release-3_28 on
+    # 2026-09-20; re-resolve deliberately (not by switching back to a floating
+    # tag) whenever a newer QGIS build is wanted here.
+    name: QGIS live tests (${{ matrix.qgis_label }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        qgis_tag: [release-3_28, "4.2.2"]
+        include:
+          - qgis_label: release-3_28
+            qgis_digest: "sha256:d109944e3ffedc9cc8e332fb8907afe309904ebb416dbea05e9671c9db7fdb36"
+          - qgis_label: "4.2.2"
+            qgis_digest: "sha256:6ffe6b31646247f2e179cb2cc32bb4df215eedc99f387ad59a6cc88ebfe23e21"
     container:
-      image: qgis/qgis:${{ matrix.qgis_tag }}
+      image: qgis/qgis@${{ matrix.qgis_digest }}
     env:
       QT_QPA_PLATFORM: offscreen
-      QGIS_TAG: ${{ matrix.qgis_tag }}
+      QGIS_TAG: ${{ matrix.qgis_label }}
     steps:
       - uses: actions/checkout@v4
 
@@ -146,10 +156,38 @@ jobs:
           xargs -r python3 -m pip install --break-system-packages < /tmp/reqs.txt || \
           xargs -r python3 -m pip install < /tmp/reqs.txt
 
+      - name: Minimal QGIS-only crash-isolation control (no plugin code)
+        id: control
+        # Fourth-review addition, 2026-09-20/21: this repo's own explanation for the
+        # post-test segfault below (an environment/interpreter-teardown quirk, not a
+        # plugin regression) was previously asserted, not demonstrated. This step
+        # boots a real QgsApplication, creates and closes a couple of plain Qt
+        # widgets, and exits -- tests/_ci_qgis_control_process.py never imports
+        # cartogen_ai or anything from src/ at all. If THIS also segfaults with the
+        # same signature, that's real evidence the crash is environment-level. The
+        # step itself always exits 0 (diagnostic only, never fails the job by
+        # itself) -- its outcome is what the next step's waiver actually checks.
+        run: |
+          set +e
+          python3 tests/_ci_qgis_control_process.py > /tmp/control.log 2>&1
+          status=$?
+          cat /tmp/control.log
+          if [ "$status" -eq 139 ] && grep -q "Segmentation fault" /tmp/control.log; then
+            echo "same_crash=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Control process (no plugin code) reproduced the same exit-139/Segmentation-fault signature -- environment-level, not this repo's code."
+          else
+            echo "same_crash=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Control process exited $status without the segfault signature -- does NOT independently confirm the real test step's crash is environment-level."
+          fi
+          exit 0
+
       - name: Run live QGIS tests (real QgsApplication, real Qt widgets)
-        # Dotted module form (not discover) so tests/__init__.py's src/-on-sys.path
-        # bootstrap runs before cartogen_ai is imported, same as discover's -t .
-        # does for the headless suite above.
+        # tests/_ci_run_live_tests.py runs the same tests.test_chat_widget_live +
+        # tests.test_plugin_main_live modules `python3 -m unittest` would, but as a
+        # script that can explicitly call QgsApplication.exitQgis() before process
+        # exit -- unittest's own CLI entry point never does this, leaving Qt/QGIS's
+        # C++ objects to whatever Python's implicit interpreter-exit teardown does
+        # instead of an orderly exitQgis() call. See that script's own docstring.
         #
         # CI validation, 2026-09-20: a real run against the qgis/qgis:4.2.2 image
         # showed all 42 tests genuinely passing ("Ran 42 tests ... OK"), immediately
@@ -166,30 +204,38 @@ jobs:
         #
         # Third-review correction, 2026-09-20 (same day): that image-scoping was
         # wrong. release-3_28 -- which had NOT hit this before -- then failed with
-        # the exact same signature (exit 139, "Segmentation fault", after "Ran 42
-        # tests ... OK") on the very next run, root-caused to a numpy/matplotlib
-        # ABI mismatch already present in that image's own /usr/lib/python3/
-        # dist-packages (nothing this repo installs) plus a Qt QBasicTimer/thread
-        # warning during shutdown -- a DIFFERENT trigger than 4.2.2's, but the same
-        # "genuinely passed, then crashed at interpreter exit" shape. Confirms
-        # release-3_28's own moving-tag nature (documented above) makes it, and
-        # any image here, unpredictable to pin a waiver to by name. Removed the
-        # $QGIS_TAG restriction -- the three-part signature (exit 139 exactly +
-        # literal "Segmentation fault" + unittest's own "OK") is specific enough
-        # on its own: a real test failure can never produce a bare "OK" as the
-        # run's final line, on any image, so this can't mask an actual regression.
-        # Any other combination still falls through to `exit $status` and fails
-        # the job normally.
+        # the exact same signature on the very next run, root-caused to a
+        # numpy/matplotlib ABI mismatch already present in that image's own
+        # /usr/lib/python3/dist-packages (nothing this repo installs) plus a Qt
+        # QBasicTimer/thread warning during shutdown -- a DIFFERENT trigger than
+        # 4.2.2's, but the same "genuinely passed, then crashed at interpreter
+        # exit" shape. Removed the $QGIS_TAG restriction.
+        #
+        # Fourth-review correction, 2026-09-20/21: the claimed root cause was
+        # documented but never demonstrated or enforced by the waiver condition
+        # itself, and explicit interpreter teardown had never actually been tried.
+        # The waiver below is now conditioned on the PRECEDING control step's own
+        # result, not asserted independently: exit 139 + "Segmentation fault" +
+        # unittest's own "OK" line is necessary but no longer sufficient on its
+        # own -- it ALSO requires the plugin-code-free control process to have
+        # reproduced the identical signature this same run. If the control process
+        # did NOT crash, this step fails for real instead of waiving, because that
+        # combination is no longer confirmed to be environment-level.
         run: |
           set +e
-          python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live -v > /tmp/live_test.log 2>&1
+          python3 tests/_ci_run_live_tests.py > /tmp/live_test.log 2>&1
           status=$?
           cat /tmp/live_test.log
           if [ "$status" -eq 139 ] \
              && grep -q "Segmentation fault" /tmp/live_test.log \
              && grep -qE "^OK( \(skipped=[0-9]+\))?$" /tmp/live_test.log; then
-            echo "::warning::Confirmed known post-test interpreter-shutdown segfault on $QGIS_TAG (exit 139, 'Segmentation fault', after unittest's own 'OK') -- not a test failure, see this step's own comment."
-            exit 0
+            if [ "${{ steps.control.outputs.same_crash }}" = "true" ]; then
+              echo "::warning::Confirmed known post-test interpreter-shutdown segfault on $QGIS_TAG (exit 139, 'Segmentation fault', after unittest's own 'OK', AND independently reproduced by the plugin-code-free control process this same run) -- not a test failure."
+              exit 0
+            else
+              echo "::error::Live tests hit the exit-139/Segmentation-fault/OK signature, but the control process (no plugin code) did NOT reproduce it this run -- NOT treating as environment-level without that confirmation. Failing for real."
+              exit $status
+            fi
           fi
           exit $status
 
