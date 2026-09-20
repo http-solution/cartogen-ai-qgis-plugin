@@ -1,13 +1,22 @@
 # Cartogen AI — Implementation Tracker
 
-**Cut as `v1.5.7-rc5`, 2026-09-20** — the Phase 11 completion, the AST-sandbox bypass fix, and the
-2 keyboard-navigation fixes this file's own entries below describe as "not yet cut into a release"
-are now released as rc5 (`commercial-plugin-v1.5.7-rc5`,
-https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.5.7-rc5 —
+**Cut as `v1.5.7-rc5`, then corrected to `v1.16.0-rc1`, both 2026-09-20** — the Phase 11
+completion, the AST-sandbox bypass fix, and the 2 keyboard-navigation fixes this file's own
+entries below describe as "not yet cut into a release" were first released as rc5
+(`commercial-plugin-v1.5.7-rc5`), then an external review found — and this session independently
+confirmed via QGIS's own `pyplugin_installer.version_compare.compareVersions()` — that
+`"1.5.7-rc5"` compares as **older** than the already-published `"1.15.6"`, a real defect
+inherited from a 2026-09-19 renumbering decision and never questioned through rc1-rc5. Renumbered
+forward to `v1.16.0-rc1` (the version actually intended at that point, never previously released
+under any tag) the same day, plus 2 more real defects the review found in rc5 itself (a stale CI
+packaging assertion, stale doc test-counts) and a real socket-leak fix in the test suite. `v1.5.7-
+rc5`'s GitHub release stays published (tags are never rewritten) with a superseded notice pointing
+here. Current release:
+https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.16.0-rc1 —
 published GitHub asset checksum-verified against a fresh local rebuild, matching the standard
-7-step process). `v1.15.6` is still "Latest"/stable on GitHub; rc5 is a prerelease only, same as
-every other RC in this line so far. Left the paragraph below as it was written (a same-day
-snapshot at the time), rather than rewritten, per this doc's own append-don't-rewrite convention.
+7-step process. `v1.15.6` is still "Latest"/stable on GitHub; rc1 is a prerelease only. Left the
+paragraph below as it was written (a same-day snapshot at the time), rather than rewritten, per
+this doc's own append-don't-rewrite convention.
 
 **Last updated:** 2026-09-20 (same day, second pass), against `v1.5.7-rc4` plus an unreleased
 Phase 11 completion pass on `main` (177 tools per the live registry -- not the 182 raw
