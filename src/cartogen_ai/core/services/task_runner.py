@@ -4,9 +4,10 @@ Native QgsTask / Async Runner for Cartogen AI.
 Executes non-blocking background LLM requests while keeping the QGIS GUI fully responsive.
 """
 
+import time
 import traceback
 from ..agent.tools._qgis_enum_compat import resolve_qgis_enum
-from ..logger import log_info
+from ..logger import log_event
 
 try:
     from qgis.core import QgsTask, QgsApplication
@@ -43,16 +44,20 @@ class AgentQgsTask(QgsTask):
 
     def run(self):
         """Executes in background worker thread."""
-        # P1 fix, 2026-09-20 audit: log_info (not print) so this goes through
-        # core/logger.py's centralized secret redaction -- user_text is free-form
-        # user input and could itself contain a pasted API key or token.
-        log_info(f"AgentQgsTask.run() started for query: {self.user_text[:60]!r}", tag="TaskRunner")
+        # Structured-logging policy, 2026-09-20 audit (strict option chosen): this used
+        # to log the first 60/200 characters of the raw user query/agent response
+        # (secret-redacted, but still free-form content -- coordinates, names, file
+        # paths, whatever the user typed or the model echoed back). log_event below
+        # logs only status/duration -- never query/response content. See
+        # core/logger.py's log_event docstring; use log_diagnostic() (off by default)
+        # if raw content is ever needed while actively debugging locally.
+        log_event("agent_task", tag="TaskRunner", status="started")
+        _start = time.monotonic()
         client = getattr(self.agent, "client", None)
         try:
             if client is not None and hasattr(client, "set_status_callback") and self.on_status:
                 client.set_status_callback(self.on_status)
 
-            print("[TaskRunner] Calling agent.run()...")
             # self.isCanceled is QgsTask's own cancellation flag, set by
             # task.cancel() (see dock_widget.py's Stop button) -- passing it
             # through lets the agent loop notice a stop request between tool
@@ -62,14 +67,14 @@ class AgentQgsTask(QgsTask):
                 self.user_text, map_context=self.map_context, should_stop=self.isCanceled,
                 tool_step_callback=self.on_tool_step,
             )
-            # Same redaction reasoning as the start-of-run log above -- the model's
-            # response can echo back content (including a key a user pasted earlier
-            # in the conversation, or one embedded in a tool result it summarized).
-            log_info(f"agent.run() returned: {str(self.response)[:200]!r}", tag="TaskRunner")
+            log_event("agent_task", tag="TaskRunner", status="done",
+                      duration_ms=int((time.monotonic() - _start) * 1000))
             return True
         except Exception as e:
             self.error = e
-            print(f"[TaskRunner] AgentQgsTask.run() raised: {e}")
+            log_event("agent_task", tag="TaskRunner", status="failed",
+                      duration_ms=int((time.monotonic() - _start) * 1000),
+                      error_class=type(e).__name__, error=True)
             traceback.print_exc()
             return False
         finally:

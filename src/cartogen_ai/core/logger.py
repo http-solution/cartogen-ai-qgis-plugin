@@ -93,3 +93,81 @@ def log_error(message: str, tag: str = TAG) -> None:
         except Exception:
             pass
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
+
+
+# Structured, metadata-only logging -- product policy decision, 2026-09-20 audit
+# (strict option chosen over regex-redacted free-form content): call sites that
+# used to log raw prompt/response/tool-argument/tool-result text (even truncated
+# and secret-redacted) now log ONLY safe structured fields through log_event
+# below. _redact above stays in place on log_info/log_warning/log_error as
+# defense-in-depth for anything else that still logs a free-form string, but it
+# is deliberately no longer the primary control for tool/turn logging.
+_SAFE_EVENT_FIELDS = {
+    "tool", "status", "duration_ms", "correlation_id", "provider", "error_class", "count",
+}
+
+
+def log_event(event: str, tag: str = TAG, error=False, **fields) -> None:
+    """Structured, metadata-only logging for tool calls and agent turns --
+    the default for anything that used to log raw content. Only pass safe
+    fields: tool name, status, duration_ms, correlation_id, provider,
+    error_class, counts -- NEVER raw prompt/response/tool-argument/tool-result
+    content, file paths, coordinates, feature attributes, or personal data.
+    Unrecognized field names are dropped (not silently passed through) so a
+    future call site can't accidentally widen what gets logged just by
+    passing a new kwarg -- extend _SAFE_EVENT_FIELDS deliberately instead."""
+    parts = [event]
+    for key, value in fields.items():
+        if key not in _SAFE_EVENT_FIELDS:
+            continue
+        parts.append(f"{key}={value}")
+    line = " ".join(parts)
+    (log_error if error else log_info)(line, tag=tag)
+
+
+_DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging"
+_diagnostic_warning_shown = False
+
+
+def _diagnostic_logging_enabled() -> bool:
+    """Explicit, local-only, OFF-by-default escape hatch for raw-content
+    diagnostic logging. log_event above is always metadata-only; this exists
+    only for a developer actively debugging a specific issue on their own
+    machine, never set by default and never synced/shared. Not exposed as a
+    normal Settings UI toggle -- set cartogen_ai/debug_verbose_logging=true
+    via QGIS's own Settings > Options > Advanced editor (or the Python
+    console) when deliberately debugging, and unset it afterward."""
+    if not QGIS_LOG_AVAILABLE:
+        return False
+    try:
+        from qgis.core import QgsSettings
+        return bool(QgsSettings().value(_DIAGNOSTIC_SETTING, False, type=bool))
+    except Exception:
+        return False
+
+
+def log_diagnostic(message: str, tag: str = TAG) -> None:
+    """Explicit, temporary, local-only raw-content diagnostic logging.
+    Does nothing unless cartogen_ai/debug_verbose_logging is explicitly set
+    (see _diagnostic_logging_enabled's docstring) -- silently a no-op
+    otherwise, so it's safe to leave calls to this in place without them
+    ever logging anything by default. The first time it actually emits in a
+    process, it logs a visible warning that raw content is being logged
+    locally, so this is never a silent exception to the metadata-only
+    default. Still passes through _redact (via log_warning/log_info) as
+    defense-in-depth against known secret shapes, even in this explicit
+    debugging mode."""
+    if not _diagnostic_logging_enabled():
+        return
+    global _diagnostic_warning_shown
+    if not _diagnostic_warning_shown:
+        log_warning(
+            "Verbose diagnostic logging is ON -- raw prompt/response/tool "
+            "content may now be logged locally to QgsMessageLog, which can "
+            "include sensitive data (coordinates, file paths, personal "
+            "information). Turn off cartogen_ai/debug_verbose_logging in "
+            "QGIS Settings when done debugging.",
+            tag=tag,
+        )
+        _diagnostic_warning_shown = True
+    log_info(f"[DIAGNOSTIC] {message}", tag=tag)

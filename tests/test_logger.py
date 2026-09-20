@@ -55,5 +55,79 @@ class TestLogRedaction(unittest.TestCase):
         self.assertIsInstance(logger._redact(ValueError("boom")), str)
 
 
+class TestLogEvent(unittest.TestCase):
+    """Product policy decision, 2026-09-20 (strict option chosen): tool-call and
+    agent-turn logging moved from truncated/redacted free-form content to
+    structured, metadata-only logging. log_event is the only sanctioned way to log
+    those -- these tests drive it directly to confirm it never emits a field it
+    wasn't explicitly told is safe, and that unsafe kwargs are silently dropped
+    rather than passed through (a future call site adding a new kwarg must not be
+    able to widen what gets logged without deliberately extending
+    _SAFE_EVENT_FIELDS)."""
+
+    def _captured_stdout(self, fn, *args, **kwargs):
+        buf = io.StringIO()
+        old = sys.stdout.write
+        sys.stdout.write = buf.write
+        try:
+            fn(*args, **kwargs)
+        finally:
+            sys.stdout.write = old
+        return buf.getvalue()
+
+    def test_log_event_includes_only_safe_fields(self):
+        out = self._captured_stdout(
+            logger.log_event, "tool_call", tag="Agent", tool="get_layers", status="done",
+            duration_ms=42, correlation_id="abc123", provider="OpenRouterClient",
+        )
+        self.assertIn("tool_call", out)
+        self.assertIn("tool=get_layers", out)
+        self.assertIn("status=done", out)
+        self.assertIn("duration_ms=42", out)
+        self.assertIn("correlation_id=abc123", out)
+        self.assertIn("provider=OpenRouterClient", out)
+
+    def test_log_event_drops_unsafe_kwargs_instead_of_passing_them_through(self):
+        out = self._captured_stdout(
+            logger.log_event, "tool_call", tag="Agent", tool="execute_pyqgis_script",
+            status="done", raw_arguments="SELECT * FROM secret_table WHERE ssn='123-45-6789'",
+        )
+        self.assertNotIn("123-45-6789", out)
+        self.assertNotIn("raw_arguments", out)
+        self.assertNotIn("secret_table", out)
+
+    def test_log_event_error_true_routes_to_stderr(self):
+        buf = io.StringIO()
+        old = sys.stderr.write
+        sys.stderr.write = buf.write
+        try:
+            logger.log_event("tool_call", tag="Agent", tool="get_layers", status="failed",
+                              error_class="KeyError", error=True)
+        finally:
+            sys.stderr.write = old
+        out = buf.getvalue()
+        self.assertIn("status=failed", out)
+        self.assertIn("error_class=KeyError", out)
+
+
+class TestLogDiagnostic(unittest.TestCase):
+    """log_diagnostic is the explicit, OFF-by-default escape hatch for raw-content
+    logging -- must be a true no-op outside QGIS (where the opt-in setting can't
+    exist), which is exactly this test environment."""
+
+    def test_log_diagnostic_is_a_no_op_outside_qgis(self):
+        buf = io.StringIO()
+        old = sys.stdout.write
+        sys.stdout.write = buf.write
+        try:
+            logger.log_diagnostic("this should never be printed: sk-or-v1-realkey123456")
+        finally:
+            sys.stdout.write = old
+        self.assertEqual(buf.getvalue(), "")
+
+    def test_diagnostic_logging_disabled_by_default(self):
+        self.assertFalse(logger._diagnostic_logging_enabled())
+
+
 if __name__ == "__main__":
     unittest.main()
