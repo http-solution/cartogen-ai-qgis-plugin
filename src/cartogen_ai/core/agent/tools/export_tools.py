@@ -12,6 +12,7 @@ from ._qgis_enum_compat import resolve_qgis_enum
 from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
+from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 
 try:
     from qgis.core import (
@@ -110,7 +111,7 @@ def _check_shapefile_field_names(layer):
             if truncated_map[f] != (f[:10] if len(f) > 10 else f)
         ]
         warning_parts.append(
-            f"Case-insensitive collision(s) detected after truncation. OGR disambiguation will rename: "
+            "Case-insensitive collision(s) detected after truncation. OGR disambiguation will rename: "
             + ", ".join(collision_examples[:5])
             + ". Consider exporting to GeoPackage (GPKG) or GeoJSON to preserve full, distinct field names."
         )
@@ -175,7 +176,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
             return {"error": "Could not resolve QgsVectorFileWriter.WriterError.NoError in this QGIS version -- export result cannot be verified."}
         if error != _VFW_NO_ERROR:
             return {"error": f"Export failed: {message} (code {error})"}
-        
+
         exported_count = 0
         try:
             cnt = layer.selectedFeatureCount() if (use_selection and has_selection) else layer.featureCount()
@@ -604,8 +605,6 @@ def _categorical_color_map(values):
             color_map[v] = _CATEGORICAL_PALETTE[len(color_map) % len(_CATEGORICAL_PALETTE)]
     return color_map
 
-
-from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 
 _FETCHED_AT_PROPERTY_KEY = PROJECT_PROPERTY_FETCHED_AT
 

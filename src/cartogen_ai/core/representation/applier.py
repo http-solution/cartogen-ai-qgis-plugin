@@ -6,18 +6,16 @@ Applies recommended representation candidates directly to QGIS layers using nati
 renderers (Cluster, Displacement, Heatmap, Graduated, Categorized, Proportional).
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from .models import RepresentationCandidate
 
 try:
     from qgis.core import (
-        QgsProject, QgsVectorLayer, QgsWkbTypes, QgsSymbol, QgsMarkerSymbol,
+        QgsProject, QgsMarkerSymbol,
         QgsPointClusterRenderer, QgsPointDisplacementRenderer, QgsHeatmapRenderer,
-        QgsSingleSymbolRenderer, QgsGradientColorRamp, QgsStyle,
-        QgsSimpleMarkerSymbolLayer, QgsSimpleFillSymbolLayer, QgsFillSymbol,
+        QgsSingleSymbolRenderer,
         QgsUnitTypes,
     )
-    from qgis.PyQt.QtGui import QColor, QFont
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False

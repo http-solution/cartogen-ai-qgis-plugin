@@ -76,12 +76,11 @@ Usage (see the __main__ block at the bottom for a runnable example):
     result["route_gdf"].to_file("route.geojson", driver="GeoJSON")
 """
 
-import math
 
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString
 
 try:
     import rasterio

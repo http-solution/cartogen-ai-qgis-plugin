@@ -2,7 +2,12 @@ import json
 from .base import (
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
-    requests, HTTPError, RequestException,
+    HTTPError,
+    requests,  # noqa: F401 -- not called directly (post_with_retry/get_with_retry do that
+    # inside base.py, against base.py's own `requests` name), but tests patch
+    # cartogen_ai.infrastructure.providers.gemini.requests.get/.post -- that mutates the
+    # single shared `requests` module object's attributes, which base.py's calls also go
+    # through, but ONLY if this module still has its own `requests` name to patch.
 )
 from ...core.agent.model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache

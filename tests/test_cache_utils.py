@@ -3,7 +3,6 @@
 added for SEC-004 (2026-09-14 audit) -- see humanitarian_tools.py's
 _cleanup_cached_local_path for the real-world motivation (cleaning up a cached fetch
 result's leftover temp file once the cache entry itself expires or is overwritten)."""
-import time
 import unittest
 from unittest.mock import patch
 

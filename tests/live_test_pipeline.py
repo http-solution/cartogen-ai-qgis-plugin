@@ -19,21 +19,17 @@ src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-from qgis.core import (
-    QgsApplication,
+from qgis.core import (  # noqa: E402 -- must come after QT_QPA_PLATFORM is set above,
+    QgsApplication,       # since importing qgis.core initializes Qt.
     QgsProject,
     QgsVectorLayer,
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
     QgsField,
-    QgsFields,
-    QgsWkbTypes,
     QgsPointClusterRenderer,
-    QgsGraduatedSymbolRenderer,
-    QgsSimpleFillSymbolLayer,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant  # noqa: E402 -- same reason as above.
 
 
 def run_live_test():
@@ -50,7 +46,6 @@ def run_live_test():
         sys.path.insert(0, plugins_dir)
 
     try:
-        import processing
         from processing.core.Processing import Processing
         Processing.initialize()
     except Exception as e:
@@ -173,7 +168,7 @@ def run_live_test():
     proj.addMapLayer(poly_layer)
 
     prof_poly = profile_layer(poly_layer)
-    print(f"   -> Polygons Fields Profile:")
+    print("   -> Polygons Fields Profile:")
     for fn, fp in prof_poly.fields.items():
         print(f"      * {fn}: semantic_type={fp.semantic_type}, is_numeric={fp.is_numeric}")
 

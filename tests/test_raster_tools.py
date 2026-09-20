@@ -313,7 +313,8 @@ class TestGeoreferenceImageValidation(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_fewer_than_three_control_points(self):
-        import tempfile, os
+        import tempfile
+        import os
         fd, path = tempfile.mkstemp(suffix=".png")
         os.close(fd)
         try:

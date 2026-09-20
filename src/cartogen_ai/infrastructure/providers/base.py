@@ -1,6 +1,11 @@
 import time
 from abc import ABC, abstractmethod
 
+# QGIS Network Access Manager proxy integration (Phase 8):
+# If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
+# extract them so requests calls don't bypass user network configurations.
+from ...core.proxy import get_qgis_proxy_dict
+
 try:
     import requests
     HTTPError = requests.exceptions.HTTPError
@@ -39,11 +44,6 @@ DEFAULT_BACKOFF_SECONDS = 1.5
 # responses reach it, and other retryable statuses (5xx) keep using the original short budget.
 RATE_LIMIT_BACKOFF_SECONDS = 10
 RATE_LIMIT_MAX_RETRIES = 3
-
-# QGIS Network Access Manager proxy integration (Phase 8):
-# If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
-# extract them so requests calls don't bypass user network configurations.
-from ...core.proxy import get_qgis_proxy_dict
 
 
 # Only claude.py previously capped output size (its own local DEFAULT_MAX_TOKENS,

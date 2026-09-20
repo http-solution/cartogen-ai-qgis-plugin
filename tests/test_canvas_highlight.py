@@ -16,7 +16,7 @@ class TestFindMentionedLayers(unittest.TestCase):
     def test_matches_layer_name_in_text(self):
         layers = [_FakeLayer("Jordan_Governorates"), _FakeLayer("Flood_Zones")]
         matched = find_mentioned_layers("I've buffered the Jordan_Governorates layer by 500m.", layers)
-        self.assertEqual([l.name() for l in matched], ["Jordan_Governorates"])
+        self.assertEqual([layer.name() for layer in matched], ["Jordan_Governorates"])
 
     def test_case_insensitive_match(self):
         layers = [_FakeLayer("Roads")]

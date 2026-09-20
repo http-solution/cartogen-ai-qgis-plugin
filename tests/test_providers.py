@@ -552,7 +552,7 @@ class TestRetryWithBackoff(unittest.TestCase):
         longer/higher-retry-count budget (RATE_LIMIT_BACKOFF_SECONDS/RATE_LIMIT_MAX_RETRIES) --
         distinct from DEFAULT_BACKOFF_SECONDS/DEFAULT_MAX_RETRIES, which 5xx still uses."""
         from cartogen_ai.infrastructure.providers.base import (
-            post_with_retry, RATE_LIMIT_BACKOFF_SECONDS, RATE_LIMIT_MAX_RETRIES,
+            post_with_retry, RATE_LIMIT_BACKOFF_SECONDS,
         )
         rate_limited = MagicMock(status_code=429)
         good_resp = MagicMock(status_code=200)

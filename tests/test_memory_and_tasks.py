@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from cartogen_ai.core.agent.memory import SpatialMemoryManager, is_project_memory_persist_enabled
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 
@@ -8,7 +8,7 @@ from cartogen_ai.core.agent.task_manager import AgentTaskManager
 class TestMemoryAndTasks(unittest.TestCase):
     def test_spatial_memory_manager(self):
         memory = SpatialMemoryManager()
-        
+
         res1 = memory.store_project_note("study_area", "Damascus Region")
         self.assertTrue(res1["success"])
         self.assertEqual(memory.get_project_notes()["study_area"], "Damascus Region")
@@ -82,7 +82,7 @@ class TestMemoryAndTasks(unittest.TestCase):
 
     def test_agent_task_manager(self):
         tm = AgentTaskManager()
-        
+
         plan = tm.create_plan("Flood Risk Assessment", ["Geocode Damascus", "Create 500m Buffer", "Calculate Affected Area"])
         self.assertTrue(plan["success"])
         self.assertEqual(len(tm.tasks), 3)

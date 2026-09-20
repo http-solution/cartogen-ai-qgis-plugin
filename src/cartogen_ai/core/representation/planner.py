@@ -6,10 +6,9 @@ Generates and scores candidate map representations based on layer semantics,
 spatial density, statistical honesty, and user analytical intent.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from .models import (
     LayerSemanticProfile,
-    FieldSemanticProfile,
     RepresentationCandidate,
     CandidateScore,
 )
@@ -122,7 +121,6 @@ def plan_representations(
                     break
 
         if qty_field and qty_field in profile.fields:
-            field_prof = profile.fields[qty_field]
             prop_score = CandidateScore(
                 total_score=0.0,
                 semantic_fit=0.95 if intent_type == "magnitude" else (0.45 if intent_type == "density" else 0.70),
@@ -299,7 +297,7 @@ def plan_representations(
                     renderer_type="proportional",
                     target_field=count_field,
                     rationale=f"'{count_field}' is a raw count total. Using proportional symbols over polygon centroids avoids deceptive area-bias distortion.",
-                    warnings=[f"Avoid coloring raw counts directly on polygons of varying size."],
+                    warnings=["Avoid coloring raw counts directly on polygons of varying size."],
                     score=prop_poly_score,
                 )
             )

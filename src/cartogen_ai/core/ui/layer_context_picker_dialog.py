@@ -12,7 +12,6 @@ applies to every send until the dialog is reopened and changed again -- it is no
 re-asked on every single turn, matching the mockup's own framing ("chosen before you ask
 rather than guessed", not "asked every time")."""
 
-from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QScrollArea, QWidget,
 )
@@ -104,8 +103,8 @@ class LayerContextPickerDialog(QDialog):
         return not level
 
     def _update_token_label(self, *_args):
-        checked_layers = [l for l in self._layers if self._checkboxes.get(l.get("name")) and
-                           self._checkboxes[l.get("name")].isChecked()]
+        checked_layers = [layer for layer in self._layers if self._checkboxes.get(layer.get("name")) and
+                           self._checkboxes[layer.get("name")].isChecked()]
         tokens = estimate_layer_context_tokens(checked_layers)
         self.token_label.setText(f"~{tokens:,} tokens" if checked_layers else "No layers selected")
 

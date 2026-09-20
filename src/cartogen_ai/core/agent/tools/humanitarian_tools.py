@@ -254,7 +254,7 @@ def fetch_osm_features(key: str, value: str, bbox: list):
             res_json = json.loads(response.read().decode())
             elements = res_json.get("elements", [])
             nodes = [el for el in elements if el.get("type") == "node"]
-            
+
             features_summary = []
             for node in nodes[:50]:
                 tags = node.get("tags", {})

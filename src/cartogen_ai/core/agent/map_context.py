@@ -116,7 +116,7 @@ def filter_layers_by_selection(map_ctx, selection):
     if not map_ctx or not selection:
         return map_ctx
     layers = map_ctx.get("layers") or []
-    kept = [l for l in layers if selection.get(l.get("name")) is not False]
+    kept = [layer for layer in layers if selection.get(layer.get("name")) is not False]
     if len(kept) == len(layers):
         return map_ctx
     filtered = dict(map_ctx)

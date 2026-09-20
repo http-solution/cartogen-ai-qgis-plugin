@@ -22,6 +22,20 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
+# Owned here (not ui/settings_dialog.py) matching agent/chat_persistence.py's
+# PERSIST_SETTING_KEY precedent: the module that actually consumes a setting
+# owns its key and the QgsSettings read, rather than the UI file that merely
+# exposes a checkbox/dropdown for it. PROMPT_REFINEMENT_MODEL_KEY has no
+# reader yet -- spec explicitly scopes it as an advanced/optional override,
+# "not required for v1"; a future caller should fall back to the same
+# cheap-tier pick pick_model_for_complexity would choose for a "simple"
+# query when it's unset.
+from ...infrastructure.settings_keys import (
+    SETTINGS_PROMPT_REFINEMENT_ENABLED as PROMPT_REFINEMENT_ENABLED_KEY,
+    SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
+    SETTINGS_USER_PROFILE as USER_PROFILE_KEY,
+)
+
 # Word-count boundary below which a message is already unambiguous enough
 # that refining it would just add latency and a cheap-model-call cost for no
 # benefit ("list layers", "zoom to X", "undo that"). Same "deterministic
@@ -67,22 +81,6 @@ PROFILE_GUIDANCE = {
 }
 
 _DEFAULT_REFINEMENT_MAX_TOKENS = 400
-
-# Owned here (not ui/settings_dialog.py) matching agent/chat_persistence.py's
-# PERSIST_SETTING_KEY precedent: the module that actually consumes a setting
-# owns its key and the QgsSettings read, rather than the UI file that merely
-# exposes a checkbox/dropdown for it. PROMPT_REFINEMENT_MODEL_KEY has no
-# reader yet -- spec explicitly scopes it as an advanced/optional override,
-# "not required for v1"; a future caller should fall back to the same
-# cheap-tier pick pick_model_for_complexity would choose for a "simple"
-# query when it's unset.
-from ...infrastructure.settings_keys import (
-    SETTINGS_PROMPT_REFINEMENT_ENABLED as PROMPT_REFINEMENT_ENABLED_KEY,
-    SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
-    SETTINGS_USER_PROFILE as USER_PROFILE_KEY,
-    SETTINGS_PROMPT_REFINEMENT_MODEL as PROMPT_REFINEMENT_MODEL_KEY,
-)
-
 
 
 def is_refinement_enabled() -> bool:

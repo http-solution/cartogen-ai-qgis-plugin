@@ -12,7 +12,7 @@ Exposes:
 from typing import Any, Dict, Optional
 from .registry import register_tool
 from ..map_intelligence import ChatActionRegistry
-from ...representation.models import LayerSemanticProfile, RepresentationCandidate
+from ...representation.models import RepresentationCandidate
 from ...representation.profiler import profile_layer
 from ...representation.planner import plan_representations
 from ...representation.applier import apply_representation

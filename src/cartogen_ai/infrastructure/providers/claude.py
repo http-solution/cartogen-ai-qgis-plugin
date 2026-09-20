@@ -1,7 +1,9 @@
 import json
 from .base import (
     BaseAiProvider, post_with_retry, get_with_retry, format_http_error, format_request_exception,
-    requests, HTTPError, RequestException,
+    HTTPError,
+    requests,  # noqa: F401 -- see gemini.py's identical import for why this stays:
+    # tests patch cartogen_ai.infrastructure.providers.claude.requests.get/.post.
 )
 from ...core.agent.model_selector import filter_chat_model_ids
 

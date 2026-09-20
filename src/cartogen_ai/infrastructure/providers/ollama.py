@@ -2,7 +2,9 @@ import json
 from .base import (
     BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, get_with_retry,
     format_http_error, format_request_exception,
-    requests, HTTPError, RequestException,
+    HTTPError, RequestException,
+    requests,  # noqa: F401 -- see providers/gemini.py's identical import for why this
+    # stays: tests patch cartogen_ai.infrastructure.providers.ollama.requests.get.
 )
 
 
@@ -72,7 +74,7 @@ class OllamaClient(BaseAiProvider):
         payload = {"model": self.model, "messages": messages, "max_tokens": max_tokens or DEFAULT_MAX_TOKENS}
         if tools:
             payload["tools"] = tools
-            
+
         # Local server is the client most likely to hit a transient failure in
         # practice (still loading a model, briefly saturated) -- route through
         # the same shared retry helper every other provider client uses

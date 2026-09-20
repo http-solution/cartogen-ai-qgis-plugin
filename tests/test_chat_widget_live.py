@@ -1014,7 +1014,7 @@ class TestChatWidgetLive(unittest.TestCase):
              patch.object(task_runner_mod, "run_agent_task", side_effect=_spy_run_agent_task):
             ct._dispatch_message("plain test message", None)
 
-        names = [l["name"] for l in captured["map_context"]["layers"]]
+        names = [layer["name"] for layer in captured["map_context"]["layers"]]
         self.assertEqual(names, ["Health Facilities"])
 
 

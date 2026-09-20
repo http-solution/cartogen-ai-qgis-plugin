@@ -165,7 +165,6 @@ class ChatInputController:
             w._refresh_usage_label(agent)
 
     def analyze_image(self, agent, name, data):
-        w = self.widget
         b64 = data.get("b64", "")
         mime = data.get("mime", "png")
         data_url = f"data:image/{mime};base64,{b64}"

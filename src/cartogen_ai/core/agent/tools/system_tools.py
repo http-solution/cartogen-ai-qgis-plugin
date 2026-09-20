@@ -510,7 +510,7 @@ def execute_pyqgis_script(script: str):
             QgsGeometry, QgsPointXY, QgsField, QgsApplication
         )
         from qgis.PyQt.QtCore import QVariant
-        
+
         local_env = {
             'QgsProject': QgsProject,
             'QgsVectorLayer': QgsVectorLayer,
@@ -538,7 +538,7 @@ def execute_pyqgis_script(script: str):
         exec(script, local_env)
         if 'run' not in local_env:
             return {"error": "Script must define a 'run()' function."}
-            
+
         result = local_env['run']()
         return {"success": True, "result": result}
     except Exception as e:

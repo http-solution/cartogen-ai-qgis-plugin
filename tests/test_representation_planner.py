@@ -7,8 +7,6 @@ from unittest.mock import MagicMock, patch
 from cartogen_ai.core.representation.models import (
     FieldSemanticProfile,
     LayerSemanticProfile,
-    RepresentationCandidate,
-    CandidateScore,
 )
 from cartogen_ai.core.representation.profiler import profile_layer
 from cartogen_ai.core.representation.planner import plan_representations

@@ -739,7 +739,6 @@ class TestHistoryDigestOnTrim(unittest.TestCase):
         # filter to role in ("user", "assistant") -- confirms the digest's role="system"
         # choice means it never round-trips back in as a fake chat bubble or fake API turn
         # after a project reopen, without needing to special-case it in chat_persistence.py.
-        from cartogen_ai.core.agent.chat_persistence import _load_raw_entries
         digest_entry = {"role": "system", "content": f"{agent_mod._HISTORY_DIGEST_MARKER}\nstuff"}
         real_entry = {"role": "user", "content": "hello"}
         with patch(

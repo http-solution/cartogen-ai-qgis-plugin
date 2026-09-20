@@ -14,7 +14,7 @@ try:
         QgsProject, QgsExpression, QgsRasterLayer, QgsVectorLayer,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
-        QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes
+        QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings
     )
     from qgis.PyQt.QtCore import QVariant, Qt
     from qgis.PyQt.QtGui import QColor, QFont

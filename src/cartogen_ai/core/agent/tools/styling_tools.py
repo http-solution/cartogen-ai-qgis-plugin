@@ -1026,9 +1026,9 @@ def auto_arrange_layer_order():
         layers = list(QgsProject.instance().mapLayers().values())
         if not layers:
             return {"error": "No layers in the project."}
-        ordered = sorted(layers, key=lambda l: _geometry_sort_key(_layer_geometry_kind(l)))
+        ordered = sorted(layers, key=lambda layer: _geometry_sort_key(_layer_geometry_kind(layer)))
         _reorder_top_level_layers(ordered)
-        return {"success": True, "order_top_to_bottom": [l.name() for l in ordered]}
+        return {"success": True, "order_top_to_bottom": [layer.name() for layer in ordered]}
     except Exception as e:
         return {"error": f"auto_arrange_layer_order failed: {e}"}
 
@@ -1068,7 +1068,7 @@ def set_layer_order(layer_names):
         return {"error": f"Layer(s) not found: {missing}"}
     try:
         _reorder_top_level_layers(layers)
-        return {"success": True, "order_top_to_bottom": [l.name() for l in layers]}
+        return {"success": True, "order_top_to_bottom": [layer.name() for layer in layers]}
     except Exception as e:
         return {"error": f"set_layer_order failed: {e}"}
 

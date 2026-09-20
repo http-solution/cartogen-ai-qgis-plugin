@@ -14,6 +14,10 @@ and docs/archive/CARTOGEN_AI_PRD.md 5.1/5.3.
 import datetime
 import json
 from .registry import register_tool, TOOL_REGISTRY
+from ....infrastructure.settings_keys import (
+    SETTINGS_WORKFLOW_PREFIX,
+    SETTINGS_WORKFLOW_RUNS_PREFIX,
+)
 
 try:
     from qgis.core import QgsSettings
@@ -53,11 +57,6 @@ _ALLOWED_WORKFLOW_TOOLS = {
     "population_access_gap",
     "estimate_population_exposure",
 }
-
-from ....infrastructure.settings_keys import (
-    SETTINGS_WORKFLOW_PREFIX,
-    SETTINGS_WORKFLOW_RUNS_PREFIX,
-)
 
 _WORKFLOW_KEY_PREFIX = SETTINGS_WORKFLOW_PREFIX
 _RUN_KEY_PREFIX = SETTINGS_WORKFLOW_RUNS_PREFIX

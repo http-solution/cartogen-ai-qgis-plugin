@@ -15,20 +15,13 @@ try:
         QgsProcessingParameterNumber,
         QgsProcessingParameterField,
         QgsProcessingParameterEnum,
-        QgsProcessingParameterString,
-        QgsProcessingOutputNumber,
-        QgsProcessingOutputString,
-        QgsProcessingContext,
-        QgsProcessingFeedback,
         QgsFeatureSink,
         QgsFields,
         QgsField,
         QgsFeature,
         QgsWkbTypes,
         QgsDistanceArea,
-        QgsProject,
         QgsProcessingFeatureSourceDefinition,
-        Qgis,
     )
     from qgis.PyQt.QtCore import QCoreApplication, QVariant
     from qgis.PyQt.QtGui import QIcon

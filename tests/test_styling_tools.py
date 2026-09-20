@@ -1004,7 +1004,6 @@ class TestApplyHeatmapStyle(unittest.TestCase):
         layer = MagicMock()
         layer.fields.return_value = []
         mock_find.return_value = layer
-        renderer = mock_renderer_cls.return_value
 
         res = apply_heatmap_style("incidents", field="not_a_real_field")
 

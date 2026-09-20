@@ -44,7 +44,7 @@ def _apply_pie_slice_cap(labels, values, max_slices=_PIE_MAX_SLICES):
     kept = paired[: max_slices - 1]
     rest = paired[max_slices - 1 :]
     other_total = sum(v for _, v in rest)
-    new_labels = [l for l, _ in kept] + ["Other"]
+    new_labels = [label for label, _ in kept] + ["Other"]
     new_values = [v for _, v in kept] + [other_total]
     note = f"{len(rest)} smallest categories combined into 'Other' to keep the pie chart at {max_slices} slices or fewer (was {len(labels)})."
     return new_labels, new_values, note
