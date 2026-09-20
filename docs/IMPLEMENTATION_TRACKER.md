@@ -1107,6 +1107,18 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
     against a future regression reintroducing the same pattern) but should not be relied upon as
     the CI matrix's actual passing mechanism going forward — it isn't one anymore.
 
+- **2026-09-21 — cut and published `v1.16.0-rc3`.** Both gates §4's two entries above closed for
+  real (Ruff 125→0, CI segfault root-caused not waived) — released per the standard 7-step
+  process: version bump → smoke test (1981 tests + live-QGIS `exitQgis()` teardown, both clean) →
+  commit → push → rebuild → tag → GitHub prerelease, published asset checksum independently
+  verified to match the local build byte-for-byte
+  (`74b0b167a112417a15ce12bade6990d86d68923cdb9de1bc9e1a2d07f66b2426`).
+  https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.16.0-rc3 —
+  `v1.16.0-rc2` (`7d682c7`) stays published, unchanged, per the tags-never-rewritten convention.
+  **§1.10 (exact-ZIP clean-profile install/upgrade test) remains the only open item before a
+  stable production-release decision** — cutting this RC does not change that; it was published
+  as another prerelease with that gate explicitly still open, by direct instruction.
+
 ## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 
 | Doc | Status |
