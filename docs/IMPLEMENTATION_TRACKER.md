@@ -501,9 +501,12 @@ not this release-process one.
 
 ## 4. Resolved since the last full status review (informational — for traceability)
 
-- **2026-09-20 — 4 of 5 P1 findings from a 15-section production-standard audit, independently
-  verified against live code before fixing (not applied on the audit's word alone).**
-  - **QAction lifecycle leak (`plugin_main.py` `unload()`)** — confirmed via a live-QGIS probe
+- **2026-09-20 — 15-section production-standard audit's 5 P1 findings, independently verified
+  against live code before fixing, then re-verified by a second independent review that corrected
+  an overclaim in this entry's first draft ("4 fixed") to the precise per-finding verdict below —
+  1 closed, 2 mitigated (not fully compliant with the audit's own stricter standard), 1 improved
+  but unverified in a live CI run, 1 left genuinely open.**
+  - **QAction lifecycle leak (`plugin_main.py` `unload()`) — CLOSED.** Confirmed via a live-QGIS probe
     before the fix: `before_unload_actions`/`after_unload_actions` were identical, proving
     `removePluginMenu`/`removeToolBarIcon` alone left the toolbar/menu `QAction`s alive, still
     parented to `iface.mainWindow()`, still connected. Fixed: `unload()` now disconnects each
@@ -513,43 +516,66 @@ not this release-process one.
     confirms (via `qgis.PyQt.sip.isdeleted`) that the first instance's actions are actually gone
     before the second instance's are created — the exact regression scenario (QGIS's Plugin
     Reloader, or disable/re-enable).
-  - **Plaintext credential fallback (`infrastructure/auth.py`)** — confirmed: `save_credential()`
-    silently wrote the API key to plaintext `QgsSettings` (Windows registry) any time
-    `QgsAuthManager` was unavailable/disabled, with only a post-hoc UI warning. Fixed: default
-    fallback is now session-only in-memory storage (`CredentialManager._session_credentials`,
-    never touches disk, gone on QGIS restart) — persistent plaintext requires a new explicit
-    `allow_plaintext_persist=True` argument, which `ui/settings_dialog.py`'s `accept()` only
-    passes after asking the user directly via a `QMessageBox.question` and getting Yes. A
-    successful encrypted save now also migrates away any stale plaintext key for that provider
+  - **Plaintext credential fallback (`infrastructure/auth.py`) — MITIGATED, not fully compliant.**
+    Confirmed: `save_credential()` silently wrote the API key to plaintext `QgsSettings` (Windows
+    registry) any time `QgsAuthManager` was unavailable/disabled, with only a post-hoc UI warning.
+    Changed: default fallback is now session-only in-memory storage (never touches disk, gone on
+    QGIS restart) — persistent plaintext requires a new explicit `allow_plaintext_persist=True`
+    argument, only passed by `ui/settings_dialog.py`'s `accept()` after the user says Yes to a
+    `QMessageBox.question`. A successful encrypted save also migrates away any stale plaintext key
     (`_delete_plaintext_fallback`, skips `ollama` since that key holds an endpoint URL, not a
-    secret). `tests/test_auth_and_deps.py` updated/extended accordingly.
-  - **Unsanitized prompt/tool-arg/result logging (`core/logger.py`)** — confirmed:
-    `log_info`/`log_warning`/`log_error` forwarded whatever string a caller built, with call sites
-    in `agent_orchestrator.py` (tool call args/results) and `task_runner.py` (user query, agent
-    response, via raw `print()`) passing free-form content that can embed a key or token. Fixed:
-    centralized regex-based redaction (`core/logger.py`'s `_redact`) applied inside all three
-    log functions — covers OpenRouter/OpenAI-, Gemini-, and Anthropic-style key formats, `Bearer`
-    tokens, and generic `api_key`/`password`/`token`/`secret`-named fields — so every existing
-    call site is covered without having to remember to sanitize at each one. `task_runner.py`'s
-    two content-bearing `print()` calls switched to `log_info` so they get the same redaction.
-    New `tests/test_logger.py` (6 tests) drives the public `log_*` functions end-to-end.
-  - **CI matrix (`.github/workflows/tests.yml`)** — confirmed: ubuntu-only, Python 3.11 only, no
-    QGIS anywhere in the workflow, despite `metadata.txt` advertising `qgisMinimumVersion=3.28`
-    through `qgisMaximumVersion=4.99` and this being a Windows-developed plugin. Fixed: the
-    existing `test` job gained a `windows-latest` leg (POSIX-only steps like the packaging/lint
-    checks scoped to Linux via `if: runner.os == 'Linux'`); a new `qgis-live-tests` job runs
-    `tests/test_chat_widget_live.py` + the new `tests/test_plugin_main_live.py` inside the
-    official `qgis/qgis` docker images at both ends of the declared version range
-    (`release-3_28` and `latest`), plus a real load/unload/reload plugin smoke test.
-    **Unverified from this sandbox** (GitHub Actions can't be executed here) — authored and
-    reviewed, not yet confirmed green on an actual run; the docker image tags should be checked
-    against https://hub.docker.com/r/qgis/qgis/tags the first time this job runs.
-  - **5th P1 (exact-ZIP clean-profile install/upgrade test) intentionally left open** — needs a
-    real interactive QGIS GUI session this sandbox cannot provide; tracked as new item §1.10
-    above rather than claimed done.
-  - Full headless suite: 1973 passing (up from 1966; +5 new logger tests, +... auth test
-    additions), 44 skipped, after every change above. Live QGIS 4.2.2 confirmation run for the
-    plugin-lifecycle tests: 4/4 passing (`python-qgis.bat -m unittest tests.test_plugin_main_live`).
+    secret). **Second-review correction:** informed consent changes the risk profile but does not
+    satisfy the audit's own literal standard ("do not store tokens in plain `QgsSettings`") — the
+    Yes path at `auth.py`'s plaintext-write branch still writes the raw key to the registry.
+    Whether user-authorized plaintext persistence is acceptable product policy, or whether it
+    should be refused outright (session-only, full stop, no opt-out), is an open decision — not
+    resolved by this fix alone. `tests/test_auth_and_deps.py` updated/extended accordingly.
+  - **Unsanitized prompt/tool-arg/result logging (`core/logger.py`) — SECRET LEAKAGE MITIGATED,
+    broader privacy finding NOT closed.** Confirmed: `log_info`/`log_warning`/`log_error` forwarded
+    whatever string a caller built, with call sites in `agent_orchestrator.py` (tool call
+    args/results) and `task_runner.py` (user query, agent response, via raw `print()`) passing
+    free-form content that can embed a key or token. Changed: centralized regex-based redaction
+    (`core/logger.py`'s `_redact`) applied inside all three log functions — covers
+    OpenRouter/OpenAI-, Gemini-, and Anthropic-style key formats, `Bearer` tokens, and generic
+    `api_key`/`password`/`token`/`secret`-named fields. `task_runner.py`'s two content-bearing
+    `print()` calls switched to `log_info` for the same coverage. New `tests/test_logger.py` (6
+    tests). **Second-review correction:** the regex only strips known secret *shapes* — it does
+    NOT redact coordinates/geographic attributes, names/emails/PII, general prompt content, file
+    paths, or unknown credential formats. `task_runner.py:49`/`:68` and
+    `agent_orchestrator.py:1125` still log up to 60/200/300 raw characters of user prompt/model
+    response/tool args-results after only that narrow secret-pattern scrub. The audit's actual ask
+    — structured logging with an explicit safe-field allowlist (tool name, status, duration,
+    correlation ID, error class) instead of truncated free-form content — is still open.
+  - **CI matrix (`.github/workflows/tests.yml`) — implemented, not yet proven; upper-bound tag
+    corrected.** Confirmed: ubuntu-only, Python 3.11 only, no QGIS anywhere in the workflow,
+    despite `metadata.txt` advertising `qgisMinimumVersion=3.28` through `qgisMaximumVersion=4.99`
+    and this being a Windows-developed plugin. Changed: the existing `test` job gained a
+    `windows-latest` leg (POSIX-only steps scoped to Linux via `if: runner.os == 'Linux'`); a new
+    `qgis-live-tests` job runs `tests/test_chat_widget_live.py` + `tests/test_plugin_main_live.py`
+    inside the official `qgis/qgis` docker images across the declared version range, plus a smoke
+    test that now builds the actual release zip (`plugin_upload.py`) and imports from the
+    *extracted zip*, not the dev tree, closing the narrower "does the packaged file set import"
+    gap (still not the full exact-ZIP-in-a-fresh-profile test — see §1.10). **Second-review
+    correction:** the original `latest` tag for the upper bound was wrong — confirmed via the
+    Docker Hub API that `qgis/qgis:latest` and `qgis/qgis:nightly` currently share the same image
+    digest, i.e. `latest` tracks unreleased nightly builds, not a stable QGIS version. Repinned to
+    `4.2.2` (confirmed to exist on Docker Hub), the exact released version this repo is
+    developed/live-tested against locally. Remaining gaps, not yet addressed: no GitHub Actions
+    run has actually executed this workflow from this environment (cannot be done from this
+    sandbox), and QGIS coverage stays Linux-only (Windows gets the headless suite only, no docker
+    image exists for a Windows QGIS live run). This item stays **open** until a real workflow run
+    is confirmed green.
+  - **5th P1 (exact-ZIP clean-profile install/upgrade test) — OPEN.** Needs a real interactive
+    QGIS GUI session this sandbox cannot provide; tracked as new item §1.10 above.
+  - **Release provenance:** none of the above has been released — `commercial-plugin-v1.16.0-rc1`
+    is still pinned to `609e4ca`; this remediation landed as a separate commit (`58dccb2`, 13 files,
+    622 insertions) on `main` afterward. The published RC1 artifact does not contain any of it. A
+    corrected RC (`1.16.0-rc2`) is the right next step once the credential/logging policy
+    decisions above are made and the CI workflow has an actual green run — not before.
+  - Full headless suite: 1973 passing (up from 1966), 44 skipped, after every change above. Live
+    QGIS 4.2.2 confirmation run for the plugin-lifecycle tests: 4/4 passing
+    (`python-qgis.bat -m unittest tests.test_plugin_main_live`). Zero `ResourceWarning`s under
+    `-W error::ResourceWarning`, per a second-review check.
 
 - **2026-09-19/20, `v1.5.7-rc1` through `-rc4` — the full 11-phase Part A remediation plan
   (all ~35 confirmed gaps from the 2026-09-19 external-audit/architecture-guide passes),
