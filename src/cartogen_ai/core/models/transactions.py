@@ -11,13 +11,13 @@ finding stands, unaddressed, a real (if narrow) remaining gap."
 What this module actually does, precisely, so it isn't mistaken for more
 than it is:
 
-- CartogenAi.run()'s tool-call loop (see agent.py) is the natural
+- CartogenAi.run()'s tool-call loop (see agent_orchestrator.py) is the natural
   "transaction" boundary this point's "multi-step failure" language
   describes -- several tool calls answering one user request. A
   TurnTransactionLog instance is reset at the start of every run() call
   and records every tool call made during it.
 - Reversibility is determined empirically, not from tool_operations.py's
-  static labels: agent.py's _execute_tool wrapper snapshots the set of
+  static labels: agent_orchestrator.py's _execute_tool wrapper snapshots the set of
   layer ids in the live QgsProject immediately before and after every
   call. If a call succeeds and the project has a layer id afterward that
   it didn't have before, that layer is offered as undoable (remove it).
@@ -35,7 +35,7 @@ than it is:
 
 v1.7.0, 2026-09-11: a priority subset of MODIFY/DELETE tools also now
 undoable, via agent/tools/_snapshot_registry.py -- see that module's own
-docstring for exactly which tools and why. agent.py's _execute_tool calls
+docstring for exactly which tools and why. agent_orchestrator.py's _execute_tool calls
 the registered snapshot_fn (if any) for the tool being called BEFORE
 dispatching it, and passes the result into record() below; record() uses
 it in preference to the new-layer-id-diff mechanism when both a snapshot
@@ -67,7 +67,7 @@ import threading
 class TurnTransactionLog:
     """Records what happened during one CartogenAi.run() call. Each entry's own
     construction (reading layer ids from the live QgsProject) only ever happens from the
-    dispatcher thread, same as every other piece of live QGIS state agent.py reads while
+    dispatcher thread, same as every other piece of live QGIS state agent_orchestrator.py reads while
     building an entry -- but reset() is called directly from run() on the background
     QgsTask thread (not marshaled through the dispatcher), so a previous turn's still-
     in-flight record() (main thread, via a tool call not yet returned when a new turn
@@ -96,7 +96,7 @@ class TurnTransactionLog:
         no-QGIS behavior, not a bug).
 
         snapshot: the dict _snapshot_registry.py's snapshot_fn returned for
-        this tool (taken by agent.py BEFORE dispatch), or None if the tool
+        this tool (taken by agent_orchestrator.py BEFORE dispatch), or None if the tool
         has no registered snapshot function or the snapshot_fn itself found
         nothing to snapshot (e.g. layer not found). Preferred over the
         new-layer-id-diff mechanism when both are present -- in practice

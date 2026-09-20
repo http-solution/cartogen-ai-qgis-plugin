@@ -112,7 +112,7 @@ def _increment_note(memory_manager, key):
 
 def record_tool_usage(memory_manager, tool_name):
     """Increments the running-use counter for a tool. Called from every
-    successful tool execution path in agent.py (_real_execute_tool and
+    successful tool execution path in agent_orchestrator.py (_real_execute_tool and
     _log_tool_success both have their own success branch)."""
     if not tool_name:
         return

@@ -699,8 +699,8 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
     stated fact about who the user is, not an inferred preference.
 
     active_tool_names, added 2026-09-12: the set/list of tool names ToolRouter selected as
-    relevant for this turn (agent.py passes router.filter_relevant_tools()'s output, called
-    BEFORE this function now -- see agent.py's run() for the reordering). Used to decide which
+    relevant for this turn (agent_orchestrator.py passes router.filter_relevant_tools()'s output, called
+    BEFORE this function now -- see agent_orchestrator.py's run() for the reordering). Used to decide which
     of the 47 base-prompt rules actually need to be sent this call -- a rule governing a tool
     the model can't even call this turn is moot regardless of its domain. None (the default, not
     supplied) includes every rule unconditionally, exactly matching this function's behavior

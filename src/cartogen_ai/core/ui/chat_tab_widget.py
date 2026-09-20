@@ -185,7 +185,7 @@ class ChatTabWidget(QWidget):
 
     def _pending_confirmation_task(self, agent):
         """The most recently updated task still awaiting a destructive-action confirmation
-        gate (agent.py's _real_execute_tool PREVIEW_REQUIRED handling), or None. Only tasks
+        gate (agent_orchestrator.py's _real_execute_tool PREVIEW_REQUIRED handling), or None. Only tasks
         carrying pending_tool are eligible -- a PREVIEW_READY task with no pending_tool has
         nothing to directly re-execute. See send_message()'s call site for why this exists."""
         if agent is None or not hasattr(agent, "task_manager"):
@@ -620,7 +620,7 @@ class ChatTabWidget(QWidget):
 
     def _add_tool_step(self, name, status, error):
         """Live per-tool-call progress signal, fired twice per tool call (once starting, once
-        finishing) -- see agent.py's run() tool_step_callback. Previously every one of those
+        finishing) -- see agent_orchestrator.py's run() tool_step_callback. Previously every one of those
         events appended its own line directly into the chat scrollback; real user feedback
         (2026-09-12) called that too much visual space/raw detail/noise for a multi-tool-call
         turn. Redesigned: "running" is transient, live-progress-only -- it now updates
@@ -1099,7 +1099,7 @@ class ChatTabWidget(QWidget):
                 self._dispatch_message(text, None)
             return
 
-        # A destructive-action confirmation gate (field_calculator etc. -- see agent.py's
+        # A destructive-action confirmation gate (field_calculator etc. -- see agent_orchestrator.py's
         # _real_execute_tool PREVIEW_REQUIRED handling) may be pending. A short, unambiguous
         # confirm/cancel reply here must resolve it through the exact same deterministic path
         # the Activity tab's own Confirm/Cancel buttons use (tasks_tab_widget.py's
@@ -1556,7 +1556,7 @@ class ChatTabWidget(QWidget):
         loop checks both once per LLM round AND once per individual tool call
         within a multi-tool-call batch (QGIS-003, 2026-09-13 audit -- a batch
         used to only be checked between rounds, so it couldn't be interrupted
-        mid-batch; see agent/agent.py's should_stop param for both check
+        mid-batch; see agent/agent_orchestrator.py's should_stop param for both check
         sites), so it stops before the NEXT LLM call or the NEXT tool step,
         whichever comes first, rather than interrupting whichever call is
         already in flight. stop_btn stays disabled until on_complete
@@ -1776,7 +1776,7 @@ class ChatTabWidget(QWidget):
                 ),
             }
         ]
-        # Reads via the same lock-protected snapshot run() itself uses (see agent.py's
+        # Reads via the same lock-protected snapshot run() itself uses (see agent_orchestrator.py's
         # _history_lock) when the real agent provides it -- this vision-analysis call runs
         # on the main Qt thread while a normal chat turn could be mid-flight on the
         # background QgsTask thread, appending to this same list concurrently. Falls back

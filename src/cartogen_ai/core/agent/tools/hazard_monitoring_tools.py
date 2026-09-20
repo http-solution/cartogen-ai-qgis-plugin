@@ -359,7 +359,7 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
     # bare string/list/null error body (rate limiting, a CDN error page served as JSON)
     # would otherwise reach `data.get(...)` below and crash with an uncaught
     # AttributeError, escaping all the way out of the tool-calling loop uncaught (see
-    # agent.py's _execute_tool for the matching generic safety net added at the same
+    # agent_orchestrator.py's _execute_tool for the matching generic safety net added at the same
     # time -- this specific check gives a clear, attributable error instead of relying
     # on that net alone).
     if not isinstance(data, dict):

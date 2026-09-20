@@ -71,8 +71,8 @@ def _load_raw_entries() -> list:
 
 def _attach_timestamps(history, previous_entries) -> list:
     """Pairs each {"role", "content"} message in `history` (the plain
-    API-shaped list agent.py's conversation_history actually is -- see
-    agent.py's run(), which extends it straight into an LLM `messages` list)
+    API-shaped list agent_orchestrator.py's conversation_history actually is -- see
+    agent_orchestrator.py's run(), which extends it straight into an LLM `messages` list)
     with a real timestamp: reuses the `ts` already on file for a message
     that was already persisted last save, and stamps `_now_iso()` only for a
     message that's genuinely new this turn.
@@ -87,7 +87,7 @@ def _attach_timestamps(history, previous_entries) -> list:
     exactly what a live user report described.
 
     `history` is always either identical to, or a monotonically-trimmed
-    suffix of (see agent.py's _trim_history, which drops from the front),
+    suffix of (see agent_orchestrator.py's _trim_history, which drops from the front),
     what was persisted last time it grew -- so matching by (role, content)
     and consuming previously-seen timestamps in FIFO order per key correctly
     threads old timestamps through even if the exact same text appears more
@@ -115,7 +115,7 @@ def save_chat_history(history) -> bool:
     """Persists the conversation history list into the active project --
     only if the user has opted in (see is_persist_enabled). Attaches a real
     per-message timestamp (see _attach_timestamps) before writing, without
-    mutating the caller's `history` list itself -- that list is agent.py's
+    mutating the caller's `history` list itself -- that list is agent_orchestrator.py's
     live conversation_history, which gets extended straight into the next
     LLM `messages` call, so it must stay exactly {"role", "content"} pairs
     with no extra keys added to it in place."""
@@ -141,7 +141,7 @@ def load_chat_history() -> list:
     the user's behalf.
 
     Returns plain {"role", "content"} pairs with no `ts` key -- this feeds
-    straight into agent.py's conversation_history, which in turn gets
+    straight into agent_orchestrator.py's conversation_history, which in turn gets
     extended directly into an LLM `messages` list, and an extra key there
     isn't part of any provider's API contract. Use
     load_chat_history_with_timestamps() instead for anything display-only."""

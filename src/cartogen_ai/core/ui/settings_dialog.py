@@ -85,7 +85,7 @@ PROVIDERS = [
         "key_label": "Gemini API Key:", "model_label": "Gemini Model:",
         # default_model is AUTO_SENTINEL (not a fixed model) so a fresh install
         # with nothing saved yet shows "Auto" pre-selected here, matching
-        # agent.py's resolve_model default -- complexity-based routing out of
+        # agent_orchestrator.py's resolve_model default -- complexity-based routing out of
         # the box instead of always landing on the same fixed model.
         # safe_starting_model is still seeded into the dropdown as a concrete
         # option/hint, just not pre-selected.

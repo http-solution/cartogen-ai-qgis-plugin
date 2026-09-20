@@ -12,7 +12,7 @@ tool_operations.py's hand-classified operation types rather than a
 name-guessing heuristic). Each snapshot_fn(arguments) -> a small dict
 describing exactly enough state to reverse the call, or None if there is
 nothing to snapshot (layer not found, etc.); each restore_fn(snapshot) ->
-True/False, never raises. agent.py calls snapshot_fn BEFORE dispatching a
+True/False, never raises. agent_orchestrator.py calls snapshot_fn BEFORE dispatching a
 registered tool call and stores the result on the turn's transaction log
 entry only if the call succeeds; transaction_tools.py's undo_last_operation
 calls restore_fn when a logged entry carries one.

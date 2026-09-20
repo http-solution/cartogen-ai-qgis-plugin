@@ -2,7 +2,7 @@
 """
 Session-scoped token usage tracking for Cartogen AI.
 
-Extracted from agent.py's CartogenAi class (2026-09-20, Phase 11 architecture
+Extracted from agent_orchestrator.py's CartogenAi class (2026-09-20, Phase 11 architecture
 restructuring -- docs/IMPLEMENTATION_TRACKER.md §4). Originally added per
 docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS3.2: "no cost/usage visibility
 in the UI despite real, documented cost-engineering work." Not persisted across QGIS

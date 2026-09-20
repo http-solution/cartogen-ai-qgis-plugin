@@ -2,16 +2,15 @@
 """
 Thread-safe tool dispatch for Cartogen AI.
 
-Extracted from agent.py (2026-09-20, Phase 11 architecture restructuring --
+Extracted from what was then agent.py (2026-09-20, Phase 11 architecture restructuring --
 docs/IMPLEMENTATION_TRACKER.md §4) as the first of that file's god-class-decomposition
 targets: ToolDispatcher was already a fully self-contained class (only ever touching the
 `agent` object passed to its constructor via duck typing, never CartogenAi's internals
-directly), so moving it out is a pure file move with zero behavior change -- unlike
-history/usage tracking, which are woven through CartogenAi's shared, lock-guarded
-conversation_history state and would need real interface design, not just a cut-paste, to
-split safely. See that section's own note on why the harder half of the split (history_
-manager.py, usage_tracker.py, the agent.py -> agent_orchestrator.py rename) is deliberately
-scoped out of this pass.
+directly), so moving it out was a pure file move with zero behavior change -- unlike
+history/usage tracking (history_manager.py, usage_tracker.py), which were woven through
+CartogenAi's shared, lock-guarded conversation_history state and needed real interface
+design, not just a cut-paste, to split safely. agent.py itself was renamed to
+agent_orchestrator.py in a later same-day pass, once all three extractions existed.
 """
 
 try:

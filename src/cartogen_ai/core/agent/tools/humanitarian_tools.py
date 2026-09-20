@@ -485,7 +485,7 @@ def ingest_osm_features(
 def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> dict:
     """Pure network phase: queries the geoBoundaries API and downloads the actual
     geojson boundary file to a local temp file. No qgis.core access -- safe to
-    run on a background thread. Used by agent.py's two-phase dispatch to keep
+    run on a background thread. Used by agent_orchestrator.py's two-phase dispatch to keep
     both HTTP requests off the QGIS main GUI thread; fetch_geoboundaries() below
     also calls this directly so it still works standalone."""
     iso3 = iso3.upper().strip()
@@ -736,7 +736,7 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
     },
 )
 def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1"):
-    """Combines both phases inline for standalone/direct callers; agent.py's
+    """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
     to keep the network fetch off the QGIS main GUI thread (same pattern as
     fetch_geoboundaries)."""
@@ -1050,7 +1050,7 @@ def add_building_footprints_layer_main_thread_phase(fetch_result):
     },
 )
 def fetch_building_footprints(country_name, bbox, max_features=5000):
-    """Combines both phases inline for standalone/direct callers; agent.py's
+    """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately
     instead, to keep the network fetch off the QGIS main GUI thread (same
     pattern as fetch_geoboundaries/fetch_hdx_admin_boundaries)."""
@@ -1069,7 +1069,7 @@ def fetch_building_footprints(country_name, bbox, max_features=5000):
 @register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}}, "required": ["iso3", "admin_level"]})
 def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1"):
     """Queries geoBoundaries API for ISO3 country code and ADM level. Does both
-    phases inline for standalone/direct callers; agent.py's two-phase dispatch
+    phases inline for standalone/direct callers; agent_orchestrator.py's two-phase dispatch
     calls the two phase functions above separately instead, to keep the network
     fetch off the QGIS main GUI thread."""
     fetch_result = fetch_geoboundaries_network_phase(iso3, admin_level)
@@ -1192,7 +1192,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     },
 )
 def fetch_worldpop_population(iso3: str, year: str = None):
-    """Does both phases inline for standalone/direct callers; agent.py's
+    """Does both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
     to keep the (potentially large, slow) download off the QGIS main GUI
     thread. No cleanup of the downloaded file -- see

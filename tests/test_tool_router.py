@@ -318,7 +318,7 @@ class TestToolRouterRecallRegression(unittest.TestCase):
     fixes; this covers the full original set, not just the 3 that were
     failing, so a future change to ToolRouter or a tool's description can't
     silently regress recall on a query that happened to already be passing.
-    Uses top_k=40, the value agent.py's real dispatch actually passes."""
+    Uses top_k=40, the value agent_orchestrator.py's real dispatch actually passes."""
 
     QUERY_TO_EXPECTED_TOOL = [
         ("which districts are underserved and need more funding", "calculate_presence_gap"),

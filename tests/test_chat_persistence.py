@@ -160,7 +160,7 @@ class TestAttachTimestamps(unittest.TestCase):
             {"role": "user", "content": "msg2", "ts": "2000-01-01T00:00:02"},
             {"role": "assistant", "content": "reply2", "ts": "2000-01-01T00:00:03"},
         ]
-        # agent.py's _trim_history dropped the oldest pair.
+        # agent_orchestrator.py's _trim_history dropped the oldest pair.
         history = [
             {"role": "user", "content": "msg2"},
             {"role": "assistant", "content": "reply2"},

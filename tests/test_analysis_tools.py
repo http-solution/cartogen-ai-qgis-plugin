@@ -351,7 +351,7 @@ class TestQgis008DestructiveOutputFieldGate(unittest.TestCase):
         declared JSON schema, so the dispatcher strips a model-injected confirmed=True
         before it ever reaches the function -- only a real UI confirm click (which injects
         it AFTER schema filtering, via user_confirmed) can actually set it."""
-        from cartogen_ai.core.agent.agent import CartogenAi
+        from cartogen_ai.core.agent.agent_orchestrator import CartogenAi
         layer = _fake_layer_with_fields("a", "b", "name")
         with patch.object(analysis_tools_mod, "QGIS_AVAILABLE", True), \
              patch.object(analysis_tools_mod, "_find_layer_by_name", return_value=layer):

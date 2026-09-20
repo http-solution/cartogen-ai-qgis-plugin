@@ -106,14 +106,14 @@ class TestFullExamplePipeline(unittest.TestCase):
     def setUpClass(cls):
         _boot_qgis()
         # Imported here, immediately after initQgis(), not lazily inside a test method --
-        # confirmed live: importing cartogen_ai.core.agent.agent (which transitively imports
+        # confirmed live: importing cartogen_ai.core.agent.agent_orchestrator (which transitively imports
         # every agent/tools/*.py module, several of which do `import processing` inside their
         # own QGIS_AVAILABLE try/except -- see vector_tools.py/styling_tools.py) from inside a
         # test method left QGIS_AVAILABLE False in some of those modules even though the same
         # import sequence run as a plain top-level script right after initQgis() resolved True
         # every time. Matches this file's module-level import style to what actually worked,
         # rather than something unittest's own test-loading machinery does differently.
-        import cartogen_ai.core.agent.agent as agent_mod
+        import cartogen_ai.core.agent.agent_orchestrator as agent_mod
         cls.agent_mod = agent_mod
 
     def setUp(self):
@@ -174,7 +174,7 @@ class TestFullExamplePipeline(unittest.TestCase):
         ]
         agent, agent_mod = self._make_agent(script)
 
-        with patch("cartogen_ai.core.agent.agent.build_system_prompt", return_value="sys"), \
+        with patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
              patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None):
             final_text = agent.run("Health facilities beyond one hour's travel 4178029,3463954")
 

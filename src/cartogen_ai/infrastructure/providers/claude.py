@@ -59,7 +59,7 @@ def _translate_user_content(content):
 
 def to_anthropic_request(openai_messages, openai_tools):
     """Translates this plugin's internal OpenAI-shaped conversation (used by
-    agent.py and every other provider) into Anthropic's native Messages API
+    agent_orchestrator.py and every other provider) into Anthropic's native Messages API
     shape: system as a top-level field, no 'system' or 'tool' roles inside
     messages, and tool_use/tool_result content blocks instead of tool_calls."""
     system_text = ""
@@ -135,7 +135,7 @@ def to_anthropic_request(openai_messages, openai_tools):
 def from_anthropic_response(data, fallback_model):
     """Translates an Anthropic Messages API response back into the OpenAI-shaped
     {"message": ..., "model": ...} dict every other provider in this codebase
-    returns from complete(), so agent.py's tool-calling loop needs no changes."""
+    returns from complete(), so agent_orchestrator.py's tool-calling loop needs no changes."""
     blocks = data.get("content", []) or []
     text_parts = []
     tool_calls = []

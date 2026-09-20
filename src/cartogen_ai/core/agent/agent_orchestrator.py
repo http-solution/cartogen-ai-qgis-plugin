@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Core CartogenAi class for Cartogen AI.
-Integrates Multi-LLM provider clients, Spatial Memory Engine,
-Task List Manager, and Thread-Safe Tool Dispatching.
+Core CartogenAi class for Cartogen AI: the tool-calling orchestration loop.
+Integrates Multi-LLM provider clients, Spatial Memory Engine, and Task List Manager.
+Thread-safe tool dispatching, session usage tracking, and conversation history
+management live in their own files now (tool_dispatcher.py, usage_tracker.py,
+history_manager.py -- extracted 2026-09-20, Phase 11 architecture restructuring, see
+docs/IMPLEMENTATION_TRACKER.md §4) and CartogenAi composes them rather than owning
+their logic directly. Renamed from agent.py in the same pass, once those three
+extractions already existed, to match docs/IMPLEMENTATION_TRACKER.md's own plan naming
+-- a plain filename change with no behavior difference.
 """
 
 import json
