@@ -2,9 +2,12 @@
 
 **Cut as `v1.5.7-rc5`, 2026-09-20** — the Phase 11 completion, the AST-sandbox bypass fix, and the
 2 keyboard-navigation fixes this file's own entries below describe as "not yet cut into a release"
-are now released as rc5 (`commercial-plugin-v1.5.7-rc5`). Left the paragraph below as it was
-written (a same-day snapshot at the time), rather than rewritten, per this doc's own
-append-don't-rewrite convention.
+are now released as rc5 (`commercial-plugin-v1.5.7-rc5`,
+https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.5.7-rc5 —
+published GitHub asset checksum-verified against a fresh local rebuild, matching the standard
+7-step process). `v1.15.6` is still "Latest"/stable on GitHub; rc5 is a prerelease only, same as
+every other RC in this line so far. Left the paragraph below as it was written (a same-day
+snapshot at the time), rather than rewritten, per this doc's own append-don't-rewrite convention.
 
 **Last updated:** 2026-09-20 (same day, second pass), against `v1.5.7-rc4` plus an unreleased
 Phase 11 completion pass on `main` (177 tools per the live registry -- not the 182 raw
