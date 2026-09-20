@@ -26,7 +26,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (1,947 passed, 0 failures, 38 skipped), while the
+> **Project status:** active Community edition. The automated suite is green (1,962 passed, 0 failures, 40 skipped), while the
 > full pre-release checklist still requires verification in an interactive QGIS session.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
@@ -266,7 +266,7 @@ The codebase is organized as:
   - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 171 tools across 30 domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
-- `tests/` — 1,904 automated unit and integration tests, runnable outside QGIS.
+- `tests/` — 1,962 automated unit and integration tests, runnable outside QGIS.
 - `docs/` — User guide, auto-generated tools reference, living implementation tracker, and specs.
 - `branding/` — Logo and visual assets.
 
