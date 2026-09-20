@@ -521,6 +521,29 @@ class TestNewTools(unittest.TestCase):
             "def run():\n    return ().__class__.__bases__[0].__subclasses__()"
         ))
 
+    def test_script_safety_blocks_dict_subscript_subclasses_bypass(self):
+        # Found 2026-09-20 during Part B verification (a deliberate attempt at a novel
+        # bypass beyond the two previously checked): type.__dict__['__subclasses__']
+        # retrieves the same dangerous method the classic .__class__.__bases__[0].
+        # __subclasses__() chain uses, but via a dict subscript on .__dict__ (an
+        # ast.Subscript with a string constant) rather than a literal .__subclasses__
+        # ast.Attribute node -- invisible to the attribute-name check above it. See
+        # _BLOCKED_DUNDER_ATTRS's own comment on __dict__ for the full writeup.
+        self.assertIsNotNone(_validate_script_safety(
+            "def run():\n    return type.__dict__['__subclasses__'](object)"
+        ))
+
+    def test_execute_pyqgis_script_rejects_dict_subscript_subclasses_bypass_end_to_end(self):
+        """Same PoC as above, run through execute_pyqgis_script itself -- confirms the
+        fix protects the real tool entry point, not just the unit-tested validator."""
+        res = execute_pyqgis_script(
+            "def run():\n"
+            "    subclasses_fn = type.__dict__['__subclasses__']\n"
+            "    return [c.__name__ for c in subclasses_fn(object)]\n"
+        )
+        self.assertIn("error", res)
+        self.assertIn("rejected for safety", res["error"])
+
     def test_script_safety_blocks_builtins_module_bypass(self):
         # Confirmed live: `import builtins; builtins.open(...)` bypassed the
         # restricted __builtins__ dict entirely (full arbitrary file read),

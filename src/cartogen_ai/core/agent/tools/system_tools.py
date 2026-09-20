@@ -164,6 +164,29 @@ _BLOCKED_DUNDER_ATTRS = {
     # BUG_TRACKER.md NEW-2026-09-08-1 for the full writeup and live PoC.
     "f_back", "f_globals", "f_locals", "f_builtins", "f_code",
     "gi_frame", "cr_frame", "ag_frame", "tb_frame", "tb_next", "__traceback__",
+    # Added 2026-09-20, found and live-confirmed during Part B verification of the
+    # standing "has a novel AST-sandbox bypass been attempted beyond the two already
+    # checked" open item (docs/IMPLEMENTATION_TRACKER.md / the followup task list's
+    # Part B1): `type.__dict__['__subclasses__']` retrieves the exact same
+    # `__subclasses__` method the classic `().__class__.__bases__[0].__subclasses__()`
+    # escape chain uses, but via a dict __getitem__ subscript on `.__dict__` instead of
+    # a literal `.__subclasses__` attribute access -- the AST walk's `ast.Attribute`
+    # check never sees it, because the dangerous name appears only as a string constant
+    # inside an `ast.Subscript`, not as `node.attr`. `__dict__` itself was never in this
+    # blocklist because ordinary instance/self attribute dicts are harmless; the risk is
+    # specifically that ANY class or module's `__dict__` is a live mapping of every name
+    # in its namespace (including the dangerous ones this list exists to block), fully
+    # reachable via subscript with no attribute node involved at all. Live-verified: a
+    # script doing exactly this passed `_validate_script_safety` (returned None) and,
+    # run through the real restricted-`__builtins__` exec environment, successfully
+    # enumerated all 178 currently-loaded subclasses of `object` -- the same reconnaissance
+    # step the already-blocked classic chain performs, confirming this is a genuine bypass
+    # of the SAME attack family, not a new capability. No legitimate PyQGIS script needs
+    # raw `.__dict__` access (feature attributes go through `feature.attributes()`/
+    # `feature['field']`, never an object's own namespace dict), so blocking it outright
+    # costs no real functionality -- same call already made for `format`/`format_map`
+    # above. See tests/test_new_tools.py for the regression test.
+    "__dict__",
 }
 # Qt classes with file, process, network, or dynamic-library capability --
 # confirmed live that QDirIterator (from `qgis.PyQt.QtCore`, a module that
