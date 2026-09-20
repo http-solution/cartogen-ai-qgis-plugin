@@ -12,6 +12,7 @@ it does NOT eliminate it, that's real evidence the crash is unrelated to teardow
 Both outcomes are useful signal for .github/workflows/tests.yml's own segfault-waiver
 step -- run tests/_ci_qgis_control_process.py alongside this to also test whether a
 plugin-code-free QGIS session hits the same crash independent of anything here."""
+import gc
 import sys
 import unittest
 
@@ -22,6 +23,31 @@ suite.addTests(loader.loadTestsFromName("tests.test_plugin_main_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)
+
+# Diagnostic finding, 2026-09-21: exitQgis() alone (below) does NOT eliminate the
+# post-"OK" crash -- reproduced independently on Windows/QGIS 4.2.2 local AND Linux
+# CI, crashing between runner.run() returning and the exitQgis() call even being
+# reached. Each of the ~40 test methods across these two modules creates a real
+# QDockWidget (test_chat_widget_live.py's _make_dock) with addCleanup(dock.close) --
+# .close() alone does not destroy the underlying C++ object, so ~40 live-but-closed
+# widgets (each owning child QTimers, e.g. chat_tab_widget.py's
+# _plan_spinner_timer) accumulate for the whole run and only get garbage-collected
+# whenever Python's refcounting happens to drop the last reference -- potentially
+# interleaved with the interpreter's own shutdown sequence, which is the likely
+# trigger. Forcing collection AND pumping the Qt event loop HERE, while
+# QApplication is still fully alive, makes any deferred deleteLater() cleanup
+# actually run now instead of landing in that unsafe window.
+try:
+    from qgis.PyQt.QtCore import QCoreApplication, QEventLoop, QTimer
+    gc.collect()
+    if QCoreApplication.instance() is not None:
+        loop = QEventLoop()
+        QTimer.singleShot(300, loop.quit)
+        loop.exec()
+    gc.collect()
+    print("Post-test gc.collect() + Qt event loop pump completed.")
+except Exception as e:
+    print(f"Post-test cleanup pump itself raised: {e!r}")
 
 try:
     from qgis.core import QgsApplication
