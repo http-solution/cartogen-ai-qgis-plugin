@@ -433,6 +433,44 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(ct.input_edit.toPlainText(), ct._starter_prompts[1])
         self.assertEqual(agent.client.calls, 0, "clicking a starter must never itself dispatch a turn")
 
+    def test_escape_clears_the_input_box(self):
+        """Part B §9 UX verification, 2026-09-20: live-probed with a real QTest.keyClick
+        before this fix existed and found Escape did nothing at all -- typed text survived
+        unchanged. Deliberately narrow: only clears whatever's currently typed, doesn't
+        touch an in-flight request or any pending requirement/preview-reply state (see
+        ChatInputEdit.keyPressEvent's own comment for why those are out of scope here)."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        ct.input_edit.setPlainText("some half-typed text")
+        QTest.keyClick(ct.input_edit, Qt.Key.Key_Escape)
+        self.assertEqual(ct.input_edit.toPlainText(), "")
+
+    def test_tab_key_advances_focus_past_the_input_box(self):
+        """Part B §9 UX verification, 2026-09-20: live-probed before this fix and found Tab
+        pressed inside the input box just inserted a literal tab character (QTextEdit's own
+        default) -- a genuine keyboard-navigation dead end, since nothing after the input
+        (send_btn, stop_btn, everything else in the dock) was reachable by Tab at all.
+        setTabChangesFocus(True) is Qt's own built-in switch for this; this test confirms
+        it actually takes effect on the real widget, not just that the property was set."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        dock.activateWindow()
+        dock.raise_()
+        QTest.qWaitForWindowActive(dock)
+        ct = dock.chat_tab_widget
+
+        ct.input_edit.setFocus()
+        QTest.qWait(20)
+        self.assertIs(QgsApplication.focusWidget(), ct.input_edit)
+        QTest.keyClick(ct.input_edit, Qt.Key.Key_Tab)
+        QTest.qWait(20)
+        self.assertIsNot(
+            QgsApplication.focusWidget(), ct.input_edit,
+            "Tab from the input box must move focus onward, not insert a tab character",
+        )
+
     def test_refinement_recommendation_click_fills_input_box_not_send(self):
         """Design proposal, 2026-09-16 (Dateline Dock artifact), real live report: "the
         recommendation text as button style like the welcome message" -- the refinement
