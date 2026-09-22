@@ -1,26 +1,31 @@
 # Cartogen AI — Release Smoke Test Checklist
 
-**Purpose.** Every review round in this project's history (`docs/archive/STATUS_REVIEW_2026-08-20.md` §8.1,
-and the round before it, and the round before that) has flagged the same top item: nothing in this
-sandbox can run a real QGIS session, so every tool in the registry is "correct per the code and test
-suite," never "confirmed working live." Repeating that as a recommendation every round doesn't close
-the gap — it just restates it. This document exists to turn it into something a human can actually
-*do*: a ~15-minute checklist, one representative tool call per category, run inside a real QGIS
-install before each release. Not exhaustive (169 tools, this checks ~16 of them), but it catches the
-class of bug no amount of sandboxed code review can: a real PyQGIS API call that doesn't behave the
-way the code assumed.
+**Purpose.** Headless QGIS tests do not establish that the installed candidate works through the
+interactive chat UI. This checklist covers 16 representative tool categories in a real QGIS
+session, with artifacts and visible state checked after each call. It is not exhaustive. Use the
+detailed scenario guide below for the full procedure and realistic time estimate.
 
 **When to run this.** Before tagging a release (`python plugin_upload.py`), and after any change that
 touches `agent/tools/`, `ui/dock_widget.py`, or a provider client's request/response shape.
 
-**Setup (once).** Open QGIS with this plugin installed and enabled. Create or open a project with:
-- One point vector layer with at least 3 features and one numeric attribute column (e.g. a
-  population or severity field).
-- One polygon vector layer (e.g. admin boundaries) overlapping the point layer's extent.
-- One single-band raster layer (e.g. a DEM or NDVI GeoTIFF) — any raster with real pixel value
-  variation, not a flat/uniform test file.
+**Setup (once).** Install and enable the candidate ZIP in a fresh QGIS profile. Copy the complete
+`docs/release_smoke_assets/` bundle to a writable test folder and open the copied
+`inputs/smoke_start.qgz`. It contains five `smoke_points`, three `smoke_hubs`, three
+`smoke_zones`, three `smoke_admin` polygons, a `smoke_boundary`, a nonuniform `smoke_dem`,
+and a synthetic RGB `smoke_image`, all in metric `EPSG:32636`. PDF and Word table fixtures
+are in the same `inputs/` folder. Put generated artifacts in `outputs/` and evidence in
+`screenshots/` and `logs/`. Configure one working provider in Settings. The detailed
+scenario document below gives the exact prompts and checks; its timing and pass criteria
+supersede this compact index.
 
-Configure at least one provider in Settings (Ollama is the cheapest option for this — no API cost).
+## Part 2 — Detailed interactive scenarios
+
+Use [`RELEASE_LIVE_TEST_SCENARIOS.md`](RELEASE_LIVE_TEST_SCENARIOS.md) for the complete operator
+procedure. It expands the 16 categories below into three end-user scenarios with candidate-ZIP
+installation, reusable fixtures, exact prompts, positive and negative/security checks, evidence
+requirements, a results table, defect template, and the final clean-profile/upgrade gate. The
+compact table below remains a quick index; the detailed scenario document is authoritative when
+performing and signing off a release test.
 
 ---
 
