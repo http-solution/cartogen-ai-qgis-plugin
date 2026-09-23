@@ -683,8 +683,48 @@ def _format_map_context(map_context: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_project_inspector(inspector_context: dict) -> str:
+    """§1.5 option (b) -- formats project_inspector.py's snapshot (Layouts/Themes/Metadata,
+    the gap map_context.py's own Layers/CRS/Fields summary above doesn't cover) into a
+    markdown block, matching the same style. Feature-flagged separately from map_context --
+    see project_inspector.py's module docstring for why."""
+    if not inspector_context:
+        return ""
+
+    lines = ["## \U0001F4CB PROJECT INSPECTOR"]
+
+    layouts = inspector_context.get("layouts") or []
+    if layouts:
+        lines.append(f"- **Print layouts:** {', '.join(layouts)}" + (
+            " (truncated)" if inspector_context.get("layouts_truncated") else ""
+        ))
+
+    themes = inspector_context.get("themes") or []
+    if themes:
+        lines.append(f"- **Saved map themes:** {', '.join(themes)}" + (
+            " (truncated)" if inspector_context.get("themes_truncated") else ""
+        ))
+
+    md = inspector_context.get("metadata") or {}
+    if md.get("title"):
+        lines.append(f"- **Project metadata title:** {md['title']}")
+    if md.get("abstract"):
+        lines.append(f"- **Project metadata abstract:** {md['abstract']}")
+    if md.get("author"):
+        lines.append(f"- **Project metadata author:** {md['author']}")
+    if md.get("keywords"):
+        kw_parts = [f"{vocab}: {', '.join(terms)}" for vocab, terms in md["keywords"].items()]
+        lines.append(f"- **Project metadata keywords:** {'; '.join(kw_parts)}")
+
+    if len(lines) == 1:
+        return ""  # Header only, nothing to say -- shouldn't happen (inspect_project()
+        # already returns {} in this case), but never send an empty section either way.
+    return "\n".join(lines)
+
+
 def build_system_prompt(task_manager=None, memory_manager=None, map_context=None,
-                         user_profile_ctx=None, active_tool_names=None) -> str:
+                         user_profile_ctx=None, active_tool_names=None,
+                         project_inspector_ctx=None) -> str:
     """Dynamically constructs system prompt with live Task Plan, Spatial Memory,
     and Map Context.
 
@@ -704,12 +744,23 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
     of the 47 base-prompt rules actually need to be sent this call -- a rule governing a tool
     the model can't even call this turn is moot regardless of its domain. None (the default, not
     supplied) includes every rule unconditionally, exactly matching this function's behavior
-    before this parameter existed -- the safe default for any caller that doesn't pass it."""
+    before this parameter existed -- the safe default for any caller that doesn't pass it.
+
+    project_inspector_ctx, added 2026-09-24 (§1.5 option (b)): the pre-built dict from
+    services/project_inspector.py's inspect_project() (layouts/themes/metadata), or None. Same
+    "pass in a pre-built context, don't compute it here" shape as user_profile_ctx above, and
+    same reasoning -- this function has no QGIS-object state of its own to read. Feature-flagged
+    at the caller (agent_orchestrator.py's run()), not here -- None simply means "not sent this
+    turn," identical to every other optional context parameter's off state."""
     prompt_parts = [_assemble_base_prompt(active_tool_names, rule_overrides={5: _rule_5_text(map_context)})]
 
     map_ctx_text = _format_map_context(map_context)
     if map_ctx_text:
         prompt_parts.append("\n" + map_ctx_text)
+
+    inspector_text = _format_project_inspector(project_inspector_ctx)
+    if inspector_text:
+        prompt_parts.append("\n" + inspector_text)
 
     if user_profile_ctx:
         prompt_parts.append("\n" + user_profile_ctx)

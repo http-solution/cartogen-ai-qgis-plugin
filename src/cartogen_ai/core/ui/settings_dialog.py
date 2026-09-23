@@ -32,6 +32,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_OPENAI_MODEL,
     SETTINGS_CLAUDE_MODEL,
     SETTINGS_CARTOGEN_MODEL,
+    SETTINGS_PROJECT_INSPECTOR_ENABLED as PROJECT_INSPECTOR_ENABLED_KEY,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED as PLAN_VALIDATION_GATE_ENABLED_KEY,
     provider_model_list_key,
 )
@@ -489,6 +490,25 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.prompt_preview_checkbox)
 
+        # IMPLEMENTATION_TRACKER.md §1.5, option (b), narrow experiment -- opt-in, default OFF.
+        # Same "don't silently change every user's cost/friction profile" reasoning as the
+        # refinement checkbox above: this adds project layout/theme/metadata info to every
+        # system prompt when on -- see project_inspector.py's module docstring.
+        self.project_inspector_checkbox = QCheckBox(
+            "Include print layouts, map themes, and project metadata in context"
+        )
+        self.project_inspector_checkbox.setChecked(
+            bool(self.settings.value(PROJECT_INSPECTOR_ENABLED_KEY, False, type=bool))
+        )
+        self.project_inspector_checkbox.setToolTip(
+            "When on, the assistant sees this project's saved print layouts, map themes, and "
+            "title/abstract/author/keywords metadata on every turn, without needing a separate "
+            "tool call to look them up. Off by default -- this is a narrow, experimental "
+            "addition (IMPLEMENTATION_TRACKER.md §1.5) that adds a small amount of extra prompt "
+            "content on every turn, whether or not the current request needs it."
+        )
+        layout.addWidget(self.project_inspector_checkbox)
+
         # IMPLEMENTATION_TRACKER.md §1.6, option (b), narrow experiment -- opt-in, default OFF.
         # Same "don't silently change every user's cost/friction profile" reasoning as the
         # refinement checkbox above: this adds one extra required tool call (create_plan)
@@ -799,6 +819,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
+        self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())
         self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
