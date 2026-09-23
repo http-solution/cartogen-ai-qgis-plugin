@@ -177,5 +177,31 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
             self.assertFalse(logger._diagnostic_logging_enabled())
 
 
+class TestSwallowedExceptionsAreLogged(unittest.TestCase):
+    """Fifth-review follow-up, 2026-09-23: best-effort fallbacks that used to
+    `except Exception: pass` now leave a content-free log_event trace (error class
+    only) while still returning their fallback value -- the QgsLabelObstacleSettings
+    NameError this cycle hid behind exactly this kind of silent swallow."""
+
+    def test_distance_fallback_still_returns_value_and_logs_class_only(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _measure_distance
+        da = MagicMock()
+        da.measureLine.side_effect = RuntimeError("secret-looking detail")
+        a, b = MagicMock(), MagicMock()
+        a.distance.return_value = 7.0
+        buf = io.StringIO()
+        old = sys.stderr.write
+        sys.stderr.write = buf.write
+        try:
+            result = _measure_distance(da, a, b)
+        finally:
+            sys.stderr.write = old
+        self.assertEqual(result, 7.0)
+        out = buf.getvalue()
+        self.assertIn("swallowed_exception", out)
+        self.assertIn("error_class=RuntimeError", out)
+        self.assertNotIn("secret-looking detail", out)
+
+
 if __name__ == "__main__":
     unittest.main()

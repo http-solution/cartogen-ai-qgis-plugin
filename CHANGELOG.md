@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc4](#v1-16-0-rc4) | 2026-09-23 | **Release candidate 4 for 1.16.0.** Codebase security review with live adversarial testing: 2 real `execute_pyqgis_script` sandbox bypasses found and fixed (`qgis.utils`/`processing` re-exporting `os`/`sys` as plain attributes reachable no matter what's blocked at import time; this plugin's own package never being blocked, letting a script read the live in-memory session credential store directly). Process isolation recorded as the intended real fix, not further denylist patching (`docs/IMPLEMENTATION_TRACKER.md` §1.11). 10 best-effort `except Exception: pass` sites now leave a content-free trace instead of failing silently. `CLAUDE.md` refreshed to match the post-Phase-11 layout and live-QGIS CI job |
 | [1.16.0-rc3](#v1-16-0-rc3) | 2026-09-21 | **Release candidate 3 for 1.16.0.** Closes both stable-release gates rc2 left open: Ruff lint fixed for real (125 violations → 0, not accepted as debt, incl. a real `QgsLabelObstacleSettings` import bug found and live-fixed), and the CI post-test segmentation fault root-caused and fixed rather than waived (~40 accumulated live `QDockWidget`s crashing at interpreter shutdown; fixed with explicit `gc.collect()` + Qt event-loop pump before `exitQgis()`), through five rounds of independent review. Both `qgis-live-tests` images now pinned by immutable digest. Only remaining gate before stable: the exact-ZIP clean-profile install/upgrade test, which needs a real interactive QGIS GUI session |
 | [1.16.0-rc2](#v1-16-0-rc2) | 2026-09-20 | **Release candidate 2 for 1.16.0.** Security/privacy remediation from a 15-section production-standard audit, refined through two rounds of independent review: QAction lifecycle leak fixed and live-confirmed; plaintext credential persistence removed entirely (session-only in memory, no opt-out); logging moved to structured metadata-only by default (no raw prompt/response/tool content logged); CI matrix expanded to Windows + real QGIS 4.2.2/3.28 LTR docker jobs and actually validated green (3 real environment bugs found and fixed in the process) |
 | [1.16.0-rc1](#v1-16-0-rc1) | 2026-09-20 | **Release candidate 1 for 1.16.0.** Renumbers forward from stable `1.15.6`, replacing the `1.5.7-rc1..rc5` line after an independent review confirmed via QGIS's own version-comparison function that `1.5.7-rc5` compares as *older* than `1.15.6`. Same content as rc5 (Phase 11 restructuring, AST-sandbox fix, keyboard-nav fixes) plus a stale CI packaging assertion and stale doc test-counts fixed |
@@ -45,6 +46,65 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc4"></a>
+## [1.16.0-rc4] — 2026-09-23 — Release candidate 4 for 1.16.0: codebase security review with live adversarial testing
+
+A general codebase review flagged `execute_pyqgis_script`'s AST-based sandbox and
+`execute_read_only_sql`'s keyword-blocklist guard as the highest-risk paths — both handle
+model-influenced input inside the QGIS process. This candidate acts on that review with live
+adversarial testing against a real QGIS 4.2.2 session, not just static reading.
+
+**Sandbox: 2 real bypasses found and fixed.** Both confirmed live before the fix, then
+independently re-verified live after it.
+
+1. `qgis.utils` and `processing` — both required, never-blocked modules — import `os`/`sys` at
+   module scope, leaving them reachable as plain attributes no matter what the script's own
+   `import` statements do: `import qgis.utils; qgis.utils.os.getcwd()` ran with no blocked import
+   anywhere in the script. `qgis.utils.sys.modules` then handed back every already-loaded module
+   object by name — `subprocess`, `socket`, and `ctypes` were each confirmed reachable this way, a
+   full process/network escape via an allowed module's own `sys` import.
+2. This plugin's own package was never blocked, so a script could
+   `from cartogen_ai.infrastructure.auth import CredentialManager` and read the live in-memory
+   session credential store directly (the credential-storage policy from rc2 protects against disk
+   persistence, not against a malicious script reading memory at runtime).
+
+Fixed by blocking the `os`/`sys`/`modules` *attribute names* — closing the pattern for any allowed
+module that might expose them, not just the two found — and adding `cartogen_ai` to the blocked-
+import list, since no legitimate PyQGIS script needs this plugin's own internals (QGIS objects are
+always passed in via `local_env`). 6 new regression tests, validator-level and end-to-end through
+`execute_pyqgis_script` itself, matching this file's existing bypass-fix pattern.
+
+**Process isolation recorded as the intended real fix, not more denylist patching.** By explicit
+decision, this is the same shape of gap every prior `system_tools.py` bypass-fix has been — the
+attack surface ("any capability-bearing object reachable through an allowed name") is structurally
+unbounded, not a finite list to exhaust. `docs/IMPLEMENTATION_TRACKER.md` §1.11 records this as the
+architecture decision needed, along with 3 findings from the same adversarial pass deliberately
+left open rather than patched piecemeal: unrestricted `QgsProject.write()` to any path from inside
+a script with no confirmation gate, enumerable `QgsApplication.authManager().configIds()` with no
+gate, and an unverified question of whether a script can invoke a confirmation-gated tool directly
+with a forged `confirmed=True`. `execute_read_only_sql`'s keyword-blocklist guard was reviewed
+alongside the sandbox but not live-tested against a real PostGIS connection this pass (none
+available) — its string-literal false-positive risk and reliance on DB-level read-only enforcement
+are noted in §1.11 as open questions, not confirmed bypasses.
+
+**Observability: 10 best-effort `except Exception: pass` sites now leave a trace.** The same
+silent-failure class that let the `QgsLabelObstacleSettings` `NameError` (rc3) hide behind a
+generic error message existed at 10 other sites whose fallback behavior matters to the user —
+logistics distance/CRS-warning fallbacks, HDX P-code field detection, layer geometry-kind lookup,
+the memory DB path lookup, and both snapshot-restore failure paths (a failed rollback can leave a
+layer stuck in edit mode). Each now emits a content-free `log_event` (site label and error class
+only) while keeping its existing fallback behavior unchanged. Genuinely benign guards — logger
+internals, UI callbacks, provider error-body parsing, cache eviction hooks — were left as-is.
+
+**Documentation: `CLAUDE.md` refreshed.** It still described the pre-Phase-11 layout
+(`agent/agent.py`, `agent/providers/`), said CI has no QGIS at all, and omitted the Ruff/packaging
+checks — all three were false and would have misled the next session working in this repo. Updated
+to the real `core/` + `infrastructure/` + `processing/` layout, the live-QGIS `qgis-live-tests` CI
+job, and the logging/credential rules from rc2/rc3.
+
+**Verification & Testing**: 1,987 automated tests passing (0 failures, 44 skipped), up from 1,981
+in rc3. Zero Ruff violations. Both `qgis-live-tests` CI legs confirmed green.
 
 <a id="v1-16-0-rc3"></a>
 ## [1.16.0-rc3] — 2026-09-21 — Release candidate 3 for 1.16.0: Ruff and CI-stability gates closed for real

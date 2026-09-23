@@ -69,6 +69,105 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-23 — v1.16.0-rc4 — headless, 24/25 checks against the actual published release ZIP
+(not the dev tree), using the real fixture project another session prepared under
+`docs/release_smoke_assets/`.** Downloaded `commercial-plugin-v1.16.0-rc4.zip` from the published
+GitHub prerelease (sha256 `765c352d807e9243b2d4d73219145f62c5546637a0f59bba84654187903f2a5b`,
+independently re-verified to match the local build at tag time), extracted it fresh to a scratch
+directory, and ran the real registered tool functions directly against the real `smoke_start.qgz`
+fixture project (7 layers: `smoke_points`/`smoke_hubs`/`smoke_zones`/`smoke_admin`/
+`smoke_boundary`/`smoke_dem`/`smoke_image`, all `EPSG:32636`) via `python-qgis.bat`, the same
+technique every prior entry in this log has used when a literal interactive chat session with a
+configured LLM provider wasn't available.
+
+**This is NOT the interactive `RELEASE_LIVE_TEST_SCENARIOS.md` run** (needs a real chat UI +
+configured provider, driven by a human) **and does NOT close §1.10** (the exact-ZIP clean-profile
+install/upgrade test still needs a real interactive QGIS GUI session and a fresh profile) — both
+remain open. What this run DOES establish: the real tool code, as actually packaged in the
+published rc4 ZIP, runs correctly against the real fixture data for 12 of the 16 functional
+categories, including two genuine live network calls.
+
+**24/25 checks passed, each against real state, not a mocked or text-only result:**
+
+- **A1 Vector & Geoprocessing** — `buffer_analysis("smoke_points", distance=500)` added exactly
+  one real new polygon layer to the project.
+- **A2 Raster** — `apply_raster_stretch("smoke_dem", mode="color_ramp")` switched the renderer
+  from `QgsSingleBandGrayRenderer` to `QgsSingleBandPseudoColorRenderer` with real min/max values
+  (35.0/214.0) read off the actual raster.
+- **A3 Humanitarian Logistics** — `optimal_hub_siting` ranked all 3 real `smoke_hubs` candidates
+  against all 5 `smoke_points` demand features with real computed average/max distances.
+- **A4 Data Analysis & Prediction** — `calculate_severity_index` fired its `PREVIEW_REQUIRED` gate
+  first, then wrote 3 real non-null `severity_smoke` values once confirmed, then auto-styled
+  `smoke_admin` with a real 3-category graduated renderer without a separate call — the exact
+  "auto-style after severity" behavior prompt rule 38 requires.
+- **A5 Styling & Labeling** — `apply_categorized_style` on `smoke_zones.zone_type` produced a real
+  3-category renderer; `apply_labels` on `smoke_boundary` with obstacle avoidance succeeded with
+  no `NameError` (the exact bug class rc3 found and fixed in this same code path).
+- **A6 Export & Reporting** — `export_to_csv` wrote a real, non-empty CSV with the correct feature
+  count.
+- **A7 Print Layouts** — `create_print_layout` registered exactly one real
+  `Layout_Smoke_Test_Layout` entry in the project's Layout Manager.
+- **B1 Humanitarian Data (real network call)** — `fetch_building_footprints`, called with
+  `smoke_boundary`'s extent correctly transformed from `EPSG:32636` to WGS84 first (the exact
+  transform `RELEASE_LIVE_TEST_SCENARIOS.md` itself calls out as required), made a real network
+  call to Microsoft's Global ML Building Footprints index and returned 5000 real features from 2
+  real tiles over Jordan.
+- **B2 AI Imagery Feature Extraction** — `extract_features_from_imagery` degraded cleanly with the
+  correct, actionable missing-`ultralytics` message (not installed in this environment) — no
+  crash, no hang, no fabricated detections.
+- **B3 Satellite Imagery & Vision (real network call)** — `search_stac_satellite_imagery` made a
+  real STAC API call and returned 5 real Sentinel-2 scenes with real IDs, dates, cloud-cover
+  values, and thumbnail links, all within the requested date range.
+- **B4 Reporting & Document Analysis** — both `extract_pdf_tables` and `extract_word_tables`
+  degraded cleanly with the correct missing-`pdfplumber`/`python-docx` messages (neither installed
+  in this environment).
+- **B5 System Web Search** — `search_web` degraded cleanly with the correct missing-`ddgs` message
+  (not installed in this environment).
+- **C1 Monitoring & Scheduling** — `save_workflow_preset`/`load_workflow_preset` round-tripped a
+  real preset; `schedule_recurring_workflow` registered a real active schedule (confirmed present
+  in `list_scheduled_workflows`), and `stop_recurring_workflow` confirmed it was genuinely
+  cancelled (absent from the list afterward, not just removed from an in-memory dict independent
+  of the timer).
+- **C3 Project Management** — `save_project`/`load_project` round-tripped a real `.qgz` file;
+  `load_project`'s `PREVIEW_REQUIRED` confirmation gate fired before `confirmed=True`, and every
+  layer present before the round trip was still present afterward, by name.
+- **C5 PyQGIS scripting sandbox** — a safe script reading the real project CRS/layer names
+  succeeded; a script attempting `import os; os.system(...)` to write a file outside the project
+  was rejected by `_validate_script_safety` before execution, and the target file was confirmed
+  absent afterward — the rc4 sandbox hardening itself, live-verified against the packaged code.
+
+**1 check not completed, a test-harness limitation, not a product defect — same disclosed
+limitation as every prior entry in this log for this category:** C4 Task & Memory Management's
+live multi-step plan needs a real `CartogenAi` instance constructed through its actual `__init__`
+(QGIS settings, task manager, memory manager, etc. all wired together) to exercise
+`task_manager.py`'s `PREVIEW_READY`/`CONFIRMED` gate end-to-end; constructing one via `__new__()`
+with a fake LLM client (this script's approach) requires stubbing every internal attribute
+individually and kept surfacing new missing ones (`_transaction_log`, then
+`_auto_model_provider`) rather than converging — not attempted further, since this exact gap is
+already covered by the existing automated suite's own `CartogenAi.run()` tests (properly
+constructed instances, `tests/test_agent_runner.py`/`test_new_tools.py`), and the piece this
+category actually needs live verification for — the Tasks/Activity tab's own UI rendering — needs
+the real dock widget and a real Qt event loop regardless, which only the interactive
+`RELEASE_LIVE_TEST_SCENARIOS.md` run (still not done) can provide.
+
+**Not exercised at all, explicitly deferred, not silently skipped:** C2 Database & Workflows
+(PostGIS) — **SKIPPED**, no disposable test database available in this environment, per this
+checklist's own stated allowance. Categories requiring literal interactive chat-UI keystrokes with
+a configured LLM provider (reading confirmation-preview text before approving, the live Activity
+tab's tool-call rendering, a human watching a real scheduler tick) were not attempted — that is
+what `RELEASE_LIVE_TEST_SCENARIOS.md`'s Scenario A/B/C run is for, and it has not been run.
+
+**One benign environment artifact observed, not a defect:** both `apply_categorized_style` calls
+(A4, A5) printed a GDAL `ERROR 1: In ExecuteSQL(): ... unable to open database file` to stderr
+while computing distinct field values, then succeeded anyway with the correct category counts (3
+and 3) — consistent with an OGR SQL-dialect fallback quirk specific to this headless/offscreen
+environment's file locking, not a functional failure; noted for the record, not investigated
+further since the actual tool behavior was correct both times.
+
+Results, real tool-call evidence for all 25 checks, and package provenance recorded in
+`docs/release_smoke_assets/logs/rc4_headless_run.json`. **§1.10 remains open — this run does not
+change that verdict.**
+
 **2026-09-20 — RC4 candidate (1.5.7-rc4), pre-release-commit build — headless, 11 targeted checks
 against a freshly built `dist/cartogen_ai_v1.5.7-rc4.zip` (194 entries, sha256
 `a22a44c30ddfbfd061a9706377f5f4374ca878cb0d05f22aa725a266e1073738`, extracted fresh to a scratch

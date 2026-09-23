@@ -33,6 +33,7 @@ from .registry import register_tool
 from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...logger import log_event
 
 try:
     from qgis.core import (
@@ -125,8 +126,9 @@ def _measure_distance(distance_area, geom_a, geom_b):
     if distance_area is not None:
         try:
             return distance_area.measureLine(geom_a.asPoint(), geom_b.asPoint())
-        except Exception:
-            pass
+        except Exception as e:
+            log_event("swallowed_exception", tag="Tools", tool="logistics_ellipsoidal_distance",
+                      error_class=type(e).__name__, error=True)
     return geom_a.distance(geom_b)
 
 
@@ -303,8 +305,9 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
                         "above is in DEGREES, not meters -- reproject to a projected/UTM CRS first for "
                         "meaningful distances."
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log_event("swallowed_exception", tag="Tools", tool="logistics_crs_warning",
+                      error_class=type(e).__name__, error=True)
         return result
     except Exception as e:
         return {"error": f"optimal_hub_siting failed: {e}"}
@@ -445,8 +448,9 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
                         "is in DEGREES, not meters -- reproject to a projected/UTM CRS first for "
                         "meaningful distances."
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log_event("swallowed_exception", tag="Tools", tool="logistics_crs_warning",
+                      error_class=type(e).__name__, error=True)
         return result
     except Exception as e:
         return {"error": f"location_allocation failed: {e}"}
@@ -626,8 +630,9 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                             "total_distance is in DEGREES, not any real distance unit -- reproject "
                             "to a projected/UTM CRS first for a meaningful figure."
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                log_event("swallowed_exception", tag="Tools", tool="logistics_route_crs_warning",
+                          error_class=type(e).__name__, error=True)
             result["warning"] = warning
             return result
 

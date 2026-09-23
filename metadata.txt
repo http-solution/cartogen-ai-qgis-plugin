@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc3
+version=1.16.0-rc4
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,14 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc3 (2026-09-21):
+changelog=v1.16.0-rc4 (2026-09-23):
+    Release candidate 4 for 1.16.0. Codebase security review with live adversarial testing against a real QGIS 4.2.2 session, plus observability follow-ups from the rc3 review cycle:
+    - execute_pyqgis_script sandbox: 2 real bypasses found via live adversarial testing and fixed. (1) qgis.utils and processing -- both required, never-blocked modules -- import os/sys at module scope, leaving them reachable as plain attributes (qgis.utils.os.getcwd(), and qgis.utils.sys.modules['subprocess'] handing back the live subprocess/socket/ctypes module objects) with no blocked import statement anywhere in the script. (2) This plugin's own package was never blocked, so a script could read the live in-memory session credential store directly via cartogen_ai.infrastructure.auth. Fixed by blocking the os/sys/modules attribute names (closes the pattern for any allowed module, not just the two found) and adding cartogen_ai to the blocked-module list. Both re-verified live after the fix; 6 new regression tests. Per this file's own established convention, this closes what was found this pass, not a completeness claim -- process isolation, not further denylist patching, is recorded as the intended real fix (docs/IMPLEMENTATION_TRACKER.md §1.11), along with 3 findings from the same pass deliberately left open there (unrestricted QgsProject.write() from inside a script, enumerable authManager() config IDs, and an unverified confirmation-gate-bypass question).
+    - Best-effort exception handling: 10 tool-layer `except Exception: pass` sites whose silent failure could hide user-visible degradation (the same failure class as an NameError this cycle already found and fixed) now emit a content-free log_event trace (error class only) while keeping their existing fallback behavior. Genuinely benign guards (logger internals, UI callbacks, cache eviction hooks) were left as-is.
+    - CLAUDE.md refreshed: it still described the pre-Phase-11 layout (agent/agent.py, agent/providers), said CI has no QGIS, and omitted the Ruff/packaging checks -- updated to the real core/ + infrastructure/ + processing/ layout and the live-QGIS CI job.
+    Full automated suite: 1,987 tests passing, 44 skipped. Zero Ruff violations.
+
+v1.16.0-rc3 (2026-09-21):
     Release candidate 3 for 1.16.0. Completes both remaining stable-release gates left open by rc2's own changelog entry -- Ruff lint, and CI matrix validation -- and root-causes a real intermittent CI crash that a first pass had only waived, through five rounds of independent review:
     - Ruff: 125 violations fixed to 0 (not accepted as documented debt). Every finding individually verified against live usage before removal, not blindly trusted from --fix -- one real false positive from --fix itself was caught and reverted (it removed `requests` imports that 5 provider-client test files depend on for mock patching). A real bug was found and fixed along the way: vector_tools.py's apply_labels() referenced QgsLabelObstacleSettings for polygon obstacle-avoidance labeling without ever importing it, a NameError on every real call to that path, silently swallowed by the tool's own broad exception handling. Live-confirmed the fix against real QGIS 4.2.2.
     - CI segmentation fault: root-caused and fixed, not waived. ~40 test methods across the live-QGIS test suite each create a real QDockWidget via addCleanup(dock.close) -- .close() alone never destroys the underlying C++ object, so live-but-closed widgets (each owning child QTimers) accumulated for the whole run and got garbage-collected unpredictably, sometimes during the interpreter's own shutdown sequence, crashing the process immediately after all tests had already reported OK. Reproduced independently on Windows/QGIS 4.2.2 local AND Linux CI, ruling out the environment-specific theories (a QGIS-4.2.2-only Qt quirk, then a numpy/matplotlib ABI mismatch) an earlier pass had assumed. Fixed with an explicit gc.collect() + Qt event-loop pump before QgsApplication.exitQgis(), so deferred widget destruction runs while QApplication is still alive. Verified 4/4 clean runs locally after the fix versus a reliable crash before it; confirmed in CI with zero Segmentation faults and the fallback waiver never triggering.

@@ -427,6 +427,73 @@ audit's overall "GO for QGIS 4.2.2 functional RC, NO-GO for stable production re
 should be taken as accurate — the automated/live-headless fixes in §4 close the *code-level* P1s,
 not this release-process one.
 
+### 1.11 `execute_pyqgis_script`'s AST-blocklist sandbox — needs a process-isolation architecture decision
+
+**Added 2026-09-23, from a deeper adversarial pass on the sandbox + `execute_read_only_sql`.**
+Confirmed live against the real `_validate_script_safety` + restricted-`exec()` path on QGIS
+4.2.2: 2 real bypasses found and closed the same day (commit `4268c95`) — `qgis.utils`/`processing`
+each import `os`/`sys` at module scope, reachable as plain attributes with no blocked import
+statement (`qgis.utils.os.getcwd()`, and `qgis.utils.sys.modules['subprocess']` handing back the
+live `subprocess`/`socket`/`ctypes` module objects); and this plugin's own package was never
+blocked, so a script could `from cartogen_ai.infrastructure.auth import CredentialManager` and read
+the live in-memory session credential store directly. Both fixed and re-verified live after the fix
+(`os`/`sys`/`modules` added to `_BLOCKED_DUNDER_ATTRS`, `cartogen_ai` added to `_BLOCKED_MODULES`).
+
+**This is the same shape of gap every prior bypass-fix in `system_tools.py` has been** (see that
+file's own changelog comments: the `QFile`/`QProcess` Qt-class sweep, the `type.__dict__` dict-
+subscript bypass, the frame-walking `__builtins__` escape) — a blocklist can't be proven complete
+because the attack surface is "any capability-bearing object reachable through an allowed name,"
+which is structurally unbounded, not a finite list to exhaust. Each fix closes the specific
+instance found that session, not the pattern. **By explicit instruction (2026-09-23): treat
+process isolation (running the script in a genuinely separate process with no access to this
+plugin's credential objects or an unrestricted filesystem) as the real fix for this tool, not
+another round of denylist patching** — the narrow patch above was applied because it was cheap and
+closed real, live-confirmed holes, not because denylist-sweeping is the intended long-term design.
+No isolation work has been scoped or started; this entry is the decision record, not a plan.
+
+**Also found the same pass, NOT fixed, explicitly deferred here rather than patched piecemeal:**
+- **`QgsProject.instance().write(<any path>)` runs from inside a script with no path restriction
+  and no confirmation gate** — live-confirmed it wrote a real file outside the project directory.
+  Every other destructive/file-producing tool in the registry goes through `SECURITY.md` §5's
+  confirmation-gate mechanism; a script can reach this QGIS API directly and skip it entirely,
+  which is really a scoping/allowlist question for what `execute_pyqgis_script` should be able to
+  touch on the project object, not a blocklist gap in the AST sense.
+- **`QgsApplication.authManager().configIds()` is enumerable from inside a script with no gate at
+  all** — live-confirmed it returned real config IDs from the machine's auth database. Doesn't
+  return the actual secret values (that still requires `loadAuthenticationConfig` + the right ID),
+  but config-ID enumeration is real reconnaissance a hostile script shouldn't get for free.
+- **Not verified either way:** whether a script can call a *different*, already-imported tool
+  function directly (bypassing that tool's own confirmation-gate check) rather than going through
+  the model's normal tool-call dispatch — `TOOL_REGISTRY` names are enumerable from inside a
+  script (confirmed), but actually invoking a gated tool with a forged `confirmed=True` from
+  inside `execute_pyqgis_script` was not attempted. Needs a live check before it can be called
+  closed OR open.
+
+**`execute_read_only_sql`'s keyword-blocklist guard** (`db_and_workflow_tools.py`) was reviewed
+alongside the sandbox but not live-tested against a real PostGIS connection this pass (none
+available in this sandbox) — noted as a real design concern, not a confirmed live bypass:
+- It scans the query as a flat string, including inside string literals, so a legitimate query
+  containing e.g. `WHERE status = 'Delete'` would be rejected by the `DELETE` keyword check —
+  a false-positive/usability bug, not a security one.
+- Splitting on `;` to reject multi-statement queries also rejects a semicolon that legitimately
+  appears inside a string literal.
+- The list doesn't cover every server-side function that could stall or read broadly (e.g.
+  `pg_sleep`, `pg_stat_file` weren't checked). The doc comment on the list itself already
+  acknowledges this is an evolving, live-discovered set (`lo_export`/`dblink`/etc. were each added
+  after being found), not a claim of completeness.
+- Real enforcement is supposed to come from the DB-level read-only transaction/role
+  (`_enforce_db_read_only`, referenced in the file's own comments) — that path was not
+  independently re-verified live this pass. If it's genuinely doing the enforcement, the
+  string-level keyword list is defense-in-depth on top of it, not the actual boundary; if it isn't
+  reliably applied, the keyword list IS the boundary and inherits the same completeness problem as
+  every blocklist above.
+
+**Needs:** a product/architecture decision (not an engineering call) on scope and timeline for
+process-isolating `execute_pyqgis_script`, a scoping decision on what `execute_pyqgis_script`
+should be allowed to touch on `QgsProject`/`QgsApplication.authManager()` directly vs. only via
+gated tool calls, and — separately — a live PostGIS connection to actually test
+`execute_read_only_sql`'s DB-level enforcement rather than reasoning about it from the code alone.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
@@ -1118,6 +1185,22 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
   **§1.10 (exact-ZIP clean-profile install/upgrade test) remains the only open item before a
   stable production-release decision** — cutting this RC does not change that; it was published
   as another prerelease with that gate explicitly still open, by direct instruction.
+
+- **2026-09-23 — cut and published `v1.16.0-rc4`.** Built from `c36e611`, a clean `git archive` of
+  that commit (not the live working tree, which had another session's uncommitted release-smoke
+  prep work sitting in `docs/` — confirmed `docs/` is NOT excluded from the release zip by
+  `plugin_upload.py`, so building from the working directory as-is would have shipped that
+  unrelated in-progress work in this release; the archive approach avoided it without touching or
+  discarding those files). Contains the §1.11 sandbox-hardening fixes (commit `4268c95`), the
+  swallowed-exception logging + `CLAUDE.md` refresh (`78363b8`), and the §1.11 tracker entry itself
+  (`c85c061`) — none of which had shipped in `v1.16.0-rc3`. Standard 7-step process: version bump
+  → smoke test (1987 tests + live-QGIS `exitQgis()` teardown, both clean) → commit → push →
+  rebuild (from the clean archive) → tag → GitHub prerelease, published asset checksum
+  independently verified to match the local build byte-for-byte
+  (`765c352d807e9243b2d4d73219145f62c5546637a0f59bba84654187903f2a5b`).
+  https://github.com/cartogenai-glitch/CARTOGEN-AI/releases/tag/commercial-plugin-v1.16.0-rc4 —
+  `v1.16.0-rc3` (`99eb868`) stays published, unchanged. **§1.10 remains the only open item before a
+  stable production-release decision.**
 
 ## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 

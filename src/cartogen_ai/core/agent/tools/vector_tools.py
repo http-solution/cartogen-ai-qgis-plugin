@@ -27,6 +27,7 @@ except ImportError:
     QFont = None
 
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...logger import log_event
 
 
 def _find_layer_by_name(name):
@@ -214,8 +215,9 @@ def buffer_analysis(layer_name, distance):
                     "very likely not the buffer you intended. Reproject the layer to a "
                     "projected/UTM CRS first, then re-run this with a distance in meters."
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            log_event("swallowed_exception", tag="Tools", tool="buffer_crs_warning",
+                      error_class=type(e).__name__, error=True)
         return result
     except Exception as e:
         return {"error": f"Buffer analysis failed: {e}"}
