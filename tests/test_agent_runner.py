@@ -6,6 +6,7 @@ from cartogen_ai.core.agent.memory import SpatialMemoryManager
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 import cartogen_ai.core.agent.agent_orchestrator as agent_mod
 from cartogen_ai.core.models.transactions import TurnTransactionLog
+from cartogen_ai.core.models.plan_gate import PlanValidationGate
 
 
 class TestAgentRunner(unittest.TestCase):
@@ -44,6 +45,8 @@ class TestToolArgumentShapeValidation(unittest.TestCase):
         agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
         agent.task_manager = MagicMock()
         agent.memory_manager = MagicMock()
+        agent._plan_gate = PlanValidationGate()
+        agent._is_plan_gate_enabled = lambda: False
         return agent
 
     def test_real_execute_tool_rejects_double_encoded_string_arguments(self):
@@ -106,6 +109,9 @@ def _make_bare_agent(client):
     # needs one too, even though these tests patch _execute_tool itself and
     # never exercise the log's actual recording.
     agent._transaction_log = TurnTransactionLog()
+    # Same reason: run() also resets _plan_gate unconditionally (§1.6 option (b),
+    # models/plan_gate.py).
+    agent._plan_gate = PlanValidationGate()
     return agent
 
 
@@ -530,6 +536,8 @@ class TestPreviewRequiredCreatesADedicatedTask(unittest.TestCase):
         agent.task_manager = AgentTaskManager()
         agent.memory_manager = MagicMock()
         agent._last_tool_call = None
+        agent._plan_gate = PlanValidationGate()
+        agent._is_plan_gate_enabled = lambda: False
         return agent
 
     def _fake_destructive_tool(self, **kwargs):
@@ -785,6 +793,75 @@ class TestExceptionsAndLogging(unittest.TestCase):
         log_info("Test informational message", tag="Test")
         log_warning("Test warning message", tag="Test")
         log_error("Test error message", tag="Test")
+
+
+class TestPlanValidationGateWiring(unittest.TestCase):
+    """§1.6 option (b): _real_execute_tool's actual wiring to PlanValidationGate, not just
+    the gate class itself (see test_plan_gate.py for that). Same __new__/patch.dict(TOOL_REGISTRY)
+    pattern as TestPreviewRequiredCreatesADedicatedTask above."""
+
+    def _agent(self, gate_enabled):
+        from cartogen_ai.core.models.plan_gate import PlanValidationGate
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent._plan_gate = PlanValidationGate()
+        agent.task_manager = MagicMock()
+        agent.memory_manager = MagicMock()
+        agent._last_tool_call = None
+        agent._is_plan_gate_enabled = lambda: gate_enabled
+        return agent
+
+    def _fake_export_tool(self, **kwargs):
+        return {"success": True, "output_path": "/tmp/out.csv"}
+
+    def test_disabled_gate_calls_the_publish_tool_normally(self):
+        agent = self._agent(gate_enabled=False)
+        with patch.dict(agent_mod.TOOL_REGISTRY, {"export_to_csv": self._fake_export_tool}):
+            res = agent._real_execute_tool("export_to_csv", "{}")
+        self.assertTrue(res.get("success"))
+
+    def test_enabled_gate_blocks_a_publish_tool_before_any_plan(self):
+        agent = self._agent(gate_enabled=True)
+        with patch.dict(agent_mod.TOOL_REGISTRY, {"export_to_csv": self._fake_export_tool}):
+            res = agent._real_execute_tool("export_to_csv", "{}")
+        self.assertEqual(res["status"], "PLAN_REQUIRED")
+        self.assertEqual(res["tool_name"], "export_to_csv")
+
+    def test_enabled_gate_never_blocks_a_read_tool(self):
+        agent = self._agent(gate_enabled=True)
+        with patch.dict(agent_mod.TOOL_REGISTRY, {"get_layers": lambda: {"success": True, "layers": []}}):
+            res = agent._real_execute_tool("get_layers", "{}")
+        self.assertTrue(res.get("success"))
+
+    def test_calling_create_plan_unblocks_a_later_publish_call_the_same_turn(self):
+        agent = self._agent(gate_enabled=True)
+
+        def fake_create_plan(**kwargs):
+            return {"success": True, "title": kwargs.get("title", ""), "task_count": 0, "plan": {}}
+
+        with patch.dict(agent_mod.TOOL_REGISTRY,
+                         {"create_plan": fake_create_plan, "export_to_csv": self._fake_export_tool}):
+            blocked = agent._real_execute_tool("export_to_csv", "{}")
+            self.assertEqual(blocked["status"], "PLAN_REQUIRED")
+
+            plan_res = agent._real_execute_tool(
+                "create_plan", {"title": "Export roads", "task_descriptions": ["Export to CSV"]},
+            )
+            self.assertTrue(plan_res.get("success"))
+
+            allowed = agent._real_execute_tool("export_to_csv", "{}")
+        self.assertTrue(allowed.get("success"))
+
+    def test_a_failed_create_plan_call_does_not_unblock_the_gate(self):
+        agent = self._agent(gate_enabled=True)
+
+        def failing_create_plan(**kwargs):
+            return {"error": "boom"}
+
+        with patch.dict(agent_mod.TOOL_REGISTRY,
+                         {"create_plan": failing_create_plan, "export_to_csv": self._fake_export_tool}):
+            agent._real_execute_tool("create_plan", {"title": "x", "task_descriptions": []})
+            res = agent._real_execute_tool("export_to_csv", "{}")
+        self.assertEqual(res["status"], "PLAN_REQUIRED")
 
 
 if __name__ == "__main__":

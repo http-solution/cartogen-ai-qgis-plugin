@@ -331,6 +331,44 @@ against the safety benefit for the requests that actually warrant it.
 **Needs:** Baron's decision, ideally made alongside point 18's since they're two angles on the
 same underlying proposal.
 
+**BUILT 2026-09-24, option (b): narrow experiment, real and testable, not left as a scoping-only
+writeup.** Alaa's instruction was explicit: "build it, evaluate later" -- the live-LLM evaluation
+of whether this actually helps is still a genuinely separate, not-yet-done follow-up (this sandbox
+still has no live LLM to run that comparison), but the mechanism itself is real, wired, tested,
+and live-verified, not just designed on paper.
+
+**What it does:** `PlanValidationGate` (`core/models/plan_gate.py`) blocks any tool call
+`tool_operations.py` classifies `DELETE` or `PUBLISH` until `create_plan` has been called at least
+once THIS turn -- reusing the EXISTING freeform `create_plan` tool (`task_tools.py`) as "the plan,"
+deliberately NOT inventing the new typed `task`/`aoi`/`inputs`/`workflow:`/`outputs:` schema point
+27's full proposal (option (c)) describes. That was the specific choice that let this sidestep the
+exact blocker named above ("needs to be something the LLM can reliably and consistently
+populate... this sandbox has no live LLM to validate that") -- nothing new for the model to learn
+to populate correctly, since `create_plan` is already a tool it calls today.
+
+**Wiring:** checked in `agent_orchestrator.py`'s `_real_execute_tool`, BEFORE the tool's own side
+effects run (a blocked call never executes, not "executes then gets flagged retroactively"). Reset
+every turn in `run()`, same turn-scoped lifecycle as `_transaction_log` (point 20's undo log) --
+a plan made last turn never silently satisfies this turn's gate. `TWO_PHASE_TOOLS` (the
+network-fetch-then-add-layer path) checked and confirmed all CREATE-classified, so that separate
+dispatch path needed no changes.
+
+**Feature-flagged OFF by default** (`SETTINGS_PLAN_VALIDATION_GATE_ENABLED`) -- a real, working
+checkbox in Settings ("Require a stated plan before destructive or export/report actions"), not
+just a key nobody can toggle. This is deliberate: per the tracker's own stated tradeoff (a gate
+adds latency/friction to every request that hits it), this should not silently change behavior for
+every installation before there's any evidence it helps.
+
+**Verification:** 12 unit tests for the gate class itself (`test_plan_gate.py`) plus 5 integration
+tests exercising the actual `_real_execute_tool` wiring (`test_agent_runner.py`'s
+`TestPlanValidationGateWiring` -- disabled gate is a no-op, enabled gate blocks a PUBLISH tool
+before any plan and lets it through after, never blocks READ/CREATE tools, a FAILED `create_plan`
+call does NOT unblock the gate). Fixed 6 pre-existing test helpers in `test_agent_runner.py` that
+construct `CartogenAi` via `__new__()` (bypassing `__init__`) to also initialize `_plan_gate`, the
+same way they already initialize `_transaction_log`. Settings-dialog checkbox live-verified against
+real QGIS 4.2.2 (`python-qgis.bat`): defaults unchecked, toggling + `accept()` correctly persists
+via `QgsSettings`. Full suite: 2006 tests, all passing.
+
 ### 1.7 Point 28 -- Standard project folder architecture (data/00_raw, 10_staging, ... immutable raw data)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 28.
