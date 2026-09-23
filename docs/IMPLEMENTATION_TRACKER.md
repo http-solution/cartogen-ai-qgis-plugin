@@ -264,6 +264,35 @@ Protection section: an inherent property of local-file architecture, not a defec
 -- no action. F11/F12 are organizational, not code; F13 is a stated strength. See
 `SECURITY.md`'s "Remediation, 2026-09-11" entry for the short version.
 
+**Update, 2026-09-24 -- fact-checked an external critique of this review, one real new item
+kept, the rest already stale.** Alaa pasted an outside critique of
+`docs/GDPR_COMPLIANCE_REVIEW.docx`. Checked every concrete technical claim in it against the
+live code rather than acting on any of it directly (per this project's standing verify-before-
+acting practice): its F1/F6/F7 "quick-fix" code sketches all turned out to already exist
+(`clear_global_notes()`/`delete_global_note()`, the F6 opt-in persistence gate, and the F7/F8
+`export_stored_data` tool/button, all shipped 2026-09-04/09-11 above), its "vector embeddings
+may be PII" concern doesn't apply (`memory.py` has zero embeddings/vector/semantic search, it's
+plain keyword storage), its "logs may leak raw PII" concern is already prevented by
+`logger.py`'s `log_event()` design (never logs raw prompt/response/tool-argument/tool-result
+text), and its "missing zero-retention/training-tier documentation" claim is actually already
+covered in more depth than the critique itself -- `SECURITY.md`'s transfer-mechanisms table
+(F3) already distinguishes Gemini's free-vs-paid training policy and OpenAI's no-training-by-
+default policy, tied directly to a live UI tooltip for OpenRouter's equivalent toggle.
+
+**One genuinely new, not-yet-existing idea survived the check, and was added:** a preventive
+complement to F1's reactive delete-after-the-fact fix -- nothing stopped the model writing PII
+into global memory in the first place. New rule 49 in `agent/prompts.py` (`_ALL_RULES`),
+added to `CORE_RULE_NUMBERS` (always included, matching rule 3's "memory mechanics" category;
+`store_global_memory` is itself in `_ALWAYS_GUARANTEED_TOOLS` so a domain-triggered version
+would've fallen back to always-on anyway -- CORE just makes that explicit): never write a
+beneficiary's name, exact coordinates, phone number, or other individually-identifying detail
+into `store_global_memory`, since it is machine-wide and persists indefinitely across every
+unrelated project on this installation -- the exact property that made F1 CRITICAL rather than
+MEDIUM in the first place. 7 new unit tests in `tests/test_prompt_modules.py`
+(`TestRule49GlobalMemoryPiiGuardrail`). Full suite: 2030 tests, all passing. The critique's
+"Ollama-first for conflict zones" recommendation is a real product/deployment policy question,
+not a code gap -- left for Alaa/DPO, not decided here.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.

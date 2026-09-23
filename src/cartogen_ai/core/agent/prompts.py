@@ -73,7 +73,7 @@ _PREAMBLE = (
         'AGENTIC TASK & MEMORY RULES:\n'
 )
 
-# rule_num -> exact rule text (1-47, every number present exactly once).
+# rule_num -> exact rule text (1-49, every number present exactly once).
 _ALL_RULES = {
     1: (
         '1. For complex or multi-step requests, FIRST call `create_plan(title, task_descriptions)` to establish a task '
@@ -510,9 +510,29 @@ _ALL_RULES = {
         "official feeds are not publicly accessible via API so an operational dataset was created "
         "on the canvas for planning and analysis. Always deliver a visual layer on the map canvas.\n"
     ),
+    # Added 2026-09-24: a pasted external critique of docs/GDPR_COMPLIANCE_REVIEW.docx flagged
+    # (correctly, and this was genuinely new -- most of the rest of that critique described gaps
+    # already closed 2026-09-04/09-11) that F1's fix (clear_global_notes()/delete_global_note(),
+    # memory.py) is reactive, not preventive -- it lets PII be deleted after the fact, but nothing
+    # stopped the model writing it there in the first place. Global memory is machine-wide and
+    # persists indefinitely across every unrelated project on this installation (the exact property
+    # that made F1 CRITICAL rather than MEDIUM), unlike store_project_memory, which stays scoped to
+    # one project file the beneficiary data plausibly already lives in anyway. CORE rather than
+    # domain-triggered: store_global_memory is in _ALWAYS_GUARANTEED_TOOLS, so a text mention of it
+    # would be excluded from auto-extraction and fall back to always-on regardless -- CORE makes
+    # that explicit rather than relying on the fallback path.
+    49: (
+        "49. NEVER write personally identifiable information (PII) -- a beneficiary's name, exact "
+        "household/individual coordinates, phone number, or other individually-identifying detail "
+        "-- into `store_global_memory`. Global memory is machine-wide and persists indefinitely "
+        "across every unrelated project on this installation, not just the current one. If a "
+        "finding genuinely needs remembering, prefer `store_project_memory` (scoped to this "
+        "project only) or, better, ensure the detail already lives in a layer's attribute table "
+        "instead of being duplicated into a memory note at all.\n"
+    ),
 }
 
-CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44)
+CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49)
 
 # Rules 25, 26, 29, 35, 37, 42, 43, 45, 46, 47.
 SENSITIVE_RULE_NUMBERS = (25, 26, 29, 35, 37, 42, 43, 45, 46, 47)
