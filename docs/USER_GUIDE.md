@@ -112,6 +112,15 @@ send is your organization's own responsibility, not something this plugin can
 determine for you -- see [SECURITY.md](../SECURITY.md)'s "Data protection" section
 before sending real beneficiary data.
 
+**If your deployment has completed a DPIA sign-off** (see
+[SECURITY.md](../SECURITY.md)'s "DPIA determination and deployment constraints"), that
+determination may restrict which provider you're allowed to use for which kind of
+data -- e.g. requiring Ollama for anything touching protection, incident, or
+displacement attributes, and reserving cloud providers for anonymized or aggregated
+data only. Check with your organization's DPO/GIS lead before assuming cloud is
+approved for the specific data you're working with; the plugin itself does not enforce
+this restriction today.
+
 What the match is used for:
 
 **Missing information.** If the task cannot proceed without something — which
