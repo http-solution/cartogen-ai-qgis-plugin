@@ -700,6 +700,42 @@ should be allowed to touch on `QgsProject`/`QgsApplication.authManager()` direct
 gated tool calls, and — separately — a live PostGIS connection to actually test
 `execute_read_only_sql`'s DB-level enforcement rather than reasoning about it from the code alone.
 
+**Update, 2026-09-24 — the 3 smaller deferred findings closed, independent of the process-
+isolation architecture question above (which remains open, unscoped, per Alaa's explicit
+instruction: "knock out the 3 smaller items now" rather than wait on the bigger decision).**
+
+- **`QgsProject.instance().write(<any path>)` — fixed.** Live re-confirmed exploitable first
+  (same probe technique as the original finding: wrote a real 4KB `.qgz` file to an arbitrary
+  temp path, no gate), then closed by adding `"write"` to `system_tools.py`'s attribute
+  blocklist (the same generic `ast.Attribute.attr` check `os`/`sys`/`modules` already use, not
+  a new mechanism) — no legitimate script needs to call `QgsProject.write()` itself;
+  `save_project` (`project_tools.py`) is the gated, registered path for that. Re-verified live
+  after the fix: the same probe script now gets rejected at validation time, before any file
+  is written (confirmed the file does not exist afterward).
+- **`QgsApplication.authManager().configIds()` — fixed.** Live re-confirmed exploitable first
+  (returned real config IDs from the machine's auth database), then closed the same way —
+  `"authManager"` added to the same blocklist, which closes the whole `authManager()` surface,
+  not just `configIds()` specifically. Re-verified live after the fix: rejected at validation
+  time.
+- **Whether a script can enumerate/forge-call `TOOL_REGISTRY` to bypass another tool's own
+  confirmation gate — resolved as CLOSED, not open.** Live-checked directly rather than left
+  unconfirmed: `globals()`/`vars()`/`dir()` are not in `_SAFE_BUILTINS` (each raises
+  `NameError: name '...' is not defined` when a script tries to call them, confirmed live), and
+  `cartogen_ai.*` imports are already blocked (this session's earlier §1.11 fix, `4268c95`) —
+  there is currently no live path to reach `TOOL_REGISTRY` from inside a script at all. This
+  was already closed as a side effect of the `cartogen_ai` import block, not by a new fix here;
+  this update just settles the "not verified either way" status the original entry left open.
+
+No new tests added (this tool's existing regression-test convention in `tests/test_new_tools.py`
+already covers the blocklist mechanism generically per-name; the live probes above are the
+actual verification evidence, matching how this tool's fixes have been verified every prior
+round). Full suite: 2025 tests (this repo's current baseline before this fix), all passing.
+
+**Still fully open, unchanged by this update:** the process-isolation architecture decision
+itself (scope/timeline not decided, no isolation work scoped or started), and the live-PostGIS
+test of `execute_read_only_sql`'s DB-level enforcement (no PostGIS connection available in this
+sandbox).
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)

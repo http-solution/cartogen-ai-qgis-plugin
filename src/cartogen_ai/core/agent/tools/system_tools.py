@@ -205,6 +205,31 @@ _BLOCKED_DUNDER_ATTRS = {
     # that path for any allowed module, not just the two found. No legitimate
     # PyQGIS script needs attribute access to os/sys/modules on anything.
     "os", "sys", "modules",
+    # Added 2026-09-24, IMPLEMENTATION_TRACKER.md §1.11's two smaller deferred findings from
+    # the same 2026-09-23 pass, now closed. Both are directly reachable via QgsProject/
+    # QgsApplication, which are already in local_env for every legitimate PyQGIS script, so an
+    # import-level or module-level check can't catch either -- an attribute-name block is the
+    # narrowest fix that doesn't touch anything a real script needs:
+    # - "write": QgsProject.instance().write(<any path>) live-confirmed (2026-09-24 re-check,
+    #   same probe script) to write a real file to an arbitrary path with no path restriction
+    #   and no confirmation gate -- every other file-producing tool in the registry goes
+    #   through SECURITY.md §5's confirmation-gate mechanism; this let a script reach the same
+    #   capability directly. No legitimate script needs to call QgsProject.write() itself --
+    #   save_project (agent/tools/project_tools.py) is the gated, registered path for that.
+    # - "authManager": QgsApplication.authManager().configIds() live-confirmed to return real
+    #   config IDs from the machine's auth database with no gate at all -- doesn't return the
+    #   secret values themselves (that needs loadAuthenticationConfig + the right ID), but
+    #   config-ID enumeration is real reconnaissance a script shouldn't get for free. Blocking
+    #   the attribute name closes the whole authManager() surface, not just configIds()
+    #   specifically -- no legitimate PyQGIS script needs auth-manager access from inside this
+    #   sandbox; credential handling goes through infrastructure/auth.py's own gated paths.
+    # The third item this same tracker entry flagged (whether a script can enumerate/forge-call
+    # TOOL_REGISTRY to bypass another tool's own confirmation gate) was live re-checked the same
+    # pass and found to be a non-issue already: globals()/vars()/dir() aren't in _SAFE_BUILTINS
+    # (NameError, confirmed live) and cartogen_ai.* imports are already blocked (see above),
+    # so there is currently no live path to reach TOOL_REGISTRY from inside a script at all --
+    # closed as a side effect of the 2026-09-23 cartogen_ai import block, not by a new fix here.
+    "write", "authManager",
 }
 # Qt classes with file, process, network, or dynamic-library capability --
 # confirmed live that QDirIterator (from `qgis.PyQt.QtCore`, a module that
