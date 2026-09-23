@@ -30,6 +30,11 @@ SETTINGS_HELP_LAST_SHOWN_VERSION = "cartogen_ai/help_last_shown_version"
 # Prompt Refiner Settings
 SETTINGS_PROMPT_REFINEMENT_ENABLED = "cartogen_ai/prompt_refinement_enabled"
 SETTINGS_PROMPT_PREVIEW_ENABLED = "cartogen_ai/prompt_preview_enabled"
+
+# Project Inspector snapshot (IMPLEMENTATION_TRACKER.md §1.5, option (b)) -- OFF by default. See
+# core/services/project_inspector.py's module docstring for why this is feature-flagged
+# separately from map_context.py's always-on summary.
+SETTINGS_PROJECT_INSPECTOR_ENABLED = "cartogen_ai/project_inspector_enabled"
 SETTINGS_USER_PROFILE = "cartogen_ai/user_profile"
 SETTINGS_PROMPT_REFINEMENT_MODEL = "cartogen_ai/prompt_refinement_model"
 

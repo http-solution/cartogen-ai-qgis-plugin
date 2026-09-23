@@ -54,6 +54,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
+    SETTINGS_PROJECT_INSPECTOR_ENABLED,
     provider_model_list_key,
 )
 
@@ -391,6 +392,16 @@ class CartogenAi:
         new_history = load_chat_history()
         with self._get_history_lock():
             self.conversation_history = new_history
+
+    def _is_project_inspector_enabled(self) -> bool:
+        """§1.5 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
+        exact shape (QGIS_AVAILABLE guard, try/except, never raises)."""
+        if not QGIS_AVAILABLE:
+            return False
+        try:
+            return bool(QgsSettings().value(SETTINGS_PROJECT_INSPECTOR_ENABLED, False, type=bool))
+        except Exception:
+            return False
 
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage
@@ -1047,9 +1058,20 @@ class CartogenAi:
         # never raises (see onboarding_profile.py) -- no try/except needed at this call site,
         # matching how map_context is passed through unguarded too.
         user_profile_ctx = onboarding_profile.get_formatted_onboarding_context()
+
+        # §1.5 option (b): a deterministic Project Inspector snapshot (Layouts/Themes/Metadata),
+        # run BEFORE the first LLM call of this turn -- exactly the "Project Inspector" stage's
+        # own description: a snapshot step, not a reasoning step. Feature-flagged off by default,
+        # same as plan_gate.py's §1.6 sibling; see project_inspector.py's module docstring for
+        # why this is kept separate from map_context (already always-on) rather than merged into it.
+        project_inspector_ctx = None
+        if self._is_project_inspector_enabled():
+            from ..services.project_inspector import inspect_project
+            project_inspector_ctx = inspect_project()
+
         system_prompt_content = build_system_prompt(
             self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
-            active_tool_names=active_tool_names,
+            active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
         )
 
         messages = [{"role": "system", "content": system_prompt_content}]

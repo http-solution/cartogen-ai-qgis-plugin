@@ -191,3 +191,49 @@ class TestRule5NarrowingWhenMapContextHasFields(unittest.TestCase):
         # exactly the full rule set -- confirms the new rule_overrides parameter is opt-in,
         # not a change to _assemble_base_prompt's default behavior.
         self.assertIn(prompts._ALL_RULES[5], prompts.BASE_SYSTEM_PROMPT)
+
+
+class TestProjectInspectorContext(unittest.TestCase):
+    """§1.5 option (b): _format_project_inspector + build_system_prompt's
+    project_inspector_ctx parameter. Feature-flagging itself lives in the caller
+    (agent_orchestrator.py) -- here, passing a context (or not) is the only signal this
+    layer cares about, matching map_context's own tested shape."""
+
+    def test_none_produces_no_project_inspector_section(self):
+        prompt = prompts.build_system_prompt(project_inspector_ctx=None)
+        self.assertNotIn("PROJECT INSPECTOR", prompt)
+
+    def test_empty_dict_produces_no_project_inspector_section(self):
+        prompt = prompts.build_system_prompt(project_inspector_ctx={})
+        self.assertNotIn("PROJECT INSPECTOR", prompt)
+
+    def test_layouts_and_themes_appear_in_the_prompt(self):
+        ctx = {"layouts": ["Sitrep A3"], "themes": ["overview"], "metadata": {}}
+        prompt = prompts.build_system_prompt(project_inspector_ctx=ctx)
+        self.assertIn("PROJECT INSPECTOR", prompt)
+        self.assertIn("Sitrep A3", prompt)
+        self.assertIn("overview", prompt)
+
+    def test_metadata_fields_appear_in_the_prompt(self):
+        ctx = {
+            "layouts": [], "themes": [],
+            "metadata": {"title": "Flood Response", "abstract": "2026 flood analysis",
+                         "author": "Alaa", "keywords": {"theme": ["flood"]}},
+        }
+        prompt = prompts.build_system_prompt(project_inspector_ctx=ctx)
+        self.assertIn("Flood Response", prompt)
+        self.assertIn("2026 flood analysis", prompt)
+        self.assertIn("Alaa", prompt)
+        self.assertIn("theme: flood", prompt)
+
+    def test_truncated_layouts_are_flagged(self):
+        ctx = {"layouts": ["A", "B"], "layouts_truncated": True, "themes": [], "metadata": {}}
+        prompt = prompts.build_system_prompt(project_inspector_ctx=ctx)
+        self.assertIn("(truncated)", prompt)
+
+    def test_coexists_with_map_context_in_the_same_prompt(self):
+        map_context = {"layers": [{"name": "roads", "fields": []}], "layer_count": 1}
+        inspector_ctx = {"layouts": ["Sitrep A3"], "themes": [], "metadata": {}}
+        prompt = prompts.build_system_prompt(map_context=map_context, project_inspector_ctx=inspector_ctx)
+        self.assertIn("CURRENT MAP CONTEXT", prompt)
+        self.assertIn("PROJECT INSPECTOR", prompt)

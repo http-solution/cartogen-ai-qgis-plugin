@@ -303,6 +303,45 @@ choice on one doesn't box in the other.
 **Needs:** Baron's decision on whether to pursue this at all, and at what scope; if pursued, a
 live-LLM evaluation harness comparing before/after doesn't exist yet and would need building first.
 
+**BUILT 2026-09-24, option (b): narrow, isolated first stage, real and testable, not left as a
+scoping-only writeup.** Alaa's instruction was the same as §1.6's: "build it, evaluate later" --
+live-LLM evaluation of whether this actually helps is still a genuinely separate, not-yet-done
+follow-up, but the stage itself is real, wired, tested, and live-verified.
+
+**What it does:** point 18's proposal names the Project Inspector's scope explicitly as
+"Layers/CRS/Fields/Layouts/Themes/Metadata." `agent/map_context.py`'s existing
+`get_map_context_summary()` (unconditional, sent on every turn already) already covers
+Layers/CRS/Fields -- new `core/services/project_inspector.py` (`inspect_project()`) exists only
+for the genuine gap: print layouts, saved map themes, and project metadata
+(title/abstract/author/keywords), none of which the agent saw before this without spending a
+tool call to look them up. Deterministic and synchronous, no LLM call involved -- exactly the
+"Project Inspector" stage's own description: a snapshot step that runs BEFORE planning, not a
+reasoning step.
+
+**Wiring:** called in `agent_orchestrator.py`'s `run()`, before the first LLM call of the turn,
+its result passed into a new `_format_project_inspector()` block in `prompts.py`'s
+`build_system_prompt()` (a new `## \U0001F4CB PROJECT INSPECTOR` section, alongside the existing
+`## \U0001F5FA️ CURRENT MAP CONTEXT` one). Deliberately NOT folded into `map_context.py`
+itself, which is always-on: keeping this feature-flagged and separate means its effect can be
+measured in isolation later, without conflating it with `map_context`'s already-shipped,
+already-proven behavior.
+
+**Feature-flagged OFF by default** (`SETTINGS_PROJECT_INSPECTOR_ENABLED`) with a real Settings
+checkbox ("Include print layouts, map themes, and project metadata in context") -- same "don't
+silently change every installation's prompt content before there's evidence it helps" reasoning
+as §1.6's plan-validation gate.
+
+**Verification:** 6 unit tests for `inspect_project()` itself (`test_project_inspector.py`) + 6
+for the prompt-formatting layer (`test_prompt_modules.py`'s `TestProjectInspectorContext`) + 2
+integration tests exercising the real `run()` wiring (`test_agent_runner.py`'s
+`TestProjectInspectorWiring` -- disabled gate never calls `inspect_project()`, enabled gate calls
+it once and passes its exact result through to `build_system_prompt`). Live-verified against real
+QGIS 4.2.2 (`python-qgis.bat`): a real print layout, a real saved map theme, and real project
+metadata (title/abstract/author/keywords) all round-tripped correctly through `inspect_project()`
+into the rendered prompt text. Settings-dialog checkbox live-verified the same way as §1.6's
+(defaults unchecked, toggling + `accept()` persists via `QgsSettings`). Full suite: 2008 tests,
+all passing.
+
 ### 1.6 Point 27 -- Deterministic plan-then-validate-then-execute command model
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 27.
