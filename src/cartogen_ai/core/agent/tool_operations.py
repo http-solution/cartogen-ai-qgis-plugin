@@ -204,6 +204,10 @@ TOOL_OPERATION_TYPES = {
     # project -- changes existing layers' properties, doesn't add new ones.
     "apply_map_theme": MODIFY,
     "list_map_themes": READ,
+    "create_project_folder_structure": CREATE,
+    # Only ever creates NEW empty folders (os.makedirs(exist_ok=True), skips anything that
+    # already exists) -- never overwrites or deletes a file or folder. IMPLEMENTATION_TRACKER.md
+    # SS1.7, option (c): opt-in scaffolding, not something this agent should call unprompted.
 
     # -- provenance_tools.py --
     "get_provenance_record": READ,

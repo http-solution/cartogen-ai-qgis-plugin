@@ -3,6 +3,8 @@
 QGIS Project File Tools for Cartogen AI.
 """
 
+import os
+
 from .registry import register_tool
 
 try:
@@ -168,3 +170,83 @@ def list_map_themes():
         return {"success": True, "themes": themes}
     except Exception as e:
         return {"error": f"list_map_themes failed: {e}"}
+
+
+# IMPLEMENTATION_TRACKER.md §1.7, option (c), decided by Alaa 2026-09-24: an opt-in scaffolding
+# tool, not an enforced/default convention. The plugin's actual users (humanitarian GIS analysts)
+# frequently already work inside an org-mandated data structure they don't control (e.g. OCHA's
+# own field conventions); imposing a second structure from inside a QGIS plugin would add friction
+# without the standing to enforce it. This tool exists only for a user who explicitly wants the
+# convention from docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md's point 28 (raw source
+# data kept immutable/separate from staging/processed derivatives) and asks for it -- it creates
+# nothing unless called, and never on its own initiative.
+_PROJECT_FOLDER_LAYOUT = [
+    "project/templates",
+    "data/00_raw",       # Immutable source data -- never written to by processing/analysis steps.
+    "data/10_staging",   # Normalized/reprojected copies derived from 00_raw.
+    "data/20_processed", # Analysis outputs.
+    "data/30_reference",  # CODs, gazetteers, P-codes, and other stable reference datasets.
+    "data/40_raster",
+    "styles",
+    "models",
+    "scripts/processing",
+    "scripts/atlas",
+    "scripts/validation",
+    "exports/pdf",
+    "exports/geospatial",
+    "exports/web",
+    "exports/field",
+    "metadata",
+    "logs",
+]
+
+
+@register_tool(
+    "create_project_folder_structure",
+    "Creates the recommended humanitarian-GIS project folder layout (data/00_raw for immutable "
+    "source data, 10_staging/20_processed for derived work, plus styles/models/scripts/exports/"
+    "metadata/logs) under a base directory. Opt-in only -- call this ONLY when the user explicitly "
+    "asks for a standard project structure; never on your own initiative, since many users already "
+    "work inside an org-mandated data structure this would duplicate. Never overwrites or deletes "
+    "anything -- only creates folders that don't already exist.",
+    {
+        "type": "object",
+        "properties": {
+            "base_path": {
+                "type": "string",
+                "description": "Absolute path to the project root the folder structure should be created under, e.g. 'C:/projects/flood_response'. Created if it doesn't exist.",
+            },
+        },
+        "required": ["base_path"],
+    },
+)
+def create_project_folder_structure(base_path):
+    if not base_path or not isinstance(base_path, str):
+        return {"error": "base_path is required and must be a non-empty string."}
+
+    created, already_existed = [], []
+    try:
+        for rel_dir in _PROJECT_FOLDER_LAYOUT:
+            full_path = os.path.join(base_path, *rel_dir.split("/"))
+            if os.path.isdir(full_path):
+                already_existed.append(rel_dir)
+            else:
+                os.makedirs(full_path, exist_ok=True)
+                created.append(rel_dir)
+    except OSError as e:
+        return {
+            "error": f"create_project_folder_structure failed: {e}",
+            "created_before_failure": created,
+        }
+
+    return {
+        "success": True,
+        "base_path": base_path,
+        "created": created,
+        "already_existed": already_existed,
+        "message": (
+            f"Created {len(created)} folder(s) under '{base_path}'"
+            + (f" ({len(already_existed)} already existed, left untouched)" if already_existed else "")
+            + ". Keep data/00_raw untouched -- work from data/10_staging onward."
+        ),
+    }
