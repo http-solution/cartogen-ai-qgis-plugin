@@ -110,6 +110,18 @@ _BLOCKED_MODULES = {
     "linecache", "filecmp",
     "socketserver", "poplib", "imaplib", "nntplib", "xmlrpc",
     "webbrowser", "pydoc", "zipimport", "venv", "mmap",
+    # Added 2026-09-23, live-confirmed against this exact validator +
+    # _SAFE_BUILTINS combination: this plugin's own package is never blocked
+    # (a legitimate script has no reason to import it), so
+    # `from cartogen_ai.infrastructure.auth import CredentialManager` reads
+    # the live in-memory session credential store directly, and
+    # `import cartogen_ai.core.agent.tools.system_tools as st` reaches this
+    # very module's own _BLOCKED_MODULES/_SAFE_BUILTINS objects at runtime.
+    # No PyQGIS spatial script needs anything from this plugin's own
+    # internals -- QGIS objects (QgsProject, layers, etc.) are always passed
+    # in via local_env in execute_pyqgis_script below, never via importing
+    # this package.
+    "cartogen_ai",
 }
 # Names that must never be *reachable* at all -- not just called. Blocking
 # only direct calls (`eval(...)`) misses `x = eval; x(...)`, so every Name/
@@ -187,6 +199,12 @@ _BLOCKED_DUNDER_ATTRS = {
     # costs no real functionality -- same call already made for `format`/`format_map`
     # above. See tests/test_new_tools.py for the regression test.
     "__dict__",
+    # Added 2026-09-23: two allowed modules (qgis.utils, processing) expose os/sys
+    # as ordinary attributes at module scope, which _BLOCKED_MODULES's
+    # import-statement check doesn't cover. Blocking these attribute names closes
+    # that path for any allowed module, not just the two found. No legitimate
+    # PyQGIS script needs attribute access to os/sys/modules on anything.
+    "os", "sys", "modules",
 }
 # Qt classes with file, process, network, or dynamic-library capability --
 # confirmed live that QDirIterator (from `qgis.PyQt.QtCore`, a module that

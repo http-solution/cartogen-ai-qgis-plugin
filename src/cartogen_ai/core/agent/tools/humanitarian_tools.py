@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.error
 from datetime import date
 from .registry import register_tool
+from ...logger import log_event
 from ._cache_utils import TTLCache
 from ._qgis_enum_compat import resolve_qgis_enum
 # SSRF protection (vector_tools.py's add_layer_from_path/_prefetch_url_to_temp already has
@@ -672,8 +673,9 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         if features:
             props = features[0].get("properties", {})
             pcode_field = next((k for k in props if k.lower() == f"adm{level_num}_pcode"), None)
-    except Exception:
-        pass
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="hdx_pcode_field_detection",
+                  error_class=type(e).__name__, error=True)
 
     import os
     import tempfile

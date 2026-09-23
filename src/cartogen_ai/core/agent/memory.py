@@ -21,7 +21,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_GLOBAL_MEMORY as GLOBAL_MEMORY_KEY,
     SETTINGS_PERSIST_PROJECT_MEMORY as PERSIST_PROJECT_MEMORY_KEY,
 )
-from ..logger import log_warning, log_error
+from ..logger import log_warning, log_error, log_event
 
 
 def is_project_memory_persist_enabled() -> bool:
@@ -73,8 +73,9 @@ class SpatialMemoryManager:
                     base_dir = os.path.dirname(proj_path)
                     proj_name = os.path.splitext(os.path.basename(proj_path))[0]
                     return os.path.join(base_dir, f"{proj_name}_spatial_memory.sqlite")
-            except Exception:
-                pass
+            except Exception as e:
+                log_event("swallowed_exception", tag="Memory", tool="memory_db_path_lookup",
+                          error_class=type(e).__name__, error=True)
 
         home_dir = os.path.expanduser("~")
         return os.path.join(home_dir, "cartogen_ai_spatial_memory.sqlite")

@@ -8,6 +8,7 @@ import os
 
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...logger import log_event
 
 try:
     from qgis.core import (
@@ -324,8 +325,9 @@ def _layer_geometry_kind(layer):
             return "line"
         if gt == QgsWkbTypes.GeometryType.PolygonGeometry:
             return "polygon"
-    except Exception:
-        pass
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="layer_geometry_kind",
+                  error_class=type(e).__name__, error=True)
     return "unknown"
 
 

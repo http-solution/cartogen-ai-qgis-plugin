@@ -39,6 +39,7 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
+from ...logger import log_event
 from ....infrastructure.settings_keys import (
     PROJECT_PROPERTY_DATASET_STATUS,
     PROJECT_PROPERTY_SENSITIVITY,
@@ -140,12 +141,17 @@ def _restore_field_write(snapshot):
                 layer.changeAttributeValue(fid, idx, old_value)
         layer.commitChanges()
         return True
-    except Exception:
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_field",
+                  error_class=type(e).__name__, error=True)
         try:
             if layer.isEditable():
                 layer.rollBack()
-        except Exception:
-            pass
+        except Exception as rollback_err:
+            # A failed rollback after a failed restore can leave a layer stuck in
+            # edit mode with partial changes -- worth a visible trace, not silence.
+            log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_rollback",
+                      error_class=type(rollback_err).__name__, error=True)
         return False
 
 

@@ -13,22 +13,33 @@ step, no compiled artifacts beyond the release zip.
 
 ## Structure
 
-- `agent/` — the agent core. `agent/agent.py` is the tool-calling loop and dispatcher;
-  `agent/providers/` are the 5 LLM provider clients (OpenRouter, Gemini, OpenAI, Claude, Ollama)
-  plus a `cartogen.py` stub for a planned hosted gateway; `agent/tools/` is every tool the model
-  can call, one file per domain (vector, raster, styling, humanitarian, etc.), registered via
-  `agent/tools/registry.py`'s `@register_tool` decorator.
-- `ui/` — the QGIS dock widget, settings dialog, canvas highlighting. Everything here that
+- Everything lives under `src/cartogen_ai/` (layout restructured in Phase 11, 2026-09-20):
+  - `core/agent/` — the agent core. `agent_orchestrator.py` (`CartogenAi`) is the tool-calling
+    loop; it composes `tool_dispatcher.py`, `usage_tracker.py` and `history_manager.py`.
+    `core/agent/tools/` is every tool the model can call, one file per domain (vector, raster,
+    styling, humanitarian, etc.), registered via `tools/registry.py`'s `@register_tool`.
+  - `core/services/`, `core/models/`, `core/validators/`, `core/representation/` — prompt
+    refiner/router/task runner, transaction/confidence models, schema/P-code validation, and the
+    map-representation planner.
+  - `core/logger.py` — structured, metadata-only logging (`log_event`); never log raw prompts,
+    responses, tool arguments/results, or coordinates. `core/exceptions.py` — exception hierarchy.
+  - `infrastructure/` — `auth.py` (credentials: QGIS Auth Manager or session memory ONLY, never
+    plaintext `QgsSettings`), `deps.py`, `settings_keys.py`, and `providers/` (the 5 LLM clients:
+    OpenRouter, Gemini, OpenAI, Claude, Ollama, plus a `cartogen.py` stub for a planned hosted
+    gateway).
+  - `processing/` — the QGIS Processing provider (hub siting, service area algorithms).
+  - The plugin entry points (`__init__.py`, `plugin_main.py`) stay at the repo root.
+- `core/ui/` — the QGIS dock widget, settings dialog, canvas highlighting. Everything here that
   imports `qgis.PyQt`/`qgis.core` unconditionally can only be exercised inside a real QGIS
-  process — CI has no QGIS and cannot run or visually verify it. This interactive session's
+  process — the plain `test` CI job has no QGIS (the separate `qgis-live-tests` job does; see below). This interactive session's
   sandbox CAN, when a real QGIS install is available: construct the real widget headlessly via
   `"C:\Program Files\QGIS <ver>\bin\python-qgis.bat"` with `QgsApplication([], True)` (GUI mode,
   not `False`), force a complete `QPalette` (the offscreen platform's default one is missing
   roles like `AlternateBase` — force a realistic one rather than trusting the default), call
   `widget.grab().save(path)`, then actually look at the saved PNG (the Read tool renders
   images) — used throughout the UI/chat redesign workstream (2026-09-12) to verify icon/color
-  changes for real rather than only checking "imports without error." `ui/chat_formatting.py`
-  and `ui/icons.py`'s pure string-generation half are deliberately Qt-free so they stay
+  changes for real rather than only checking "imports without error." `core/ui/chat_formatting.py`
+  and `core/ui/icons.py`'s pure string-generation half are deliberately Qt-free so they stay
   unit-testable without any of this; follow that pattern for new pure logic.
 - `tests/` — unit tests, runnable without a QGIS installation. Every module that touches
   `qgis.core` degrades gracefully via its own `QGIS_AVAILABLE` guard specifically so this works.
@@ -77,8 +88,8 @@ python docs/generate_tools_reference.py
 python plugin_upload.py
 ```
 
-CI (`.github/workflows/tests.yml`) runs the test suite and a `py_compile` check on every push/PR.
-There is no QGIS in CI — anything that only breaks inside a real QGIS session (Qt widget wiring,
+CI (`.github/workflows/tests.yml`) runs the test suite, `py_compile`, `ruff check .` (must stay at zero violations) and a release-zip packaging check on every push/PR.
+The `test` job (Ubuntu + Windows) has no QGIS, but the `qgis-live-tests` job runs `tests/test_chat_widget_live.py` + `tests/test_plugin_main_live.py` inside pinned official QGIS docker images (4.2.2 and the 3.28 LTR) via `tests/_ci_run_live_tests.py`, which force-collects and pumps the Qt event loop before `exitQgis()` (see the docstring there for the crash this prevents). Anything that only breaks inside a real QGIS session (Qt widget wiring,
 layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMOKE_TEST.md`.
 
 ## Editions

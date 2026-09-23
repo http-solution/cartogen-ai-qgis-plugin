@@ -572,6 +572,57 @@ class TestNewTools(unittest.TestCase):
         # still works, and that the unrelated builtin format() function
         # (format(value, spec), no attribute-traversal capability) is untouched.
         self.assertIsNone(_validate_script_safety('def run():\n    return f"{3.14:.2f}"'))
+
+    def test_script_safety_blocks_os_attribute_via_allowed_module(self):
+        # Found 2026-09-23, live-confirmed against a real QGIS session:
+        # _BLOCKED_MODULES only stops an `import os` STATEMENT -- but qgis.utils
+        # and processing (both required, never-blocked modules) each import os/sys
+        # at module scope themselves, leaving them reachable as plain attributes
+        # with no blocked import anywhere in the script.
+        self.assertIsNotNone(_validate_script_safety(
+            "import qgis.utils\ndef run():\n    return qgis.utils.os.getcwd()"
+        ))
+        self.assertIsNotNone(_validate_script_safety(
+            "import processing\ndef run():\n    return processing.os.getcwd()"
+        ))
+
+    def test_script_safety_blocks_sys_modules_pivot(self):
+        # qgis.utils.sys.modules hands back every already-loaded module object by
+        # name -- including subprocess/socket/ctypes, all three confirmed live --
+        # a full process/network escape via an allowed module's own sys import.
+        self.assertIsNotNone(_validate_script_safety(
+            "import qgis.utils\ndef run():\n    return qgis.utils.sys.modules['subprocess']"
+        ))
+
+    def test_execute_pyqgis_script_rejects_os_and_sys_modules_bypasses_end_to_end(self):
+        for script in (
+            "import qgis.utils\ndef run():\n    return qgis.utils.os.getcwd()",
+            "import processing\ndef run():\n    return processing.os.getcwd()",
+            "import qgis.utils\ndef run():\n    return qgis.utils.sys.modules['subprocess']",
+        ):
+            res = execute_pyqgis_script(script)
+            self.assertIn("error", res)
+            self.assertIn("rejected for safety", res["error"])
+
+    def test_script_safety_blocks_cartogen_ai_import(self):
+        # Found 2026-09-23: this plugin's own package was never blocked, so a
+        # script could `from cartogen_ai.infrastructure.auth import
+        # CredentialManager` and read the live in-memory session credential store
+        # directly. No legitimate PyQGIS script needs to import this plugin's own
+        # internals -- QGIS objects are always passed in via local_env.
+        self.assertIsNotNone(_validate_script_safety(
+            "from cartogen_ai.infrastructure.auth import CredentialManager\n"
+            "def run():\n    return CredentialManager.get_credential('openrouter')"
+        ))
+        self.assertIsNotNone(_validate_script_safety("import cartogen_ai\ndef run():\n    return 1"))
+
+    def test_execute_pyqgis_script_rejects_cartogen_ai_import_end_to_end(self):
+        res = execute_pyqgis_script(
+            "from cartogen_ai.infrastructure.auth import CredentialManager\n"
+            "def run():\n    return CredentialManager.get_credential('openrouter')"
+        )
+        self.assertIn("error", res)
+        self.assertIn("rejected for safety", res["error"])
         self.assertIsNone(_validate_script_safety('def run():\n    return format(3.14, ".2f")'))
 
     def test_script_safety_blocks_object_graph_and_frame_walking_modules(self):
