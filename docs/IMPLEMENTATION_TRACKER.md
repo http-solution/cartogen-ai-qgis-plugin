@@ -127,6 +127,40 @@ never been provider-restricted, is not blocked on this item resolving, and nothi
 being open threatens that.** This item blocks *future* Enterprise/restrictive-tier work only, per
 the narrowing two paragraphs above — it does not describe current product behavior.
 
+**DECIDED 2026-09-24 by Alaa: Path C — keep everything GPL v2, drop the "locked"/"closed" source-
+availability language entirely.** Of the 3 paths §3 of the source proposal laid out (re-license
+away from GPL v2; split into an open-core public/proprietary-closed architecture; or stay full
+GPL v2 and gate purely on runtime feature flags/tier license), Path C is the one chosen — legally
+simplest, no re-licensing, no open-core split, and it sidesteps the unresolved QGIS
+combined-work question entirely since no module ever becomes closed-source. The tradeoff named
+in the source doc stands as the accepted cost: this does not deliver a source-availability
+distinction between tiers — Pro/Enterprise become "same GPL v2 code, paid unlock" (tier license
+gates the tool set / gateway quota at runtime), not "different code you can't see." That was the
+known shape of this path when chosen, not a surprise.
+
+**What this resolves and what it still doesn't, per §6's engineering-gap scoping in the source
+proposal:** picking Path C removes item 5's fork entirely — item 6 (build a closed-source
+distribution mechanism: compiled bytecode/Cython, or a gated non-public download) is now **moot,
+not just deferred**, and item 5's "identify which modules become the closed, unpublished part"
+question no longer applies. What Path C still requires, unresolved by this decision alone: item 3
+(a tier/license concept in the plugin itself — doesn't exist in any form today; `agent/auth.py`
+has no notion of "which tier is this installation," and `agent/tools/registry.py`/`ToolRouter`
+would need a tier-filter stage ahead of its existing relevance-filter, per §6.3's own suggestion
+to extend that mechanism rather than build a parallel one), item 4 (connectivity gating in
+`ui/settings_dialog.py` — hide or gray out direct-BYOK provider fields for tiers that shouldn't
+have them), and item 1/2 (`service/`'s billing punch list and the `agent/providers/cartogen.py`
+gateway client) — none of which are Path-C-specific, all of which were already scoped and still
+need real engineering work, now unblocked to start. Item 7 (how Enterprise itself is distributed)
+still needs its own separate decision — Path C says the *code* stays open, not whether Enterprise
+gets a fully separate build/listing.
+
+**Still not started; this is a decision record, not a claim of engineering progress.** The §7
+migration consideration (whether existing Community users get grandfathered, a migration window,
+or see Community simply redefined going forward) also remains open and is not resolved by
+choosing Path C — if anything Path C removes the "source tree gets less open" half of that
+concern (no re-license, no open-core split), leaving only the tool-set/BYOK-restriction half of
+the migration question live.
+
 ### 1.4 GDPR / data-protection alignment
 
 **Added 2026-08-31**, full review completed 2026-09-01: `docs/GDPR_COMPLIANCE_REVIEW.docx` --
