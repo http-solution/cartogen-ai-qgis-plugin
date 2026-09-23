@@ -33,6 +33,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_CLAUDE_MODEL,
     SETTINGS_CARTOGEN_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED as PROJECT_INSPECTOR_ENABLED_KEY,
+    SETTINGS_PLAN_VALIDATION_GATE_ENABLED as PLAN_VALIDATION_GATE_ENABLED_KEY,
     provider_model_list_key,
 )
 AUTO_LABEL = "auto (recommended)"
@@ -508,6 +509,26 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.project_inspector_checkbox)
 
+        # IMPLEMENTATION_TRACKER.md §1.6, option (b), narrow experiment -- opt-in, default OFF.
+        # Same "don't silently change every user's cost/friction profile" reasoning as the
+        # refinement checkbox above: this adds one extra required tool call (create_plan)
+        # before any DELETE/PUBLISH-classified tool -- see plan_gate.py's module docstring.
+        self.plan_validation_gate_checkbox = QCheckBox(
+            "Require a stated plan before destructive or export/report actions"
+        )
+        self.plan_validation_gate_checkbox.setChecked(
+            bool(self.settings.value(PLAN_VALIDATION_GATE_ENABLED_KEY, False, type=bool))
+        )
+        self.plan_validation_gate_checkbox.setToolTip(
+            "When on, the assistant must state a plan (create_plan) before removing a layer, "
+            "replacing the project, running a script, or exporting/printing/reporting anything -- "
+            "once per turn, not before every individual call. Off by default -- this is a narrow, "
+            "experimental safety gate (IMPLEMENTATION_TRACKER.md §1.6) that adds friction to "
+            "exactly the operation types that already carry the most real-world consequence if "
+            "wrong, at the cost of one extra tool call before the first one of them each turn."
+        )
+        layout.addWidget(self.plan_validation_gate_checkbox)
+
         layout.addWidget(self._section_header("04", "Who the assistant writes for"))
 
         profile_form = QFormLayout()
@@ -799,6 +820,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())
+        self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
         # Product policy decision, 2026-09-20 (strict option chosen over an opt-in
