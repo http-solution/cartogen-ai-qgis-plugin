@@ -31,6 +31,11 @@ SETTINGS_HELP_LAST_SHOWN_VERSION = "cartogen_ai/help_last_shown_version"
 SETTINGS_PROMPT_REFINEMENT_ENABLED = "cartogen_ai/prompt_refinement_enabled"
 SETTINGS_PROMPT_PREVIEW_ENABLED = "cartogen_ai/prompt_preview_enabled"
 
+# Project Inspector snapshot (IMPLEMENTATION_TRACKER.md §1.5, option (b)) -- OFF by default. See
+# core/services/project_inspector.py's module docstring for why this is feature-flagged
+# separately from map_context.py's always-on summary.
+SETTINGS_PROJECT_INSPECTOR_ENABLED = "cartogen_ai/project_inspector_enabled"
+
 # Plan-validation gate (IMPLEMENTATION_TRACKER.md §1.6, option (b)) -- OFF by default. See
 # core/models/plan_gate.py's module docstring for why this is feature-flagged rather than
 # always-on: it's a real narrow experiment awaiting live-LLM evaluation, not a settled default.

@@ -795,6 +795,47 @@ class TestExceptionsAndLogging(unittest.TestCase):
         log_error("Test error message", tag="Test")
 
 
+class TestProjectInspectorWiring(unittest.TestCase):
+    """§1.5 option (b): run()'s actual wiring to project_inspector.inspect_project(), not
+    just the module's own formatting (see test_project_inspector.py / test_prompt_modules.py's
+    TestProjectInspectorContext for those). Same _make_bare_agent + patched build_system_prompt
+    pattern as TestToolStepCallback above."""
+
+    def _run_and_capture_build_system_prompt_call(self, gate_enabled, inspect_project_return):
+        client = _FakeClient()
+        agent = _make_bare_agent(client)
+        agent._is_project_inspector_enabled = lambda: gate_enabled
+        captured = {}
+
+        def fake_build_system_prompt(*args, **kwargs):
+            captured.update(kwargs)
+            return "sys"
+
+        with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, name, args: {"success": True}), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", fake_build_system_prompt), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", []), \
+             patch("cartogen_ai.core.services.project_inspector.inspect_project",
+                   return_value=inspect_project_return) as mock_inspect:
+            agent.run("list my layers")
+        return captured, mock_inspect
+
+    def test_disabled_never_calls_inspect_project(self):
+        captured, mock_inspect = self._run_and_capture_build_system_prompt_call(
+            gate_enabled=False, inspect_project_return={"layouts": ["x"]},
+        )
+        mock_inspect.assert_not_called()
+        self.assertIsNone(captured.get("project_inspector_ctx"))
+
+    def test_enabled_calls_inspect_project_and_passes_its_result_through(self):
+        snapshot = {"layouts": ["Sitrep A3"], "themes": [], "metadata": {}}
+        captured, mock_inspect = self._run_and_capture_build_system_prompt_call(
+            gate_enabled=True, inspect_project_return=snapshot,
+        )
+        mock_inspect.assert_called_once()
+        self.assertEqual(captured.get("project_inspector_ctx"), snapshot)
+
+
 class TestPlanValidationGateWiring(unittest.TestCase):
     """§1.6 option (b): _real_execute_tool's actual wiring to PlanValidationGate, not just
     the gate class itself (see test_plan_gate.py for that). Same __new__/patch.dict(TOOL_REGISTRY)
