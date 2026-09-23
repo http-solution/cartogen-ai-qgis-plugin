@@ -798,6 +798,25 @@ itself (scope/timeline not decided, no isolation work scoped or started), and th
 test of `execute_read_only_sql`'s DB-level enforcement (no PostGIS connection available in this
 sandbox).
 
+**Update, 2026-09-24 — process isolation scoped, not started.**
+`docs/EXECUTE_PYQGIS_SCRIPT_ISOLATION_SCOPE_2026-09-24.md` lays out the architecture: a real
+finding from reading `execute_pyqgis_script`'s current `local_env` narrows the design space
+meaningfully — the tool exposes no `iface`/canvas/selection today, only `QgsProject.instance()`
+and plain geometry/vector constructors, so a subprocess operating on a *serialized copy* of the
+project loses nothing a script can reach today except genuinely unsaved mid-edit-session state
+(one named, not-yet-decided fidelity gap). Recommends **Path A** (serialize → fresh subprocess
+with its own `QgsApplication` → reload results, reusing `transactions.py`'s existing
+layer-id-diff technique for detecting what changed) over a curated-proxy-API rewrite (a
+different tool, not this one isolated) and OS-level sandboxing (real, but a hardening layer on
+top of Path A, not an alternative to it — Windows' primitives for this are weaker/less standard
+than Linux's, flagged as Phase 3, not a Phase 1 blocker). A phased plan (benchmark first, then
+the subprocess boundary for vector/geometry scripts, then raster support if usage justifies it,
+then optional OS hardening), concrete file-level scope, and the real open risks (unmeasured
+latency, Windows child-process reliability inside a Qt event loop, the test-suite migration
+question for `test_new_tools.py`'s ~42 existing tests) are all in the document. **Not built,**
+no Phase 0 benchmark run yet — this is the scoping pass Alaa asked for, a go-ahead on Phase 1
+is a separate, later decision.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
