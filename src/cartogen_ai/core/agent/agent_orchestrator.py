@@ -47,6 +47,7 @@ from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
 from . import tool_operations
 from ..models.transactions import TurnTransactionLog
+from ..models.plan_gate import PlanValidationGate
 from ..services import learning
 from . import onboarding_profile
 from ..logger import log_event
@@ -54,6 +55,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
+    SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
     provider_model_list_key,
 )
 
@@ -289,6 +291,11 @@ class CartogenAi:
         self._transaction_log = TurnTransactionLog()
         bind_transaction_log(self._transaction_log)
 
+        # IMPLEMENTATION_TRACKER.md §1.6, option (b): plan-validation gate for DELETE/PUBLISH
+        # tool calls, feature-flagged off by default (SETTINGS_PLAN_VALIDATION_GATE_ENABLED).
+        # Same turn-scoped reset lifecycle as _transaction_log above -- see plan_gate.py.
+        self._plan_gate = PlanValidationGate()
+
         # Usage-pattern tracking (self-learning mechanism 3, 2026-09-02): one
         # provider-usage sample per session, since CartogenAi() is constructed
         # once per session (see _get_agent() in plugin_main.py). Feeds both the
@@ -392,6 +399,16 @@ class CartogenAi:
         with self._get_history_lock():
             self.conversation_history = new_history
 
+    def _is_plan_gate_enabled(self) -> bool:
+        """§1.6 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
+        exact shape (QGIS_AVAILABLE guard, try/except, never raises)."""
+        if not QGIS_AVAILABLE:
+            return False
+        try:
+            return bool(QgsSettings().value(SETTINGS_PLAN_VALIDATION_GATE_ENABLED, False, type=bool))
+        except Exception:
+            return False
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage
         try:
@@ -430,8 +447,17 @@ class CartogenAi:
         if user_confirmed:
             filtered_args["confirmed"] = True
 
+        # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
+        # blocking here means the DELETE/PUBLISH tool's own side effects never happen at
+        # all, rather than happening and then being reported as needing a plan retroactively.
+        gate_response = self._plan_gate.check(name, self._is_plan_gate_enabled())
+        if gate_response is not None:
+            return gate_response
+
         try:
             res = func(**filtered_args)
+            if name == "create_plan" and isinstance(res, dict) and res.get("success"):
+                self._plan_gate.mark_plan_created()
             if isinstance(res, dict):
                 if res.get("status") == "PREVIEW_REQUIRED":
                     # Register a DEDICATED preview safety task -- never reuse tasks[0] of
@@ -1018,6 +1044,9 @@ class CartogenAi:
         # New turn -- undo must never reach back into a previous one (see
         # transactions.py's docstring).
         self._transaction_log.reset()
+        # New turn -- a plan made last turn must not silently satisfy this turn's gate
+        # (§1.6 option (b), plan_gate.py).
+        self._plan_gate.reset()
         self._apply_auto_model_selection(user_query)
         user_message = {"role": "user", "content": user_query}
 
