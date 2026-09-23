@@ -73,6 +73,43 @@ class TestSuccessfulRun(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_unnamed_output_is_hidden_from_the_layer_tree(self, mock_processing, mock_project):
+        """IMPLEMENTATION_TRACKER.md SS1.9, option 1: an unnamed output is treated as an
+        internal scratch step (the caller didn't bother naming a real deliverable), so its
+        layer-tree checkbox is unchecked rather than left cluttering the visible map."""
+        mock_project.instance.return_value.mapLayersByName.return_value = []
+        new_layer = MagicMock()
+        new_layer.featureCount.return_value = 3
+        new_layer.id.return_value = "layer123"
+        mock_processing.run.return_value = {"OUTPUT": new_layer}
+        layer_node = MagicMock()
+        mock_project.instance.return_value.layerTreeRoot.return_value.findLayer.return_value = layer_node
+
+        result = run_allowlisted_processing_algorithm("native:reprojectlayer", {"INPUT": "roads"})
+
+        mock_project.instance.return_value.layerTreeRoot.return_value.findLayer.assert_called_once_with("layer123")
+        layer_node.setItemVisibilityChecked.assert_called_once_with(False)
+        self.assertFalse(result["visible"])
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_named_output_stays_visible(self, mock_processing, mock_project):
+        mock_project.instance.return_value.mapLayersByName.return_value = []
+        new_layer = MagicMock()
+        new_layer.featureCount.return_value = 3
+        mock_processing.run.return_value = {"OUTPUT": new_layer}
+
+        result = run_allowlisted_processing_algorithm(
+            "native:buffer", {"INPUT": "roads"}, new_layer_name="my_buffer",
+        )
+
+        mock_project.instance.return_value.layerTreeRoot.assert_not_called()
+        self.assertTrue(result["visible"])
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
     def test_zero_feature_result_warns(self, mock_processing, mock_project):
         mock_project.instance.return_value.mapLayersByName.return_value = []
         new_layer = MagicMock()

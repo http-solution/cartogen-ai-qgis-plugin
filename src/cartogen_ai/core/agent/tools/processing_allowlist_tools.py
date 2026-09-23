@@ -109,7 +109,7 @@ def _resolve_params(params):
             },
             "new_layer_name": {
                 "type": "string",
-                "description": "Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted.",
+                "description": "Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see.",
             },
         },
         "required": ["alg_id", "params"],
@@ -136,11 +136,29 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if new_layer is None or not hasattr(new_layer, "setName"):
         return {"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."}
 
+    # IMPLEMENTATION_TRACKER.md §1.9, option 1 (narrow fix, 2026-09-24): a real turn calling this
+    # tool 4x to reproject/buffer/intersect its way to one answer left 3 purely-internal scratch
+    # layers fully visible and unaccounted-for in the model's own set_layer_order call, cluttering
+    # the map. Can't default to always-hidden -- plenty of allowed algorithms (native:buffer for a
+    # requested buffer map) ARE the deliverable, and output_router.satisfied()'s `layer` branch
+    # relies on seeing them rendered. Betting on an implicit convention instead: if the caller
+    # bothered to name the output, treat that as "this is a result I mean to keep visible"; if it
+    # fell back to the auto-generated "<alg_id>_output" name, treat it as scratch and hide its
+    # checkbox (still added to the project/legend -- inspectable, exportable, just not cluttering
+    # the visible map by default). Not a schema change, so no prompt-rule update needed; if this
+    # naming-convention bet doesn't hold up in practice, the tracker entry lists the costlier
+    # explicit `visible` parameter as the real fix.
+    caller_named_it = new_layer_name is not None
     layer_name = new_layer_name or f"{alg_id.split(':')[-1]}_output"
     new_layer.setName(layer_name)
-    QgsProject.instance().addMapLayer(new_layer)
+    project = QgsProject.instance()
+    project.addMapLayer(new_layer)
+    if not caller_named_it:
+        layer_node = project.layerTreeRoot().findLayer(new_layer.id())
+        if layer_node is not None:
+            layer_node.setItemVisibilityChecked(False)
 
-    result = {"success": True, "alg_id": alg_id, "layer_name": layer_name}
+    result = {"success": True, "alg_id": alg_id, "layer_name": layer_name, "visible": caller_named_it}
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()
         result["feature_count"] = count
