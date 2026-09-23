@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (177 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (178 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -536,6 +536,14 @@ Saves the current layer visibility/style state as a named map theme, so it can b
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `theme_name` | string | yes | Name for the saved theme. |
+
+### `create_project_folder_structure`
+
+Creates the recommended humanitarian-GIS project folder layout (data/00_raw for immutable source data, 10_staging/20_processed for derived work, plus styles/models/scripts/exports/metadata/logs) under a base directory. Opt-in only -- call this ONLY when the user explicitly asks for a standard project structure; never on your own initiative, since many users already work inside an org-mandated data structure this would duplicate. Never overwrites or deletes anything -- only creates folders that don't already exist.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `base_path` | string | yes | Absolute path to the project root the folder structure should be created under, e.g. 'C:/projects/flood_response'. Created if it doesn't exist. |
 
 ### `list_map_themes`
 
@@ -1669,7 +1677,7 @@ Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer thi
 |---|---|---|---|
 | `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:contraststretch', 'gdal:merge', 'gdal:pansharpening', 'gdal:rastercalculator', 'native:aspect', 'native:buffer', 'native:centroids', 'native:clip', 'native:convexhull', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:tininterpolation', 'qgis:zonalstatistics', 'saga:kmeansclassificationforgrid', 'saga:supervisedclassificationforgrids'] |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
-| `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted. |
+| `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
 
 ## provenance_tools
 
