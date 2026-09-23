@@ -427,6 +427,50 @@ audit's overall "GO for QGIS 4.2.2 functional RC, NO-GO for stable production re
 should be taken as accurate — the automated/live-headless fixes in §4 close the *code-level* P1s,
 not this release-process one.
 
+**Partial automation, 2026-09-23/24 — closes part of this item, NOT all of it (see below for what
+remains genuinely open).** Reasoned through what's actually blocking here: `initGui()` needs a real
+`QgisInterface` (`self.iface`), which only exists inside a running QGIS desktop process's C++ main
+application — `QgsApplication([], True)` alone (this sandbox's usual headless technique) never
+constructs that, so the literal "install via the Plugin Manager, watch it load" step is correctly
+unautomatable from here, as this entry has said since 2026-09-20. But most of the rest of what this
+item asks for — a fresh profile, an exact-ZIP install, an in-place upgrade, and a "does it come up
+clean" check — doesn't strictly require the Plugin Manager UI, only the plugin folder sitting at a
+real profile path and QGIS's own entry point (`classFactory` → `initGui` → `unload`) being called
+the way QGIS calls it. Built a hand-rolled `FakeIface` providing only the 3 methods `initGui()`/
+`unload()` actually call (`mainWindow()`, `addToolBarIcon()`, `addPluginToMenu()`) — explicitly
+NOT a `QgisInterface` substitute, doesn't validate toolbar/menu rendering or give a human anything
+to look at — and drove the real entry point against a real profile:
+
+1. Created a fresh profile directory (`python/plugins/`, nothing else in it).
+2. Built `v1.15.6` fresh from its tag (`commercial-plugin-v1.15.6`, no GitHub Release/asset exists
+   for it on this repo, so built it the same way `plugin_upload.py` builds any release — from a
+   clean archive of that exact commit) and installed it into the fresh profile.
+3. Ran the real `classFactory(fake_iface)` → `initGui()` → `unload()` sequence via `python-qgis.bat`
+   against that profile path. Result: **clean** — namespace bootstrap resolved
+   (`cartogen-ai/src/cartogen_ai`, the hyphenated real installed folder name, not the dev tree),
+   1 toolbar action + 2 menu actions installed, no Processing provider (correct — that feature
+   postdates v1.15.6), `unload()` completed with no exception.
+4. Simulated the in-place upgrade: deleted the v1.15.6 plugin folder from that same profile and
+   extracted this repo's published `v1.16.0-rc4` ZIP into it (asset id `584510070`, checksum
+   re-verified against the release, same as the `docs/RELEASE_SMOKE_TEST.md` entry above).
+5. Ran the same entry-point sequence again, as a **separate process** (simulating a QGIS restart,
+   not just a re-import in the same interpreter — a stale-`sys.modules` false pass would defeat the
+   point). Result: **clean** — same successful bootstrap/initGui/unload, and this time the
+   Processing provider DID register and DID get removed on unload (the version difference the
+   upgrade should produce). No leftover-file or stale-module symptoms across the upgrade.
+6. The 16-category `RELEASE_SMOKE_TEST.md` checklist itself was not re-run against this
+   profile-installed copy specifically — its content is byte-identical to the rc4 ZIP already
+   checklist-verified 27/27 in this doc's Run log entry immediately above, so re-running it against
+   the same bytes at a different path would just be re-confirming the same result a second time.
+
+**What is still genuinely open, and still needs a human:** whether the toolbar icon actually
+*renders* correctly in a real QGIS toolbar, whether the menu entry actually *appears* in a real
+QGIS menu bar, and whether a human watching QGIS actually start up with this profile sees no error
+dialog — none of that can be confirmed by a `FakeIface` that only exists to not raise an exception.
+The "GO for QGIS 4.2.2 functional RC, NO-GO for stable production release" verdict from
+2026-09-20 stands unchanged by this entry; it narrows what's missing to specifically the
+visual/interactive confirmation, not the whole install/upgrade mechanism.
+
 ### 1.11 `execute_pyqgis_script`'s AST-blocklist sandbox — needs a process-isolation architecture decision
 
 **Added 2026-09-23, from a deeper adversarial pass on the sandbox + `execute_read_only_sql`.**
