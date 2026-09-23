@@ -293,6 +293,39 @@ MEDIUM in the first place. 7 new unit tests in `tests/test_prompt_modules.py`
 "Ollama-first for conflict zones" recommendation is a real product/deployment policy question,
 not a code gap -- left for Alaa/DPO, not decided here.
 
+**Update, 2026-09-24 -- compiled review package sent for DPO sign-off, determination received
+and recorded.** Compiled every open thread in this section (all 14 findings reconciled against
+current code, the DPIA screening result, and what remained genuinely open) into one artifact
+for a DPO/legal read: `https://claude.ai/artifact/CenwECt4wjJeoce2xVjSsq`. A determination came
+back covering 3 decisions:
+
+- **DPIA (worksheet §6): required under Art. 35(1), approved subject to deployment
+  constraints.** `docs/DPIA_SCREENING_WORKSHEET.docx`'s Section 6 sign-off block now has this
+  determination's text filled in (the "is a DPIA required" / "reference or location" /
+  "residual risk and conditions" fields) -- the "Assessed by (name, role)" and "Date" fields
+  are deliberately left blank, since recording a fabricated signer wasn't this session's call
+  to make; the actual DPO still needs to sign those two fields directly.
+- **Deployment posture: Ollama-only for protection/incident/displacement data.** Cloud
+  providers restricted to anonymized/aggregated/macro-level data. **Documented, not enforced
+  in code** -- Alaa's explicit instruction was document-only for now (a real technical gate
+  would need a classification of which tools/data count as "sensitive" first, its own scoping
+  pass, not squeezed in here). New "DPIA determination and deployment constraints" subsection
+  in `SECURITY.md`'s Data Protection section; a matching note in `docs/USER_GUIDE.md`'s "Where
+  it goes" section pointing users at the constraint before they assume cloud is approved.
+- **Hosted-Account feature (F14): restricted, not disabled in code.** Same "document, don't
+  build a gate yet" scope -- the constraint (self-hosted `base_url` or an executed DPA first)
+  is recorded in `SECURITY.md`, the dialog itself is unchanged.
+- **File-sharing SOP, extending F9:** field teams must purge local memory before committing a
+  `.qgz` to a shared drive/version control -- documented alongside the other constraints, not
+  a code change (F9 already established this is inherent to local-file architecture, not
+  fixable in code).
+
+**Not done, explicitly deferred, genuinely open:** any technical enforcement of the Ollama-only
+constraint (no per-tool or per-data-class provider gating exists), any code change to the
+Hosted-Account dialog, and R2's vendor-DPA execution (an organizational/contractual act, not
+something this codebase can do). All three remain real follow-ups if/when the org wants them
+built rather than just required.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
