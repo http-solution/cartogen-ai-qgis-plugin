@@ -165,8 +165,39 @@ environment's file locking, not a functional failure; noted for the record, not 
 further since the actual tool behavior was correct both times.
 
 Results, real tool-call evidence for all 25 checks, and package provenance recorded in
-`docs/release_smoke_assets/logs/rc4_headless_run.json`. **§1.10 remains open — this run does not
-change that verdict.**
+`docs/release_smoke_assets/logs/rc4_headless_run.json` (superseded below by this repo's own run).
+**§1.10 remains open — this run does not change that verdict.**
+
+**2026-09-23 — v1.16.0-rc4 — headless, 27/27 checks against THIS repo's own published release ZIP
+(`http-solution/cartogen-ai-qgis-plugin`, tag `commercial-plugin-v1.16.0-rc4`), using this repo's
+own `docs/release_smoke_assets/` fixture bundle.** Same technique as the entry immediately above,
+run a second time against the actual asset published to *this* repo's GitHub release rather than
+the canonical repo's — the two are independent builds from independent (if content-similar) commit
+histories, so a checklist pass on one does not by itself establish the other's packaged artifact
+behaves the same way. Downloaded asset id `584510070` via the authenticated
+`/releases/assets/{id}` endpoint (the `browser_download_url` route silently returns a "Not Found"
+body for a private repo without going through this endpoint — same mistake-then-fix pattern
+recorded in this project's history), independently re-verified sha256
+`8566c818a212851fe2bb10dec115b3e686425995d7663e9d23b77eeda43a78f9` against the known-good release
+checksum, extracted fresh, and ran the real registered tool functions directly against the same
+real `smoke_start.qgz` fixture project via `python-qgis.bat`.
+
+**27/27 checks passed — a full pass, not a partial one, because this run added 3 checks the
+2026-09-23 canonical-repo entry above didn't attempt:** all of A1–A7, B1–B5, and C1/C3 passed as
+described in the entry above (same fixture data, same tool calls, same results). In addition:
+
+- **C5b/C5c/C5d — the rc4 sandbox security fixes themselves, live-verified against the packaged
+  code** (not just the source tree): `qgis.utils.os.getcwd()` rejected via the new blocked
+  `.os` attribute access; `qgis.utils.sys.modules['subprocess']` rejected via the new blocked
+  `.modules` attribute access; `from cartogen_ai.infrastructure.auth import CredentialManager`
+  rejected via the new blocked `cartogen_ai` module import. All three are the exact bypasses this
+  project's own sandbox-hardening pass found and patched — this run confirms the published ZIP
+  actually contains the fix, not just that the dev tree does.
+
+Same C4 test-harness limitation as every prior entry (not a product defect — see above). Same
+§1.10 caveat: this does **not** close it — still needs a real interactive QGIS GUI session with a
+fresh profile. Full results in `docs/release_smoke_assets/logs/rc4_headless_run.json` (this file
+now holds this repo's own run's results, not the canonical repo's).
 
 **2026-09-20 — RC4 candidate (1.5.7-rc4), pre-release-commit build — headless, 11 targeted checks
 against a freshly built `dist/cartogen_ai_v1.5.7-rc4.zip` (194 entries, sha256
