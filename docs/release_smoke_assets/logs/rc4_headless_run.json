@@ -5,7 +5,7 @@
   },
   "A1_vector_buffer": {
     "pass": true,
-    "detail": "{'success': True, 'layer_name': 'smoke_points_buffer_500', 'action_chips': [{'id': 'act_66dc8201', 'label': '\ud83d\udcc1 Export smoke_points_buffer_500', 'url': 'cartogen://action/act_66dc8201'}, {'id': 'act_acac5d18', 'label': '\ud83d\udd0d Zoom to smoke_points_buffer_500', 'url': 'cartogen://action/act_acac5d18'}]} ne"
+    "detail": "{'success': True, 'layer_name': 'smoke_points_buffer_500', 'action_chips': [{'id': 'act_14f7981c', 'label': '\ud83d\udcc1 Export smoke_points_buffer_500', 'url': 'cartogen://action/act_14f7981c'}, {'id': 'act_12d61632', 'label': '\ud83d\udd0d Zoom to smoke_points_buffer_500', 'url': 'cartogen://action/act_12d61632'}]} ne"
   },
   "A2_raster_stretch": {
     "pass": true,
@@ -37,7 +37,7 @@
   },
   "A6_export_csv": {
     "pass": true,
-    "detail": "{'success': True, 'output_path': 'C:\\\\Cartogen-AI-Core\\\\cartogen-ai\\\\docs\\\\release_smoke_assets\\\\outputs\\\\smoke_points.csv', 'feature_count': 5, 'only_selected_features': False}"
+    "detail": "{'success': True, 'output_path': 'C:\\\\http-solution\\\\cartogen-ai-qgis-plugin\\\\docs\\\\release_smoke_assets\\\\outputs\\\\smoke_points.csv', 'feature_count': 5, 'only_selected_features': False}"
   },
   "A7_print_layout": {
     "pass": true,
@@ -77,11 +77,11 @@
   },
   "C3_save_project": {
     "pass": true,
-    "detail": "{'success': True, 'file_path': 'C:/Cartogen-AI-Core/cartogen-ai/docs/release_smoke_assets/outputs/smoke_roundtrip.qgz'}"
+    "detail": "{'success': True, 'file_path': 'C:/http-solution/cartogen-ai-qgis-plugin/docs/release_smoke_assets/outputs/smoke_roundtrip.qgz'}"
   },
   "C3_load_gate": {
     "pass": true,
-    "detail": "{'status': 'PREVIEW_REQUIRED', 'requires_confirmation': True, 'is_destructive': True, 'tool_name': 'load_project', 'arguments': {'file_path': 'C:\\\\Cartogen-AI-Core\\\\cartogen-ai\\\\docs\\\\release_smoke_assets\\\\outputs\\\\smoke_roundtrip.qgz', 'confirmed': True}, 'code_snippet': \"QgsProject.instance().read"
+    "detail": "{'status': 'PREVIEW_REQUIRED', 'requires_confirmation': True, 'is_destructive': True, 'tool_name': 'load_project', 'arguments': {'file_path': 'C:\\\\http-solution\\\\cartogen-ai-qgis-plugin\\\\docs\\\\release_smoke_assets\\\\outputs\\\\smoke_roundtrip.qgz', 'confirmed': True}, 'code_snippet': \"QgsProject.instan"
   },
   "C3_roundtrip_layers": {
     "pass": true,
@@ -95,8 +95,16 @@
     "pass": true,
     "detail": "{'error': \"Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script.\"}"
   },
-  "C4_task_memory_multistep": {
-    "pass": false,
-    "detail": "raised: AttributeError(\"'CartogenAi' object has no attribute '_auto_model_provider'\")"
+  "C5b_sandbox_blocks_qgis_utils_os": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.os' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "C5c_sandbox_blocks_sys_modules_pivot": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.modules' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "C5d_sandbox_blocks_cartogen_ai_import": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked import 'cartogen_ai.infrastructure.auth' -- not allowed in execute_pyqgis_script.\"}"
   }
 }
