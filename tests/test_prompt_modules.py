@@ -146,6 +146,34 @@ class TestRule48LiveHazardIntentRecognition(unittest.TestCase):
         )
 
 
+class TestRule49GlobalMemoryPiiGuardrail(unittest.TestCase):
+    """Rule 49 (added 2026-09-24, from a fact-checked external critique of
+    docs/GDPR_COMPLIANCE_REVIEW.docx): a preventive complement to F1's reactive
+    clear_global_notes()/delete_global_note() fix -- never write PII into store_global_memory
+    in the first place. CORE (always included), not domain-triggered: store_global_memory is
+    in _ALWAYS_GUARANTEED_TOOLS, so a text mention of it would be excluded from
+    auto-extraction and fall back to always-on regardless -- CORE just makes that explicit."""
+
+    def test_rule_49_is_core(self):
+        self.assertIn(49, prompts.CORE_RULE_NUMBERS)
+
+    def test_rule_49_not_sensitive(self):
+        self.assertNotIn(49, prompts.SENSITIVE_RULE_NUMBERS)
+
+    def test_rule_49_present_even_with_no_active_tools(self):
+        assembled = prompts._assemble_base_prompt(set())
+        self.assertIn(prompts._ALL_RULES[49].strip(), assembled)
+
+    def test_rule_49_present_regardless_of_which_tools_are_active(self):
+        assembled = prompts._assemble_base_prompt({"buffer_analysis"})
+        self.assertIn(prompts._ALL_RULES[49].strip(), assembled)
+
+    def test_rule_49_mentions_store_global_memory_and_store_project_memory(self):
+        text = prompts._ALL_RULES[49]
+        self.assertIn("store_global_memory", text)
+        self.assertIn("store_project_memory", text)
+
+
 class TestBuildSystemPromptIntegration(unittest.TestCase):
     def test_active_tool_names_none_matches_full_prompt(self):
         prompt = prompts.build_system_prompt()
