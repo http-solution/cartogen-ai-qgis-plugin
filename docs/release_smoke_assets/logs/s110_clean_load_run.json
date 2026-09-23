@@ -1,0 +1,24 @@
+{
+  "v1.15.6_fresh_install": {
+    "label": "v1.15.6_fresh_install",
+    "module_imported": true,
+    "classFactory_ok": true,
+    "initGui_ok": true,
+    "toolbar_actions_installed": 1,
+    "menu_actions_installed": 2,
+    "processing_provider_registered": false,
+    "unload_ok": true,
+    "success": true
+  },
+  "v1.16.0-rc4_upgraded_in_place": {
+    "label": "v1.16.0-rc4_upgraded_in_place",
+    "module_imported": true,
+    "classFactory_ok": true,
+    "initGui_ok": true,
+    "toolbar_actions_installed": 1,
+    "menu_actions_installed": 2,
+    "processing_provider_registered": true,
+    "unload_ok": true,
+    "success": true
+  }
+}
