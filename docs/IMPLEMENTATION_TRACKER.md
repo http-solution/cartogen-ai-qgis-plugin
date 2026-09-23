@@ -360,6 +360,21 @@ without the standing to actually replace what the org already requires.
 **Needs:** Baron's decision on whether this convention is worth adopting for this product's actual
 user base at all, and if so, at what enforcement level.
 
+**BUILT 2026-09-24, option (c): opt-in scaffolding tool.** Alaa decided against (a)/(b) and for
+the opt-in tool -- `create_project_folder_structure` (`project_tools.py`) creates the full layout
+from the source proposal's diagram (`data/00_raw` through `40_raster`, `project/templates`,
+`styles`, `models`, `scripts/{processing,atlas,validation}`, `exports/{pdf,geospatial,web,field}`,
+`metadata`, `logs`) under a caller-given `base_path`. Registered `CREATE` in
+`tool_operations.py` (only ever adds new empty folders via `os.makedirs(exist_ok=True)`, skips
+anything that already exists -- never a DELETE/data-loss risk, so no confirmation gate per
+`SECURITY.md` §5). The tool's own description tells the model to call it only on an explicit user
+request, never on its own initiative -- the whole point of choosing (c) over (a)/(b) was to add
+zero friction for users who already work inside an org-mandated structure. 5 new unit tests
+(idempotency, never overwrites an existing folder or file -- verified with a real sentinel file
+written into a pre-existing `data/00_raw`, creates `base_path` itself if missing, rejects an empty
+`base_path`). Full suite: 1994 tests, all passing. `docs/TOOLS_REFERENCE.md` regenerated (178
+tools now, was 177).
+
 ---
 
 ### 1.8 `task_matcher.py`'s keyword-count normalisation structurally favors short task definitions

@@ -3,10 +3,14 @@
 in the QGIS-feature-coverage pass. load_project follows the same
 PREVIEW_REQUIRED destructive-confirmation pattern as vector_tools.remove_layer
 since it replaces the entire open project."""
+import os
+import shutil
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.project_tools import (
     save_project, load_project, create_map_theme, apply_map_theme, list_map_themes,
+    create_project_folder_structure, _PROJECT_FOLDER_LAYOUT,
 )
 
 
@@ -168,6 +172,61 @@ class TestListMapThemes(unittest.TestCase):
 
         self.assertTrue(res["success"])
         self.assertEqual(res["themes"], ["overview", "health_only"])
+
+
+class TestCreateProjectFolderStructure(unittest.TestCase):
+    """IMPLEMENTATION_TRACKER.md SS1.7, option (c) -- opt-in scaffolding tool, doesn't need
+    QGIS_AVAILABLE at all (pure filesystem, unlike every other tool in this file)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_rejects_missing_base_path(self):
+        res = create_project_folder_structure("")
+        self.assertIn("error", res)
+
+    def test_creates_every_layout_folder(self):
+        res = create_project_folder_structure(self.tmp_dir)
+
+        self.assertTrue(res["success"])
+        self.assertEqual(sorted(res["created"]), sorted(_PROJECT_FOLDER_LAYOUT))
+        self.assertEqual(res["already_existed"], [])
+        for rel_dir in _PROJECT_FOLDER_LAYOUT:
+            self.assertTrue(os.path.isdir(os.path.join(self.tmp_dir, *rel_dir.split("/"))))
+
+    def test_never_overwrites_existing_folders_or_files(self):
+        raw_dir = os.path.join(self.tmp_dir, "data", "00_raw")
+        os.makedirs(raw_dir)
+        sentinel_file = os.path.join(raw_dir, "do_not_touch.gpkg")
+        with open(sentinel_file, "w") as f:
+            f.write("real source data")
+
+        res = create_project_folder_structure(self.tmp_dir)
+
+        self.assertTrue(res["success"])
+        self.assertIn("data/00_raw", res["already_existed"])
+        self.assertNotIn("data/00_raw", res["created"])
+        with open(sentinel_file) as f:
+            self.assertEqual(f.read(), "real source data")
+
+    def test_second_call_is_idempotent(self):
+        create_project_folder_structure(self.tmp_dir)
+        res = create_project_folder_structure(self.tmp_dir)
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["created"], [])
+        self.assertEqual(sorted(res["already_existed"]), sorted(_PROJECT_FOLDER_LAYOUT))
+
+    def test_creates_base_path_itself_if_missing(self):
+        nested_base = os.path.join(self.tmp_dir, "does", "not", "exist", "yet")
+
+        res = create_project_folder_structure(nested_base)
+
+        self.assertTrue(res["success"])
+        self.assertTrue(os.path.isdir(os.path.join(nested_base, "data", "00_raw")))
 
 
 if __name__ == "__main__":
