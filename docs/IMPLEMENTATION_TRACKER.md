@@ -399,6 +399,21 @@ if so, what the target formula should be), or whether targeted overrides like `_
 LANGUAGE` are the accepted long-term pattern for closing specific short-vs-long-keyword-list
 collisions as they're found live.
 
+**DECIDED 2026-09-24 by Alaa: option 1 — targeted re-rank overrides (the `_ACCESS_TIME_LANGUAGE`
+pattern) are the accepted long-term approach.** The shared `_score()` normalization formula stays
+untouched. This was chosen as the zero-blast-radius option over reweighting the formula itself
+(which would need the full review pass described above — rerunning
+`test_the_matcher_still_finds_every_task_from_its_own_title` plus a real-query spot-check across
+every section — before it could ship, since it changes ranking for all 250+ tasks at once, not
+just the collision family that's actually been hit). Accepted tradeoff, explicit going in: this is
+reactive, not preventive — it only closes specific collisions after they surface as a live-reported
+failure, the override list grows as a parallel mechanism sitting next to the real scorer rather
+than fixing the underlying tension, and a not-yet-reported task pair with the same short-vs-long
+keyword-list shape will fail the same way until it, too, is reported and given its own override.
+**No code change from this entry** — `_ACCESS_TIME_LANGUAGE` already exists and already closes the
+one confirmed live case; this decision just confirms that pattern as where the *next* one goes too,
+rather than reopening the formula question each time.
+
 ---
 
 ### 1.9 `run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones
