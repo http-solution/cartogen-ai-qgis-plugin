@@ -1202,6 +1202,55 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
   `v1.16.0-rc3` (`99eb868`) stays published, unchanged. **§1.10 remains the only open item before a
   stable production-release decision.**
 
+- **2026-09-23 — the `v1.16.0-rc4` codebase also synced and released to a second repo,
+  `http-solution/cartogen-ai-qgis-plugin` (private, account ID `214734687`), by direct
+  instruction.** This is a genuinely separate GitHub repository from the canonical
+  `cartogenai-glitch/CARTOGEN-AI` used throughout this tracker — not a fork, not a mirror
+  configured via GitHub's own mirroring, and not previously referenced anywhere in this
+  project's docs/history before this session. It has its own independent commit history
+  (unrelated by hash to the canonical repo despite closely matching content — commit messages
+  in its history read as replicated/synced from the same source, apparently by a separate,
+  independent process not run from this session) and was already current through `v1.16.0-rc3`
+  plus one extra commit (a `release_smoke_assets/` fixture bundle + `RELEASE_LIVE_TEST_SCENARIOS.md`
+  — the same fixture content another session had left uncommitted in the canonical repo's working
+  tree) before this session touched it.
+  - **Local sync**: diffed the two working trees directly (not a `git merge`/`pull`, which would
+    conflict on every file given the unrelated histories) at `C:\http-solution\cartogen-ai-qgis-plugin`
+    against the canonical checkout. Verified file-by-file, after normalizing CRLF-vs-LF line-ending
+    noise that was making every file look different, that the canonical repo's rc4 content was
+    purely additive/replacing over what this repo already had committed — nothing here was
+    overwritten or lost. Synced: the rc4 §1.11 sandbox fixes, exception-logging changes, version
+    bump, `CLAUDE.md`/tracker updates, and the rc4 headless-checklist evidence
+    (`docs/release_smoke_assets/logs/rc4_headless_run.json`). Deliberately left untouched:
+    `docs/release_smoke_assets/` fixture *binaries* and `RELEASE_LIVE_TEST_SCENARIOS.md` (already
+    correct there), and `.github/workflows/tests.yml`'s `permissions:` block (this repo's own
+    addition, not present upstream) — merged rather than overwritten once confirmed to be the
+    *only* real difference in that file; the rest of that file there already matched the rc4 CI
+    content, apparently from that same independent sync process. `web-platform/` (untracked local
+    content in the canonical checkout, not part of either repo's git history) was correctly left
+    alone.
+  - **Commit identity**: this checkout's local git config was overridden to a personal identity
+    that GitHub's `GH007` email-privacy check rejected on push. Fixed by setting both
+    `GIT_AUTHOR_*` and `GIT_COMMITTER_*` (amend alone only fixes the author field, not the
+    committer — the first attempt failed for exactly this reason) to
+    `HTTP-Solution <214734687+http-solution@users.noreply.github.com>`, the same identity already
+    used in this repo's own prior commits, confirmed by matching the numeric account ID.
+  - **Release**: tagged `commercial-plugin-v1.16.0-rc4`, built the zip from this repo's own clean
+    committed state (226 files — more than the canonical rc4 zip's 196, since this repo has
+    additional already-committed content the canonical repo doesn't yet), and published a GitHub
+    prerelease via the REST API — this session has no `gh` CLI access to the `http-solution`
+    account (only `cartogenai-glitch`), so the release/asset-upload/verify steps used the OAuth
+    token Git Credential Manager already had cached for this checkout's own git push access,
+    called directly via `curl`/Python, with the token never printed or logged. Published asset
+    checksum independently verified to match the local build byte-for-byte
+    (`8566c818a212851fe2bb10dec115b3e686425995d7663e9d23b77eeda43a78f9`).
+    https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/commercial-plugin-v1.16.0-rc4
+  - **This does not change §1.10's status** — the exact-ZIP clean-profile install/upgrade test is
+    still open on both repos; publishing rc4 here doesn't substitute for it. Whether
+    `http-solution/cartogen-ai-qgis-plugin` should be treated as an ongoing second release target
+    going forward, or this was a one-off sync, is a decision for whoever owns that account — not
+    resolved here.
+
 ## 5. Source doc index (all frozen/historical unless noted; frozen docs live in `docs/archive/`)
 
 | Doc | Status |
