@@ -416,6 +416,34 @@ Full detail: `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
 Tracked in `docs/IMPLEMENTATION_TRACKER.md` §1.4.
 
+### DPIA determination and deployment constraints, 2026-09-24
+
+**Section 6 of `docs/DPIA_SCREENING_WORKSHEET.docx` was completed 2026-09-24 with a formal
+determination: a DPIA is required under Art. 35(1), approved subject to the deployment
+constraints below — not an unconditional go-ahead.** This is a policy record, not new code;
+none of it is technically enforced yet (see `docs/IMPLEMENTATION_TRACKER.md` §1.4 for that
+distinction and why enforcement wasn't built alongside this).
+
+- **Ollama-only for protection/incident/displacement data.** Any workflow touching
+  protection, security-incident, or displacement attributes must use the local Ollama
+  provider. Cloud LLM providers (OpenRouter, Gemini, OpenAI, Claude) are restricted to
+  anonymized, aggregated, or macro-level geospatial planning data only. Raw PII or exact/
+  household-level GPS coordinates must not enter a cloud provider's context window unless
+  local inference is used.
+- **Hosted-Account feature (F14) restricted.** Must not be used with real
+  beneficiary-adjacent data unless the configured `base_url` is confirmed to point to the
+  organization's own self-hosted infrastructure, or an Art. 28 DPA is executed with
+  whoever operates it first.
+- **File-sharing SOP (extends F9).** Field teams must purge local project/global memory
+  before committing a `.qgz` file to a shared drive or version control — F9's documented
+  erasure limitation (above) means a clear action never reaches a copy already shared.
+
+**This is a policy decision, not a code gate** — the plugin does not currently restrict
+which provider a user selects for which kind of data, and does not currently disable the
+Hosted-Account dialog under any condition. Both remain real, deliberately-scoped-out
+engineering follow-ups if the org wants them technically enforced rather than
+procedurally required. See `docs/IMPLEMENTATION_TRACKER.md` §1.4's 2026-09-24 entry.
+
 ## Known limitations (accepted risk, not fixed)
 
 - **DNS rebinding (TOCTOU) on the SSRF guard.** `_is_safe_url` resolves the hostname,
