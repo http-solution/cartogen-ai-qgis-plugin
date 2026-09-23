@@ -367,7 +367,7 @@ collisions as they're found live.
 
 ---
 
-### 1.9 `run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones
+### 1.9 ~~`run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones~~
 
 **Added 2026-09-19, from a live-reported "layer order is wrong" complaint.** Live-verified that
 `set_layer_order`/`_reorder_top_level_layers` (`styling_tools.py`) themselves are NOT buggy: a
@@ -406,6 +406,27 @@ mechanism (2 tools wrapped as real `QgsProcessingAlgorithm` classes) and doesn't
 or its layer-visibility behavior at all. Re-checked this pass: `run_allowlisted_processing_algorithm`
 (`processing_allowlist_tools.py`) still calls `QgsProject.instance().addMapLayer(new_layer)` with
 no visibility flag, unchanged from when this item was written.
+
+**FIXED 2026-09-24, option 1 (narrow fix, decided by Alaa over the costlier explicit `visible`
+parameter):** if the caller didn't bother naming the output (`new_layer_name` omitted, falls back
+to the auto-generated `"<alg_id>_output"` name), the layer is still added to the project/legend
+(inspectable, exportable, included in `set_layer_order` if named explicitly afterward) but its
+layer-tree checkbox is unchecked via `layerTreeRoot().findLayer(new_layer.id()).setItemVisibilityChecked(False)`
+— betting on the theory the source doc itself named: the model names layers it means the user to
+see. An explicitly-named output stays visible as before. The tool's `new_layer_name` schema
+description was updated to tell the model this distinction exists, so it can name outputs
+deliberately rather than by accident; no new parameter was added, no separate prompt-rule doc
+needed updating (checked `tool_operations.py`/`system_tools.py`'s other references to this tool —
+both are routing/classification only, no behavior documentation to keep in sync). Live-verified
+against real QGIS 4.2.2 (`python-qgis.bat`, not mocks): an unnamed buffer output came back
+`itemVisibilityChecked() == False`, a `new_layer_name="my_buffer"` call on the same algorithm came
+back `True` — both cases also covered by 2 new unit tests
+(`test_unnamed_output_is_hidden_from_the_layer_tree`, `test_named_output_stays_visible`) in
+`tests/test_processing_allowlist_tools.py`. Result dict gained a `visible: bool` field reporting
+which branch was taken. **If this naming-convention bet doesn't hold up in practice** (the model
+keeps omitting names for genuine deliverables, or naming scratch layers out of habit), the
+tracker's original option 3 (an explicit `visible` parameter) is the documented fallback — not
+attempted here, since this was scoped as the narrow fix.
 
 ### 1.10 Exact-ZIP clean-profile install and upgrade test — needs a human with a real QGIS profile
 
