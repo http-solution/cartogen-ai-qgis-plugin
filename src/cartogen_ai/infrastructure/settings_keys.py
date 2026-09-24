@@ -27,6 +27,11 @@ SETTINGS_PERSIST_PROJECT_MEMORY = "cartogen_ai/persist_project_memory"
 SETTINGS_ONBOARDING_COMPLETED = "cartogen_ai/onboarding_completed"
 SETTINGS_HELP_LAST_SHOWN_VERSION = "cartogen_ai/help_last_shown_version"
 
+# Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md) -- mode is
+# "off" (default) / "warn" / "enforce"; strict additionally treats UNTAGGED layers as protected.
+SETTINGS_EGRESS_GATE_MODE = "cartogen_ai/egress_gate_mode"
+SETTINGS_EGRESS_GATE_STRICT = "cartogen_ai/egress_gate_strict"
+
 # Prompt Refiner Settings
 SETTINGS_PROMPT_REFINEMENT_ENABLED = "cartogen_ai/prompt_refinement_enabled"
 SETTINGS_PROMPT_PREVIEW_ENABLED = "cartogen_ai/prompt_preview_enabled"
