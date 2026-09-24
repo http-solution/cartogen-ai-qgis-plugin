@@ -186,6 +186,15 @@ here; this file starts tracking forward from today.
 Recorded here specifically so a future session doesn't rediscover these and mistake them for
 new regressions — both are stable, understood, environment-specific artifacts, not code defects:
 
+- **`ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-commercial-plugin-v1'`**
+  (reported 2026-09-24, QGIS 4.2.2 / Python 3.12). Caused by installing GitHub's auto-generated
+  "Source code (zip)" for release `commercial-plugin-v1.16.0-rc4` instead of its attached asset
+  `cartogen_ai_v1.16.0-rc4.zip`. QGIS imports the zip's top-level folder name as a module, and
+  GitHub names it `<repo>-<tag>`. The dots in `v1.16.0-rc4` make `__import__` treat everything
+  after the first dot as a submodule. This fails before any plugin code runs, so the plugin
+  can't guard against it. The attached asset (built by `plugin_upload.py`, folder `cartogen-ai`)
+  is not affected. Fix: delete that folder from `python/plugins/` and install the asset. The
+  README's Installation section now warns about this.
 - **`test_is_safe_url_accepts_public_host` (1 failure)** — `tests/test_new_tools.py`. Fails
   because this sandbox's DNS/network egress can't resolve a public hostname the way a real
   deployment environment can. Not a code defect; the SSRF-guard logic itself is not in

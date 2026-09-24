@@ -119,12 +119,27 @@ roadmap for each.
 
 **From the release zip** (recommended):
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
-2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`).
+2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
+   download the attached asset `cartogen_ai_v<version>.zip`, **not** GitHub's auto-generated
+   "Source code (zip)" (see below).
 3. Enable the plugin if it isn't auto-enabled.
 
+> **Don't install GitHub's "Source code (zip)".** QGIS uses the zip's top-level folder name as
+> the plugin's Python module name. GitHub names that folder `<repo>-<tag>`, for example
+> `cartogen-ai-qgis-plugin-commercial-plugin-v1.16.0-rc4`. The dots in the version make it an
+> invalid module name, so QGIS fails with
+> `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-commercial-plugin-v1'`
+> (seen live on QGIS 4.2.2 with the v1.16.0-rc4 release). The release asset built by
+> `plugin_upload.py` always uses the folder `cartogen-ai`. If you already installed the source
+> zip, delete its folder from your profile's `python/plugins/` directory and install the asset.
+
 **From source** (development):
-1. Copy this repository into your QGIS profile's plugin folder, e.g.
-   `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\cartogen_ai` on Windows.
+1. Copy this repository into your QGIS profile's plugin folder as `cartogen-ai` (the same
+   folder name the release zip uses), e.g.
+   `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\cartogen-ai` on Windows.
+   Don't name it `cartogen_ai`: that folder would shadow the `cartogen_ai` namespace package
+   under `src/` and break every `cartogen_ai.core` import (see `plugin_upload.py`'s
+   `PACKAGE_DIR` comment). Don't include dots in the name either, for the reason above.
 2. Restart QGIS, or use the Plugin Reloader plugin.
 
 This build is not currently published on the public QGIS plugin repository
