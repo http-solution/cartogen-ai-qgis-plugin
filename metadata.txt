@@ -29,8 +29,9 @@ changelog=v1.16.0-rc5 (2026-09-24):
     - New tool: create_project_folder_structure, an opt-in project folder layout (data/00_raw for immutable source data, staging, processed, exports and more). Only creates missing folders, never overwrites.
     - Behaviour change: run_allowlisted_processing_algorithm now adds an output layer HIDDEN (unchecked in the layer tree) when no output name is given, treating it as an intermediate step. Name the output to keep it visible.
     - Security: the execute_pyqgis_script sandbox now also blocks QgsProject.write() (an unrestricted project write to any path) and QgsApplication.authManager() (auth config ID enumeration). A new always-on prompt rule tells the model never to store personal data in global memory. While the data-protection gate is on, lowering a layer's sensitivity tag needs the user's confirmation.
+    - Fix: loading a layer from a URL that doesn't serve geodata (e.g. a GitHub /blob/ page, an API error response, a zip) now names the URL instead of a temp file and says what came back (HTML, zip, XML, JSON that isn't GeoJSON with its top-level keys, an empty file). A layer loaded from a URL is also named after the URL, not the temp copy.
     - Docs: GDPR DPO determination recorded (DPIA required, approved with conditions; DPO signature still pending); scopes for process isolation of execute_pyqgis_script (plus a real benchmark) and for the data-protection gate; README warns to install the release asset, not GitHub's source zip.
-    Full automated suite: 2,095 tests passing, 48 skipped. Zero Ruff violations. Only QGIS 4.2.2 is exercised by CI's live tests.
+    Full automated suite: 2,103 tests passing, 48 skipped. Zero Ruff violations. Only QGIS 4.2.2 is exercised by CI's live tests.
 
 v1.16.0-rc4 (2026-09-23):
     Release candidate 4 for 1.16.0. Codebase security review with live adversarial testing against a real QGIS 4.2.2 session, plus observability follow-ups from the rc3 review cycle:
