@@ -79,6 +79,41 @@ class TestToolArgumentShapeValidation(unittest.TestCase):
         self.assertIn("Invalid tool arguments", res["error"])
 
 
+class TestAddLayerFromPathTwoPhaseSourceLabel(unittest.TestCase):
+    """The two-phase dispatch downloads a URL to a temp file, then calls
+    add_layer_from_path with that local path. It must also pass the original URL, or
+    the error and the default layer name come from the temp copy (live report
+    2026-09-24: "Invalid layer: C:\\...\\Temp\\tmp_2kgn_72.geojson")."""
+
+    def _agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.task_manager = MagicMock()
+        agent.memory_manager = MagicMock()
+        agent._get_schema_props = lambda name: {"file_path": {}, "layer_name": {}}
+        agent._run_on_main_thread = lambda fn, args: fn(args)
+        return agent
+
+    def _dispatch(self, file_path, prefetch_result):
+        import json
+        agent = self._agent()
+        with patch("cartogen_ai.core.agent.tools.vector_tools._prefetch_url_to_temp",
+                   return_value=prefetch_result), \
+             patch("cartogen_ai.core.agent.tools.vector_tools.add_layer_from_path",
+                   return_value={"error": "x"}) as add_layer, \
+             patch("os.remove"):
+            agent._execute_two_phase_tool("add_layer_from_path", json.dumps({"file_path": file_path}))
+        return add_layer
+
+    def test_url_download_passes_original_url_as_source_label(self):
+        url = "https://example.org/districts.geojson"
+        add_layer = self._dispatch(url, ("/tmp/tmp_2kgn_72.geojson", True))
+        add_layer.assert_called_once_with("/tmp/tmp_2kgn_72.geojson", None, url)
+
+    def test_local_path_passes_no_source_label(self):
+        add_layer = self._dispatch("/data/districts.geojson", ("/data/districts.geojson", False))
+        add_layer.assert_called_once_with("/data/districts.geojson", None, None)
+
+
 class _FakeClient:
     """Returns one tool call, then a final answer -- just enough to exercise
     run()'s tool-calling loop once."""

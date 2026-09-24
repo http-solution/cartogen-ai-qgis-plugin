@@ -496,8 +496,74 @@ def _ensure_shapefile_encoding(layer, shp_path):
     return "No .cpg file found alongside this shapefile -- assumed UTF-8 instead of the platform default. If attribute text looks garbled, the shapefile may actually be in a different encoding (e.g. Windows-1256 for Arabic)."
 
 
+_GEOJSON_TYPES = {
+    "FeatureCollection", "Feature", "Point", "MultiPoint", "LineString",
+    "MultiLineString", "Polygon", "MultiPolygon", "GeometryCollection",
+}
+
+
+def _describe_unreadable_download(path):
+    """Best guess at why GDAL rejected a downloaded file, from its first bytes.
+
+    Without this, a URL that serves the wrong content fails with only "Invalid layer".
+    For example, a GitHub /blob/ page URL returns HTML instead of the raw file, and an
+    API may return an error JSON or a zip. The model then has nothing to correct
+    against. Reported live (2026-09-24, QGIS 4.2.2): "Invalid layer:
+    C:\\...\\Temp\\tmp_2kgn_72.geojson" after a URL load, with no hint of the cause.
+
+    Only returns a short classification plus, for JSON, up to 5 top-level key names.
+    It never includes body content. The result goes to the model as a tool error and
+    is not logged. Returns None if nothing recognizable was found."""
+    import json
+    import os
+
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            head = f.read(4096)
+    except OSError:
+        return None
+    if size == 0:
+        return "The downloaded file is empty."
+    text = head.lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if text.startswith(b"pk\x03\x04"):
+        return ("The download is a zip archive, not a single geodata file. Load a direct link "
+                "to the file inside it, or a URL that serves the file itself.")
+    if text.startswith(b"<!doctype html") or text.startswith(b"<html") or b"<html" in text[:512]:
+        return ("The URL returned an HTML web page, not geodata. For GitHub, use the "
+                "raw.githubusercontent.com link (the 'Raw' button), not the /blob/ page URL. "
+                "For other sites, use the direct download link.")
+    if text.startswith(b"<?xml") or text.startswith(b"<"):
+        return ("The URL returned XML that GDAL could not read as a layer. It may be a "
+                "server error/exception report rather than data.")
+    if text.startswith(b"{") or text.startswith(b"["):
+        if size > 5 * 1024 * 1024:
+            return None
+        try:
+            with open(path, "rb") as f:
+                doc = json.loads(f.read().decode("utf-8-sig"))
+        except (ValueError, UnicodeDecodeError):
+            return "The download looks like JSON but is not valid JSON (possibly truncated)."
+        if isinstance(doc, dict) and doc.get("type") in _GEOJSON_TYPES:
+            if doc.get("type") == "FeatureCollection" and not doc.get("features"):
+                return "The download is a GeoJSON FeatureCollection with no features."
+            return None
+        if isinstance(doc, dict):
+            keys = ", ".join(sorted(str(k)[:40] for k in doc)[:5])
+            return (f"The download is JSON but not GeoJSON (no FeatureCollection/Feature/geometry "
+                    f"'type'). Top-level keys: {keys or 'none'}. It may be an API error response "
+                    f"or a wrapper around the real data URL.")
+        return "The download is a JSON array, not a GeoJSON object."
+    return None
+
+
 @register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]})
-def add_layer_from_path(file_path, layer_name=None):
+def add_layer_from_path(file_path, layer_name=None, source_label=None):
+    """source_label is the original URL when agent_orchestrator.py has already downloaded
+    it and file_path is the local temp copy. Without it, the default layer name and
+    error messages came from the temp file ("tmp_2kgn_72") instead of the URL the model
+    asked for. It is not in the tool schema, so the model can't set it: the dispatcher
+    filters args to schema properties."""
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -514,8 +580,10 @@ def add_layer_from_path(file_path, layer_name=None):
         if not is_temp and not os.path.exists(local_path):
             return {"error": f"File not found: {file_path}"}
 
-        clean_path = file_path.split("?")[0]
-        name = layer_name or os.path.splitext(os.path.basename(clean_path))[0] or "layer"
+        label = source_label or file_path
+        downloaded = is_temp or bool(source_label)
+        clean_path = label.split("?")[0]
+        name = layer_name or os.path.splitext(os.path.basename(clean_path.rstrip("/")))[0] or "layer"
         ext = os.path.splitext(clean_path)[1].lower()
         raster_exts = {".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg"}
 
@@ -528,7 +596,11 @@ def add_layer_from_path(file_path, layer_name=None):
                 encoding_note = _ensure_shapefile_encoding(layer, local_path)
 
         if not layer.isValid():
-            return {"error": f"Invalid layer: {file_path}"}
+            error = f"Invalid layer: {label}"
+            if downloaded:
+                reason = _describe_unreadable_download(local_path)
+                error += f" -- {reason}" if reason else " -- the downloaded file could not be read as a vector or raster layer."
+            return {"error": error}
 
         QgsProject.instance().addMapLayer(layer)
         result = {"success": True, "layer_name": layer.name()}

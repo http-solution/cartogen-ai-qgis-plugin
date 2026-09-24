@@ -706,8 +706,9 @@ class CartogenAi:
                 return {"error": f"Download failed: {e}"}
             try:
                 res = self._run_on_main_thread(
-                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name")),
-                    {"file_path": local_path, "layer_name": filtered_args.get("layer_name")},
+                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label")),
+                    {"file_path": local_path, "layer_name": filtered_args.get("layer_name"),
+                     "source_label": file_path if is_temp else None},
                 )
             finally:
                 if is_temp:
