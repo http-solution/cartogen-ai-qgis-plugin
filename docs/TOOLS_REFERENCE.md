@@ -1777,7 +1777,7 @@ Reads a layer's current sensitivity/disclosure classification, if any was set vi
 
 ### `set_layer_sensitivity`
 
-Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. Use for a layer containing individual beneficiary locations, protection incident details, or anything else that shouldn't be shared broadly. export_layer/export_to_csv check this and add an advisory warning (not a block -- the export still completes) when exporting a RESTRICTED/SENSITIVE layer. No automated classification exists -- only what's explicitly set here is tracked.
+Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. Use for a layer containing individual beneficiary locations, protection incident details, or anything else that shouldn't be shared broadly. export_layer/export_to_csv check this and add an advisory warning (not a block -- the export still completes) when exporting a RESTRICTED/SENSITIVE layer. No automated classification exists -- only what's explicitly set here is tracked. When the cloud-provider data-protection gate is on, moving a RESTRICTED/SENSITIVE layer to PUBLIC/INTERNAL needs the user's confirmation in the UI -- do not try to work around that by re-tagging.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
