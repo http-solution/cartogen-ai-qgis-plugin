@@ -6,8 +6,14 @@ QGIS 4.0 (Qt6 migration, released 2026-03-06) removed QgsProject.customProperty(
 setCustomProperty() -- verified directly against the current QGIS API docs (raw HTML,
 not a summarized fetch): the QgsProject class reference no longer lists either method,
 only customVariables()/setCustomVariables() (a QVariantMap bulk get/set). This plugin
-declares qgisMinimumVersion=3.0 through qgisMaximumVersion=4.99 in metadata.txt, so it
-needs to keep working on both APIs rather than picking one.
+declared qgisMinimumVersion=3.0 through qgisMaximumVersion=4.99 in metadata.txt when this was
+written, so it needed to keep working on both APIs rather than picking one.
+
+2026-09-24: QGIS 3.x support was dropped (metadata.txt now declares qgisMinimumVersion=4.2).
+These helpers are deliberately KEPT: on QGIS 4.x they already take the 4.x path, so they cost
+nothing, while replacing each call site with the literal 4.x form would need every site
+re-verified live for no functional gain. The 3.x branches are now unsupported, untested
+fallbacks -- not a statement that 3.x works.
 """
 
 

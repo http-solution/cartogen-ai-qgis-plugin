@@ -10,6 +10,10 @@ unscoped-enum risk flagged in docs/BUG_TRACKER.md BUG-2026-09-02-3 and the
 verify each one: a blanket rewrite to one literal form only works until this
 plugin is run against the other QGIS major version, but resolving at import/
 call time works on either.
+
+2026-09-24: QGIS 3.x support was dropped (qgisMinimumVersion=4.2). This helper
+is kept -- on 4.x it resolves the scoped form first, so it costs nothing -- but
+its flat/Qt5 fallback is now an unsupported, untested path.
 """
 
 
