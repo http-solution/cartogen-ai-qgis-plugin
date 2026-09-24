@@ -72,6 +72,20 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
+> **2026-09-24 — QGIS 3.x support dropped (Alaa: "keep the compatibility only for 4.2.2, no
+> compatibility with 3.x is needed").** `metadata.txt` `qgisMinimumVersion` 3.28 → **4.2**
+> (`qgisMaximumVersion` left at 4.99). The CI live-test job now runs QGIS 4.2.2 only (the
+> `release-3_28` entry was removed; its digest is kept in a comment). README, CLAUDE.md and the
+> model's system prompt now say 4.2+/Qt6 only; the prompt's new claims (scoped enums required,
+> PyQt5 not importable) were checked against real QGIS 4.2.2 first. **Consequence for users:**
+> QGIS 3.x will treat the next release as incompatible, so anyone on 3.x stays on the last
+> version they installed. The compatibility shims (`qgis_compat.py`, `_qgis_enum_compat.py`) are
+> **kept**, since on 4.x they already take the 4.x path, with their docstrings updated to say the
+> 3.x branches are now unsupported. Removing them would mean re-verifying ~15 call sites live for
+> no gain on 4.2.2. **To do at the next RC cut:** record this in that release's `CHANGELOG.md`
+> entry and `metadata.txt` `changelog=` (not written now — both are per-release). Historical
+> entries below that mention 3.28 are left as written.
+
 ### 1.1 ~~Destructive-action confirmation gate — 4 humanitarian analysis tools~~
 
 **Resolved 2026-08-22.** Decision: leave as-is (idempotent, lower real-harm than a
