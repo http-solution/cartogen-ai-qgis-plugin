@@ -72,6 +72,16 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
+> **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
+> `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,
+> including #19 pulled in from `main` before tagging). The zip was built from a clean
+> `git archive` of the release branch and smoke-tested headless in real QGIS 4.2.2
+> (27/27 + 10/10, `docs/RELEASE_SMOKE_TEST.md`). It was then rebuilt from the merged commit:
+> 217 files in both builds, and only the 3 smoke-log docs differ. The published asset was
+> re-downloaded and its sha256 matched (`f77fa9b2…c1b4a`). **§1.10 (interactive check in a
+> real QGIS window) is still not done** and is still the only item before a stable-release
+> decision.
+
 > **2026-09-24 — QGIS 3.x support dropped (Alaa: "keep the compatibility only for 4.2.2, no
 > compatibility with 3.x is needed").** `metadata.txt` `qgisMinimumVersion` 3.28 → **4.2**
 > (`qgisMaximumVersion` left at 4.99). The CI live-test job now runs QGIS 4.2.2 only (the
