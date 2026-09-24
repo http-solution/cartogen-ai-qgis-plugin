@@ -614,6 +614,62 @@ class TestChatWidgetLive(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def _attach_under_gate(self, base_url, mode="enforce", strict=True, reply="Analyzed."):
+        """Drives the real attachment path (_read_and_analyze_file on a real background
+        thread, a real file on disk) with the cloud-provider egress gate set in real
+        QgsSettings. Returns (agent, chat_text, attached_paths, file_path)."""
+        import tempfile
+        import threading
+        from qgis.core import QgsSettings
+        from cartogen_ai.infrastructure.settings_keys import (
+            SETTINGS_EGRESS_GATE_MODE, SETTINGS_EGRESS_GATE_STRICT,
+        )
+        settings = QgsSettings()
+        settings.setValue(SETTINGS_EGRESS_GATE_MODE, mode)
+        settings.setValue(SETTINGS_EGRESS_GATE_STRICT, strict)
+        self.addCleanup(settings.remove, SETTINGS_EGRESS_GATE_MODE)
+        self.addCleanup(settings.remove, SETTINGS_EGRESS_GATE_STRICT)
+
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": reply}}])
+        agent.client.base_url = base_url
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        self.addCleanup(os.remove, path)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("household_id,name" + chr(10) + "1,Example Person")
+        thread = threading.Thread(target=ct._read_and_analyze_file,
+                                  args=(agent, "households.txt", path), daemon=True)
+        thread.start()
+        _pump(until=lambda: not thread.is_alive())
+        return agent, self._chat_text(ct), list(ct._attached_paths), path
+
+    def test_egress_gate_blocks_an_attachment_on_a_cloud_provider_in_strict_mode(self):
+        """Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md):
+        analyze_file is the one place an attached file's content leaves the machine. In strict
+        enforce mode on a cloud endpoint it must never reach the provider, and must not be queued
+        for the next message either."""
+        agent, chat, attached, path = self._attach_under_gate("https://api.openai.com/v1/chat/completions")
+        self.assertEqual(agent.client.calls, 0, "the file's content must not be sent anywhere")
+        self.assertIn("Not sent: households.txt", chat)
+        self.assertNotIn(path, attached, "a blocked file must not ride along with the next message")
+
+    def test_egress_gate_lets_an_attachment_through_on_a_local_provider(self):
+        agent, chat, attached, path = self._attach_under_gate("http://127.0.0.1:11434/v1/chat/completions")
+        self.assertEqual(agent.client.calls, 1)
+        self.assertIn("Analyzed.", chat)
+        self.assertIn(path, attached)
+
+    def test_egress_gate_does_not_touch_attachments_outside_strict_mode(self):
+        agent, chat, _, _ = self._attach_under_gate("https://api.openai.com/v1", strict=False)
+        self.assertEqual(agent.client.calls, 1)
+        self.assertNotIn("Not sent", chat)
+
+    def test_egress_gate_off_by_default_leaves_attachments_unchanged(self):
+        agent, chat, _, _ = self._attach_under_gate("https://api.openai.com/v1", mode="off")
+        self.assertEqual(agent.client.calls, 1)
+        self.assertIn("Analyzed.", chat)
+
     def test_attachment_disclosure_note_names_the_active_hosted_provider(self):
         """API-007, 2026-09-14 audit: attach_file() must tell the user, at the moment of
         attachment, which provider the file's content is about to be sent to."""

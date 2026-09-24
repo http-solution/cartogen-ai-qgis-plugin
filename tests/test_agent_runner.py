@@ -940,5 +940,141 @@ class TestPlanValidationGateWiring(unittest.TestCase):
         self.assertEqual(res["status"], "PLAN_REQUIRED")
 
 
+class TestEgressGateWiring(unittest.TestCase):
+    """Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md): the plumbing
+    in _real_execute_tool, then _egress_gate_decision itself against a fake qgis.core."""
+
+    def _agent(self):
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent._plan_gate = PlanValidationGate()
+        agent._is_plan_gate_enabled = lambda: False
+        agent.task_manager = MagicMock()
+        agent.memory_manager = MagicMock()
+        agent._last_tool_call = None
+        return agent
+
+    def _run(self, decision):
+        calls = []
+
+        def fake_tool(**kwargs):
+            calls.append(kwargs)
+            return {"success": True}
+
+        agent = self._agent()
+        with patch.object(agent_mod.CartogenAi, "_egress_gate_decision", lambda self, n, a: decision),              patch.dict(agent_mod.TOOL_REGISTRY, {"buffer_analysis": fake_tool}):
+            res = agent._real_execute_tool("buffer_analysis", "{}")
+        return res, calls
+
+    def test_block_returns_the_result_and_never_runs_the_tool(self):
+        blocked = {"status": "EGRESS_BLOCKED", "message": "no"}
+        res, calls = self._run({"action": "block", "layers": {"a": "tagged SENSITIVE"}, "result": blocked})
+        self.assertEqual(res, blocked)
+        self.assertEqual(calls, [])
+
+    def test_warn_runs_the_tool_and_attaches_the_warning(self):
+        res, calls = self._run({"action": "warn", "layers": {"a": "x"}, "result": None, "warning": "careful"})
+        self.assertTrue(res["success"])
+        self.assertEqual(res["egress_warning"], "careful")
+        self.assertEqual(len(calls), 1)
+
+    def test_no_decision_runs_the_tool_untouched(self):
+        res, calls = self._run(None)
+        self.assertEqual(res, {"success": True})
+        self.assertEqual(len(calls), 1)
+
+    def test_default_is_off_and_needs_no_instance_state(self):
+        # No patching of the decision: outside QGIS the mode reads "off", so this is a no-op and
+        # must not touch self.client, the project or anything else the bare agent lacks.
+        agent = self._agent()
+        self.assertIsNone(agent._egress_gate_decision("buffer_analysis", {"layer_name": "x"}))
+
+    # -- _egress_gate_decision against a fake qgis.core -------------------------------------
+    def _fake_qgis(self, layers, raise_on_layers=False):
+        """layers: {name: (sensitivity_level_or_None, [lineage source names])}"""
+        import json
+        import sys
+        import types
+
+        from cartogen_ai.core.models.sensitivity import SENSITIVITY_PROPERTY_KEY
+        from cartogen_ai.core.agent.lineage import LINEAGE_PROPERTY_KEY
+
+        class FakeLayer:
+            def __init__(self, name, level, sources):
+                self._n, self._level, self._sources = name, level, sources
+
+            def name(self):
+                return self._n
+
+            def customProperty(self, key, default=""):
+                if key == SENSITIVITY_PROPERTY_KEY and self._level:
+                    return json.dumps({"level": self._level, "reason": None})
+                if key == LINEAGE_PROPERTY_KEY and self._sources:
+                    return json.dumps([{"tool": "t", "params": {}, "sources": self._sources}])
+                return default
+
+        objs = {n: FakeLayer(n, lv, src) for n, (lv, src) in layers.items()}
+
+        class FakeProject:
+            @staticmethod
+            def instance():
+                return FakeProject()
+
+            def mapLayers(self):
+                if raise_on_layers:
+                    raise RuntimeError("boom")
+                return dict(objs)
+
+            def mapLayersByName(self, name):
+                return [objs[name]] if name in objs else []
+
+        core = types.ModuleType("qgis.core")
+        core.QgsProject = FakeProject
+        pkg = types.ModuleType("qgis")
+        pkg.core = core
+        return patch.dict(sys.modules, {"qgis": pkg, "qgis.core": core})
+
+    def _decide(self, base_url, layers, mode="enforce", strict=False, tool="buffer_analysis",
+                args=None, raise_on_layers=False):
+        from cartogen_ai.core.agent import lineage
+        from cartogen_ai.core.models import egress_gate
+        agent = self._agent()
+        agent.client = MagicMock(base_url=base_url)
+        args = args if args is not None else {"layer_name": "beneficiaries"}
+        with self._fake_qgis(layers, raise_on_layers),              patch.object(lineage, "QGIS_AVAILABLE", True),              patch.object(egress_gate, "read_mode", return_value=mode),              patch.object(egress_gate, "read_strict", return_value=strict):
+            return agent._egress_gate_decision(tool, args)
+
+    LAYERS = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
+
+    def test_cloud_provider_and_a_sensitive_layer_is_blocked(self):
+        res = self._decide("https://api.openai.com/v1/chat/completions", self.LAYERS)
+        self.assertEqual(res["action"], "block")
+        self.assertEqual(res["result"]["status"], "EGRESS_BLOCKED")
+
+    def test_local_provider_is_allowed(self):
+        self.assertIsNone(self._decide("http://127.0.0.1:11434/v1/chat/completions", self.LAYERS))
+
+    def test_a_client_with_no_readable_endpoint_counts_as_cloud(self):
+        self.assertEqual(self._decide(None, self.LAYERS)["action"], "block")
+
+    def test_a_public_layer_is_allowed_on_cloud(self):
+        self.assertIsNone(self._decide("https://api.openai.com/v1", self.LAYERS,
+                                       args={"layer_name": "boundary"}))
+
+    def test_lineage_from_the_real_property_is_followed(self):
+        layers = {"src": ("SENSITIVE", []), "buffered": (None, ["src"])}
+        res = self._decide("https://api.openai.com/v1", layers, args={"layer_name": "buffered"})
+        self.assertEqual(res["action"], "block")
+        self.assertIn("derived from 'src'", res["layers"]["buffered"])
+
+    def test_check_failure_blocks_in_enforce_mode(self):
+        res = self._decide("https://api.openai.com/v1", self.LAYERS, raise_on_layers=True)
+        self.assertEqual(res["action"], "block")
+        self.assertIn("could not be completed", res["result"]["message"])
+
+    def test_check_failure_does_not_block_in_warn_mode(self):
+        self.assertIsNone(self._decide("https://api.openai.com/v1", self.LAYERS, mode="warn",
+                                       raise_on_layers=True))
+
+
 if __name__ == "__main__":
     unittest.main()

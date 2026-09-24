@@ -48,6 +48,7 @@ from .tools.transaction_tools import bind_transaction_log
 from . import tool_operations
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
+from ..models import egress_gate
 from ..services import learning
 from . import onboarding_profile
 from ..logger import log_event
@@ -410,6 +411,58 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _egress_gate_decision(self, name, filtered_args):
+        """Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md): would
+        this call send protected layer data to a non-local provider? Returns None (proceed) or
+        egress_gate.evaluate()'s decision dict. Off by default -- returns before touching anything
+        else, so it costs nothing and needs no per-instance state when the mode is "off".
+
+        If the check itself fails in enforce mode the call is BLOCKED rather than let through: a
+        privacy gate that silently fails open is worse than one that occasionally over-blocks."""
+        mode = egress_gate.read_mode()
+        if mode == egress_gate.MODE_OFF:
+            return None
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return None
+        try:
+            from .lineage import get_layer_lineage
+            from ..models import sensitivity as _sens
+            project = QgsProject.instance()
+
+            def _layer(layer_name):
+                found = project.mapLayersByName(layer_name)
+                return found[0] if found else None
+
+            def get_level(layer_name):
+                return _sens.get_layer_sensitivity(_layer(layer_name)).get("level")
+
+            def get_sources(layer_name):
+                out = []
+                for entry in get_layer_lineage(_layer(layer_name)):
+                    if isinstance(entry, dict):
+                        out.extend(s for s in (entry.get("sources") or []) if isinstance(s, str))
+                return out
+
+            # A client with no readable endpoint (OpenRouter's, for one) counts as non-local --
+            # the safe direction for a privacy gate.
+            base_url = getattr(getattr(self, "client", None), "base_url", None)
+            return egress_gate.evaluate(
+                mode=mode,
+                provider_is_local=egress_gate.is_local_endpoint(base_url),
+                tool_name=name,
+                arguments=filtered_args,
+                project_layer_names=[lyr.name() for lyr in project.mapLayers().values()],
+                get_level=get_level,
+                get_sources=get_sources,
+                strict=egress_gate.read_strict(),
+            )
+        except Exception:
+            if mode == egress_gate.MODE_ENFORCE:
+                return egress_gate.check_failed_decision(name)
+            return None
+
     def _is_plan_gate_enabled(self) -> bool:
         """§1.6 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
         exact shape (QGIS_AVAILABLE guard, try/except, never raises)."""
@@ -465,8 +518,17 @@ class CartogenAi:
         if gate_response is not None:
             return gate_response
 
+        # Egress gate: also BEFORE the call, for the same reason -- a blocked call must never
+        # execute, since executing is what reads the protected layer.
+        egress = self._egress_gate_decision(name, filtered_args)
+        if egress is not None and egress["action"] == "block":
+            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+            return egress["result"]
+
         try:
             res = func(**filtered_args)
+            if egress is not None and egress["action"] == "warn" and isinstance(res, dict):
+                res["egress_warning"] = egress["warning"]
             if name == "create_plan" and isinstance(res, dict) and res.get("success"):
                 self._plan_gate.mark_plan_created()
             if isinstance(res, dict):

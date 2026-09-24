@@ -72,6 +72,20 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
+> **2026-09-24 — QGIS 3.x support dropped (Alaa: "keep the compatibility only for 4.2.2, no
+> compatibility with 3.x is needed").** `metadata.txt` `qgisMinimumVersion` 3.28 → **4.2**
+> (`qgisMaximumVersion` left at 4.99). The CI live-test job now runs QGIS 4.2.2 only (the
+> `release-3_28` entry was removed; its digest is kept in a comment). README, CLAUDE.md and the
+> model's system prompt now say 4.2+/Qt6 only; the prompt's new claims (scoped enums required,
+> PyQt5 not importable) were checked against real QGIS 4.2.2 first. **Consequence for users:**
+> QGIS 3.x will treat the next release as incompatible, so anyone on 3.x stays on the last
+> version they installed. The compatibility shims (`qgis_compat.py`, `_qgis_enum_compat.py`) are
+> **kept**, since on 4.x they already take the 4.x path, with their docstrings updated to say the
+> 3.x branches are now unsupported. Removing them would mean re-verifying ~15 call sites live for
+> no gain on 4.2.2. **To do at the next RC cut:** record this in that release's `CHANGELOG.md`
+> entry and `metadata.txt` `changelog=` (not written now — both are per-release). Historical
+> entries below that mention 3.28 are left as written.
+
 ### 1.1 ~~Destructive-action confirmation gate — 4 humanitarian analysis tools~~
 
 **Resolved 2026-08-22.** Decision: leave as-is (idempotent, lower real-harm than a
@@ -343,6 +357,36 @@ prevents accidents, not a determined user, since the policy setting lives in use
 `QgsSettings`. Six decisions are listed for Alaa/the DPO (default mode, override policy, who
 classifies layers, `execute_pyqgis_script` on cloud, history on provider switch, where the policy
 lives) before any code. **Not built; no phase started.**
+
+**Update, 2026-09-24, later — the Ollama-only gate partly built (Alaa: "ok proceed").** Built
+behind a mode that defaults to **Off**, so nothing changes until someone opts in: Phase 1 in full
+(`core/models/egress_gate.py`: endpoint-locality classifier, protection rules, lineage inheritance,
+fail-closed on internal error), the pre-dispatch check in `_real_execute_tool` (a blocked call never
+executes), a confirmation lock so the model cannot lower a protected layer's tag itself
+(`confirmed` is not in the schema, so a model-supplied value is discarded), and Settings controls
+(Off / Warn only / Block, plus strict). Verified with 51 new unit tests and a live run against real
+QGIS 4.2.2 of 19 bypass-style scenarios, all passing — including derived-layer inheritance through
+real lineage, a forged `confirmed=True`, strict mode, and `execute_pyqgis_script`. **Still not
+built:** the result-serialization chokepoint, gating attachments and the prompt refiner's separate
+request, history handling on a provider switch, a layer-classification UX, and override records — so
+the gate covers the tool-call route only, which `SECURITY.md` now says plainly. Defaults were chosen
+without waiting on the scope doc's six decisions and are the reversible ones (Off; strict off; no
+override flow; setting in user `QgsSettings`). It prevents accidents, not a determined user. Note
+for whoever tests it: it depends on layers being tagged — an untagged layer is unprotected outside
+strict mode.
+
+**Update, 2026-09-24, second build pass (Alaa: "proceed").** Checked each remaining route before
+building it, which changed the plan: **attachments** were the one real remaining gap and are now
+gated at their single chokepoint (`ChatInputController.analyze_file`) — treated like an untagged
+layer, so blocked on cloud only in strict enforce mode, and a blocked file is dropped from the
+next-message queue. The **prompt refiner** needed no gate (it sends only the user's own text). The
+scope doc's claim that a provider switch re-sends earlier **tool results** was wrong — history
+stores only user messages and assistant prose — and is now marked corrected there. The planned
+**result-serialization catch-all** was replaced by `tests/test_egress_gate_coverage.py`, after a
+search of all 178 tools showed every feature-reading tool names its layer (so the pre-run check
+already sees it); the guard fails CI if that stops being true and was mutation-checked. Verified:
+unit suite 2095 passing, and the full live QGIS suite (46 tests) locally against real QGIS 4.2.2.
+Still open: the scope doc's §7 decisions, a layer-classification UX, override records.
 
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 

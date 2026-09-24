@@ -89,7 +89,7 @@ python plugin_upload.py
 ```
 
 CI (`.github/workflows/tests.yml`) runs the test suite, `py_compile`, `ruff check .` (must stay at zero violations) and a release-zip packaging check on every push/PR.
-The `test` job (Ubuntu + Windows) has no QGIS, but the `qgis-live-tests` job runs `tests/test_chat_widget_live.py` + `tests/test_plugin_main_live.py` inside pinned official QGIS docker images (4.2.2 and the 3.28 LTR) via `tests/_ci_run_live_tests.py`, which force-collects and pumps the Qt event loop before `exitQgis()` (see the docstring there for the crash this prevents). Anything that only breaks inside a real QGIS session (Qt widget wiring,
+The `test` job (Ubuntu + Windows) has no QGIS, but the `qgis-live-tests` job runs `tests/test_chat_widget_live.py` + `tests/test_plugin_main_live.py` inside pinned official QGIS docker images (4.2.2 only -- QGIS 3.x support, and the 3.28 LTR job with it, was dropped 2026-09-24) via `tests/_ci_run_live_tests.py`, which force-collects and pumps the Qt event loop before `exitQgis()` (see the docstring there for the crash this prevents). Anything that only breaks inside a real QGIS session (Qt widget wiring,
 layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMOKE_TEST.md`.
 
 ## Editions
