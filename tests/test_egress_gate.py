@@ -190,5 +190,51 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(res["action"], "block")
 
 
+class TestAttachments(unittest.TestCase):
+    def _ev(self, **over):
+        kw = dict(mode=g.MODE_ENFORCE, provider_is_local=False, strict=True, file_name="households.csv")
+        kw.update(over)
+        return g.evaluate_attachment(**kw)
+
+    def test_strict_enforce_on_cloud_blocks(self):
+        res = self._ev()
+        self.assertEqual(res["action"], "block")
+        self.assertIn("households.csv", res["message"])
+
+    def test_non_strict_is_not_gated_attachments_are_treated_as_untagged(self):
+        self.assertIsNone(self._ev(strict=False))
+
+    def test_local_provider_is_never_gated(self):
+        self.assertIsNone(self._ev(provider_is_local=True))
+
+    def test_off_and_unknown_modes_never_gate(self):
+        self.assertIsNone(self._ev(mode=g.MODE_OFF))
+        self.assertIsNone(self._ev(mode="banana"))
+
+    def test_strict_warn_on_cloud_warns(self):
+        res = self._ev(mode=g.MODE_WARN)
+        self.assertEqual(res["action"], "warn")
+
+    def test_attachment_decision_reads_settings_and_client(self):
+        from unittest.mock import MagicMock, patch
+        cloud = MagicMock(base_url="https://api.openai.com/v1")
+        local = MagicMock(base_url="http://127.0.0.1:11434/v1")
+        with patch.object(g, "read_mode", return_value=g.MODE_ENFORCE),              patch.object(g, "read_strict", return_value=True):
+            self.assertEqual(g.attachment_decision(cloud, "a.csv")["action"], "block")
+            self.assertIsNone(g.attachment_decision(local, "a.csv"))
+            self.assertEqual(g.attachment_decision(None, "a.csv")["action"], "block")  # no endpoint = cloud
+
+    def test_attachment_decision_off_by_default(self):
+        from unittest.mock import MagicMock
+        self.assertIsNone(g.attachment_decision(MagicMock(base_url="https://api.openai.com"), "a.csv"))
+
+    def test_attachment_decision_fails_closed_in_enforce(self):
+        from unittest.mock import MagicMock, patch
+        with patch.object(g, "read_mode", return_value=g.MODE_ENFORCE),              patch.object(g, "read_strict", side_effect=RuntimeError("boom")):
+            self.assertEqual(g.attachment_decision(MagicMock(base_url="https://x.com"), "a.csv")["action"], "block")
+        with patch.object(g, "read_mode", return_value=g.MODE_WARN),              patch.object(g, "read_strict", side_effect=RuntimeError("boom")):
+            self.assertIsNone(g.attachment_decision(MagicMock(base_url="https://x.com"), "a.csv"))
+
+
 if __name__ == "__main__":
     unittest.main()

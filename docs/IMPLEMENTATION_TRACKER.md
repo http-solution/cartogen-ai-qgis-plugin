@@ -361,6 +361,19 @@ override flow; setting in user `QgsSettings`). It prevents accidents, not a dete
 for whoever tests it: it depends on layers being tagged — an untagged layer is unprotected outside
 strict mode.
 
+**Update, 2026-09-24, second build pass (Alaa: "proceed").** Checked each remaining route before
+building it, which changed the plan: **attachments** were the one real remaining gap and are now
+gated at their single chokepoint (`ChatInputController.analyze_file`) — treated like an untagged
+layer, so blocked on cloud only in strict enforce mode, and a blocked file is dropped from the
+next-message queue. The **prompt refiner** needed no gate (it sends only the user's own text). The
+scope doc's claim that a provider switch re-sends earlier **tool results** was wrong — history
+stores only user messages and assistant prose — and is now marked corrected there. The planned
+**result-serialization catch-all** was replaced by `tests/test_egress_gate_coverage.py`, after a
+search of all 178 tools showed every feature-reading tool names its layer (so the pre-run check
+already sees it); the guard fails CI if that stops being true and was mutation-checked. Verified:
+unit suite 2095 passing, and the full live QGIS suite (46 tests) locally against real QGIS 4.2.2.
+Still open: the scope doc's §7 decisions, a layer-classification UX, override records.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.

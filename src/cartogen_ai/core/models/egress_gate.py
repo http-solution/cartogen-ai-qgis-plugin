@@ -16,9 +16,12 @@ What this is, and is not:
 - This module is deliberately Qt-free and pure so it is unit-testable without QGIS, matching
   plan_gate.py. The QGIS-backed lookups (a layer's tag, its lineage) are passed in by the caller.
 
-Only the tool-call route is covered here (the pre-dispatch check). The other routes to the provider
-listed in the scope doc -- attachments, the prompt refiner's separate request, conversation history
-after a provider switch, the result-serialization chokepoint -- are NOT gated yet.
+Routes covered: tool calls (the pre-dispatch check) and file attachments (attachment_decision()).
+The scope doc's other routes turned out, on inspection, to need no separate gate: the prompt refiner
+sends only the user's own typed text; cross-turn history stores only the user message and the
+assistant's final prose, never tool results; and every registered tool that reads feature values names
+its layer in its arguments (tests/test_egress_gate_coverage.py keeps that true). What is NOT covered:
+the model repeating in its prose what it saw earlier, and text the user types or pastes.
 """
 
 import ipaddress
@@ -172,6 +175,50 @@ def evaluate(*, mode, provider_is_local, tool_name, arguments, project_layer_nam
         "result": _block_result(tool_name, protected) if action == "block" else None,
         "warning": _warning_text(tool_name, protected),
     }
+
+
+def evaluate_attachment(*, mode, provider_is_local, strict, file_name):
+    """The decision for sending an attached file's content to the provider.
+
+    A file has no sensitivity tag, so it is treated exactly like an UNTAGGED layer: protected only in
+    strict (fail-closed) mode. Outside strict mode an attachment is not gated -- consistent with how
+    an untagged layer is treated, and stated as a gap in SECURITY.md rather than guessed at by
+    inspecting the file's content (see the scope doc's G4 for why content detection was rejected).
+    Returns None (send it) or {"action": "block" | "warn", "message": str}."""
+    if mode not in (MODE_WARN, MODE_ENFORCE) or provider_is_local:
+        return None
+    if not is_protected(None, strict):
+        return None
+    if mode == MODE_ENFORCE:
+        return {"action": "block", "message": (
+            "**Not sent: %s.** Strict cloud data protection is on, so an attached file -- which has "
+            "no sensitivity tag -- is treated as protected and can't be sent to a cloud AI "
+            "provider. Switch to a local provider (e.g. Ollama) to analyze it, or turn off strict "
+            "mode in Settings if this file is safe to share." % file_name)}
+    return {"action": "warn", "message": (
+        "**Note:** strict cloud data protection is on and a cloud AI provider is selected, so "
+        "%s is being sent to it with no sensitivity check -- attached files carry no tag." % file_name)}
+
+
+def attachment_decision(client, file_name):
+    """evaluate_attachment() with the mode, strictness and the client's endpoint read in. Never
+    raises. If something unexpected fails in enforce mode it blocks, matching the tool-call path."""
+    mode = read_mode()
+    if mode == MODE_OFF:
+        return None
+    try:
+        return evaluate_attachment(
+            mode=mode,
+            provider_is_local=is_local_endpoint(getattr(client, "base_url", None)),
+            strict=read_strict(),
+            file_name=file_name,
+        )
+    except Exception:
+        if mode == MODE_ENFORCE:
+            return {"action": "block", "message": (
+                "**Not sent: %s.** The data-protection check could not be completed, and this "
+                "deployment blocks rather than guesses." % file_name)}
+        return None
 
 
 def _layer_list(protected):
