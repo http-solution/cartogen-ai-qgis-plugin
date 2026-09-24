@@ -813,6 +813,95 @@ class TestAddLayerFromPathSpatialiteIndex(unittest.TestCase):
             fake_layer.dataProvider.return_value.createSpatialIndex.assert_not_called()
 
 
+class TestAddLayerFromPathDownloadDiagnostics(unittest.TestCase):
+    """Reported live 2026-09-24 (QGIS 4.2.2): a URL load failed with only
+    "Invalid layer: C:\\...\\Temp\\tmp_2kgn_72.geojson". The error named the temp
+    copy instead of the URL and gave no reason."""
+
+    def _write(self, tmp_dir, data, name="tmp_2kgn_72.geojson"):
+        path = os.path.join(tmp_dir, name)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def test_classifies_common_wrong_content(self):
+        cases = [
+            (b"", "empty"),
+            (b"PK\x03\x04rest-of-zip", "zip archive"),
+            (b"\n<!DOCTYPE html><html><body>GitHub</body></html>", "HTML web page"),
+            (b'<?xml version="1.0"?><ServiceExceptionReport/>', "XML"),
+            (b'{"message": "Not Found", "documentation_url": "x"}', "documentation_url, message"),
+            (b'{"type": "FeatureCollection", "features": []}', "no features"),
+            (b'[{"a": 1}]', "JSON array"),
+            (b'{"type": "FeatureCollection", "feat', "not valid JSON"),
+        ]
+        from cartogen_ai.core.agent.tools.vector_tools import _describe_unreadable_download
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for data, expected in cases:
+                with self.subTest(expected=expected):
+                    reason = _describe_unreadable_download(self._write(tmp_dir, data))
+                    self.assertIsNotNone(reason)
+                    self.assertIn(expected, reason)
+
+    def test_real_geojson_and_unknown_binary_give_no_guess(self):
+        from cartogen_ai.core.agent.tools.vector_tools import _describe_unreadable_download
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fc = b'{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": null, "properties": {}}]}'
+            self.assertIsNone(_describe_unreadable_download(self._write(tmp_dir, fc)))
+            self.assertIsNone(_describe_unreadable_download(self._write(tmp_dir, b"\x00\x01binary")))
+
+    def test_json_key_listing_never_includes_values(self):
+        from cartogen_ai.core.agent.tools.vector_tools import _describe_unreadable_download
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            reason = _describe_unreadable_download(
+                self._write(tmp_dir, b'{"error": "secret-token-abc123"}'))
+            self.assertIn("error", reason)
+            self.assertNotIn("secret-token-abc123", reason)
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_invalid_downloaded_layer_reports_url_and_reason(self, mock_layer_cls, mock_project):
+        url = "https://github.com/org/repo/blob/main/districts.geojson"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local = self._write(tmp_dir, b"<!DOCTYPE html><html></html>")
+            mock_layer_cls.return_value.isValid.return_value = False
+
+            res = add_layer_from_path(local, source_label=url)
+
+            self.assertIn(url, res["error"])
+            self.assertNotIn("tmp_2kgn_72", res["error"])
+            self.assertIn("raw.githubusercontent.com", res["error"])
+            mock_project.instance.return_value.addMapLayer.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_downloaded_layer_default_name_comes_from_url(self, mock_layer_cls, mock_project):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local = self._write(tmp_dir, b"{}")
+            mock_layer_cls.return_value.isValid.return_value = True
+
+            add_layer_from_path(local, source_label="https://example.org/data/districts.geojson?x=1")
+
+            self.assertEqual(mock_layer_cls.call_args[0][0], local)
+            self.assertEqual(mock_layer_cls.call_args[0][1], "districts")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsVectorLayer", create=True)
+    def test_invalid_local_file_error_is_unchanged(self, mock_layer_cls, mock_project):
+        # Local files get no download diagnosis: the user's own file on disk is not a
+        # "wrong content served by a URL" case, and the old message stays as-is.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local = self._write(tmp_dir, b"<html></html>", name="mine.geojson")
+            mock_layer_cls.return_value.isValid.return_value = False
+
+            res = add_layer_from_path(local)
+
+            self.assertEqual(res["error"], f"Invalid layer: {local}")
+
+
 if __name__ == "__main__":
     unittest.main()
 
