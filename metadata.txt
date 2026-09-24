@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc4
+version=1.16.0-rc5
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc4 (2026-09-23):
+changelog=v1.16.0-rc5 (2026-09-24):
+    Release candidate 5 for 1.16.0. Requires QGIS 4.2 or later: QGIS 3.x support is dropped (qgisMinimumVersion 3.28 -> 4.2), so QGIS 3.x will treat this release as incompatible and users there stay on the version they have.
+    - New, all OFF by default: a cloud-provider data-protection gate (Settings > Cloud data protection: Off / Warn only / Block, plus strict) that stops a tool call or a file attachment from sending a layer tagged RESTRICTED/SENSITIVE -- or one derived from it -- to a non-local AI provider; a plan-validation gate requiring create_plan before DELETE/PUBLISH tools; and a Project Inspector that adds print layouts, map themes and project metadata to the model's context.
+    - New tool: create_project_folder_structure, an opt-in project folder layout (data/00_raw for immutable source data, staging, processed, exports and more). Only creates missing folders, never overwrites.
+    - Behaviour change: run_allowlisted_processing_algorithm now adds an output layer HIDDEN (unchecked in the layer tree) when no output name is given, treating it as an intermediate step. Name the output to keep it visible.
+    - Security: the execute_pyqgis_script sandbox now also blocks QgsProject.write() (an unrestricted project write to any path) and QgsApplication.authManager() (auth config ID enumeration). A new always-on prompt rule tells the model never to store personal data in global memory. While the data-protection gate is on, lowering a layer's sensitivity tag needs the user's confirmation.
+    - Fix: loading a layer from a URL that doesn't serve geodata (e.g. a GitHub /blob/ page, an API error response, a zip) now names the URL instead of a temp file and says what came back (HTML, zip, XML, JSON that isn't GeoJSON with its top-level keys, an empty file). A layer loaded from a URL is also named after the URL, not the temp copy.
+    - Docs: GDPR DPO determination recorded (DPIA required, approved with conditions; DPO signature still pending); scopes for process isolation of execute_pyqgis_script (plus a real benchmark) and for the data-protection gate; README warns to install the release asset, not GitHub's source zip.
+    Full automated suite: 2,103 tests passing, 48 skipped. Zero Ruff violations. Only QGIS 4.2.2 is exercised by CI's live tests.
+
+v1.16.0-rc4 (2026-09-23):
     Release candidate 4 for 1.16.0. Codebase security review with live adversarial testing against a real QGIS 4.2.2 session, plus observability follow-ups from the rc3 review cycle:
     - execute_pyqgis_script sandbox: 2 real bypasses found via live adversarial testing and fixed. (1) qgis.utils and processing -- both required, never-blocked modules -- import os/sys at module scope, leaving them reachable as plain attributes (qgis.utils.os.getcwd(), and qgis.utils.sys.modules['subprocess'] handing back the live subprocess/socket/ctypes module objects) with no blocked import statement anywhere in the script. (2) This plugin's own package was never blocked, so a script could read the live in-memory session credential store directly via cartogen_ai.infrastructure.auth. Fixed by blocking the os/sys/modules attribute names (closes the pattern for any allowed module, not just the two found) and adding cartogen_ai to the blocked-module list. Both re-verified live after the fix; 6 new regression tests. Per this file's own established convention, this closes what was found this pass, not a completeness claim -- process isolation, not further denylist patching, is recorded as the intended real fix (docs/IMPLEMENTATION_TRACKER.md §1.11), along with 3 findings from the same pass deliberately left open there (unrestricted QgsProject.write() from inside a script, enumerable authManager() config IDs, and an unverified confirmation-gate-bypass question).
     - Best-effort exception handling: 10 tool-layer `except Exception: pass` sites whose silent failure could hide user-visible degradation (the same failure class as an NameError this cycle already found and fixed) now emit a content-free log_event trace (error class only) while keeping their existing fallback behavior. Genuinely benign guards (logger internals, UI callbacks, cache eviction hooks) were left as-is.

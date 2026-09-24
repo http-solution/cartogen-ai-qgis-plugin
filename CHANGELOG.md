@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc5](#v1-16-0-rc5) | 2026-09-24 | **Release candidate 5 for 1.16.0.** QGIS 4.2+ only (3.x dropped). New opt-in, off-by-default safeguards: a cloud-provider data-protection gate for sensitive layers and attachments, a plan-validation gate for DELETE/PUBLISH tools, and a Project Inspector. New `create_project_folder_structure` tool. Sandbox now also blocks `QgsProject.write()` and `authManager()`. Unnamed processing outputs are added hidden. Clearer errors when a URL doesn't serve geodata |
 | [1.16.0-rc4](#v1-16-0-rc4) | 2026-09-23 | **Release candidate 4 for 1.16.0.** Codebase security review with live adversarial testing: 2 real `execute_pyqgis_script` sandbox bypasses found and fixed (`qgis.utils`/`processing` re-exporting `os`/`sys` as plain attributes reachable no matter what's blocked at import time; this plugin's own package never being blocked, letting a script read the live in-memory session credential store directly). Process isolation recorded as the intended real fix, not further denylist patching (`docs/IMPLEMENTATION_TRACKER.md` §1.11). 10 best-effort `except Exception: pass` sites now leave a content-free trace instead of failing silently. `CLAUDE.md` refreshed to match the post-Phase-11 layout and live-QGIS CI job |
 | [1.16.0-rc3](#v1-16-0-rc3) | 2026-09-21 | **Release candidate 3 for 1.16.0.** Closes both stable-release gates rc2 left open: Ruff lint fixed for real (125 violations → 0, not accepted as debt, incl. a real `QgsLabelObstacleSettings` import bug found and live-fixed), and the CI post-test segmentation fault root-caused and fixed rather than waived (~40 accumulated live `QDockWidget`s crashing at interpreter shutdown; fixed with explicit `gc.collect()` + Qt event-loop pump before `exitQgis()`), through five rounds of independent review. Both `qgis-live-tests` images now pinned by immutable digest. Only remaining gate before stable: the exact-ZIP clean-profile install/upgrade test, which needs a real interactive QGIS GUI session |
 | [1.16.0-rc2](#v1-16-0-rc2) | 2026-09-20 | **Release candidate 2 for 1.16.0.** Security/privacy remediation from a 15-section production-standard audit, refined through two rounds of independent review: QAction lifecycle leak fixed and live-confirmed; plaintext credential persistence removed entirely (session-only in memory, no opt-out); logging moved to structured metadata-only by default (no raw prompt/response/tool content logged); CI matrix expanded to Windows + real QGIS 4.2.2/3.28 LTR docker jobs and actually validated green (3 real environment bugs found and fixed in the process) |
@@ -46,6 +47,60 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc5"></a>
+## [1.16.0-rc5] — 2026-09-24 — Release candidate 5 for 1.16.0: QGIS 4.2+ only, opt-in data-protection safeguards
+
+Everything merged to `main` since rc4 (PRs #4–#22), cut as a candidate so the remaining
+stable-release check (`docs/IMPLEMENTATION_TRACKER.md` §1.10) runs on the code that would ship.
+
+**Breaking: QGIS 4.2 or later required.** `metadata.txt` `qgisMinimumVersion` 3.28 → 4.2. QGIS 3.x
+will treat this release as incompatible, so users there stay on the version they already have.
+CI's live-QGIS tests now run on 4.2.2 only. The internal 3.x compatibility helpers are kept (on 4.x
+they already take the 4.x path) but are now unsupported, untested fallbacks.
+
+**New, and all off by default** — nothing below changes behaviour until switched on:
+- **Cloud data protection** (Settings). When a non-local AI provider is selected, blocks (or warns
+  about) a tool call or file attachment that would send a layer tagged `RESTRICTED`/`SENSITIVE`, or
+  an untagged layer derived from one. Strict mode also protects untagged layers. It is a safeguard
+  against mistakes, not against someone who edits their own settings — see `SECURITY.md`, "DPIA
+  determination and deployment constraints", for exactly what it does and doesn't cover.
+- **Plan-validation gate.** Requires the model to state a plan (`create_plan`) once per turn before
+  any DELETE- or PUBLISH-classified tool.
+- **Project Inspector.** Adds the project's print layouts, saved map themes and metadata to the
+  model's context.
+
+**New tool:** `create_project_folder_structure`, an opt-in, non-destructive project folder layout
+(`data/00_raw` for immutable source data through `exports/` and `logs/`). 178 tools in total.
+
+**Behaviour change:** `run_allowlisted_processing_algorithm` now adds an output layer hidden when
+no `new_layer_name` is given, treating it as an intermediate step; naming the output keeps it
+visible. This addresses a live report of scratch layers cluttering the map.
+
+**Fix: loading from a URL that doesn't serve geodata** (#19). A live report on QGIS 4.2.2 showed
+only `Invalid layer: C:\...\Temp\tmp_2kgn_72.geojson` after a URL load. The error now names the
+URL rather than the temp copy, and says what the URL actually returned: an HTML page (with a hint
+to use GitHub's raw link instead of a `/blob/` page), a zip, XML, JSON that isn't GeoJSON (top-level
+key names only, never values), or an empty file. A layer loaded from a URL is named after the URL.
+Verified live in QGIS 4.2.2 against a real GitHub `/blob/` page, a real JSON API response and a real
+raw GeoJSON link.
+
+**Security.** The `execute_pyqgis_script` sandbox now also blocks `QgsProject.write()` (a project
+write to any path, bypassing the confirmation gate) and `QgsApplication.authManager()` (auth
+config ID enumeration); both were confirmed exploitable live first. A new always-on prompt rule
+(49) tells the model never to store personal data in global memory. With data protection on, the
+model can no longer lower a layer's sensitivity tag without the user's confirmation.
+
+**Docs.** GDPR: the DPO determination is recorded (DPIA required, approved with conditions); the
+signature on `docs/DPIA_SCREENING_WORKSHEET.docx` is still pending. Scoping documents for process
+isolation of `execute_pyqgis_script` (with a real benchmark: ~5 s per cold call, memory layers lose
+their data on save) and for the data-protection gate. The README now warns to install the release
+asset, not GitHub's source zip.
+
+**Verification.** Full automated suite: 2,103 tests passing, 48 skipped. Zero Ruff violations.
+The headless smoke check against this candidate's built zip is recorded in
+`docs/RELEASE_SMOKE_TEST.md`'s run log. **Still not done:** §1.10's interactive check in a real
+QGIS window (toolbar, menu, clean startup, in-place upgrade).
 
 <a id="v1-16-0-rc4"></a>
 ## [1.16.0-rc4] — 2026-09-23 — Release candidate 4 for 1.16.0: codebase security review with live adversarial testing
