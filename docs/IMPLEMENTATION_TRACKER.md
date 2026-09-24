@@ -817,6 +817,24 @@ question for `test_new_tools.py`'s ~42 existing tests) are all in the document. 
 no Phase 0 benchmark run yet — this is the scoping pass Alaa asked for, a go-ahead on Phase 1
 is a separate, later decision.
 
+**Update, 2026-09-24 — Phase 0 benchmark run; it changes the recommendation.** Measured against
+real QGIS 4.2.2 (harness committed at `tests/manual_isolation_bench/`, re-run from that location
+to confirm it reproduces): **(1)** a cold subprocess per call costs **~5.0 s** end to end
+(`import qgis.core` alone is ~3.5 s of it) versus under 1 ms for today's in-process call — the
+original 1-3 s guess in the scoping doc was too optimistic, and per-call cold spawn is not viable
+for a tool a turn may call several times; the doc now recommends a **persistent worker** instead
+(derived, not yet measured, at roughly ~0.6 s/call — a prototype must confirm). **(2)** A
+previously unknown, more serious fidelity gap: **memory (scratch) layers serialize into a `.qgz`
+with their definition but zero features** — confirmed live at 1,000 and 50,000 features. This
+plugin's tools emit memory layers constantly, so "write the project and hand it over" would give
+an isolated script silently empty copies of exactly the layers it is most likely to reference;
+the serialize step must export them (measured 0.10-0.15 s per 1k features, 0.53 s per 50k).
+**(3)** Unverified, flagged: inside a live QGIS desktop process `sys.executable` is normally the
+QGIS executable, not a Python interpreter, so locating a spawnable interpreter portably (3.28 LTR
+and 4.x, Windows) is an untested implementation risk this benchmark could not cover. Limits: small
+file-backed fixture, warm OS cache, no antivirus/EDR variation, run under `python-qgis.bat` not a
+live desktop. Still **not built**; Phase 1 remains a separate go-ahead.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
