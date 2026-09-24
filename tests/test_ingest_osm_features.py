@@ -283,5 +283,60 @@ class TestOsmWayGeometry(unittest.TestCase):
         self.assertEqual(len(feats), 1)
 
 
+class TestOverpassResilience(unittest.TestCase):
+    """Live-reported 2026-09-24: four back-to-back ingest_osm_features calls all got 504, and the
+    model then burned its 20-call budget geocoding facilities one by one. Measured that evening,
+    only 5 of 12 spaced requests to overpass-api.de succeeded, with failures scattered."""
+
+    OK_BODY = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+                             "tags": {"amenity": "hospital", "name": "Clinic A"}}]}
+
+    def _ok(self):
+        cm = MagicMock()
+        cm.read.return_value = json.dumps(self.OK_BODY).encode("utf-8")
+        cm.__enter__.return_value = cm
+        return cm
+
+    @staticmethod
+    def _http(code):
+        import urllib.error
+        return urllib.error.HTTPError("https://overpass-api.de/api/interpreter", code, "x", {}, None)
+
+    def _run(self, side_effect, key="amenity", value="hospital"):
+        with patch("urllib.request.urlopen", side_effect=side_effect) as mock_open,              patch("cartogen_ai.core.agent.tools._urllib_retry.time.sleep") as mock_sleep:
+            res = ingest_osm_features_network_phase(key=key, value=value, center_lat=31.95,
+                                                    center_lon=35.90, radius_km=2)
+        if res.get("local_path"):
+            os.remove(res["local_path"])
+        return res, mock_open, mock_sleep
+
+    def test_transient_504s_are_retried_inside_the_tool(self):
+        res, mock_open, mock_sleep = self._run([self._http(504), self._http(429), self._http(504), self._ok()])
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(mock_open.call_count, 4)
+        self.assertEqual([c.args[0] for c in mock_sleep.call_args_list], [3.0, 6.0, 9.0])
+
+    def test_persistent_overload_tells_the_model_to_stop(self):
+        res, mock_open, _ = self._run([self._http(504)] * 4)
+        self.assertEqual(mock_open.call_count, 4)
+        self.assertTrue(res.get("retryable_later"))
+        self.assertIn("Don't call ingest_osm_features again in this turn", res["error"])
+        self.assertIn("geocoding", res["error"])
+
+    def test_a_bad_query_is_not_retried_or_called_overload(self):
+        res, mock_open, _ = self._run([self._http(400)])
+        self.assertEqual(mock_open.call_count, 1)
+        self.assertNotIn("retryable_later", res)
+        self.assertIn("Overpass API request failed", res["error"])
+
+    def test_point_keys_skip_the_vertex_recursion(self):
+        # Outline corners are only needed to draw lines; for points they just made the response
+        # ~4x larger (live: 100 elements vs 24 for the same hospitals).
+        _, mock_open, _ = self._run([self._ok()])
+        self.assertNotIn(b"out skel", mock_open.call_args.args[0].data)
+        _, mock_open, _ = self._run([self._ok()], key="highway", value="primary")
+        self.assertIn(b"out skel", mock_open.call_args.args[0].data)
+
+
 if __name__ == "__main__":
     unittest.main()

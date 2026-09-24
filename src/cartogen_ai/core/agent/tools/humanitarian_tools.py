@@ -15,6 +15,7 @@ from datetime import date
 from .registry import register_tool
 from ...logger import log_event
 from ._cache_utils import TTLCache
+from ._urllib_retry import urlopen_with_retry
 from ._qgis_enum_compat import resolve_qgis_enum
 # SSRF protection (vector_tools.py's add_layer_from_path/_prefetch_url_to_temp already has
 # this, adversarially tested -- confirmed loopback/private/link-local/metadata addresses and
@@ -281,6 +282,8 @@ def fetch_osm_features(key: str, value: str, bbox: list):
 
 
 _OSM_LINEAR_KEYS = frozenset({"highway", "railway", "waterway", "aerialway"})
+_OVERPASS_RETRIES = 3            # 4 attempts in total
+_OVERPASS_BACKOFF_SECONDS = 3.0  # waits of 3, 6 and 9 s between them
 
 
 def _osm_feature(elem, clean_key, clean_value, geometry):
@@ -333,6 +336,10 @@ def ingest_osm_features_network_phase(
     clean_value = value.replace('\\', '\\\\').replace('"', '\\"')
     op = "~" if "|" in clean_value else "="
 
+    # Only a linear key needs the ways' vertex nodes (`>; out skel`) to build lines. A point
+    # layer uses each way's centre, so asking for every outline corner just made the response
+    # ~4x larger (live: 100 elements vs 24 for the same hospitals) on an already overloaded server.
+    recurse = '>;out skel qt;' if clean_key in _OSM_LINEAR_KEYS else ''
     overpass_ql = (
         f'[out:json][timeout:30];'
         f'('
@@ -340,20 +347,42 @@ def ingest_osm_features_network_phase(
         f'way["{clean_key}"{op}"{clean_value}"]({s},{w},{n},{e});'
         f');'
         f'out center body;'
-        f'>;'
-        f'out skel qt;'
+        f'{recurse}'
     )
     url = "https://overpass-api.de/api/interpreter"
 
+    # Retried here, not left to the model. Live-reported 2026-09-24: 4 back-to-back
+    # ingest_osm_features calls all got 504, then the model fell back to one-by-one geocoding and
+    # hit the 20-call limit. Measured the same evening: 5 of 12 requests spaced 3 s apart
+    # succeeded (six 504s, one 429), and failures were scattered, not a solid outage. Four
+    # attempts with growing waits cut the chance of failing to roughly 0.58^4 ~ 11%, and
+    # retries here don't use up the model's tool-call budget. Other public Overpass servers were
+    # checked as fallbacks: one took ~40 s, one timed out, one failed TLS verification, so none
+    # was added. The query is read-only, so resending the POST is safe.
     try:
         req = urllib.request.Request(
             url,
             data=overpass_ql.encode('utf-8'),
             headers={'User-Agent': 'QGIS-AI-Assistant'}
         )
-        with urllib.request.urlopen(req, timeout=35) as response:
+        with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
+                                backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
             res_json = json.loads(response.read().decode("utf-8"))
     except Exception as e:
+        # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
+        # not be reported as "overloaded, try later".
+        if isinstance(e, urllib.error.HTTPError):
+            transient = e.code in (429, 502, 503, 504)
+        else:
+            transient = isinstance(e, (TimeoutError, urllib.error.URLError))
+        if transient:
+            return {"error": (
+                f"The OpenStreetMap Overpass server is overloaded right now ({e}); tried "
+                f"{_OVERPASS_RETRIES + 1} times with waits in between. Don't call ingest_osm_features "
+                "again in this turn, and don't try to rebuild the data another way (e.g. geocoding "
+                "places one by one). Tell the user the OSM download is temporarily unavailable and "
+                "suggest trying again in a few minutes, or loading their own layer instead."
+            ), "retryable_later": True}
         return {"error": f"Overpass API request failed: {e}"}
 
     elements = res_json.get("elements", [])
