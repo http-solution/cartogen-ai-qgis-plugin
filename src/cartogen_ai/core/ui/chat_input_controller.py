@@ -116,6 +116,23 @@ class ChatInputController:
                 return
 
             client = getattr(agent, "client", None)
+
+            # Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md). This is
+            # the ONE place an attached file's content leaves the machine -- both branches below send
+            # it, and a remembered attachment only carries a one-line description on later messages
+            # (task_matcher.compose_user_message) -- so it is gated here, before either branch.
+            # Off by default: returns None immediately unless a mode is set in Settings.
+            from ..models import egress_gate
+            decision = egress_gate.attachment_decision(client, name)
+            if decision is not None:
+                w._dock.receiveMessageSignal.emit("ai", decision["message"])
+                if decision["action"] == "block":
+                    # read_and_analyze_file() already queued the path for the next message; a
+                    # blocked file must not ride along with it, even as a one-line description.
+                    if path in w._attached_paths:
+                        w._attached_paths.remove(path)
+                    return
+
             if client is not None and hasattr(client, "set_status_callback"):
                 client.set_status_callback(lambda msg: w._dock.statusSignal.emit(msg))
 

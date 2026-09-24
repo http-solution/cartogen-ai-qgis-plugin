@@ -451,11 +451,16 @@ UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
 **What it does not do — read before relying on it.**
 - **It prevents accidents, not a determined user.** The setting lives in the user's own
   `QgsSettings`, which they can change.
-- **Only the tool-call route is gated.** File attachments, the prompt refiner's separate request,
-  conversation history re-sent after a provider switch, and the general tool-result chokepoint are
-  **not** covered yet. `execute_pyqgis_script` is blocked on a cloud provider whenever any protected
-  layer exists in the project (it names layers inside its own source, so it cannot be judged by
-  arguments).
+- **What is gated:** tool calls (checked before they run) and file attachments. Every registered
+  tool that reads feature values names its layer in its arguments, so the pre-run check sees it —
+  `tests/test_egress_gate_coverage.py` keeps that true for future tools (it inspects each tool's own
+  body, not helpers it calls). `execute_pyqgis_script` is blocked on a cloud provider whenever any
+  protected layer exists (it names layers inside its own source). An attached file has no tag, so it
+  is treated like an untagged layer: gated **only in strict mode**.
+- **What is not gated:** text the user types or pastes, and the model repeating in its own prose what
+  it saw earlier — including after switching provider, since the assistant's replies are kept in
+  history (tool results are not). The prompt refiner sends only the user's own text, which the main
+  request sends anyway.
 - **It depends on layers being tagged.** Without strict mode an untagged layer is not protected;
   with strict mode every layer must be classified first. No automatic classification exists.
 - **Derived-layer inheritance follows names.** Lineage records a layer's sources by *name*, so
