@@ -326,6 +326,24 @@ Hosted-Account dialog, and R2's vendor-DPA execution (an organizational/contract
 something this codebase can do). All three remain real follow-ups if/when the org wants them
 built rather than just required.
 
+**Update, 2026-09-24 -- the Ollama-only enforcement gate scoped, not built.**
+`docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`. Findings from reading the code that shape the
+design: **(1)** the existing per-layer sensitivity tag is advisory, manual and fail-open (an
+untagged layer is `level=None`, treated as not sensitive), and `set_layer_sensitivity` has no
+confirmation gate, so the model itself could currently lower a tag -- any enforcement that trusts
+tags has to close that first. **(2)** "Ollama" is not "local": the client takes a free-form
+endpoint URL, so the gate must classify the endpoint host, not the provider name. **(3)**
+`get_attributes` returns field names only, so the value-bearing routes to the provider are: tool
+results (one serialization chokepoint), `execute_pyqgis_script` return values (hard -- layer names
+are literals inside the script), attachments, the prompt refiner's separate request, and
+conversation history (switching provider mid-session re-sends earlier tool results). Recommends a
+data-class gate on the existing tags (G1) with an org-level fail-closed strict mode (G2), and
+rejects a tool-class-only gate and content/PII detection as the boundary. States plainly that it
+prevents accidents, not a determined user, since the policy setting lives in user-editable
+`QgsSettings`. Six decisions are listed for Alaa/the DPO (default mode, override policy, who
+classifies layers, `execute_pyqgis_script` on cloud, history on provider switch, where the policy
+lives) before any code. **Not built; no phase started.**
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
