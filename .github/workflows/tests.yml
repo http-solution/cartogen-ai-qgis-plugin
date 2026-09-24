@@ -62,9 +62,9 @@ jobs:
         # No QGIS installation in this job -- every module degrades gracefully via
         # its own QGIS_AVAILABLE guard (see CONTRIBUTING.md #4), so this is expected
         # to run the full suite outside QGIS, same as local development. Real QGIS
-        # coverage (both the 3.28 LTR floor and a current 4.x release, matching
-        # metadata.txt's qgisMinimumVersion/qgisMaximumVersion) lives in the
-        # separate qgis-live-tests job below.
+        # coverage lives in the separate qgis-live-tests job below -- QGIS 4.2.2 only
+        # since 2026-09-24, when QGIS 3.x support was dropped (it used to also run the
+        # 3.28 LTR floor).
         # -t . is required: without an explicit top-level directory, discover()
         # treats -s tests as its own top level and never runs tests/__init__.py's
         # src/-on-sys.path bootstrap, so every cartogen_ai.core.* import fails --
@@ -96,6 +96,12 @@ jobs:
     # exercises the tests that specifically need real qgis.core/qgis.PyQt
     # bindings (test_chat_widget_live.py, test_plugin_main_live.py) inside the
     # official QGIS docker images.
+    #
+    # 2026-09-24: QGIS 3.x support dropped (Alaa: "keep the compatibility only for 4.2.2").
+    # This job now runs QGIS 4.2.2 only. The dated notes below mention release-3_28
+    # throughout; they are the history of how this job got its current shape and are left as
+    # written. The pip --break-system-packages fallback in the next step existed for 3.28's
+    # older pip and is now unused but harmless.
     #
     # Second-review correction, 2026-09-20: this job covers metadata.txt's
     # declared qgisMinimumVersion=3.28 floor and a current QGIS 4.x release --
@@ -135,8 +141,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - qgis_label: release-3_28
-            qgis_digest: "sha256:d109944e3ffedc9cc8e332fb8907afe309904ebb416dbea05e9671c9db7fdb36"
+          # 2026-09-24: the release-3_28 entry was removed when QGIS 3.x support was dropped
+          # (metadata.txt qgisMinimumVersion 3.28 -> 4.2). Its digest was
+          # sha256:d109944e3ffedc9cc8e332fb8907afe309904ebb416dbea05e9671c9db7fdb36, kept here in
+          # case 3.x support is ever reinstated. The matrix stays a matrix so a second 4.x image
+          # can be added the same way.
           - qgis_label: "4.2.2"
             qgis_digest: "sha256:6ffe6b31646247f2e179cb2cc32bb4df215eedc99f387ad59a6cc88ebfe23e21"
     container:
