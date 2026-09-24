@@ -74,10 +74,11 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
-**2026-09-24 — v1.16.0-rc5 — headless, 27/27 + 8/8 against this candidate's built ZIP, before
-the release-prep commit merged.** Built `dist/cartogen_ai_v1.16.0-rc5.zip` (215 files, sha256
-`eca054afe368583a92be9643cb584155a7ba40d77e779f20d1bad4c132a0ad23`) from a clean `git archive` of
-the version-bump commit `ac8c32c` — not the working tree — then extracted it fresh and ran real tool
+**2026-09-24 — v1.16.0-rc5 — headless, 27/27 + 10/10 against this candidate's built ZIP, before
+the release-prep commit merged.** Built `dist/cartogen_ai_v1.16.0-rc5.zip` (217 files, sha256
+`e3b1d0618facaeb166ef60a2546af67218a90abc8d1943d1042afb175da4b7a0`) from a clean `git archive` of
+`575bf98` — the version bump plus #19 (merged in from `main`) — not the working tree — then
+extracted it fresh and ran real tool
 code from that extraction against real QGIS 4.2.2 via `python-qgis.bat`. Fixtures were copied to a
 scratch folder first, so nothing under `docs/release_smoke_assets/` was modified by the run.
 
@@ -90,13 +91,17 @@ the final checksum.
 - **The rc4 checklist, 27/27 passed** — same 16 categories and checks as the rc4 entries below,
   including two live network calls (building footprints, STAC search) and the rc4 sandbox checks.
   Results: `docs/release_smoke_assets/logs/rc5_headless_run.json`.
-- **New in rc5, 8/8 passed, all run from the packaged code:** the packaged `metadata.txt` says
+- **New in rc5, 10/10 passed, all run from the packaged code:** the packaged `metadata.txt` says
   `1.16.0-rc5` and `qgisMinimumVersion=4.2`; the sandbox rejects `QgsProject.write()` (target file
   confirmed not created) and `QgsApplication.authManager()`; `create_project_folder_structure`
   creates the layout; an unnamed `run_allowlisted_processing_algorithm` output is added hidden while
   a named one stays visible; the egress gate reads `off` by default and returns `EGRESS_BLOCKED` for
-  a `SENSITIVE` layer on a cloud endpoint when set to enforce. Results:
+  a `SENSITIVE` layer on a cloud endpoint when set to enforce; and (#19, two live network calls)
+  `add_layer_from_path` on a GitHub `/blob/` page URL returns an error naming that URL and
+  explaining it is an HTML page, while the raw GeoJSON URL loads as `JOR.geo`. Results:
   `docs/release_smoke_assets/logs/rc5_new_checks.json`.
+- **Superseded first build:** an earlier build of `ac8c32c` (215 files, sha256 `eca054af…`) passed
+  27/27 + 8/8 before #19 was pulled into this release; it was rebuilt and re-run as above.
 - **Build hygiene improvement found while checking:** rc4's zip had been built from a working tree
   and shipped 17 untracked files (a `.ruff_cache/`, two stray planning documents,
   `symbology-style.db`). Building from `git archive` leaves them out; rc5 contains none of them.

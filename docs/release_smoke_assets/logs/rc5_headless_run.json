@@ -5,7 +5,7 @@
   },
   "A1_vector_buffer": {
     "pass": true,
-    "detail": "{'success': True, 'layer_name': 'smoke_points_buffer_500', 'action_chips': [{'id': 'act_a703a062', 'label': '\ud83d\udcc1 Export smoke_points_buffer_500', 'url': 'cartogen://action/act_a703a062'}, {'id': 'act_89422ff9', 'label': '\ud83d\udd0d Zoom to smoke_points_buffer_500', 'url': 'cartogen://action/act_89422ff9'}]} ne"
+    "detail": "{'success': True, 'layer_name': 'smoke_points_buffer_500', 'action_chips': [{'id': 'act_c87c4aa5', 'label': '\ud83d\udcc1 Export smoke_points_buffer_500', 'url': 'cartogen://action/act_c87c4aa5'}, {'id': 'act_41b691c8', 'label': '\ud83d\udd0d Zoom to smoke_points_buffer_500', 'url': 'cartogen://action/act_41b691c8'}]} ne"
   },
   "A2_raster_stretch": {
     "pass": true,

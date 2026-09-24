@@ -17,11 +17,19 @@
   },
   "folder_scaffold_creates_layout": {
     "pass": true,
-    "detail": "Created 17 folder(s) under 'C:\\Users\\alaa\\AppData\\Local\\Temp\\rc5_new_a2rems3e\\proj'. Keep data/00_raw untouched -- work from data/10_staging onward."
+    "detail": "Created 17 folder(s) under 'C:\\Users\\alaa\\AppData\\Local\\Temp\\rc5_new_g3croc40\\proj'. Keep data/00_raw untouched -- work from data/10_staging onward."
   },
   "unnamed_output_hidden_named_visible": {
     "pass": true,
     "detail": "(False, True)"
+  },
+  "pr19_url_error_names_url_and_explains_html": {
+    "pass": true,
+    "detail": "Invalid layer: https://github.com/johan/world.geo.json/blob/master/countries/JOR.geo.json -- The URL returned an HTML web page, not geodata. For GitHub, use the raw.githubusercontent.com link (the 'Ra"
+  },
+  "pr19_url_layer_named_after_url": {
+    "pass": true,
+    "detail": "{'success': True, 'layer_name': 'JOR.geo'}"
   },
   "egress_gate_off_by_default": {
     "pass": true,
