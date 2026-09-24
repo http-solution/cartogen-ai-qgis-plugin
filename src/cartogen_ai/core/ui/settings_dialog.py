@@ -34,6 +34,8 @@ from ...infrastructure.settings_keys import (
     SETTINGS_CARTOGEN_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED as PROJECT_INSPECTOR_ENABLED_KEY,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED as PLAN_VALIDATION_GATE_ENABLED_KEY,
+    SETTINGS_EGRESS_GATE_MODE as EGRESS_GATE_MODE_KEY,
+    SETTINGS_EGRESS_GATE_STRICT as EGRESS_GATE_STRICT_KEY,
     provider_model_list_key,
 )
 AUTO_LABEL = "auto (recommended)"
@@ -529,6 +531,43 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.plan_validation_gate_checkbox)
 
+        # Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md) -- OFF by
+        # default. A safeguard against ACCIDENTS: the setting lives in this user's own QgsSettings,
+        # so it does not stop someone determined to bypass it (see egress_gate.py's docstring).
+        egress_form = QFormLayout()
+        self.egress_gate_mode_combo = QComboBox()
+        self.egress_gate_mode_combo.addItem("Off", "off")
+        self.egress_gate_mode_combo.addItem("Warn only", "warn")
+        self.egress_gate_mode_combo.addItem("Block", "enforce")
+        egress_index = self.egress_gate_mode_combo.findData(
+            self.settings.value(EGRESS_GATE_MODE_KEY, "off")
+        )
+        self.egress_gate_mode_combo.setCurrentIndex(egress_index if egress_index >= 0 else 0)
+        self.egress_gate_mode_combo.setToolTip(
+            "Protects layers you have tagged RESTRICTED or SENSITIVE (and layers derived from "
+            "them) from being sent to a cloud AI provider. 'Block' stops the tool call; 'Warn "
+            "only' lets it run and tells you. It only applies while a cloud provider is selected "
+            "-- a local Ollama server on this machine or your own network is never restricted. "
+            "Off by default. This guards against mistakes, not against someone determined to "
+            "bypass it. See SECURITY.md, 'DPIA determination and deployment constraints'."
+        )
+        egress_form.addRow("Cloud data protection:", self.egress_gate_mode_combo)
+        layout.addLayout(egress_form)
+
+        self.egress_gate_strict_checkbox = QCheckBox(
+            "Treat layers with no sensitivity tag as protected"
+        )
+        self.egress_gate_strict_checkbox.setChecked(
+            bool(self.settings.value(EGRESS_GATE_STRICT_KEY, False, type=bool))
+        )
+        self.egress_gate_strict_checkbox.setToolTip(
+            "Strict mode: on a cloud provider, only layers explicitly tagged PUBLIC or INTERNAL "
+            "may be used; an untagged layer counts as protected. Safer, but every layer must be "
+            "classified before the cloud assistant can work with it. Off by default -- without "
+            "it, a layer you forgot to tag is NOT protected."
+        )
+        layout.addWidget(self.egress_gate_strict_checkbox)
+
         layout.addWidget(self._section_header("04", "Who the assistant writes for"))
 
         profile_form = QFormLayout()
@@ -821,6 +860,8 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())
         self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
+        self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
+        self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
 
         # Product policy decision, 2026-09-20 (strict option chosen over an opt-in

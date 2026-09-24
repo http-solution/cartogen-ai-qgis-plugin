@@ -438,11 +438,36 @@ distinction and why enforcement wasn't built alongside this).
   before committing a `.qgz` file to a shared drive or version control — F9's documented
   erasure limitation (above) means a clear action never reaches a copy already shared.
 
-**This is a policy decision, not a code gate** — the plugin does not currently restrict
-which provider a user selects for which kind of data, and does not currently disable the
-Hosted-Account dialog under any condition. Both remain real, deliberately-scoped-out
-engineering follow-ups if the org wants them technically enforced rather than
-procedurally required. See `docs/IMPLEMENTATION_TRACKER.md` §1.4's 2026-09-24 entry.
+**The Ollama-only constraint now has an optional, OFF-by-default technical control (added
+2026-09-24, partial).** Settings → "Cloud data protection" (Off / Warn only / Block), plus a strict
+checkbox. When on and a **non-local** provider is selected, a tool call that touches a layer tagged
+`RESTRICTED`/`SENSITIVE` — or an untagged layer derived from one — is blocked before it runs (or, in
+warn mode, runs and reports it). Strict mode also treats *untagged* layers as protected. "Local"
+means the provider endpoint is `localhost` or a private/loopback/link-local IP literal; a hostname is
+treated as non-local because it is not resolved (address a LAN Ollama server by IP). While the gate is
+on, the model cannot lower a protected layer's tag itself — that needs the user's confirmation in the
+UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
+
+**What it does not do — read before relying on it.**
+- **It prevents accidents, not a determined user.** The setting lives in the user's own
+  `QgsSettings`, which they can change.
+- **Only the tool-call route is gated.** File attachments, the prompt refiner's separate request,
+  conversation history re-sent after a provider switch, and the general tool-result chokepoint are
+  **not** covered yet. `execute_pyqgis_script` is blocked on a cloud provider whenever any protected
+  layer exists in the project (it names layers inside its own source, so it cannot be judged by
+  arguments).
+- **It depends on layers being tagged.** Without strict mode an untagged layer is not protected;
+  with strict mode every layer must be classified first. No automatic classification exists.
+- **Derived-layer inheritance follows names.** Lineage records a layer's sources by *name*, so
+  renaming or removing a protected source layer breaks inheritance for the untagged layers derived
+  from it. Tag derived layers explicitly, or use strict mode.
+- **Several decisions in the scope doc (§7) are still open** — defaults, override policy, who
+  classifies layers, history on a provider switch, where the policy setting should live. The
+  defaults chosen here (Off; strict off) are the reversible ones.
+
+The plugin still does not restrict *which provider* a user selects, and does not disable the
+Hosted-Account dialog under any condition — both remain deliberately-scoped-out follow-ups. See
+`docs/IMPLEMENTATION_TRACKER.md` §1.4's 2026-09-24 entries.
 
 ## Known limitations (accepted risk, not fixed)
 

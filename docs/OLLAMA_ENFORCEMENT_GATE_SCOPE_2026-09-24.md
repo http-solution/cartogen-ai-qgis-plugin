@@ -1,6 +1,6 @@
 # Cloud-provider egress gate (the "Ollama-only" policy) — scope
 
-**Status: scoping document. Nothing here is built.** `SECURITY.md`'s "DPIA determination and
+**Status: scoping document, PARTLY BUILT (updated 2026-09-24 — see §9).** `SECURITY.md`'s "DPIA determination and
 deployment constraints" (2026-09-24) records a DPO determination as *policy*: protection,
 incident and displacement data must use local inference; cloud providers are limited to
 anonymized, aggregated or macro-level data; raw PII or household-level coordinates must not enter
@@ -129,3 +129,34 @@ account URL. A hostname that resolves to a public address is non-local.
   bypass attempts listed in §6 rather than assuming the design holds.
 
 Estimates are relative sizes, not schedules; none has been prototyped.
+
+## 9. What was actually built, 2026-09-24
+
+Built, behind a mode that defaults to **Off** (so nothing changes until someone opts in):
+Phase 1 in full, plus the pre-dispatch part of Phase 2 and the `set_layer_sensitivity` lock.
+
+- `core/models/egress_gate.py` — pure logic: endpoint locality classifier, protection rules
+  (including the "an explicit PUBLIC/INTERNAL tag on a derived layer overrides inheritance" rule),
+  lineage inheritance, argument scanning, the whole-project rule for `execute_pyqgis_script`, and a
+  fail-closed decision when the check itself errors in enforce mode.
+- Pre-dispatch check in `_real_execute_tool`, so a blocked call never executes.
+- Confirmation lock: while the gate is on, lowering a protected tag returns `PREVIEW_REQUIRED`;
+  `confirmed` is not in the tool's schema, so a model-supplied `confirmed=True` is discarded.
+- Settings → "Cloud data protection" (Off / Warn only / Block) and a strict checkbox.
+- 51 new unit tests, and a live run against real QGIS 4.2.2 of 19 scenarios that are bypass
+  attempts (block, derived-layer inheritance via real lineage, forged `confirmed`, strict mode,
+  `execute_pyqgis_script`, warn, off).
+
+**Defaults chosen without waiting on the §7 decisions**, all reversible: mode Off; strict off; no
+override-with-justification flow; the policy setting in user `QgsSettings`.
+
+**Known gap found in review:** lineage stores source layers by name, so renaming or removing a
+protected source breaks inheritance for untagged layers derived from it (tag derived layers
+explicitly, or use strict mode).
+
+**Not built — still open:** the result-serialization chokepoint (the catch-all for calls whose
+arguments do not name the layer), gating attachments and the prompt refiner's separate request,
+history handling on a provider switch, a layer-classification UX, and override records. Until those
+exist the gate covers the tool-call route only. `EXEMPT_TOOLS` is deliberately just the two
+sensitivity tools; other metadata-only tools (styling, zoom, visibility) are blocked on a protected
+layer too, which over-blocks but is the safe direction until each is verified individually.

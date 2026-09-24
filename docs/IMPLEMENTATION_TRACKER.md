@@ -344,6 +344,23 @@ prevents accidents, not a determined user, since the policy setting lives in use
 classifies layers, `execute_pyqgis_script` on cloud, history on provider switch, where the policy
 lives) before any code. **Not built; no phase started.**
 
+**Update, 2026-09-24, later — the Ollama-only gate partly built (Alaa: "ok proceed").** Built
+behind a mode that defaults to **Off**, so nothing changes until someone opts in: Phase 1 in full
+(`core/models/egress_gate.py`: endpoint-locality classifier, protection rules, lineage inheritance,
+fail-closed on internal error), the pre-dispatch check in `_real_execute_tool` (a blocked call never
+executes), a confirmation lock so the model cannot lower a protected layer's tag itself
+(`confirmed` is not in the schema, so a model-supplied value is discarded), and Settings controls
+(Off / Warn only / Block, plus strict). Verified with 51 new unit tests and a live run against real
+QGIS 4.2.2 of 19 bypass-style scenarios, all passing — including derived-layer inheritance through
+real lineage, a forged `confirmed=True`, strict mode, and `execute_pyqgis_script`. **Still not
+built:** the result-serialization chokepoint, gating attachments and the prompt refiner's separate
+request, history handling on a provider switch, a layer-classification UX, and override records — so
+the gate covers the tool-call route only, which `SECURITY.md` now says plainly. Defaults were chosen
+without waiting on the scope doc's six decisions and are the reversible ones (Off; strict off; no
+override flow; setting in user `QgsSettings`). It prevents accidents, not a determined user. Note
+for whoever tests it: it depends on layers being tagged — an untagged layer is unprotected outside
+strict mode.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.

@@ -9,6 +9,7 @@ export-blocking gate.
 
 from .registry import register_tool
 from ...models import sensitivity as _sens
+from ...models import egress_gate as _egress
 
 try:
     from qgis.core import QgsProject
@@ -33,7 +34,9 @@ def _find_layer_by_name(name):
     "incident details, or anything else that shouldn't be shared broadly. export_layer/"
     "export_to_csv check this and add an advisory warning (not a block -- the export still "
     "completes) when exporting a RESTRICTED/SENSITIVE layer. No automated classification exists "
-    "-- only what's explicitly set here is tracked.",
+    "-- only what's explicitly set here is tracked. When the cloud-provider data-protection gate "
+    "is on, moving a RESTRICTED/SENSITIVE layer to PUBLIC/INTERNAL needs the user's confirmation "
+    "in the UI -- do not try to work around that by re-tagging.",
     {
         "type": "object",
         "properties": {
@@ -51,7 +54,7 @@ def _find_layer_by_name(name):
         "required": ["layer_name", "level"],
     },
 )
-def set_layer_sensitivity(layer_name, level, reason=None):
+def set_layer_sensitivity(layer_name, level, reason=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -59,6 +62,31 @@ def set_layer_sensitivity(layer_name, level, reason=None):
         return {"error": f"Layer '{layer_name}' not found"}
     if level not in _sens.SENSITIVITY_LEVELS:
         return {"error": f"level must be one of {_sens.SENSITIVITY_LEVELS}, got {level!r}"}
+
+    # Egress-gate lock (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md): the gate trusts these
+    # tags, so the model must not be able to loosen one itself -- otherwise the way to get past a
+    # blocked call would be to re-tag the layer PUBLIC and retry. `confirmed` is not in this tool's
+    # schema; it is only ever set by the UI's confirm button (see _real_execute_tool), so the
+    # model cannot supply it. Only active when the gate is on; with it off this tool behaves
+    # exactly as before.
+    if not confirmed and _egress.read_mode() != _egress.MODE_OFF:
+        current = _sens.get_layer_sensitivity(layer).get("level")
+        if _egress.is_loosening(current, level, _egress.read_strict()):
+            return {
+                "status": "PREVIEW_REQUIRED",
+                "requires_confirmation": True,
+                "is_destructive": True,
+                "tool_name": "set_layer_sensitivity",
+                "arguments": {"layer_name": layer_name, "level": level, "reason": reason,
+                              "confirmed": True},
+                "code_snippet": f"set_layer_sensitivity({layer_name!r}, {level!r})",
+                "rationale": (
+                    f"Lower '{layer_name}' from {current or 'untagged'} to {level}. This layer is "
+                    "currently protected from being sent to cloud AI providers; changing it lets "
+                    "its data leave this machine."
+                ),
+                "message": f"Confirmation required before re-tagging '{layer_name}' {level}.",
+            }
     if not _sens.set_layer_sensitivity(layer, level, reason):
         return {"error": "Failed to tag layer sensitivity."}
     return {"success": True, "layer_name": layer_name, "level": level, "reason": reason}
