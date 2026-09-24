@@ -72,6 +72,14 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
+> **2026-09-24 — OPEN: network tools route in degrees on a geographic-CRS layer
+> (`docs/BUG_TRACKER.md` BUG-2026-09-24-5).** `calculate_service_area`, `travel_time_matrix` and
+> the other network tools pass layers to QGIS's network algorithms as-is. An OSM road layer is
+> EPSG:4326, so `travel_cost` and path costs are in degrees (live: 0.0389 for a ~4 km route).
+> **Recommendation:** reproject the network and points to the local UTM zone inside the tools
+> before routing, and report costs in metres. This changes results for anyone already passing
+> degree-scaled costs, so it needs a go-ahead rather than a silent fix.
+
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,
 > including #19 pulled in from `main` before tagging). The zip was built from a clean

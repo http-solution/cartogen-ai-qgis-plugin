@@ -218,5 +218,70 @@ class TestIngestOsmFeatures(unittest.TestCase):
         self.assertIn("ingest_osm_features", names_osm)
 
 
+class TestOsmWayGeometry(unittest.TestCase):
+    """Live-reported 2026-09-24: the query's `>; out skel qt;` returns every node that makes up a
+    matched way, untagged. Each of those used to become its own point feature: building-outline
+    corners became fake hospitals, and a road network came out as vertex points with no lines.
+    The responses below have the shape Overpass really returns: tagged ways with a `nodes` list,
+    then the untagged vertex nodes."""
+
+    def _run(self, key, value, elements):
+        mock_cm = MagicMock()
+        mock_cm.read.return_value = json.dumps({"elements": elements}).encode("utf-8")
+        mock_cm.__enter__.return_value = mock_cm
+        with patch("urllib.request.urlopen", return_value=mock_cm):
+            res = ingest_osm_features_network_phase(key=key, value=value, center_lat=31.95,
+                                                    center_lon=35.90, radius_km=2)
+        self.assertTrue(res.get("success"), res)
+        with open(res["local_path"], encoding="utf-8") as f:
+            data = json.load(f)
+        os.remove(res["local_path"])
+        return res, data["features"]
+
+    def test_roads_become_lines_built_from_their_vertex_nodes(self):
+        res, feats = self._run("highway", "primary|secondary", [
+            {"type": "way", "id": 10, "nodes": [1, 2, 3], "center": {"lat": 31.951, "lon": 35.901},
+             "tags": {"highway": "primary", "name": "Zahran St"}},
+            {"type": "way", "id": 11, "nodes": [3, 4], "center": {"lat": 31.953, "lon": 35.903},
+             "tags": {"highway": "secondary"}},
+            {"type": "node", "id": 1, "lat": 31.950, "lon": 35.900},
+            {"type": "node", "id": 2, "lat": 31.951, "lon": 35.901},
+            {"type": "node", "id": 3, "lat": 31.952, "lon": 35.902},
+            {"type": "node", "id": 4, "lat": 31.954, "lon": 35.904},
+        ])
+        self.assertEqual(res["feature_count"], 2)  # the 4 vertex nodes are not features
+        self.assertEqual(res["geometry_type"], "LineString")
+        self.assertEqual({f["geometry"]["type"] for f in feats}, {"LineString"})
+        zahran = next(f for f in feats if f["properties"]["name"] == "Zahran St")
+        self.assertEqual(zahran["geometry"]["coordinates"],
+                         [[35.900, 31.950], [35.901, 31.951], [35.902, 31.952]])
+        self.assertEqual(zahran["properties"]["highway"], "primary")
+
+    def test_facility_outline_corners_are_not_extra_facilities(self):
+        res, feats = self._run("amenity", "hospital", [
+            {"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+             "tags": {"amenity": "hospital", "name": "Clinic A"}},
+            {"type": "way", "id": 20, "nodes": [5, 6, 7, 5], "center": {"lat": 31.96, "lon": 35.91},
+             "tags": {"amenity": "hospital", "name": "Hospital B"}},
+            {"type": "node", "id": 5, "lat": 31.959, "lon": 35.909},
+            {"type": "node", "id": 6, "lat": 31.961, "lon": 35.909},
+            {"type": "node", "id": 7, "lat": 31.961, "lon": 35.911},
+        ])
+        self.assertEqual(res["feature_count"], 2)  # was 5: the 3 outline corners counted as hospitals
+        self.assertEqual(res["geometry_type"], "Point")
+        self.assertEqual(sorted(f["properties"]["name"] for f in feats), ["Clinic A", "Hospital B"])
+        b = next(f for f in feats if f["properties"]["name"] == "Hospital B")
+        self.assertEqual(b["geometry"]["coordinates"], [35.91, 31.96])  # the way's centre, as before
+
+    def test_linear_key_with_only_nodes_stays_a_point_layer(self):
+        # e.g. highway=bus_stop is mapped as nodes; there are no ways to draw lines from.
+        res, feats = self._run("highway", "bus_stop", [
+            {"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+             "tags": {"highway": "bus_stop", "name": "Stop 1"}},
+        ])
+        self.assertEqual(res["geometry_type"], "Point")
+        self.assertEqual(len(feats), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

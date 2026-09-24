@@ -280,6 +280,24 @@ def fetch_osm_features(key: str, value: str, bbox: list):
         return {"error": f"Overpass API request failed: {e}"}
 
 
+_OSM_LINEAR_KEYS = frozenset({"highway", "railway", "waterway", "aerialway"})
+
+
+def _osm_feature(elem, clean_key, clean_value, geometry):
+    tags = elem.get("tags", {})
+    feature_name = tags.get("name:en") or tags.get("name") or tags.get("operator") or f"{clean_key}_{elem.get('id')}"
+    props = {
+        "id": elem.get("id"),
+        "osm_type": elem.get("type"),
+        "name": str(feature_name),
+        clean_key: str(tags.get(clean_key, clean_value)),
+    }
+    for k, v in tags.items():
+        if k not in props and isinstance(v, (str, int, float, bool)):
+            props[k] = v
+    return {"type": "Feature", "geometry": geometry, "properties": props}
+
+
 def ingest_osm_features_network_phase(
     key: str,
     value: str,
@@ -339,9 +357,44 @@ def ingest_osm_features_network_phase(
         return {"error": f"Overpass API request failed: {e}"}
 
     elements = res_json.get("elements", [])
+
+    # The query's trailing `>; out skel qt;` returns every node that makes up each matched way,
+    # with coordinates but no tags. These used to go through the loop below like any other
+    # element: every building-outline corner became a fake "hospital" point, and a road network
+    # became one point per road vertex with no lines at all. Live-reported 2026-09-24 ("Health
+    # facilities beyond one hour's travel", Amman): the Road Network layer drew as a blob of points,
+    # calculate_service_area produced nothing usable on it, and the model spent the rest of its
+    # tool-call budget on hand-written PyQGIS workarounds. Checked against real Overpass data at
+    # that location: amenity=hospital|clinic returned 24 real facilities (15 nodes + 9 ways) plus
+    # 88 untagged outline nodes, so the layer had 112 "hospitals"; highway=primary|secondary in
+    # a 2 km box returned 81 ways plus 802 untagged vertices, which made 883 points and no lines.
+    # The untagged nodes are now used only as coordinates for building way geometry.
+    node_coords = {
+        e.get("id"): (e.get("lon"), e.get("lat")) for e in elements
+        if e.get("type") == "node" and e.get("lat") is not None and e.get("lon") is not None
+    }
+
+    # Keys whose ways are networks, not places: a road/rail/river must be a line to be routable
+    # (native:serviceareafrompoint and friends need a line layer). Everything else, e.g. an
+    # amenity mapped as a building outline, keeps the way's centre point so facility layers stay
+    # one point per facility.
+    line_features = []
+    if clean_key in _OSM_LINEAR_KEYS:
+        for elem in elements:
+            if elem.get("type") != "way" or not elem.get("tags"):
+                continue
+            coords = [node_coords[n] for n in elem.get("nodes") or [] if n in node_coords]
+            if len(coords) < 2:
+                continue
+            line_features.append(_osm_feature(
+                elem, clean_key, clean_value,
+                {"type": "LineString", "coordinates": [[float(x), float(y)] for x, y in coords]},
+            ))
+
     features = []
-    for elem in elements:
-        elem_type = elem.get("type")
+    for elem in ([] if line_features else elements):
+        if not elem.get("tags"):
+            continue  # a way's vertex from `out skel` -- geometry only, not a matching feature
         # `or` here silently drops any feature sitting exactly on the equator/prime
         # meridian: 0.0 is falsy in Python, so `elem.get("lat") or ...` (a real bug found
         # in a code-review pass, 2026-09-20) would fall through to the center lookup for a
@@ -355,26 +408,13 @@ def ingest_osm_features_network_phase(
         if lat is None or lon is None:
             continue
 
-        tags = elem.get("tags", {})
-        feature_name = tags.get("name:en") or tags.get("name") or tags.get("operator") or f"{clean_key}_{elem.get('id')}"
-        props = {
-            "id": elem.get("id"),
-            "osm_type": elem_type,
-            "name": str(feature_name),
-            clean_key: str(tags.get(clean_key, clean_value)),
-        }
-        for k, v in tags.items():
-            if k not in props and isinstance(v, (str, int, float, bool)):
-                props[k] = v
+        features.append(_osm_feature(
+            elem, clean_key, clean_value,
+            {"type": "Point", "coordinates": [float(lon), float(lat)]},
+        ))
 
-        features.append({
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [float(lon), float(lat)],
-            },
-            "properties": props,
-        })
+    geometry_type = "LineString" if line_features else "Point"
+    features = line_features or features
 
     if not features:
         return {
@@ -396,6 +436,7 @@ def ingest_osm_features_network_phase(
         "key": clean_key,
         "value": clean_value,
         "feature_count": len(features),
+        "geometry_type": geometry_type,
         "bbox": [s, w, n, e],
         "local_path": tmp_path,
         "layer_name": layer_name,

@@ -13,6 +13,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
     score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
     _build_network_distance_matrix, _make_distance_area, _measure_distance,
+    _network_geometry_error,
 )
 
 
@@ -187,6 +188,18 @@ class TestLogisticsToolsValidation(unittest.TestCase):
         self.assertIn("ghost_demand", res["error"])
 
 
+class _LineNetworkMixin:
+    """These tests pass a MagicMock as the road network, and QgsWkbTypes doesn't exist outside
+    QGIS, so the line-geometry check (_network_geometry_error) is stubbed to "it's a line layer".
+    That check has its own tests in TestNetworkGeometryGuard."""
+
+    def setUp(self):
+        super().setUp()
+        p = patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+
+
 class TestNetworkDirectionSpeedParams(unittest.TestCase):
     """Point 8 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, per
     docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 2 item 1 -- wiring
@@ -244,7 +257,7 @@ class TestNetworkDirectionSpeedParams(unittest.TestCase):
         self.assertIn("DIRECTION_FIELD", extra)
 
 
-class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
+class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
@@ -326,7 +339,7 @@ class TestCalculateServiceAreaNetworkParams(unittest.TestCase):
         self.assertNotIn("direction_field", res)
 
 
-class TestCalculateServiceAreaMultiBand(unittest.TestCase):
+class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
     """v1.8.0 workstream 4: travel_cost as a list builds one combined,
     auto-styled isochrone/access-band polygon layer per facility (one ring
     per band value) instead of requiring N separate calls."""
@@ -437,7 +450,7 @@ class TestCalculateServiceAreaMultiBand(unittest.TestCase):
         mock_apply_graduated.assert_not_called()
 
 
-class TestCalculateServiceAreaDegenerateNetworkIsolation(unittest.TestCase):
+class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unittest.TestCase):
     """BUG-2026-09-05-2: a small/degenerate road network can make either
     native:serviceareafrompoint or native:convexhull raise for one facility --
     that must no longer abort the whole multi-facility call. Mocked reproduction
@@ -782,7 +795,7 @@ class TestDegenerateHullFallback(unittest.TestCase):
         mock_vectorlayer_cls.assert_not_called()
 
 
-class TestTravelTimeMatrixNetworkParams(unittest.TestCase):
+class TestTravelTimeMatrixNetworkParams(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_rejects_unknown_strategy(self):
         res = travel_time_matrix("origins", "destinations", "roads", strategy="teleport")
@@ -1269,7 +1282,7 @@ def _stop_layer(names):
     return layer
 
 
-class TestOptimizeDeliveryRouteRoadSnapping(unittest.TestCase):
+class TestOptimizeDeliveryRouteRoadSnapping(_LineNetworkMixin, unittest.TestCase):
     """Covers the 2026-09-04 road-snapped-route upgrade: optimize_delivery_route
     now accepts an optional road_network_layer and, when given, builds a real
     routable line via native:shortestpathpointtopoint instead of leaving the
@@ -1619,6 +1632,36 @@ class TestScoreRouteIncidentRiskPropagatesCrsWarning(unittest.TestCase):
         self.assertIn("EPSG:4326", res["warning"])
         self.assertIn("distance_to_route_m", res["warning"])
         self.assertIn("DEGREES", res["warning"])
+
+
+class TestNetworkGeometryGuard(unittest.TestCase):
+    """Live-reported 2026-09-24: a Road Network ingested as points went through
+    calculate_service_area as a "success". The network tools now refuse a non-line layer."""
+
+    def _wkb(self, geometry_type):
+        wkb = MagicMock()
+        wkb.GeometryType.LineGeometry = "line"
+        wkb.geometryType.return_value = geometry_type
+        return wkb
+
+    def test_point_layer_is_rejected_with_a_pointer_to_the_fix(self):
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", self._wkb("point"), create=True):
+            err = _network_geometry_error(MagicMock(), "Road Network")
+        self.assertIn("'Road Network' is not a line layer", err)
+        self.assertIn("key='highway'", err)
+
+    def test_line_layer_passes(self):
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", self._wkb("line"), create=True):
+            self.assertIsNone(_network_geometry_error(MagicMock(), "Road Network"))
+
+    def test_service_area_and_matrix_stop_before_processing_on_a_point_network(self):
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True),              patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name", return_value=MagicMock()),              patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", self._wkb("point"), create=True),              patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True) as proc:
+            r1 = calculate_service_area("Health Facilities", "Road Network", 5000)
+            r2 = travel_time_matrix("Origin", "Health Facilities", "Road Network")
+            r3 = optimize_delivery_route("Stops", road_network_layer="Road Network")
+        for r in (r1, r2, r3):
+            self.assertIn("is not a line layer", r.get("error", ""), r)
+        proc.run.assert_not_called()
 
 
 if __name__ == "__main__":
