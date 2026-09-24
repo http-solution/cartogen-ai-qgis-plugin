@@ -47,8 +47,8 @@ as a control that removes the need for the organizational SOPs already recorded.
 | 2 | **`execute_pyqgis_script` return value** | same serialization point | The hard case: layer names are string literals inside the script, not arguments |
 | 3 | **User message text** | chat send path | The user typed it; a warning is appropriate, blocking is not |
 | 4 | **File attachments** | `read_attached_file` (`ui/attachments.py`) → user message | Bypasses tools entirely; CSV/XLSX/DOCX/PDF content goes straight into the request |
-| 5 | **Prompt refiner** | `prompt_refiner.refine()` calls `client.complete(...)` | A second, separate request to the provider containing the user's text |
-| 6 | **Conversation history** | `conversation_history` re-sent every turn | **Switching provider mid-session re-sends earlier tool results to the new provider.** A gate that only inspects new results misses this |
+| 5 | **Prompt refiner** | `prompt_refiner.refine()` calls `client.complete(...)` | A second, separate request to the provider containing the user's text  — **Corrected later the same day:** `build_refinement_messages(query, profile)` sends only the user's own typed text and profile, which the main request sends anyway. No added exposure; no separate gate needed. |
+| 6 | **Conversation history** | `conversation_history` re-sent every turn | **Switching provider mid-session re-sends earlier tool results to the new provider.** A gate that only inspects new results misses this  — **Corrected later the same day: this was wrong.** Every write to `conversation_history` stores only the user message and the assistant's final prose (`_append_history(user_message, {"role": "assistant", ...})`), never tool results. What a provider switch carries over is the assistant's own summaries — the "model repeats what it saw" gap in §6, not a separate route. |
 
 ## 4. What should trigger the gate — four options
 
@@ -160,3 +160,34 @@ history handling on a provider switch, a layer-classification UX, and override r
 exist the gate covers the tool-call route only. `EXEMPT_TOOLS` is deliberately just the two
 sensitivity tools; other metadata-only tools (styling, zoom, visibility) are blocked on a protected
 layer too, which over-blocks but is the safe direction until each is verified individually.
+
+## 10. Second build pass, later on 2026-09-24
+
+Inspecting the remaining routes before building them changed what needed building:
+
+- **Attachments — built.** `ChatInputController.analyze_file` is the single place an attached
+  file's content leaves the machine (both the image and the text branch send it; a remembered
+  attachment only carries a one-line description on later messages, via
+  `task_matcher.compose_user_message`). It is now gated there. A file has no sensitivity tag, so it
+  is treated like an untagged layer: blocked on a cloud provider only in **strict** enforce mode
+  (warned in strict warn mode), and a blocked file is dropped from the next-message queue.
+- **Prompt refiner — no gate needed.** It sends only the user's typed text (§3 row 5, corrected).
+- **History on a provider switch — no gate needed for tool results**, because they are never stored
+  across turns (§3 row 6, corrected). The assistant's prose summaries do carry over; that is §6's
+  existing "model repeats what it saw" gap.
+- **Result-serialization catch-all — replaced by a guard test.** A search of all 178 registered tools
+  (validated: it matched 176 directly; the other 2 were checked by hand) found that every tool which
+  reads feature values names its layer in its arguments, and the only three tools that iterate the
+  whole project (`load_project`, `auto_arrange_layer_order`, `get_layers`) read no values. So the
+  pre-dispatch check already sees every value-bearing call, with `execute_pyqgis_script` handled by
+  the whole-project rule. `tests/test_egress_gate_coverage.py` fails if a future tool reads features
+  without naming a layer; it was mutation-checked (a fake unclassifiable tool makes it fail, naming
+  the tool). **Limit:** it inspects each tool's own function body, so a tool that reads features only
+  inside a helper it calls would not be caught.
+
+Verified: unit suite 2095 passing (58 egress-related tests), and the full live QGIS suite (46
+tests) run locally against real QGIS 4.2.2, including 4 new attachment tests that assert the file's
+content never reaches the provider (`client.calls == 0`).
+
+**Still open:** the §7 decisions (defaults were chosen reversibly), a layer-classification UX,
+override-with-justification records, and — by design — user-typed text and the model's own prose.
