@@ -1,0 +1,34 @@
+{
+  "metadata_version_rc5": {
+    "pass": true,
+    "detail": ""
+  },
+  "metadata_min_qgis_4_2": {
+    "pass": true,
+    "detail": ""
+  },
+  "sandbox_blocks_project_write": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.write' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "sandbox_blocks_authmanager": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.authManager' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "folder_scaffold_creates_layout": {
+    "pass": true,
+    "detail": "Created 17 folder(s) under 'C:\\Users\\alaa\\AppData\\Local\\Temp\\rc5_new_a2rems3e\\proj'. Keep data/00_raw untouched -- work from data/10_staging onward."
+  },
+  "unnamed_output_hidden_named_visible": {
+    "pass": true,
+    "detail": "(False, True)"
+  },
+  "egress_gate_off_by_default": {
+    "pass": true,
+    "detail": "off"
+  },
+  "egress_gate_blocks_when_enforced": {
+    "pass": true,
+    "detail": "EGRESS_BLOCKED"
+  }
+}

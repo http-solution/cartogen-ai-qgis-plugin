@@ -1,0 +1,110 @@
+{
+  "00_fixture_project_loads": {
+    "pass": true,
+    "detail": "7 layers: ['smoke_admin', 'smoke_boundary', 'smoke_dem', 'smoke_hubs', 'smoke_image', 'smoke_points', 'smoke_zones']"
+  },
+  "A1_vector_buffer": {
+    "pass": true,
+    "detail": "{'success': True, 'layer_name': 'smoke_points_buffer_500', 'action_chips': [{'id': 'act_a703a062', 'label': '\ud83d\udcc1 Export smoke_points_buffer_500', 'url': 'cartogen://action/act_a703a062'}, {'id': 'act_89422ff9', 'label': '\ud83d\udd0d Zoom to smoke_points_buffer_500', 'url': 'cartogen://action/act_89422ff9'}]} ne"
+  },
+  "A2_raster_stretch": {
+    "pass": true,
+    "detail": "QgsSingleBandGrayRenderer->QgsSingleBandPseudoColorRenderer: {'success': True, 'layer_name': 'smoke_dem', 'mode': 'color_ramp', 'band': 1, 'min_value': 35.0, 'max_value': 214.0, 'color_ramp': 'Viridis'}"
+  },
+  "A3_hub_siting": {
+    "pass": true,
+    "detail": "{'success': True, 'candidate_count': 3, 'demand_point_count': 5, 'ranked_candidates': [{'candidate': '1', 'avg_distance': 886.98, 'max_distance_to_any_demand_point': 1871.52}, {'candidate': '2', 'avg_distance': 1035.77, 'max_distance_to_any_demand_point': 1727.62}, {'candidate': '3', 'avg_distance':"
+  },
+  "A4_severity_gate": {
+    "pass": true,
+    "detail": "{'status': 'PREVIEW_REQUIRED', 'requires_confirmation': True, 'is_destructive': True, 'tool_name': 'calculate_severity_index', 'arguments': {'layer_name': 'smoke_admin', 'indicator_fields': ['population', 'need'], 'unit_name_field': 'admin_name', 'weights': None, 'invert_indicators': None, 'output_f"
+  },
+  "A4_severity_write": {
+    "pass": true,
+    "detail": "[0.0, 0.7857, 0.75]"
+  },
+  "A4_severity_autostyle": {
+    "pass": true,
+    "detail": "{'success': True, 'layer_name': 'smoke_admin', 'categories_count': 3, 'opacity_percent': 75}"
+  },
+  "A5_categorized_style": {
+    "pass": true,
+    "detail": "{'success': True, 'layer_name': 'smoke_zones', 'categories_count': 3, 'opacity_percent': 75}"
+  },
+  "A5_labels_obstacle": {
+    "pass": true,
+    "detail": "{'success': True, 'message': \"Labels applied to 'smoke_boundary' using field 'admin_name' (halo enabled, priority=5).\"}"
+  },
+  "A6_export_csv": {
+    "pass": true,
+    "detail": "{'success': True, 'output_path': 'C:/Users/alaa/AppData/Local/Temp/claude/C--http-solution-cartogen-ai-qgis-plugin/ffaec72b-f9dc-46d4-bdc3-7fce2c17d3ba/scratchpad/rc5\\\\smoke_root\\\\outputs\\\\smoke_points.csv', 'feature_count': 5, 'only_selected_features': False}"
+  },
+  "A7_print_layout": {
+    "pass": true,
+    "detail": "['Layout_Smoke_Test_Layout']"
+  },
+  "B4_pdf_tables": {
+    "pass": true,
+    "detail": "{'error': 'pdfplumber is required for PDF table extraction. Install via qpip, or in the OSGeo4W Shell: python -m pip install pdfplumber'}"
+  },
+  "B4_docx_tables": {
+    "pass": true,
+    "detail": "{'error': 'python-docx is required for Word table extraction. Install via qpip, or in the OSGeo4W Shell: python -m pip install python-docx'}"
+  },
+  "B5_web_search": {
+    "pass": true,
+    "detail": "{'error': \"Required package 'ddgs' is missing. Ask the user to install it via the qpip plugin, or manually in the OSGeo4W Shell: python -m pip install ddgs\"}"
+  },
+  "B1_building_footprints": {
+    "pass": true,
+    "detail": "{'success': True, 'location': 'Jordan', 'feature_count': 5000, 'tiles_used': 2, 'truncated': True, 'max_features': 5000, 'source': 'Microsoft Global ML Building Footprints (CDLA Permissive 2.0 license)', 'baseline_caveat': \"This is Microsoft's own periodic dataset refresh, not live extraction from a"
+  },
+  "B2_imagery_extraction": {
+    "pass": true,
+    "detail": "{'error': \"The 'ultralytics' package is required for imagery feature extraction (installs a real ML runtime plus a model checkpoint on first use). Install it with QGIS fully closed, not while it's running: this dependency group shares jinja2/markupsafe with folium (already installed for generate_htm"
+  },
+  "B3_stac_search": {
+    "pass": true,
+    "detail": "{'success': True, 'scene_count': 5, 'scenes': [{'id': 'S2B_5KQP_20260831_0_L2A', 'datetime': '2026-08-31T20:11:41.455000Z', 'cloud_cover': 13.390949, 'thumbnail': 'https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/5/K/QP/2026/8/S2B_5KQP_20260831_0_L2A/preview.jpg', 'visual_href':"
+  },
+  "C1_save_load_preset": {
+    "pass": true,
+    "detail": "({'success': True, 'preset_name': 'smoke_admin_severity', 'stored_key': 'cartogen_ai/workflows/smoke_admin_severity'}, {'success': True, 'preset_name': 'smoke_admin_severity', 'workflow_json': '{\"steps\": [{\"tool\": \"calculate_severity_index\", \"args\": {\"layer_name\": \"smoke_admin\", \"indicator_fields\": "
+  },
+  "C1_scheduler": {
+    "pass": true,
+    "detail": "({'success': True, 'active_schedules': [{'preset_name': 'smoke_admin_severity', 'interval_minutes': 1, 'max_runs': 1, 'run_count': 0}]}, {'success': True, 'active_schedules': []})"
+  },
+  "C3_save_project": {
+    "pass": true,
+    "detail": "{'success': True, 'file_path': 'C:/Users/alaa/AppData/Local/Temp/claude/C--http-solution-cartogen-ai-qgis-plugin/ffaec72b-f9dc-46d4-bdc3-7fce2c17d3ba/scratchpad/rc5/smoke_root/outputs/smoke_roundtrip.qgz'}"
+  },
+  "C3_load_gate": {
+    "pass": true,
+    "detail": "{'status': 'PREVIEW_REQUIRED', 'requires_confirmation': True, 'is_destructive': True, 'tool_name': 'load_project', 'arguments': {'file_path': 'C:/Users/alaa/AppData/Local/Temp/claude/C--http-solution-cartogen-ai-qgis-plugin/ffaec72b-f9dc-46d4-bdc3-7fce2c17d3ba/scratchpad/rc5\\\\smoke_root\\\\outputs\\\\sm"
+  },
+  "C3_roundtrip_layers": {
+    "pass": true,
+    "detail": "(['Jordan_building_footprints', 'smoke_admin', 'smoke_boundary', 'smoke_dem', 'smoke_hubs', 'smoke_image', 'smoke_points', 'smoke_points_buffer_500', 'smoke_zones'], ['Jordan_building_footprints', 'smoke_admin', 'smoke_boundary', 'smoke_dem', 'smoke_hubs', 'smoke_image', 'smoke_points', 'smoke_point"
+  },
+  "C5_sandbox_safe": {
+    "pass": true,
+    "detail": "{'success': True, 'result': {'crs': 'EPSG:32636', 'layers': ['Jordan_building_footprints', 'smoke_admin', 'smoke_boundary', 'smoke_dem', 'smoke_hubs', 'smoke_image', 'smoke_points', 'smoke_points_buffer_500', 'smoke_zones']}}"
+  },
+  "C5_sandbox_blocked": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked import 'os' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "C5b_sandbox_blocks_qgis_utils_os": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.os' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "C5c_sandbox_blocks_sys_modules_pivot": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked attribute access '.modules' -- not allowed in execute_pyqgis_script.\"}"
+  },
+  "C5d_sandbox_blocks_cartogen_ai_import": {
+    "pass": true,
+    "detail": "{'error': \"Script rejected for safety: Blocked import 'cartogen_ai.infrastructure.auth' -- not allowed in execute_pyqgis_script.\"}"
+  }
+}

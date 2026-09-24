@@ -74,6 +74,38 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-24 — v1.16.0-rc5 — headless, 27/27 + 8/8 against this candidate's built ZIP, before
+the release-prep commit merged.** Built `dist/cartogen_ai_v1.16.0-rc5.zip` (215 files, sha256
+`eca054afe368583a92be9643cb584155a7ba40d77e779f20d1bad4c132a0ad23`) from a clean `git archive` of
+the version-bump commit `ac8c32c` — not the working tree — then extracted it fresh and ran real tool
+code from that extraction against real QGIS 4.2.2 via `python-qgis.bat`. Fixtures were copied to a
+scratch folder first, so nothing under `docs/release_smoke_assets/` was modified by the run.
+
+**This checksum is of the pre-merge build, not the published asset.** This very log entry and the
+two JSON files it cites are packaged into the zip (`plugin_upload.py` includes `docs/`), so the
+published build necessarily differs. The published asset is rebuilt from the merged commit and
+compared file by file against this tested build; see the GitHub release notes for that result and
+the final checksum.
+
+- **The rc4 checklist, 27/27 passed** — same 16 categories and checks as the rc4 entries below,
+  including two live network calls (building footprints, STAC search) and the rc4 sandbox checks.
+  Results: `docs/release_smoke_assets/logs/rc5_headless_run.json`.
+- **New in rc5, 8/8 passed, all run from the packaged code:** the packaged `metadata.txt` says
+  `1.16.0-rc5` and `qgisMinimumVersion=4.2`; the sandbox rejects `QgsProject.write()` (target file
+  confirmed not created) and `QgsApplication.authManager()`; `create_project_folder_structure`
+  creates the layout; an unnamed `run_allowlisted_processing_algorithm` output is added hidden while
+  a named one stays visible; the egress gate reads `off` by default and returns `EGRESS_BLOCKED` for
+  a `SENSITIVE` layer on a cloud endpoint when set to enforce. Results:
+  `docs/release_smoke_assets/logs/rc5_new_checks.json`.
+- **Build hygiene improvement found while checking:** rc4's zip had been built from a working tree
+  and shipped 17 untracked files (a `.ruff_cache/`, two stray planning documents,
+  `symbology-style.db`). Building from `git archive` leaves them out; rc5 contains none of them.
+
+**Not done — same caveats as every headless entry:** this is not the interactive
+`RELEASE_LIVE_TEST_SCENARIOS.md` run, and it does **not** close §1.10 (toolbar rendering, menu,
+clean startup and in-place upgrade in a real QGIS window). C4 (task/memory UI) and C2 (PostGIS)
+remain unexercised for the reasons given in the rc4 entry.
+
 **2026-09-23 — v1.16.0-rc4 — headless, 24/25 checks against the actual published release ZIP
 (not the dev tree), using the real fixture project another session prepared under
 `docs/release_smoke_assets/`.** Downloaded `commercial-plugin-v1.16.0-rc4.zip` from the published
