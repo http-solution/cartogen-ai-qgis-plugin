@@ -61,6 +61,11 @@ canvas/project — not just that the chat bubble looks plausible.
   worth being able to point to later. This file's own [Run log](#run-log) below is the retrievable
   place when the release's `CHANGELOG.md` entry is already tagged/pushed and shouldn't be edited after
   the fact (`CONTRIBUTING.md` §2) — append a new dated entry there instead.
+- When publishing the GitHub Release: start the description from
+  [`.github/RELEASE_TEMPLATE.md`](../.github/RELEASE_TEMPLATE.md) (e.g.
+  `gh release create <tag> dist/cartogen_ai_v<version>.zip --notes-file <filled-in copy>`).
+  Its top block tells users to install the attached asset, not GitHub's auto-generated
+  "Source code (zip)", which QGIS can't load (see the template's comment for why).
 - If anything fails: that's real signal this sandbox's test suite structurally cannot produce on its
   own — file it the same way every other review round in this project's history has, with the exact
   prompt used and what actually happened vs. what the code assumed would happen.
