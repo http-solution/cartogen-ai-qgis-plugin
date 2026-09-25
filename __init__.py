@@ -67,12 +67,20 @@ def _bootstrap_namespace():
                    if os.path.normcase(os.path.abspath(p or ".")) != norm]
     sys.path.insert(0, _SRC_DIR)
 
-    existing = sys.modules.get("cartogen_ai")
-    if existing is not None:
-        have = [os.path.normcase(os.path.abspath(x))
-                for x in (getattr(existing, "__path__", None) or [])]
-        if os.path.normcase(os.path.abspath(_PKG_DIR)) not in have:
-            _evict_cartogen_modules()
+    # Evict unconditionally, not only when the cached package came from a
+    # different path. This used to check the path, and an in-place upgrade
+    # slipped through it: Install from ZIP over a running rc4 re-imports this
+    # package from the SAME folder, so rc4's already-imported
+    # cartogen_ai.infrastructure.settings_keys stayed cached while rc5's
+    # freshly imported modules asked it for names it never had -- reported
+    # live on QGIS 4.2.2 as "Failed to open panel: cannot import name
+    # 'SETTINGS_PROJECT_INSPECTOR_ENABLED'", and reproduced by extracting the
+    # real rc4 zip, importing it, then extracting rc5 over it. QGIS's own
+    # unloadPlugin only drops modules named after the plugin folder
+    # ("cartogen-ai"), never our separate cartogen_ai.* tree, so nothing else
+    # clears them. This file runs once per (re)load, so on a first load the
+    # eviction is a no-op.
+    _evict_cartogen_modules()
 
     importlib.invalidate_caches()
 
