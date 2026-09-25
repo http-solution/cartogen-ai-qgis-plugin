@@ -1074,5 +1074,188 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(names, ["Health Facilities"])
 
 
+def _user_bubbles(log, text):
+    """How many times `text` appears as the user's own bubble ("You · <time>" line, then the
+    text) -- not counting the preview card quoting it under "Message sent as you:"."""
+    lines = log.splitlines()
+    return sum(1 for i in range(1, len(lines))
+               if lines[i].strip() == text and lines[i - 1].startswith("You ·"))
+
+
+_TRAVEL_Q = "Health facilities beyond one hour's travel 3999682,3756232"
+
+
+def _geofabrik_fixture(folder):
+    """Tiny shapefiles in the Geofabrik 'free' schema (column names checked against the real
+    Jordan extract, 2026-09-25): 2 roads, 3 point POIs (a hospital, a clinic and a pharmacy that
+    must be left out) and 1 hospital mapped as a building outline."""
+    from qgis.core import (QgsFeature, QgsField, QgsFields, QgsGeometry, QgsProject,
+                           QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsWkbTypes)
+    from qgis.PyQt.QtCore import QMetaType
+    crs = QgsCoordinateReferenceSystem("EPSG:4326")
+
+    def write(stem, wkb, cols, rows):
+        fields = QgsFields()
+        for c in cols:
+            fields.append(QgsField(c, QMetaType.Type.QString))
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "ESRI Shapefile"
+        path = os.path.join(folder, stem + ".shp")
+        w = QgsVectorFileWriter.create(path, fields, wkb, crs, QgsProject.instance().transformContext(), opts)
+        for wkt, attrs in rows:
+            f = QgsFeature(fields)
+            f.setGeometry(QgsGeometry.fromWkt(wkt))
+            f.setAttributes(attrs)
+            w.addFeature(f)
+        del w
+        return path
+
+    return {
+        "gis_osm_roads_free_1": write("gis_osm_roads_free_1", QgsWkbTypes.Type.LineString,
+                                      ["osm_id", "fclass", "oneway", "maxspeed"],
+                                      [("LINESTRING(35.90 31.95, 35.92 31.96)", ["1", "primary", "B", "60"]),
+                                       ("LINESTRING(35.92 31.96, 35.94 31.97)", ["2", "residential", "F", "0"])]),
+        "gis_osm_pois_free_1": write("gis_osm_pois_free_1", QgsWkbTypes.Type.Point,
+                                     ["osm_id", "fclass", "name"],
+                                     [("POINT(35.91 31.95)", ["10", "hospital", "Point Hospital"]),
+                                      ("POINT(35.93 31.96)", ["11", "clinic", "Clinic"]),
+                                      ("POINT(35.93 31.97)", ["12", "pharmacy", "Pharmacy"])]),
+        "gis_osm_pois_a_free_1": write("gis_osm_pois_a_free_1", QgsWkbTypes.Type.Polygon,
+                                       ["osm_id", "fclass", "name"],
+                                       [("POLYGON((35.95 31.95, 35.96 31.95, 35.96 31.96, 35.95 31.96, 35.95 31.95))",
+                                         ["20", "hospital", "Outline Hospital"])]),
+    }
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
+class TestLocalDataOfferLive(unittest.TestCase):
+    """The "download local data, or fetch online?" question (agent/local_data_sources.py),
+    driven through the real dock: real send button, real QgsTask for the background step, real
+    layers added to QgsProject. Only Geofabrik itself is replaced (by the fixture above)."""
+
+    @classmethod
+    def setUpClass(cls):
+        _boot_qgis()
+        from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
+        cls.DockCls = CartogenAiDockWidget
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from unittest.mock import patch
+        from qgis.core import QgsProject
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp(prefix="cg_localdata_live_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        p = patch("cartogen_ai.core.agent.local_data_loader.data_dir", return_value=self.tmp)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _dock(self):
+        agent = _FakeAgent(script=[])
+        dock = self.DockCls(agent_provider=lambda: agent)
+        dock.show()
+        self.addCleanup(dock.close)
+        return dock.chat_tab_widget, agent
+
+    def test_travel_time_request_in_an_empty_project_asks_first(self):
+        ct, agent = self._dock()
+        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+        log = ct.chat_browser.toPlainText()
+        self.assertTrue(ct._awaiting_local_data_reply)
+        self.assertIn("download the data once", log)
+        self.assertIn("healthsites.io", log)
+        self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1, "the request is shown once, as the user's own bubble")
+        self.assertEqual(agent.client.calls, 0, "nothing goes to the model before the user answers")
+
+    def test_online_continues_to_the_preview_and_is_not_asked_again(self):
+        ct, agent = self._dock()
+        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+        TestChatWidgetLive._reply(ct, "online")
+        log = ct.chat_browser.toPlainText()
+        self.assertFalse(ct._awaiting_local_data_reply)
+        self.assertTrue(ct._awaiting_preview_reply, "the normal preview comes next")
+        self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1, "resuming must not echo the request again")
+        TestChatWidgetLive._reply(ct, "cancel")
+        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+        self.assertFalse(ct._awaiting_local_data_reply, "declined once -> not asked again this session")
+
+    def test_download_adds_line_roads_and_all_health_facilities_then_resumes(self):
+        from unittest.mock import patch
+        from qgis.core import QgsProject, QgsWkbTypes
+        ct, agent = self._dock()
+        region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
+                  "size_bytes": 60_000_000}
+        shp = _geofabrik_fixture(self.tmp)
+        with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
+             patch("cartogen_ai.core.agent.local_data_loader.download_and_extract",
+                   return_value={"shapefiles": shp, "zip_path": os.path.join(self.tmp, "x.zip"),
+                                 "region": region}):
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            TestChatWidgetLive._reply(ct, "download")
+            _pump(8000, until=lambda: ct._awaiting_preview_reply)
+
+        roads = QgsProject.instance().mapLayersByName("OSM Roads (Jordan)")
+        health = QgsProject.instance().mapLayersByName("Health Facilities (OSM, Jordan)")
+        self.assertEqual(len(roads), 1)
+        self.assertEqual(roads[0].geometryType(), QgsWkbTypes.GeometryType.LineGeometry)
+        self.assertEqual(roads[0].featureCount(), 2)
+        self.assertEqual(len(health), 1)
+        names = sorted(f["name"] for f in health[0].getFeatures())
+        self.assertEqual(names, ["Clinic", "Outline Hospital", "Point Hospital"],
+                         "outline hospitals included as points; pharmacies left out")
+        self.assertTrue(health[0].source().split("|")[0].endswith(".gpkg"), "kept as a file, not in memory")
+        log = ct.chat_browser.toPlainText()
+        self.assertIn("Added to the project from Geofabrik", log)
+        self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1)
+        self.assertEqual(agent.client.calls, 0, "the preview is waiting; nothing sent yet")
+
+    def test_a_large_extract_asks_again_with_its_size(self):
+        from unittest.mock import patch
+        ct, _ = self._dock()
+        region = {"id": "germany", "name": "Germany", "shp_url": "https://example.invalid/x.zip",
+                  "size_bytes": 4_300_000_000}
+        with patch.object(type(ct), "_canvas_center", return_value=(10.0, 51.0)), \
+             patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
+             patch("cartogen_ai.core.agent.local_data_loader.download_and_extract") as dl:
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            TestChatWidgetLive._reply(ct, "download")
+            _pump(8000, until=lambda: ct._awaiting_local_data_reply)
+            self.assertIn("4300 MB", ct.chat_browser.toPlainText())
+            dl.assert_not_called()
+            TestChatWidgetLive._reply(ct, "online")
+        self.assertTrue(ct._awaiting_preview_reply)
+        dl.assert_not_called()
+
+    def test_stop_during_the_download_ends_the_request(self):
+        import threading
+        from unittest.mock import patch
+        ct, agent = self._dock()
+        region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
+                  "size_bytes": 60_000_000}
+        started = threading.Event()
+
+        def slow(region_, dest, is_cancelled=None, progress=None):
+            started.set()
+            while not is_cancelled():
+                threading.Event().wait(0.02)
+            raise InterruptedError("Download cancelled")
+
+        with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
+             patch("cartogen_ai.core.agent.local_data_loader.download_and_extract", side_effect=slow):
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            TestChatWidgetLive._reply(ct, "download")
+            _pump(8000, until=started.is_set)
+            self.assertTrue(ct.stop_btn.isEnabled())
+            QTest.mouseClick(ct.stop_btn, Qt.MouseButton.LeftButton)
+            _pump(8000, until=lambda: "Stopped." in ct.chat_browser.toPlainText())
+        self.assertFalse(ct._awaiting_preview_reply, "Stop means stop, not continue online")
+        self.assertTrue(ct.send_btn.isEnabled())
+        self.assertEqual(agent.client.calls, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
