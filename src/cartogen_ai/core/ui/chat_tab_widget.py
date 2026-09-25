@@ -1302,7 +1302,9 @@ class ChatTabWidget(QWidget):
         except Exception as e:
             loaded = {"layers": [], "errors": [str(e)]}
         lines = ["Added to the project from Geofabrik (OpenStreetMap, ODbL):"]
-        lines += ["- **%s**: %s features" % (lyr["name"], format(lyr["count"], ",")) for lyr in loaded["layers"]]
+        lines += ["- **%s**: %s features%s" % (lyr["name"], format(lyr["count"], ","),
+                                              " (%s)" % lyr["note"] if lyr.get("note") else "")
+                  for lyr in loaded["layers"]]
         lines += ["- %s" % err for err in loaded["errors"]]
         lines.append("Saved in `%s`, so it's reused next time. Continuing with your request."
                      % os.path.dirname(result["zip_path"]))

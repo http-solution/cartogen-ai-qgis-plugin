@@ -87,12 +87,15 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > tested with fixture shapefiles in Geofabrik's real schema). **Open decision:** network
 > tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, below).
 
-> **2026-09-25 — QGIS no longer freezes on network analysis (BUG-2026-09-25-2, freeze fixed and verified on the
-> full 161,041-road Jordan network: the window stays responsive, Stop works, progress is shown).** The analysis is
-> as slow as before (331 s for a one-hour service area): **open, recommended next:** clip the network to the needed
-> extent for service areas (exact), warn before routing over a large network, and rebuild `optimize_delivery_route`
-> on one shortest-path call per stop instead of one per stop pair. Earlier the same day: network tools now work in
-> real metres/hours (BUG-2026-09-24-5), README tool counts corrected to 178, `TOOLS_REFERENCE.md` regenerated.
+> **2026-09-25 — Service areas are now fast on big networks, and exact (BUG-2026-09-25-2).** Routing only over roads that
+> can be reached: 76-148x faster for a 3 km reach on the full Jordan network with geometry identical to routing over
+> all roads, and the one-hour service area 331 s -> 93 s with the identical reach. Non-drivable roads (footpaths, steps)
+> are left out of the loaded road layer. **Open, needs a decision:** (1) `travel_time_matrix` can't be clipped exactly and
+> still takes ~8 min on the whole country (responsive and stoppable); (2) `optimize_delivery_route` builds the graph per
+> stop pair; (3) **BUG-2026-09-25-3: only 0.9% of Jordan's roads carry a `maxspeed`, so 'fastest' uses a flat 50 km/h
+> everywhere: assumed speeds by road class would make travel times far more realistic (recommended, changes results).**
+> Earlier: QGIS no longer freezes (Stop and progress work), network tools work in real metres/hours, README tool counts
+> corrected to 178.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,

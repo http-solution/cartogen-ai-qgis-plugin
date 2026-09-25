@@ -37,6 +37,15 @@ EXTRACT_MAX_AGE_S = 7 * 24 * 3600   # Geofabrik rebuilds daily; a week-old copy 
 LARGE_DOWNLOAD_BYTES = 150 * 1000 * 1000
 MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1")
 
+# Road classes a vehicle can't use. The routing tools treat every line in the road layer as drivable, so
+# with these included a route could go up a flight of steps or along a footpath at 50 km/h. In the real
+# Jordan extract that is 6,080 of 161,041 roads (3.8%): footway 3,218, path 1,835, steps 891,
+# pedestrian 120, cycleway 14, bridleway 2. Left out by a layer filter (the shapefile itself is
+# untouched). Kept on purpose: service roads and tracks (often the only access to a facility in a
+# humanitarian setting) and residential streets (62% of all roads, and where most facilities are).
+NON_DRIVABLE_FCLASSES = ("footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "busway", "unknown")
+DRIVABLE_FILTER = "fclass NOT IN (%s)" % ", ".join("'%s'" % c for c in NON_DRIVABLE_FCLASSES)
+
 
 def data_dir():
     """Where downloads are kept: the project's data/00_raw/osm when the project is saved (the
@@ -153,8 +162,10 @@ def load_layers(result, themes):
         path = shp.get("gis_osm_roads_free_1")
         lyr = QgsVectorLayer(path or "", "OSM Roads (%s)" % region["name"], "ogr")
         if path and lyr.isValid():
+            lyr.setSubsetString(DRIVABLE_FILTER)
             project.addMapLayer(lyr)
-            out["layers"].append({"name": lyr.name(), "count": lyr.featureCount()})
+            out["layers"].append({"name": lyr.name(), "count": lyr.featureCount(),
+                                  "note": "footpaths, steps and cycleways left out"})
         else:
             out["errors"].append("The extract has no readable roads layer.")
 

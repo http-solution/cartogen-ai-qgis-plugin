@@ -6,7 +6,9 @@ Follows the QGIS_AVAILABLE=False degrade-path convention used throughout the
 suite."""
 import math
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
+from cartogen_ai.core.agent.tools import logistics_tools as lt
 from cartogen_ai.core.agent.tools.logistics_tools import (
     _rank_hub_candidates, optimal_hub_siting, calculate_service_area, travel_time_matrix,
     _greedy_p_median, location_allocation, _tsp_nearest_neighbor, _two_opt,
@@ -14,6 +16,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
     _build_network_distance_matrix, _make_distance_area, _measure_distance,
     _network_geometry_error, _network_context, _point_for_network,
+    _reach_metres, _max_speed_in_field, _clip_network_to_reach,
 )
 
 
@@ -190,7 +193,7 @@ class TestLogisticsToolsValidation(unittest.TestCase):
 
 class _LineNetworkMixin:
     """These tests pass a MagicMock as the road network, and QgsWkbTypes/QgsProcessingContext/
-    QgsPointXY don't exist outside QGIS, so the three QGIS-dependent helpers the network tools call
+    QgsPointXY don't exist outside QGIS, so the QGIS-dependent helpers the network tools call
     are stubbed to their no-op behaviour: the network is "a line layer" (_network_geometry_error),
     a start point is passed through as "x,y" (_point_for_network), and the processing context is a
     plain mock (_network_context). Their real behaviour has its own tests: TestNetworkGeometryGuard
@@ -204,6 +207,7 @@ class _LineNetworkMixin:
             ("mock_geometry_error", base + "_network_geometry_error", {"return_value": None}),
             ("mock_point_for_network", base + "_point_for_network",
              {"side_effect": lambda point, crs, net: f"{point.x()},{point.y()}"}),
+            ("mock_point_xy", base + "_point_xy_in_network_crs", {"side_effect": lambda point, crs, net: point}),
             ("mock_network_context_fn", base + "_network_context", {"return_value": self.mock_context}),
         ):
             p = patch(target, **kwargs)
@@ -1756,6 +1760,110 @@ class TestNetworkContextAndStartPoint(unittest.TestCase):
             xf_cls.return_value.transform.side_effect = RuntimeError("no transform")
             with self.assertRaises(RuntimeError):
                 _point_for_network(MagicMock(), self._crs(name="src"), network)
+
+
+class TestReachBound(unittest.TestCase):
+    """_reach_metres must be a true UPPER bound on how far (straight line) anything can be and still be
+    within the cost: the clip is exact only if it is."""
+
+    def test_shortest_is_the_cost_itself_and_multi_band_uses_the_largest(self):
+        self.assertEqual(_reach_metres([500], "shortest", 50), 500.0)
+        self.assertEqual(_reach_metres([300, 5000, 900], "shortest", 50), 5000.0)
+
+    def test_fastest_uses_the_fastest_speed_anywhere_in_the_network(self):
+        self.assertEqual(_reach_metres([0.5], "fastest", 50), 25000.0)                 # 0.5 h at 50 km/h
+        self.assertEqual(_reach_metres([0.5], "fastest", 50, max_field_speed=90), 45000.0)
+        self.assertEqual(_reach_metres([0.5], "fastest", 100, max_field_speed=30), 50000.0)   # default can be the fastest
+        self.assertEqual(_reach_metres([0.2, 1.0], "fastest", 50), 50000.0)
+
+    def test_max_speed_reads_the_field_and_says_none_when_it_cannot(self):
+        network = MagicMock()
+        network.maximumValue.return_value = 90.0
+        self.assertEqual(_max_speed_in_field(network, "speed"), 90.0)
+        for bad in (None, 0, -5, "not a number"):
+            network.maximumValue.return_value = bad
+            self.assertIsNone(_max_speed_in_field(network, "speed"), bad)
+        network.maximumValue.side_effect = RuntimeError("provider gone")
+        self.assertIsNone(_max_speed_in_field(network, "speed"))
+
+
+@patch(_LT + "log_event")
+class TestClipNetworkToReach(unittest.TestCase):
+    """Every way _clip_network_to_reach must decline to clip, so the answer is exactly what the whole
+    network would give (the geometry equality itself is tested in tests/test_network_clip_live.py)."""
+
+    def _network(self, total):
+        net = MagicMock()
+        net.featureCount.return_value = total
+        return net
+
+    def _clip(self, network, reach=1000.0, clipped_count=100, hit=True, materialize_error=None):
+        clipped = MagicMock()
+        clipped.featureCount.return_value = clipped_count
+        feat = MagicMock()
+        feat.geometry.return_value.intersects.return_value = hit
+        clipped.getFeatures.return_value = [feat]
+        if materialize_error:
+            network.materialize.side_effect = materialize_error
+        else:
+            network.materialize.return_value = clipped
+        point = SimpleNamespace(x=lambda: 35.93, y=lambda: 31.95)      # a real-looking start point
+        with patch(_LT + "QgsProject", create=True),              patch(_LT + "QgsCoordinateReferenceSystem", create=True) as crs_cls,              patch(_LT + "QgsCoordinateTransform", create=True) as xf_cls,              patch(_LT + "QgsGeometry", create=True),              patch(_LT + "QgsPointXY", create=True),              patch(_LT + "QgsFeatureRequest", create=True):
+            crs_cls.fromProj.return_value.isValid.return_value = True
+            xf_cls.return_value.transform.return_value = point
+            out = _clip_network_to_reach(network, point, reach)
+        return out, clipped, crs_cls
+
+    def test_a_worthwhile_clip_returns_the_smaller_layer(self, _log):
+        net = self._network(10000)
+        (layer, info), clipped, crs_cls = self._clip(net, clipped_count=800)
+        self.assertIs(layer, clipped)
+        self.assertEqual(info, {"applied": True, "roads_full": 10000, "roads_used": 800})
+        proj = crs_cls.fromProj.call_args.args[0]
+        self.assertIn("+proj=aeqd +lat_0=31.95", proj)        # centred on the start: distances from it are true metres
+        self.assertIn("+lon_0=35.93", proj)
+        self.assertIn("+units=m", proj)
+
+    def test_small_networks_are_left_alone(self, _log):
+        net = self._network(lt.BACKGROUND_MIN_FEATURES - 1)
+        (layer, info), _, _ = self._clip(net)
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
+        net.materialize.assert_not_called()
+
+    def test_an_enormous_reach_is_not_clipped(self, _log):
+        net = self._network(10000)
+        (layer, info), _, _ = self._clip(net, reach=lt._CLIP_MAX_REACH_METRES)
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
+
+    def test_a_box_that_still_holds_most_roads_is_not_worth_copying(self, _log):
+        net = self._network(10000)
+        (layer, info), _, _ = self._clip(net, clipped_count=9000)        # 90%
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
+
+    def test_no_road_within_reach_keeps_the_whole_network(self, _log):
+        # QGIS snaps a far-away start to the nearest road however far; a clipped network could snap
+        # to a different one, so the old behaviour is kept.
+        net = self._network(10000)
+        (layer, info), _, _ = self._clip(net, clipped_count=50, hit=False)
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
+
+    def test_anything_going_wrong_keeps_the_whole_network(self, _log):
+        net = self._network(10000)
+        (layer, info), _, _ = self._clip(net, materialize_error=RuntimeError("cannot transform"))
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
+        _log.assert_called()                                   # and it is recorded (metadata only)
+
+    def test_an_unreadable_size_keeps_the_whole_network(self, _log):
+        net = MagicMock()
+        net.featureCount.side_effect = RuntimeError("provider gone")
+        layer, info = _clip_network_to_reach(net, MagicMock(), 1000.0)
+        self.assertIs(layer, net)
+        self.assertFalse(info["applied"])
 
 
 if __name__ == "__main__":

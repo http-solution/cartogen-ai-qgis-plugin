@@ -72,6 +72,13 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         QgsProject.instance().setEllipsoid("NONE")
         self.addCleanup(QgsProject.instance().clear)
         self.addCleanup(self.cancel_signal.end)
+        # These tests need an analysis that is SLOW, to prove the worker thread keeps the GUI alive and
+        # that Stop interrupts it. Clipping the network to the service area's reach (tests/
+        # test_network_clip_live.py) makes these small grids fast (72 of 1,200 roads, 0.14 s), so it is
+        # switched off here; its own behaviour is tested there.
+        clip = patch.object(self.lt, "_clip_network_to_reach", side_effect=lambda net, centre, reach: (net, {"applied": False}))
+        clip.start()
+        self.addCleanup(clip.stop)
 
     def scene(self, n, verts):
         _grid(n, verts)
