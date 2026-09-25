@@ -1,0 +1,28 @@
+# Real-data check of "Health facilities beyond one hour's travel 3999682,3756232", QGIS 4.2.2.
+# Produced by tests/manual_live_checks/one_hour_travel_workflow.py on 2026-09-25 (home folder shown as ~).
+# Real Geofabrik Jordan extract; origin typed as Web Mercator metres; project with NO ellipsoid (worst case).
+# Timings are from one machine and show BUG-2026-09-25-2 (routing over the full national network is slow).
+
+QGIS 4.2.2 | testing source: C:\http-solution\cartogen-ai-qgis-plugin\src
+project CRS EPSG:3857, ellipsoid: NONE
+PASS - Geofabrik region found for the origin | ('Jordan', 60387212)
+extract ready in 2s
+  loaded: OSM Roads (Jordan) 161041 features
+  loaded: Health Facilities (OSM, Jordan) 355 features
+PASS - roads and health facilities loaded | []
+origin = 31.94606 N, 35.92975 E (Amman)
+travel_time_matrix took 473s
+PASS - travel_time_matrix succeeded and states its unit | hours
+facilities: 355 | with a route: 353
+PASS - a route cost for most facilities | 353 of 355
+route length / straight line: min 1.03  median 1.18  max 1.56  (n=351)
+PASS - no route is shorter than the straight line (units are real) | min ratio 1.03
+PASS - typical road/straight-line ratio is plausible (1.0 to 2.5) | median 1.18
+within one hour: 206 | beyond one hour: 147
+PASS - the one-hour split is meaningful (some inside, some beyond) | 206 inside / 147 beyond
+farthest facility by road: 6.4 hours
+calculate_service_area took 292s
+PASS - service area built and states its unit | hours
+farthest point of the 1-hour reach: 46.4 km straight-line from the origin
+PASS - 1-hour reach extends 10-50 km (50 km of road at 50 km/h) | 46.4 km
+9/9 passed
