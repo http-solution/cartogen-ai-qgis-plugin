@@ -72,6 +72,19 @@ These three are explicitly **not** something an agent should decide or silently 
 each involves a real product, UX, legal, or environmental-verification tradeoff. Consistent
 with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 
+> **2026-09-25 — Built: offer to download local base data before road-network requests**
+> (Alaa: "check with the user if they want to download local data to the project for better
+> results and less API calls; list all the sources that can provide a downloadable version").
+> `agent/local_data_sources.py` (Qt-free: when to ask, the source catalog, Geofabrik region
+> lookup) and `agent/local_data_loader.py` (download/extract on a `QgsTask`, load roads +
+> health facilities); the question is asked in chat by `chat_tab_widget.py`, see
+> `docs/USER_GUIDE.md` "Local base data". Every source URL was checked live. Verified: 16 + 9
+> unit tests, 5 live-widget tests in real QGIS 4.2.2 (mutation-checked), and live region lookups
+> against Geofabrik (Jordan 60 MB, Pakistan 370 MB, Oberbayern 404 MB).
+> **Not yet verified: a real download and load of a full extract** (the layer loading was
+> tested with fixture shapefiles in Geofabrik's real schema). **Open decision:** network
+> tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, PR #26).
+
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,
 > including #19 pulled in from `main` before tagging). The zip was built from a clean

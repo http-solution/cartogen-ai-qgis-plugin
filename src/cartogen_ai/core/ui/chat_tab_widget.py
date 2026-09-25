@@ -26,6 +26,7 @@ refinementFetchedSignal) stay defined on the parent CartogenAiDockWidget, not he
 emitted from dock-header code (open_settings) and the two dialogs above. This widget
 reaches them via self._dock, the same pattern those dialogs use too."""
 
+import os
 import threading
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QSize, QTimer
@@ -140,6 +141,18 @@ class ChatTabWidget(QWidget):
         # see send_message()'s _awaiting_preview_reply branch and _PREVIEW_CONFIRM_REPLIES/
         # _PREVIEW_CANCEL_REPLIES below.
         self._awaiting_preview_reply = False
+        # The "download local data, or fetch online?" question (see _ask_local_data_in_chat and
+        # agent/local_data_sources.py). _local_data_pending holds the request it's about:
+        # {"text", "analysis", "themes", "stage": "offer"|"confirm_size", "region"}.
+        self._awaiting_local_data_reply = False
+        self._local_data_pending = None
+        # "online" is remembered for the session, so the same question isn't asked on every
+        # request after the user has already said no.
+        self._local_data_declined = False
+        # Set when a request resumes after the local-data question: skip the offer this once and
+        # don't echo the user's message again (it was shown when the question was asked).
+        self._resume_after_local_data = False
+        self._original_already_shown = False
         # Files the user attached since the last send. attach_file() still
         # analyses each one immediately (unchanged); this list is what lets the
         # NEXT message know those files exist, so a sitrep PDF or a damage
@@ -535,6 +548,8 @@ class ChatTabWidget(QWidget):
         # own new message.
         self._awaiting_requirement_reply = False
         self._awaiting_preview_reply = False
+        self._awaiting_local_data_reply = False
+        self._local_data_pending = None
         self._populate_initial_chat()
 
     def _add_message(self, role, text, _raw_html=None):
@@ -944,6 +959,21 @@ class ChatTabWidget(QWidget):
         if not text:
             return
 
+        # The local-data question (see _ask_local_data_in_chat) is outstanding. A recognised
+        # answer resolves it; anything else is treated as a new request and the question is
+        # dropped, the same way an unrecognised preview reply is "send as typed".
+        if self._awaiting_local_data_reply:
+            self._awaiting_local_data_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+            from ..agent import local_data_sources
+            choice = local_data_sources.parse_reply(text)
+            if choice is not None:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._on_local_data_reply(choice)
+                return
+            self._local_data_pending = None
+
         # A requirement question is outstanding (see _ask_requirement_in_chat) -- this
         # message IS the answer to it, not a new unrelated request. Real-session report,
         # 2026-09-13: "some of my text i sent in the chat is not showing" -- the reply
@@ -1038,6 +1068,15 @@ class ChatTabWidget(QWidget):
             request_context = {}
         analysis = analyze_request(text, request_context, self._attached_paths)
 
+        # Asked before anything else: whether the data this request needs should be downloaded
+        # locally first changes what every later step (preview, tool choice) should do.
+        if self._resume_after_local_data:
+            self._resume_after_local_data = False
+        else:
+            self._original_already_shown = False
+            if self._maybe_ask_local_data(text, analysis):
+                return
+
         # Order matters. A genuinely unanswerable gap is asked about FIRST:
         # previewing a prompt that is about to guess the hazard type would be
         # showing the user a decision instead of asking them for it.
@@ -1092,7 +1131,7 @@ class ChatTabWidget(QWidget):
         distinct bubble at all before this fix, only ever quoted back secondhand
         once a later step happened to reference it -- from the user's side, it
         looked like their own message had vanished."""
-        self._dock.receiveMessageSignal.emit("user", original_text)
+        self._echo_original(original_text)
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
         self._awaiting_requirement_reply = True
@@ -1101,6 +1140,193 @@ class ChatTabWidget(QWidget):
         self.input_edit.setFocus()
         question = analysis.get("question") or "Could you tell me a bit more about what you need?"
         self._dock.receiveMessageSignal.emit("ai", question)
+
+    def _echo_original(self, text):
+        """Shows the user's message as their own bubble, unless it was already shown when the
+        local-data question was asked about it (then the resumed request mustn't repeat it)."""
+        if self._original_already_shown:
+            self._original_already_shown = False
+            return
+        self._dock.receiveMessageSignal.emit("user", text)
+
+    # ---------------------------------------------------------- local data --
+
+    def _maybe_ask_local_data(self, text, analysis):
+        """Asks whether to download the request's base data locally first. True if it asked.
+
+        Live-reported 2026-09-24/25: the same travel-time request failed twice because every
+        run fetched roads and facilities live from Overpass (see agent/local_data_sources.py).
+        Only asked when the matched task needs a road network (and the project has no line
+        layer that looks like one), at most once per request, and never again this session
+        after the user says "online"."""
+        from ..agent import local_data_sources, local_data_loader
+        try:
+            themes = local_data_sources.should_offer(
+                analysis.get("task"), text, local_data_loader.project_layer_facts(),
+                declined=self._local_data_declined)
+        except Exception as e:  # never let the offer break sending a message
+            log_warning("ChatTab", "local-data offer check failed: %s" % e)
+            return False
+        if not themes:
+            return False
+        country = None
+        center = self._canvas_center()
+        if center is not None:
+            country = self._cached_region_name(center)
+        self._dock.receiveMessageSignal.emit("user", text)
+        self._local_data_pending = {"text": text, "analysis": analysis, "themes": themes,
+                                    "stage": "offer", "region": None, "center": center}
+        self._awaiting_local_data_reply = True
+        self.input_edit.clear()
+        self.input_edit.setPlaceholderText("Reply download or online... (Enter to send)")
+        self.input_edit.setFocus()
+        self._dock.receiveMessageSignal.emit(
+            "ai", local_data_sources.question_text(themes, country=country))
+        return True
+
+    def _canvas_center(self):
+        try:
+            from qgis.utils import iface
+            from ..agent import local_data_loader
+            return local_data_loader.canvas_center_wgs84(iface.mapCanvas() if iface else None)
+        except Exception:
+            return None
+
+    def _cached_region_name(self, center):
+        """The region's name if Geofabrik's index is already cached -- never a network call on
+        the GUI thread just to word the question."""
+        from ..agent import local_data_loader, local_data_sources
+        path = os.path.join(local_data_loader.data_dir(), "geofabrik-index-v1.json")
+        if not os.path.exists(path):
+            return None
+        try:
+            region = local_data_sources.find_region(local_data_loader.load_index(
+                local_data_loader.data_dir()), *center)
+            return region["name"] if region else None
+        except Exception:
+            return None
+
+    def _on_local_data_reply(self, choice):
+        pending = self._local_data_pending
+        if pending is None:
+            return
+        if choice == "online":
+            self._local_data_declined = True
+            self._dock.receiveMessageSignal.emit(
+                "ai", "Okay, continuing with online data. I won't ask again this session.")
+            self._resume_local_data_request()
+            return
+        if pending["stage"] == "confirm_size":
+            self._start_local_download(pending["region"])
+            return
+        if pending["center"] is None:
+            self._dock.receiveMessageSignal.emit(
+                "ai", "I can't tell which area to download: the map has no location yet. Zoom "
+                      "the map to your area and ask again, or load a road layer yourself. "
+                      "Continuing with online data for now.")
+            self._resume_local_data_request()
+            return
+        from ..agent import local_data_loader
+        from ..services.task_runner import run_background_call
+        cache_dir, (lon, lat) = local_data_loader.data_dir(), pending["center"]
+        self._dock.receiveMessageSignal.emit("ai", "Finding the OpenStreetMap extract for this area...")
+        self._set_local_data_busy(True)
+        self._active_task = run_background_call(
+            "Cartogen AI: find OSM extract",
+            lambda _cancelled: local_data_loader.resolve_region(lon, lat, cache_dir),
+            self._on_region_resolved)
+
+    def _stopped_by_user(self, error):
+        """Stop pressed during the lookup or download: end the request, don't carry on online
+        -- Stop means stop, not "skip this step"."""
+        if not isinstance(error, InterruptedError):
+            return False
+        self._local_data_pending = None
+        self._dock.receiveMessageSignal.emit("ai", "Stopped. Nothing was added to the project.")
+        self._dock.statusSignal.emit("")
+        return True
+
+    def _on_region_resolved(self, region, error):
+        self._set_local_data_busy(False)
+        pending = self._local_data_pending
+        if pending is None or self._stopped_by_user(error):
+            return
+        if error is not None or not region or "error" in region:
+            msg = (region or {}).get("error") if not error else str(error)
+            self._dock.receiveMessageSignal.emit(
+                "ai", "Couldn't find a download for this area (%s). Continuing with online data." % msg)
+            self._resume_local_data_request()
+            return
+        from ..agent import local_data_loader
+        pending["region"] = region
+        size = region.get("size_bytes") or 0
+        if size == 0 or size > local_data_loader.LARGE_DOWNLOAD_BYTES:
+            pending["stage"] = "confirm_size"
+            self._awaiting_local_data_reply = True
+            self.input_edit.setPlaceholderText("Reply download or online... (Enter to send)")
+            size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
+            self._dock.receiveMessageSignal.emit(
+                "ai", "The OpenStreetMap extract for **%s** is **%s**. Reply **download** to get "
+                      "it anyway, or **online** to continue without it." % (region["name"], size_text))
+            return
+        self._start_local_download(region)
+
+    def _start_local_download(self, region):
+        from ..agent import local_data_loader
+        from ..services.task_runner import run_background_call
+        dest = local_data_loader.data_dir()
+        self._dock.receiveMessageSignal.emit(
+            "ai", "Downloading the OpenStreetMap extract for **%s** (%d MB) from Geofabrik. This "
+                  "runs in the background; press Stop to cancel." % (
+                      region["name"], round((region.get("size_bytes") or 0) / 1e6)))
+        self._set_local_data_busy(True)
+
+        def work(is_cancelled):
+            return local_data_loader.download_and_extract(region, dest, is_cancelled=is_cancelled)
+        self._active_task = run_background_call(
+            "Cartogen AI: download %s" % region["name"], work, self._on_local_download_done)
+
+    def _on_local_download_done(self, result, error):
+        self._set_local_data_busy(False)
+        pending = self._local_data_pending
+        if pending is None or self._stopped_by_user(error):
+            return
+        if error is not None:
+            self._dock.receiveMessageSignal.emit(
+                "ai", "The download didn't finish (%s). Continuing with online data." % error)
+            self._resume_local_data_request()
+            return
+        from ..agent import local_data_loader
+        try:
+            loaded = local_data_loader.load_layers(result, pending["themes"])
+        except Exception as e:
+            loaded = {"layers": [], "errors": [str(e)]}
+        lines = ["Added to the project from Geofabrik (OpenStreetMap, ODbL):"]
+        lines += ["- **%s**: %s features" % (lyr["name"], format(lyr["count"], ",")) for lyr in loaded["layers"]]
+        lines += ["- %s" % err for err in loaded["errors"]]
+        lines.append("Saved in `%s`, so it's reused next time. Continuing with your request."
+                     % os.path.dirname(result["zip_path"]))
+        self._dock.receiveMessageSignal.emit("ai", "\n".join(lines))
+        self._resume_local_data_request()
+
+    def _set_local_data_busy(self, busy):
+        self.send_btn.setEnabled(not busy)
+        self.stop_btn.setEnabled(busy)
+        if not busy:
+            self._active_task = None
+
+    def _resume_local_data_request(self):
+        """Sends the original request on through the normal pipeline (preview etc.), now that
+        the local-data question is settled."""
+        pending, self._local_data_pending = self._local_data_pending, None
+        self._awaiting_local_data_reply = False
+        self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        if not pending:
+            return
+        self._resume_after_local_data = True
+        self._original_already_shown = True
+        self.input_edit.setPlainText(pending["text"])
+        self.send_message()
 
     # ------------------------------------------------------ prompt preview --
 
@@ -1118,7 +1344,7 @@ class ChatTabWidget(QWidget):
         AI's own "Message sent as you: ..." text -- never as a message actually attributed to
         the user. send_message()'s confirm branch passes already_echoed=True to _dispatch_message
         so this doesn't show a third time, identical text, once dispatch actually happens."""
-        self._dock.receiveMessageSignal.emit("user", original_text)
+        self._echo_original(original_text)
         self._pending_analysis_text = original_text
         self._pending_analysis = analysis
         self._awaiting_preview_reply = True
@@ -1244,7 +1470,7 @@ class ChatTabWidget(QWidget):
         # running task). So the "disable while a task is in flight" state has to
         # be set AFTER this emit, not before, or it gets immediately clobbered.
         if not already_echoed:
-            self._dock.receiveMessageSignal.emit("user", text)
+            self._echo_original(text)
         self._dock.statusSignal.emit("Thinking...")
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
