@@ -18,18 +18,20 @@ from cartogen_ai.core.agent.model_selector import (
     is_cheap_tier, is_special_purpose, pick_model_for_complexity,
 )
 
-# A real list, as cached in a user's QGIS settings by Settings > "Fetch models" (Gemini).
+# A real list: the 31 models cached in a user's QGIS profile, section [cartogen_ai], by Settings >
+# "Fetch models" (Gemini), 2026-09-25.
 REAL_GEMINI_LIST = [
-    "antigravity-preview-05-2026", "deep-research-max-preview-04-2026", "deep-research-preview-04-2026",
-    "deep-research-pro-preview-12-2025", "gemini-2.0-flash", "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite", "gemini-2.0-flash-lite-001", "gemini-2.5-computer-use-preview-10-2025",
-    "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3-flash-preview",
-    "gemini-3-pro-preview", "gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-pro-preview", "gemini-3.1-pro-preview-customtools", "gemini-3.5-flash",
-    "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest",
-    "gemini-omni-flash-preview", "gemini-pro-latest", "gemini-robotics-er-1.5-preview",
-    "gemini-robotics-er-1.6-preview", "gemini-robotics-er-2-preview", "gemma-4-26b-a4b-it",
-    "gemma-4-31b-it", "lyria-3-clip-preview", "lyria-3-pro-preview", "nano-banana-pro-preview",
+    "antigravity-preview-05-2026", "deep-research-max-preview-04-2026",
+    "deep-research-preview-04-2026", "deep-research-pro-preview-12-2025",
+    "gemini-2.5-computer-use-preview-10-2025", "gemini-2.5-flash", "gemini-2.5-flash-lite",
+    "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview", "gemini-3.1-pro-preview",
+    "gemini-3.1-pro-preview-customtools", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+    "gemini-3.5-transcribe", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash",
+    "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-omni-1.1-flash",
+    "gemini-omni-flash-preview", "gemini-pro-latest", "gemini-robotics-er-2-preview",
+    "gemma-4-26b-a4b-it", "gemma-4-31b-it", "lyria-3-clip-preview", "lyria-3-pro-preview",
+    "lyria-3.5", "nano-banana-pro-preview",
 ]
 OPENAI_LIST = ["gpt-5.6", "gpt-5.2-chat-latest", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "o4-mini",
                "gpt-4.1", "gpt-5-codex", "gpt-realtime", "gpt-5-search-api"]
@@ -58,7 +60,7 @@ class TestPickerOnRealLists(unittest.TestCase):
         self.assertEqual(pick_model_for_complexity(REAL_GEMINI_LIST, "simple"), "gemini-flash-latest")
         without_alias = [m for m in REAL_GEMINI_LIST if "latest" not in m]
         picked = pick_model_for_complexity(without_alias, "simple")
-        self.assertEqual(picked, "gemini-3.6-flash")           # newest plain flash
+        self.assertEqual(picked, "gemini-3.8-flash")           # newest stable plain flash
         self.assertNotIn("lite", picked)
 
     def test_openai_and_claude_lists(self):
@@ -66,9 +68,26 @@ class TestPickerOnRealLists(unittest.TestCase):
         self.assertEqual(pick_model_for_complexity(CLAUDE_LIST, "simple"), "claude-haiku-4-5-20251001")
         self.assertEqual(pick_model_for_complexity(CLAUDE_LIST, "complex"), "claude-opus-5")
 
-    def test_a_list_of_only_special_purpose_models_still_returns_a_member(self):
-        only = ["lyria-3-clip-preview", "deep-research-preview-04-2026"]
-        self.assertIn(pick_model_for_complexity(only, "simple"), only)
+    def test_a_list_of_only_special_purpose_models_returns_nothing(self):
+        # Review finding P1: this used to fall back to the whole list, so "nano-banana-pro-preview"
+        # (a special-purpose model carrying the cheap token "nano") could be picked for simple
+        # requests and then accepted as cheap. "Don't optimise" beats picking an unsuitable model.
+        only = ["nano-banana-pro-preview", "lyria-3-clip-preview", "deep-research-preview-04-2026"]
+        for tier in ("simple", "complex"):
+            self.assertEqual(pick_model_for_complexity(only, tier), "", tier)
+        self.assertEqual(pick_model_for_complexity([], "simple"), "")
+
+    def test_stability_ranks_before_a_latest_alias(self):
+        # Review finding P2: a name containing "latest" does not make the model stable.
+        self.assertEqual(
+            pick_model_for_complexity(["model-flash-latest-preview", "model-flash-3.6"], "simple"),
+            "model-flash-3.6")
+        self.assertEqual(
+            pick_model_for_complexity(["model-flash-3.6", "model-flash-latest"], "simple"),
+            "model-flash-latest")                         # a stable alias still wins over a version
+        self.assertEqual(
+            pick_model_for_complexity(["model-flash-preview", "model-flash-2.5"], "simple"),
+            "model-flash-2.5")                            # even an older stable model beats a preview
 
 
 PROVIDERS = [("gemini", "GeminiClient"), ("openai", "OpenAIClient"),
@@ -129,6 +148,27 @@ class TestProvidersSendTheChosenModel(unittest.TestCase):
                 c.complete([{"role": "user", "content": "b"}])
             self.assertEqual(sent[-1], configured, mod)
 
+    def test_the_preference_survives_a_fallback_without_reassignment(self):
+        # Review finding P3: the test above reassigns `model` itself before the second call, so it
+        # doesn't show what the provider does on its own. After a fallback the original preference
+        # must still be the first model attempted next time (a fallback is not a new preference).
+        for mod, cls in PROVIDERS:
+            c = self._client(mod, cls)
+            configured = c.model
+            sent = []
+
+            def post(msgs, tools, model_id, max_tokens=None):
+                sent.append(model_id)
+                return _resp(404 if model_id == "dead-pick" else 200)
+            with patch.object(c, "_post", side_effect=post):
+                c.model = "dead-pick"
+                c.complete([{"role": "user", "content": "a"}])
+                self.assertEqual(c._preferred_model, "dead-pick", mod)
+                self.assertEqual(c.model, configured, mod)     # reports what actually answered
+                sent.clear()
+                c.complete([{"role": "user", "content": "b"}])  # no reassignment
+            self.assertEqual(sent[0], "dead-pick", mod)         # the preference is tried first again
+
     def test_when_every_model_404s_the_error_lists_the_models_tried_including_the_pick(self):
         for mod, cls in PROVIDERS:
             c = self._client(mod, cls)
@@ -176,6 +216,11 @@ class TestOrchestratorPolicy(unittest.TestCase):
         a = self._agent("gemini-flash-latest", provider="gemini")
         for q in ("list layers", "buffer the roads and then clip them"):
             self.assertEqual(self._select(a, q, REAL_GEMINI_LIST), "gemini-flash-latest")
+
+    def test_a_list_with_no_suitable_model_keeps_the_default(self):
+        a = self._agent("gpt-5.6")
+        only_special = ["nano-banana-pro-preview", "lyria-3-clip-preview"]
+        self.assertEqual(self._select(a, "list layers", only_special), "gpt-5.6")
 
     def test_no_model_list_fetched_uses_the_default(self):
         a = self._agent("gpt-5.6")

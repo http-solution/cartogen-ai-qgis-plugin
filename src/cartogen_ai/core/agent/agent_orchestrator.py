@@ -998,23 +998,26 @@ class CartogenAi:
     def _apply_auto_model_selection(self, user_query):
         """If the active provider's model setting is "auto", choose the model for this request.
 
-        Auto only ever steps DOWN from the model the client was built with: a simple request gets
-        a cheaper model from the live list fetched in Settings, and every other request uses the
-        built-in default. It never escalates to a "more capable" model. Reasons, all found
-        2026-09-25 (cost review), when the provider fix in providers/base.py made these picks take
-        effect for the first time -- before that, Gemini/OpenAI/OpenRouter/Cartogen discarded them
-        and always sent the configured model:
-          - the escalation target is a guess from the model's NAME ("pro", "max", "ultra") and on a
-            real list it was a research-agent model, or a top-priced "-pro" model, which raises
-            cost and can hit paid-tier quotas -- the opposite of what auto is for;
-          - the configured default is already the user's (or the plugin's) choice of capable model.
-        A model that is already a small/cheap one is left alone, so a Gemini flash default never
-        moves sideways to another flash.
+        Auto is a cost saver, not a performance escalator. It never selects a model in the
+        "capable" tier: a simple request may get a smaller model from the live list fetched in
+        Settings, and every other request uses the built-in default. What counts as "smaller" is
+        inferred from the model's NAME (mini, flash, haiku, ...), which is not price information,
+        so this does not guarantee a lower bill on every provider or account; actual billed cost
+        is measured separately (docs/IMPLEMENTATION_TRACKER.md, API-cost plan item 2).
 
-        The model is assigned on every request, not only when a cheaper one is found: without
-        that, the cheap model picked for one simple request would stay selected for the next
-        complex one. Never invents a model -- if no live list was ever fetched, this uses the
-        default."""
+        Found 2026-09-25 (cost review), when the provider fix in providers/base.py made these
+        picks take effect for the first time -- before that, Gemini/OpenAI/OpenRouter/Cartogen
+        discarded them and always sent the configured model: the escalation target is a guess
+        from the name ("pro", "max", "ultra"), and on a real list it was a research-agent model,
+        or a top-priced "-pro" model. The built-in default is already the user's (or the plugin's)
+        choice of capable model. A model that is already a small one is left alone, so a Gemini
+        flash default never moves sideways to another flash.
+
+        The model is assigned on every request, not only when a smaller one is found: without
+        that, the smaller model picked for one simple request would stay selected for the next
+        complex one. Never invents a model, and if the picker finds nothing suitable (no live list
+        fetched, or only special-purpose models) the default is used. Tool-calling support is not
+        checked -- only chat eligibility and special-purpose exclusion (a tracked follow-up)."""
         if not self._auto_model_provider:
             return
         try:

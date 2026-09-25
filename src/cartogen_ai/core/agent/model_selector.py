@@ -122,22 +122,28 @@ def classify_complexity(query: str) -> str:
 
 def pick_model_for_complexity(model_ids, complexity: str) -> str:
     """Scores model IDs by naming convention and returns the best match for the
-    requested tier. Only ever returns an entry already present in model_ids --
-    never fabricates a new model name.
+    requested tier, or "" when there is nothing suitable to pick. Only ever returns an
+    entry already present in model_ids -- never fabricates a new model name.
 
-    Special-purpose models (deep-research, robotics, music, ...) are never candidates. Ties go to
-    a stable "-latest" alias, then a non-preview model, then the highest version number."""
-    if not model_ids:
+    Special-purpose models (deep-research, robotics, music, ...) are never candidates, without
+    exception: if every model in the list is special-purpose this returns "" and the caller keeps
+    its known-safe default. ("Don't optimise" beats picking a model this module has classified as
+    unsuitable -- e.g. "nano-banana-pro-preview" carries the cheap token "nano".)
+
+    Ties are broken, in order, by: not a preview/experimental model, then a "-latest" alias, then
+    the highest version number. Stability comes before "latest" because a name containing
+    "latest" says nothing about whether the model behind it is stable."""
+    usable = [m for m in (model_ids or []) if not is_special_purpose(m)]
+    if not usable:
         return ""
 
-    usable = [m for m in model_ids if not is_special_purpose(m)] or list(model_ids)
     scored = []
     for model_id in usable:
         toks = _tokens(model_id)
         rank = (
             _tier_score(toks, complexity),
-            1 if "latest" in toks else 0,
             0 if set(toks) & _UNSTABLE_TOKENS else 1,
+            1 if "latest" in toks else 0,
             _version(model_id),
         )
         scored.append((rank, model_id))
