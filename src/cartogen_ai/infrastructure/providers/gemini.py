@@ -1,5 +1,6 @@
 import json
 from .base import (
+    ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
     HTTPError,
@@ -127,7 +128,7 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
 FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"]
 
 
-class GeminiClient(BaseAiProvider):
+class GeminiClient(ModelChainMixin, BaseAiProvider):
     def __init__(self, api_key, model="gemini-flash-latest", status_callback=None):
         self.api_key = api_key
         primary = model or FALLBACK_MODELS[0]
@@ -160,8 +161,9 @@ class GeminiClient(BaseAiProvider):
         return post_with_retry(self.base_url, headers, json.dumps(payload), timeout=60)
 
     def complete(self, messages, tools=None, max_tokens=None):
-        for idx, model_id in enumerate(self.models):
-            self.model = model_id
+        chain = self._model_chain()
+        for idx, model_id in enumerate(chain):
+            self._model = model_id
             self._emit_status(f"Using Gemini: {model_id}")
             try:
                 response = self._post(messages, tools, model_id, max_tokens=max_tokens)
@@ -169,8 +171,8 @@ class GeminiClient(BaseAiProvider):
                     # Model retired, renamed, or gated off this account -- try the next
                     # one in the chain instead of failing outright on a single bad ID.
                     next_idx = idx + 1
-                    if next_idx < len(self.models):
-                        self._emit_status(f"Model unavailable, switching to {self.models[next_idx]}...")
+                    if next_idx < len(chain):
+                        self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
                     continue
                 response.raise_for_status()
                 data = response.json()
@@ -191,7 +193,7 @@ class GeminiClient(BaseAiProvider):
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}
 
-        tried = ", ".join(self.models)
+        tried = ", ".join(chain)
         return {
             "error": (
                 f"No configured Gemini model is currently available (all returned 404). "

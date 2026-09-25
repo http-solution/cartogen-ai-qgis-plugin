@@ -217,6 +217,38 @@ def extract_openai_style_usage(data):
     return result
 
 
+class ModelChainMixin:
+    """`model` as "the model to try first", with `models` as the fallback chain behind it.
+
+    Live-reported 2026-09-25 (cost review): agent_orchestrator._apply_auto_model_selection picks a
+    cheaper model for simple requests by assigning `client.model = picked`, but Gemini, OpenAI,
+    OpenRouter and Cartogen's complete() looped over `self.models` (built once in __init__, the
+    configured model first) and overwrote `self.model` with each entry, so the pick was discarded
+    and the configured -- usually most expensive -- model was sent every time. Reproduced by
+    setting `client.model` to a made-up id and recording what `_post` received: always the
+    configured model, on all three providers tested. Claude and Ollama use `self.model` directly
+    and were never affected.
+
+    The fix: assigning `model` from outside records a preference, and `_model_chain()` puts it
+    first. The fallback loop records the model it is currently trying in `_model` only, so a
+    fallback (a 404 or a 429) does not become the next call's preferred model: each call starts
+    again from the preference, as it did before this change."""
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        self._model = value
+        self._preferred_model = value
+
+    def _model_chain(self):
+        preferred = getattr(self, "_preferred_model", None)
+        chain = [m for m in self.models if m != preferred]
+        return ([preferred] if preferred else []) + chain
+
+
 class BaseAiProvider(ABC):
     @abstractmethod
     def complete(self, messages, tools=None, max_tokens=None):

@@ -1,5 +1,6 @@
 import json
 from .base import (
+    ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
     HTTPError,
@@ -111,7 +112,7 @@ FALLBACK_MODELS = ["gpt-5.6", "gpt-5.2-chat-latest", "gpt-5-mini"]
 # change here. What DOES help caching -- keeping the tools list/system prompt byte-identical
 # across iterations -- is handled generically in tool_router.py/agent_orchestrator.py for every provider,
 # not per-client.
-class OpenAIClient(BaseAiProvider):
+class OpenAIClient(ModelChainMixin, BaseAiProvider):
     def __init__(self, api_key, model=None, status_callback=None):
         self.api_key = api_key
         primary = model or FALLBACK_MODELS[0]
@@ -143,8 +144,9 @@ class OpenAIClient(BaseAiProvider):
         return post_with_retry(self.base_url, headers, json.dumps(payload), timeout=60)
 
     def complete(self, messages, tools=None, max_tokens=None):
-        for idx, model_id in enumerate(self.models):
-            self.model = model_id
+        chain = self._model_chain()
+        for idx, model_id in enumerate(chain):
+            self._model = model_id
             self._emit_status(f"Using OpenAI: {model_id}")
             try:
                 response = self._post(messages, tools, model_id, max_tokens=max_tokens)
@@ -152,8 +154,8 @@ class OpenAIClient(BaseAiProvider):
                     # Model retired, renamed, or not available on this account --
                     # try the next one in the chain instead of failing outright.
                     next_idx = idx + 1
-                    if next_idx < len(self.models):
-                        self._emit_status(f"Model unavailable, switching to {self.models[next_idx]}...")
+                    if next_idx < len(chain):
+                        self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
                     continue
                 response.raise_for_status()
                 data = response.json()
@@ -167,7 +169,7 @@ class OpenAIClient(BaseAiProvider):
             except Exception as e:
                 return {"error": format_request_exception("OpenAI API request failed", e)}
 
-        tried = ", ".join(self.models)
+        tried = ", ".join(chain)
         return {
             "error": (
                 f"No configured OpenAI model is currently available (all returned 404). "
