@@ -83,7 +83,15 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > against Geofabrik (Jordan 60 MB, Pakistan 370 MB, Oberbayern 404 MB).
 > **Not yet verified: a real download and load of a full extract** (the layer loading was
 > tested with fixture shapefiles in Geofabrik's real schema). **Open decision:** network
-> tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, PR #26).
+> tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, below).
+
+> **2026-09-24 — OPEN: network tools route in degrees on a geographic-CRS layer
+> (`docs/BUG_TRACKER.md` BUG-2026-09-24-5).** `calculate_service_area`, `travel_time_matrix` and
+> the other network tools pass layers to QGIS's network algorithms as-is. An OSM road layer is
+> EPSG:4326, so `travel_cost` and path costs are in degrees (live: 0.0389 for a ~4 km route).
+> **Recommendation:** reproject the network and points to the local UTM zone inside the tools
+> before routing, and report costs in metres. This changes results for anyone already passing
+> degree-scaled costs, so it needs a go-ahead rather than a silent fix.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,

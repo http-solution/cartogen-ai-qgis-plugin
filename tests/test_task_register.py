@@ -174,6 +174,19 @@ class TestSlots(unittest.TestCase):
         miss = tm.missing_slots(self.e, self.q)
         self.assertIn("current canvas extent", tm.clarify_question(self.e, miss))
 
+    def test_spelled_out_and_plural_thresholds_count_as_given(self):
+        # Live-reported 2026-09-24: "one hour's travel" wasn't recognised, so the 5 km default
+        # was added next to the user's own one-hour limit ("Given: threshold = 5 km").
+        q = "Health facilities beyond one hour's travel 3996804,3754118"
+        entry = tm.classify(q)["best"]
+        self.assertIn("threshold", entry.get("slots", []))  # guard: the task really asks for it
+        self.assertNotIn("threshold", tm.missing_slots(entry, q))
+        for phrase in ("within 2 hours", "within 30 minutes", "half an hour", "an hour",
+                       "2.5 kilometres", "500 m", "5km"):
+            self.assertNotIn("threshold", tm.missing_slots(entry, "health facilities " + phrase), phrase)
+        for phrase in ("I am here", "a map of clinics", "one more layer"):
+            self.assertIn("threshold", tm.missing_slots(entry, "health facilities " + phrase), phrase)
+
     def test_consequential_slots_have_no_silent_default(self):
         # guessing a hazard type or sector produces confidently wrong output
         for s in ("hazard_type", "sector", "facility_type"):

@@ -174,7 +174,14 @@ _SLOT_EVIDENCE = {
     "population_src": r"worldpop|hdx|census|gridded|facebook|meta population|our own|existing layer",
     "facility_type":  r"health|school|clinic|hospital|water point|borehole|latrine|market|warehouse|"
                       r"shelter|distribution point",
-    "threshold":      r"\d+\s*(km|kilometre|kilometer|m\b|metre|meter|min|minute|hour|hr)\b",
+    # A number (digits or a word) followed by a distance or time unit, plurals included. This was
+    # digits-only with singular-only units ("hour\b" can't match "hours"), so "one hour's travel",
+    # "2 hours" and "30 minutes" all counted as no threshold. The 5 km default was then added
+    # next to the user's own one-hour limit. Live-reported 2026-09-24: "Health facilities beyond
+    # one hour's travel" became "Given: threshold = 5 km" and a plan step saying "(1 hour / 5 km)".
+    "threshold":      r"\b(?:\d+(?:\.\d+)?\s*|(?:an?|one|two|three|four|five|six|seven|eight|nine|ten|"
+                      r"fifteen|twenty|thirty|forty|forty-five|fifty|sixty|ninety|half an?)\s+)"
+                      r"(?:km|kms|kilomet(?:er|re)s?|m|met(?:er|re)s?|mins?|minutes?|hours?|hrs?)\b",
     "sector":         r"\bwash\b|nutrition|food security|protection|education|shelter|livelihood|health",
 }
 

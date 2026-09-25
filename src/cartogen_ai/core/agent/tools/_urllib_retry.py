@@ -25,7 +25,8 @@ DEFAULT_BACKOFF_SECONDS = 1.5
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
-def urlopen_with_retry(request, timeout, opener=None, max_retries=DEFAULT_MAX_RETRIES):
+def urlopen_with_retry(request, timeout, opener=None, max_retries=DEFAULT_MAX_RETRIES,
+                       backoff_seconds=DEFAULT_BACKOFF_SECONDS):
     """Drop-in replacement for `urllib.request.urlopen(request, timeout=timeout)` (or
     `opener.open(request, timeout=timeout)` when an SSRF-safe opener from vector_tools.py's
     _build_safe_opener() is given instead) -- retries a transient network error or a
@@ -42,13 +43,13 @@ def urlopen_with_retry(request, timeout, opener=None, max_retries=DEFAULT_MAX_RE
         except urllib.error.HTTPError as e:
             last_exc = e
             if e.code in RETRYABLE_STATUS_CODES and attempt < max_retries:
-                time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
+                time.sleep(backoff_seconds * (attempt + 1))
                 continue
             raise
         except urllib.error.URLError as e:
             last_exc = e
             if attempt < max_retries:
-                time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
+                time.sleep(backoff_seconds * (attempt + 1))
                 continue
             raise
     raise last_exc
