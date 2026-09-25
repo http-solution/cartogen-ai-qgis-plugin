@@ -1,0 +1,25 @@
+# Live check: automatic model selection against the INSTALLED plugin, real QGIS.
+# Produced by tests/manual_live_checks/model_selection_installed.py on 2026-09-25 (sanitised: no keys, home folder shown as ~).
+# Records which model each request goes out with; it does NOT measure billed cost.
+
+QGIS 4.2.2 | plugin loaded from: ~\AppData\Roaming\QGIS\QGIS4\profiles\default\python\plugins\cartogen-ai\src\cartogen_ai
+plugin version: 1.16.0-rc5
+== Part 1: real profile settings (read-only) ==
+provider = gemini | model setting = auto
+cached model list: 31 models
+PASS - auto mode active with a default model | gemini-flash-latest
+PASS - agent.run('list layers') completes | ['gemini-flash-latest']
+PASS -    sends a model, never a special-purpose one | ['gemini-flash-latest']
+PASS - agent.run('zoom to Amman') completes | ['gemini-flash-latest']
+PASS -    sends a model, never a special-purpose one | ['gemini-flash-latest']
+PASS - agent.run("Health facilities beyond one hour's tr") completes | ['gemini-flash-latest']
+PASS -    sends a model, never a special-purpose one | ['gemini-flash-latest']
+PASS - agent.run('buffer the roads and then clip them, t') completes | ['gemini-flash-latest']
+PASS -    sends a model, never a special-purpose one | ['gemini-flash-latest']
+== Part 2: simulated OpenAI default install (expensive default, auto) ==
+PASS - default model | gpt-5.6
+PASS - 'list layers' -> gpt-5-mini | ['gpt-5-mini']
+PASS - 'zoom to Amman' -> gpt-5-mini | ['gpt-5-mini']
+PASS - 'buffer the roads and then clip them, then ca' -> gpt-5.6 | ['gpt-5.6']
+PASS - 'list layers' -> gpt-5-mini | ['gpt-5-mini']
+14/14 passed

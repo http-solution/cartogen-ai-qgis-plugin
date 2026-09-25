@@ -41,6 +41,7 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 
 import json
 from .base import (
+    ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
     HTTPError,
@@ -100,7 +101,7 @@ def list_models(api_key, base_url=None):
 FALLBACK_MODELS = ["claude-default", "gpt-default"]
 
 
-class CartogenClient(BaseAiProvider):
+class CartogenClient(ModelChainMixin, BaseAiProvider):
     """Stub client for the Cartogen-operated model gateway. Implements the same
     `BaseAiProvider` interface every other provider client in this package does
     (`complete`, `set_status_callback`), so it's a drop-in once the gateway is real and
@@ -144,15 +145,16 @@ class CartogenClient(BaseAiProvider):
         behavior an OpenAI-compatible endpoint does. Untested against a real gateway
         (none is deployed anywhere this repo can reach) -- this is the interface shape
         the eventual real client should fit, not a verified-working integration."""
-        for idx, model_id in enumerate(self.models):
-            self.model = model_id
+        chain = self._model_chain()
+        for idx, model_id in enumerate(chain):
+            self._model = model_id
             self._emit_status(f"Using Cartogen gateway: {model_id}")
             try:
                 response = self._post(messages, tools, model_id, max_tokens=max_tokens)
                 if response.status_code == 404:
                     next_idx = idx + 1
-                    if next_idx < len(self.models):
-                        self._emit_status(f"Model unavailable, switching to {self.models[next_idx]}...")
+                    if next_idx < len(chain):
+                        self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
                     continue
                 response.raise_for_status()
                 data = response.json()
@@ -174,7 +176,7 @@ class CartogenClient(BaseAiProvider):
                       "docstring and service/README.md)"
                 }
 
-        tried = ", ".join(self.models)
+        tried = ", ".join(chain)
         return {
             "error": (
                 f"No configured Cartogen gateway model is currently available (all returned 404). "
