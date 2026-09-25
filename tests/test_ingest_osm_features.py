@@ -218,5 +218,125 @@ class TestIngestOsmFeatures(unittest.TestCase):
         self.assertIn("ingest_osm_features", names_osm)
 
 
+class TestOsmWayGeometry(unittest.TestCase):
+    """Live-reported 2026-09-24: the query's `>; out skel qt;` returns every node that makes up a
+    matched way, untagged. Each of those used to become its own point feature: building-outline
+    corners became fake hospitals, and a road network came out as vertex points with no lines.
+    The responses below have the shape Overpass really returns: tagged ways with a `nodes` list,
+    then the untagged vertex nodes."""
+
+    def _run(self, key, value, elements):
+        mock_cm = MagicMock()
+        mock_cm.read.return_value = json.dumps({"elements": elements}).encode("utf-8")
+        mock_cm.__enter__.return_value = mock_cm
+        with patch("urllib.request.urlopen", return_value=mock_cm):
+            res = ingest_osm_features_network_phase(key=key, value=value, center_lat=31.95,
+                                                    center_lon=35.90, radius_km=2)
+        self.assertTrue(res.get("success"), res)
+        with open(res["local_path"], encoding="utf-8") as f:
+            data = json.load(f)
+        os.remove(res["local_path"])
+        return res, data["features"]
+
+    def test_roads_become_lines_built_from_their_vertex_nodes(self):
+        res, feats = self._run("highway", "primary|secondary", [
+            {"type": "way", "id": 10, "nodes": [1, 2, 3], "center": {"lat": 31.951, "lon": 35.901},
+             "tags": {"highway": "primary", "name": "Zahran St"}},
+            {"type": "way", "id": 11, "nodes": [3, 4], "center": {"lat": 31.953, "lon": 35.903},
+             "tags": {"highway": "secondary"}},
+            {"type": "node", "id": 1, "lat": 31.950, "lon": 35.900},
+            {"type": "node", "id": 2, "lat": 31.951, "lon": 35.901},
+            {"type": "node", "id": 3, "lat": 31.952, "lon": 35.902},
+            {"type": "node", "id": 4, "lat": 31.954, "lon": 35.904},
+        ])
+        self.assertEqual(res["feature_count"], 2)  # the 4 vertex nodes are not features
+        self.assertEqual(res["geometry_type"], "LineString")
+        self.assertEqual({f["geometry"]["type"] for f in feats}, {"LineString"})
+        zahran = next(f for f in feats if f["properties"]["name"] == "Zahran St")
+        self.assertEqual(zahran["geometry"]["coordinates"],
+                         [[35.900, 31.950], [35.901, 31.951], [35.902, 31.952]])
+        self.assertEqual(zahran["properties"]["highway"], "primary")
+
+    def test_facility_outline_corners_are_not_extra_facilities(self):
+        res, feats = self._run("amenity", "hospital", [
+            {"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+             "tags": {"amenity": "hospital", "name": "Clinic A"}},
+            {"type": "way", "id": 20, "nodes": [5, 6, 7, 5], "center": {"lat": 31.96, "lon": 35.91},
+             "tags": {"amenity": "hospital", "name": "Hospital B"}},
+            {"type": "node", "id": 5, "lat": 31.959, "lon": 35.909},
+            {"type": "node", "id": 6, "lat": 31.961, "lon": 35.909},
+            {"type": "node", "id": 7, "lat": 31.961, "lon": 35.911},
+        ])
+        self.assertEqual(res["feature_count"], 2)  # was 5: the 3 outline corners counted as hospitals
+        self.assertEqual(res["geometry_type"], "Point")
+        self.assertEqual(sorted(f["properties"]["name"] for f in feats), ["Clinic A", "Hospital B"])
+        b = next(f for f in feats if f["properties"]["name"] == "Hospital B")
+        self.assertEqual(b["geometry"]["coordinates"], [35.91, 31.96])  # the way's centre, as before
+
+    def test_linear_key_with_only_nodes_stays_a_point_layer(self):
+        # e.g. highway=bus_stop is mapped as nodes; there are no ways to draw lines from.
+        res, feats = self._run("highway", "bus_stop", [
+            {"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+             "tags": {"highway": "bus_stop", "name": "Stop 1"}},
+        ])
+        self.assertEqual(res["geometry_type"], "Point")
+        self.assertEqual(len(feats), 1)
+
+
+class TestOverpassResilience(unittest.TestCase):
+    """Live-reported 2026-09-24: four back-to-back ingest_osm_features calls all got 504, and the
+    model then burned its 20-call budget geocoding facilities one by one. Measured that evening,
+    only 5 of 12 spaced requests to overpass-api.de succeeded, with failures scattered."""
+
+    OK_BODY = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+                             "tags": {"amenity": "hospital", "name": "Clinic A"}}]}
+
+    def _ok(self):
+        cm = MagicMock()
+        cm.read.return_value = json.dumps(self.OK_BODY).encode("utf-8")
+        cm.__enter__.return_value = cm
+        return cm
+
+    @staticmethod
+    def _http(code):
+        import urllib.error
+        return urllib.error.HTTPError("https://overpass-api.de/api/interpreter", code, "x", {}, None)
+
+    def _run(self, side_effect, key="amenity", value="hospital"):
+        with patch("urllib.request.urlopen", side_effect=side_effect) as mock_open,              patch("cartogen_ai.core.agent.tools._urllib_retry.time.sleep") as mock_sleep:
+            res = ingest_osm_features_network_phase(key=key, value=value, center_lat=31.95,
+                                                    center_lon=35.90, radius_km=2)
+        if res.get("local_path"):
+            os.remove(res["local_path"])
+        return res, mock_open, mock_sleep
+
+    def test_transient_504s_are_retried_inside_the_tool(self):
+        res, mock_open, mock_sleep = self._run([self._http(504), self._http(429), self._http(504), self._ok()])
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(mock_open.call_count, 4)
+        self.assertEqual([c.args[0] for c in mock_sleep.call_args_list], [3.0, 6.0, 9.0])
+
+    def test_persistent_overload_tells_the_model_to_stop(self):
+        res, mock_open, _ = self._run([self._http(504)] * 4)
+        self.assertEqual(mock_open.call_count, 4)
+        self.assertTrue(res.get("retryable_later"))
+        self.assertIn("Don't call ingest_osm_features again in this turn", res["error"])
+        self.assertIn("geocoding", res["error"])
+
+    def test_a_bad_query_is_not_retried_or_called_overload(self):
+        res, mock_open, _ = self._run([self._http(400)])
+        self.assertEqual(mock_open.call_count, 1)
+        self.assertNotIn("retryable_later", res)
+        self.assertIn("Overpass API request failed", res["error"])
+
+    def test_point_keys_skip_the_vertex_recursion(self):
+        # Outline corners are only needed to draw lines; for points they just made the response
+        # ~4x larger (live: 100 elements vs 24 for the same hospitals).
+        _, mock_open, _ = self._run([self._ok()])
+        self.assertNotIn(b"out skel", mock_open.call_args.args[0].data)
+        _, mock_open, _ = self._run([self._ok()], key="highway", value="primary")
+        self.assertIn(b"out skel", mock_open.call_args.args[0].data)
+
+
 if __name__ == "__main__":
     unittest.main()

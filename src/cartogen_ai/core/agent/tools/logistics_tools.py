@@ -132,6 +132,20 @@ def _measure_distance(distance_area, geom_a, geom_b):
     return geom_a.distance(geom_b)
 
 
+def _network_geometry_error(network, layer_name):
+    """An error string when `network` can't be a road network, else None.
+
+    QGIS's network algorithms don't reject a point layer; they run and return a result that
+    means nothing. Live-reported 2026-09-24: a Road Network ingested as points (see
+    ingest_osm_features) went through calculate_service_area as a success, and the model spent
+    its remaining tool calls trying to work out why the result was wrong. Saying so up front
+    points it at the real fix: re-ingest or load a line layer."""
+    if QgsWkbTypes.geometryType(network.wkbType()) != QgsWkbTypes.GeometryType.LineGeometry:
+        return (f"'{layer_name}' is not a line layer, so it can't be used as a road network. "
+                "Load or ingest the roads as lines (e.g. ingest_osm_features with key='highway').")
+    return None
+
+
 def _network_direction_speed_params(network, speed_field=None, direction_field=None,
                                      value_forward="yes", value_backward="-1", value_both="no"):
     """Wires speed_field/direction_field through to native:serviceareafrompoint/
@@ -561,6 +575,9 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         network = _find_layer_by_name(road_network_layer)
         if network is None:
             return {"error": f"Layer '{road_network_layer}' not found"}
+        geometry_error = _network_geometry_error(network, road_network_layer)
+        if geometry_error:
+            return {"error": geometry_error}
         extra_params, field_error = _network_direction_speed_params(
             network, speed_field, direction_field, value_forward, value_backward, value_both
         )
@@ -892,6 +909,9 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         return {"error": f"Layer '{road_network_layer}' not found"}
     if facilities is None:
         return {"error": f"Layer '{facility_layer}' not found"}
+    geometry_error = _network_geometry_error(network, road_network_layer)
+    if geometry_error:
+        return {"error": geometry_error}
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
@@ -1132,6 +1152,9 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": f"Layer '{destinations_layer}' not found"}
     if network is None:
         return {"error": f"Layer '{road_network_layer}' not found"}
+    geometry_error = _network_geometry_error(network, road_network_layer)
+    if geometry_error:
+        return {"error": geometry_error}
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
