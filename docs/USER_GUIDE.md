@@ -356,6 +356,24 @@ rather load your own:
 The map's location is used only on your machine, to choose which extract to download. It is not
 sent to the AI model. OpenStreetMap data is © OpenStreetMap contributors, ODbL.
 
+## Long routing analyses (service areas, travel times, delivery routes)
+
+Routing over a big road network is slow: QGIS builds a routing graph from every road in the layer
+before it can answer anything. On the full Jordan OpenStreetMap network (161,041 roads) one call took
+5 to 10 minutes, at about 25 seconds for 39,000 roads, 60 for 68,000 and 125 for 108,000.
+
+- **QGIS stays responsive.** Networks of about 2,000 roads or more are routed on a background thread,
+  so you can keep working in QGIS while it runs. Smaller networks finish in a couple of seconds and
+  run as before.
+- **You see progress.** After a couple of seconds the status line shows what it is doing and for how
+  long ("Service area: working on the road network... 40s (press Stop to cancel)").
+- **Stop works.** Press Stop and the analysis ends within a moment; nothing is added to the project by a
+  stopped run, and the request ends there.
+- **It is still slow.** This does not make the analysis faster, only harmless to wait for. For a quick
+  answer, work with a smaller road layer covering just your area of interest.
+- **If something misbehaves**, set `cartogen_ai/network_analysis_in_background` to `false` in QGIS's
+  advanced settings (Settings > Options > System > Advanced) to go back to running on the main thread.
+
 ## Live hazard monitoring
 
 Three tools pull live hazard data for a bounding box and load it straight into the

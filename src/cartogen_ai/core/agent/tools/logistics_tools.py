@@ -34,6 +34,7 @@ from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+from . import _background_processing as _bg
 
 try:
     from qgis.core import (
@@ -173,6 +174,35 @@ def _measure_distance(distance_area, geom_a, geom_b):
             log_event("swallowed_exception", tag="Tools", tool="logistics_ellipsoidal_distance",
                       error_class=type(e).__name__, error=True)
     return geom_a.distance(geom_b)
+
+
+# Below this many roads a routing call takes roughly a couple of seconds (measured: about 1 ms per
+# road for the graph build), which isn't worth a worker thread; the delivery-route tool makes
+# hundreds of small calls and would pay the hand-off cost on every one of them.
+BACKGROUND_MIN_FEATURES = 2000
+
+
+def _run_network_algorithm(algorithm_id, params, context, network, label):
+    """processing.run for the network algorithms, off the GUI thread when the network is big.
+
+    BUG-2026-09-25-2: on a national road network (161,041 roads) one call took 292-572 s and
+    froze QGIS with no way to stop it. See _background_processing.py for the design and its
+    measurements. Raises _bg.AnalysisCancelled on Stop: callers must let it through (the generic
+    `except Exception` around these calls would otherwise record a user's Stop as an ordinary
+    failure and carry on with the next facility)."""
+    try:
+        use_background = int(network.featureCount()) >= BACKGROUND_MIN_FEATURES
+    except Exception:
+        use_background = True
+    return _bg.run_algorithm(
+        algorithm_id, params, context,
+        fallback=lambda alg, prm, context=None: processing.run(alg, prm, context=context),
+        use_background=use_background, label=label,
+    )
+
+
+def _cancelled_result(what):
+    return {"error": f"Stopped before the {what} finished. Nothing was added to the project.", "cancelled": True}
 
 
 def _network_geometry_error(network, layer_name):
@@ -710,6 +740,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             result["road_snapped"] = True
 
         return result
+    except _bg.AnalysisCancelled:
+        return _cancelled_result("delivery route")
     except Exception as e:
         return {"error": f"optimize_delivery_route failed: {e}"}
 
@@ -760,11 +792,14 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
             try:
                 params["START_POINT"] = _point_for_network(start, source_crs, network)
                 params["END_POINT"] = _point_for_network(end, source_crs, network)
-                output = processing.run("native:shortestpathpointtopoint", params, context=context)
+                output = _run_network_algorithm("native:shortestpathpointtopoint", params, context, network,
+                                                "Delivery route")
                 result_layer = output.get("OUTPUT")
                 feats = list(result_layer.getFeatures()) if result_layer is not None else []
                 cost = feats[0]["cost"] if feats else None
                 matrix[i][j] = float(cost) if cost is not None else float("inf")
+            except _bg.AnalysisCancelled:
+                raise
             except Exception:
                 matrix[i][j] = float("inf")
     return matrix
@@ -794,7 +829,10 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
         try:
             params["START_POINT"] = _point_for_network(start, source_crs, network)
             params["END_POINT"] = _point_for_network(end, source_crs, network)
-            output = processing.run("native:shortestpathpointtopoint", params, context=context)
+            output = _run_network_algorithm("native:shortestpathpointtopoint", params, context, network,
+                                            "Delivery route")
+        except _bg.AnalysisCancelled:
+            raise
         except Exception:
             continue
         segment = output.get("OUTPUT")
@@ -1036,7 +1074,10 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 }
                 params.update(extra_params)
                 try:
-                    output = processing.run("native:serviceareafrompoint", params, context=context)
+                    output = _run_network_algorithm("native:serviceareafrompoint", params, context, network,
+                                                    "Service area")
+                except _bg.AnalysisCancelled:
+                    raise
                 except Exception as e:
                     skipped.append({"facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint", "reason": str(e)})
                     continue
@@ -1121,6 +1162,8 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             )
             result["skipped"] = skipped
         return result
+    except _bg.AnalysisCancelled:
+        return _cancelled_result("service area")
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}
 
@@ -1234,7 +1277,8 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                 "OUTPUT": "memory:",
             }
             params.update(extra_params)
-            output = processing.run("native:shortestpathpointtolayer", params, context=_network_context())
+            output = _run_network_algorithm("native:shortestpathpointtolayer", params, _network_context(), network,
+                                            "Travel time matrix")
             result_layer = output.get("OUTPUT")
             if result_layer is None:
                 continue
@@ -1265,6 +1309,8 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         if direction_field:
             result["direction_field"] = direction_field
         return result
+    except _bg.AnalysisCancelled:
+        return _cancelled_result("travel-time matrix")
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}
 

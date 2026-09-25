@@ -84,3 +84,9 @@ def workflow_preset_key(preset_name: str) -> str:
 def workflow_run_key(run_id: str) -> str:
     """Returns the QgsSettings key used for a specific workflow run record."""
     return f"cartogen_ai/workflow_runs/{run_id}"
+
+
+# Kill-switch for running long network analyses on a worker thread (default on). If it ever
+# misbehaves in the field, setting this to false in QGIS's advanced settings restores the old
+# synchronous behaviour without a new release. See core/agent/tools/_background_processing.py.
+SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_background"
