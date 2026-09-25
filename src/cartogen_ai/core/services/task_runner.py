@@ -164,3 +164,44 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
     t = threading.Thread(target=worker, daemon=True)
     t.start()
     return handle
+
+
+class FunctionQgsTask(QgsTask):
+    """Runs fn(is_cancelled) on a QGIS worker thread, then on_done(result, error) on the main
+    thread. For non-agent background work started from the UI, e.g. local_data_loader's
+    download (tens of MB -- blocking the GUI thread for it would freeze QGIS). Same guarded
+    finished() as AgentQgsTask above, for the same reason (QGIS-001)."""
+
+    def __init__(self, description, fn, on_done):
+        if QGIS_TASK_AVAILABLE:
+            super().__init__(description, _TASK_CAN_CANCEL)
+        self.fn = fn
+        self.on_done = on_done
+        self.result_value = None
+        self.error = None
+
+    def run(self):
+        try:
+            self.result_value = self.fn(self.isCanceled)
+            return True
+        except Exception as e:
+            self.error = e
+            return False
+
+    def finished(self, result):
+        try:
+            if result:
+                self.on_done(self.result_value, None)
+            else:
+                self.on_done(None, self.error or InterruptedError("Cancelled"))
+        except Exception as e:
+            print(f"[TaskRunner] FunctionQgsTask.finished()'s on_done callback raised: {e}")
+            traceback.print_exc()
+
+
+def run_background_call(description, fn, on_done):
+    """Schedules FunctionQgsTask and returns it (it has .cancel()). Needs QGIS: the only callers
+    are UI code, which already only exists inside QGIS."""
+    task = FunctionQgsTask(description, fn, on_done)
+    QgsApplication.taskManager().addTask(task)
+    return task

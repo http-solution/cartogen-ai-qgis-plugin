@@ -318,6 +318,44 @@ newly-built structure may not be reflected yet. For damage assessment against a 
 before/after image pair, use `calculate_raster_change_detection` instead; for road networks,
 `fetch_osm_features` already covers that (`key='highway'`) and isn't affected by this caveat.
 
+## Local base data (download once instead of fetching live)
+
+When a request needs a **road network** — travel time, service areas, routing — and the project
+doesn't have a line layer that looks like roads, Cartogen asks once before sending anything to the
+model:
+
+- **download**: Cartogen finds the OpenStreetMap extract for the area your map is showing
+  (Geofabrik; Jordan is about 60 MB), downloads it in the background, and adds **OSM Roads
+  (<region>)** and, for health requests, **Health Facilities (OSM, <region>)**. Health facilities
+  are hospitals, clinics, doctors and dentists, including hospitals mapped as building outlines
+  (about half of Jordan's), stored as points in a GeoPackage. Pharmacies are left out. Files are
+  saved in the project's `data/00_raw/osm/` folder (or a folder in your QGIS profile if the
+  project isn't saved yet), and a copy less than a week old is reused. If the extract is larger
+  than 150 MB, Cartogen tells you the size and asks again. **Stop** cancels the download and ends
+  the request.
+- **online**: the request goes ahead as before, fetching data live from OpenStreetMap's Overpass
+  server. Cartogen won't ask again for the rest of the session. Saying "online" in the request
+  itself also skips the question.
+
+Why: live Overpass requests fail often when the server is busy, each failure costs one of the
+agent's tool calls, and a live query only covers a small area. A country extract covers the whole
+area and includes road type, speed limit and one-way data.
+
+The question also lists other sources that offer downloadable versions of the data, if you'd
+rather load your own:
+
+| Data | Sources |
+|---|---|
+| Roads | Geofabrik (used for download), HOT OSM exports on HDX, HOT Export Tool, BBBike extracts, Overture Maps |
+| Health facilities | Geofabrik (used for download), HOT OSM exports on HDX, healthsites.io |
+| Population | WorldPop, GHSL (EU JRC) |
+| Admin boundaries | geoBoundaries, HDX (OCHA COD-AB where available), GADM (non-commercial only) |
+| Buildings | Microsoft Global ML Building Footprints, Google Open Buildings |
+| Elevation | Copernicus DEM GLO-30 |
+
+The map's location is used only on your machine, to choose which extract to download. It is not
+sent to the AI model. OpenStreetMap data is © OpenStreetMap contributors, ODbL.
+
 ## Live hazard monitoring
 
 Three tools pull live hazard data for a bounding box and load it straight into the
