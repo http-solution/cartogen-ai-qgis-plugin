@@ -1120,6 +1120,19 @@ class CartogenAi:
         )
 
     def run(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
+        """Runs one request (see _run_impl for the full contract). Publishes should_stop and the
+        status callback for the duration, so a long-running tool -- a network analysis over a
+        national road network takes minutes -- can notice Stop and say what it is doing
+        (cancel_signal.py). Before this, should_stop was only checked between tool calls, so a
+        running tool could not be stopped and QGIS froze until it finished."""
+        from . import cancel_signal
+        token = cancel_signal.begin(should_stop, getattr(self.client, "_emit_status", None))
+        try:
+            return self._run_impl(user_query, map_context, should_stop, tool_step_callback)
+        finally:
+            cancel_signal.end(token)
+
+    def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
         user has asked to abort (task_runner.py passes the running QgsTask's
         isCanceled()). Checked once per loop iteration -- this can't interrupt
