@@ -85,6 +85,30 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         _points("origin", [ORIGIN])
         _points("dest", [DEST])
 
+    _SLOW_N = None
+
+    @classmethod
+    def slow_grid_size(cls):
+        """The smallest grid (n lines each way, 30 segments each) whose analysis takes at least 2 s ON THE
+        MACHINE RUNNING THE TEST. A fixed size can't be right everywhere: 1,200 roads took 3.2 s on a
+        laptop and 0.7 s on the CI runner, so the "long enough to prove anything" guards below passed in
+        one CI run and failed in the next (PR #31). Calibrated once per run, about 3 s."""
+        if cls._SLOW_N is None:
+            import processing
+            for n in (600, 1200, 2400, 4800):
+                QgsProject.instance().clear()
+                lyr = _grid(n, 30, name="calibration")
+                started = time.monotonic()
+                processing.run("native:serviceareafrompoint", {
+                    "INPUT": lyr, "STRATEGY": 0, "TOLERANCE": 0, "DEFAULT_SPEED": 50,
+                    "START_POINT": "%s,%s" % ORIGIN, "TRAVEL_COST2": 500, "OUTPUT_LINES": "memory:"},
+                    context=cls.lt._network_context())
+                cls._SLOW_N = n
+                if time.monotonic() - started >= 2.0:
+                    break
+            QgsProject.instance().clear()
+        return cls._SLOW_N
+
     def hulls_and_lines(self):
         return [lyr for lyr in QgsProject.instance().mapLayers().values() if "service_area" in lyr.name()]
 
@@ -111,7 +135,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
     # -------------------------------------------------------------------------- responsiveness --
 
     def test_the_gui_keeps_running_while_the_analysis_works(self):
-        self.scene(600, 30)
+        self.scene(self.slow_grid_size(), 30)
         ticks = []
         timer = QTimer()
         timer.setInterval(50)
@@ -135,7 +159,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
     def test_the_synchronous_path_is_what_freezes(self):
         """The control: the same analysis run synchronously gives the UI (almost) no ticks, so the test
         above is measuring the fix and not a lenient timer."""
-        self.scene(600, 30)
+        self.scene(self.slow_grid_size(), 30)
         ticks = []
         timer = QTimer()
         timer.setInterval(50)
@@ -153,7 +177,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
     # -------------------------------------------------------------------------------------- Stop --
 
     def test_stop_ends_the_analysis_promptly_and_leaves_the_project_alone(self):
-        self.scene(600, 30)
+        self.scene(self.slow_grid_size(), 30)
         t0 = time.monotonic()
         self.cancel_signal.begin(should_stop=lambda: time.monotonic() - t0 > 0.5)
         layers_before = set(QgsProject.instance().mapLayers())
@@ -196,7 +220,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
                                      fallback=lambda a, p, context=None: processing.run(a, p, context=context), **kw)
 
     def test_progress_is_reported_while_it_works(self):
-        network = _grid(300, 30)
+        network = _grid(self.slow_grid_size(), 30)
         messages = []
         self.cancel_signal.begin(status=messages.append)
         self._run(self._params(network), label="Service area", status_every_s=0.2, first_status_after_s=0.2)
