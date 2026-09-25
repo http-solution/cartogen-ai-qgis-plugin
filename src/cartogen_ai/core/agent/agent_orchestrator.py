@@ -34,7 +34,7 @@ from ...infrastructure.providers import (
 )
 from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
 from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
-from .model_selector import AUTO_SENTINEL, classify_complexity, pick_model_for_complexity
+from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
 from .history_manager import HistoryManager
@@ -220,6 +220,9 @@ class CartogenAi:
         # default as a safe starting model, but remember to re-pick per request
         # in run() based on query complexity (see _apply_auto_model_selection).
         self._auto_model_provider = None
+        # The model the client was built with while in auto mode: what "complex" requests use, and
+        # what every request goes back to after a cheaper pick for a simple one.
+        self._auto_default_model = None
 
         def resolve_model(model_key, safe_starting_model, default_to_auto=True):
             # "Nothing saved yet" defaults to the auto sentinel (not
@@ -239,6 +242,7 @@ class CartogenAi:
             raw = settings.value(model_key, fallback)
             if raw == AUTO_SENTINEL:
                 self._auto_model_provider = provider_name
+                self._auto_default_model = safe_starting_model
                 return safe_starting_model
             return raw or safe_starting_model
 
@@ -992,26 +996,44 @@ class CartogenAi:
         )
 
     def _apply_auto_model_selection(self, user_query):
-        """If the active provider's model setting is "auto", pick a concrete
-        model from the live list fetched in Settings, based on how complex
-        this query looks. Never invents a model -- if no live list was ever
-        fetched, this is a silent no-op and the provider's normal default
-        (already set in __init__) keeps being used."""
+        """If the active provider's model setting is "auto", choose the model for this request.
+
+        Auto only ever steps DOWN from the model the client was built with: a simple request gets
+        a cheaper model from the live list fetched in Settings, and every other request uses the
+        built-in default. It never escalates to a "more capable" model. Reasons, all found
+        2026-09-25 (cost review), when the provider fix in providers/base.py made these picks take
+        effect for the first time -- before that, Gemini/OpenAI/OpenRouter/Cartogen discarded them
+        and always sent the configured model:
+          - the escalation target is a guess from the model's NAME ("pro", "max", "ultra") and on a
+            real list it was a research-agent model, or a top-priced "-pro" model, which raises
+            cost and can hit paid-tier quotas -- the opposite of what auto is for;
+          - the configured default is already the user's (or the plugin's) choice of capable model.
+        A model that is already a small/cheap one is left alone, so a Gemini flash default never
+        moves sideways to another flash.
+
+        The model is assigned on every request, not only when a cheaper one is found: without
+        that, the cheap model picked for one simple request would stay selected for the next
+        complex one. Never invents a model -- if no live list was ever fetched, this uses the
+        default."""
         if not self._auto_model_provider:
             return
         try:
-            settings = QgsSettings()
-            raw_list = settings.value(provider_model_list_key(self._auto_model_provider), "")
-            model_ids = json.loads(raw_list) if raw_list else []
-
-            if not model_ids:
+            default = self._auto_default_model or getattr(self.client, "model", None)
+            if not default:
                 return
+            target = default
             complexity = classify_complexity(user_query)
-            picked = pick_model_for_complexity(model_ids, complexity)
-            if picked:
-                self.client.model = picked
-                if hasattr(self.client, "_emit_status"):
-                    self.client._emit_status(f"Auto-selected {picked} ({complexity} request)")
+            if complexity == "simple" and not is_cheap_tier(default):
+                settings = QgsSettings()
+                raw_list = settings.value(provider_model_list_key(self._auto_model_provider), "")
+                model_ids = json.loads(raw_list) if raw_list else []
+                if model_ids:
+                    picked = pick_model_for_complexity(model_ids, "simple")
+                    if picked and is_cheap_tier(picked):
+                        target = picked
+            self.client.model = target
+            if target != default and hasattr(self.client, "_emit_status"):
+                self.client._emit_status(f"Auto-selected {target} ({complexity} request)")
         except Exception as e:
             print(f"[CartogenAi] auto model selection failed: {e}")
 

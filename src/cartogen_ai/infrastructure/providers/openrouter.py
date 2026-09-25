@@ -1,6 +1,7 @@
 import json
 import time
 from .base import (
+    ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
     HTTPError, RequestException,
@@ -87,7 +88,7 @@ def _apply_anthropic_cache_control(messages, model_id):
             marked.append(msg)
     return marked
 
-class OpenRouterClient(BaseAiProvider):
+class OpenRouterClient(ModelChainMixin, BaseAiProvider):
     BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
     def __init__(self, api_key, model=None, status_callback=None):
@@ -137,11 +138,12 @@ class OpenRouterClient(BaseAiProvider):
         return post_with_retry(self.BASE_URL, headers, json.dumps(payload), timeout=60)
 
     def _request_with_fallback(self, messages, tools, max_tokens=None):
+        chain = self._model_chain()
         for cycle in range(MAX_FULL_CYCLES):
             any_rate_limited = False
-            for idx, model_id in enumerate(self.models):
+            for idx, model_id in enumerate(chain):
                 self.current_index = idx
-                self.model = model_id
+                self._model = model_id
                 self._emit_status(f"Using: {_short_name(model_id)}")
                 try:
                     response = self._post(messages, tools, model_id, max_tokens=max_tokens)
@@ -154,9 +156,9 @@ class OpenRouterClient(BaseAiProvider):
                             any_rate_limited = True
                         reason = "Rate limited" if response.status_code == 429 else "Model unavailable"
                         next_idx = idx + 1
-                        if next_idx < len(self.models):
+                        if next_idx < len(chain):
                             self._emit_status(
-                                f"{reason}, switching to {_short_name(self.models[next_idx])}..."
+                                f"{reason}, switching to {_short_name(chain[next_idx])}..."
                             )
                         continue
                     response.raise_for_status()
@@ -188,7 +190,7 @@ class OpenRouterClient(BaseAiProvider):
                 # Names are listed explicitly so a stale-plugin-reload (still running an
                 # old model list) is immediately distinguishable from a genuinely new
                 # deprecation wave, instead of both looking like the same static message.
-                tried = ", ".join(self.models)
+                tried = ", ".join(chain)
                 return {
                     "ok": False,
                     "error": (

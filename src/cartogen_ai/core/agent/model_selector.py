@@ -5,6 +5,8 @@ Picks between a cheaper/faster and a more capable model from whatever live
 model list a provider actually returned -- never invents a model ID.
 """
 
+import re
+
 AUTO_SENTINEL = "auto"
 
 _NON_CHAT_DENYLIST = ["embed", "whisper", "tts", "dall-e", "dalle", "moderation", "guard", "safety", "image", "audio"]
@@ -35,8 +37,53 @@ _OPERATION_VERBS = [
     "compare", "reproject", "classify", "merge", "clip", "dissolve",
 ]
 
-_CHEAP_KEYWORDS = ["nano", "mini", "lite", "flash", "8b", "9b", "12b", "20b", "small", "haiku", "instant"]
-_CAPABLE_KEYWORDS = ["pro", "ultra", "opus", "large", "70b", "120b", "550b", "max", "sol"]
+# Matched against whole name TOKENS (split on every non-alphanumeric), not substrings. A substring
+# match made "mini" hit every "gemini-*" model, so all of Gemini's models scored as "cheap". Found
+# 2026-09-25 while running the picker on a real Gemini model list, once the provider fix below made
+# its picks actually take effect for the first time.
+_CHEAP_MID = {"mini", "flash", "haiku", "small", "instant"}    # small but still dependable at tool calls
+_CHEAP_LOW = {"nano", "lite", "8b", "9b", "12b", "20b"}        # cheapest tier; weakest at choosing among ~180 tools
+_CAPABLE_KEYWORDS = {"pro", "ultra", "opus", "large", "70b", "120b", "550b", "max", "sol"}
+# Kept under the old name for anything that still imports it.
+_CHEAP_KEYWORDS = sorted(_CHEAP_MID | _CHEAP_LOW)
+
+# Model families that are not general chat/tool-calling models. Real example from a user's cached
+# Gemini list: "deep-research-max-preview-04-2026" matched the "max" keyword and would have been
+# picked for every complex request -- a research-agent model, not a chat model. The list-time
+# filter (_NON_CHAT_DENYLIST) only removes obviously non-chat entries, so these get through it.
+_SPECIAL_PURPOSE_TOKENS = {
+    "research", "antigravity", "computer", "robotics", "lyria", "banana", "customtools", "codex",
+    "realtime", "transcribe", "live", "imagen", "veo", "learnlm", "search", "guard", "embedding",
+}
+_UNSTABLE_TOKENS = {"preview", "exp", "experimental", "beta"}
+
+
+def _tokens(model_id):
+    return [t for t in re.split(r"[^a-z0-9]+", (model_id or "").lower()) if t]
+
+
+def is_special_purpose(model_id):
+    return bool(set(_tokens(model_id)) & _SPECIAL_PURPOSE_TOKENS)
+
+
+def is_cheap_tier(model_id):
+    """True if the name says this is already a small/cheap model."""
+    return bool(set(_tokens(model_id)) & (_CHEAP_MID | _CHEAP_LOW))
+
+
+def _version(model_id):
+    m = re.search(r"\d+(?:\.\d+)*", model_id or "")
+    return tuple(int(x) for x in m.group(0).split(".")) if m else ()
+
+
+def _tier_score(tokens, complexity):
+    toks = set(tokens)
+    if complexity == "simple":
+        mid, low = len(toks & _CHEAP_MID), len(toks & _CHEAP_LOW)
+        # "flash-lite" must rank below plain "flash": the cheapest tier is the least reliable at
+        # picking the right tool out of ~180, and a wrong pick costs a whole extra turn.
+        return mid * 10 + (low if not mid else -low)
+    return len(toks & _CAPABLE_KEYWORDS)
 
 
 def classify_complexity(query: str) -> str:
@@ -76,27 +123,33 @@ def classify_complexity(query: str) -> str:
 def pick_model_for_complexity(model_ids, complexity: str) -> str:
     """Scores model IDs by naming convention and returns the best match for the
     requested tier. Only ever returns an entry already present in model_ids --
-    never fabricates a new model name."""
+    never fabricates a new model name.
+
+    Special-purpose models (deep-research, robotics, music, ...) are never candidates. Ties go to
+    a stable "-latest" alias, then a non-preview model, then the highest version number."""
     if not model_ids:
         return ""
 
-    keywords = _CHEAP_KEYWORDS if complexity == "simple" else _CAPABLE_KEYWORDS
+    usable = [m for m in model_ids if not is_special_purpose(m)] or list(model_ids)
     scored = []
-    for model_id in model_ids:
-        lower = model_id.lower()
-        score = sum(1 for kw in keywords if kw in lower)
-        scored.append((score, model_id))
+    for model_id in usable:
+        toks = _tokens(model_id)
+        rank = (
+            _tier_score(toks, complexity),
+            1 if "latest" in toks else 0,
+            0 if set(toks) & _UNSTABLE_TOKENS else 1,
+            _version(model_id),
+        )
+        scored.append((rank, model_id))
 
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    best_score, best_model = scored[0]
-    if best_score > 0:
+    best_rank, best_model = max(scored, key=lambda pair: pair[0])
+    if best_rank[0] > 0:
         return best_model
 
     # No naming signal found for either tier -- string length isn't a
     # reliable proxy for model size/cost (a "-mini"/"-nano" suffix would
-    # already have scored above via _CHEAP_KEYWORDS; a model with truly no
-    # naming signal at all gives no honest basis to guess "smaller" from a
-    # shorter string), so both tiers fall back to the same predictable
-    # choice -- the first entry in the list -- rather than "simple"
-    # pretending to a precision it doesn't have.
-    return model_ids[0]
+    # already have scored above; a model with truly no naming signal at all
+    # gives no honest basis to guess "smaller" from a shorter string), so both
+    # tiers fall back to the same predictable choice -- the first entry in the
+    # list -- rather than "simple" pretending to a precision it doesn't have.
+    return usable[0]
