@@ -13,7 +13,7 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
     _tour_length, _optimize_route, optimize_delivery_route, population_access_gap,
     score_route_incident_risk, _build_road_snapped_route, _network_direction_speed_params,
     _build_network_distance_matrix, _make_distance_area, _measure_distance,
-    _network_geometry_error,
+    _network_geometry_error, _network_context, _point_for_network,
 )
 
 
@@ -189,15 +189,26 @@ class TestLogisticsToolsValidation(unittest.TestCase):
 
 
 class _LineNetworkMixin:
-    """These tests pass a MagicMock as the road network, and QgsWkbTypes doesn't exist outside
-    QGIS, so the line-geometry check (_network_geometry_error) is stubbed to "it's a line layer".
-    That check has its own tests in TestNetworkGeometryGuard."""
+    """These tests pass a MagicMock as the road network, and QgsWkbTypes/QgsProcessingContext/
+    QgsPointXY don't exist outside QGIS, so the three QGIS-dependent helpers the network tools call
+    are stubbed to their no-op behaviour: the network is "a line layer" (_network_geometry_error),
+    a start point is passed through as "x,y" (_point_for_network), and the processing context is a
+    plain mock (_network_context). Their real behaviour has its own tests: TestNetworkGeometryGuard
+    and TestNetworkContextAndStartPoint here, and tests/test_network_units_live.py in real QGIS."""
 
     def setUp(self):
         super().setUp()
-        p = patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
-        p.start()
-        self.addCleanup(p.stop)
+        base = "cartogen_ai.core.agent.tools.logistics_tools."
+        self.mock_context = MagicMock(name="network_context")
+        for attr, target, kwargs in (
+            ("mock_geometry_error", base + "_network_geometry_error", {"return_value": None}),
+            ("mock_point_for_network", base + "_point_for_network",
+             {"side_effect": lambda point, crs, net: f"{point.x()},{point.y()}"}),
+            ("mock_network_context_fn", base + "_network_context", {"return_value": self.mock_context}),
+        ):
+            p = patch(target, **kwargs)
+            setattr(self, attr, p.start())
+            self.addCleanup(p.stop)
 
 
 class TestNetworkDirectionSpeedParams(unittest.TestCase):
@@ -618,16 +629,16 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_serviceareafrompoint_gets_a_geometry_skip_invalid_context(
-        self, mock_find, mock_processing_enum, mock_context_cls, mock_processing, mock_project
+        self, mock_find, mock_processing_enum, mock_processing, mock_project
     ):
         """2026-09-10 fix: serviceareafrompoint's own 'invalid geometry' abort is
         the exact failure the error message names its own remedy for ('change
         the Invalid features filtering option') -- confirm calculate_service_area
-        actually asks for that remedy via QgsProcessingContext.setInvalidGeometryCheck
+        actually asks for that remedy (it builds its context through _network_context,
+        which applies setInvalidGeometryCheck -- see TestNetworkContextAndStartPoint)
         rather than just isolating the failure after the fact."""
         network = MagicMock()
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
@@ -635,7 +646,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         lines_layer = MagicMock()
         lines_layer.featureCount.return_value = 1
         hull_layer = MagicMock()
-        mock_context_instance = mock_context_cls.return_value
+        mock_context_instance = self.mock_context
 
         def run_side_effect(alg_id, params, context=None):
             if alg_id == "native:serviceareafrompoint":
@@ -649,7 +660,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         res = calculate_service_area("facilities", "roads", 1000)
 
         self.assertTrue(res.get("success"), res)
-        mock_context_instance.setInvalidGeometryCheck.assert_called_once_with(
+        self.mock_network_context_fn.assert_called_once_with(
             mock_processing_enum.InvalidGeometryCheck.GeometrySkipInvalid
         )
 
@@ -1444,7 +1455,7 @@ class TestOptimizeDeliveryRouteRoadSnapping(_LineNetworkMixin, unittest.TestCase
         self.assertIn("ghost_field", res["error"])
 
 
-class TestBuildNetworkDistanceMatrix(unittest.TestCase):
+class TestBuildNetworkDistanceMatrix(_LineNetworkMixin, unittest.TestCase):
     """Direct unit tests for _build_network_distance_matrix -- the 2026-09-11
     v1.7.0 workstream 4 addition: real road-network distance driving
     optimize_delivery_route's visiting-order decision, not just the final
@@ -1525,7 +1536,7 @@ class TestBuildNetworkDistanceMatrix(unittest.TestCase):
             self.assertEqual(call.args[1].get("SPEED_FIELD"), "speed_kmh")
 
 
-class TestBuildRoadSnappedRoute(unittest.TestCase):
+class TestBuildRoadSnappedRoute(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
@@ -1662,6 +1673,89 @@ class TestNetworkGeometryGuard(unittest.TestCase):
         for r in (r1, r2, r3):
             self.assertIn("is not a line layer", r.get("error", ""), r)
         proc.run.assert_not_called()
+
+
+_LT = "cartogen_ai.core.agent.tools.logistics_tools."
+
+
+class TestNetworkContextAndStartPoint(unittest.TestCase):
+    """The two helpers behind BUG-2026-09-24-5. Their measured behaviour in real QGIS is in
+    tests/test_network_units_live.py; these pin the logic that must not regress."""
+
+    def _context(self, project_ellipsoid, check=None):
+        with patch(_LT + "QgsProcessingContext", create=True) as ctx_cls,              patch(_LT + "QgsProject", create=True) as project_cls:
+            project_cls.instance.return_value.ellipsoid.return_value = project_ellipsoid
+            ctx = _network_context(check)
+        return ctx_cls.return_value, ctx, project_cls.instance.return_value
+
+    def test_no_project_ellipsoid_falls_back_to_wgs84(self):
+        # 'NONE' is QGIS's own truthy sentinel for "no ellipsoid": the same trap _make_distance_area documents
+        for none_like in ("NONE", "", None):
+            ctx, returned, _ = self._context(none_like)
+            self.assertIs(returned, ctx)
+            ctx.setEllipsoid.assert_called_once_with("WGS84")
+
+    def test_the_projects_own_ellipsoid_is_respected(self):
+        ctx, _, _ = self._context("EPSG:7019")
+        ctx.setEllipsoid.assert_called_once_with("EPSG:7019")
+
+    def test_the_context_gets_the_project_and_an_explicit_ellipsoid(self):
+        # setProject alone leaves the context's ellipsoid unset (measured in real QGIS: 'NONE' even
+        # when the project had EPSG:7030), so the explicit setEllipsoid is what makes costs metres.
+        ctx, _, project = self._context("NONE")
+        ctx.setProject.assert_called_once_with(project)
+        ctx.setEllipsoid.assert_called_once()
+
+    def test_invalid_geometry_check_is_applied_only_when_given(self):
+        ctx, _, _ = self._context("NONE", check="skip-invalid")
+        ctx.setInvalidGeometryCheck.assert_called_once_with("skip-invalid")
+        ctx2, _, _ = self._context("NONE")
+        ctx2.setInvalidGeometryCheck.assert_not_called()
+
+    @staticmethod
+    def _crs(valid=True, name="x"):
+        c = MagicMock(name=name)
+        c.isValid.return_value = valid
+        return c
+
+    def _start_point(self, source_crs, net_crs, transformed=(7.0, 8.0)):
+        network = MagicMock()
+        network.crs.return_value = net_crs
+        point = MagicMock()
+        with patch(_LT + "QgsPointXY", create=True) as pt_cls,              patch(_LT + "QgsCoordinateTransform", create=True) as xf_cls,              patch(_LT + "QgsProject", create=True):
+            pt_cls.return_value.x.return_value, pt_cls.return_value.y.return_value = 1.0, 2.0
+            out_pt = MagicMock()
+            out_pt.x.return_value, out_pt.y.return_value = transformed
+            xf_cls.return_value.transform.return_value = out_pt
+            text = _point_for_network(point, source_crs, network)
+        return text, xf_cls
+
+    def test_same_crs_passes_the_coordinates_through(self):
+        crs = self._crs()
+        text, xf_cls = self._start_point(crs, crs)
+        self.assertEqual(text, "1.0,2.0")
+        xf_cls.assert_not_called()
+
+    def test_a_different_crs_is_transformed_into_the_networks(self):
+        src, net = self._crs(name="src"), self._crs(name="net")
+        text, xf_cls = self._start_point(src, net)
+        self.assertEqual(text, "7.0,8.0")
+        self.assertEqual(xf_cls.call_args.args[:2], (src, net))    # source -> network, not the reverse
+
+    def test_unknown_or_invalid_crs_is_not_guessed_at(self):
+        text, xf_cls = self._start_point(None, self._crs())
+        self.assertEqual(text, "1.0,2.0")
+        text, xf_cls = self._start_point(self._crs(valid=False), self._crs())
+        self.assertEqual(text, "1.0,2.0")
+        xf_cls.assert_not_called()
+
+    def test_a_failing_transform_raises_instead_of_routing_from_the_wrong_place(self):
+        network = MagicMock()
+        network.crs.return_value = self._crs(name="net")
+        with patch(_LT + "QgsPointXY", create=True),              patch(_LT + "QgsProject", create=True),              patch(_LT + "QgsCoordinateTransform", create=True) as xf_cls:
+            xf_cls.return_value.transform.side_effect = RuntimeError("no transform")
+            with self.assertRaises(RuntimeError):
+                _point_for_network(MagicMock(), self._crs(name="src"), network)
 
 
 if __name__ == "__main__":

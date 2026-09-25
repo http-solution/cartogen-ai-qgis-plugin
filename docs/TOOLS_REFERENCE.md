@@ -343,7 +343,7 @@ Calculate the reachable road-network area around one or more facilities (warehou
 |---|---|---|---|
 | `facility_layer` | string | yes | Point layer with the facility/facilities to calculate service areas for. |
 | `road_network_layer` | string | yes | Line layer representing the road/path network. |
-| `travel_cost` | any | yes | Maximum travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'. Pass a single number for one service area, or a list of ascending values (e.g. [15, 30, 60]) for a multi-band isochrone/access map -- one combined, auto-styled polygon layer per facility instead of separate calls. |
+| `travel_cost` | any | yes | Maximum travel distance in METRES (real-world, measured on the ellipsoid whatever the layers' CRS is) or time in HOURS if strategy='fastest'. Pass a single number for one service area, or a list of ascending values (e.g. [15, 30, 60]) for a multi-band isochrone/access map -- one combined, auto-styled polygon layer per facility instead of separate calls. |
 | `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
 | `default_speed` | number | no | Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'. |
@@ -398,7 +398,7 @@ Compute how many people, and what percentage of a population base, are BEYOND a 
 | `road_network_layer` | string | yes | Line layer of the road/path network. |
 | `population_raster_layer` | string | yes | Population-per-pixel raster (e.g. from fetch_worldpop_population). |
 | `area_layer` | string | yes | Polygon layer defining the population base to check coverage for. |
-| `travel_cost` | number | yes | Max travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'. |
+| `travel_cost` | number | yes | Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'. |
 | `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
 | `default_speed` | number | no | Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50. |
 
@@ -417,7 +417,7 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (network CRS units for strategy='shortest', hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

@@ -39,7 +39,7 @@ try:
     from qgis.core import (
         QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
         QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext,
-        QgsField, QgsDistanceArea,
+        QgsField, QgsDistanceArea, QgsCoordinateTransform, QgsPointXY,
     )
     try:
         from qgis.core import Qgis
@@ -113,6 +113,49 @@ def _make_distance_area(layer):
         return da
     except Exception:
         return None
+
+
+def _network_context(invalid_geometry_check=None):
+    """The QgsProcessingContext every network-analysis call (service area, shortest path) runs with.
+
+    Live-reported 2026-09-24/25 ("Health facilities beyond one hour's travel"), reproduced and
+    measured 2026-09-25 against a road of known length in real QGIS 4.2.2: these algorithms
+    measure distance with the context's ELLIPSOID, and when there is none they fall back to raw
+    layer units. calculate_service_area built a bare QgsProcessingContext() -- no project, so no
+    ellipsoid, whatever the project's own setting -- so travel_cost was in degrees on a lat/long
+    layer (a 1000 m service area covered the whole 10 km network) and in inflated Web Mercator
+    metres on EPSG:3857 (about 15% short at Amman, worse further from the equator). The other
+    calls used processing.run's default context, which takes the project's ellipsoid and so was
+    right only if the project happened to have one set (QGIS new projects do; imported or older
+    ones may not). Setting the ellipsoid here, explicitly, makes costs real metres (or hours
+    for strategy='fastest') independent of the layers' CRS and of the project's settings.
+    Same fallback as _make_distance_area: the project's ellipsoid, else WGS84 -- 'NONE' is
+    QGIS's own truthy sentinel for "no ellipsoid", so it must be checked for by value."""
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    project_ellipsoid = QgsProject.instance().ellipsoid()
+    # Measured in real QGIS 4.2.2 (2026-09-25): setProject alone does NOT give the context the
+    # project's ellipsoid (it stayed 'NONE' with the project set to EPSG:7030), and an ellipsoid set
+    # explicitly survives setProject in either order. So this explicit call is what does the work.
+    context.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+    if invalid_geometry_check is not None:
+        context.setInvalidGeometryCheck(invalid_geometry_check)
+    return context
+
+
+def _point_for_network(point, source_crs, network):
+    """"x,y" for a START_POINT/END_POINT parameter, in the NETWORK layer's CRS.
+
+    The algorithms read a bare "x,y" as being in the network's CRS, but the coordinates came from
+    the facility/origin/stop layer's own geometry, which can be in a different one: e.g. an
+    origin typed as Web Mercator metres (3999682,3756232) against roads downloaded as lat/long
+    was read as degrees, far outside any network. Raises if the transform can't be built, so
+    the caller reports it instead of silently routing from the wrong place."""
+    pt = QgsPointXY(point)
+    net_crs = network.crs()
+    if source_crs is not None and source_crs.isValid() and net_crs.isValid() and source_crs != net_crs:
+        pt = QgsCoordinateTransform(source_crs, net_crs, QgsProject.instance()).transform(pt)
+    return f"{pt.x()},{pt.y()}"
 
 
 def _measure_distance(distance_area, geom_a, geom_b):
@@ -602,7 +645,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         n = len(geoms)
         network_aware = network is not None
         if network_aware:
-            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params)
+            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs())
         else:
             distance_area = _make_distance_area(layer)
             distance_matrix = [
@@ -621,6 +664,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "total_distance": round(total_distance, 2),
             "network_aware_ordering": network_aware,
         }
+        if network_aware:
+            result["distance_unit"] = "meters"
 
         if network is None:
             warning = (
@@ -653,7 +698,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             result["warning"] = warning
             return result
 
-        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour)
+        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=layer.crs())
         if route_layer_name is None:
             result["warning"] = (
                 "Could not build a road-snapped route (stops may be too far from the network) -- "
@@ -669,7 +714,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return {"error": f"optimize_delivery_route failed: {e}"}
 
 
-def _build_network_distance_matrix(network, geoms, extra_params=None):
+def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs=None):
     """Real road-network point-to-point distance between every ordered pair
     of stops, via native:shortestpathpointtopoint's own 'cost' output
     field -- confirmed live this is the robust way to get this, not
@@ -696,6 +741,7 @@ def _build_network_distance_matrix(network, geoms, extra_params=None):
     matrix entry."""
     n = len(geoms)
     matrix = [[0.0] * n for _ in range(n)]
+    context = _network_context()
     for i in range(n):
         for j in range(n):
             if i == j:
@@ -707,14 +753,14 @@ def _build_network_distance_matrix(network, geoms, extra_params=None):
                 "STRATEGY": 0,
                 "DEFAULT_SPEED": 50,
                 "TOLERANCE": 0,
-                "START_POINT": f"{start.x()},{start.y()}",
-                "END_POINT": f"{end.x()},{end.y()}",
                 "OUTPUT": "memory:",
             }
             if extra_params:
                 params.update(extra_params)
             try:
-                output = processing.run("native:shortestpathpointtopoint", params)
+                params["START_POINT"] = _point_for_network(start, source_crs, network)
+                params["END_POINT"] = _point_for_network(end, source_crs, network)
+                output = processing.run("native:shortestpathpointtopoint", params, context=context)
                 result_layer = output.get("OUTPUT")
                 feats = list(result_layer.getFeatures()) if result_layer is not None else []
                 cost = feats[0]["cost"] if feats else None
@@ -724,7 +770,7 @@ def _build_network_distance_matrix(network, geoms, extra_params=None):
     return matrix
 
 
-def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
+def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs=None):
     """Chain native:shortestpathpointtopoint across each consecutive pair in
     visiting order and merge the segments into one line layer added to the
     project, so optimize_delivery_route's output is an actual road-snapped
@@ -734,6 +780,7 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
     native-network-analysis calls (see module docstring). Returns the new
     layer's name, or None if no segment could be built."""
     segment_layers = []
+    context = _network_context()
     for i in range(len(tour) - 1):
         start = geoms[tour[i]].asPoint()
         end = geoms[tour[i + 1]].asPoint()
@@ -742,12 +789,12 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour):
             "STRATEGY": 0,
             "DEFAULT_SPEED": 50,
             "TOLERANCE": 0,
-            "START_POINT": f"{start.x()},{start.y()}",
-            "END_POINT": f"{end.x()},{end.y()}",
             "OUTPUT": "memory:",
         }
         try:
-            output = processing.run("native:shortestpathpointtopoint", params)
+            params["START_POINT"] = _point_for_network(start, source_crs, network)
+            params["END_POINT"] = _point_for_network(end, source_crs, network)
+            output = processing.run("native:shortestpathpointtopoint", params, context=context)
         except Exception:
             continue
         segment = output.get("OUTPUT")
@@ -857,8 +904,8 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
             "facility_layer": {"type": "string", "description": "Point layer with the facility/facilities to calculate service areas for."},
             "road_network_layer": {"type": "string", "description": "Line layer representing the road/path network."},
             "travel_cost": {
-                "description": "Maximum travel distance (network CRS units, usually meters) or time in hours "
-                "if strategy='fastest'. Pass a single number for one service area, or a list of ascending "
+                "description": "Maximum travel distance in METRES (real-world, measured on the ellipsoid whatever the "
+                "layers' CRS is) or time in HOURS if strategy='fastest'. Pass a single number for one service area, or a list of ascending "
                 "values (e.g. [15, 30, 60]) for a multi-band isochrone/access map -- one combined, "
                 "auto-styled polygon layer per facility instead of separate calls.",
                 "anyOf": [
@@ -963,13 +1010,17 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         _invalid_geom_check = resolve_qgis_enum(Qgis, "InvalidGeometryCheck", "GeometrySkipInvalid")
         if _invalid_geom_check is None:
             return {"error": "Could not resolve QgsProcessing's InvalidGeometryCheck enum in this QGIS version."}
-        context = QgsProcessingContext()
-        context.setInvalidGeometryCheck(_invalid_geom_check)
+        context = _network_context(_invalid_geom_check)
         for i, feat in enumerate(facilities.getFeatures()):
             geom = feat.geometry()
             if geom is None or geom.isEmpty():
                 continue
             point = geom.asPoint()
+            try:
+                start_point = _point_for_network(point, facilities.crs(), network)
+            except Exception as e:
+                skipped.append({"facility_index": i, "stage": "coordinate_transform", "reason": str(e)})
+                continue
 
             band_hulls = []  # (band_value, hull_layer) -- only populated/used when is_multi_band
             facility_served = False
@@ -979,7 +1030,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                     "STRATEGY": strategy_val,
                     "DEFAULT_SPEED": default_speed,
                     "TOLERANCE": 0,
-                    "START_POINT": f"{point.x()},{point.y()}",
+                    "START_POINT": start_point,
                     "TRAVEL_COST2": band,
                     "OUTPUT_LINES": "memory:",
                 }
@@ -1055,6 +1106,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             "facility_count": served_count,
             "travel_cost": travel_costs if is_multi_band else travel_costs[0],
             "strategy": strategy,
+            "travel_cost_unit": "hours" if strategy == "fastest" else "meters",
             "layers_created": layers_created,
         }
         if speed_field:
@@ -1111,7 +1163,7 @@ def _merge_band_hulls(band_hulls, output_name):
     "travel_time_matrix",
     "Calculate road-network distance or travel time from each origin point to each destination "
     "point -- e.g. delivery distance from each warehouse to each distribution site. Returns a "
-    "matrix of costs (network CRS units for strategy='shortest', hours for strategy='fastest') "
+    "matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') "
     "keyed by origin then destination. Requires a line layer representing the road network, not "
     "straight-line distance. Without speed_field, every segment is treated as one flat "
     "default_speed regardless of surface or condition -- when the network layer has a per-segment "
@@ -1177,12 +1229,12 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                 "STRATEGY": strategy_val,
                 "DEFAULT_SPEED": default_speed,
                 "TOLERANCE": 0,
-                "START_POINT": f"{point.x()},{point.y()}",
+                "START_POINT": _point_for_network(point, origins.crs(), network),
                 "END_POINTS": destinations,
                 "OUTPUT": "memory:",
             }
             params.update(extra_params)
-            output = processing.run("native:shortestpathpointtolayer", params)
+            output = processing.run("native:shortestpathpointtolayer", params, context=_network_context())
             result_layer = output.get("OUTPUT")
             if result_layer is None:
                 continue
@@ -1205,6 +1257,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             "origins_layer": origins_layer,
             "destinations_layer": destinations_layer,
             "strategy": strategy,
+            "cost_unit": "hours" if strategy == "fastest" else "meters",
             "matrix": matrix,
         }
         if speed_field:
@@ -1238,7 +1291,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             "road_network_layer": {"type": "string", "description": "Line layer of the road/path network."},
             "population_raster_layer": {"type": "string", "description": "Population-per-pixel raster (e.g. from fetch_worldpop_population)."},
             "area_layer": {"type": "string", "description": "Polygon layer defining the population base to check coverage for."},
-            "travel_cost": {"type": "number", "description": "Max travel distance (network CRS units, usually meters) or time in hours if strategy='fastest'."},
+            "travel_cost": {"type": "number", "description": "Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'."},
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
             "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
         },
