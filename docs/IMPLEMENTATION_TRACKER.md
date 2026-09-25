@@ -87,12 +87,12 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > tested with fixture shapefiles in Geofabrik's real schema). **Open decision:** network
 > tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, below).
 
-> **2026-09-25 — Network tools now work in real metres/hours (BUG-2026-09-24-5 fixed and verified in real QGIS,
-> including the real Jordan workflow).** **New open item, needs a decision: routing on a national road network
-> takes 6-10 minutes per call and freezes QGIS** (BUG-2026-09-25-2: 161,041 roads; graph construction, not units).
-> Recommendation there: clip the network to the needed extent for service areas, warn and ask before routing over a
-> large network, then move network analysis off the GUI thread. Also done in this change: README tool counts
-> corrected to 178 (were 177/169/171) and `docs/TOOLS_REFERENCE.md` regenerated.
+> **2026-09-25 — QGIS no longer freezes on network analysis (BUG-2026-09-25-2, freeze fixed and verified on the
+> full 161,041-road Jordan network: the window stays responsive, Stop works, progress is shown).** The analysis is
+> as slow as before (331 s for a one-hour service area): **open, recommended next:** clip the network to the needed
+> extent for service areas (exact), warn before routing over a large network, and rebuild `optimize_delivery_route`
+> on one shortest-path call per stop instead of one per stop pair. Earlier the same day: network tools now work in
+> real metres/hours (BUG-2026-09-24-5), README tool counts corrected to 178, `TOOLS_REFERENCE.md` regenerated.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,

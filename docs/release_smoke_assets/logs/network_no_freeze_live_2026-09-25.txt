@@ -1,0 +1,20 @@
+# Full Jordan road network (161,041 roads): routing no longer freezes QGIS. QGIS 4.2.2, 2026-09-25.
+# Produced by tests/manual_live_checks/network_no_freeze.py (home folder shown as ~).
+# The 100 ms timer stands in for the GUI: ticks during the run = the window stayed responsive.
+# Before the fix the same calls took 292-572 s with the window 'Not Responding' and no way to stop.
+
+QGIS 4.2.2 | testing source: C:\http-solution\cartogen-ai-qgis-plugin\src
+network: 161041 roads | 355 facilities
+== Part A: travel_time_matrix, Stop pressed after 30 s ==
+returned after 30.1 s (Stop was due at 30 s); GUI ticks: 274, worst gap 125 ms
+progress messages: 11 | last: Travel time matrix: stopping...
+PASS - Stop ended the analysis promptly | 30.1 s
+PASS - the GUI kept ticking the whole time (no freeze) | 274 ticks in 30 s, worst gap 125 ms
+PASS - progress was reported to the user | ['Travel time matrix: working on the road network... 2s (press Stop to cancel)']
+PASS - nothing was added to the project by the stopped run |
+== Part B: one-hour service area, run to completion ==
+finished in 331 s; GUI ticks: 2978, worst gap 125 ms; progress messages: 106
+PASS - service area completed | hours
+PASS - the GUI kept ticking the whole time (no freeze) | 2978 ticks in 331 s, worst gap 125 ms
+PASS - same 1-hour reach as the synchronous run (46.4 km) | 46.4 km
+7/7 passed
