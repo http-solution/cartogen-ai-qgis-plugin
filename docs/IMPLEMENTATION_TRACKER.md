@@ -87,13 +87,12 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > tested with fixture shapefiles in Geofabrik's real schema). **Open decision:** network
 > tools still route in degrees on these EPSG:4326 layers (BUG-2026-09-24-5, below).
 
-> **2026-09-24 — OPEN: network tools route in degrees on a geographic-CRS layer
-> (`docs/BUG_TRACKER.md` BUG-2026-09-24-5).** `calculate_service_area`, `travel_time_matrix` and
-> the other network tools pass layers to QGIS's network algorithms as-is. An OSM road layer is
-> EPSG:4326, so `travel_cost` and path costs are in degrees (live: 0.0389 for a ~4 km route).
-> **Recommendation:** reproject the network and points to the local UTM zone inside the tools
-> before routing, and report costs in metres. This changes results for anyone already passing
-> degree-scaled costs, so it needs a go-ahead rather than a silent fix.
+> **2026-09-25 — Network tools now work in real metres/hours (BUG-2026-09-24-5 fixed and verified in real QGIS,
+> including the real Jordan workflow).** **New open item, needs a decision: routing on a national road network
+> takes 6-10 minutes per call and freezes QGIS** (BUG-2026-09-25-2: 161,041 roads; graph construction, not units).
+> Recommendation there: clip the network to the needed extent for service areas, warn and ask before routing over a
+> large network, then move network analysis off the GUI thread. Also done in this change: README tool counts
+> corrected to 178 (were 177/169/171) and `docs/TOOLS_REFERENCE.md` regenerated.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,
