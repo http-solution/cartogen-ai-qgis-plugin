@@ -41,6 +41,7 @@ try:
         QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
         QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext,
         QgsField, QgsDistanceArea, QgsCoordinateTransform, QgsPointXY,
+        QgsCoordinateReferenceSystem, QgsFeatureRequest,
     )
     try:
         from qgis.core import Qgis
@@ -152,11 +153,109 @@ def _point_for_network(point, source_crs, network):
     origin typed as Web Mercator metres (3999682,3756232) against roads downloaded as lat/long
     was read as degrees, far outside any network. Raises if the transform can't be built, so
     the caller reports it instead of silently routing from the wrong place."""
+    pt = _point_xy_in_network_crs(point, source_crs, network)
+    return f"{pt.x()},{pt.y()}"
+
+
+def _point_xy_in_network_crs(point, source_crs, network):
     pt = QgsPointXY(point)
     net_crs = network.crs()
     if source_crs is not None and source_crs.isValid() and net_crs.isValid() and source_crs != net_crs:
         pt = QgsCoordinateTransform(source_crs, net_crs, QgsProject.instance()).transform(pt)
-    return f"{pt.x()},{pt.y()}"
+    return pt
+
+
+# ---- exact clipping of the road network to what a service area can reach ---------------------------
+#
+# BUG-2026-09-25-2: routing builds a graph from EVERY road in the layer before answering, at about
+# 0.6-1 ms per road (measured: 25 s at 39,017 roads, 125 s at 107,719, 331 s for a one-hour service
+# area on all 161,041 Jordan roads). But nothing reachable within cost R can be farther than R
+# in a straight line from the start, so for a service area only the roads near the start matter.
+# Roads in the real Jordan extract inside that reach, around Amman: 829 (1 km), 5,736 (3 km),
+# 38,197 (10 km), 75,192 (25 km), 105,076 (51.5 km) of 161,041; the clip itself takes 0.1-1.8 s.
+#
+# This is exact, not an approximation, as long as the reach is a true upper bound (see
+# _reach_metres) and the whole feature is kept when any part of it is inside (so the graph inside
+# the disc is identical): the algorithm sees the same local network. It is NOT used for the
+# travel-time matrix: the shortest route between two points can detour outside the box around them.
+_CLIP_MARGIN_FACTOR = 1.03      # QGIS may use the project's ellipsoid, not WGS84: differences are < 1%
+_CLIP_MARGIN_METRES = 100.0
+_CLIP_MAX_REACH_METRES = 5_000_000.0
+_CLIP_WORTHWHILE_FRACTION = 0.9  # if the box still holds 90%+ of the roads, copying isn't worth it
+
+
+def _reach_metres(travel_costs, strategy, default_speed, max_field_speed=None):
+    """The farthest straight-line distance, in metres, at which anything can still be within the
+    largest cost asked for. A route is never shorter than the straight line, so this is a true
+    upper bound: for 'shortest' the cost is already metres; for 'fastest' the cost is hours, and the
+    most distance a route can cover in that time is at the fastest speed anywhere in the network
+    (default_speed, or the largest value in speed_field). Unknown speed_field maximum -> None -> only
+    default_speed, which is only safe when there is no speed_field, so the caller must not pass an
+    unknown maximum for a network that has one (it doesn't clip in that case)."""
+    cost = float(max(travel_costs))
+    if strategy == "fastest":
+        speeds = [float(default_speed)]
+        if max_field_speed:
+            speeds.append(float(max_field_speed))
+        return cost * max(speeds) * 1000.0
+    return cost
+
+
+def _max_speed_in_field(network, speed_field):
+    """The largest numeric value of speed_field (km/h), or None if it can't be determined."""
+    try:
+        value = network.maximumValue(network.fields().indexOf(speed_field))
+        return float(value) if value is not None and float(value) > 0 else None
+    except Exception:
+        return None
+
+
+def _clip_network_to_reach(network, centre_xy, reach_m):
+    """(layer_to_route_on, info). The roads that can matter within reach_m of centre_xy (in the
+    network's CRS), or the whole network whenever clipping wouldn't be exact or worthwhile:
+      * a small network (copying costs more than it saves);
+      * an enormous reach (the disc covers much of the globe);
+      * the box still holds 90%+ of the roads;
+      * no road within reach at all: QGIS snaps a far-away start to the NEAREST road however far,
+        and a clipped network could snap to a different one, so keep the old behaviour there;
+      * anything going wrong (a CRS that can't be transformed, e.g. at a pole).
+    info: {"applied", "roads_full", "roads_used"}."""
+    info = {"applied": False, "roads_full": None, "roads_used": None}
+    try:
+        total = int(network.featureCount())
+    except Exception:
+        return network, info
+    info["roads_full"] = info["roads_used"] = total
+    radius = reach_m * _CLIP_MARGIN_FACTOR + _CLIP_MARGIN_METRES
+    if total < BACKGROUND_MIN_FEATURES or radius > _CLIP_MAX_REACH_METRES:
+        return network, info
+    try:
+        project = QgsProject.instance()
+        net_crs = network.crs()
+        wgs = QgsCoordinateReferenceSystem("EPSG:4326")
+        centre = centre_xy
+        if net_crs != wgs:
+            centre = QgsCoordinateTransform(net_crs, wgs, project).transform(centre_xy)
+        # Azimuthal equidistant centred on the start: distances from the centre are true metres,
+        # so this disc is exactly "everything within `radius` of the start", in any network CRS.
+        aeqd = QgsCoordinateReferenceSystem.fromProj(
+            f"+proj=aeqd +lat_0={centre.y():.9f} +lon_0={centre.x():.9f} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
+        if not aeqd.isValid():
+            return network, info
+        disc = QgsGeometry.fromPointXY(QgsPointXY(0, 0)).buffer(radius, 64)
+        disc.transform(QgsCoordinateTransform(aeqd, net_crs, project))
+        clipped = network.materialize(QgsFeatureRequest().setFilterRect(disc.boundingBox()))
+        used = int(clipped.featureCount())
+        if used >= total * _CLIP_WORTHWHILE_FRACTION:
+            return network, info
+        if not any(f.geometry().intersects(disc) for f in clipped.getFeatures()):
+            return network, info
+        info.update(applied=True, roads_used=used)
+        return clipped, info
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="logistics_clip_network",
+                  error_class=type(e).__name__, error=True)
+        return network, info
 
 
 def _measure_distance(distance_area, geom_a, geom_b):
@@ -1045,6 +1144,11 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         # explicit None check -- only "safe" by whatever this function's own outer exception
         # handling happens to do with the resulting error, not by design (QGIS-004's identical
         # class of gap). Today inert (this enum resolves fine on both QGIS 3.x/4.x).
+        _max_speed = _max_speed_in_field(network, speed_field) if (strategy == "fastest" and speed_field) else None
+        # With a speed field whose maximum can't be read, the reach isn't a safe upper bound: no clipping.
+        reach_m = None if (strategy == "fastest" and speed_field and _max_speed is None) else \
+            _reach_metres(travel_costs, strategy, default_speed, _max_speed)
+        clip_summary = {"facilities_clipped": 0, "roads_full": None, "roads_routed_max": 0}
         _invalid_geom_check = resolve_qgis_enum(Qgis, "InvalidGeometryCheck", "GeometrySkipInvalid")
         if _invalid_geom_check is None:
             return {"error": "Could not resolve QgsProcessing's InvalidGeometryCheck enum in this QGIS version."}
@@ -1056,15 +1160,23 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             point = geom.asPoint()
             try:
                 start_point = _point_for_network(point, facilities.crs(), network)
+                routed_network, clip = network, {"applied": False}
+                if reach_m is not None:
+                    routed_network, clip = _clip_network_to_reach(
+                        network, _point_xy_in_network_crs(point, facilities.crs(), network), reach_m)
             except Exception as e:
                 skipped.append({"facility_index": i, "stage": "coordinate_transform", "reason": str(e)})
                 continue
+            if clip.get("applied"):
+                clip_summary["facilities_clipped"] += 1
+                clip_summary["roads_full"] = clip["roads_full"]
+                clip_summary["roads_routed_max"] = max(clip_summary["roads_routed_max"], clip["roads_used"])
 
             band_hulls = []  # (band_value, hull_layer) -- only populated/used when is_multi_band
             facility_served = False
             for band in travel_costs:
                 params = {
-                    "INPUT": network,
+                    "INPUT": routed_network,
                     "STRATEGY": strategy_val,
                     "DEFAULT_SPEED": default_speed,
                     "TOLERANCE": 0,
@@ -1074,7 +1186,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 }
                 params.update(extra_params)
                 try:
-                    output = _run_network_algorithm("native:serviceareafrompoint", params, context, network,
+                    output = _run_network_algorithm("native:serviceareafrompoint", params, context, routed_network,
                                                     "Service area")
                 except _bg.AnalysisCancelled:
                     raise
@@ -1150,6 +1262,14 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             "travel_cost_unit": "hours" if strategy == "fastest" else "meters",
             "layers_created": layers_created,
         }
+        if clip_summary["facilities_clipped"]:
+            # Exact, not an approximation (see _clip_network_to_reach): worth saying so the model
+            # doesn't describe the analysis as "limited to nearby roads".
+            result["network_clipping"] = {
+                **clip_summary,
+                "note": "Only roads that can be reached within the requested cost were routed; the result "
+                        "is identical to routing over the whole network, just faster.",
+            }
         if speed_field:
             result["speed_field"] = speed_field
         if direction_field:

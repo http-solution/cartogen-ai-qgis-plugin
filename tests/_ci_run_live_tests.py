@@ -2,7 +2,8 @@
 """CI-only test runner, added 2026-09-20/21 per external review: runs the same live-QGIS
 test modules `python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live
 tests.test_network_units_live
-tests.test_network_background_live`
+tests.test_network_background_live
+tests.test_network_clip_live`
 would, but as a script rather than unittest's own CLI entry point, so it can explicitly call
 QgsApplication.exitQgis() and process.exit() itself BEFORE the interpreter's own implicit
 shutdown -- unittest's CLI path never does this, leaving Qt/QGIS's C++ objects to be
@@ -24,6 +25,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_chat_widget_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_plugin_main_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_network_units_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_network_background_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_network_clip_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)

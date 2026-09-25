@@ -369,8 +369,15 @@ before it can answer anything. On the full Jordan OpenStreetMap network (161,041
   long ("Service area: working on the road network... 40s (press Stop to cancel)").
 - **Stop works.** Press Stop and the analysis ends within a moment; nothing is added to the project by a
   stopped run, and the request ends there.
-- **It is still slow.** This does not make the analysis faster, only harmless to wait for. For a quick
-  answer, work with a smaller road layer covering just your area of interest.
+- **Service areas only route over roads they can reach.** "What can this clinic reach within 3 km by road" no longer
+  builds a graph from every road in the country: only roads within reach of the clinic are used, and the answer is
+  identical to routing over the whole network (checked on the full Jordan network: 3 km in about 2 seconds
+  instead of about 3 minutes; a one-hour reach in about 95 seconds instead of 5.5 minutes).
+- **Travel-time matrices and delivery routes are still slow on a whole country.** A route between two points can
+  detour outside any box around them, so these use the full network. For a quick answer, work with a smaller
+  road layer covering just your area of interest.
+- **Footpaths, steps and cycleways are left out** of the road layer that the download step adds, because a
+  vehicle can't use them (about 4% of Jordan's roads).
 - **If something misbehaves**, set `cartogen_ai/network_analysis_in_background` to `false` in QGIS's
   advanced settings (Settings > Options > System > Advanced) to go back to running on the main thread.
 
