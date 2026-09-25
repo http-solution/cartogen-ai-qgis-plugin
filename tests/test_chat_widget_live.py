@@ -1087,7 +1087,7 @@ _TRAVEL_Q = "Health facilities beyond one hour's travel 3999682,3756232"
 
 def _geofabrik_fixture(folder):
     """Tiny shapefiles in the Geofabrik 'free' schema (column names checked against the real
-    Jordan extract, 2026-09-25): 2 roads, 3 point POIs (a hospital, a clinic and a pharmacy that
+    Jordan extract, 2026-09-25): 4 roads (2 drivable, a footway and a flight of steps that must be left out), 3 point POIs (a hospital, a clinic and a pharmacy that
     must be left out) and 1 hospital mapped as a building outline."""
     from qgis.core import (QgsFeature, QgsField, QgsFields, QgsGeometry, QgsProject,
                            QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsWkbTypes)
@@ -1114,7 +1114,10 @@ def _geofabrik_fixture(folder):
         "gis_osm_roads_free_1": write("gis_osm_roads_free_1", QgsWkbTypes.Type.LineString,
                                       ["osm_id", "fclass", "oneway", "maxspeed"],
                                       [("LINESTRING(35.90 31.95, 35.92 31.96)", ["1", "primary", "B", "60"]),
-                                       ("LINESTRING(35.92 31.96, 35.94 31.97)", ["2", "residential", "F", "0"])]),
+                                       ("LINESTRING(35.92 31.96, 35.94 31.97)", ["2", "residential", "F", "0"]),
+                                       # not drivable: must be left out of the routing network
+                                       ("LINESTRING(35.93 31.96, 35.931 31.961)", ["3", "footway", "B", "0"]),
+                                       ("LINESTRING(35.94 31.97, 35.941 31.971)", ["4", "steps", "B", "0"])]),
         "gis_osm_pois_free_1": write("gis_osm_pois_free_1", QgsWkbTypes.Type.Point,
                                      ["osm_id", "fclass", "name"],
                                      [("POINT(35.91 31.95)", ["10", "hospital", "Point Hospital"]),
@@ -1201,7 +1204,8 @@ class TestLocalDataOfferLive(unittest.TestCase):
         health = QgsProject.instance().mapLayersByName("Health Facilities (OSM, Jordan)")
         self.assertEqual(len(roads), 1)
         self.assertEqual(roads[0].geometryType(), QgsWkbTypes.GeometryType.LineGeometry)
-        self.assertEqual(roads[0].featureCount(), 2)
+        self.assertEqual(roads[0].featureCount(), 2)          # the footway and the steps are left out
+        self.assertEqual(sorted(f["fclass"] for f in roads[0].getFeatures()), ["primary", "residential"])
         self.assertEqual(len(health), 1)
         names = sorted(f["name"] for f in health[0].getFeatures())
         self.assertEqual(names, ["Clinic", "Outline Hospital", "Point Hospital"],
@@ -1209,6 +1213,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         self.assertTrue(health[0].source().split("|")[0].endswith(".gpkg"), "kept as a file, not in memory")
         log = ct.chat_browser.toPlainText()
         self.assertIn("Added to the project from Geofabrik", log)
+        self.assertIn("footpaths, steps and cycleways left out", log)
         self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1)
         self.assertEqual(agent.client.calls, 0, "the preview is waiting; nothing sent yet")
 

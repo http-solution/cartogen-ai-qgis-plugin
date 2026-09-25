@@ -1,0 +1,30 @@
+# Clipping the road network to a service area's reach is exact and faster: real Jordan network, QGIS 4.2.2, 2026-09-25.
+# Produced by tests/manual_live_checks/network_clip_real.py (home folder shown as ~); each case compares the clipped
+# result with routing over ALL roads, geometry for geometry. BUG-2026-09-25-2.
+
+QGIS 4.2.2 | testing source: C:\http-solution\cartogen-ai-qgis-plugin\src
+network: 161041 roads
+== Amman, 3 km by road ==
+clipped: 2.3 s, routed over 6466 of 161041 roads, 1 line features
+full:    176.4 s over all roads, 1 line features
+PASS - Amman, 3 km by road: identical geometry | 1 features each
+PASS - Amman, 3 km by road: faster (76x) | 2.3 s vs 176.4 s
+PASS - Amman, 3 km by road: the clip was applied | 6466
+== Irbid, 3 km by road ==
+clipped: 1.2 s, routed over 3527 of 161041 roads, 1 line features
+full:    171.4 s over all roads, 1 line features
+PASS - Irbid, 3 km by road: identical geometry | 1 features each
+PASS - Irbid, 3 km by road: faster (148x) | 1.2 s vs 171.4 s
+PASS - Irbid, 3 km by road: the clip was applied | 3527
+== Amman, 12 min at 50 km/h (10 km) ==
+clipped: 16.0 s, routed over 39776 of 161041 roads, 1 line features
+full:    173.8 s over all roads, 1 line features
+PASS - Amman, 12 min at 50 km/h (10 km): identical geometry | 1 features each
+PASS - Amman, 12 min at 50 km/h (10 km): faster (11x) | 16.0 s vs 173.8 s
+PASS - Amman, 12 min at 50 km/h (10 km): the clip was applied | 39776
+9/9 passed
+
+== One-hour service area, full Jordan network, clipping active (measured separately) ==
+on the DRIVABLE network (154,895 roads, footpaths/steps left out): finished in 95 s (was 331 s), 828 GUI ticks, worst gap 125 ms, reach 46.1 km
+on the UNFILTERED network (161,041 roads): 93 s, routed over 105,142 roads, reach 46.42 km = the earlier UNCLIPPED result (46.4 km, 331 s)
+=> clipping is exact (identical reach); the 0.3 km difference is the footpath/steps filter.
