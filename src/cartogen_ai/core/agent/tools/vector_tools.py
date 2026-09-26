@@ -14,7 +14,8 @@ try:
         QgsProject, QgsExpression, QgsRasterLayer, QgsVectorLayer,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
-        QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings
+        QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings,
+        QgsProcessingFeatureSourceDefinition
     )
     from qgis.PyQt.QtCore import QVariant, Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -148,7 +149,12 @@ def run_query(layer_name, expression):
     "expecting 500 meters actually buffers by 500 degrees (most of the way around the globe), "
     "not a small error but a silently nonsensical result. If the target layer's CRS is "
     "geographic, reproject it to an appropriate projected/UTM CRS first (or check "
-    "get_layers()'s crs field before calling this).",
+    "get_layers()'s crs field before calling this). To buffer only SPECIFIC features "
+    "(e.g. 'buffer around alerts X and Y', not the whole layer), first select them -- "
+    "select_by_attribute for one value, or highlight_features with an expression like "
+    "\"event_id IN ('X','Y')\" for several -- then call this with only_selected=True. "
+    "Without only_selected=True, this always buffers every feature in the layer, "
+    "regardless of any current selection.",
     {
         "type": "object",
         "properties": {
@@ -157,20 +163,42 @@ def run_query(layer_name, expression):
                 "type": "number",
                 "description": "Buffer distance in the layer's own CRS units (meters for a projected CRS, degrees for a geographic one -- see this tool's own description).",
             },
+            "only_selected": {
+                "type": "boolean",
+                "description": "If true, buffer only the layer's currently-selected features instead of the whole layer. Errors if nothing is selected, rather than silently falling back to the full layer.",
+            },
         },
         "required": ["layer_name", "distance"],
     },
 )
-def buffer_analysis(layer_name, distance):
+def buffer_analysis(layer_name, distance, only_selected=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    if only_selected and layer.selectedFeatureCount() == 0:
+        # Same fail-loudly-not-silently-wrong choice as export_tools.py's _write_vector:
+        # a caller explicitly asking to buffer "just these features" getting the WHOLE
+        # layer back instead, with no error, is a much worse failure mode than an
+        # explicit error here -- confirmed live 2026-09-24: "buffer 5 km around active
+        # GDACS alerts X,Y" with no selected-only option meant the model had no way to
+        # scope the buffer to just those 2 alerts at all.
+        return {
+            "error": "only_selected=True was requested, but the layer has no features "
+            "currently selected. Select the target features first (select_by_attribute "
+            "or highlight_features), or omit only_selected to buffer the whole layer "
+            "intentionally."
+        }
+
     try:
+        buffer_input = (
+            QgsProcessingFeatureSourceDefinition(layer.id(), selectedFeaturesOnly=True)
+            if only_selected else layer
+        )
         params = {
-            "INPUT": layer,
+            "INPUT": buffer_input,
             "DISTANCE": distance,
             "SEGMENTS": 5,
             "END_CAP_STYLE": 0,
@@ -196,6 +224,8 @@ def buffer_analysis(layer_name, distance):
             "success": True,
             "layer_name": new_name,
             "action_chips": intel_res.get("action_chips", []),
+            "only_selected_features": bool(only_selected),
+            "input_feature_count": layer.selectedFeatureCount() if only_selected else layer.featureCount(),
         }
         if intel_res.get("findings"):
             result["map_quality_findings"] = intel_res["findings"]

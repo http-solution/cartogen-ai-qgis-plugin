@@ -1196,6 +1196,71 @@ class TestBufferAnalysisCrsWarning(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
 
+class TestBufferAnalysisOnlySelected(unittest.TestCase):
+    """only_selected added 2026-09-24: a live report ("buffer 5 km around active GDACS
+    alerts X,Y") had no way to scope buffer_analysis to specific features -- it always
+    buffered the whole layer regardless of any selection, the same silent-wrong-scope
+    risk export_tools.py's _write_vector already guards against for only_selected."""
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_only_selected_with_nothing_selected_is_a_clean_error(self, mock_find):
+        layer = MagicMock()
+        layer.selectedFeatureCount.return_value = 0
+        mock_find.return_value = layer
+
+        res = buffer_analysis("alerts", 5000, only_selected=True)
+
+        self.assertIn("error", res)
+        self.assertIn("no features", res["error"])
+        self.assertIn("currently selected", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProcessingFeatureSourceDefinition", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_only_selected_wraps_input_with_selected_features_only(
+        self, mock_find, mock_processing, mock_source_def, mock_project
+    ):
+        layer = MagicMock()
+        layer.selectedFeatureCount.return_value = 2
+        layer.crs.return_value.isGeographic.return_value = False
+        layer.id.return_value = "alerts_layer_id"
+        mock_find.return_value = layer
+        mock_processing.run.return_value = {"OUTPUT": MagicMock()}
+        mock_source_def.return_value = "wrapped-selected-only-source"
+
+        res = buffer_analysis("alerts", 5000, only_selected=True)
+
+        self.assertTrue(res["success"], res)
+        self.assertTrue(res["only_selected_features"])
+        self.assertEqual(res["input_feature_count"], 2)
+        mock_source_def.assert_called_once_with("alerts_layer_id", selectedFeaturesOnly=True)
+        self.assertEqual(mock_processing.run.call_args[0][1]["INPUT"], "wrapped-selected-only-source")
+
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.vector_tools._find_layer_by_name")
+    def test_default_still_buffers_the_whole_layer(self, mock_find, mock_processing, mock_project):
+        # only_selected defaults to False -- existing callers that never pass it must be
+        # completely unaffected by this change.
+        layer = MagicMock()
+        layer.crs.return_value.isGeographic.return_value = False
+        layer.featureCount.return_value = 40
+        mock_find.return_value = layer
+        mock_processing.run.return_value = {"OUTPUT": MagicMock()}
+
+        res = buffer_analysis("alerts", 5000)
+
+        self.assertTrue(res["success"], res)
+        self.assertFalse(res["only_selected_features"])
+        self.assertEqual(res["input_feature_count"], 40)
+        self.assertIs(mock_processing.run.call_args[0][1]["INPUT"], layer)
+        layer.selectedFeatureCount.assert_not_called()
+
+
 class TestRenameAndToggleVisibility(unittest.TestCase):
     """rename_layer/toggle_visibility: no test coverage at all before QUAL-006
     (2026-09-14 audit)."""
