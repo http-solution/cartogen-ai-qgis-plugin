@@ -260,6 +260,107 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("unexpected response shape", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    def test_missing_eventid_is_empty_string_not_the_literal_none(self, mock_urlopen):
+        """str(props.get("eventid")) used to turn a genuinely missing eventid into the
+        literal string "None" -- indistinguishable from a real event ID and wrongly
+        implying every ID-less alert shares one "event"."""
+        payload = {"features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [35.0, 31.0]},
+             "properties": {"eventtype": "EQ", "eventname": "Quake A", "alertlevel": "Red",
+                             "country": "Jordan"}},
+        ]}
+        mock_urlopen.return_value = _mock_response(json.dumps(payload))
+        res = hz.fetch_gdacs_disaster_alerts_network_phase()
+        self.assertEqual(res["alerts"][0]["unit"], "")
+
+
+class TestGdacsAndEonetLayersHaveAnEventIdField(unittest.TestCase):
+    """2026-09-24 live report: 'buffer 5 km around active GDACS alerts X,Y' had no field to
+    select those specific alerts by -- GDACS/EONET's own event id was returned in each
+    tool's JSON result but never stored as a layer attribute, so a request naming specific
+    alerts/events had nothing to filter on. Verifies the fix at the layer-building level,
+    with QGIS mocked out (this sandbox has no real QGIS)."""
+
+    def _fake_layer(self, field_names):
+        class _FakeQgsField:
+            def __init__(self, name):
+                self._name = name
+            def name(self):
+                return self._name
+            def length(self):
+                return 500
+
+        class _FakeQgsFields:
+            def __init__(self, names):
+                self._names = names
+            def __iter__(self):
+                return iter(_FakeQgsField(n) for n in self._names)
+            def field(self, name):
+                return _FakeQgsField(name)
+
+        layer = MagicMock()
+        layer.isValid.return_value = True
+        layer.fields.return_value = _FakeQgsFields(field_names)
+        layer.getFeatures.return_value = []
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools._find_layer_by_name", return_value=None)
+    def test_gdacs_layer_stores_event_id_from_eventid(
+        self, mock_find, mock_layer_cls, mock_point_xy, mock_geometry, mock_feature, mock_project
+    ):
+        layer = self._fake_layer(
+            ["event_id", "event_type", "name", "description", "alert_level",
+             "country", "from_date", "to_date"]
+        )
+        mock_layer_cls.return_value = layer
+
+        fetch_result = {
+            "success": True, "alerts": [
+                {"unit": "5189969", "lat": 31.0, "lon": 35.0, "event_type": "EQ",
+                 "name": "Quake A", "description": "", "alert_level": "Red",
+                 "country": "Jordan", "from_date": "", "to_date": ""},
+            ],
+        }
+
+        res = hz.add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result)
+
+        self.assertTrue(res["success"], res)
+        set_attribute_calls = mock_feature.return_value.setAttribute.call_args_list
+        self.assertIn(("event_id", "5189969"), [c.args for c in set_attribute_calls])
+
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsPointXY", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools._find_layer_by_name", return_value=None)
+    def test_eonet_layer_stores_event_id_from_unit(
+        self, mock_find, mock_layer_cls, mock_point_xy, mock_geometry, mock_feature, mock_project
+    ):
+        layer = self._fake_layer(["event_id", "title", "category", "date", "closed", "link"])
+        mock_layer_cls.return_value = layer
+
+        fetch_result = {
+            "success": True, "events": [
+                {"unit": "EONET_6543", "lat": 31.0, "lon": 35.0, "title": "Storm A",
+                 "category": "Severe Storms", "date": "", "closed": None, "link": ""},
+            ],
+        }
+
+        res = hz.add_nasa_eonet_events_layer_main_thread_phase(fetch_result)
+
+        self.assertTrue(res["success"], res)
+        set_attribute_calls = mock_feature.return_value.setAttribute.call_args_list
+        self.assertIn(("event_id", "EONET_6543"), [c.args for c in set_attribute_calls])
+
 
 class _FakeField:
     def __init__(self, width):

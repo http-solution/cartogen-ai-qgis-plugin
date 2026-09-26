@@ -404,8 +404,13 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         layer = QgsVectorLayer(
-            "Point?crs=EPSG:4326&field=title:string(255)&field=category:string(255)"
-            "&field=date:string(30)&field=closed:string(30)&field=link:string(500)",
+            # event_id: same fix and same rationale as GDACS's identical field, added
+            # the same day -- EONET's own event id (e.g. "EONET_6543") was already
+            # returned in this tool's JSON result but never stored as an attribute, so
+            # a request naming a specific event had no field to select it by.
+            "Point?crs=EPSG:4326&field=event_id:string(30)&field=title:string(255)"
+            "&field=category:string(255)&field=date:string(30)&field=closed:string(30)"
+            "&field=link:string(500)",
             layer_name, "memory",
         )
         if not layer.isValid():
@@ -414,6 +419,7 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
 
     rows = [{
         "__geom__": QgsGeometry.fromPointXY(QgsPointXY(e["lon"], e["lat"])),
+        "event_id": e.get("unit") or "",
         "title": e.get("title", ""),
         "category": e.get("category", ""),
         "date": e.get("date", ""),
@@ -440,7 +446,10 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
     "box, and load them as a point layer (each event's most recent known position). Free, no API "
     "key. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as "
     "fetch_nasa_active_fires and search_stac_satellite_imagery. Re-running this tool REPLACES the "
-    "layer's features with the latest fetch, so it's safe to schedule on a recurring interval.",
+    "layer's features with the latest fetch, so it's safe to schedule on a recurring interval. "
+    "Each returned event's 'unit' value is also stored on the layer as an 'event_id' field -- to "
+    "act on a SPECIFIC named event, select by that field (select_by_attribute, or "
+    "highlight_features for several) rather than operating on the whole layer.",
     {
         "type": "object",
         "properties": {
@@ -524,8 +533,14 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
         rank = _GDACS_ALERT_RANK.get(str(alert_level).strip().lower(), -1)
         if rank < min_rank:
             continue
+        raw_eventid = props.get("eventid")
+        # str(None) is the literal string "None", not an absent value -- this used to
+        # leak into both the JSON handed to the model and (once event_id became a real
+        # layer field below) the actual attribute table, wrongly implying every
+        # ID-less alert shared one real event ID "None".
+        eventid = str(raw_eventid) if raw_eventid is not None else ""
         alerts.append({
-            "unit": str(props.get("eventid")),
+            "unit": eventid,
             "lat": lat, "lon": lon,
             "event_type": props.get("eventtype", ""),
             "name": props.get("eventname", props.get("name", "")),
@@ -549,9 +564,14 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         layer = QgsVectorLayer(
-            "Point?crs=EPSG:4326&field=event_type:string(10)&field=name:string(255)"
-            "&field=description:string(500)&field=alert_level:string(20)&field=country:string(255)"
-            "&field=from_date:string(30)&field=to_date:string(30)",
+            # event_id (added 2026-09-24, live report: "buffer 5 km around active GDACS
+            # alerts X,Y" had no field to select those specific alerts by -- GDACS's own
+            # eventid was returned in this tool's JSON result but never stored as an
+            # attribute, so a request naming specific alerts had nothing to filter on and
+            # burned many tool calls trying other ways to identify/isolate them).
+            "Point?crs=EPSG:4326&field=event_id:string(20)&field=event_type:string(10)"
+            "&field=name:string(255)&field=description:string(500)&field=alert_level:string(20)"
+            "&field=country:string(255)&field=from_date:string(30)&field=to_date:string(30)",
             layer_name, "memory",
         )
         if not layer.isValid():
@@ -560,6 +580,7 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
 
     rows = [{
         "__geom__": QgsGeometry.fromPointXY(QgsPointXY(a["lon"], a["lat"])),
+        "event_id": a.get("unit", ""),
         "event_type": a.get("event_type", ""),
         "name": a.get("name", ""),
         "description": a.get("description", ""),
@@ -596,7 +617,11 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
     "GDACS alerts for Yemen') rather than giving coordinates, pass country (e.g. country='Yemen') "
     "-- omitting BOTH bbox and country returns every alert worldwide, which is very rarely what a "
     "place-scoped request actually wants. Re-running this tool REPLACES the layer's features with "
-    "the latest fetch, so it's safe to schedule on a recurring interval.",
+    "the latest fetch, so it's safe to schedule on a recurring interval. Each returned alert's "
+    "'unit' value is also stored on the layer as an 'event_id' field -- to act on SPECIFIC named "
+    "alerts (e.g. 'buffer around alerts 123,456'), select by that field (select_by_attribute for "
+    "one, or highlight_features with \"event_id IN ('123','456')\" for several) rather than "
+    "operating on the whole layer.",
     {
         "type": "object",
         "properties": {
