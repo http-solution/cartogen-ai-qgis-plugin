@@ -997,6 +997,37 @@ tool's registered description). Shape A step 2 (wiring `safer_getattr` itself in
 environment) and Shape B (`compile_restricted` adoption) remain exactly as scoped above — not
 started, no change from this update.
 
+### 1.12 `tool_router.py`'s top-40 filter — semantic-router prototyped, not committed either way
+
+**Added 2026-09-27.** Alaa asked to scope `semantic-router` (aurelio-labs) as a replacement for
+`filter_relevant_tools`'s keyword/alias scoring, following up on BUG-2026-09-13-1 (a real live
+failure: a query sharing no vocabulary with its target tool's name/description scored zero and
+never made the candidate set, fixed there by adding `_TOOL_ALIASES` entries plus fuzzy-typo
+correction). `docs/SEMANTIC_ROUTER_TOOL_FILTER_SCOPE_2026-09-27.md` scopes it — installed
+`semantic-router` v0.1.16 and ran it live against all 178 of this project's real registered tools
+and the exact hard cases `_TOOL_ALIASES` exists to fix, not a toy example set. **Two-sided
+result, unlike the RestrictedPython/Presidio docs the same day:**
+
+- **Zero extra authoring** (the tool's own already-registered description as the sole input) —
+  the realistic "just point it at what we have" deployment — **performs worse than today**: 4 of
+  the 5 known hard cases from `_TOOL_ALIASES` didn't even make the top 40 out of 178, where the
+  existing alias entries make all 5 score positively today.
+- **With ~4-5 authored example phrasings per tool** (comparable effort to what `_TOOL_ALIASES`
+  already costs per entry) — all 5 hard cases correct, plus real generalization to genuinely
+  novel paraphrases (3 of 4 correct) that literal alias/keyword matching cannot match at any
+  authoring effort.
+
+So the real finding is that semantic similarity does not remove the "someone must write realistic
+phrasings per tool" cost `_TOOL_ALIASES` already pays — it moves it from alias words to example
+sentences, at comparable cost — and only pays off with that investment made, not for free.
+**Recommendation: prototype further, not a yes or a no** — the scope doc names four concrete
+prerequisites a real prototype needs (authored utterances for all 178 tools, not 5; a real
+embedding backend decision — `OllamaEncoder` flagged as the natural fit since this project
+already ships Ollama, untested here for lack of a local server; a measured A/B against real query
+logs, not hand-picked hard cases; a hybrid-vs-replacement design decision), none sized or started.
+Not built. `semantic-router`/`spacy`/`en_core_web_md` removed from this environment after
+testing; not a dependency of this repo.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
