@@ -485,6 +485,18 @@ class TestNewTools(unittest.TestCase):
             snippet = f"def run():\n    x = 1\n    return x.{attr}"
             self.assertIsNotNone(_validate_script_safety(snippet), snippet)
 
+    def test_blocks_names_folded_from_restrictedpython_inspect_attributes(self):
+        """2026-09-27: docs/RESTRICTEDPYTHON_SANDBOX_LAYER_SCOPE_2026-09-27.md's Shape A step 1
+        -- 10 frame/code/generator/coroutine attribute names folded from RestrictedPython's
+        upstream `INSPECT_ATTRIBUTES` list (v8.5), covering the same attack surface as the
+        f_back/tb_frame/etc. names above but not yet independently found live by this project."""
+        for attr in (
+            "f_generator", "f_trace", "co_code", "gi_code", "gi_yieldfrom",
+            "cr_await", "cr_code", "cr_origin", "ag_await", "ag_code",
+        ):
+            snippet = f"def run():\n    x = 1\n    return x.{attr}"
+            self.assertIsNotNone(_validate_script_safety(snippet), snippet)
+
     def test_execute_pyqgis_script_rejects_frame_traceback_escape_end_to_end(self):
         """Same PoC as above, run through execute_pyqgis_script itself (not just
         the validator function directly) -- confirms the fix actually protects the

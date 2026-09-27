@@ -230,6 +230,24 @@ _BLOCKED_DUNDER_ATTRS = {
     # so there is currently no live path to reach TOOL_REGISTRY from inside a script at all --
     # closed as a side effect of the 2026-09-23 cartogen_ai import block, not by a new fix here.
     "write", "authManager",
+    # Added 2026-09-27, per docs/RESTRICTEDPYTHON_SANDBOX_LAYER_SCOPE_2026-09-27.md's Shape A
+    # step 1: the frame/traceback/generator/coroutine names above (f_back/f_globals/.../tb_next)
+    # were each found the hard way, one live-adversarial sweep at a time. RestrictedPython
+    # (Zope Foundation, v8.5, verified live against this exact bypass class before this fold --
+    # see that doc) maintains `RestrictedPython.transformer.INSPECT_ATTRIBUTES`, a superset
+    # covering this same attack surface. These 10 names are the ones in that upstream list this
+    # project hadn't independently found yet: f_generator/f_trace (frame), co_code (code
+    # objects -- reachable via f_code above), gi_code/gi_yieldfrom (generators, alongside the
+    # already-blocked gi_frame), cr_code/cr_await/cr_origin (coroutines, alongside cr_frame),
+    # ag_code/ag_await (async generators, alongside ag_frame). Copied as literal names, not a
+    # live `from RestrictedPython import ...` -- this sandbox's denylist must stay active
+    # whether or not that optional package happens to be installed, matching every other name
+    # in this set, which is stdlib-only by design. Not verified live as an actual bypass the way
+    # every other entry in this set was (no live-confirmed PoC exists for these 10 specifically);
+    # added on the strength of RestrictedPython's own tracking of this exact attack surface, per
+    # the same "same shape of gap" reasoning this whole set already documents.
+    "f_generator", "f_trace", "co_code", "gi_code", "gi_yieldfrom",
+    "cr_await", "cr_code", "cr_origin", "ag_await", "ag_code",
 }
 # Qt classes with file, process, network, or dynamic-library capability --
 # confirmed live that QDirIterator (from `qgis.PyQt.QtCore`, a module that
