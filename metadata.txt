@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc5
+version=1.16.0-rc6
 author=Alaa Alshoubaki
 email=alaa.alshoubaki@gmail.com
 
@@ -23,7 +23,20 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc5 (2026-09-24):
+changelog=v1.16.0-rc6 (2026-09-27):
+    Release candidate 6 for 1.16.0. No breaking changes -- still requires QGIS 4.2+.
+    - Fix: a query naming a time threshold in words ("beyond one hour's travel") no longer gets silently reinterpreted as a 5 km distance default -- the pattern now recognizes spelled-out numbers and plurals ("one hour's", "2 hours", "30 minutes"), not just digits with a singular unit.
+    - Fix: ingest_osm_features retries a transient Overpass failure (504/429) instead of spending a whole tool call on it; a road network now ingests as real lines (was: one point per vertex, no lines at all), and a point-typed layer is refused as a road network with a clear error instead of silently producing meaningless results.
+    - Fix: an in-place upgrade over a running install no longer fails with a stale-module ImportError -- cached cartogen_ai.* modules are evicted on every load, not just when the plugin folder's path changes.
+    - Fix: automatic model selection now actually takes effect (it previously kept sending the configured default on every request) and never escalates to an expensive or special-purpose model.
+    - Fix: network analysis (service area, travel-time matrix, delivery routes) now measures in real metres/hours regardless of the layers' CRS or the project's ellipsoid setting, and no longer silently routes from the wrong place when an origin/stop layer's CRS differs from the road network's.
+    - Fix: a large road network no longer freezes QGIS during routing -- it now runs in the background with a Stop button and progress, and calculate_service_area routes only over roads that can actually be reached (same result, much faster).
+    - Fix: GDACS/NASA EONET alerts now carry their event ID as a layer field, so "buffer around alert X" can select that one alert instead of the whole layer; buffer_analysis gained only_selected to scope an operation to a selection.
+    - New, opt-in: estimate_road_speeds writes an assumed per-road-class speed field onto a road network when real speed-limit data is sparse or absent (never run automatically -- the model is told to say the result is an estimate, not the network's real speed limits).
+    - New, opt-in: before a road-network request, the assistant now offers to download a full local country/region extract (Geofabrik) instead of relying on the live, rate-limited Overpass API for a small area.
+    - Docs: 5 scoping documents evaluating third-party libraries for known pain points (RestrictedPython, Presidio, semantic-router, LanceDB/Chroma, Instructor/Outlines) -- one small, verified fold into the sandbox's denylist shipped; the rest recommend against adoption or further prototyping, not built. The exact-ZIP clean-profile install/upgrade check (docs/IMPLEMENTATION_TRACKER.md #1.10) is now closed with a real QGIS session, not just headless tool code -- toolbar icon, Plugins-menu entry, and an in-place upgrade all confirmed rendering/working cleanly.
+
+v1.16.0-rc5 (2026-09-24):
     Release candidate 5 for 1.16.0. Requires QGIS 4.2 or later: QGIS 3.x support is dropped (qgisMinimumVersion 3.28 -> 4.2), so QGIS 3.x will treat this release as incompatible and users there stay on the version they have.
     - New, all OFF by default: a cloud-provider data-protection gate (Settings > Cloud data protection: Off / Warn only / Block, plus strict) that stops a tool call or a file attachment from sending a layer tagged RESTRICTED/SENSITIVE -- or one derived from it -- to a non-local AI provider; a plan-validation gate requiring create_plan before DELETE/PUBLISH tools; and a Project Inspector that adds print layouts, map themes and project metadata to the model's context.
     - New tool: create_project_folder_structure, an opt-in project folder layout (data/00_raw for immutable source data, staging, processed, exports and more). Only creates missing folders, never overwrites.
