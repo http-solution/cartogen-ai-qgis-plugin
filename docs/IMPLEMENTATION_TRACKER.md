@@ -423,6 +423,28 @@ already sees it); the guard fails CI if that stops being true and was mutation-c
 unit suite 2095 passing, and the full live QGIS suite (46 tests) locally against real QGIS 4.2.2.
 Still open: the scope doc's §7 decisions, a layer-classification UX, override records.
 
+**Update, 2026-09-27 — Presidio (outbound PII scanning) scoped and NOT recommended.** Alaa asked
+whether `Presidio` (Microsoft) could close the two gaps `SECURITY.md` names honestly (user-typed
+text and the model repeating prior content are not gated) by scanning outbound content for PII.
+`docs/PRESIDIO_EGRESS_SCAN_SCOPE_2026-09-27.md` scopes it — and finds this project already
+evaluated and rejected exactly this approach as option **G4** in the original
+`OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md` ("unreliable in exactly the cases that matter...
+and it creates false assurance. Not recommended as the boundary"). Installed `presidio-analyzer`
+v2.2.364 and ran it live against text shaped like this project's real humanitarian data to check
+whether the real library changes that verdict. It does not — the live evidence is stronger than
+the original reasoning anticipated: on **Arabic-script beneficiary names** (this plugin's own
+primary use-case language, per `CLAUDE.md`), Presidio doesn't degrade gracefully, it produces
+**confidently wrong output** — flagging ordinary words ("the beneficiary", "camp number five") as
+`PERSON` while missing the real name entirely, and (separately) mislabeling a geographic
+coordinate as a `PHONE_NUMBER` (Presidio ships no coordinate recognizer at all). Retested with a
+multilingual model (`xx_ent_wiki_sm`) specifically to rule out "wrong model, not wrong approach" —
+same failure shape (missed the real name; flagged a non-name phrase instead). **Recommendation:
+do not build this** — not deferred, actively not recommended, since the false-assurance risk is
+worse on this project's own core content than a generic "PII detection is imperfect" caveat would
+suggest. The tag-and-lineage gate (`egress_gate.py`) remains the actual, unchanged mechanism.
+`presidio-analyzer` and its models were removed from this environment after testing; not a
+dependency of this repo.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
