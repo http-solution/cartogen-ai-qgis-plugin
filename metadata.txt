@@ -10,7 +10,6 @@ qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
 version=1.16.0-rc6
 author=Alaa Alshoubaki
-email=alaa.alshoubaki@gmail.com
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
 

@@ -293,5 +293,5 @@ top of this file.)
 
 ## Support
 
-For issues or questions, contact
-[alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com).
+For issues or questions, use the
+[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues).
