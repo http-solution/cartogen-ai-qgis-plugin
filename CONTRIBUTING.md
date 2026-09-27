@@ -33,9 +33,9 @@ already says that.
 ## 2. State what's shipped, roadmap, and unverified — honestly, in the code itself
 
 This project's docs are full of sentences like "not yet built," "roadmap only," "unverified against
-a live response in this environment." That's not hedging — it's the reason `docs/PRODUCT_TIERS.md`
-and `docs/archive/STATUS_REVIEW_2026-08-20.md` can be trusted as an accurate picture of the product instead
-of aspirational marketing that quietly drifted away from the real codebase.
+a live response in this environment." That's not hedging — it's the reason `docs/archive/STATUS_REVIEW_2026-08-20.md`
+can be trusted as an accurate picture of the product instead of aspirational marketing that quietly
+drifted away from the real codebase.
 
 This discipline belongs in code, not just docs. `agent/providers/cartogen.py`'s module docstring is
 the clearest recent example — it states plainly that it's a stub, lists exactly what it is *not*
@@ -85,12 +85,9 @@ If you're not sure which category something falls into, treat it as the second o
 ## 5. Single tree, one public codebase
 
 This repo is a single source tree — there's no second copy to keep in sync (an earlier version of
-this project maintained a dual-tree setup; see `CHANGELOG.md`'s `[1.4.0]` entry). It is also, by
-design, the *only* codebase for the Community edition. Pro and Enterprise (see
-`docs/PRODUCT_TIERS.md`) are not built as tiers inside this repo — they're planned for a separate
-private repo that syncs from this one (`docs/archive/OPEN_CORE_REPO_STRATEGY.md`). **Do not add
-tier-check or license-gating logic here** — that's out of scope for this repo by design, not
-just unbuilt yet.
+this project maintained a dual-tree setup; see `CHANGELOG.md`'s `[1.4.0]` entry). It's a single,
+open-source GPL v2 codebase. **Do not add tier-check or license-gating logic here** — that's out
+of scope for this repo by design.
 
 ## 6. Release tag naming: `cartogen-ai-v<version>`, not `commercial-plugin-v<version>`
 

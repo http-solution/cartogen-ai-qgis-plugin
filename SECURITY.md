@@ -256,9 +256,9 @@ class, but worth stating rather than leaving implicit.
 raw message to the same already-configured provider a second time before the real
 turn runs. Same credentials, same trust boundary as the rest of the plugin, not a new
 vulnerability class — but enabling this feature doubles how many times a given message
-leaves the machine to an external provider, which matters for any "private data
-enclave" claim (see `docs/PRODUCT_TIERS.md`'s Enterprise tier, honestly marked as not
-built).
+leaves the machine to an external provider. There is no hosted, private-data-enclave
+option in this codebase — every request goes directly from your machine to whichever
+provider you've configured.
 
 ## Testing performed
 

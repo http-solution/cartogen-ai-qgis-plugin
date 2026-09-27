@@ -8,11 +8,10 @@ superseded conclusions; that's expected, not a bug -- see `docs/IMPLEMENTATION_T
 what's actually still open right now, and `README.md`'s Documentation table for what each of
 these files covers.
 
-Nothing in this folder is deleted or historical trivia -- several are still the authoritative
-source for a decision or design that's still in effect (e.g. `OPEN_CORE_REPO_STRATEGY.md`,
-`MULTITIER_REPO_ARCHITECTURE_SPEC.md`). They're archived by *age and one-off nature*, not by
-relevance -- moved here in 2026-08-31's documentation pass so `docs/`'s top level only shows the
-living references and trackers you'd actually check first.
+Nothing in this folder is historical trivia -- several are still the authoritative
+source for a decision or design that's still in effect. They're archived by *age and one-off
+nature*, not by relevance -- moved here in 2026-08-31's documentation pass so `docs/`'s top level
+only shows the living references and trackers you'd actually check first.
 
 ## Index
 
@@ -31,18 +30,12 @@ living references and trackers you'd actually check first.
 | [IMPLEMENTATION_TASK_LIST.md](IMPLEMENTATION_TASK_LIST.md) | PRD implementation task list, verified against code |
 | [JIAF_MULTISECTOR_COMPOSITE_SPEC.md](JIAF_MULTISECTOR_COMPOSITE_SPEC.md) | Spec (roadmap, not shipped): combining per-sector severity indices into one intersectoral estimate, grounded in JIAF 2.0's Mosaic Method |
 | [LICENSE_AUDIT.md](LICENSE_AUDIT.md) | License compliance audit of every dependency and external data source |
-| [MULTITIER_REPO_ARCHITECTURE_SPEC.md](MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the open-core split: namespace package layout, QGIS loading path, sync workflow, distribution channels |
-| [OPEN_CORE_REPO_STRATEGY.md](OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo |
 | [PROJECT_EXECUTION_PLAN.md](PROJECT_EXECUTION_PLAN.md) | Phase 1 delivery control plan: product objective and execution sequencing |
 | [PROMPT_REFINEMENT_LAYER_SPEC.md](PROMPT_REFINEMENT_LAYER_SPEC.md) | Spec (roadmap, not shipped): interactive prompt-refinement step before agent processing |
-| [PRO_TIER_BUILD_PLAN_2026-08-21.md](PRO_TIER_BUILD_PLAN_2026-08-21.md) | Professional-tier build plan (not a commitment, nothing built) |
 | [ROUTE_OPTIMIZATION_STRATEGY.md](ROUTE_OPTIMIZATION_STRATEGY.md) | Strategy (not yet applied): closing the accuracy gap in `logistics_tools.py`'s routing tools, plus a standalone OSMnx/NetworkX prototype |
 | [ROUTE_RISK_AND_NOGO_ZONES_SPEC.md](ROUTE_RISK_AND_NOGO_ZONES_SPEC.md) | Spec (roadmap, not shipped): time-windowed incident trends, route-vs-incident risk scoring, no-go zones as routing hard-excludes |
 | [SAM_IMAGERY_EXTRACTION_SPEC.md](SAM_IMAGERY_EXTRACTION_SPEC.md) | Spec for SAM-family imagery feature extraction — shipped 2026-08-17 |
-| [SECTOR_PRODUCT_STRATEGY.md](SECTOR_PRODUCT_STRATEGY.md) | Sector product strategy across humanitarian, engineering, urban planning, and logistics mapping |
-| [SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md](SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md) | Combined security and competitive-position review |
 | [STATUS_REVIEW_2026-08-20.md](STATUS_REVIEW_2026-08-20.md) | Full-codebase status review: architecture, tool registry, security, docs, open items, next steps |
-| [TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md](TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md) | Proposal (not decided/shipped): Community/Pro/Full-Direct-Connect tiers gated on tool set + connectivity |
 | [TRANSPARENCY_CARDS.md](TRANSPARENCY_CARDS.md) | Procurement/compliance-reviewer summary of how higher-risk actions actually behave, cross-referenced to `SECURITY.md` |
 | [UX_DOCUMENTATION_AUDIT_2026-08-31.md](UX_DOCUMENTATION_AUDIT_2026-08-31.md) | UX and documentation audit of the shipped plugin as it actually behaves and reads |
 | [WEB_MAPPING_ARCHITECTURE.md](WEB_MAPPING_ARCHITECTURE.md) | Ground-up implementation notes for the proposed web mapping architecture |

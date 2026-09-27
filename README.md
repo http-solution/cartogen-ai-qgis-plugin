@@ -108,14 +108,10 @@ black-box answer.
 
 ## Editions
 
-This release is the **Community edition** — free, GPL v2, everything in this README and in
-[docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), no account or license key. It runs fully offline
-via a local Ollama server, or with a cloud provider using your own API key.
-
-A Professional (hosted cloud-model gateway) and Enterprise (RBAC/SSO, private deployment, M365
-integration) tier are planned but **not yet built** — nothing in this repository is tier-gated today.
-See [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) for the honest breakdown of what's shipped versus
-roadmap for each.
+This is a free, GPL v2 open-source project — everything in this README and in
+[docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), no account or license key required. It runs fully
+offline via a local Ollama server, or with any cloud provider using your own API key. Nothing in this
+repository is tier-gated.
 
 ## Installation
 
@@ -216,7 +212,6 @@ the folder directly on GitHub.
 
 | Doc | Covers |
 |---|---|
-| [docs/PRODUCT_TIERS.md](docs/PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
 | [docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md](docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md) | Cartographic design/QA standards the agent's styling and layout tools follow |
 | [docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md](docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
 
@@ -229,8 +224,6 @@ every archived file; a few of particular note:
 
 | Doc | Covers |
 |---|---|
-| [docs/archive/OPEN_CORE_REPO_STRATEGY.md](docs/archive/OPEN_CORE_REPO_STRATEGY.md) | Decided (not yet built): public repo stays open Community core, Pro/Enterprise built in a separate private repo, one-way sync, license-key-gated distribution |
-| [docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md](docs/archive/MULTITIER_REPO_ARCHITECTURE_SPEC.md) | Technical spec for the above: `src/cartogen_ai` namespace package layout, QGIS loading path, sync-workflow history-protection details, distribution channels per edition |
 | [docs/archive/STATUS_REVIEW_2026-08-20.md](docs/archive/STATUS_REVIEW_2026-08-20.md) | Full-codebase status review: architecture, tool registry, security, docs, open items, next steps |
 | [docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md](docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md) | Audit of which destructive tools have the preview/confirm safety gate and which don't, with an open product decision on 4 humanitarian analysis tools |
 | [docs/archive/DOCUMENTATION.md](docs/archive/DOCUMENTATION.md) | Earlier, superseded full-repo documentation pass |

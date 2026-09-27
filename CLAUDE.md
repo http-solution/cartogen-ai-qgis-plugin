@@ -110,18 +110,10 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 > Whether/when to actually publish a public repo, and under what name, is a release decision
 > for Alaa — not resolved here.
 
-Community, Pro, and Enterprise (`docs/PRODUCT_TIERS.md`) are three editions, but **not** three
-variants of this one codebase — this repo's *content* is designed to stay the single Community
-codebase, carrying no tier-check/licensing-gate logic (verified, still true) — see the
-correction note above for what "public" does and doesn't mean here today.
-Pro/Enterprise are planned to be built in a *separate private repo* that consumes this one as an
-upstream core (one-way sync, decided but not yet built — see `docs/archive/OPEN_CORE_REPO_STRATEGY.md`;
-confirmed 2026-09-14 that `cartogen-ai-enterprise`/`cartogen-ai-pro` locally are empty
-placeholder directories with no git repo at all, consistent with "not yet built").
-**Don't add tier-check/licensing-gate logic to this repo** — that kind of logic belongs in the
-private repo once it exists, not here. If you're ever asked to add tier-gating directly to this
-codebase, that's a sign the request conflicts with the decided architecture — flag it rather than
-implementing it.
+This repo is a single, GPL v2 open-source codebase — it carries no tier-check or licensing-gate
+logic (verified, still true), and it isn't a variant of anything else. **Don't add tier-check/
+licensing-gate logic to this repo.** If you're ever asked to add tier-gating directly to this
+codebase, flag it rather than implementing it.
 
 ## When you're not sure whether to just fix something
 
