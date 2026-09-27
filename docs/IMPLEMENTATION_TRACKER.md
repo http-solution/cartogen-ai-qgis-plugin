@@ -997,6 +997,28 @@ tool's registered description). Shape A step 2 (wiring `safer_getattr` itself in
 environment) and Shape B (`compile_restricted` adoption) remain exactly as scoped above — not
 started, no change from this update.
 
+**Update, 2026-09-27 — two of the process-isolation scoping doc's open risks narrowed further, per
+Alaa's request to scope the process-isolation decision.** `docs/EXECUTE_PYQGIS_SCRIPT_ISOLATION_
+SCOPE_2026-09-24.md` §9 (new): (1) the Phase 0 benchmark's flagged-unverified "how does a Windows
+QGIS desktop session locate a real spawnable Python interpreter, since `sys.executable` is
+`qgis-bin.exe` there" risk is resolved as an engineering unknown, not by a new live test (none
+available in this sandbox) but by research: confirmed as a known, currently-unfixed upstream QGIS
+bug ([qgis/QGIS#45646](https://github.com/qgis/QGIS/issues/45646); an attempted upstream fix,
+[qgis/QGIS#67318](https://github.com/qgis/QGIS/pull/67318), was closed unmerged 2026-09-18, so no
+QGIS version including 4.2.2 has an official helper), with a real, shipped, MIT-licensed QGIS
+plugin ([QPIP](https://github.com/opengisch/qpip)) already carrying a working, directly-adoptable
+per-platform lookup (`python_command()`, cites the same upstream bug) this project could reuse
+almost verbatim. Still needs live confirmation on a real QGIS 4.2.2 desktop install before Phase 1
+relies on it — resolved as "a known solution exists to adopt," not as "verified working here."
+(2) A concrete recommendation for the unsaved-mid-edit-session fidelity gap (§6 of that doc,
+previously three open options): block the call with an error if any layer has uncommitted edits,
+matching this project's existing fail-loudly-rather-than-guess convention elsewhere
+(`buffer_analysis`'s `only_selected` guard, the egress gate's block-by-default) — a recommendation
+for Alaa to accept or override, not decided unilaterally. **Neither of these changes the Phase 1
+go-ahead decision itself, which remains fully open and unscoped-for-timeline, exactly as every
+prior update in this entry has said** — this update narrows engineering unknowns a go-ahead
+decision would otherwise have to weigh, it isn't a substitute for that decision.
+
 ### 1.12 `tool_router.py`'s top-40 filter — semantic-router prototyped, not committed either way
 
 **Added 2026-09-27.** Alaa asked to scope `semantic-router` (aurelio-labs) as a replacement for
