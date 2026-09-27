@@ -98,7 +98,8 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > corrected to 178.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
-> `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23; everything since rc4, PRs #4–#22,
+> `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23 — renamed to `cartogen-ai-v1.16.0-rc5`
+> 2026-09-27, see `CONTRIBUTING.md` §6; everything since rc4, PRs #4–#22,
 > including #19 pulled in from `main` before tagging). The zip was built from a clean
 > `git archive` of the release branch and smoke-tested headless in real QGIS 4.2.2
 > (27/27 + 10/10, `docs/RELEASE_SMOKE_TEST.md`). It was then rebuilt from the merged commit:
