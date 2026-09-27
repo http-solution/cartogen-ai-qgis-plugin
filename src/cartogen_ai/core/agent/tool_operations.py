@@ -339,6 +339,7 @@ TOOL_OPERATION_TYPES = {
     "join_by_attribute": CREATE,
     "calculate_area": MODIFY,
     "calculate_length": MODIFY,
+    "estimate_road_speeds": MODIFY,
     "centroid": CREATE,
     "reproject_layer": CREATE,
     "fix_geometries": CREATE,
