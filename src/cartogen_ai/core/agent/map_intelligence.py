@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional
 try:
     from qgis.core import (
         QgsProject, QgsMapLayer, QgsVectorLayer, QgsWkbTypes,
-        QgsSimpleFillSymbolLayer,
-        QgsFillSymbol, QgsSingleSymbolRenderer,
+        QgsSimpleFillSymbolLayer, QgsSimpleLineSymbolLayer,
+        QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,
         QgsVectorLayerSimpleLabeling, QgsUnitTypes, QgsLabelObstacleSettings,
         QgsLayerTreeLayer,
@@ -42,7 +42,7 @@ except ImportError:
 @dataclass
 class MapOutputDescriptor:
     layer_id: str
-    output_role: str  # 'proximity_buffer', 'administrative_boundary', 'facilities', 'thematic_choropleth', 'hazard_extent', 'selection_overlay'
+    output_role: str  # 'proximity_buffer', 'administrative_boundary', 'facilities', 'thematic_choropleth', 'hazard_extent', 'selection_overlay', 'route_line'
     source_layer_id: Optional[str] = None
     geometry_role: str = "operational_overlay"  # 'focal_point', 'context_overlay', 'boundary', 'raster_dem', 'hillshade'
     recommended_label_field: Optional[str] = None
@@ -207,6 +207,22 @@ STYLE_PROFILES = {
         "join_style": "round",
         "default_hue": "#f59e0b",  # Amber
     },
+    # Every profile above is polygon-only (apply_component_symbology returned False for any
+    # line-geometry layer with no styling at all, every time -- routing/logistics-corridor
+    # output got QGIS's raw default new-layer symbology, never this engine's treatment).
+    # This is the standard professional "casing" technique for route/road lines: a slightly
+    # wider, darker outline beneath a narrower, brighter fill line, giving contrast against
+    # any basemap and visually distinguishing a real route from ordinary background linework
+    # -- the same technique OSM Carto, Mapbox Streets, and ArcGIS's own transportation symbol
+    # categories all use, documented in cartographic design references such as Krygier &
+    # Wood's "Making Maps: A Visual Guide to Map Design for GIS" (road/route symbolization).
+    "route_line": {
+        "stroke_width": 1.6,     # mm, the bright fill line on top
+        "casing_width": 2.6,     # mm, the darker outline beneath
+        "default_hue": "#ea580c",   # Orange -- distinct from every other profile's hue here
+        "casing_hue": "#7c2d12",    # Dark brown-red casing
+        "cap_style": "round",
+    },
 }
 
 
@@ -219,6 +235,8 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     profile = STYLE_PROFILES.get(profile_name, STYLE_PROFILES["proximity_buffer"])
 
     geom_type = layer.geometryType()
+    if geom_type == QgsWkbTypes.LineGeometry:
+        return _apply_line_component_symbology(layer, descriptor, profile)
     if geom_type != QgsWkbTypes.PolygonGeometry:
         return False
 
@@ -255,6 +273,47 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     symbol.changeSymbolLayer(0, symbol_layer)
     layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     layer.setOpacity(1.0)  # Keep overall layer at 100% so stroke remains sharp
+    layer.triggerRepaint()
+    return True
+
+
+def _apply_line_component_symbology(layer: 'QgsVectorLayer', descriptor: MapOutputDescriptor, profile: dict) -> bool:
+    """Standard road/route casing technique: a wider, darker outline layer beneath a
+    narrower, brighter fill layer, so a real routed line (optimize_delivery_route's
+    road-snapped output, a service-area reachable network, etc.) reads clearly against
+    any basemap instead of QGIS's raw default new-layer symbology every prior version of
+    this engine left it with. Falls back to STYLE_PROFILES['route_line'] for any profile
+    that has no line-specific keys (e.g. a caller passing a polygon profile name by mistake)."""
+    line_profile = profile if "casing_width" in profile else STYLE_PROFILES["route_line"]
+
+    base_color_hex = descriptor.properties.get("color") or line_profile["default_hue"]
+    fill_color = QColor(base_color_hex)
+    if not fill_color.isValid():
+        fill_color = QColor(STYLE_PROFILES["route_line"]["default_hue"])
+    casing_color = QColor(line_profile.get("casing_hue") or fill_color.darker(160).name())
+
+    round_cap = Qt.PenCapStyle.RoundCap if hasattr(Qt, "PenCapStyle") else getattr(Qt, "RoundCap", 32)
+    round_join = Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else getattr(Qt, "RoundJoin", 64)
+
+    casing_layer = QgsSimpleLineSymbolLayer()
+    casing_layer.setColor(casing_color)
+    casing_layer.setWidth(line_profile["casing_width"])
+    casing_layer.setWidthUnit(QgsUnitTypes.RenderMillimeters)
+    casing_layer.setPenCapStyle(round_cap)
+    casing_layer.setPenJoinStyle(round_join)
+
+    fill_layer = QgsSimpleLineSymbolLayer()
+    fill_layer.setColor(fill_color)
+    fill_layer.setWidth(line_profile["stroke_width"])
+    fill_layer.setWidthUnit(QgsUnitTypes.RenderMillimeters)
+    fill_layer.setPenCapStyle(round_cap)
+    fill_layer.setPenJoinStyle(round_join)
+
+    symbol = QgsLineSymbol()
+    symbol.changeSymbolLayer(0, casing_layer)
+    symbol.appendSymbolLayer(fill_layer)
+    layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+    layer.setOpacity(1.0)
     layer.triggerRepaint()
     return True
 

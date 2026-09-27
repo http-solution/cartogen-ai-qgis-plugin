@@ -971,6 +971,16 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
 
     route_layer.setName(route_name)
     QgsProject.instance().addMapLayer(route_layer)
+    # Map Intelligence Engine: standard road-casing line symbology (BUG-2026-09-27-3) --
+    # this call was previously missing entirely, so the route layer got QGIS's raw default
+    # new-layer symbology every time, same gap buffer_analysis's own process_map_output
+    # call (vector_tools.py) already closed for polygon outputs.
+    try:
+        from ..map_intelligence import process_map_output
+        process_map_output(route_layer, output_role="route_line")
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="optimize_delivery_route_styling",
+                  error_class=type(e).__name__, error=True)
     return route_name
 
 
@@ -1221,6 +1231,12 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 lines_layer.setName(lines_name)
                 QgsProject.instance().addMapLayer(lines_layer)
                 layers_created.append(lines_name)
+                try:
+                    from ..map_intelligence import process_map_output
+                    process_map_output(lines_layer, output_role="route_line")
+                except Exception as style_e:
+                    log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_styling",
+                              error_class=type(style_e).__name__, error=True)
                 # Matches the original single-band semantics exactly: a
                 # facility/band counts as "served" once its lines layer is
                 # built, regardless of whether hull-building below succeeds
