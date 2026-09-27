@@ -92,7 +92,23 @@ private repo that syncs from this one (`docs/archive/OPEN_CORE_REPO_STRATEGY.md`
 tier-check or license-gating logic here** — that's out of scope for this repo by design, not
 just unbuilt yet.
 
-## 6. Frozen historical docs
+## 6. Release tag naming: `cartogen-ai-v<version>`, not `commercial-plugin-v<version>`
+
+Every release tag through `commercial-plugin-v1.16.0-rc6` used the `commercial-plugin-` prefix.
+That name described the intended *distribution channel* (services-based monetization — support,
+hosting, custom integration — rather than code licensing; see `CHANGELOG_ARCHIVE.md`'s
+`[1.0.0-beta]` entry, 2026-08-11), not the license: this codebase has been GPL v2 since that first
+tag. Read on a repo whose own `LICENSE` says GPL v2, a tag literally named `commercial-plugin-`
+reads as a proprietary-licensing signal it was never meant to send.
+
+**Decided 2026-09-27 by Alaa: new tags use `cartogen-ai-v<version>` going forward** (e.g.
+`cartogen-ai-v1.17.0`, matching `metadata.txt`'s `version=` value). Existing `commercial-plugin-v*`
+tags are untouched — they're referenced by already-published GitHub Releases and by this repo's own
+historical record (`docs/MASTER_TASK_REGISTRY.md`, `docs/OPERATIONS_LOG.md`); per §7 below, that
+history isn't rewritten. Don't retag or rename old releases to match; just use the new prefix for
+the next one.
+
+## 7. Frozen historical docs
 
 `docs/archive/CARTOGEN_AI_FEATURE_LIST.md`, `docs/archive/CARTOGEN_AI_PRD.md`,
 `docs/archive/IMPLEMENTATION_TASK_LIST.md`, `CHANGELOG.md`'s past entries, and dated review/
