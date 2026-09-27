@@ -1,6 +1,6 @@
 # Humanitarian Cartography Standards
 
-This document records the compliance standard Baron supplied on 2026-09-03
+This document records the compliance standard the project owner supplied on 2026-09-03
 ("Comprehensive Humanitarian Operations and Mapping Standard Framework") and
 maps it against what Cartogen AI's tools actually do today, verified against
 the live source tree rather than assumed. It is the reference to check new
@@ -159,7 +159,7 @@ hypothetical.
 Logistics symbology (transit hubs, supply corridors, chokepoints,
 warehouses) was not directly checked in this pass.
 
-**Update, 2026-09-04: gap closed.** Baron decided to upgrade rather than
+**Update, 2026-09-04: gap closed.** The project owner decided to upgrade rather than
 block -- `optimize_delivery_route` now accepts an optional
 `road_network_layer` argument. When given, it chains
 `native:shortestpathpointtopoint` across each consecutive stop in the
@@ -187,7 +187,7 @@ vocabulary would close both this section's requirement and further reduce
 that fabrication surface. Dedicated checkpoint / mine-UXO tooling was not
 found in this pass and needs a closer look.
 
-**Update, 2026-09-04: gap closed for the coding-vocabulary half.** Baron
+**Update, 2026-09-04: gap closed for the coding-vocabulary half.** The project owner
 decided to support both named vocabularies rather than pick one.
 `add_incident_point`/`add_point_layer` now accept optional
 ACLED-style `event_type`/`sub_event_type` and IMSMA/IMAS-style
@@ -244,7 +244,7 @@ fit rather than fixing one problem at a time. That work is queued (see
 `docs/MASTER_TASK_REGISTRY.md`) to land alongside the live QGIS smoke test
 already on the queue, not ahead of it.
 
-~~Sections IV and V's gaps both hinge on a design decision only Baron can
+~~Sections IV and V's gaps both hinge on a design decision only the project owner can
 make -- whether `optimize_delivery_route`'s output should be blocked from
 feeding a final map/layout without a road-snapped route, or upgraded to
 build one; and which controlled vocabulary (if any) to adopt for incident

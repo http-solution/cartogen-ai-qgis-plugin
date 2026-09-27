@@ -25,11 +25,8 @@ by hand; if you add or move a doc, update both.
 | Doc | Covers |
 |---|---|
 | [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item, kept current as things resolve |
-| [MASTER_TASK_REGISTRY.md](MASTER_TASK_REGISTRY.md) | The full humanitarian mapping task register plus engineering task history |
 | [BUG_TRACKER.md](BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline |
 | [RELEASE_SMOKE_TEST.md](RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
-| [RELEASE_GOVERNANCE.md](RELEASE_GOVERNANCE.md) | Who can cut a release and the steps a release must follow |
-| [OPERATIONS_LOG.md](OPERATIONS_LOG.md) | Dated operational narrative — incidents, sandbox quirks, decisions made in the moment |
 | [QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md](QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) | 27-point production-readiness architecture review |
 | [CODE_REVIEW_2026-09-08.md](CODE_REVIEW_2026-09-08.md) | Dated code review with concrete findings |
 

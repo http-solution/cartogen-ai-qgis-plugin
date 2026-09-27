@@ -104,9 +104,9 @@ reads as a proprietary-licensing signal it was never meant to send.
 **Decided 2026-09-27 by Alaa: new tags use `cartogen-ai-v<version>` going forward** (e.g.
 `cartogen-ai-v1.17.0`, matching `metadata.txt`'s `version=` value). Existing `commercial-plugin-v*`
 tags are untouched — they're referenced by already-published GitHub Releases and by this repo's own
-historical record (`docs/MASTER_TASK_REGISTRY.md`, `docs/OPERATIONS_LOG.md`); per §7 below, that
-history isn't rewritten. Don't retag or rename old releases to match; just use the new prefix for
-the next one.
+historical record (`CHANGELOG.md`'s past entries, `docs/IMPLEMENTATION_TRACKER.md`'s dated journal
+entries); per §7 below, that history isn't rewritten. Don't retag or rename old releases to match;
+just use the new prefix for the next one.
 
 ## 7. Frozen historical docs
 

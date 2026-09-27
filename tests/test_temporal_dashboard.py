@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests for the animated/temporal dashboard feature added to
-agent/tools/export_tools.py -- Baron's "animated dashboard from several
+agent/tools/export_tools.py -- the project owner's "animated dashboard from several
 views ... status of fighting groups from 2016-2026 ... control areas"
 request, built as a generic, reusable "animate a multi-period status
 dataset" capability (not hardcoded to Syria/any specific conflict --
-Baron's own instruction was "just build the capability, data later"). All
+the project owner's own instruction was "just build the capability, data later"). All
 synthetic/placeholder data below; no real historical/operational data is
 fabricated anywhere in this test file or the feature itself.
 
