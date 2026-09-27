@@ -932,6 +932,32 @@ and 4.x, Windows) is an untested implementation risk this benchmark could not co
 file-backed fixture, warm OS cache, no antivirus/EDR variation, run under `python-qgis.bat` not a
 live desktop. Still **not built**; Phase 1 remains a separate go-ahead.
 
+**Update, 2026-09-27 — RestrictedPython scoped as a defense-in-depth layer, separate question from
+the process-isolation decision above.** Alaa asked whether `RestrictedPython` (Zope Foundation)
+could improve the current same-process AST-blocklist while process isolation stays the intended
+real fix. `docs/RESTRICTEDPYTHON_SANDBOX_LAYER_SCOPE_2026-09-27.md` scopes it, with the library
+actually installed (v8.5) and run live against this project's own historical bypass reports, not
+assumed from documentation. Two findings that narrow the recommendation sharply: **(1)**
+RestrictedPython's attribute guard (`safer_getattr`) does NOT catch the dominant bypass class this
+project has spent the most effort on — `pathlib`/`dbm`/`logging`/`zipfile`/`io.open`/etc. are all
+plain, non-underscore method names, and `safer_getattr` only blocks underscore-prefixed names plus
+a small hardcoded set; `_BLOCKED_MODULES` stays necessary regardless. **(2)** It DOES fully subsume,
+and is verified more complete than, this project's own hand-built frame/traceback/generator/
+coroutine introspection blocklist (`_BLOCKED_DUNDER_ATTRS`'s `__class__`/`__globals__`/`f_back`/
+`tb_frame`/`cr_frame`/etc. entries, built the hard way across the 2026-09-08/09-20/09-23 sweeps) —
+live-confirmed via `RestrictedPython.transformer.INSPECT_ATTRIBUTES`, a maintained-upstream
+enumeration of exactly this attack surface that already includes several names this project hasn't
+been live-bitten by yet (`f_trace`, `co_code`, `cr_await`, `cr_origin`, `ag_await`). Recommends
+folding `INSPECT_ATTRIBUTES` into `_BLOCKED_DUNDER_ATTRS` (a one-line set union, no exec-time
+mechanism change) as a small, low-risk, verified win now, and deferring the larger question (fully
+adopting `compile_restricted` as the exec mechanism, which has its own unresolved compatibility
+questions — `print` requires an explicit `_print_`, no import-allowlisting story exists for the
+`qgis.PyQt.*` imports this tool's own prompt guidance tells the model to write) until/unless
+process isolation (Path A above) is actually built, since a subprocess's own exec environment is
+the more natural place to adopt it fully. **Not built** — this is the scoping pass Alaa asked for;
+a go-ahead on the one-line fold, or on the larger `compile_restricted` question, is a separate,
+later decision, same convention as the isolation scoping doc above.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
