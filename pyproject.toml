@@ -20,7 +20,7 @@ readme = "README.md"
 # LICENSE file; this SPDX identifier was simply wrong).
 license = { text = "GPL-2.0-only" }
 requires-python = ">=3.9"
-authors = [{ name = "Alaa Alshoubaki", email = "alaa.alshoubaki@gmail.com" }]
+authors = [{ name = "Alaa Alshoubaki" }]
 
 # Deliberately no [project.dependencies] -- this package is normally run
 # inside a QGIS Python environment that already provides qgis.core/qgis.PyQt,

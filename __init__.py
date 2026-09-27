@@ -8,7 +8,6 @@
                              -------------------
         begin                : 2026-06-06
         copyright            : (C) 2026 by Alaa Alshoubaki
-        email                : alaa.alshoubaki@gmail.com
         git sha              : $Format:%H$
  ***************************************************************************/
 
