@@ -34,7 +34,6 @@ by hand; if you add or move a doc, update both.
 
 | Doc | Covers |
 |---|---|
-| [PRODUCT_TIERS.md](PRODUCT_TIERS.md) | Editions/pricing tiers, target clients, verticals — shipped vs. roadmap |
 | [HUMANITARIAN_CARTOGRAPHY_STANDARDS.md](HUMANITARIAN_CARTOGRAPHY_STANDARDS.md) | Cartographic design/QA standards the agent's styling and layout tools follow |
 | [HUMANITARIAN_MAPPING_TASK_REFERENCE.md](HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
 

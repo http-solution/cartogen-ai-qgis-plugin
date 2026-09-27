@@ -55,12 +55,10 @@ documentation pass so `docs/`'s top level only shows living references/trackers)
 §2's own convention, those are never edited after the fact (with rare same-day correction
 addenda, like `docs/archive/STATUS_REVIEW_2026-08-20.md`'s own "Post-review update" note — even that doc says
 so explicitly rather than silently rewriting itself). The result is the same either way: several
-of these docs now describe things that have since changed. For example,
-`docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` still references "134 tools" throughout (its own
-proposed Community/Pro split, and its "verified against the live 134-tool registry" claim) —
-true when it was written, now stale, since the registry is 131 as of this doc. This doc exists
-to be the current, living answer instead of making anyone cross-reference nine dated files to
-figure out what's real today. When something below gets resolved, update this file in the same
+of these docs now describe things that have since changed — a tool count verified against the
+live registry as of one review's date is a common example, since the registry keeps growing. This
+doc exists to be the current, living answer instead of making anyone cross-reference nine dated
+files to figure out what's real today. When something below gets resolved, update this file in the same
 change (per `CONTRIBUTING.md` §2's "don't let a status label go stale" rule) — don't edit the
 frozen source docs themselves.
 
@@ -140,42 +138,15 @@ load + dock interaction + Settings dropdown — not itemized against
 `docs/RELEASE_SMOKE_TEST.md`'s full 16-category checklist row by row, so treat that checklist
 as still worth running in full before a public release, not as formally complete.
 
-### 1.3 Tier restructure — licensing path
+### 1.3 ~~Tier restructure — licensing path~~
 
-**Source:** `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` §3.
-The proposed Community ("open source but locked")/Pro (closed code)/Enterprise structure is not
-achievable as a simple feature flag on the current GPL v2 codebase — the source doc lays out
-three real paths (re-license entirely, split into an open-core + closed-module architecture, or
-stay full GPL v2 and drop the "locked"/"closed" framing) and states plainly this isn't an
-engineering decision. Everything in that proposal's §6 engineering build-out (the Cartogen API
-gateway, tier gating mechanism, closed-source packaging) is blocked on this being resolved first.
-
-**Needs:** real legal counsel, then a business decision from Alaa. Not something to build
-toward until it's resolved — starting the engineering work first would mean building against
-an unknown target.
-
-**Narrowed 2026-08-21** by `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` §4. This item blocks
-*Enterprise* (RBAC/SSO/M365, closed-source packaging, license-key validation) and it blocks the
-restrictive tier model in `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`. It does **not** block the
-Professional tier under the already-decided open-core model: a hosted gateway sells access to a
-service, distributes no code, and needs no license key (the virtual key authenticates
-server-side), so GPL v2 is not implicated. Pro can be built now; Enterprise still cannot.
-
-**Confirmed 2026-08-22 by Alaa:** Model A (gateway as convenience — `docs/PRODUCT_TIERS.md`/
-`docs/archive/OPEN_CORE_REPO_STRATEGY.md`) over Model B (gateway as gate —
-`docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`). Everything built toward the Professional tier
-so far (the plugin-side provider wiring, the `service/website/` billing hardening in
-§4 below) assumes Model A. Model B remains frozen/unresolved and isn't being built toward.
-
-**Re-confirmed still accurate, 2026-09-18**, prompted by an external audit that initially (and
-incorrectly) read `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`'s 3-provider Community
-restriction language as if it were a settled, active policy contradicting the shipped 5/6-provider
-product. It isn't — the audit withdrew that finding once shown this section and
-`docs/PRODUCT_TIERS.md`'s own "draft for a decision, not yet a settled fact" framing. Restated
-plainly since an outside reader keeps tripping on it: **today's shipped Community edition has
-never been provider-restricted, is not blocked on this item resolving, and nothing about §1.3
-being open threatens that.** This item blocks *future* Enterprise/restrictive-tier work only, per
-the narrowing two paragraphs above — it does not describe current product behavior.
+**Closed 2026-09-27 by Alaa.** This item, and the business-strategy/pricing documents it cited,
+were removed from this open-source repo — a GPL v2 codebase has no business reading business
+documents describing paid tiers, licensing models, or a hosted gateway's revenue plan. The one
+fact worth keeping, since it describes actual current product behavior rather than business
+strategy: **the shipped Community edition has never been provider-restricted** — every provider
+(OpenRouter, Gemini, OpenAI, Claude, Ollama) has always been available with your own API key, and
+nothing in this codebase gates that.
 
 **DECIDED 2026-09-24 by Alaa: Path C — keep everything GPL v2, drop the "locked"/"closed" source-
 availability language entirely.** Of the 3 paths §3 of the source proposal laid out (re-license
@@ -1231,11 +1202,10 @@ testing; not a dependency of this repo.
   mishandling) was fixed long ago per this bullet's own 2026-08-22 update and hasn't recurred in
   any measurement since.
 - ~~`cartogen-ai-pro/` and `cartogen-ai-enterprise/` exist as empty directories~~ **Resolved
-  2026-08-22** — both now hold a placeholder `README.md` pointing at
-  `docs/archive/OPEN_CORE_REPO_STRATEGY.md` and (for Enterprise) the §1.3 licensing blocker, so an empty
-  directory no longer misreads as "the private repo exists."
+  2026-08-22** — both now hold a placeholder `README.md` noting no private repo exists yet, so an
+  empty directory no longer misreads as "the private repo exists."
 - **Repo rename / GitHub collaborator items** — external GitHub actions, not verifiable or
-  actionable from this sandbox. Source: `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md`.
+  actionable from this sandbox.
 - **OpenRouter+Anthropic prompt caching — doc-verified, not yet live-confirmed.** 2026-09-19
   cost/performance pass (4-provider follow-up to the Gemini-specific pass in `88c4764`):
   `agent/providers/openrouter.py`'s `_apply_anthropic_cache_control` (system-prompt breakpoint)
@@ -1665,12 +1635,11 @@ testing; not a dependency of this repo.
     embedding real on-disk file mtimes (a rebuild-checksum mismatch across sessions isn't, by
     itself, evidence of a content problem — the actual published GitHub asset was re-verified
     correct both times). The other flagged a "Community edition provider-restriction contradiction"
-    that traced to an explicitly-marked, never-merged draft proposal (`docs/archive/
-    TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md`, §1.3 above) being misread as current policy — the
-    audit withdrew the finding once shown the exact quotes. Two small real documentation fixes
-    shipped from the exchange regardless: a stale tool count in `docs/PRODUCT_TIERS.md`, and a
-    leftover "Internal/commercial use" phrase in `README.md` inconsistent with the rest of that
-    page's Community/GPL framing.
+    that traced to an explicitly-marked, never-merged draft proposal (since removed, per §1.3
+    above) being misread as current policy — the audit withdrew the finding once shown the exact
+    quotes. Two small real documentation fixes shipped from the exchange regardless: a stale tool
+    count in a now-removed business-strategy doc, and a leftover "Internal/commercial use" phrase
+    in `README.md` inconsistent with the rest of that page's Community/GPL framing.
   - **Repository housekeeping**: 2 moderate Dependabot vulnerabilities in `service/website`'s
     `qs` transitive dependency (via `express`/`body-parser`/`stripe`) resolved via a patch-level
     `npm audit fix`, confirmed both alerts show `state: fixed` on GitHub. New
@@ -1757,8 +1726,8 @@ doc — full detail for each is in `CHANGELOG.md`'s per-version entries, not rep
   possible double-send race during prompt refinement; missing tooltips, an untitled gate panel,
   and a reused destructive-action button color; the welcome message, Settings dialog, and Help
   tab not mentioning the task-register pipeline or how to get an API key per provider; and the
-  version/tool-count staleness in this doc, `README.md`, `DOCUMENTATION.md`, and
-  `docs/PRODUCT_TIERS.md`. Not done in this pass (tracked, not forgotten): splitting
+  version/tool-count staleness in this doc, `README.md`, and `DOCUMENTATION.md`. Not done in this
+  pass (tracked, not forgotten): splitting
   `CHANGELOG.md` into per-release notes, and archiving the dated one-off review docs in `docs/`
   into a subfolder.
 
@@ -1957,17 +1926,13 @@ the *content* matches. No functional consequence (nothing is lost or needs redoi
 | Doc | Status |
 |---|---|
 | `docs/archive/STATUS_REVIEW_2026-08-20.md` | Frozen snapshot, v1.2.21. Superseded by this tracker for "what's open." |
-| `docs/archive/TIER_RESTRUCTURE_PROPOSAL_2026-08-20.md` | Frozen proposal, not built. §3 licensing question is the live blocker — see §1.3 above. Its own 2026-08-31 correction addendum flags the now-stale "134 tools" figure (not re-frozen, since that's a factual pointer to the current number, not new proposal content). |
 | `docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md` | Frozen review. All 4 follow-up tasks from this round are closed (§4 above). |
 | `docs/archive/DESTRUCTIVE_TOOLS_AUDIT_2026-08-21.md` | Frozen audit. §3's decision is the live item in §1.1 above. |
 | `docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md` | Frozen plan. Execution is the live item in §1.2 above. |
 | `docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md` | Frozen strategy doc; its own §4 was updated 2026-08-21 with real smoke-test results (not re-frozen, since that update was factual correction, not new proposal content). |
 | `docs/archive/JIAF_MULTISECTOR_COMPOSITE_SPEC.md` | Frozen spec, deliberately unbuilt — see §3 above. |
-| `docs/archive/SECURITY_AND_COMPETITIVE_REVIEW_2026-08.md` | Frozen review — repo-rename item still open, §2 above. |
-| `docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md` | Frozen plan, 2026-08-21. Phased Professional-tier build plan; §4 narrows §1.3 above, §9 records findings folded into §2. |
 | `RELEASE_SMOKE_TEST.md` | **Living checklist**, not frozen — update when tools/categories change. |
 | `LIVE_TEST_SCENARIOS.md` | **Living checklist**, added 2026-09-16 — multi-turn workflow scenarios a single-prompt smoke test can't catch (task routing, confirmation gates, map-visualization/technical-analysis accuracy). |
-| `PRODUCT_TIERS.md` | **Living positioning doc**, not frozen — §1.3 above is its live open question. |
 | `BUG_TRACKER.md` | **Living tracker**, not frozen — update as bugs are found/fixed. |
 | `CHANGELOG.md` | **Living log**, not frozen — the authoritative fix/feature history. |
 

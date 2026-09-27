@@ -12,8 +12,5 @@ the proposed solution.
 **Proposed approach**
 How you'd imagine this working. If it maps to an existing pattern in `agent/tools/`, name it.
 
-**Which edition does this belong in?**
-See `docs/PRODUCT_TIERS.md` — Community, Pro, or Enterprise (or "not sure").
-
 **Alternatives considered**
 Anything else you thought about, and why you didn't propose it instead.
