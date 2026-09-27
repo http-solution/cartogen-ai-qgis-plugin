@@ -237,3 +237,66 @@ per call.
 Harness committed at `tests/manual_isolation_bench/` (manual, live-QGIS-only, not collected by
 `unittest`; run `python-qgis.bat tests/manual_isolation_bench/bench.py`). If Phase 1 is approved,
 rerun it as part of that work against a larger real project.
+
+## 9. Update, 2026-09-27 — the interpreter-location risk (§8) is resolved; not a guess
+
+Alaa asked to scope this item further. §8's benchmark flagged one specific unverified risk as
+blocking confidence in Path A: inside a real QGIS desktop session, `sys.executable` is the QGIS
+binary itself (`qgis-bin.exe` on Windows), not a spawnable Python interpreter, and locating the
+real one portably was untested here. Researched rather than guessed (no live QGIS desktop in this
+sandbox to test against directly, but this is a documented, independently-confirmed problem with
+real production solutions, not something that needs a live QGIS session to resolve):
+
+- **Confirmed as a known, currently-unfixed upstream QGIS bug**, not specific to this plugin:
+  [qgis/QGIS#45646](https://github.com/qgis/QGIS/issues/45646) ("`sys.executable` returns wrong
+  value"). An upstream fix was attempted —
+  [qgis/QGIS#67318](https://github.com/qgis/QGIS/pull/67318), adding a `qgis.utils.python_executable()`
+  helper with per-platform lookup logic (checking paths next to `sys.prefix`/`sys.base_prefix`/
+  `sys.exec_prefix`: OSGeo4W's `apps\PythonXXX` layout and conda-forge on Windows, a
+  `PYTHONHOME`-setting wrapper next to the app bundle on macOS, `/bin/pythonX.Y` on Linux, where
+  `sys.executable` is reportedly already correct) — but **that PR was closed without merging on
+  2026-09-18** (auto-closed after 10 days of inactivity), so **no official helper exists in any
+  shipped QGIS version, including the 4.2.2 this project targets.** A plugin doing its own process
+  isolation cannot rely on QGIS to solve this; it has to carry its own lookup.
+- **A real, shipped, MIT-licensed QGIS plugin already solves exactly this** for exactly this
+  reason: [QPIP](https://github.com/opengisch/qpip) (`opengisch/qpip`, published on the official
+  QGIS plugin repository, used to install pip dependencies for other plugins — a different problem
+  than this tool's, but the identical sub-problem of "spawn a real Python process from inside a
+  running QGIS") carries a `python_command()` method that cites the same upstream bug in its own
+  source comment and does exactly the platform-specific lookup this project would need: on
+  Windows, check `Path(sys.prefix) / "python.exe"` then `"python3.exe"` before falling back to
+  `sys.executable`; on macOS, check `sys.prefix`, `sys.prefix / "bin"`, and
+  `Path(sys.executable).parent` for `"python"`/`"python3"` (citing a second, separate report of the
+  same bug on macOS,
+  [opengisch/qpip#34](https://github.com/opengisch/qpip/issues/34#issuecomment-2995221985)) before
+  falling back to `sys.executable`; on Linux, `sys.executable` is used directly (already correct
+  there, matching the upstream PR's own claim). A conda install is detected first via
+  `(Path(sys.prefix) / "conda-meta").exists()` and just uses the `"python"` shortcut on PATH.
+
+**This resolves §8's "unverified, real implementation risk" as an engineering unknown** — there is
+a concrete, working, real-world-proven algorithm to adopt (essentially QPIP's `python_command()`
+almost verbatim, MIT-licensed so directly reusable), not a research gap Phase 1 would have to
+solve from scratch. It does NOT change the Phase 0 latency numbers (§8) or the persistent-worker
+recommendation derived from them, and it is still **not live-tested inside a real QGIS desktop
+session by this project** — the algorithm is adopted on the strength of an independently-confirmed
+upstream bug report plus a real shipped plugin's production code, not this project's own live
+verification, so Phase 1 (if it goes ahead) should still confirm it against a real QGIS 4.2.2
+desktop install on Windows before relying on it, not just trust this document.
+
+**Also addressed here: a concrete recommendation for §6's unsaved-mid-edit-session fidelity gap**,
+narrowing that open question from three options to one, for Alaa to accept or override rather than
+deciding from a blank menu. Recommend the "block with an error" option: if the live project has any
+layer in an active edit session (`layer.isEditable()` true, changes uncommitted) when
+`execute_pyqgis_script` is called, refuse before serializing and tell the model/user to commit or
+discard those edits first. This matches this project's own established convention elsewhere
+(`buffer_analysis`'s `only_selected` fail-loudly-if-nothing-selected guard, the egress gate's
+block-rather-than-guess default) of refusing outright rather than silently doing something the
+caller didn't ask for — silently auto-committing a script author's in-progress edits is the kind of
+surprising, hard-to-reverse behavior this codebase avoids elsewhere, and the alternative
+(documenting the gap and shipping it silently) means a script could act on stale data with no
+signal to the model that anything was omitted.
+
+**Still fully open, unchanged by this update:** the Phase 1 go-ahead itself — this document
+narrows two of the named open risks, it does not create new grounds for a yes. `execute_read_only_sql`'s
+still-unverified DB-level enforcement (needs a live PostGIS connection, still unavailable in this
+sandbox) is untouched by this update, same as every prior pass.
