@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc6](#v1-16-0-rc6) | 2026-09-27 | **Release candidate 6 for 1.16.0.** No breaking changes. Threshold parsing now catches spelled-out/plural time and distance phrasing ("one hour's travel"), not just digits. OSM road ingest fixed to build real lines (not one point per vertex) with Overpass retry-on-transient-failure. In-place upgrades no longer fail on stale cached modules. Automatic model selection actually takes effect and never escalates to an expensive/special-purpose model. Network analysis measures real metres/hours regardless of CRS/ellipsoid, no longer freezes QGIS on a large network (background + Stop button), and `calculate_service_area` routes only over reachable roads. GDACS/EONET alerts carry an `event_id` field; `buffer_analysis` gained `only_selected`. New opt-in tools: `estimate_road_speeds` and an offer to download a local Geofabrik extract before road-network requests. `docs/IMPLEMENTATION_TRACKER.md` §1.10 (clean-profile install/upgrade) closed with a real QGIS session |
 | [1.16.0-rc5](#v1-16-0-rc5) | 2026-09-24 | **Release candidate 5 for 1.16.0.** QGIS 4.2+ only (3.x dropped). New opt-in, off-by-default safeguards: a cloud-provider data-protection gate for sensitive layers and attachments, a plan-validation gate for DELETE/PUBLISH tools, and a Project Inspector. New `create_project_folder_structure` tool. Sandbox now also blocks `QgsProject.write()` and `authManager()`. Unnamed processing outputs are added hidden. Clearer errors when a URL doesn't serve geodata |
 | [1.16.0-rc4](#v1-16-0-rc4) | 2026-09-23 | **Release candidate 4 for 1.16.0.** Codebase security review with live adversarial testing: 2 real `execute_pyqgis_script` sandbox bypasses found and fixed (`qgis.utils`/`processing` re-exporting `os`/`sys` as plain attributes reachable no matter what's blocked at import time; this plugin's own package never being blocked, letting a script read the live in-memory session credential store directly). Process isolation recorded as the intended real fix, not further denylist patching (`docs/IMPLEMENTATION_TRACKER.md` §1.11). 10 best-effort `except Exception: pass` sites now leave a content-free trace instead of failing silently. `CLAUDE.md` refreshed to match the post-Phase-11 layout and live-QGIS CI job |
 | [1.16.0-rc3](#v1-16-0-rc3) | 2026-09-21 | **Release candidate 3 for 1.16.0.** Closes both stable-release gates rc2 left open: Ruff lint fixed for real (125 violations → 0, not accepted as debt, incl. a real `QgsLabelObstacleSettings` import bug found and live-fixed), and the CI post-test segmentation fault root-caused and fixed rather than waived (~40 accumulated live `QDockWidget`s crashing at interpreter shutdown; fixed with explicit `gc.collect()` + Qt event-loop pump before `exitQgis()`), through five rounds of independent review. Both `qgis-live-tests` images now pinned by immutable digest. Only remaining gate before stable: the exact-ZIP clean-profile install/upgrade test, which needs a real interactive QGIS GUI session |
@@ -47,6 +48,68 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc6"></a>
+## [1.16.0-rc6] — 2026-09-27 — Release candidate 6 for 1.16.0: task-matcher/OSM-ingest fixes, network-analysis perf, §1.10 closed
+
+Everything merged to `main` since rc5 (PRs #24–#41). No breaking changes; still QGIS 4.2+.
+
+**Fixes:**
+- **Task-matcher threshold recognition.** A query naming a time or distance threshold in words
+  ("beyond one hour's travel", "2 hours", "30 minutes") was silently overridden with a 5 km
+  distance default, because the pattern only matched digits with a singular unit. Now recognizes
+  spelled-out numbers and plurals. Live-reported: "Health facilities beyond one hour's travel"
+  produced "Given: threshold = 5 km" instead of respecting the stated 1-hour limit.
+- **OSM road ingest.** `ingest_osm_features` for a linear key (`highway`/`railway`/`waterway`/
+  `aerialway`) now builds real `LineString` geometry from a way's vertices, instead of turning every
+  vertex into its own point with no lines at all. A point-typed layer passed as a road network to
+  `calculate_service_area`/`travel_time_matrix`/`optimize_delivery_route`/`population_access_gap`
+  is now refused with a clear error instead of silently producing meaningless output.
+- **Overpass resilience.** A transient Overpass failure (`504`, `429`) is now retried with backoff
+  before it costs a whole tool call for nothing — the root cause of several live reports where a
+  request burned its entire tool-call budget on repeated hazard/facility-ingest failures.
+- **In-place upgrade stale-module bug.** Reinstalling over a running plugin folder (upgrade or
+  reinstall to the same path) could fail with a stale-module `ImportError` (e.g. `cannot import
+  name 'SETTINGS_PROJECT_INSPECTOR_ENABLED'`) because cached `cartogen_ai.*` modules were only
+  evicted when the plugin's own path changed. Now evicted unconditionally on every load.
+- **Automatic model selection.** Assigning a model from outside a provider client's fallback list
+  (the "auto" picker) never actually took effect — every request still went to the configured
+  default (the priciest model, on some providers). Fixed, and the picker now never escalates to an
+  expensive or special-purpose (deep-research, robotics, computer-use, etc.) model; it only ever
+  steps down to something cheaper.
+- **Network analysis correctness.** Service area / travel-time / delivery-route calls now measure
+  distance and time in real metres/hours regardless of the layers' CRS or whether the project has
+  an ellipsoid configured (previously: degrees on a lat/long layer, ~15% error on Web Mercator).
+  An origin/stop point in a different CRS than the road network no longer silently routes from the
+  wrong location.
+- **Network analysis performance.** A large road network (100k+ roads) no longer freezes QGIS
+  during routing — large calls now run on a background thread with progress and a Stop button.
+  `calculate_service_area` routes only over roads that can actually be reached within the requested
+  cost (exact, not approximate — same result, up to ~150x faster on a real 161k-road network).
+  `optimize_delivery_route`'s stop-to-stop distance matrix now skips half its calls when the
+  network has no one-way data (the route is reversible either way).
+- **GDACS/EONET alert selection.** Both tools now store each alert/event's ID as an `event_id`
+  layer field, so a request naming specific alerts ("buffer around 5189969,1563615") can select
+  them by ID. `buffer_analysis` gained `only_selected`, so an operation can be scoped to a
+  selection instead of always running over the whole layer.
+
+**New, opt-in — off by default, never invoked automatically:**
+- `estimate_road_speeds`: writes an assumed per-road-class speed field onto a road network when
+  real speed-limit data is sparse (common: one real dataset had `maxspeed` on 0.9% of roads). The
+  model is told to present the result as an estimate, not the network's real posted limits.
+- Before a road-network-dependent request, the assistant now offers to download a full local
+  country/region OSM extract (Geofabrik) once, instead of relying on the live, rate-limited
+  Overpass API for a small bounding box every time.
+
+**Docs:** `docs/IMPLEMENTATION_TRACKER.md` §1.10 (exact-ZIP clean-profile install/upgrade test) is
+closed — verified in a real, live QGIS 4.2.2 desktop session (not just headless tool code) that a
+fresh install and an in-place upgrade both load cleanly, with the toolbar icon and Plugins-menu
+entry confirmed as real, rendered Qt widgets. Five scoping documents evaluate third-party libraries
+against this project's own real pain points (RestrictedPython, Presidio, semantic-router, LanceDB/
+Chroma, Instructor/Outlines); one small, verified fold into the sandbox's denylist shipped, the
+rest recommend against adoption or further prototyping — none add a new dependency.
+
+Full automated suite: 2,238 tests passing. Zero Ruff violations.
 
 <a id="v1-16-0-rc5"></a>
 ## [1.16.0-rc5] — 2026-09-24 — Release candidate 5 for 1.16.0: QGIS 4.2+ only, opt-in data-protection safeguards
