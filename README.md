@@ -13,21 +13,23 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/workflows/tests.yml"><img src="https://github.com/cartogenai-glitch/CARTOGEN-AI/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/releases"><img src="https://img.shields.io/github/v/release/cartogenai-glitch/CARTOGEN-AI?display_name=tag&include_prereleases" alt="Release"></a>
-  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0-blue.svg" alt="GPL-2.0 license"></a>
-  <a href="https://github.com/cartogenai-glitch/CARTOGEN-AI/issues"><img src="https://img.shields.io/github/issues/cartogenai-glitch/CARTOGEN-AI" alt="Issues"></a>
+  <a href="https://github.com/http-solution/cartogen-ai-qgis-plugin/actions/workflows/tests.yml"><img src="https://github.com/http-solution/cartogen-ai-qgis-plugin/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/http-solution/cartogen-ai-qgis-plugin/releases"><img src="https://img.shields.io/github/v/release/http-solution/cartogen-ai-qgis-plugin?display_name=tag&include_prereleases" alt="Release"></a>
+  <a href="https://github.com/http-solution/cartogen-ai-qgis-plugin/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0-blue.svg" alt="GPL-2.0 license"></a>
+  <a href="https://github.com/http-solution/cartogen-ai-qgis-plugin/issues"><img src="https://img.shields.io/github/issues/http-solution/cartogen-ai-qgis-plugin" alt="Issues"></a>
+  <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc5 · GNU GPL v2 · QGIS 4.2–4.99**
+**Community edition · Version 1.16.0-rc6 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (1,962 passed, 0 failures, 40 skipped), while the
-> full pre-release checklist still requires verification in an interactive QGIS session.
+> **Project status:** active Community edition. The automated suite is green (2,238 passed, 0 failures, 139 skipped);
+> a clean-profile install and in-place upgrade have been verified in a real QGIS 4.2.2 session, while the
+> full interactive chat-UI test scenarios still need a live LLM-backed run.
 > See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
 > [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
 
@@ -249,7 +251,7 @@ every archived file; a few of particular note:
 See [CONTRIBUTING.md](CONTRIBUTING.md) — it's short and specific to this codebase, not a generic
 PR-process doc. It covers comment discipline (explain *why*, not *what*), honest status labeling
 for anything unverified in a non-QGIS sandbox, and the testing conventions the suite expects.
-Issues and PRs go through [github.com/cartogenai-glitch/CARTOGEN-AI](https://github.com/cartogenai-glitch/CARTOGEN-AI).
+Issues and PRs go through [github.com/http-solution/cartogen-ai-qgis-plugin](https://github.com/http-solution/cartogen-ai-qgis-plugin).
 
 ## Development
 
@@ -281,7 +283,7 @@ The codebase is organized as:
   - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 178 tools across 30 domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
-- `tests/` — 1,962 automated unit and integration tests, runnable outside QGIS.
+- `tests/` — 2,238 automated unit and integration tests, runnable outside QGIS.
 - `docs/` — User guide, auto-generated tools reference, living implementation tracker, and specs.
 - `branding/` — Logo and visual assets.
 
