@@ -1068,6 +1068,49 @@ testing; not a dependency of this repo.
 
 ---
 
+### 1.14 `prompt_refiner.py`'s no-retry-on-malformed-JSON gap — Instructor/Outlines scoped, not recommended
+
+**Added 2026-09-27.** Alaa asked to scope `Instructor`/`Outlines` (the last of the original
+5-library list) as structured-output enforcement.
+`docs/INSTRUCTOR_OUTLINES_STRUCTURED_OUTPUT_SCOPE_2026-09-27.md` scopes it. The real gap: two call
+sites in `core/services/prompt_refiner.py` ask the model to "Respond as JSON only" in a plain-text
+prompt and parse the result with `json.loads` in a try/except that **degrades to `None`/an error
+on the first malformed response, with no retry** — unlike `agent_orchestrator.py`'s tool-call
+argument parsing, which relies on each provider's own validated function-calling field, not free
+text. No live bug names this specific failure yet (checked `BUG_TRACKER.md`), but the code's own
+defensive `try/except` already anticipates it.
+
+Both libraries were live-tested. **Instructor v1.17.0 genuinely works** — demonstrated live,
+retry-with-validation-error-reprompt recovering a malformed 1-of-2-recommendations response into a
+valid one in 2 calls — but only when wrapping a real `openai.OpenAI()`/`anthropic.Anthropic()` SDK
+client object; its low-level `Instructor(client=None, create=<fn>)` path silently does nothing
+useful with a bare callable (confirmed live, not assumed). This project's 5 providers
+(`infrastructure/providers/*.py`) deliberately use raw `requests` calls, never an official SDK —
+adopting Instructor for real would mean rebuilding that architecture, not just adding a package.
+**Outlines v1.3.3's actual value (token-level grammar-constrained decoding) only applies to local
+backends it directly controls** (Transformers/VLLM/LlamaCpp/MLXLM); its OpenAI/Anthropic/Gemini/
+Ollama wrappers are thin proxies onto those providers' own native structured-output parameters,
+giving none of Outlines' real benefit for any of this project's 5 (HTTP-API-based) providers.
+
+**The load-bearing finding: all 5 providers already expose native, schema-constrained JSON output
+in their own plain HTTP APIs, unused today** — OpenAI's `response_format: json_schema` (strict
+mode), Gemini's `responseSchema`, Ollama's `format: <json-schema>` (real GBNF grammar-constrained
+decoding, server-side, for the one local provider this project already ships), OpenRouter's
+pass-through `response_format`. Checked each provider file: none send this parameter today. Not
+live-tested (no API keys/servers available in this sandbox) — flagged as resting on documentation
+rather than this doc's own live-testing standard, unlike everything else in it.
+
+**Recommendation: do not adopt Instructor or Outlines.** If the no-retry gap is worth closing, the
+cheaper fix is adding each provider's native schema parameter to its existing payload plus one
+retry loop in `prompt_refiner.refine()` itself — same architecture, no new dependency, sized like
+every other provider-specific quirk these files already carry. That is real, multi-provider work
+(not scoped or sized here), and whether it's worth doing at all with no live incident reported yet
+is an open call, logged here rather than decided unilaterally per `CLAUDE.md`'s own guidance.
+Not built. `instructor`/`outlines`/`openai`/`pydantic` removed from this environment after
+testing; not a dependency of this repo.
+
+---
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
