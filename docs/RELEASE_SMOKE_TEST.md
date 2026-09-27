@@ -74,6 +74,41 @@ canvas/project — not just that the chat bubble looks plausible.
 
 Append-only; each entry records one actual run against real QGIS, not a plan to run one.
 
+**2026-09-27 — §1.10 closed (toolbar/menu rendering, clean install and in-place upgrade), real
+`QgisInterface`, not headless tool-code-only.** Different from every other entry below: this did
+not drive the 16-category checklist through the chat UI (no LLM API key available in this
+sandbox); it verified the thing §1.10 specifically asked for and every prior headless entry
+explicitly could not — that the plugin actually loads into a real running QGIS desktop session
+without error, and that its toolbar icon and menu entry are real, present Qt widgets, not just "the
+Python imported without raising."
+
+Ran the real `qgis` binary (not `python-qgis.bat`) under Xvfb in the exact QGIS 4.2.2 Docker image
+this repo's CI pins (`qgis/qgis@sha256:6ffe6b31646247f2e179cb2cc32bb4df215eedc99f387ad59a6cc88ebfe23e21`),
+driving a script through `--code` that runs inside the real app with a genuine `iface`, not a
+`FakeIface`. Two environment issues (harness bugs, not plugin bugs) had to be diagnosed and
+worked around first: `xvfb-run` hangs when run as a container's PID 1 (no init/signal reaping);
+and this QGIS build's real profile path is `~/.local/share/QGIS/QGIS4/profiles/<name>` (the
+config directory renamed from `QGIS3` to `QGIS4` between majors), not `QGIS3/profiles` — using the
+wrong path produced a `ModuleNotFoundError` whose exception handler opened a blocking modal dialog
+that looked exactly like a hang until a `faulthandler` `SIGUSR1` stack dump showed where it was
+actually stuck. Full diagnostic path recorded in `docs/IMPLEMENTATION_TRACKER.md` §1.10's
+2026-09-27 entry.
+
+With the correct path: **fresh profile, `v1.15.6`** (built from its tag) — `qgis.utils.loadPlugin`/
+`startPlugin` both succeeded, a real `QAction` titled "Cartogen AI" was found on a real `QToolBar`
+via `QMainWindow.findChildren`, and a real `QMenu` titled "Cartogen AI" with entries "Cartogen AI"/
+"Help" was found nested under the Plugins menu (matching `addPluginToMenu`'s documented placement,
+not a new top-level menu-bar entry). Screenshot captured, no error dialog. **In-place upgrade to
+the actual published `v1.16.0-rc5` asset** (downloaded via the GitHub API, sha256 independently
+verified against the release notes' checksum before use): deleted the old plugin folder, extracted
+rc5 in its place, relaunched as a genuinely separate Docker container (a real new process). Same
+clean result: toolbar action and menu both found, no error dialog.
+
+**Not done here, still open:** the interactive 16-category `RELEASE_LIVE_TEST_SCENARIOS.md`
+walkthrough through the actual chat UI — needs a real LLM provider API key, unavailable in this
+sandbox, same limitation as every prior entry. The ad hoc Docker test harness itself (profile
+fixtures, diagnostic scripts) was scratch work, not committed to this repo.
+
 **2026-09-24 — v1.16.0-rc5 — headless, 27/27 + 10/10 against this candidate's built ZIP, before
 the release-prep commit merged.** Built `dist/cartogen_ai_v1.16.0-rc5.zip` (217 files, sha256
 `e3b1d0618facaeb166ef60a2546af67218a90abc8d1943d1042afb175da4b7a0`) from a clean `git archive` of
