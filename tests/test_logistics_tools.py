@@ -1539,6 +1539,48 @@ class TestBuildNetworkDistanceMatrix(_LineNetworkMixin, unittest.TestCase):
         for call in mock_processing.run.call_args_list:
             self.assertEqual(call.args[1].get("SPEED_FIELD"), "speed_kmh")
 
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_no_direction_field_mirrors_instead_of_recomputing(self, mock_processing):
+        """BUG-2026-09-25-2 follow-up: without a direction_field the network is
+        undirected for this call, so (j, i) should be copied from (i, j) rather
+        than triggering its own processing.run() call -- n(n-1)/2 calls for n
+        stops instead of n(n-1)."""
+        result_feat = MagicMock()
+        result_feat.__getitem__.side_effect = lambda key: 777.0 if key == "cost" else None
+        result_layer = MagicMock()
+        result_layer.getFeatures.return_value = [result_feat]
+        mock_processing.run.return_value = {"OUTPUT": result_layer}
+
+        geoms = [MagicMock(), MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        matrix = _build_network_distance_matrix(MagicMock(), geoms)
+
+        self.assertEqual(mock_processing.run.call_count, 3)  # 3 choose 2, not 3*2
+        for i in range(3):
+            for j in range(3):
+                if i != j:
+                    self.assertEqual(matrix[i][j], 777.0)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    def test_direction_field_keeps_full_n_squared_calls(self, mock_processing):
+        """A one-way-aware network is NOT safe to mirror -- A->B and B->A can be
+        genuinely different routes, so every ordered pair still gets its own call."""
+        result_layer = MagicMock()
+        result_layer.getFeatures.return_value = []
+        mock_processing.run.return_value = {"OUTPUT": result_layer}
+
+        geoms = [MagicMock(), MagicMock(), MagicMock()]
+        for i, g in enumerate(geoms):
+            g.asPoint.return_value = MagicMock(x=lambda i=i: float(i), y=lambda: 0.0)
+
+        _build_network_distance_matrix(MagicMock(), geoms, extra_params={"DIRECTION_FIELD": "oneway"})
+
+        self.assertEqual(mock_processing.run.call_count, 6)  # 3*2, unchanged
+
 
 class TestBuildRoadSnappedRoute(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
@@ -1864,6 +1906,133 @@ class TestClipNetworkToReach(unittest.TestCase):
         layer, info = _clip_network_to_reach(net, MagicMock(), 1000.0)
         self.assertIs(layer, net)
         self.assertFalse(info["applied"])
+
+
+class TestEstimateRoadSpeeds(unittest.TestCase):
+    """BUG-2026-09-25-3: with real maxspeed data present on almost no roads, this tool fills an
+    'assumed_speed_kmh' field from a fixed per-road-class table, keyed off 'fclass' (Geofabrik) or
+    'highway' (OSM/Overpass)."""
+
+    def test_confirmation_gate(self):
+        res = lt.estimate_road_speeds("Roads", confirmed=False)
+        self.assertEqual(res.get("status"), "PREVIEW_REQUIRED")
+        self.assertTrue(res.get("requires_confirmation"))
+        self.assertTrue(res.get("is_destructive"))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_layer_not_found(self, mock_find):
+        mock_find.return_value = None
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+        self.assertIn("error", res)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_no_class_field_errors(self, mock_find, mock_geom_err):
+        layer = MagicMock()
+        layer.fields.return_value = [MagicMock(name=lambda: "osm_id")]
+        layer.fields.return_value[0].name.return_value = "osm_id"
+        mock_find.return_value = layer
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+        self.assertIn("error", res)
+        self.assertIn("fclass", res["error"])
+
+    def _make_road_layer(self, features, existing_fields=("fclass",), index_map=None):
+        """index_map covers indexOf() after the tool's own addAttributes()/updateFields()
+        would have run -- a MagicMock layer doesn't actually gain a new field from those
+        calls, so the test supplies the post-update index mapping directly (fclass=0,
+        assumed_speed_kmh=1 by default, matching what the real tool would end up with)."""
+        field_mocks = [MagicMock() for _ in existing_fields]
+        for m, name in zip(field_mocks, existing_fields):
+            m.name.return_value = name
+        mapping = index_map or {name: i for i, name in enumerate(existing_fields)}
+        if "assumed_speed_kmh" not in mapping:
+            mapping = {**mapping, "assumed_speed_kmh": len(existing_fields)}
+
+        class _Fields:
+            def __iter__(self):
+                return iter(field_mocks)
+
+            def indexOf(self, name):
+                return mapping.get(name, -1)
+
+        layer = MagicMock()
+        layer.fields.return_value = _Fields()
+        layer.getFeatures.return_value = features
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_fills_speed_from_road_class_table(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        feat_motorway = MagicMock()
+        feat_motorway.attribute.side_effect = lambda k: "motorway" if k == "fclass" else None
+        feat_residential = MagicMock()
+        feat_residential.attribute.side_effect = lambda k: "residential" if k == "fclass" else None
+        layer = self._make_road_layer([feat_motorway, feat_residential])
+        # After addAttributes/updateFields, indexOf('assumed_speed_kmh') should resolve -- fixed index 1.
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        self.assertEqual(res["features_updated"], 2)
+        layer.startEditing.assert_called_once()
+        layer.commitChanges.assert_called_once()
+        calls = layer.changeAttributeValue.call_args_list
+        self.assertEqual(calls[0].args, (feat_motorway.id(), 1, 100.0))
+        self.assertEqual(calls[1].args, (feat_residential.id(), 1, 40.0))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_unknown_road_class_uses_default_speed(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "made_up_class" if k == "fclass" else None
+        layer = self._make_road_layer([feat])
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", default_speed_kmh=25, confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        self.assertIn("made_up_class", res.get("unknown_road_classes", []))
+        layer.changeAttributeValue.assert_called_once_with(feat.id(), 1, 25.0)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_default_overwrite_false_skips_features_with_existing_value(self, mock_find, mock_geom_err,
+                                                                          mock_qvariant, mock_qfield):
+        feat = MagicMock()
+        # attribute(0) = fclass, attribute(1) = existing assumed_speed_kmh already set
+        feat.attribute.side_effect = lambda k: "motorway" if k == "fclass" else 55.0
+        layer = self._make_road_layer([feat], existing_fields=("fclass", "assumed_speed_kmh"))
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        self.assertEqual(res["features_updated"], 0)
+        self.assertEqual(res["features_left_unchanged"], 1)
+        layer.changeAttributeValue.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error",
+           return_value="'Roads' is not a line layer, so it can't be used as a road network.")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_non_line_layer_rejected(self, mock_find, mock_geom_err):
+        layer = self._make_road_layer([])
+        mock_find.return_value = layer
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+        self.assertIn("error", res)
+        self.assertIn("line layer", res["error"])
 
 
 if __name__ == "__main__":
