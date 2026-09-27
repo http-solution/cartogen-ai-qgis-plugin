@@ -866,6 +866,19 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
     (real road distance driving the visiting ORDER, not just the final
     drawn line).
 
+    BUG-2026-09-25-2 follow-up: STRATEGY is fixed at 0 (shortest, not
+    time-based) for every call here, so the only thing that can make
+    matrix[i][j] != matrix[j][i] on the SAME road network is one-way
+    restrictions -- DIRECTION_FIELD. Without one, the network is
+    undirected for this call's purposes and a route is reversible, so
+    the (j, i) call is skipped and its cost copied from the (i, j) result
+    already computed -- exactly halving the call count (and the graph
+    rebuilds that dominate its cost, see _run_network_algorithm's
+    docstring) for the common case of a plain road layer with no
+    one-way data. With a direction_field this optimization is unsafe (a
+    one-way street can make A->B and B->A genuinely different routes) and
+    is skipped, keeping the original O(n^2) behavior unchanged.
+
     Unreachable/failed pairs get float('inf') so _optimize_route naturally
     routes around them (nearest-neighbor never picks an infinite-cost hop
     while a finite one is available) instead of crashing on a missing
@@ -873,9 +886,13 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
     n = len(geoms)
     matrix = [[0.0] * n for _ in range(n)]
     context = _network_context()
+    undirected = not (extra_params and extra_params.get("DIRECTION_FIELD"))
     for i in range(n):
         for j in range(n):
             if i == j:
+                continue
+            if undirected and j < i:
+                matrix[i][j] = matrix[j][i]
                 continue
             start = geoms[i].asPoint()
             end = geoms[j].asPoint()
@@ -1715,3 +1732,137 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     if crs_warning:
         result["warning"] = crs_warning
     return result
+
+
+# BUG-2026-09-25-3: measured on the real Jordan Geofabrik extract, maxspeed is set on only 0.9%
+# of roads (1,504 of 161,041) -- with strategy='fastest', every other road falls back to the flat
+# DEFAULT_SPEED parameter, so a road network with almost no real speed data still produces a
+# uniform-speed travel time, not a meaningfully differentiated one. The road CLASS is present far
+# more often (fclass on a Geofabrik extract; highway on an OSM/Overpass ingest -- same OSM
+# vocabulary, since Geofabrik's fclass mirrors the highway tag it was derived from). This table is
+# an assumption, not measured data -- common values from public routing profiles (OSRM/GraphHopper
+# car profiles), not this project's own measurement of Jordan or any other specific road network.
+# Per docs/BUG_TRACKER.md's own framing, this is a judgement call that changes results and ideally
+# wants checking against a known real journey -- so it ships as an explicit, separately-invoked
+# tool (never run automatically by calculate_service_area/travel_time_matrix/
+# optimize_delivery_route), not a silent default, and its own tool description says so.
+ASSUMED_SPEED_BY_ROAD_CLASS_KMH = {
+    "motorway": 100, "motorway_link": 80,
+    "trunk": 80, "trunk_link": 60,
+    "primary": 70, "primary_link": 50,
+    "secondary": 60, "secondary_link": 45,
+    "tertiary": 50, "tertiary_link": 40,
+    "unclassified": 30,
+    "residential": 40, "living_street": 20,
+    "service": 20, "track": 20,
+    "pedestrian": 5, "footway": 5, "path": 5, "cycleway": 15, "steps": 3,
+}
+_ROAD_CLASS_FIELD_CANDIDATES = ("fclass", "highway")
+
+
+@register_tool(
+    "estimate_road_speeds",
+    "Write an 'assumed_speed_kmh' field onto a road network layer's features, filled in from a "
+    "fixed table of typical speeds per road class (motorway/primary/residential/track/etc, common "
+    "routing-profile values -- see ASSUMED_SPEED_BY_ROAD_CLASS_KMH), read from the layer's 'fclass' "
+    "(Geofabrik OSM extracts) or 'highway' (OSM/Overpass ingests) field. Use this when a road "
+    "network has little or no real maxspeed data (very common: a real Jordan extract had maxspeed "
+    "on only 0.9% of roads) and calculate_service_area/travel_time_matrix/optimize_delivery_route "
+    "with strategy='fastest' would otherwise fall back to one flat default speed for nearly every "
+    "road. IMPORTANT: this is an ASSUMPTION, not measured data for this specific road network -- "
+    "tell the user the travel times that follow from it are estimates based on typical road-class "
+    "speeds, not this network's real posted limits, especially if they ask for a precise duration. "
+    "Never call this automatically as part of another tool's workflow; only when the user has "
+    "actual maxspeed data will speed_field give a materially better answer. Destructive action "
+    "requiring UI confirmation -- in-place attribute mutation on the live layer, same class of "
+    "operation as calculate_area/field_calculator.",
+    {
+        "type": "object",
+        "properties": {
+            "road_network_layer": {"type": "string", "description": "Line layer of the road network, with an 'fclass' or 'highway' field."},
+            "default_speed_kmh": {"type": "number", "description": "Speed assumed for a road class not in the table (default 30)."},
+            "overwrite": {"type": "boolean", "description": "If assumed_speed_kmh already exists, overwrite it. Default false: existing values are left alone, only missing/null ones are filled in."},
+        },
+        "required": ["road_network_layer"],
+    },
+)
+def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=False, confirmed: bool = False):
+    if not confirmed:
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": "estimate_road_speeds",
+            "arguments": {"road_network_layer": road_network_layer, "default_speed_kmh": default_speed_kmh,
+                          "overwrite": overwrite, "confirmed": True},
+            "code_snippet": "layer.startEditing()\n# Add/update field 'assumed_speed_kmh' from a fixed table keyed by "
+                            "fclass/highway\nlayer.commitChanges()",
+            "rationale": f"Data Mutation Preview: Add/update field 'assumed_speed_kmh' on layer "
+                        f"'{road_network_layer}', filled from typical per-road-class speeds -- an assumption, "
+                        "not this network's own measured speed data.",
+            "message": f"Confirmation required before mutating attribute field 'assumed_speed_kmh' on "
+                      f"'{road_network_layer}'.",
+        }
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    network = _find_layer_by_name(road_network_layer)
+    if network is None:
+        return {"error": f"Layer '{road_network_layer}' not found"}
+    geometry_error = _network_geometry_error(network, road_network_layer)
+    if geometry_error:
+        return {"error": geometry_error}
+
+    field_names = [f.name() for f in network.fields()]
+    class_field = next((f for f in _ROAD_CLASS_FIELD_CANDIDATES if f in field_names), None)
+    if class_field is None:
+        return {"error": (
+            f"'{road_network_layer}' has neither an 'fclass' nor a 'highway' field to read a road "
+            "class from -- estimate_road_speeds needs one of those (Geofabrik extracts use "
+            "'fclass'; OSM/Overpass ingests use 'highway')."
+        )}
+
+    try:
+        provider = network.dataProvider()
+        if "assumed_speed_kmh" not in field_names:
+            provider.addAttributes([QgsField("assumed_speed_kmh", QVariant.Double)])
+            network.updateFields()
+        field_idx = network.fields().indexOf("assumed_speed_kmh")
+
+        network.startEditing()
+        updated = 0
+        skipped_existing = 0
+        unknown_classes = set()
+        for feature in network.getFeatures():
+            existing = feature.attribute(field_idx)
+            if existing not in (None, "") and not overwrite:
+                skipped_existing += 1
+                continue
+            road_class = str(feature.attribute(class_field) or "").strip().lower()
+            speed = ASSUMED_SPEED_BY_ROAD_CLASS_KMH.get(road_class)
+            if speed is None:
+                unknown_classes.add(road_class or "(empty)")
+                speed = default_speed_kmh
+            network.changeAttributeValue(feature.id(), field_idx, float(speed))
+            updated += 1
+        network.commitChanges()
+
+        result = {
+            "success": True,
+            "layer_name": road_network_layer,
+            "speed_field": "assumed_speed_kmh",
+            "class_field_used": class_field,
+            "features_updated": updated,
+            "features_left_unchanged": skipped_existing,
+            "note": "Speeds are a fixed assumption table by road class, not measured data for this "
+                    "network -- pass speed_field='assumed_speed_kmh' to calculate_service_area/"
+                    "travel_time_matrix/optimize_delivery_route to use it, and tell the user travel "
+                    "times are estimates.",
+        }
+        if unknown_classes:
+            result["unknown_road_classes"] = sorted(unknown_classes)
+            result["note"] += f" {len(unknown_classes)} road class value(s) not in the table used default_speed_kmh={default_speed_kmh}."
+        return result
+    except Exception as e:
+        if network.isEditable():
+            network.rollBack()
+        return {"error": f"estimate_road_speeds failed: {e}"}

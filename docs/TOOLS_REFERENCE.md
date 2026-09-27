@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (178 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (179 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -351,6 +351,16 @@ Calculate the reachable road-network area around one or more facilities (warehou
 | `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
+
+### `estimate_road_speeds`
+
+Write an 'assumed_speed_kmh' field onto a road network layer's features, filled in from a fixed table of typical speeds per road class (motorway/primary/residential/track/etc, common routing-profile values -- see ASSUMED_SPEED_BY_ROAD_CLASS_KMH), read from the layer's 'fclass' (Geofabrik OSM extracts) or 'highway' (OSM/Overpass ingests) field. Use this when a road network has little or no real maxspeed data (very common: a real Jordan extract had maxspeed on only 0.9% of roads) and calculate_service_area/travel_time_matrix/optimize_delivery_route with strategy='fastest' would otherwise fall back to one flat default speed for nearly every road. IMPORTANT: this is an ASSUMPTION, not measured data for this specific road network -- tell the user the travel times that follow from it are estimates based on typical road-class speeds, not this network's real posted limits, especially if they ask for a precise duration. Never call this automatically as part of another tool's workflow; only when the user has actual maxspeed data will speed_field give a materially better answer. Destructive action requiring UI confirmation -- in-place attribute mutation on the live layer, same class of operation as calculate_area/field_calculator.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `road_network_layer` | string | yes | Line layer of the road network, with an 'fclass' or 'highway' field. |
+| `default_speed_kmh` | number | no | Speed assumed for a road class not in the table (default 30). |
+| `overwrite` | boolean | no | If assumed_speed_kmh already exists, overwrite it. Default false: existing values are left alone, only missing/null ones are filled in. |
 
 ### `location_allocation`
 
