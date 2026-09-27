@@ -814,6 +814,69 @@ The "GO for QGIS 4.2.2 functional RC, NO-GO for stable production release" verdi
 2026-09-20 stands unchanged by this entry; it narrows what's missing to specifically the
 visual/interactive confirmation, not the whole install/upgrade mechanism.
 
+**Update, 2026-09-27 — the toolbar/menu-rendering gap closed, with a real `QgisInterface`, not a
+`FakeIface`.** Alaa asked to handle this directly. A real QGIS 4.2.2 Docker image
+(`qgis/qgis@sha256:6ffe6b31646247f2e179cb2cc32bb4df215eedc99f387ad59a6cc88ebfe23e21`, the exact
+digest this repo's own CI pins) turned out to be pullable in this sandbox after all — the Docker
+daemon just needed starting manually (`dockerd` isn't running by default here, but starts and
+works fine once launched), which earlier sessions this month had not tried. Ran the real `qgis`
+desktop binary (not `python-qgis.bat`'s script mode) under Xvfb, with `--code` driving a real
+`iface`-bound Python script inside the actual running app — genuinely different from the
+2026-09-23/24 `FakeIface` approach, which explicitly could not validate rendering.
+
+Two real environment bugs had to be found and worked around before this worked at all (both
+sandbox/test-harness issues, not bugs in this plugin):
+1. **`xvfb-run`'s signal-based readiness wait hangs when it runs as a container's PID 1** (no init
+   process to reap children/deliver signals correctly) — worked around by starting `Xvfb`
+   manually and polling `xset -display :99 q` for readiness instead of using `xvfb-run`.
+2. **This QGIS build's real profile path is `~/.local/share/QGIS/QGIS4/profiles/<name>`, not
+   `QGIS3/profiles/<name>`** (QGIS renamed the config directory for QGIS4, but the per-profile
+   *settings file inside it* is still named `QGIS3.ini`) — confirmed by directly inspecting the
+   live app's own `qgis.utils.plugin_paths` from inside a running `--code` script; the wrong path
+   silently produced a `ModuleNotFoundError`, whose exception-handling path
+   (`qgis.utils.showException` → `open_stack_dialog`, taken because `QApplication.activeWindow()`
+   is `None` under a window-manager-less Xvfb) opened a blocking modal dialog that looked
+   indistinguishable from a genuine hang until a `faulthandler`-triggered stack dump (`SIGUSR1`)
+   showed exactly where execution was stuck.
+
+With the real path, both parts of this item's original ask ran clean, verified via real Qt widget
+introspection on the live app (`win.findChildren(QToolBar)`/`QMenu`), not just "didn't raise an
+exception":
+- **Fresh profile, `v1.15.6` (built from its tag, matching the 2026-09-23/24 methodology).**
+  `qgis.utils.loadPlugin`/`startPlugin` both succeeded; a `QAction` titled "Cartogen AI" was found
+  on a real `QToolBar`, and a `QMenu` titled "Cartogen AI" (containing "Cartogen AI" and "Help"
+  entries, matching `plugin_main.py`'s own `addPluginToMenu` calls) was found nested under the
+  Plugins menu, exactly where `addPluginToMenu` is documented to place it — not a new top-level
+  menu-bar entry, so it does not show in a plain screenshot without opening the Plugins menu.
+  Screenshot captured (`win.grab()`) showing a clean startup with no error dialog.
+- **In-place upgrade, `v1.15.6` → the actual published `v1.16.0-rc5` release asset** (downloaded
+  via the GitHub API with the environment's own `GH_TOKEN`, since this repo is private; sha256
+  independently verified against the release notes' published checksum before use). Deleted the
+  `v1.15.6` plugin folder from the same profile, extracted the rc5 zip in its place, then relaunched
+  as a **genuinely separate Docker container invocation** (a real new process, not a re-import in
+  the same interpreter). Same clean result: toolbar action and menu both found, no error dialog.
+
+**Both runs needed a manual `loadPlugin`/`startPlugin` call from the driving script rather than
+relying on the profile's `QGIS3.ini`'s `[PythonPlugins] cartogen-ai=true` auto-enable** — that
+setting did not take effect in this harness (`plugin_loaded_before_manual` was `False` both times);
+not investigated further since the manual call exercises the identical `qgis.utils` code path a
+real Plugin-Manager-driven enable would, and getting the auto-enable ini working is a test-harness
+detail, not something this item needed to close.
+
+**What this does and does not close:** this closes the specific gap the 2026-09-23/24 entry left
+open — real toolbar rendering, real menu rendering, and a real clean startup/upgrade, all
+confirmed with a genuine `QgisInterface` inside an actually-running QGIS 4.2.2 desktop process, for
+both a fresh install and an in-place upgrade. **Not done:** the full interactive
+`RELEASE_LIVE_TEST_SCENARIOS.md` walkthrough (16 tool categories driven through the real chat UI)
+still needs a real LLM provider API key, which this sandbox does not have — that remains a
+separate, still-open verification, not part of what this item asked for. Test harness (Dockerfile-free
+docker run invocations, profile fixtures, diagnostic scripts) was scratch work in `/tmp`, not
+committed to the repo — the fixes and findings that matter (this entry, plus the `RELEASE_SMOKE_
+TEST.md` Run log entry below) are what's retained. The 2026-09-20 "GO for QGIS 4.2.2 functional RC,
+NO-GO for stable production release" verdict can now be revisited: the specific reason for the
+NO-GO (this item) is closed for rc5, so a decision to promote rc5 (or a successor) to stable is a
+release-timing call for Alaa, not reopened or decided here.
+
 ### 1.11 `execute_pyqgis_script`'s AST-blocklist sandbox — needs a process-isolation architecture decision
 
 **Added 2026-09-23, from a deeper adversarial pass on the sandbox + `execute_read_only_sql`.**
