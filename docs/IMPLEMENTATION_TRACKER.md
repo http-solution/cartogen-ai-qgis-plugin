@@ -1030,6 +1030,44 @@ testing; not a dependency of this repo.
 
 ---
 
+### 1.13 `memory.py`'s unconditional full-dump context — LanceDB/Chroma scoped, not recommended
+
+**Added 2026-09-27.** Alaa asked to scope `LanceDB`/`Chroma` as semantic retrieval on top of
+`core/agent/memory.py`. `docs/LANCEDB_CHROMA_MEMORY_SCOPE_2026-09-27.md` scopes it — and finds the
+premise needs correcting first: `get_formatted_memory_context()` does **no retrieval at all
+today** (it dumps every stored note into the prompt unconditionally every turn, with only
+`usage:` notes sliced to top-5 by count, unrelated to query relevance). So a vector database's
+selling point ("retrieve only what's relevant") would be a genuinely new capability here, not an
+upgrade to an existing worse search — and grepping this tracker and `BUG_TRACKER.md` found **zero**
+prior reports of a memory-context-size/token problem, unlike RestrictedPython or semantic-router,
+which both had a real bug/incident to anchor against. This is a speculative fix for an
+unobserved problem, not a response to one.
+
+Both libraries were live-tested anyway (insert/query/persist/delete-by-id/full-wipe against
+realistic `pref:`/`rule:`/`other:` notes matching this project's actual key-prefix conventions):
+both map cleanly onto `memory.py`'s existing GDPR-driven erasure contract (F1/F6) with no rework
+needed. Retrieval quality was good with a real embedding model and mediocre with the same weak
+spaCy substitute the semantic-router doc used — consistently an embedding-backend property, not a
+vector-store-engine one. One real, sandbox-specific finding: **Chroma ships a default local
+embedding model that downloaded successfully from an S3 host this sandbox's network policy does
+not block** (unlike the Hugging-Hub-hosted encoders both LanceDB and semantic-router would need),
+giving a clean 4/4 top-1 retrieval result with zero extra engineering — but that convenience comes
+with a real, measured dependency-weight cost (`onnxruntime`, `kubernetes`, `opentelemetry-*`, ~45
+transitive packages) that LanceDB's lean footprint avoids, at the cost of reopening the same
+unresolved embedding-backend decision the semantic-router doc left open (`OllamaEncoder`,
+untested here for lack of a local server).
+
+**Recommendation: not now.** No evidence of the problem this would solve; if unbounded `pref:`/
+`rule:` note growth over a long-lived global profile is ever actually observed, a much cheaper fix
+(a simple cap/trim, matching `usage:` notes' existing top-5-by-count treatment) should be tried
+before adding a new embedding + vector-store dependency. The dependency-weight tradeoff between
+the two libraries is logged here as an open product decision, not resolved — per `CLAUDE.md`'s
+own guidance to flag rather than silently decide judgment calls like this.
+Not built. `lancedb`/`chromadb`/`spacy`/`en_core_web_md` removed from this environment after
+testing; not a dependency of this repo.
+
+---
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
