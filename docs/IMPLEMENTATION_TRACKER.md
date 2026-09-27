@@ -958,6 +958,23 @@ the more natural place to adopt it fully. **Not built** — this is the scoping 
 a go-ahead on the one-line fold, or on the larger `compile_restricted` question, is a separate,
 later decision, same convention as the isolation scoping doc above.
 
+**Update, 2026-09-27 — Shape A step 1 built.** Went ahead on the fold. Not a live
+`from RestrictedPython import ...`, on reflection: `system_tools.py` has zero external
+dependencies today (stdlib `ast`/`builtins` only), and a security denylist that quietly gets
+weaker whenever an optional package isn't installed is a worse failure mode than the small staleness
+risk of a copied list — so the 10 names `INSPECT_ATTRIBUTES` (v8.5) has that this project's own
+`_BLOCKED_DUNDER_ATTRS` didn't (`f_generator`/`f_trace`/`co_code`/`gi_code`/`gi_yieldfrom`/
+`cr_await`/`cr_code`/`cr_origin`/`ag_await`/`ag_code`) were copied in as literal strings, with a
+comment citing the source and version. Unlike every other name in that set, these 10 are **not**
+backed by a live-confirmed PoC of this project's own — added on the strength of RestrictedPython
+tracking the same attack surface, not an independent live finding here. New test
+(`test_blocks_names_folded_from_restrictedpython_inspect_attributes`, `tests/test_new_tools.py`)
+confirmed to fail against the pre-fold code. Full suite 2228 → 2229, 0 failures, ruff clean.
+`docs/TOOLS_REFERENCE.md` regenerated (no diff — this only touches the internal denylist, not the
+tool's registered description). Shape A step 2 (wiring `safer_getattr` itself into the exec
+environment) and Shape B (`compile_restricted` adoption) remain exactly as scoped above — not
+started, no change from this update.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
