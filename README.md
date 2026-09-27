@@ -206,12 +206,9 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item from the dated review/audit/spec docs, kept current as things resolve |
-| [docs/MASTER_TASK_REGISTRY.md](docs/MASTER_TASK_REGISTRY.md) | The full humanitarian mapping task register plus engineering task history |
 | [docs/BUG_TRACKER.md](docs/BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline so it's never mistaken for a regression |
 | [docs/RELEASE_SMOKE_TEST.md](docs/RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
 | [docs/LIVE_TEST_SCENARIOS.md](docs/LIVE_TEST_SCENARIOS.md) | Multi-turn workflow scenarios (task routing, confirmation gates, map visualization accuracy, technical-analysis accuracy) that a single-prompt smoke test can't catch |
-| [docs/RELEASE_GOVERNANCE.md](docs/RELEASE_GOVERNANCE.md) | Who can cut a release and the steps a release must follow |
-| [docs/OPERATIONS_LOG.md](docs/OPERATIONS_LOG.md) | Dated operational narrative — incidents, sandbox quirks, decisions made in the moment |
 | [docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md](docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) | 27-point production-readiness architecture review |
 | [docs/CODE_REVIEW_2026-09-08.md](docs/CODE_REVIEW_2026-09-08.md) | Dated code review with concrete findings |
 

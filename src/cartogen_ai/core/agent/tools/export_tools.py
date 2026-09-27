@@ -1046,7 +1046,7 @@ def _build_trend_chart_data(layer_chart_inputs):
     start_field falls in, not every month it's active through -- this
     counts "how many status/control changes began in month X", the natural
     reading for event-style records (one row per change), and matches what
-    the reference dashboard Baron shared (a per-month count of records by
+    the reference dashboard the project owner shared (a per-month count of records by
     'Controlled By') is doing. It is NOT a running tally of how many
     features were active at any given moment -- a caller wanting that
     instead would need a different aggregation, not built here.
@@ -1839,7 +1839,7 @@ def _temp_html_path():
     "when any layer sets category_field, an automatic stacked bar chart (via Chart.js, from a CDN) "
     "showing how many status/control changes started in each calendar month, broken down by category "
     "and kept in sync with the location filter and date range -- modeled on a real reference dashboard "
-    "Baron shared (a Power BI conflict-monitoring report with a map, location filters, a date range, "
+    "the project owner shared (a Power BI conflict-monitoring report with a map, location filters, a date range, "
     "and a synced trend chart). Each layer is reprojected to WGS84 automatically. Vector layers only. "
     "The viewer needs internet access at view time (see the result's connectivity_note -- this is now "
     "true even for a dashboard with no chart, since Chart.js is always loaded). IMPORTANT: use your "

@@ -1278,7 +1278,7 @@ INCIDENT_LAYER_NAME = "Incidents"
 # Two optional controlled incident-coding vocabularies, alongside (not
 # replacing) the existing freeform severity/category fields -- per
 # docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md Section V's gap ("no controlled/
-# authorized incident-coding vocabulary"). Baron's decision, 2026-09-04: support
+# authorized incident-coding vocabulary"). Project decision, 2026-09-04: support
 # both rather than picking one. Values are validated but not enforced -- an
 # unrecognized value is returned as a warning, not a hard error, so a caller
 # passing a still-freeform label doesn't lose the whole insert.

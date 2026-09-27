@@ -2,8 +2,8 @@
 """Tests for the 2026-09-04 dual controlled-vocabulary incident-coding
 addition to agent/tools/humanitarian_tools.py (ACLED-style event_type/
 sub_event_type + IMSMA/IMAS-style hazard_type/contamination_status), layered
-on top of the pre-existing freeform severity/category fields per Baron's
-decision to support both vocabularies rather than pick one. Follows the
+on top of the pre-existing freeform severity/category fields per the project
+owner's decision to support both vocabularies rather than pick one. Follows the
 QGIS_AVAILABLE=False degrade-path convention used throughout the suite;
 QGIS-touching paths are exercised with MagicMock layers, same technique as
 tests/test_logistics_tools.py."""
