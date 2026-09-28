@@ -126,17 +126,36 @@ class TestBuildWorkerEnvironment(unittest.TestCase):
         self.assertEqual(env.get("QT_QPA_PLATFORM"), "xcb")
 
     def test_adds_plugin_parent_to_pythonpath(self):
-        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"):
+        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"),              patch.object(si, "_qgis_sys_path_entries", return_value=[]):
             env = si._build_worker_environment()
         self.assertIn("/fake/src", env.get("PYTHONPATH", ""))
 
     def test_prepends_plugin_parent_without_dropping_existing_pythonpath(self):
-        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"):
+        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"),              patch.object(si, "_qgis_sys_path_entries", return_value=[]):
             with patch.dict(os.environ, {"PYTHONPATH": "/other/existing/path"}, clear=False):
                 env = si._build_worker_environment()
         parts = env["PYTHONPATH"].split(os.pathsep)
         self.assertEqual(parts[0], "/fake/src")
         self.assertIn("/other/existing/path", parts)
+
+    def test_includes_the_live_processs_own_sys_path_entries(self):
+        # The real 2026-09-28 live report this closes: a CORRECTLY resolved real
+        # Python interpreter (not the QGIS-binary misdetection _QGIS_BINARY_BASENAMES
+        # guards against) still failed with "No module named 'qgis'", because the
+        # qgis bindings directory was on THIS process's sys.path (added by QGIS's
+        # own C++ bootstrap at embed time) but never exported as a PYTHONPATH env var
+        # for a spawned subprocess to inherit.
+        fake_qgis_dir = os.path.dirname(os.path.abspath(__file__))  # any real, existing dir
+        with patch.object(si, "_plugin_parent_dir", return_value=None),              patch.object(si.sys, "path", [fake_qgis_dir, "", "/does/not/exist"]):
+            env = si._build_worker_environment()
+        self.assertIn(fake_qgis_dir, env.get("PYTHONPATH", "").split(os.pathsep))
+
+    def test_deduplicates_pythonpath_entries(self):
+        fake_dir = os.path.dirname(os.path.abspath(__file__))
+        with patch.object(si, "_plugin_parent_dir", return_value=fake_dir),              patch.object(si.sys, "path", [fake_dir]):
+            env = si._build_worker_environment()
+        parts = env["PYTHONPATH"].split(os.pathsep)
+        self.assertEqual(parts.count(fake_dir), 1)
 
 
 class TestPluginParentDir(unittest.TestCase):

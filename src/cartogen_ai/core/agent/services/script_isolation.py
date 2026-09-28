@@ -132,6 +132,26 @@ def find_python_interpreter():
 _QGIS_BINARY_BASENAMES = {"qgis-bin.exe", "qgis-bin", "qgis.exe", "qgis", "QGIS", "QGIS.exe"}
 
 
+def _qgis_sys_path_entries():
+    """Directories already on THIS process's own `sys.path` -- this plugin is
+    running inside a real, already-initialized QGIS session, so if it can
+    `import qgis.core` right now, whatever made that true is already sitting
+    in this list. On a real Windows/macOS desktop install, QGIS's own C++
+    bootstrap adds the `qgis` bindings (and PyQt, GDAL's Python bindings,
+    etc.) to the EMBEDDED interpreter's `sys.path` directly -- it is not
+    exported as an OS-level `PYTHONPATH` environment variable at all, so a
+    bare subprocess spawned from the same on-disk interpreter binary does
+    NOT inherit it via `os.environ` (confirmed by a live report, 2026-09-28:
+    a *correctly resolved* real Python interpreter -- not the QGIS-binary
+    misdetection `_QGIS_BINARY_BASENAMES` guards against -- still failed
+    with `ModuleNotFoundError: No module named 'qgis'`). Reusing this
+    process's resolved `sys.path` instead of reconstructing an install
+    layout by guesswork (OSGeo4W vs. the standalone installer vs. Docker
+    each differ) works however THIS install actually set itself up, since
+    it's the exact same information QGIS itself already computed."""
+    return [p for p in sys.path if p and os.path.isdir(p)]
+
+
 def _build_worker_environment():
     """A curated, minimal environment for the worker subprocess -- per the scoping
     doc's §3 recommendation ("environment variables stripped to the minimum QGIS
@@ -148,10 +168,28 @@ def _build_worker_environment():
         for key, value in os.environ.items()
         if key in keep_exact or key.startswith(keep_prefixes)
     }
+    # Order matters: this plugin's own parent dir first (so `import cartogen_ai`
+    # in the worker always resolves to THIS install, never a same-named package
+    # elsewhere on the QGIS interpreter's own sys.path), then the live process's
+    # resolved qgis/PyQt/GDAL bindings directories, then whatever PYTHONPATH the
+    # environment already had (lowest precedence, kept rather than dropped).
+    path_entries = []
     plugin_parent = _plugin_parent_dir()
     if plugin_parent:
-        existing = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = plugin_parent if not existing else os.pathsep.join([plugin_parent, existing])
+        path_entries.append(plugin_parent)
+    path_entries.extend(_qgis_sys_path_entries())
+    existing = env.get("PYTHONPATH", "")
+    if existing:
+        path_entries.append(existing)
+    if path_entries:
+        # Dedupe while preserving order -- sys.path commonly repeats entries.
+        seen = set()
+        deduped = []
+        for entry in path_entries:
+            if entry not in seen:
+                seen.add(entry)
+                deduped.append(entry)
+        env["PYTHONPATH"] = os.pathsep.join(deduped)
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
     return env
 
