@@ -164,7 +164,7 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file. output_path is optional -- omit it to save beside the layer's own on-disk source (or fall back to Desktop for a scratch/memory layer with no real source file). Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
+Export layer attribute table to CSV file. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project isn't saved yet), under a clean, sanitized file name derived from the layer's own name. Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -672,7 +672,7 @@ Sum population within each polygon of a vector layer, using an already-loaded po
 
 ### `georeference_image`
 
-Georeference a scanned map or unreferenced image using control points (pixel coordinates matched to real-world coordinates) -- e.g. aligning a scanned paper map to its true location. Needs at least 3 non-collinear control points; more (well-distributed across the image) generally gives a more accurate result than the minimum. Produces a real, spatially-referenced raster and loads it into the project.
+Georeference a scanned map or unreferenced image using control points (pixel coordinates matched to real-world coordinates) -- e.g. aligning a scanned paper map to its true location and scale on the map. Needs at least 3 non-collinear control points; more (well-distributed across the image) generally gives a more accurate result than the minimum. Produces a real, spatially-referenced raster, loads it into the project, and reports the fit's RMSE (in the target CRS's units) so alignment quality can be judged -- QGIS Georeferencer shows the same number for the same reason.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -680,6 +680,7 @@ Georeference a scanned map or unreferenced image using control points (pixel coo
 | `control_points` | array[object] | yes | At least 3 points, e.g. [{"pixel_x": 120, "pixel_y": 340, "lon": 35.93, "lat": 31.95}]. |
 | `output_path` | string | yes | Where to save the georeferenced raster (.tif). |
 | `target_crs` | string | no | CRS of the lon/lat control point coordinates. Defaults to EPSG:4326. |
+| `transform_type` | string | no | 'tps' (default): thin-plate-spline rubber-sheeting -- best when the source image itself is locally distorted (an uneven scan, a hand-drawn sketch map) since it bends to fit every control point exactly. 'linear': a single 6-parameter affine (independent x/y scale, shear, rotation) fit by least squares -- QGIS Georeferencer's 'Linear'. 'helmert': a single 4-parameter similarity (one uniform scale, one rotation, no shear) fit by least squares -- QGIS Georeferencer's 'Helmert', the right choice for a clean scan of a rigid printed map where the true transform can't have shear. |
 
 ### `hillshade`
 

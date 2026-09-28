@@ -527,6 +527,10 @@ class TestExportLayerNoPathNeverPrompts(unittest.TestCase):
 
     def test_no_path_never_prompts_even_when_an_interactive_session_is_present(self):
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        import tempfile
+        import shutil
+        tmp_home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp_home, True)
         fake_iface = MagicMock()
         fake_iface.mainWindow.return_value = MagicMock()
         layer = MagicMock()
@@ -539,7 +543,8 @@ class TestExportLayerNoPathNeverPrompts(unittest.TestCase):
 
         with patch.object(export_tools_mod, "iface", fake_iface), \
              patch.object(export_tools_mod, "_find_layer_by_name", return_value=layer), \
-             patch.object(export_tools_mod, "_write_vector", side_effect=fake_write_vector):
+             patch.object(export_tools_mod, "_write_vector", side_effect=fake_write_vector), \
+             patch("os.path.expanduser", return_value=tmp_home):
             res = export_tools_mod.export_layer("Scratch Layer", "gpkg")
 
         self.assertTrue(res.get("success"), res)
@@ -730,10 +735,18 @@ class TestExportToCsvDefaultOutputPath(unittest.TestCase):
     """Live-reported bug, 2026-09-19: output_path was a hard-required argument with no
     default -- a turn that ran out of tool-call budget before the model supplied a path
     ended in "please specify a destination file path" after the real analysis had already
-    completed. Same default-derivation convention styling_tools.py's save_layer_style
-    (_derive_style_path) already established: an explicit path always wins; otherwise sit
-    beside the layer's real on-disk source, or fall back to Desktop for a scratch/memory
-    layer."""
+    completed. An explicit path always wins; otherwise the file lands under the project's
+    own data/20_processed folder, or the QGIS profile folder if the project isn't saved yet.
+
+    Live-reported, 2026-09-28: an EARLIER version of this default-derivation sat the CSV
+    beside the layer's own on-disk source file -- fine for a layer loaded from a real file
+    the user chose, but for a layer that is itself a Processing algorithm's intermediate
+    output (the common case for an analysis result), that source is an auto-generated,
+    QGIS-managed temp file with an ugly, unreadable name sitting in a directory QGIS can
+    clean up at any time. The tests below replaced the ones asserting that old "beside the
+    source" behavior, which is deliberately gone now -- every fallback path uses a clean,
+    sanitized name under a stable project/profile folder instead, never the source's own
+    basename."""
 
     def _fake_layer(self, name="incidents", source=""):
         layer = MagicMock()
@@ -750,22 +763,38 @@ class TestExportToCsvDefaultOutputPath(unittest.TestCase):
         self.assertEqual(path, "/explicit/path.csv")
         self.assertFalse(used_fallback)
 
-    def test_no_path_falls_back_beside_a_real_on_disk_source(self):
+    @patch("cartogen_ai.core.agent.tools.export_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsProject", create=True)
+    def test_no_path_uses_the_saved_projects_processed_data_folder(self, mock_project):
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
         import tempfile
-        fd, real_file = tempfile.mkstemp(suffix=".gpkg")
-        os.close(fd)
-        self.addCleanup(lambda: os.path.exists(real_file) and os.remove(real_file))
-        path, used_fallback = export_tools_mod._derive_csv_path(
-            self._fake_layer(source=f"{real_file}|layername=incidents"), None)
-        self.assertEqual(path, f"{os.path.splitext(real_file)[0]}.csv")
-        self.assertFalse(used_fallback)
+        import shutil
+        tmp_home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp_home, True)
+        mock_project.instance.return_value.homePath.return_value = tmp_home
 
-    def test_no_path_and_no_real_source_falls_back_to_desktop(self):
-        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        # A real (but ugly, Processing-generated-looking) on-disk source must be IGNORED --
+        # this is exactly the mechanism that produced an unopenable, unfindable CSV.
+        ugly_source = os.path.join(tmp_home, "out_Health_Facilities_278d9021_6333.gpkg")
         path, used_fallback = export_tools_mod._derive_csv_path(
-            self._fake_layer(name="Scratch Layer", source=""), None)
-        self.assertTrue(path.endswith("Scratch Layer.csv"))
+            self._fake_layer(name="Health Facilities Beyond 1 Hour", source=ugly_source), None)
+
+        expected_dir = os.path.join(tmp_home, "data", "20_processed")
+        self.assertEqual(path, os.path.join(expected_dir, "Health Facilities Beyond 1 Hour.csv"))
+        self.assertTrue(used_fallback)
+        self.assertTrue(os.path.isdir(expected_dir))
+
+    @patch("cartogen_ai.core.agent.tools.export_tools.QGIS_AVAILABLE", False)
+    def test_no_path_and_no_saved_project_uses_a_stable_folder_not_the_ugly_source_basename(self):
+        import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        import tempfile
+        import shutil
+        tmp_home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp_home, True)
+        with patch("os.path.expanduser", return_value=tmp_home):
+            path, used_fallback = export_tools_mod._derive_csv_path(
+                self._fake_layer(name="Scratch Layer", source=f"{tmp_home}/out_weird_uuid.gpkg"), None)
+        self.assertTrue(path.endswith(os.path.join("cartogen_ai", "exports", "geospatial", "Scratch Layer.csv")))
         self.assertTrue(used_fallback)
 
     def test_no_path_never_prompts_even_when_an_interactive_session_is_present(self):
@@ -778,9 +807,13 @@ class TestExportToCsvDefaultOutputPath(unittest.TestCase):
         # test env), which is exactly why that regression slipped past them silently: the
         # dialog branch was simply never reached by any existing test.
         import cartogen_ai.core.agent.tools.export_tools as export_tools_mod
+        import tempfile
+        import shutil
+        tmp_home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp_home, True)
         fake_iface = MagicMock()
         fake_iface.mainWindow.return_value = MagicMock()
-        with patch.object(export_tools_mod, "iface", fake_iface):
+        with patch.object(export_tools_mod, "iface", fake_iface),              patch("os.path.expanduser", return_value=tmp_home):
             path, used_fallback = export_tools_mod._derive_csv_path(
                 self._fake_layer(name="Scratch Layer", source=""), None)
         self.assertTrue(path.endswith("Scratch Layer.csv"))

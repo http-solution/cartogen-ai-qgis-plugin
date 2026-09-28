@@ -136,5 +136,121 @@ class TestMapOutputProcess(unittest.TestCase):
         self.assertTrue(chips[0]["url"].startswith("cartogen://action/act_"))
 
 
+class _FakeMemoryManager:
+    """Same fake used by tests/test_map_state_memory.py -- matches
+    SpatialMemoryManager's get_project_notes()/store_project_note() surface."""
+    def __init__(self):
+        self._notes = {}
+
+    def get_project_notes(self):
+        return dict(self._notes)
+
+    def store_project_note(self, key, value):
+        self._notes[key] = value
+        return {"success": True}
+
+
+class TestProcessMapOutputDesignStateMemory(unittest.TestCase):
+    """§1.16 "smart mapping": process_map_output should reuse a project's own prior
+    styling choice for a given output_role on a later, similar request -- rather than
+    silently reverting to STYLE_PROFILES' hardcoded default every time -- unless the
+    caller explicitly asks for something different. Mocks apply_component_symbology/
+    insert_layer_semantically themselves rather than every individual qgis.core symbol
+    class they touch -- this isolates the actual thing under test (process_map_output's
+    recall-before/record-after wiring in map_intelligence.py) from that unrelated
+    styling-internals machinery, which is already covered by TestLineComponentSymbology
+    and the STYLE_PROFILES tests above."""
+
+    def _mock_layer(self, geom_type="POLY"):
+        layer = MagicMock()
+        layer.id.return_value = "layer_new"
+        layer.name.return_value = "New Layer"
+        layer.geometryType.return_value = geom_type
+        return layer
+
+    @patch("cartogen_ai.core.agent.map_intelligence.insert_layer_semantically")
+    @patch("cartogen_ai.core.agent.map_intelligence.apply_component_symbology")
+    @patch("cartogen_ai.core.agent.tools.task_tools.get_memory_manager")
+    def test_a_remembered_style_is_reused_when_the_caller_asks_for_nothing_specific(
+        self, mock_get_mm, mock_apply_symbology, mock_insert,
+    ):
+        mock_apply_symbology.return_value = True
+        mm = _FakeMemoryManager()
+        mock_get_mm.return_value = mm
+        from cartogen_ai.core.agent.map_state_memory import record_output
+        record_output(mm, "proximity_buffer", "layer_old", "Old Buffer",
+                       style_profile="proximity_buffer", properties={"color": "#123456"})
+
+        layer = self._mock_layer()
+        process_map_output(layer, output_role="proximity_buffer")
+
+        # The remembered color was carried into the descriptor apply_component_symbology
+        # actually received, rather than an empty properties dict.
+        descriptor = mock_apply_symbology.call_args[0][1]
+        self.assertEqual(descriptor.properties.get("color"), "#123456")
+        self.assertEqual(descriptor.style_profile, "proximity_buffer")
+
+    @patch("cartogen_ai.core.agent.map_intelligence.insert_layer_semantically")
+    @patch("cartogen_ai.core.agent.map_intelligence.apply_component_symbology")
+    @patch("cartogen_ai.core.agent.tools.task_tools.get_memory_manager")
+    def test_an_explicit_caller_color_overrides_whatever_is_remembered(
+        self, mock_get_mm, mock_apply_symbology, mock_insert,
+    ):
+        mock_apply_symbology.return_value = True
+        mm = _FakeMemoryManager()
+        mock_get_mm.return_value = mm
+        from cartogen_ai.core.agent.map_state_memory import record_output
+        record_output(mm, "proximity_buffer", "layer_old", "Old Buffer",
+                       properties={"color": "#123456"})
+
+        layer = self._mock_layer()
+        process_map_output(layer, output_role="proximity_buffer", properties={"color": "#abcdef"})
+
+        descriptor = mock_apply_symbology.call_args[0][1]
+        self.assertEqual(descriptor.properties.get("color"), "#abcdef")
+
+    @patch("cartogen_ai.core.agent.map_intelligence.insert_layer_semantically")
+    @patch("cartogen_ai.core.agent.map_intelligence.apply_component_symbology")
+    @patch("cartogen_ai.core.agent.tools.task_tools.get_memory_manager")
+    def test_a_successful_styling_call_is_recorded_for_the_next_one_to_recall(
+        self, mock_get_mm, mock_apply_symbology, mock_insert,
+    ):
+        mock_apply_symbology.return_value = True
+        mm = _FakeMemoryManager()
+        mock_get_mm.return_value = mm
+
+        layer = self._mock_layer()
+        process_map_output(layer, output_role="hazard_extent", properties={"color": "#ff8800"})
+
+        from cartogen_ai.core.agent.map_state_memory import recall_output
+        recalled = recall_output(mm, "hazard_extent")
+        self.assertEqual(recalled["properties"]["color"], "#ff8800")
+        self.assertEqual(recalled["layer_name"], "New Layer")
+
+    @patch("cartogen_ai.core.agent.map_intelligence.insert_layer_semantically")
+    @patch("cartogen_ai.core.agent.map_intelligence.apply_component_symbology")
+    @patch("cartogen_ai.core.agent.tools.task_tools.get_memory_manager")
+    def test_a_failed_styling_call_is_not_recorded(self, mock_get_mm, mock_apply_symbology, mock_insert):
+        mock_apply_symbology.return_value = False
+        mm = _FakeMemoryManager()
+        mock_get_mm.return_value = mm
+
+        layer = self._mock_layer()
+        process_map_output(layer, output_role="hazard_extent", properties={"color": "#ff8800"})
+
+        from cartogen_ai.core.agent.map_state_memory import recall_output
+        self.assertIsNone(recall_output(mm, "hazard_extent"))
+
+    @patch("cartogen_ai.core.agent.map_intelligence.insert_layer_semantically")
+    @patch("cartogen_ai.core.agent.map_intelligence.apply_component_symbology")
+    @patch("cartogen_ai.core.agent.tools.task_tools.get_memory_manager")
+    def test_no_active_memory_manager_is_a_safe_no_op(self, mock_get_mm, mock_apply_symbology, mock_insert):
+        mock_apply_symbology.return_value = True
+        mock_get_mm.return_value = None
+        layer = self._mock_layer()
+        res = process_map_output(layer, output_role="proximity_buffer")
+        self.assertTrue(res["success"])
+
+
 if __name__ == "__main__":
     unittest.main()

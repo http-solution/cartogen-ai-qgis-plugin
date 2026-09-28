@@ -18,7 +18,7 @@ try:
     from qgis.core import (
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-        QgsVectorLayer, QgsFeature, QgsWkbTypes,
+        QgsVectorLayer, QgsFeature, QgsWkbTypes, QgsApplication,
     )
     from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
@@ -226,11 +226,14 @@ def export_layer(layer_name, format, output_path=None, only_selected=None):
     # Save As dialog when output_path was omitted, reintroducing exactly the stall risk a
     # headless-safe default was previously added to fix: an agent turn with no output_path
     # would block on the QGIS main thread waiting for a human click that might never come.
-    # Explicit output_path always wins; otherwise this always derives a Desktop path with
-    # no prompt, matching export_to_csv's/_derive_csv_path's own headless-safe convention.
+    # Explicit output_path always wins; otherwise this always derives a project/profile-folder
+    # path with no prompt (2026-09-28: moved off Desktop, see _default_export_dir's own
+    # docstring -- same "keep generated files under the project/profile folder, not scattered
+    # across the OS" fix _derive_csv_path got the same day), matching export_to_csv's/
+    # _derive_csv_path's own headless-safe convention.
     if not output_path:
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        output_path = os.path.join(desktop, f"{_sanitize_filename(layer.name())}{ext}")
+        base = _default_export_dir("exports/geospatial")
+        output_path = os.path.join(base, f"{_sanitize_filename(layer.name())}{ext}")
 
     return _write_vector(layer, output_path, driver, only_selected=only_selected)
 
@@ -284,12 +287,58 @@ def _sanitize_filename(name):
     return safe or "layer"
 
 
+def _default_export_dir(subdir="exports"):
+    """A stable, reusable location for tool-generated files -- the project's own
+    data/20_processed (matching create_project_folder_structure's own "Analysis outputs"
+    folder, project_tools.py) when the project is saved, else a per-profile folder under the
+    QGIS profile (the same pattern local_data_loader.py's data_dir() already established for
+    downloaded OSM data, so this plugin never scatters files across arbitrary OS locations).
+    Directory is created if missing -- callers never have to check first."""
+    home = ""
+    try:
+        if QGIS_AVAILABLE:
+            home = QgsProject.instance().homePath()
+    except Exception:
+        home = ""
+    if home:
+        base = os.path.join(home, "data", "20_processed")
+    else:
+        try:
+            profile_dir = QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else os.path.expanduser("~")
+        except Exception:
+            profile_dir = os.path.expanduser("~")
+        # subdir may be a "/"-joined caller convenience (e.g. "exports/geospatial") --
+        # split it into separate os.path.join() components rather than passing it through
+        # as one argument, which would embed a literal "/" in the path on Windows and mix
+        # separators (CI failure on windows-latest, 2026-09-28: the resulting path had
+        # "...\\cartogen_ai\\exports/geospatial\\..." and no longer matched an
+        # os.path.join()-built expected path in the test).
+        base = os.path.join(profile_dir, "cartogen_ai", *subdir.split("/"))
+    try:
+        os.makedirs(base, exist_ok=True)
+    except OSError:
+        base = os.path.join(os.path.expanduser("~"), "Desktop")
+        os.makedirs(base, exist_ok=True)
+    return base
+
+
 def _derive_csv_path(layer, output_path):
-    """Returns (path, used_desktop_fallback) for export_to_csv. explicit output_path always
-    wins; otherwise this sits the .csv beside the layer's own on-disk source, falling back
-    to Desktop for a scratch/memory layer with no real source file -- never prompts, since
-    this tool is called by the LLM agent's unattended tool-calling loop (agent/agent_orchestrator.py), not
-    only from direct human UI interaction.
+    """Returns (path, used_fallback) for export_to_csv. explicit output_path always wins;
+    otherwise the .csv is written under _default_export_dir() (project folder or QGIS
+    profile), never prompts -- this tool is called by the LLM agent's unattended
+    tool-calling loop (agent/agent_orchestrator.py), not only from direct human UI
+    interaction.
+
+    Live-reported, 2026-09-28: an earlier version of this function sat the CSV beside the
+    layer's own on-disk source file when one existed. For a layer that is itself a Processing
+    algorithm's intermediate output (a common case for an analysis result like "Health
+    Facilities Beyond 1 Hour"), that source is an auto-generated, QGIS-managed temp file --
+    reusing its exact ugly basename produced an unreadable, unfindable filename (e.g.
+    "out_Health_Facilities_Beyond_1_Hour_278d9021_6333_4b63_808c_957ff81df274.csv") sitting in
+    a temp directory QGIS can clean up at any time, which the user could not open. Always
+    using a clean, sanitized name under a stable project/profile folder instead closes both
+    problems: the requested "local directories should be limited to project folder / profile
+    folder for more reusable data sets" is exactly this change.
 
     A prior version of this function briefly reintroduced a blocking QFileDialog.
     getSaveFileName() call here when output_path was omitted -- found and reverted in a
@@ -299,25 +348,14 @@ def _derive_csv_path(layer, output_path):
     dialog on an unattended turn is the same failure mode, just silent instead of loud)."""
     if output_path:
         return output_path, False
-
-    source = ""
-    try:
-        source = layer.source() or ""
-    except Exception:
-        source = ""
-    base_path = source.split("|", 1)[0] if source else ""
-    if base_path and os.path.isfile(base_path):
-        return f"{os.path.splitext(base_path)[0]}.csv", False
-
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    if not os.path.isdir(desktop):
-        desktop = os.path.expanduser("~")
-    return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.csv"), True
+    base = _default_export_dir("exports/geospatial")
+    return os.path.join(base, f"{_sanitize_filename(layer.name())}.csv"), True
 
 
 @register_tool("export_to_csv", "Export layer attribute table to CSV file. output_path is optional -- "
-               "omit it to save beside the layer's own on-disk source (or fall back to Desktop for a "
-               "scratch/memory layer with no real source file). Never prompts interactively. "
+               "omit it to save under the project's data/20_processed folder (or the QGIS profile "
+               "folder if the project isn't saved yet), under a clean, sanitized file name derived "
+               "from the layer's own name. Never prompts interactively. "
                "If features are selected on the layer, only selected features are exported by default.",
                {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
 def export_to_csv(layer_name, output_path=None, only_selected=None):
@@ -338,10 +376,7 @@ def export_to_csv(layer_name, output_path=None, only_selected=None):
         if sanitize_error:
             return {"error": sanitize_error}
         if used_fallback:
-            result["warning"] = (
-                "No output_path given and the layer has no real on-disk source (a scratch/"
-                "memory layer) -- saved to Desktop instead."
-            )
+            result["note"] = f"No output_path given -- saved under {os.path.dirname(path)}."
     return result
 
 
