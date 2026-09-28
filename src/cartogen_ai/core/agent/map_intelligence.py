@@ -463,20 +463,49 @@ def process_map_output(
     properties: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Single post-processing service invoked whenever a layer is created or substantially modified."""
+    # Design-state memory (§1.16 "smart mapping" -- see map_state_memory.py's module
+    # docstring): if a PRIOR call already produced this output_role in this project and
+    # the caller here didn't explicitly ask for a different style_profile/color, reuse
+    # what was actually used last time instead of always falling back to STYLE_PROFILES'
+    # hardcoded default -- a follow-up request for a similar output then visually matches
+    # the one before it. Caller-supplied values always win; this only fills in what the
+    # caller left unset. Lazy imports: keeps this module free of a hard dependency on the
+    # tools package, matching the "lazy import for cross-module agent state" convention
+    # already used elsewhere (e.g. chat_tab_widget.py's _maybe_ask_local_data).
+    from . import map_state_memory
+    from .tools.task_tools import get_memory_manager
+    memory_manager = get_memory_manager()
+    remembered = map_state_memory.recall_output(memory_manager, output_role)
+
+    effective_style_profile = style_profile
+    effective_properties = dict(properties or {})
+    if remembered:
+        if effective_style_profile is None and remembered.get("style_profile"):
+            effective_style_profile = remembered["style_profile"]
+        remembered_color = (remembered.get("properties") or {}).get("color")
+        if "color" not in effective_properties and remembered_color:
+            effective_properties["color"] = remembered_color
+
     descriptor = MapOutputDescriptor(
         layer_id=layer.id() if hasattr(layer, "id") else "",
         output_role=output_role,
         source_layer_id=source_layer_id,
         recommended_label_field=recommended_label_field,
-        style_profile=style_profile or output_role,
-        properties=properties or {},
+        style_profile=effective_style_profile or output_role,
+        properties=effective_properties,
     )
 
     # 1. Local Semantic Insertion
     insert_layer_semantically(layer, descriptor)
 
     # 2. Component Symbology
-    apply_component_symbology(layer, descriptor)
+    styled = apply_component_symbology(layer, descriptor)
+    if styled:
+        map_state_memory.record_output(
+            memory_manager, output_role, descriptor.layer_id,
+            layer.name() if hasattr(layer, "name") else "",
+            descriptor.style_profile, descriptor.properties,
+        )
 
     # 3. Intelligent Labeling (if requested)
     if recommended_label_field and isinstance(layer, QgsVectorLayer):
