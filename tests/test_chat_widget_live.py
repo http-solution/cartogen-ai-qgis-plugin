@@ -1222,7 +1222,11 @@ class TestLocalDataOfferLive(unittest.TestCase):
             _pump(8000, until=lambda: ct._awaiting_local_data_reply)
             log = ct.chat_browser.toPlainText()
             self.assertIn("4300 MB", log)
-            self.assertIn("cartogen://action/", log, "offered as clickable chips, not free text only")
+            # toPlainText() strips href targets, keeping only the chip's visible label --
+            # toHtml() is what actually shows the markdown link survived rendering as a
+            # clickable chip rather than literal "cartogen://action/..." text in the bubble.
+            self.assertIn("cartogen://action/", ct.chat_browser.toHtml(),
+                           "offered as clickable chips, not free text only")
             dl.assert_not_called()
             TestChatWidgetLive._reply(ct, "online")
         self.assertTrue(ct._awaiting_preview_reply)
