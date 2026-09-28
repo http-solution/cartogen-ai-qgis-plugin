@@ -552,10 +552,12 @@ def geocode_batch(location_names: list):
     "LAST RESORT ONLY -- run this only when no other registered tool covers the task; check "
     "the rest of the tool list first, including run_allowlisted_processing_algorithm if the task "
     "is achievable via a single Processing algorithm -- that tool never executes Python code at "
-    "all, so it's meaningfully safer than this one whenever it applies. Runs inside a "
-    "denylist-based safety sandbox (blocked modules/builtins; see SECURITY.md), not a formally "
-    "proven one, so it is not a safe default path just because it's available. Execute arbitrary "
-    "PyQGIS script; must define a run() function returning the result.",
+    "all, so it's meaningfully safer than this one whenever it applies. Runs in a separate, "
+    "isolated process (a snapshot of the project, not the live one) with its own denylist-based "
+    "safety sandbox on top (blocked modules/builtins; see SECURITY.md) -- not a formally proven "
+    "sandbox, so it is not a safe default path just because it's available. Fails with an error, "
+    "without running, if any layer has uncommitted edits -- commit or discard them first. Execute "
+    "arbitrary PyQGIS script; must define a run() function returning the result.",
     {"type": "object", "properties": {"script": {"type": "string"}}, "required": ["script"]},
 )
 def execute_pyqgis_script(script: str):
@@ -565,30 +567,40 @@ def execute_pyqgis_script(script: str):
     if safety_error:
         return {"error": f"Script rejected for safety: {safety_error}"}
 
-    try:
-        from qgis.core import (
-            QgsProject, QgsVectorLayer, QgsRasterLayer, QgsFeature,
-            QgsGeometry, QgsPointXY, QgsField, QgsApplication
-        )
-        from qgis.PyQt.QtCore import QVariant
+    import importlib.util
+    qgis_available = (
+        importlib.util.find_spec("qgis") is not None
+        and importlib.util.find_spec("qgis.core") is not None
+    )
 
-        local_env = {
-            'QgsProject': QgsProject,
-            'QgsVectorLayer': QgsVectorLayer,
-            'QgsRasterLayer': QgsRasterLayer,
-            'QgsFeature': QgsFeature,
-            'QgsGeometry': QgsGeometry,
-            'QgsPointXY': QgsPointXY,
-            'QgsField': QgsField,
-            'QgsApplication': QgsApplication,
-            'QVariant': QVariant,
-        }
-    except ImportError:
-        local_env = {}
+    if qgis_available:
+        # Process isolation (IMPLEMENTATION_TRACKER.md §1.11, go-ahead 2026-09-28):
+        # inside a real running QGIS session there is a real live QgsProject to
+        # isolate, so the script runs in a separate worker process instead of
+        # exec()'ing in this plugin's own process -- see
+        # agent/services/script_isolation.py's module docstring for the full
+        # design and its documented limitations.
+        from ..services.script_isolation import run_isolated_script, has_uncommitted_edits
 
-    # Defense in depth on top of _validate_script_safety's AST checks: even if
-    # some future AST bypass slips through, eval/open/__import__/getattr etc.
-    # simply aren't resolvable names inside this restricted builtins scope.
+        editable_layers = has_uncommitted_edits()
+        if editable_layers:
+            return {
+                "error": (
+                    "Refusing to run: layer(s) " + ", ".join(editable_layers) + " have "
+                    "uncommitted edits. execute_pyqgis_script runs in an isolated process "
+                    "against a saved snapshot of the project and cannot see in-progress "
+                    "edits -- commit or discard them first, then retry."
+                )
+            }
+        return run_isolated_script(script)
+
+    # No live QGIS in this process (unit-test / validator-only context, e.g. this
+    # repo's plain `test` CI job) -- the isolation boundary above needs a real
+    # QgsApplication/QgsProject to isolate, which doesn't exist here anyway. Exec
+    # in-process, same as before isolation existed: this still exercises
+    # _validate_script_safety and the _SAFE_BUILTINS defense-in-depth layer,
+    # which is what this repo's ~40 execute_pyqgis_script tests actually verify.
+    local_env = {}
     local_env['__builtins__'] = _SAFE_BUILTINS
     # __name__ is a normal module global CPython's class-statement machinery
     # reads implicitly (for __qualname__/__module__), not a builtin -- without

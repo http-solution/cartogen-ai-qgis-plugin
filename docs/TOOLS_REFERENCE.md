@@ -1025,7 +1025,7 @@ Set a layer's overall opacity (0-100). Use this to make an area/polygon layer se
 
 ### `execute_pyqgis_script`
 
-LAST RESORT ONLY -- run this only when no other registered tool covers the task; check the rest of the tool list first, including run_allowlisted_processing_algorithm if the task is achievable via a single Processing algorithm -- that tool never executes Python code at all, so it's meaningfully safer than this one whenever it applies. Runs inside a denylist-based safety sandbox (blocked modules/builtins; see SECURITY.md), not a formally proven one, so it is not a safe default path just because it's available. Execute arbitrary PyQGIS script; must define a run() function returning the result.
+LAST RESORT ONLY -- run this only when no other registered tool covers the task; check the rest of the tool list first, including run_allowlisted_processing_algorithm if the task is achievable via a single Processing algorithm -- that tool never executes Python code at all, so it's meaningfully safer than this one whenever it applies. Runs in a separate, isolated process (a snapshot of the project, not the live one) with its own denylist-based safety sandbox on top (blocked modules/builtins; see SECURITY.md) -- not a formally proven sandbox, so it is not a safe default path just because it's available. Fails with an error, without running, if any layer has uncommitted edits -- commit or discard them first. Execute arbitrary PyQGIS script; must define a run() function returning the result.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
