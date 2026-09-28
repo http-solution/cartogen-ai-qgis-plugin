@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc7](#v1-16-0-rc7) | 2026-09-28 | **Release candidate 7 for 1.16.0.** No breaking changes. Four execute_pyqgis_script isolation-worker Windows bugs found and fixed (wrong-interpreter detection, missing PYTHONPATH, lost stderr, too-short handshake). Local-data download offer no longer loses the request on a typo or names the wrong region; the download/online prompt now decides silently for the routine case and only asks via clickable chips when there's a real decision (large/unknown size, poor/offline connectivity). calculate_service_area's hull polygon styled and deduplicated. Exported CSVs no longer get an unreadable, unstable filename. execute_pyqgis_script now process-isolated with its own QgsApplication. New direct UI control for layer sensitivity tagging. georeference_image gained Linear/Helmert transforms with RMSE/scale reporting. Analysis-tool output styling now remembered per project across similar follow-up requests |
 | [1.16.0-rc6](#v1-16-0-rc6) | 2026-09-27 | **Release candidate 6 for 1.16.0.** No breaking changes. Threshold parsing now catches spelled-out/plural time and distance phrasing ("one hour's travel"), not just digits. OSM road ingest fixed to build real lines (not one point per vertex) with Overpass retry-on-transient-failure. In-place upgrades no longer fail on stale cached modules. Automatic model selection actually takes effect and never escalates to an expensive/special-purpose model. Network analysis measures real metres/hours regardless of CRS/ellipsoid, no longer freezes QGIS on a large network (background + Stop button), and `calculate_service_area` routes only over reachable roads. GDACS/EONET alerts carry an `event_id` field; `buffer_analysis` gained `only_selected`. New opt-in tools: `estimate_road_speeds` and an offer to download a local Geofabrik extract before road-network requests. `docs/IMPLEMENTATION_TRACKER.md` §1.10 (clean-profile install/upgrade) closed with a real QGIS session |
 | [1.16.0-rc5](#v1-16-0-rc5) | 2026-09-24 | **Release candidate 5 for 1.16.0.** QGIS 4.2+ only (3.x dropped). New opt-in, off-by-default safeguards: a cloud-provider data-protection gate for sensitive layers and attachments, a plan-validation gate for DELETE/PUBLISH tools, and a Project Inspector. New `create_project_folder_structure` tool. Sandbox now also blocks `QgsProject.write()` and `authManager()`. Unnamed processing outputs are added hidden. Clearer errors when a URL doesn't serve geodata |
 | [1.16.0-rc4](#v1-16-0-rc4) | 2026-09-23 | **Release candidate 4 for 1.16.0.** Codebase security review with live adversarial testing: 2 real `execute_pyqgis_script` sandbox bypasses found and fixed (`qgis.utils`/`processing` re-exporting `os`/`sys` as plain attributes reachable no matter what's blocked at import time; this plugin's own package never being blocked, letting a script read the live in-memory session credential store directly). Process isolation recorded as the intended real fix, not further denylist patching (`docs/IMPLEMENTATION_TRACKER.md` §1.11). 10 best-effort `except Exception: pass` sites now leave a content-free trace instead of failing silently. `CLAUDE.md` refreshed to match the post-Phase-11 layout and live-QGIS CI job |
@@ -48,6 +49,103 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc7"></a>
+## [1.16.0-rc7] — 2026-09-28 — Release candidate 7 for 1.16.0: isolation-worker Windows fixes, local-data UX redesign, georeferencing transforms, smart-mapping memory
+
+Everything merged to `main` since rc6 (PRs #43–#69). No breaking changes; still QGIS 4.2+.
+
+**Fixes, from a live Windows QGIS testing session (`execute_pyqgis_script`'s isolation worker):**
+- A wrong interpreter could resolve to the QGIS application binary itself, hanging silently to the
+  full 60s timeout with no diagnostic — now refused fast, before ever attempting to spawn it.
+- `ModuleNotFoundError: No module named 'qgis'` on a genuinely correct interpreter — QGIS's own
+  C++ bootstrap adds the `qgis` bindings to the embedded interpreter's `sys.path` at startup but
+  never exports it as `PYTHONPATH`; the worker now inherits the live plugin process's own resolved
+  `sys.path`.
+- `select.select()` on a pipe silently failed on Windows (sockets only), losing worker stderr for
+  diagnostics; rewritten to a kill-then-read pattern that needs no `select()` at all.
+- The 20s startup handshake timeout was sized off a lightweight CI Docker image, too short for a
+  real desktop QGIS cold start with more providers to register and antivirus scanning a freshly
+  spawned `python.exe`; widened to 60s.
+- A blank Windows console window briefly appeared during the worker's spawn (Windows' default
+  behavior for a console-subsystem process spawned from a GUI parent); suppressed via
+  `CREATE_NO_WINDOW`.
+
+**Fixes, local-data download flow:**
+- A one-letter typo in a "download"/"online" reply ("dowmload") lost track of the original pending
+  request entirely, derailing the rest of the turn onto an unrelated fetch — replies within a
+  close-match ratio of the two headline words now resolve correctly.
+- The Geofabrik region offered could be the wrong one (a neighboring country, or the literal
+  meaningless coordinate "(0.000, 0.000)") because the offer was built from the QGIS canvas's
+  current view centre rather than the coordinate the request itself named — now prefers a
+  coordinate found in the request text, falling back to the canvas centre only when none is named.
+- **Redesigned the interaction entirely**, per direct user feedback that a free-text "reply
+  download or online" question interrupted every eligible request, even the routine case with no
+  real decision to make: a background connectivity probe now lets the routine case (good
+  connection, a reasonable/known extract size) download silently with only an informational note;
+  a large/unknown size, or a poor/offline connection regardless of size, asks via clickable chips
+  (not free text) — naming the slow/offline reason when that's why it's asking, since field users
+  in low-connectivity areas need an explicit choice rather than a silent guess that might hang.
+
+**Fixes, `calculate_service_area`:**
+- The single-band hull polygon (the common case — one scalar travel-cost value) got zero styling
+  at all, unlike its already-styled line/multi-band siblings — now gets the same
+  `proximity_buffer` treatment `buffer_analysis`'s polygon output already uses.
+- Re-running the same analysis, or a follow-up reusing the same origin, stacked a new
+  identically-named layer on top of the old one every time instead of replacing it (`QgsProject.
+  addMapLayer()` doesn't deduplicate by name) — now removes any stale same-named layer first.
+
+**Fix, exports:** an exported CSV from a Processing-algorithm intermediate output got an
+unreadable, auto-generated filename (`out_<name>_<uuid>.csv`) sitting in a temp directory QGIS
+could clean up at any time, and could not reliably be opened afterward. Exports with no explicit
+output path now always land under the project's own `data/20_processed` folder (or a per-profile
+QGIS folder for an unsaved project) with a clean, sanitized name — never scattered across the OS,
+never an ugly temp basename.
+
+**Security:**
+- `execute_pyqgis_script` now runs in a separate, persistent worker process holding its own
+  `QgsApplication`, with no Python-level access to this plugin's in-memory credentials or
+  conversation history (`IMPLEMENTATION_TRACKER.md` §1.11 Phase 1) — the existing AST/builtins
+  sandbox still runs inside the worker as defense in depth, unchanged.
+- The cloud-provider data-protection egress gate's remaining `§1.4` deployment decisions (default
+  mode, override policy, layer-classification ownership, cloud script-execution scope,
+  provider-switch history, policy-setting location) are answered and documented — 5 of 6 resolved
+  directly, one deliberately left for a deployment-specific DPIA sign-off.
+
+**New:**
+- A direct "Sensitivity" UI control (a new dock header button, alongside Memory/Settings) for
+  tagging a loaded layer's data classification — previously reachable only by asking the model to
+  do it in chat.
+- `georeference_image` gained a `transform_type` parameter (`"tps"` default/unchanged, `"linear"`,
+  `"helmert"`), matching QGIS Georeferencer's own transform vocabulary, and now reports **RMSE**
+  plus `scale`/`rotation` so alignment quality is visible instead of silently unreported.
+- Analysis-tool output styling is now remembered per project: a follow-up request producing a
+  similar output (e.g. the same buffer type for a different area) visually matches the one before
+  it, instead of always reverting to one hardcoded default per output role. Closes the
+  design-state-memory half of `IMPLEMENTATION_TRACKER.md` §1.16 "smart mapping" — the
+  request-validator/task-planner/tool-router half of that architecture is deliberately not built
+  yet, flagged there for its own dedicated pass rather than guessed at in this one.
+
+**Fix:** map-dashboard feature sampling now spreads evenly across a whole over-cap dataset instead
+of only the first N features (which could silently show only one corner of the data for a source
+sorted/grouped by region); `estimate_road_speeds` can now be given a country for a more realistic
+per-road-class speed default than one flat global assumption.
+
+**Docs/governance:** release tags now use the `cartogen-ai-v<version>` prefix, not
+`commercial-plugin-v<version>` (which read as a proprietary-licensing signal on a repo that has
+been GPL v2 since its first tag); personal contact info and internal-only business/strategy
+documents removed from this open-source repo; README/metadata repo links pointed at this canonical
+repo instead of a stale sibling; `pyproject.toml`'s version kept in sync with `metadata.txt`.
+
+Full automated suite: 2,313 tests passing, 139 skipped. Zero Ruff violations. **Not verified in
+this environment:** neither GDAL nor numpy is installed in this sandbox, so `georeference_image`'s
+actual `gdal.Open`/`CreateCopy`/`SetGeoTransform` I/O path is untested end-to-end (only the
+transform-fitting math itself is unit-tested, with exact-recovery assertions); no live QGIS session
+confirmed the remembered-styling feature's visual consistency across two real follow-up requests
+(the recall/record logic itself is fully unit-tested). The isolation-worker and local-data fixes
+were reported and verified against a real Windows QGIS 4.2.2 session by the user directly; the
+local-data redesign's live-QGIS test suite (`qgis-live-tests` CI, real QGIS 4.2.2 Docker image)
+passed for real.
 
 <a id="v1-16-0-rc6"></a>
 ## [1.16.0-rc6] — 2026-09-27 — Release candidate 6 for 1.16.0: task-matcher/OSM-ingest fixes, network-analysis perf, §1.10 closed
