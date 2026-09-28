@@ -86,9 +86,46 @@ class TestPrepareDashboardLayer(unittest.TestCase):
 
         self.assertIs(result_layer, mem_layer)
         self.assertIsNotNone(warning)
-        self.assertIn("2,500", warning)
+        self.assertIn("evenly-sampled", warning)
         self.assertIn("5,000", warning)
-        mock_request_cls.return_value.setLimit.assert_called_once_with(2500)
+
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeatureRequest", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeature", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsVectorLayer", create=True)
+    @patch("cartogen_ai.core.agent.tools.export_tools.QgsWkbTypes", create=True)
+    def test_over_cap_layer_samples_across_whole_source_not_just_the_start(
+        self, mock_wkb, mock_layer_cls, mock_feat_cls, mock_request_cls
+    ):
+        """Regression for the 'first N features only' bug: a layer whose features happen to be
+        grouped by region (a common real shape for a paginated/region-by-region ingest) must
+        still get features kept from throughout the whole source, not just its first slice."""
+        total = 5000
+        max_features = 2500
+
+        def make_feat(region_tag):
+            f = MagicMock()
+            f.geometry.return_value.isEmpty.return_value = True
+            f.attributes.return_value = [region_tag]
+            return f
+
+        # First half tagged "region-A", second half "region-B" -- the exact ordering shape
+        # that made the old "first N" truncation silently drop region-B entirely.
+        layer = MagicMock()
+        layer.featureCount.return_value = total
+        layer.extent.return_value.width.return_value = 0.0
+        layer.extent.return_value.height.return_value = 0.0
+        layer.getFeatures.return_value = (
+            [make_feat("region-A") for _ in range(total // 2)]
+            + [make_feat("region-B") for _ in range(total // 2)]
+        )
+        mem_provider = mock_layer_cls.return_value.dataProvider.return_value
+        mock_feat_cls.side_effect = lambda *a, **k: MagicMock()
+
+        _prepare_dashboard_layer(layer, max_features=max_features)
+
+        kept_feats = mem_provider.addFeatures.call_args.args[0]
+        kept_regions = {f.setAttributes.call_args.args[0][0] for f in kept_feats}
+        self.assertEqual(kept_regions, {"region-A", "region-B"})
 
     @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeatureRequest", create=True)
     @patch("cartogen_ai.core.agent.tools.export_tools.QgsFeature", create=True)

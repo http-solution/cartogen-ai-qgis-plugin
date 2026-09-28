@@ -18,7 +18,7 @@ try:
     from qgis.core import (
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-        QgsVectorLayer, QgsFeature, QgsFeatureRequest, QgsWkbTypes,
+        QgsVectorLayer, QgsFeature, QgsWkbTypes,
     )
     from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
@@ -1622,13 +1622,26 @@ def _build_capped_simplified_layer(layer, max_features, total, tolerance):
     mem_provider.addAttributes(layer.fields())
     mem_layer.updateFields()
 
-    request = QgsFeatureRequest()
+    # An earlier version used QgsFeatureRequest().setLimit(max_features) here -- "the first
+    # N features in the source's storage order". For a country-wide layer whose features
+    # happen to be grouped by region (a common real shape: an OSM/Geofabrik extract or a
+    # paginated API ingest often loads one admin area at a time), that silently produced a
+    # dashboard showing only one corner of the data, not a representative view -- the "poor
+    # quality, incomplete" symptom this fix addresses. An even STRIDE sample (every Nth
+    # feature across the whole layer, in whatever order getFeatures() returns) is a simple,
+    # well-known systematic-sampling technique that spreads the kept features across the
+    # entire dataset regardless of storage order, at no extra dependency cost.
     truncated = total > max_features
-    if truncated:
-        request.setLimit(max_features)
+    stride = max(1, total // max_features) if truncated else 1
 
     out_feats = []
-    for feat in layer.getFeatures(request):
+    kept = 0
+    for i, feat in enumerate(layer.getFeatures()):
+        if truncated:
+            if i % stride != 0:
+                continue
+            if kept >= max_features:
+                break
         new_feat = QgsFeature(mem_layer.fields())
         new_feat.setAttributes(feat.attributes())
         geom = feat.geometry()
@@ -1636,6 +1649,7 @@ def _build_capped_simplified_layer(layer, max_features, total, tolerance):
             geom = geom.simplify(tolerance)
         new_feat.setGeometry(geom)
         out_feats.append(new_feat)
+        kept += 1
     mem_provider.addFeatures(out_feats)
     mem_layer.updateExtents()
 
@@ -1643,7 +1657,7 @@ def _build_capped_simplified_layer(layer, max_features, total, tolerance):
     if truncated or tolerance > 0:
         parts = []
         if truncated:
-            parts.append(f"showing the first {max_features:,} of {total:,} features")
+            parts.append(f"showing an evenly-sampled {kept:,} of {total:,} features")
         if tolerance > 0:
             parts.append("geometry simplified for file size")
         warning = f"'{layer.name()}': {', '.join(parts)} -- large layers are capped/simplified to keep the dashboard file a reasonable size."

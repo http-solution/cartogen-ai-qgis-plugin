@@ -2034,6 +2034,75 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("line layer", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_country_override_scales_known_country(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        """BUG-2026-09-25-3 follow-up: a known country code should use its real legal
+        urban/rural/motorway defaults (COUNTRY_SPEED_TIERS_KMH) instead of the generic table."""
+        feat_motorway = MagicMock()
+        feat_motorway.attribute.side_effect = lambda k: "motorway" if k == "fclass" else None
+        feat_residential = MagicMock()
+        feat_residential.attribute.side_effect = lambda k: "residential" if k == "fclass" else None
+        layer = self._make_road_layer([feat_motorway, feat_residential])
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", country="jo", confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        self.assertEqual(res.get("country_used"), "JO")
+        calls = layer.changeAttributeValue.call_args_list
+        self.assertEqual(calls[0].args, (feat_motorway.id(), 1, 110.0))  # Jordan motorway
+        self.assertEqual(calls[1].args, (feat_residential.id(), 1, 40.0))  # Jordan urban
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_country_override_leaves_pedestrian_classes_untouched(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        """A country override should scale vehicle road classes only -- walking/cycling speeds
+        aren't legal-speed-limit-driven and should stay exactly as the generic table has them."""
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "footway" if k == "fclass" else None
+        layer = self._make_road_layer([feat])
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", country="DE", confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        layer.changeAttributeValue.assert_called_once_with(feat.id(), 1, 5.0)  # unchanged footway speed
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_unrecognized_country_falls_back_to_generic_table(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "motorway" if k == "fclass" else None
+        layer = self._make_road_layer([feat])
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", country="ZZ", confirmed=True)
+
+        self.assertTrue(res.get("success"))
+        self.assertNotIn("country_used", res)
+        self.assertIn("ZZ", res["note"])
+        layer.changeAttributeValue.assert_called_once_with(feat.id(), 1, 100.0)  # generic motorway speed
+
+    def test_country_speed_overrides_helper_is_empty_for_unknown_country(self):
+        self.assertEqual(lt._country_speed_overrides("ZZ"), {})
+        self.assertEqual(lt._country_speed_overrides(None), {})
+
+    def test_country_speed_overrides_helper_applies_link_factor(self):
+        overrides = lt._country_speed_overrides("DE")
+        self.assertEqual(overrides["motorway"], 130)
+        self.assertEqual(overrides["motorway_link"], round(130 * 0.75))
+        self.assertEqual(overrides["residential"], 50)
+
 
 if __name__ == "__main__":
     unittest.main()

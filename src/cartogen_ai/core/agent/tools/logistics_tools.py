@@ -971,6 +971,16 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
 
     route_layer.setName(route_name)
     QgsProject.instance().addMapLayer(route_layer)
+    # Map Intelligence Engine: standard road-casing line symbology (BUG-2026-09-27-3) --
+    # this call was previously missing entirely, so the route layer got QGIS's raw default
+    # new-layer symbology every time, same gap buffer_analysis's own process_map_output
+    # call (vector_tools.py) already closed for polygon outputs.
+    try:
+        from ..map_intelligence import process_map_output
+        process_map_output(route_layer, output_role="route_line")
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="optimize_delivery_route_styling",
+                  error_class=type(e).__name__, error=True)
     return route_name
 
 
@@ -1221,6 +1231,12 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 lines_layer.setName(lines_name)
                 QgsProject.instance().addMapLayer(lines_layer)
                 layers_created.append(lines_name)
+                try:
+                    from ..map_intelligence import process_map_output
+                    process_map_output(lines_layer, output_role="route_line")
+                except Exception as style_e:
+                    log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_styling",
+                              error_class=type(style_e).__name__, error=True)
                 # Matches the original single-band semantics exactly: a
                 # facility/band counts as "served" once its lines layer is
                 # built, regardless of whether hull-building below succeeds
@@ -1759,6 +1775,66 @@ ASSUMED_SPEED_BY_ROAD_CLASS_KMH = {
 }
 _ROAD_CLASS_FIELD_CANDIDATES = ("fclass", "highway")
 
+# Optional per-country override, addressing this table's own standing limitation (a single
+# global set of numbers, not this network's real legal limits) without needing a live lookup.
+# Modeled on the same three-tier (urban/rural/motorway) legal-default-speed convention real
+# open-source routing infrastructure already uses for exactly this gap -- see
+# https://github.com/westnordost/osm-legal-default-speeds (BSD-3-Clause code, its underlying
+# data is CC BY-SA 2.0 from the OpenStreetMap wiki's "Default speed limits" page) and the
+# Valhalla-consumed https://github.com/OpenStreetMapSpeeds/schema dataset. Values below are a
+# curated subset (not a full port of either project's much larger tag-filter-matching data
+# model, which needs per-subdivision OSM tag evaluation this project has no use for at its
+# current scope) verified via live web search 2026-09-28 against public references (Wikipedia's
+# "Speed limits by country" and per-country articles, TyreMap, AARoads Wiki) -- national legal
+# defaults, honestly approximate: many countries' real limits vary by state/province/specific
+# road (the US and Australia especially), and this table cannot and does not capture that.
+# tags: (urban, rural, motorway) in km/h, applied only when the caller passes a matching
+# ISO 3166-1 alpha-2 `country` code -- omitting it keeps today's behavior exactly as before.
+COUNTRY_SPEED_TIERS_KMH = {
+    "JO": (40, 80, 110),   # Jordan
+    "SA": (50, 80, 120),   # Saudi Arabia
+    "AE": (60, 100, 120),  # United Arab Emirates
+    "EG": (60, 100, 100),  # Egypt
+    "DE": (50, 100, 130),  # Germany (130 is the advisory Autobahn limit, not a hard cap)
+    "AT": (50, 100, 130),  # Austria
+    "CZ": (50, 90, 130),   # Czechia
+    "HU": (50, 90, 130),   # Hungary
+    "FR": (50, 80, 130),   # France
+    "ES": (50, 90, 120),   # Spain
+    "GB": (48, 97, 113),   # United Kingdom (30/60/70 mph)
+    "CA": (50, 80, 110),   # Canada
+    "US": (40, 105, 113),  # United States (national default; varies heavily by state)
+    "AU": (60, 100, 110),  # Australia (national default; varies by state/territory)
+    "CN": (50, 80, 120),   # China
+}
+# Road-class tiers this table's three values map onto, and the fraction applied to a "_link"
+# variant of a tiered class -- same reduction shape (~75-80%) the existing global table above
+# already uses between e.g. motorway (100) and motorway_link (80).
+_COUNTRY_TIER_ROAD_CLASSES = {
+    "motorway": ("motorway", "trunk"),
+    "rural": ("primary", "secondary", "tertiary", "unclassified"),
+    "urban": ("residential", "living_street", "service", "track"),
+}
+_COUNTRY_LINK_FACTOR = 0.75
+
+
+def _country_speed_overrides(country):
+    """Expand COUNTRY_SPEED_TIERS_KMH's 3 tier values into the same per-road-class shape
+    ASSUMED_SPEED_BY_ROAD_CLASS_KMH uses, for one country code. Returns {} for an unknown/
+    omitted country -- callers then simply fall back to the existing global table untouched."""
+    tiers = COUNTRY_SPEED_TIERS_KMH.get((country or "").strip().upper())
+    if not tiers:
+        return {}
+    urban_kmh, rural_kmh, motorway_kmh = tiers
+    tier_value = {"motorway": motorway_kmh, "rural": rural_kmh, "urban": urban_kmh}
+    overrides = {}
+    for tier, classes in _COUNTRY_TIER_ROAD_CLASSES.items():
+        value = tier_value[tier]
+        for road_class in classes:
+            overrides[road_class] = value
+            overrides[f"{road_class}_link"] = round(value * _COUNTRY_LINK_FACTOR)
+    return overrides
+
 
 @register_tool(
     "estimate_road_speeds",
@@ -1773,20 +1849,24 @@ _ROAD_CLASS_FIELD_CANDIDATES = ("fclass", "highway")
     "tell the user the travel times that follow from it are estimates based on typical road-class "
     "speeds, not this network's real posted limits, especially if they ask for a precise duration. "
     "Never call this automatically as part of another tool's workflow; only when the user has "
-    "actual maxspeed data will speed_field give a materially better answer. Destructive action "
-    "requiring UI confirmation -- in-place attribute mutation on the live layer, same class of "
-    "operation as calculate_area/field_calculator.",
+    "actual maxspeed data will speed_field give a materially better answer. Pass country (an "
+    "ISO 3166-1 alpha-2 code, e.g. 'JO', 'DE', 'US') to scale the table to that country's real "
+    "legal urban/rural/motorway speed limits (see COUNTRY_SPEED_TIERS_KMH) instead of the generic "
+    "global defaults -- covers a curated set of countries; falls back to the generic table for any "
+    "other code or when omitted. Destructive action requiring UI confirmation -- in-place attribute "
+    "mutation on the live layer, same class of operation as calculate_area/field_calculator.",
     {
         "type": "object",
         "properties": {
             "road_network_layer": {"type": "string", "description": "Line layer of the road network, with an 'fclass' or 'highway' field."},
             "default_speed_kmh": {"type": "number", "description": "Speed assumed for a road class not in the table (default 30)."},
             "overwrite": {"type": "boolean", "description": "If assumed_speed_kmh already exists, overwrite it. Default false: existing values are left alone, only missing/null ones are filled in."},
+            "country": {"type": "string", "description": "Optional ISO 3166-1 alpha-2 country code (e.g. 'JO', 'DE', 'US') to scale the speed table to that country's real legal urban/rural/motorway limits instead of generic global defaults. Unrecognized or omitted falls back to the generic table."},
         },
         "required": ["road_network_layer"],
     },
 )
-def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=False, confirmed: bool = False):
+def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=False, country=None, confirmed: bool = False):
     if not confirmed:
         return {
             "status": "PREVIEW_REQUIRED",
@@ -1794,7 +1874,7 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
             "is_destructive": True,
             "tool_name": "estimate_road_speeds",
             "arguments": {"road_network_layer": road_network_layer, "default_speed_kmh": default_speed_kmh,
-                          "overwrite": overwrite, "confirmed": True},
+                          "overwrite": overwrite, "country": country, "confirmed": True},
             "code_snippet": "layer.startEditing()\n# Add/update field 'assumed_speed_kmh' from a fixed table keyed by "
                             "fclass/highway\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field 'assumed_speed_kmh' on layer "
@@ -1822,6 +1902,10 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
         )}
 
     try:
+        country_code = (country or "").strip().upper()
+        country_overrides = _country_speed_overrides(country_code)
+        speed_table = {**ASSUMED_SPEED_BY_ROAD_CLASS_KMH, **country_overrides}
+
         provider = network.dataProvider()
         if "assumed_speed_kmh" not in field_names:
             provider.addAttributes([QgsField("assumed_speed_kmh", QVariant.Double)])
@@ -1838,7 +1922,7 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
                 skipped_existing += 1
                 continue
             road_class = str(feature.attribute(class_field) or "").strip().lower()
-            speed = ASSUMED_SPEED_BY_ROAD_CLASS_KMH.get(road_class)
+            speed = speed_table.get(road_class)
             if speed is None:
                 unknown_classes.add(road_class or "(empty)")
                 speed = default_speed_kmh
@@ -1858,6 +1942,11 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
                     "travel_time_matrix/optimize_delivery_route to use it, and tell the user travel "
                     "times are estimates.",
         }
+        if country_overrides:
+            result["country_used"] = country_code
+            result["note"] += f" Scaled to {country_code}'s real legal urban/rural/motorway defaults."
+        elif country_code:
+            result["note"] += f" country='{country_code}' isn't in the curated table (see COUNTRY_SPEED_TIERS_KMH); used the generic global defaults instead."
         if unknown_classes:
             result["unknown_road_classes"] = sorted(unknown_classes)
             result["note"] += f" {len(unknown_classes)} road class value(s) not in the table used default_speed_kmh={default_speed_kmh}."
