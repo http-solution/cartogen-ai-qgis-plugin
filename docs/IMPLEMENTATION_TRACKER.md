@@ -1539,6 +1539,59 @@ per that guidance rather than guessed at. Whether a systemic policy (e.g. "every
 replaces its own same-named output" as a house rule) is the right shape, versus a heavier
 answer (an explicit layer-grouping/session concept in `map_intelligence.py`), is Alaa's call.
 
+**Update, 2026-09-28 (same day): the "context-aware, replicate the same layer/analysis
+visualization" half is now built -- the layer-grouping/decluttering half is still open, per
+above.** Separately from the live-report thread above, the user asked (unrelated conversation,
+this same day) for "deep analysis on the codebase... on how to improve the intelligent of the
+analysis, ... replicating the same layer and context aware analysis visualization," citing the
+MapMate framework's dual-memory (operational history + persistent design-state memory)
+architecture as a research reference, then explicitly chose "Full dual-memory architecture" over
+a narrower scoped alternative when asked via `AskUserQuestion`.
+
+**What "full dual-memory architecture" means here, scoped deliberately:** MapMate's own
+architecture has two distinguishable halves -- (1) the dual-memory system itself (an operational-
+history store plus a persistent design-state store, and a retrieval step that lets past state
+inform new output), and (2) a request-validator/task-planner/context-retriever/tool-router layer
+sitting in front of the whole agent loop that DECIDES what to retrieve and how to route a request.
+Built now: half (1), for real, not a stub. Deliberately NOT touched: half (2) -- rearchitecting
+`agent_orchestrator.py`'s core tool-calling loop (validator/planner/router) is a materially larger,
+higher-risk change than everything else in this pass, cannot be meaningfully verified without a
+live multi-turn session against a real LLM provider, and risks regressing every existing tool call
+path if done in the same pass as several other unrelated fixes. Flagging it here rather than
+guessing at an architecture for it, per this file's own §1 convention -- if/when this is wanted,
+it deserves its own dedicated pass with its own live-verification plan.
+
+**What was actually built (half 1):**
+- **Operational history already existed** and needed no new work: `SpatialMemoryManager.
+  log_spatial_action` (`agent/memory.py`) has recorded every tool call (name + args) since before
+  this session, called from `agent_orchestrator.py` on each successful execution, surfaced back
+  into the system prompt every turn via `get_formatted_memory_context()`.
+- **New: persistent design-state memory**, `agent/map_state_memory.py` -- `record_output()`/
+  `recall_output()`, storing `{layer_id, layer_name, style_profile, properties}` per `output_role`
+  as a project-scoped note (`layout:<output_role>`), reusing `memory.py`'s existing
+  `store_project_note`/`get_project_notes` API rather than inventing new storage plumbing --
+  exactly the pattern `services/learning.py` already established for its own `pref:`/`rule:`/
+  `usage:` global notes (project-scoped here, not global, since a map's own visual choices are a
+  property of that project, not a preference that should follow the user into an unrelated one).
+- **New: the retrieval step**, wired into `map_intelligence.py`'s `process_map_output` (the single
+  choke point every analysis tool's styled output already passes through): before styling, it
+  recalls the last `style_profile`/`properties.color` used for this `output_role` in this project
+  and fills in whatever the caller didn't explicitly specify; after a successful styling call, it
+  records what was actually used as the new "last used" default. A caller's own explicit
+  `style_profile`/`color` always wins -- this only supplies a smarter *default*, never overrides
+  an explicit choice. Net effect: a follow-up request producing a similar output (e.g. "do the
+  same buffer for the other district") now visually matches the one before it, rather than
+  silently reverting to `STYLE_PROFILES`' one hardcoded per-role default every single time.
+- 15 new tests (`tests/test_map_state_memory.py`'s 10 pure-Python storage/recall tests, plus
+  5 new cases in `tests/test_map_intelligence.py`'s `TestProcessMapOutputDesignStateMemory` --
+  remembered-style reuse, explicit-caller-override-wins, record-after-success, no-record-after-
+  failure, and the no-active-memory-manager safe-no-op path for a standalone Processing-provider
+  run outside the chat loop). Full suite re-verified: 2313 tests, 0 failures, `ruff check .`
+  clean. **Not verified**: no live QGIS session in this sandbox to confirm the recalled color
+  actually renders visually consistent across two real follow-up requests -- the recall/record
+  logic itself is fully unit-tested, including the exact descriptor values `apply_component_
+  symbology` receives.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
