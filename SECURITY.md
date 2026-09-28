@@ -204,6 +204,25 @@ this plugin's own process.
   QGIS desktop install by this project — no such install exists in this sandbox;
   see `IMPLEMENTATION_TRACKER.md` §1.11 for the full research trail on why
   `sys.executable` cannot be trusted directly on those platforms.
+- **Update, 2026-09-28 (first live bug against this boundary).** A real Windows QGIS
+  session hit the worker's 60s job timeout with no other diagnostic on a genuine
+  large-dataset request (139,748 + 3,369 features) — reproduced first at the same
+  scale to rule out serialization slowness (4.7s, not slow), then traced to the
+  interpreter lookup above being able to resolve to the QGIS application binary
+  itself rather than Python on some Windows layouts, which would silently hang
+  rather than fail. Closed with three layered defenses on top of the QPIP-derived
+  lookup: a widened search (`sys.base_prefix`/`exec_prefix`, an `apps/Python3*`
+  child dir), a fast refusal if the resolved interpreter's basename looks like the
+  QGIS binary itself, and a ~20s startup handshake so even an undetected bad
+  interpreter fails fast instead of consuming the full per-job timeout. Also found
+  and fixed in the same pass: stderr diagnostic capture had never actually worked
+  on Windows (`select.select()` doesn't support pipes there, silently swallowed),
+  and the old timeout path killed the worker before ever draining its stderr on any
+  platform — both closed by a kill-then-read `_drain_stderr()` used uniformly on
+  every failure path. See `BUG_TRACKER.md` BUG-2026-09-28-1 and
+  `IMPLEMENTATION_TRACKER.md` §1.11 for the full investigation; **not yet verified
+  on a real Windows machine**, same standing sandbox limitation as the paragraph
+  above.
 
 ### 2. Read-only SQL enforcement
 `agent/tools/db_and_workflow_tools.py` — `execute_read_only_sql` has two layers:

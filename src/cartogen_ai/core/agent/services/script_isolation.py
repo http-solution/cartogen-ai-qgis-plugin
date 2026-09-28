@@ -85,10 +85,26 @@ def find_python_interpreter():
     if (prefix / "conda-meta").exists():
         return "python"
     if sys.platform.startswith("win"):
-        for name in ("python.exe", "python3.exe"):
-            candidate = prefix / name
-            if candidate.exists():
-                return str(candidate)
+        # Widened 2026-09-28 after a live-reported worker timeout with zero
+        # diagnostics (see _run_worker_handshake below): checking only
+        # sys.prefix's own root misses real QGIS-for-Windows layouts where
+        # sys.prefix is the QGIS install root itself and the bundled
+        # interpreter sits one level down (OSGeo4W's apps\PythonXXX\, the
+        # standalone installer's apps\Python3XX\) -- also checking
+        # sys.base_prefix/sys.exec_prefix (can differ from sys.prefix under a
+        # venv-like setup) and any single apps\Python3* child directory.
+        bases = {prefix, Path(sys.base_prefix), Path(sys.exec_prefix)}
+        candidates = []
+        for base in bases:
+            candidates.append(base)
+            apps_dir = base / "apps"
+            if apps_dir.is_dir():
+                candidates.extend(sorted(apps_dir.glob("Python3*")))
+        for base in candidates:
+            for name in ("python.exe", "python3.exe"):
+                candidate = base / name
+                if candidate.exists():
+                    return str(candidate)
         return sys.executable
     if sys.platform == "darwin":
         for base in (prefix, prefix / "bin", Path(sys.executable).parent):
@@ -100,6 +116,20 @@ def find_python_interpreter():
     # Linux: sys.executable is already correct here (the upstream bug is
     # Windows/macOS-specific) -- live-confirmed against qgis/qgis's Docker image.
     return sys.executable
+
+
+# Basenames of the QGIS executable itself, across the installers this project
+# supports -- never spawn one of these as the "worker interpreter". If
+# find_python_interpreter() falls through to sys.executable and that turns out
+# to BE the QGIS binary (the exact upstream bug this function exists to work
+# around), spawning it as a worker doesn't error -- it silently launches a
+# second, real QGIS process that never writes the JSON handshake this module
+# waits for, hanging until the full job timeout kills it with no diagnostic at
+# all. Live-reported, 2026-09-28: a real Windows session hit a 60s
+# execute_pyqgis_script timeout with nothing in the logs to explain it -- this
+# is the leading suspect. Checked by _run_worker_handshake below, which fails
+# fast (a few seconds, not the full job timeout) with a clear message instead.
+_QGIS_BINARY_BASENAMES = {"qgis-bin.exe", "qgis-bin", "qgis.exe", "qgis", "QGIS", "QGIS.exe"}
 
 
 def _build_worker_environment():
@@ -249,6 +279,9 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
     return new_layers_added, memory_layers_updated
 
 
+_WORKER_HANDSHAKE_TIMEOUT_SECONDS = 20
+
+
 class _IsolationWorker:
     """Manages one persistent worker subprocess. Started lazily on first use and
     kept alive across calls -- Phase 0 benchmarking (scoping doc §8) measured a
@@ -260,20 +293,64 @@ class _IsolationWorker:
         self._lock = threading.Lock()
 
     def _ensure_started(self):
+        """Returns None on success, or an error dict if the worker could not be
+        started/confirmed alive. Does a fast READY handshake (§
+        _WORKER_HANDSHAKE_TIMEOUT_SECONDS, well under the full per-job timeout)
+        rather than relying on the first real job's timeout to notice a dead or
+        wrong-binary worker -- see find_python_interpreter()'s docstring and
+        _QGIS_BINARY_BASENAMES for the failure mode this specifically catches:
+        a wrong interpreter lookup silently spawning the QGIS binary itself,
+        which never answers and previously hung for the FULL job timeout
+        (live-reported, 2026-09-28) with nothing in the logs to explain it."""
         if self._proc is not None and self._proc.poll() is None:
-            return
+            return None
         interpreter = find_python_interpreter()
+        if Path(interpreter).name in _QGIS_BINARY_BASENAMES:
+            return {
+                "error": (
+                    f"Refusing to start the isolation worker: interpreter lookup resolved to "
+                    f"'{interpreter}', which looks like the QGIS application binary itself, not "
+                    "a Python interpreter -- spawning it would hang rather than run a script. "
+                    "This is the exact upstream QGIS bug find_python_interpreter() works around "
+                    "(sys.executable is the QGIS binary inside a real desktop session); its "
+                    "search did not find a real bundled interpreter on this install. Report this "
+                    "install's QGIS version/OS so the lookup can be widened."
+                )
+            }
         env = _build_worker_environment()
-        self._proc = subprocess.Popen(
-            [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-            bufsize=1,
-            cwd=tempfile.gettempdir(),
-        )
+        try:
+            self._proc = subprocess.Popen(
+                [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True,
+                bufsize=1,
+                cwd=tempfile.gettempdir(),
+            )
+        except OSError as e:
+            return {"error": f"Could not spawn the isolation worker via interpreter '{interpreter}': {e}"}
+
+        ready_line = self._read_line_with_timeout(_WORKER_HANDSHAKE_TIMEOUT_SECONDS)
+        if ready_line is None:
+            stderr = self._kill_and_drain_stderr()
+            return {
+                "error": (
+                    f"Isolation worker did not answer within {_WORKER_HANDSHAKE_TIMEOUT_SECONDS}s "
+                    f"of starting (interpreter: '{interpreter}') -- it was killed rather than left "
+                    f"to hang for the full per-job timeout. Worker stderr, if any: {stderr[:2000]}"
+                )
+            }
+        try:
+            ready = json.loads(ready_line)
+        except json.JSONDecodeError:
+            stderr = self._kill_and_drain_stderr()
+            return {"error": f"Isolation worker's startup response was not valid JSON: {ready_line!r}. stderr: {stderr[:2000]}"}
+        if not ready.get("ready"):
+            stderr = self._kill_and_drain_stderr()
+            return {"error": f"Isolation worker started but did not report ready: {ready}. stderr: {stderr[:2000]}"}
+        return None
 
     def _read_line_with_timeout(self, timeout):
         box = {}
@@ -298,6 +375,17 @@ class _IsolationWorker:
             pass
         self._proc = None
 
+    def _kill_and_drain_stderr(self):
+        """Kill the worker and return whatever it had written to stderr --
+        in that order, deliberately: a still-running process's stderr pipe
+        isn't at EOF yet, so reading it while the process is still alive
+        just blocks (a real bug this fixed, 2026-09-28 -- see _drain_stderr's
+        docstring). Killing first closes the write end from the OS's side,
+        so the read below reaches EOF immediately instead of hanging."""
+        proc = self._proc
+        self._kill()
+        return self._drain_stderr(proc)
+
     def submit(self, job, timeout=None):
         # Not a plain `timeout=_JOB_TIMEOUT_SECONDS` default: a default argument
         # is bound once at function-definition time, so a later
@@ -308,42 +396,45 @@ class _IsolationWorker:
         if timeout is None:
             timeout = _JOB_TIMEOUT_SECONDS
         with self._lock:
-            self._ensure_started()
+            start_error = self._ensure_started()
+            if start_error is not None:
+                return start_error
             try:
                 self._proc.stdin.write(json.dumps(job) + "\n")
                 self._proc.stdin.flush()
             except (BrokenPipeError, OSError):
-                stderr = self._drain_stderr()
-                self._kill()
+                stderr = self._kill_and_drain_stderr()
                 return {"error": f"Isolation worker was not running when the job was sent (crashed?): {stderr[:2000]}"}
 
             line = self._read_line_with_timeout(timeout)
             if line is None:
-                self._kill()
-                return {"error": f"Script exceeded the {timeout}s isolation timeout and the worker was terminated."}
+                stderr = self._kill_and_drain_stderr()
+                detail = f" Worker stderr: {stderr[:2000]}" if stderr.strip() else ""
+                return {"error": f"Script exceeded the {timeout}s isolation timeout and the worker was terminated.{detail}"}
             try:
                 return json.loads(line)
             except json.JSONDecodeError:
-                stderr = self._drain_stderr()
-                self._kill()
+                stderr = self._kill_and_drain_stderr()
                 return {"error": f"Isolation worker produced an unreadable response (crashed?): {stderr[:2000]}"}
 
-    def _drain_stderr(self):
-        if self._proc is None or self._proc.stderr is None:
+    def _drain_stderr(self, proc):
+        """Best-effort read of everything `proc` wrote to stderr. Must be called
+        AFTER the process has already been killed/exited (see
+        _kill_and_drain_stderr) -- NOT implemented with select.select() on the
+        pipe, which is a real, confirmed cross-platform bug fixed here
+        2026-09-28: Windows' select() only supports sockets, not the plain
+        pipes subprocess.PIPE gives on that platform, so the original
+        select()-guarded version silently returned "" on every Windows call
+        (caught by its own broad except Exception) -- stderr capture was
+        never actually working there, exactly the gap that left a live-
+        reported Windows timeout with zero diagnostic information. Reading
+        AFTER kill (rather than before, via a background thread racing a
+        still-open pipe) means a plain blocking .read() correctly reaches EOF
+        immediately instead of hanging or needing another thread at all."""
+        if proc is None or proc.stderr is None:
             return ""
         try:
-            self._proc.stderr.flush()
-        except Exception:
-            pass
-        try:
-            import select
-            data = ""
-            while select.select([self._proc.stderr], [], [], 0)[0]:
-                chunk = self._proc.stderr.readline()
-                if not chunk:
-                    break
-                data += chunk
-            return data
+            return proc.stderr.read() or ""
         except Exception:
             return ""
 

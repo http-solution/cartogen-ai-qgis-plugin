@@ -1245,7 +1245,71 @@ harnesses above), 0 failures, ruff clean. `docs/TOOLS_REFERENCE.md` regenerated 
 count — only the registered description text changed, to mention isolation and the
 uncommitted-edits refusal).
 
-### 1.12 `tool_router.py`'s top-40 filter — semantic-router prototyped, not committed either way
+**Update, 2026-09-28 — first real-world live bug from Phase 1, reported and fixed same day.**
+Alaa live-tested the release zip on a real Windows QGIS install: a "Health facilities beyond one
+hour's travel" query (real Yemen OSM extract, 139,748 road segments + 3,369 health facilities)
+hit `execute_pyqgis_script exceeded the 60s isolation timeout` — with the overall task still
+completing successfully afterward via the other suggested tools (`calculate_service_area`,
+`travel_time_matrix`), so this was a single failed tool call inside an otherwise-successful turn,
+not a fully uncompleted task. Investigated by reproducing at the same real-world scale (a
+synthetic 139,748-feature line layer + 3,369-feature point layer) in this sandbox's live QGIS
+4.2.2 Docker environment: **the trivial-script isolation call completed in 4.7s**, ruling out
+"large project makes the whole-project serialize slow" as the cause — memory-layer export scales
+fine even at this size.
+
+Reading the timeout/diagnostics code path with that ruled out surfaced two real, confirmable-by-
+inspection bugs, not just a hypothesis:
+
+1. **`_drain_stderr()` used `select.select()` on a plain pipe** — `select()` only supports
+   sockets on Windows, not the anonymous pipes `subprocess.PIPE` gives there, so every Windows
+   call silently returned `""` (caught by its own broad `except Exception`). Stderr capture for
+   diagnosing exactly this kind of failure has never actually worked on Windows. Fixed: read
+   stderr *after* killing the worker (guarantees EOF instead of racing a still-open pipe) via a
+   plain blocking `.read()` — works identically on every platform, no `select()` needed at all.
+2. **A timeout never drained stderr in the first place** — even on a platform where `select()`
+   works, the old code called `_kill()` before `_drain_stderr()` had a chance to run.
+
+Most likely root cause of the hang itself, per `find_python_interpreter()`'s own long-standing
+caveat (§1.11's 2026-09-27 update: not independently verified on a real Windows/macOS QGIS
+desktop install): if the Windows branch's search doesn't find a bundled interpreter for this
+specific install's layout, it falls back to `sys.executable` — which inside a real QGIS desktop
+session **is the QGIS binary itself**, not Python. Spawning that as the "worker" doesn't error;
+it silently launches a second real QGIS process that never answers the JSON handshake this module
+waits for, hanging until the job timeout kills it with nothing to explain why. Three fixes, all
+live-verified against real QGIS 4.2.2 (Docker):
+
+- **Widened the Windows interpreter search** (`find_python_interpreter()`): now also checks
+  `sys.base_prefix`/`sys.exec_prefix` (can differ from `sys.prefix`) and any single
+  `apps\Python3*\` child directory under each — covers more real QGIS-for-Windows install layouts
+  than checking only `sys.prefix`'s own root.
+- **A fast startup handshake** (`_WORKER_HANDSHAKE_TIMEOUT_SECONDS = 20`, well under the 60s job
+  timeout): the worker now writes `{"ready": true}` to stdout right after QGIS initializes, before
+  entering its job loop; `_ensure_started()` waits for it and fails fast (~20s, not the full job
+  timeout) with the captured stderr if it never arrives.
+- **A basename sanity check** (`_QGIS_BINARY_BASENAMES`): if the interpreter lookup ever resolves
+  to something named like the QGIS binary itself, the worker refuses to even attempt spawning it
+  — live-verified this returns in under 2s with a clear message naming exactly what was resolved
+  and why, instead of any hang at all.
+
+Live-verified (`tests/manual_isolation_bench/`, run against real QGIS 4.2.2, not committed —
+matching this project's manual/live-QGIS-only harness convention): normal startup still works via
+the handshake (~1.2s cold, unchanged in practice); a QGIS-basename interpreter is refused in
+<2s with no spawn attempt; a real-but-wrong binary (`/bin/cat`, standing in for "some other
+non-Python executable got resolved") fails via the handshake timeout in ~3s with its actual stderr
+captured verbatim (confirms the stderr fix is real, not just theoretical); all three prior Phase 1
+harnesses (`phase1_live_check.py`, `phase1_persistence_check.py`, `phase1_recovery_check.py`)
+re-run clean, no regressions. 6 new unit tests in `tests/test_script_isolation.py` (the widened
+Windows search using real temp-directory fixtures instead of deep `Path` mocking, since the
+widened logic touches `Path` too many times to mock faithfully; the basename refusal exercised
+directly since it never reaches `subprocess.Popen`, so it needs no real QGIS or spawn at all).
+Full suite: 2271 tests, all passing, ruff clean.
+
+**Still not verified:** this fix set could not be tested on an actual Windows machine from this
+sandbox — it's built from reading the code and QGIS's own documented Windows behavior, the same
+standing limitation every version of this caveat has carried. Alaa re-testing the next release
+zip on the real Windows install that hit this is the next real verification step, not something
+this sandbox can close out itself.
+
 
 **Added 2026-09-27.** Alaa asked to scope `semantic-router` (aurelio-labs) as a replacement for
 `filter_relevant_tools`'s keyword/alias scoring, following up on BUG-2026-09-13-1 (a real live
