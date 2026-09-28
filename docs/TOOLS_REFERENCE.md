@@ -164,7 +164,7 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file. output_path is optional -- omit it to save beside the layer's own on-disk source (or fall back to Desktop for a scratch/memory layer with no real source file). Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
+Export layer attribute table to CSV file. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project isn't saved yet), under a clean, sanitized file name derived from the layer's own name. Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

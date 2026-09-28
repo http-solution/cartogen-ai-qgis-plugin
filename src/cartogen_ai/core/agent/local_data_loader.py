@@ -93,6 +93,37 @@ def resolve_region(lon, lat, cache_dir):
     return region
 
 
+CONNECTIVITY_PROBE_TIMEOUT_S = 4
+
+
+def probe_connectivity():
+    """True if a fast HEAD request succeeds well within CONNECTIVITY_PROBE_TIMEOUT_S -- False
+    for offline or slow-enough-to-matter connections. Deliberately its own check, not inferred
+    from load_index()'s own request: that request is skipped entirely once the 30-day index
+    cache is warm, so it can't tell "offline" from "already cached" on its own.
+
+    Field/humanitarian context, 2026-09-28: a user in a low-connectivity or high-risk area
+    needs an explicit choice (see chat_tab_widget.py's _offer_local_data_choice) rather than a
+    silent multi-second hang trying to download, or a silent wrong guess to just go online."""
+    start = time.monotonic()
+    try:
+        req = urllib.request.Request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
+        with urllib.request.urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S):
+            pass
+    except Exception:
+        return False
+    return (time.monotonic() - start) < CONNECTIVITY_PROBE_TIMEOUT_S
+
+
+def resolve_region_with_connectivity(lon, lat, cache_dir):
+    """One background-thread call combining probe_connectivity() with the existing
+    resolve_region() lookup -- chat_tab_widget.py's _maybe_ask_local_data runs this once, in
+    the background, to decide silently (good connection, reasonable size -- just download it)
+    versus needing to ask (poor connection, or a large/unknown-size extract), instead of always
+    asking up front regardless of either."""
+    return {"online_ok": probe_connectivity(), "region": resolve_region(lon, lat, cache_dir)}
+
+
 def download_extract(region, dest_dir, progress=None, is_cancelled=None):
     """Downloads the region's shapefile zip (reusing a copy under a week old). Returns its path.
 
