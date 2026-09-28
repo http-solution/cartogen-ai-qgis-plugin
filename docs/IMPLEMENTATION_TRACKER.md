@@ -876,7 +876,7 @@ NO-GO for stable production release" verdict can now be revisited: the specific 
 NO-GO (this item) is closed for rc5, so a decision to promote rc5 (or a successor) to stable is a
 release-timing call for Alaa, not reopened or decided here.
 
-### 1.11 `execute_pyqgis_script`'s AST-blocklist sandbox — needs a process-isolation architecture decision
+### 1.11 `execute_pyqgis_script`'s AST-blocklist sandbox — process isolation (Phase 1) built 2026-09-28
 
 **Added 2026-09-23, from a deeper adversarial pass on the sandbox + `execute_read_only_sql`.**
 Confirmed live against the real `_validate_script_safety` + restricted-`exec()` path on QGIS
@@ -1080,6 +1080,66 @@ for Alaa to accept or override, not decided unilaterally. **Neither of these cha
 go-ahead decision itself, which remains fully open and unscoped-for-timeline, exactly as every
 prior update in this entry has said** — this update narrows engineering unknowns a go-ahead
 decision would otherwise have to weigh, it isn't a substitute for that decision.
+
+**Update, 2026-09-28 — Phase 1 go-ahead given by Alaa; built and live-verified, not just scoped.**
+Path A (serialize → persistent worker subprocess → reconcile results) implemented as
+`agent/services/script_isolation.py` (the parent-side serialize/reconcile/process-management logic)
+and `agent/services/_script_isolation_worker.py` (the worker's own bootstrap — imports
+`_validate_script_safety`/`_SAFE_BUILTINS` from `system_tools.py` rather than duplicating the
+denylist, so section 1's AST/builtins sandbox still runs as defense in depth inside the worker).
+`execute_pyqgis_script` now branches on whether real QGIS is importable: when it is, the script runs
+isolated; when it isn't (this repo's plain `test` CI job, and this tool's own ~40 existing unit
+tests), it execs in-process exactly as before — there was no test-suite migration cost after all
+(§4's open question), since those tests were already validator/dispatch-logic tests that never had
+real QGIS in the first place.
+
+**Real bugs found and fixed during live verification, not assumed correct from the design alone:**
+(1) The scoping doc's Phase 0 finding ("QGIS writes a memory layer's definition but not its data")
+turns out to bite on **both directions** of the round trip, not just serializing the input project —
+a script's own NEWLY CREATED memory layer suffers the identical data-loss when the worker calls
+`QgsProject.write()` for the result, unless it too is export-to-GPKG-and-swapped before that write.
+Missed on the first implementation pass, caught by the live check below reporting 0 features on a
+layer the test script had just added one to; fixed by applying the same export step in the worker,
+symmetric with the parent's own pre-call export. (2) The parent's first draft exported the
+*scratch-project-reloaded* copy of each pre-existing memory layer (already reduced to 0 features by
+the read/write round-trip that copy went through) instead of the still-intact **live** layer object
+— fixed to export from `QgsProject.instance().mapLayer(layer_id)` directly.
+
+**Live-verified against the real `qgis/qgis@sha256:6ffe6b31...` Docker image this repo's CI itself
+pins (QGIS 4.2.2)** — not `python-qgis.bat` this time, a genuine `docker pull` of the exact pinned
+digest succeeded in this sandbox (the Docker daemon just needed manually starting, same finding as
+the 2026-09-27 §1.10 update). Three new manual harnesses in `tests/manual_isolation_bench/` (same
+manual/live-QGIS-only convention as the existing Phase 0 `bench.py`, not collected by `unittest`):
+- `phase1_live_check.py` — 9/9 passing: a script creating a new memory layer (feature data survives
+  the round trip both ways), a script adding a feature to a pre-existing memory layer (the script
+  correctly sees the layer's pre-existing feature, and the live layer ends up with both features
+  afterward), the uncommitted-edits guard actually refusing when a layer is mid-edit, a
+  blocked-import script still rejected (defense in depth confirmed live inside the worker, not just
+  unit-tested), and the Linux interpreter-lookup branch.
+- `phase1_persistence_check.py` — confirms the worker is genuinely persistent (same OS pid across
+  6 calls) and measures real latency: a cold call (spawn + first job) at 0.844s, warm calls
+  averaging **~0.14s** — better than the scoping doc's derived-not-measured ~0.6s/call estimate.
+- `phase1_recovery_check.py` — an infinite-loop script is killed at a (test-shortened) 2s timeout
+  and the very next call successfully respawns and completes — the worker does not stay wedged
+  after a kill.
+
+**What Phase 1 covers, exactly as scoped:** the existing `local_env` surface as-is (vector/geometry
+scripts only, no new capability). **What's still open, honestly, not glossed over:** the
+Windows/macOS branch of `find_python_interpreter()` (QPIP's algorithm, adopted per the 2026-09-27
+research) is still not independently live-verified on a real Windows/macOS QGIS desktop install —
+no such install exists in this sandbox, only the Linux Docker path was actually exercised end to
+end. A script mutating an existing FILE-BACKED (non-memory) layer is not given any new
+concurrent-access safety by this boundary — documented as a known limitation in
+`agent/services/script_isolation.py`'s own docstring and `SECURITY.md` §1b, not silently assumed
+away. Layer removal/reordering/style edits a script makes are not reconciled back to the live
+project (Phase 1's `local_env` surface doesn't give a script `iface`/canvas access to do most of
+that anyway). Path C's OS-level hardening (Windows AppContainer/Job Object) remains a separate,
+later, unscoped phase, exactly as the scoping doc always said. Full unit suite: 2258 tests (2247 +
+11 new in `tests/test_script_isolation.py`, covering the QGIS-free pure logic — interpreter lookup,
+worker-environment construction — the actual subprocess round-trip is live-QGIS-only, per the
+harnesses above), 0 failures, ruff clean. `docs/TOOLS_REFERENCE.md` regenerated (179 tools, same
+count — only the registered description text changed, to mention isolation and the
+uncommitted-edits refusal).
 
 ### 1.12 `tool_router.py`'s top-40 filter — semantic-router prototyped, not committed either way
 

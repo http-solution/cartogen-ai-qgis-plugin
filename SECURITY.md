@@ -146,6 +146,65 @@ sandbox in any way — this is a new, narrower, safer option offered alongside i
 a replacement. The larger tiered-allow-list question point 19 also raises (restructuring
 away from the denylist sandbox entirely) remains open, unresolved by this addition.
 
+### 1b. Process isolation boundary (2026-09-28)
+
+Every fix to section 1's denylist above closes one specific "capability reachable
+through an allowed name" bypass — a structurally unbounded attack surface for a
+denylist to enumerate (`SECURITY.md` has said so since before this tool existed).
+`agent/services/script_isolation.py` changes the *category* of fix, not another
+denylist entry: when `execute_pyqgis_script` runs inside a real QGIS session, the
+script executes in a **separate OS process** holding its own `QgsApplication`, not
+this plugin's own process.
+
+- **What it actually removes.** The worker process has no Python-level reference to
+  this plugin's in-memory `CredentialManager` objects, conversation history, or any
+  other object living in the main plugin process's memory — not because a name is
+  blocked, but because it is a genuinely different process's address space. Section
+  1's AST/builtins sandbox still runs *inside* the worker as defense in depth (a
+  script that found a future denylist bypass would only be attacking a disposable
+  subprocess operating on a temp-file project copy, not the live plugin process).
+- **How it works.** The live project is snapshotted to a temp file before each call;
+  every MEMORY-provider layer's feature data is exported to a real GPKG and swapped
+  into the snapshot first, since `QgsProject.write()` does not persist a memory
+  layer's features (live-confirmed both directions — a snapshot sent to the worker,
+  and a new memory layer the worker's script creates, both need this same export
+  step, or the isolated script sees, or produces, silently empty layers). A
+  persistent worker subprocess (started lazily, kept alive across calls — a cold
+  spawn measured ~5s, almost entirely QGIS's own import cost, so a fresh process per
+  call was rejected as too slow) runs the script and writes a result project back.
+  The parent reconciles two kinds of change into the live project: new layers the
+  script created, and feature changes to pre-existing memory layers — see that
+  module's docstring for exactly what is, and is not, reconciled.
+- **Refuses rather than guesses on uncommitted edits.** If any layer has an open,
+  uncommitted edit session (`layer.isEditable()`), the call is refused outright with
+  an error telling the caller to commit or discard first, rather than silently
+  operating on a stale snapshot or auto-committing someone's in-progress edit.
+- **A hard per-call timeout** (60s default) kills and respawns the worker if a
+  script hangs — a hung script in the old in-process design had no clean recovery
+  path at all; in a separate process, both detecting and recovering from a hang are
+  possible, and are live-tested (`tests/manual_isolation_bench/phase1_recovery_check.py`).
+- **What this does not cover.** A script that mutates an existing FILE-BACKED
+  (non-memory) layer writes to the same file the live process still has open — this
+  boundary does not add concurrent-access safety for that case, only process/
+  credential isolation. Layer removal, reordering, and style edits a script makes
+  are not reconciled back into the live project. Only vector/geometry scripts are
+  isolated this way — this reuses `execute_pyqgis_script`'s existing `local_env`
+  surface exactly as-is; no new capability was added by this change.
+- **Live-verified**, not just unit-tested: against the real `qgis/qgis@sha256:
+  6ffe6b31...` Docker image this repo's CI itself pins (QGIS 4.2.2) —
+  `tests/manual_isolation_bench/phase1_live_check.py` (new-layer creation,
+  existing-memory-layer feature sync, the uncommitted-edits guard, a blocked-import
+  script still rejected inside the worker), `phase1_persistence_check.py` (the
+  worker process id stays the same across calls; warm calls measured ~0.14s, faster
+  than the scoping doc's derived ~0.6s estimate), and `phase1_recovery_check.py`
+  (a hung script is killed at the configured timeout and the next call recovers
+  cleanly). Windows/macOS interpreter-lookup (`find_python_interpreter`) is adopted
+  from a real, shipped, MIT-licensed QGIS plugin's production code (QPIP) rather
+  than guessed, but is **not** independently live-verified on a real Windows/macOS
+  QGIS desktop install by this project — no such install exists in this sandbox;
+  see `IMPLEMENTATION_TRACKER.md` §1.11 for the full research trail on why
+  `sys.executable` cannot be trusted directly on those platforms.
+
 ### 2. Read-only SQL enforcement
 `agent/tools/db_and_workflow_tools.py` — `execute_read_only_sql` has two layers:
 
@@ -507,7 +566,12 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   necessarily exposes what PyQGIS itself can do, and PyQGIS scripts are expected to
   read/write project data as their normal job. Treat `execute_pyqgis_script` as
   "arbitrary-file-I/O-capable, with the interpreter-escape and process/network vectors
-  specifically closed" — not as a fully contained sandbox.
+  specifically closed" — not as a fully contained sandbox. **§1b's process isolation
+  does not change this specific limitation** — the isolated worker still runs on the
+  same machine with normal filesystem access (that's Path C's OS-level hardening,
+  explicitly deferred as a later phase, not Phase 1's scope); what isolation actually
+  removes is Python-object-level access to this plugin's own in-memory state
+  (credentials, conversation history), not general filesystem I/O capability.
 - **Prompt-injection guidance (rule 16) is not code-enforced.** It's an instruction to
   the model, which a sufficiently adversarial prompt-injection payload might still
   override — there is no code-level filter on what fetched content is allowed to
