@@ -521,13 +521,14 @@ UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
   history (tool results are not). The prompt refiner sends only the user's own text, which the main
   request sends anyway.
 - **It depends on layers being tagged.** Without strict mode an untagged layer is not protected;
-  with strict mode every layer must be classified first. No automatic classification exists.
+  with strict mode every layer must be classified first. No automatic classification exists --
+  see Decision 3 below for how a layer actually gets tagged.
 - **Derived-layer inheritance follows names.** Lineage records a layer's sources by *name*, so
   renaming or removing a protected source layer breaks inheritance for the untagged layers derived
   from it. Tag derived layers explicitly, or use strict mode.
-- **Several decisions in the scope doc (§7) are still open** — who classifies layers, history
-  on a provider switch, where the policy setting should live. The defaults chosen here (Off;
-  strict off) are the reversible ones.
+- **All six decisions in the scope doc (§7) are now answered** — see below. The defaults chosen
+  when the gate first shipped (Off; strict off) turned out to be the right long-term answers for
+  decisions 1 and 6, not just reversible placeholders.
 - **Decision 1 (default mode), answered 2026-09-28:** the code default stays **Off** for a
   general Community install — a fresh install should not have its behavior silently changed
   before anyone has looked at this setting. For a deployment that has completed the DPIA
@@ -558,6 +559,21 @@ UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
   block (`egress_gate.check_failed_decision`, raised when the gate's own machinery errors) has no
   known layers to show the user, so it stays a hard, non-overridable block — there is nothing
   concrete to confirm.
+- **Decision 3 (who classifies layers, and how), answered 2026-09-28: manual tagging stays the
+  model — no automatic prompt at layer-load time — but manual tagging is no longer chat-only.**
+  Before this, the only way to call `set_layer_sensitivity` was to ask the AI to do it; there was
+  no direct QGIS UI control at all. A new "🛡 Sensitivity" header button
+  (`ui/dock_widget.py`/`ui/layer_sensitivity_dialog.py`, live-verified rendering correctly against
+  real QGIS 4.2.2) opens a small dialog: pick a loaded layer, see its current classification, set
+  a new one with an optional reason. It calls the same `set_layer_sensitivity` tool function with
+  `confirmed=True` — this dialog IS the UI confirmation the egress-gate loosening lock already
+  requires (Decision 2's trust boundary), not a way around it. **A load-time prompt was considered
+  and rejected:** interrupting every single layer load (including ordinary basemaps and reference
+  data) to ask "how sensitive is this?" would add friction to the overwhelming majority of loads
+  that are never sensitive, for a question this plugin usually can't answer any better than the
+  user can at that moment anyway. If a future pass wants to narrow this to just
+  humanitarian-data-fetching tools (HDX/OSM/geoBoundaries) rather than every load, that's a real,
+  separate scoping question, not resolved here.
 - **Decision 4 (`execute_pyqgis_script` on cloud), answered 2026-09-28: keep the existing
   whole-project rule, don't widen it.** `WHOLE_PROJECT_TOOLS` already treats every layer in the
   project as "touched" for this tool (its script names layers as string literals, invisible to

@@ -165,10 +165,21 @@ class CartogenAiDockWidget(QDockWidget):
         self.settings_btn.setIconSize(QSize(14, 14))
         self.settings_btn.setObjectName("secondaryButton")
         self.settings_btn.clicked.connect(self.open_settings)
+        # IMPLEMENTATION_TRACKER.md §1.4 decision 3 (2026-09-28): before this button, the only
+        # way to classify a layer's sensitivity was to ask the AI to call set_layer_sensitivity
+        # in chat -- no direct UI control existed at all. Same header-button-opens-a-dialog
+        # pattern as Memory/Settings, not a new top-level menu or a QGIS layer-tree context-menu
+        # hook (that would risk interfering with QGIS's own native context menu).
+        self.sensitivity_btn = QPushButton(" Sensitivity")
+        self.sensitivity_btn.setIcon(themed_icon("shield", _settings_icon_fg))
+        self.sensitivity_btn.setIconSize(QSize(14, 14))
+        self.sensitivity_btn.setObjectName("secondaryButton")
+        self.sensitivity_btn.clicked.connect(self.open_layer_sensitivity)
         header_layout.addWidget(title)
         header_layout.addStretch()
         header_layout.addWidget(self.provider_combo)
         header_layout.addWidget(self.memory_btn)
+        header_layout.addWidget(self.sensitivity_btn)
         header_layout.addWidget(self.settings_btn)
         main_layout.addLayout(header_layout)
 
@@ -222,6 +233,13 @@ class CartogenAiDockWidget(QDockWidget):
         always-docked Memory/Learned-Preferences sections."""
         from .memory_dialog import CartogenAiMemoryDialog
         dialog = CartogenAiMemoryDialog(self)
+        dialog.exec()
+
+    def open_layer_sensitivity(self):
+        """§1.4 decision 3 (2026-09-28): a direct UI path to set_layer_sensitivity, alongside
+        asking the AI to do it in chat -- same pattern as open_memory/open_settings below."""
+        from .layer_sensitivity_dialog import LayerSensitivityDialog
+        dialog = LayerSensitivityDialog(self)
         dialog.exec()
 
     def open_settings(self):
