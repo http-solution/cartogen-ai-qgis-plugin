@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc6
+version=1.16.0-rc7
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,21 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc6 (2026-09-27):
+changelog=v1.16.0-rc7 (2026-09-28):
+    Release candidate 7 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Everything merged to main since rc6 (PRs #43-#69).
+    - Fix: execute_pyqgis_script's isolation worker could hang to the full timeout with no diagnostic on Windows (a wrong interpreter resolving to the QGIS binary itself, ModuleNotFoundError('qgis') from a missing PYTHONPATH entry, a Windows-only select() bug losing stderr, and a too-short handshake timeout for a real desktop cold start) -- all four root-caused and fixed, plus a blank console window during the worker's spawn suppressed.
+    - Fix: a local-data download offer could lose track of the original request entirely on a one-letter typo in the reply ("dowmload"), and could name the wrong region -- a neighboring country, or literal (0,0) -- by reading the QGIS canvas's current view centre instead of the coordinate the request itself named.
+    - Fix: calculate_service_area's single-band hull polygon had no symbology at all (raw QGIS default), and re-running the same analysis (or a follow-up reusing the same origin) stacked duplicate identically-named layers on top of each other instead of replacing them.
+    - Fix: an exported CSV from a Processing-algorithm output layer got an unreadable, unstable auto-generated filename and could not be opened -- exports now always use a clean name under the project's own data/20_processed folder (or the QGIS profile folder for an unsaved project), never an ugly temp-file basename.
+    - Fix: the local-data download/online question interrupted every eligible request, even the routine case with no real decision to make, using a typed "reply download or online" prompt. Now decided silently for the routine case; only asks -- via clickable chips, not free text -- when the extract is large/unknown or the connection is poor/offline, naming the reason when that's why it's asking.
+    - Security: execute_pyqgis_script now runs in a separate, persistent worker process holding its own QgsApplication, with no Python-level access to this plugin's in-memory credentials or conversation history (IMPLEMENTATION_TRACKER.md §1.11 Phase 1); the existing AST/builtins sandbox still runs inside the worker as defense in depth. The cloud-provider data-protection egress gate's remaining deployment decisions (default mode, override policy, script-execution scope, provider-switch history) are answered and documented.
+    - New: a direct "Sensitivity" UI control (dock header button) for tagging a loaded layer's data classification -- previously chat-only.
+    - New, opt-in: georeference_image gained transform_type ("tps" default/unchanged, "linear", "helmert"), matching QGIS Georeferencer's own transform vocabulary, and now reports RMSE plus scale/rotation so alignment quality is visible instead of unreported.
+    - New: analysis-tool output styling is now remembered per project -- a follow-up request producing a similar output (e.g. the same buffer type again) visually matches the one before it instead of always reverting to one hardcoded default, closing part of the "smart mapping" gap (IMPLEMENTATION_TRACKER.md §1.16; the request-validator/task-planner/tool-router half of that architecture is deliberately not built yet, flagged for its own pass).
+    - Fix: uneven map-visualization quality and a routing-speed assumption not accounting for country -- dashboard feature sampling now spreads evenly across the whole dataset, and estimate_road_speeds can be given a country for a more realistic default.
+    - Docs/governance: release tags now use the cartogen-ai-v<version> prefix (not commercial-plugin-v<version>, which read as a proprietary-licensing signal on a GPL v2 repo); personal contact info and internal-only business/strategy documents removed from this open-source repo; repo links pointed at this canonical repo instead of a stale sibling.
+
+v1.16.0-rc6 (2026-09-27):
     Release candidate 6 for 1.16.0. No breaking changes -- still requires QGIS 4.2+.
     - Fix: a query naming a time threshold in words ("beyond one hour's travel") no longer gets silently reinterpreted as a 5 km distance default -- the pattern now recognizes spelled-out numbers and plurals ("one hour's", "2 hours", "30 minutes"), not just digits with a singular unit.
     - Fix: ingest_osm_features retries a transient Overpass failure (504/429) instead of spending a whole tool call on it; a road network now ingests as real lines (was: one point per vertex, no lines at all), and a point-typed layer is refused as a road network with a clear error instead of silently producing meaningless results.
