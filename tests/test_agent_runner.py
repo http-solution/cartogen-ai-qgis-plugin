@@ -953,7 +953,7 @@ class TestEgressGateWiring(unittest.TestCase):
         agent._last_tool_call = None
         return agent
 
-    def _run(self, decision):
+    def _run(self, decision, user_confirmed=False):
         calls = []
 
         def fake_tool(**kwargs):
@@ -962,14 +962,37 @@ class TestEgressGateWiring(unittest.TestCase):
 
         agent = self._agent()
         with patch.object(agent_mod.CartogenAi, "_egress_gate_decision", lambda self, n, a: decision),              patch.dict(agent_mod.TOOL_REGISTRY, {"buffer_analysis": fake_tool}):
-            res = agent._real_execute_tool("buffer_analysis", "{}")
+            res = agent._real_execute_tool("buffer_analysis", "{}", user_confirmed=user_confirmed)
         return res, calls
 
-    def test_block_returns_the_result_and_never_runs_the_tool(self):
+    def test_block_with_known_layers_returns_a_preview_not_the_raw_block(self):
+        # §1.4 decision 2 (override policy, 2026-09-28): a block with known layers is
+        # overridable, so it's wrapped as PREVIEW_REQUIRED (reusing the existing
+        # destructive-action Confirm-button machinery) instead of handed to the model as a
+        # flat EGRESS_BLOCKED result -- the raw block dict is no longer what the caller sees.
         blocked = {"status": "EGRESS_BLOCKED", "message": "no"}
         res, calls = self._run({"action": "block", "layers": {"a": "tagged SENSITIVE"}, "result": blocked})
+        self.assertEqual(res["status"], "PREVIEW_REQUIRED")
+        self.assertIn("a", res["rationale"])
+        self.assertEqual(calls, [])
+
+    def test_block_with_no_layers_is_never_overridable(self):
+        # A check-failure block (egress_gate.check_failed_decision) has empty layers -- there's
+        # nothing concrete to show the user, so it stays a hard block even with user_confirmed=True.
+        blocked = {"status": "EGRESS_BLOCKED", "message": "check failed"}
+        res, calls = self._run({"action": "block", "layers": {}, "result": blocked}, user_confirmed=True)
         self.assertEqual(res, blocked)
         self.assertEqual(calls, [])
+
+    def test_confirmed_override_runs_the_tool_and_attaches_a_note(self):
+        blocked = {"status": "EGRESS_BLOCKED", "message": "no"}
+        res, calls = self._run(
+            {"action": "block", "layers": {"a": "tagged SENSITIVE"}, "result": blocked},
+            user_confirmed=True,
+        )
+        self.assertTrue(res["success"])
+        self.assertIn("a", res["egress_override_note"])
+        self.assertEqual(len(calls), 1)
 
     def test_warn_runs_the_tool_and_attaches_the_warning(self):
         res, calls = self._run({"action": "warn", "layers": {"a": "x"}, "result": None, "warning": "careful"})

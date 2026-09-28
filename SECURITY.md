@@ -466,9 +466,72 @@ UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
 - **Derived-layer inheritance follows names.** Lineage records a layer's sources by *name*, so
   renaming or removing a protected source layer breaks inheritance for the untagged layers derived
   from it. Tag derived layers explicitly, or use strict mode.
-- **Several decisions in the scope doc (§7) are still open** — defaults, override policy, who
-  classifies layers, history on a provider switch, where the policy setting should live. The
-  defaults chosen here (Off; strict off) are the reversible ones.
+- **Several decisions in the scope doc (§7) are still open** — who classifies layers, history
+  on a provider switch, where the policy setting should live. The defaults chosen here (Off;
+  strict off) are the reversible ones.
+- **Decision 1 (default mode), answered 2026-09-28:** the code default stays **Off** for a
+  general Community install — a fresh install should not have its behavior silently changed
+  before anyone has looked at this setting. For a deployment that has completed the DPIA
+  sign-off above for protection/incident/displacement data, the recommended setting is
+  **Block, non-strict** — surfaced as guidance text directly under the Settings dropdown
+  (`ui/settings_dialog.py`) rather than auto-switched, since this plugin has no way to detect
+  on its own whether a given install's DPIA is actually complete — that is an organizational
+  fact, not a technical one it can observe. Non-strict (not strict-by-default even for a
+  DPIA-complete deployment) because strict mode requires every layer to be classified first,
+  which this plugin has no automatic-classification path for yet; recommending strict-by-default
+  would trade a real-but-solvable-by-tagging gap for guaranteed friction on day one.
+- **Decision 2 (override policy), answered 2026-09-28: yes, a block is overridable, but only
+  through the exact same UI Confirm-button path destructive actions already use — never a
+  model-supplied argument.** A blocked call with known layers (`egress_gate.preview_required()`)
+  is now handed to `agent_orchestrator.py`'s existing `PREVIEW_REQUIRED` machinery instead of a
+  flat `EGRESS_BLOCKED` result: the model sees a rationale naming the exact tool and layers
+  involved and tells the user, and only a real click on the existing Confirm affordance (chat's
+  inline safety-gate card, the Activity tab's Confirm button, or a typed "Confirm" reply — all
+  the same code path) sets `user_confirmed=True`, which the dispatcher's own schema-filtering
+  guarantees the model can never inject itself (`_real_execute_tool`'s `filtered_args` comment:
+  "prevents model self-approval via injected parameters"). No new free-text justification field
+  was added — the deliberate click on a card naming exactly what's involved already is the audit
+  record, the same standard `remove_layer`/`field_calculator` confirmations already meet without
+  a note. Both the block and a confirmed override are logged (`egress_blocked`/
+  `egress_override_confirmed`, metadata-only per `logger.py`'s convention), and an overridden
+  call's result carries an `egress_override_note` naming the layers, so the chat transcript
+  itself records what happened. **Deliberately excluded from this override path:** a check-failure
+  block (`egress_gate.check_failed_decision`, raised when the gate's own machinery errors) has no
+  known layers to show the user, so it stays a hard, non-overridable block — there is nothing
+  concrete to confirm.
+- **Decision 4 (`execute_pyqgis_script` on cloud), answered 2026-09-28: keep the existing
+  whole-project rule, don't widen it.** `WHOLE_PROJECT_TOOLS` already treats every layer in the
+  project as "touched" for this tool (its script names layers as string literals, invisible to
+  the argument scan), so it's judged by the exact same PROTECTED-levels standard as every other
+  tool — RESTRICTED/SENSITIVE, or untagged in strict mode — not by a broader "any non-PUBLIC
+  layer" rule. Confirmed live (and now covered by a new regression test,
+  `test_execute_pyqgis_script_is_allowed_with_only_internal_layers`,
+  `tests/test_egress_gate.py`): a project made entirely of INTERNAL-tagged working layers does
+  NOT block this tool on a cloud provider, since INTERNAL is an explicit owner declaration
+  (`OPEN_LEVELS`) that the data may leave the machine — the same declaration every other tool
+  already respects. Widening the rule to block on any non-PUBLIC layer would make this tool
+  nearly unusable on cloud even for ordinary INTERNAL working layers, for no real security gain
+  over the existing rule.
+- **Decision 5 (history on a provider switch), answered 2026-09-28: accepted as out of scope,
+  not built.** The scope doc's original premise (a provider switch re-sends earlier *tool
+  results*) was already found wrong and corrected 2026-09-24 — conversation history stores only
+  the user's own typed messages and the assistant's prose, never tool results. The residual this
+  decision is actually about — the model repeating in its own prose, after a switch, something
+  it saw from a protected layer earlier in the session — is already the documented "What is not
+  gated" gap above, present whether or not a provider switch happens at all (the model could
+  just as easily repeat it on the SAME provider). Gating it specifically on a provider switch
+  would add real complexity (detecting the switch, deciding what in history might be
+  "contaminated," and how) to close only a narrow slice of a gap that's already open more
+  broadly — not judged worth building for that narrow a win.
+- **Decision 6 (where the policy setting lives), answered 2026-09-28: user `QgsSettings` stays
+  the mechanism for Community; a managed org-level config is out of scope for this codebase for
+  now.** A managed config a local user can't override is squarely an Enterprise/Pro-tier
+  deployment feature — real engineering work `docs/IMPLEMENTATION_TRACKER.md` §1.3's Path C
+  decision (2026-09-24: stay GPL v2, gate tiers at runtime rather than a source split) already
+  named as unblocked-but-not-started, not something to build ahead of that tier work actually
+  resuming. Today's `QgsSettings` default already states plainly what it is and isn't
+  ("prevents accidents, not a determined user") — that limitation is accepted, not treated as
+  a defect to rush a fix for.
 
 The plugin still does not restrict *which provider* a user selects, and does not disable the
 Hosted-Account dialog under any condition — both remain deliberately-scoped-out follow-ups. See

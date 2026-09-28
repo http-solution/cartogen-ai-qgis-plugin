@@ -553,6 +553,23 @@ class CartogenAiSettingsDialog(QDialog):
         egress_form.addRow("Cloud data protection:", self.egress_gate_mode_combo)
         layout.addLayout(egress_form)
 
+        # Decision 1 of docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md §7's six deployment
+        # decisions, recorded 2026-09-28: the code default stays Off (reversible, no surprise
+        # for a fresh install), but a deployment that has completed the DPIA sign-off for
+        # protection/incident/displacement data should not stay on that default -- surfaced as
+        # guidance here rather than auto-switched, matching this project's existing
+        # document-don't-silently-decide pattern for the Ollama-only posture (SECURITY.md).
+        egress_recommendation = QLabel(
+            "Recommended: set this to “Block” once your deployment has completed the "
+            "DPIA sign-off for protection, incident, or displacement data (see SECURITY.md, "
+            "“DPIA determination and deployment constraints”). Off is the safe, "
+            "no-surprises default for a general install -- this plugin cannot detect on its own "
+            "whether your deployment's DPIA is complete, so it is not switched automatically."
+        )
+        egress_recommendation.setWordWrap(True)
+        egress_recommendation.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(egress_recommendation)
+
         self.egress_gate_strict_checkbox = QCheckBox(
             "Treat layers with no sensitivity tag as protected"
         )

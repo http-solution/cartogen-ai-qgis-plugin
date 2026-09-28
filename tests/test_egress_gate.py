@@ -182,6 +182,16 @@ class TestEvaluate(unittest.TestCase):
                                      arguments={"script": "def run(): pass"},
                                      levels={"beneficiaries": "PUBLIC", "boundary": "PUBLIC"}))
 
+    def test_execute_pyqgis_script_is_allowed_with_only_internal_layers(self):
+        # §1.4 decision 4 (2026-09-28): the whole-project rule blocks on PROTECTED layers
+        # (RESTRICTED/SENSITIVE, or untagged in strict mode) -- the same standard every other
+        # tool is judged by -- not on "any non-PUBLIC layer". INTERNAL is an explicit owner
+        # declaration that data is safe to leave the machine (OPEN_LEVELS), so a project made
+        # entirely of INTERNAL working layers must not block execute_pyqgis_script either.
+        self.assertIsNone(self._eval(tool_name="execute_pyqgis_script",
+                                     arguments={"script": "def run(): pass"},
+                                     levels={"beneficiaries": "INTERNAL", "boundary": "PUBLIC"}))
+
     def test_strict_mode_blocks_untagged_layers(self):
         self.assertIsNone(self._eval(arguments={"layer_name": "new_layer"},
                                      project_layer_names=["new_layer"], levels={}))
@@ -234,6 +244,40 @@ class TestAttachments(unittest.TestCase):
             self.assertEqual(g.attachment_decision(MagicMock(base_url="https://x.com"), "a.csv")["action"], "block")
         with patch.object(g, "read_mode", return_value=g.MODE_WARN),              patch.object(g, "read_strict", side_effect=RuntimeError("boom")):
             self.assertIsNone(g.attachment_decision(MagicMock(base_url="https://x.com"), "a.csv"))
+
+
+class TestPreviewRequired(unittest.TestCase):
+    """§1.4 decision 2 (override policy), answered 2026-09-28: a block with known layers is
+    overridable via the existing destructive-action Confirm-button machinery, wrapped here as a
+    PREVIEW_REQUIRED response. See agent_orchestrator.py's TestEgressGateWiring in
+    test_agent_runner.py for the wiring that actually consumes this."""
+
+    def test_shape_is_preview_required(self):
+        decision = {"action": "block", "layers": {"beneficiaries": "tagged SENSITIVE"}}
+        res = g.preview_required("buffer_analysis", {"layer_name": "beneficiaries"}, decision)
+        self.assertEqual(res["status"], "PREVIEW_REQUIRED")
+        self.assertTrue(res["is_destructive"])
+        self.assertEqual(res["arguments"], {"layer_name": "beneficiaries"})
+
+    def test_rationale_names_the_tool_and_layers(self):
+        decision = {"action": "block", "layers": {"beneficiaries": "tagged SENSITIVE"}}
+        res = g.preview_required("buffer_analysis", {}, decision)
+        self.assertIn("buffer_analysis", res["rationale"])
+        self.assertIn("beneficiaries", res["rationale"])
+        self.assertIn("tagged SENSITIVE", res["rationale"])
+
+    def test_arguments_are_copied_not_aliased(self):
+        original = {"layer_name": "beneficiaries"}
+        res = g.preview_required("buffer_analysis", original, {"action": "block", "layers": {}})
+        res["arguments"]["layer_name"] = "mutated"
+        self.assertEqual(original["layer_name"], "beneficiaries")
+
+    def test_missing_layers_key_does_not_raise(self):
+        # check_failed_decision()'s block has no "layers" key at all in some callers' shape --
+        # preview_required must not be reached for that case in practice (see agent_orchestrator.py's
+        # egress_overridable check), but the function itself should still not blow up if it is.
+        res = g.preview_required("buffer_analysis", {}, {"action": "block"})
+        self.assertEqual(res["status"], "PREVIEW_REQUIRED")
 
 
 if __name__ == "__main__":
