@@ -385,6 +385,17 @@ class _IsolationWorker:
                 text=True,
                 bufsize=1,
                 cwd=tempfile.gettempdir(),
+                # Live-reported, 2026-09-28: a visible (blank) console window opened during
+                # the isolation call on real Windows QGIS. stdin/stdout/stderr are already
+                # fully redirected to pipes here, so nothing was ever meant to appear in
+                # that window -- it's just Windows' default behavior of allocating a new
+                # console for a spawned console-subsystem process (python.exe) when the
+                # parent (QGIS, a GUI app) has none of its own to inherit. CREATE_NO_WINDOW
+                # suppresses that allocation entirely; it doesn't exist on non-Windows
+                # platforms, so getattr's default of 0 there is a deliberate no-op (0 is
+                # the only creationflags value subprocess.Popen accepts on POSIX at all --
+                # anything else raises ValueError there).
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except OSError as e:
             return {"error": f"Could not spawn the isolation worker via interpreter '{interpreter}': {e}"}

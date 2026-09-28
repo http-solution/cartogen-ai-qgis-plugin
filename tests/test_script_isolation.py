@@ -190,5 +190,31 @@ class TestEnsureStartedRefusesQgisBinary(unittest.TestCase):
         self.assertNotIn("QGIS application binary", error["error"])
 
 
+class TestEnsureStartedSuppressesConsoleWindow(unittest.TestCase):
+    """Live-reported, 2026-09-28: a visible (blank) console window opened during the
+    isolation call on real Windows QGIS -- stdin/stdout/stderr are already fully
+    redirected to pipes, so Windows was allocating a console for the spawned python.exe
+    purely because the parent (QGIS, a GUI app) has none of its own to inherit."""
+
+    def test_popen_receives_a_creationflags_kwarg(self):
+        worker = si._IsolationWorker()
+        with patch.object(si, "find_python_interpreter", return_value="/usr/bin/python3"),              patch.object(si.subprocess, "Popen", side_effect=OSError("boom, not actually spawned")) as mock_popen:
+            worker._ensure_started()
+        self.assertIn("creationflags", mock_popen.call_args.kwargs)
+        self.assertEqual(
+            mock_popen.call_args.kwargs["creationflags"],
+            getattr(si.subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+    def test_uses_the_real_windows_constant_when_present(self):
+        # This machine is Linux (no CREATE_NO_WINDOW attribute at all), so simulate a
+        # Windows subprocess module to prove the value threads through unchanged rather
+        # than being hardcoded to 0.
+        worker = si._IsolationWorker()
+        with patch.object(si, "find_python_interpreter", return_value="/usr/bin/python3"),              patch.object(si.subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True),              patch.object(si.subprocess, "Popen", side_effect=OSError("boom, not actually spawned")) as mock_popen:
+            worker._ensure_started()
+        self.assertEqual(mock_popen.call_args.kwargs["creationflags"], 0x08000000)
+
+
 if __name__ == "__main__":
     unittest.main()
