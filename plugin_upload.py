@@ -45,9 +45,9 @@ EXCLUDE_DIRS = {
     # Brand assets (guidelines HTML, SVG lockups) have no function inside an
     # installed plugin.
     "branding",
-    # service/ is the standalone hosted-gateway/monetization prototype (see
-    # docs/PRODUCT_TIERS.md's Professional tier) -- not part of the QGIS
-    # plugin. Also matters for correctness, not just scope: it contains
+    # service/ is the standalone hosted-gateway/monetization prototype --
+    # not part of the QGIS plugin. Also matters for correctness, not just
+    # scope: it contains
     # node_modules/, whose .bin/ entries are Windows reparse points that
     # zipfile.write() can fail to os.stat() (WinError 1920), aborting the
     # whole build -- confirmed live, this exclusion is what fixed it.
