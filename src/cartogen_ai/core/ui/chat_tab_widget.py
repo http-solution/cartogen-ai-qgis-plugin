@@ -860,6 +860,16 @@ class ChatTabWidget(QWidget):
         payload = action.payload or {}
         layer_name = payload.get("layer_name")
 
+        if kind == "local_data_choice":
+            # Clickable-chip half of the local-data download/online choice (see
+            # _offer_local_data_choice, chat_tab_widget.py) -- reuses the exact same
+            # _on_local_data_reply a typed "download"/"online" reply already resolves through,
+            # so both affordances stay in sync with a single implementation.
+            self._awaiting_local_data_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+            self._on_local_data_reply(payload.get("choice"))
+            return
+
         if kind == "export":
             from ..agent.tools.export_tools import export_to_csv
             res = export_to_csv(layer_name, only_selected=payload.get("only_selected"))
@@ -1152,42 +1162,60 @@ class ChatTabWidget(QWidget):
     # ---------------------------------------------------------- local data --
 
     def _maybe_ask_local_data(self, text, analysis):
-        """Asks whether to download the request's base data locally first. True if it asked.
+        """Silently decides whether this request should use local data, resolving the choice
+        in the background rather than interrupting with a free-text question. True if the
+        request is paused pending that background work.
 
         Live-reported 2026-09-24/25: the same travel-time request failed twice because every
         run fetched roads and facilities live from Overpass (see agent/local_data_sources.py).
-        Only asked when the matched task needs a road network (and the project has no line
+        The original fix asked "download or online?" before every single eligible request --
+        live-reported again, 2026-09-28: "download / online is just used for critical actions
+        not a routine task". Replaced with a silent smart default: a background probe checks
+        connectivity and resolves the Geofabrik region size; if the connection is good and the
+        extract isn't unusually large, the download just happens (an informational note, not a
+        question -- see _start_local_download). The chat only interrupts -- via clickable chips
+        (see _offer_local_data_choice), not free text -- for the two cases that actually
+        warrant an active choice: an unusually large/unknown-size download, or a slow/offline
+        connection. That last case matters specifically for field/humanitarian use on a poor
+        connection: guessing either way risks a silent multi-second stall or wasted data, so
+        the user gets an explicit choice instead of either guess.
+
+        Only triggered when the matched task needs a road network (and the project has no line
         layer that looks like one), at most once per request, and never again this session
-        after the user says "online"."""
+        after the user picks online (`_local_data_declined`)."""
         from ..agent import local_data_sources, local_data_loader
         try:
             themes = local_data_sources.should_offer(
                 analysis.get("task"), text, local_data_loader.project_layer_facts(),
                 declined=self._local_data_declined)
-        except Exception as e:  # never let the offer break sending a message
+        except Exception as e:  # never let the offer check break sending a message
             log_warning("ChatTab", "local-data offer check failed: %s" % e)
             return False
         if not themes:
             return False
-        country = None
         # Prefer the coordinate the request itself named (live-reported, 2026-09-28: using
         # the canvas's current view centre instead named the wrong region -- a neighboring
         # country, or a meaningless "(0.000, 0.000)" -- whenever the canvas hadn't been
-        # panned to the request's actual area yet). Falls back to the canvas centre exactly
-        # as before for a request that names no coordinate at all (e.g. "buffer 5km around
-        # active GDACS alerts").
+        # panned to the request's actual area yet). Falls back to the canvas centre for a
+        # request that names no coordinate at all (e.g. "buffer 5km around active GDACS
+        # alerts"). No center at all -- nothing to resolve a region for -- falls straight
+        # through to online with no interruption, same as before.
         center = local_data_loader.query_point_wgs84(text) or self._canvas_center()
-        if center is not None:
-            country = self._cached_region_name(center)
+        if center is None:
+            return False
+
         self._dock.receiveMessageSignal.emit("user", text)
         self._local_data_pending = {"text": text, "analysis": analysis, "themes": themes,
-                                    "stage": "offer", "region": None, "center": center}
-        self._awaiting_local_data_reply = True
+                                    "stage": "probing", "region": None, "center": center}
+        self._set_local_data_busy(True)
         self.input_edit.clear()
-        self.input_edit.setPlaceholderText("Reply download or online... (Enter to send)")
-        self.input_edit.setFocus()
-        self._dock.receiveMessageSignal.emit(
-            "ai", local_data_sources.question_text(themes, country=country))
+        from ..services.task_runner import run_background_call
+        lon, lat = center
+        cache_dir = local_data_loader.data_dir()
+        self._active_task = run_background_call(
+            "Cartogen AI: check connection and find OSM extract",
+            lambda _cancelled: local_data_loader.resolve_region_with_connectivity(lon, lat, cache_dir),
+            self._on_connectivity_and_region_resolved)
         return True
 
     def _canvas_center(self):
@@ -1198,19 +1226,66 @@ class ChatTabWidget(QWidget):
         except Exception:
             return None
 
-    def _cached_region_name(self, center):
-        """The region's name if Geofabrik's index is already cached -- never a network call on
-        the GUI thread just to word the question."""
-        from ..agent import local_data_loader, local_data_sources
-        path = os.path.join(local_data_loader.data_dir(), "geofabrik-index-v1.json")
-        if not os.path.exists(path):
-            return None
-        try:
-            region = local_data_sources.find_region(local_data_loader.load_index(
-                local_data_loader.data_dir()), *center)
-            return region["name"] if region else None
-        except Exception:
-            return None
+    def _on_connectivity_and_region_resolved(self, result, error):
+        """Callback for _maybe_ask_local_data's background probe. Applies the smart-default
+        policy: download silently when the connection is good and the extract is a known,
+        reasonable size; otherwise offer the choice as clickable chips."""
+        self._set_local_data_busy(False)
+        pending = self._local_data_pending
+        if pending is None or self._stopped_by_user(error):
+            return
+        if error is not None:
+            # Couldn't even run the probe -- treat it like a bad connection rather than
+            # silently guessing either way.
+            self._offer_local_data_choice(online_ok=False, region=None)
+            return
+        online_ok = (result or {}).get("online_ok", False)
+        region = (result or {}).get("region")
+        if not region or "error" in (region or {}):
+            # No Geofabrik coverage for this location -- continue online exactly as before,
+            # no interruption; the online tools' own errors, if any, surface normally.
+            self._resume_local_data_request()
+            return
+        pending["region"] = region
+        from ..agent import local_data_loader
+        size = region.get("size_bytes") or 0
+        large_or_unknown = size == 0 or size > local_data_loader.LARGE_DOWNLOAD_BYTES
+        if online_ok and not large_or_unknown:
+            self._start_local_download(region)
+            return
+        self._offer_local_data_choice(online_ok, region)
+
+    def _offer_local_data_choice(self, online_ok, region):
+        """Shows the download/online choice as clickable chips, not a free-text 'reply
+        download or online' prompt -- only reached for the two cases that actually warrant an
+        active choice (see _maybe_ask_local_data's docstring). Typing "download"/"online" as a
+        reply still works too (send_message()'s _awaiting_local_data_reply branch, unchanged),
+        for anyone who prefers typing over clicking."""
+        from ..agent.map_intelligence import ChatActionRegistry
+        pending = self._local_data_pending
+        pending["stage"] = "confirm_size"  # _on_local_data_reply's existing "ready to act" stage
+        download_id = ChatActionRegistry.register(
+            "local_data_choice", "Download local data", {"choice": "download"})
+        online_id = ChatActionRegistry.register(
+            "local_data_choice", "Continue online", {"choice": "online"})
+        lines = []
+        if not online_ok:
+            lines.append(
+                "The connection looks slow or unavailable right now. I can try to download "
+                "the OpenStreetMap extract anyway (it'll keep retrying in the background), or "
+                "continue online, which may also be slow or fail."
+            )
+        if region:
+            size = region.get("size_bytes") or 0
+            size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
+            lines.append("The OpenStreetMap extract for **%s** is **%s**." % (region["name"], size_text))
+        lines.append(
+            "[\U0001F4E5 Download local data](cartogen://action/%s)  "
+            "[\U0001F310 Continue online](cartogen://action/%s)" % (download_id, online_id)
+        )
+        self._awaiting_local_data_reply = True
+        self.input_edit.setPlaceholderText("Reply download or online, or use the buttons above...")
+        self._dock.receiveMessageSignal.emit("ai", "\n\n".join(lines))
 
     def _on_local_data_reply(self, choice):
         pending = self._local_data_pending
@@ -1222,25 +1297,7 @@ class ChatTabWidget(QWidget):
                 "ai", "Okay, continuing with online data. I won't ask again this session.")
             self._resume_local_data_request()
             return
-        if pending["stage"] == "confirm_size":
-            self._start_local_download(pending["region"])
-            return
-        if pending["center"] is None:
-            self._dock.receiveMessageSignal.emit(
-                "ai", "I can't tell which area to download: the map has no location yet. Zoom "
-                      "the map to your area and ask again, or load a road layer yourself. "
-                      "Continuing with online data for now.")
-            self._resume_local_data_request()
-            return
-        from ..agent import local_data_loader
-        from ..services.task_runner import run_background_call
-        cache_dir, (lon, lat) = local_data_loader.data_dir(), pending["center"]
-        self._dock.receiveMessageSignal.emit("ai", "Finding the OpenStreetMap extract for this area...")
-        self._set_local_data_busy(True)
-        self._active_task = run_background_call(
-            "Cartogen AI: find OSM extract",
-            lambda _cancelled: local_data_loader.resolve_region(lon, lat, cache_dir),
-            self._on_region_resolved)
+        self._start_local_download(pending["region"])
 
     def _stopped_by_user(self, error):
         """Stop pressed during the lookup or download: end the request, don't carry on online
@@ -1251,31 +1308,6 @@ class ChatTabWidget(QWidget):
         self._dock.receiveMessageSignal.emit("ai", "Stopped. Nothing was added to the project.")
         self._dock.statusSignal.emit("")
         return True
-
-    def _on_region_resolved(self, region, error):
-        self._set_local_data_busy(False)
-        pending = self._local_data_pending
-        if pending is None or self._stopped_by_user(error):
-            return
-        if error is not None or not region or "error" in region:
-            msg = (region or {}).get("error") if not error else str(error)
-            self._dock.receiveMessageSignal.emit(
-                "ai", "Couldn't find a download for this area (%s). Continuing with online data." % msg)
-            self._resume_local_data_request()
-            return
-        from ..agent import local_data_loader
-        pending["region"] = region
-        size = region.get("size_bytes") or 0
-        if size == 0 or size > local_data_loader.LARGE_DOWNLOAD_BYTES:
-            pending["stage"] = "confirm_size"
-            self._awaiting_local_data_reply = True
-            self.input_edit.setPlaceholderText("Reply download or online... (Enter to send)")
-            size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
-            self._dock.receiveMessageSignal.emit(
-                "ai", "The OpenStreetMap extract for **%s** is **%s**. Reply **download** to get "
-                      "it anyway, or **online** to continue without it." % (region["name"], size_text))
-            return
-        self._start_local_download(region)
 
     def _start_local_download(self, region):
         from ..agent import local_data_loader

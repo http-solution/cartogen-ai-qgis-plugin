@@ -1132,9 +1132,20 @@ def _geofabrik_fixture(folder):
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
 class TestLocalDataOfferLive(unittest.TestCase):
-    """The "download local data, or fetch online?" question (agent/local_data_sources.py),
-    driven through the real dock: real send button, real QgsTask for the background step, real
-    layers added to QgsProject. Only Geofabrik itself is replaced (by the fixture above)."""
+    """The local-data download/online decision (agent/local_data_sources.py,
+    agent/local_data_loader.py), driven through the real dock: real send button, real QgsTask
+    for the background probe/download, real layers added to QgsProject. Only Geofabrik itself
+    is replaced (by the fixture above and the connectivity/resolve_region patches below).
+
+    Rewritten 2026-09-28 for the silent-smart-default redesign (live-reported: "download /
+    online is just used for critical actions not a routine task"): a background probe now
+    decides silently whenever the connection is good and the extract is a known, reasonable
+    size -- these tests mock `probe_connectivity` explicitly rather than relying on the
+    live-QGIS CI runner's own real network access, so `online_ok` is always deterministic.
+    Every scenario now needs a resolvable location up front (`_canvas_center` mocked, or -- as
+    for `_TRAVEL_Q`, which has no decimal point so `extract_coordinate_pair` doesn't match it --
+    falls through to it), since the probe+resolve step runs before any interruption can happen
+    at all, unlike the old design where the very first question needed no location yet."""
 
     @classmethod
     def setUpClass(cls):
@@ -1162,29 +1173,9 @@ class TestLocalDataOfferLive(unittest.TestCase):
         self.addCleanup(dock.close)
         return dock.chat_tab_widget, agent
 
-    def test_travel_time_request_in_an_empty_project_asks_first(self):
-        ct, agent = self._dock()
-        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-        log = ct.chat_browser.toPlainText()
-        self.assertTrue(ct._awaiting_local_data_reply)
-        self.assertIn("download the data once", log)
-        self.assertIn("healthsites.io", log)
-        self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1, "the request is shown once, as the user's own bubble")
-        self.assertEqual(agent.client.calls, 0, "nothing goes to the model before the user answers")
-
-    def test_online_continues_to_the_preview_and_is_not_asked_again(self):
-        ct, agent = self._dock()
-        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-        TestChatWidgetLive._reply(ct, "online")
-        log = ct.chat_browser.toPlainText()
-        self.assertFalse(ct._awaiting_local_data_reply)
-        self.assertTrue(ct._awaiting_preview_reply, "the normal preview comes next")
-        self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1, "resuming must not echo the request again")
-        TestChatWidgetLive._reply(ct, "cancel")
-        TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-        self.assertFalse(ct._awaiting_local_data_reply, "declined once -> not asked again this session")
-
-    def test_download_adds_line_roads_and_all_health_facilities_then_resumes(self):
+    def test_good_connection_and_reasonable_size_downloads_silently_with_no_question(self):
+        # The routine case this redesign exists for: no "reply download or online" interruption
+        # at all, just an informational note once the download finishes.
         from unittest.mock import patch
         from qgis.core import QgsProject, QgsWkbTypes
         ct, agent = self._dock()
@@ -1192,14 +1183,15 @@ class TestLocalDataOfferLive(unittest.TestCase):
                   "size_bytes": 60_000_000}
         shp = _geofabrik_fixture(self.tmp)
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=True), \
              patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
              patch("cartogen_ai.core.agent.local_data_loader.download_and_extract",
                    return_value={"shapefiles": shp, "zip_path": os.path.join(self.tmp, "x.zip"),
                                  "region": region}):
             TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-            TestChatWidgetLive._reply(ct, "download")
             _pump(8000, until=lambda: ct._awaiting_preview_reply)
 
+        self.assertFalse(ct._awaiting_local_data_reply, "never interrupted -- downloaded silently")
         roads = QgsProject.instance().mapLayersByName("OSM Roads (Jordan)")
         health = QgsProject.instance().mapLayersByName("Health Facilities (OSM, Jordan)")
         self.assertEqual(len(roads), 1)
@@ -1217,22 +1209,61 @@ class TestLocalDataOfferLive(unittest.TestCase):
         self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1)
         self.assertEqual(agent.client.calls, 0, "the preview is waiting; nothing sent yet")
 
-    def test_a_large_extract_asks_again_with_its_size(self):
+    def test_a_large_extract_asks_with_its_size_as_a_single_round_trip(self):
         from unittest.mock import patch
         ct, _ = self._dock()
         region = {"id": "germany", "name": "Germany", "shp_url": "https://example.invalid/x.zip",
                   "size_bytes": 4_300_000_000}
         with patch.object(type(ct), "_canvas_center", return_value=(10.0, 51.0)), \
+             patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=True), \
              patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
              patch("cartogen_ai.core.agent.local_data_loader.download_and_extract") as dl:
             TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-            TestChatWidgetLive._reply(ct, "download")
             _pump(8000, until=lambda: ct._awaiting_local_data_reply)
-            self.assertIn("4300 MB", ct.chat_browser.toPlainText())
+            log = ct.chat_browser.toPlainText()
+            self.assertIn("4300 MB", log)
+            self.assertIn("cartogen://action/", log, "offered as clickable chips, not free text only")
             dl.assert_not_called()
             TestChatWidgetLive._reply(ct, "online")
         self.assertTrue(ct._awaiting_preview_reply)
         dl.assert_not_called()
+
+    def test_poor_connection_asks_even_for_a_small_extract(self):
+        # Field/humanitarian context: a slow or offline connection must not be silently
+        # guessed either way -- the user gets an explicit choice.
+        from unittest.mock import patch
+        ct, agent = self._dock()
+        region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
+                  "size_bytes": 60_000_000}
+        with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=False), \
+             patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
+             patch("cartogen_ai.core.agent.local_data_loader.download_and_extract") as dl:
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            _pump(8000, until=lambda: ct._awaiting_local_data_reply)
+            log = ct.chat_browser.toPlainText()
+            self.assertIn("slow or unavailable", log)
+            dl.assert_not_called()
+            TestChatWidgetLive._reply(ct, "online")
+        self.assertTrue(ct._awaiting_preview_reply)
+        self.assertEqual(agent.client.calls, 0, "nothing goes to the model before the user answers")
+
+    def test_online_continues_to_the_preview_and_is_not_asked_again(self):
+        from unittest.mock import patch
+        ct, agent = self._dock()
+        with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=False):
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            _pump(8000, until=lambda: ct._awaiting_local_data_reply)
+            TestChatWidgetLive._reply(ct, "online")
+            log = ct.chat_browser.toPlainText()
+            self.assertFalse(ct._awaiting_local_data_reply)
+            self.assertTrue(ct._awaiting_preview_reply, "the normal preview comes next")
+            self.assertEqual(_user_bubbles(log, _TRAVEL_Q), 1, "resuming must not echo the request again")
+            TestChatWidgetLive._reply(ct, "cancel")
+            TestChatWidgetLive._reply(ct, _TRAVEL_Q)
+            self.assertFalse(ct._awaiting_local_data_reply, "declined once -> not asked again this session")
+        self.assertEqual(agent.client.calls, 0, "nothing goes to the model before the user answers")
 
     def test_stop_during_the_download_ends_the_request(self):
         import threading
@@ -1249,10 +1280,10 @@ class TestLocalDataOfferLive(unittest.TestCase):
             raise InterruptedError("Download cancelled")
 
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=True), \
              patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
              patch("cartogen_ai.core.agent.local_data_loader.download_and_extract", side_effect=slow):
             TestChatWidgetLive._reply(ct, _TRAVEL_Q)
-            TestChatWidgetLive._reply(ct, "download")
             _pump(8000, until=started.is_set)
             self.assertTrue(ct.stop_btn.isEnabled())
             QTest.mouseClick(ct.stop_btn, Qt.MouseButton.LeftButton)
