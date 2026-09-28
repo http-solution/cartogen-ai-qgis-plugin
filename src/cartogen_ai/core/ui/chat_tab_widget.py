@@ -1170,7 +1170,13 @@ class ChatTabWidget(QWidget):
         if not themes:
             return False
         country = None
-        center = self._canvas_center()
+        # Prefer the coordinate the request itself named (live-reported, 2026-09-28: using
+        # the canvas's current view centre instead named the wrong region -- a neighboring
+        # country, or a meaningless "(0.000, 0.000)" -- whenever the canvas hadn't been
+        # panned to the request's actual area yet). Falls back to the canvas centre exactly
+        # as before for a request that names no coordinate at all (e.g. "buffer 5km around
+        # active GDACS alerts").
+        center = local_data_loader.query_point_wgs84(text) or self._canvas_center()
         if center is not None:
             country = self._cached_region_name(center)
         self._dock.receiveMessageSignal.emit("user", text)

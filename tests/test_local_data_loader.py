@@ -129,5 +129,24 @@ class TestResolveRegion(_TmpDir):
         self.assertFalse(os.path.exists(os.path.join(self.dir, "geofabrik-index-v1.json")))
 
 
+class TestQueryPointWgs84(unittest.TestCase):
+    """Live-reported, 2026-09-28: the local-data download offer picked its target region from
+    the QGIS canvas's current view centre, not the coordinate the request itself named --
+    wrong whenever the canvas hadn't been panned there yet. This is the CRS-reprojection half
+    of the fix; see test_local_data_sources.py's TestExtractCoordinatePair for the text-parsing
+    half. The full reprojection path needs real QGIS classes (QgsCoordinateTransform etc.),
+    live-QGIS-only like canvas_center_wgs84 right above it -- these two branches are QGIS-free
+    and run on the plain `test` CI job."""
+
+    def test_no_coordinate_in_text_returns_none_without_touching_qgis(self):
+        with patch.object(ldl, "QGIS_AVAILABLE", True):
+            self.assertIsNone(ldl.query_point_wgs84("Buffer 5 km around active GDACS alerts"))
+
+    def test_qgis_unavailable_returns_none_even_with_a_coordinate_in_text(self):
+        with patch.object(ldl, "QGIS_AVAILABLE", False):
+            self.assertIsNone(ldl.query_point_wgs84(
+                "Health facilities beyond one hour's travel 3999770.2,3743455.7"))
+
+
 if __name__ == "__main__":
     unittest.main()

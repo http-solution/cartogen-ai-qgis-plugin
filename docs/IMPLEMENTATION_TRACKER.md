@@ -1464,6 +1464,39 @@ session, or the user pasting the actual matched region's raw GeoJSON feature (th
 "israel-and-palestine") so the polygon data can be inspected directly without needing network
 access.
 
+**Resolved, 2026-09-28, same day, without needing that network access after all.** A second
+live re-test of the same request hit the same class of bug again, but this time with a far more
+diagnostic symptom: the download offer named the region for the literal, meaningless coordinate
+"(0.000, 0.000)" — not a real border-adjacent mismatch at all. That pointed straight at the
+actual bug, in code this sandbox COULD inspect directly: `_maybe_ask_local_data`
+(`ui/chat_tab_widget.py`) picked which Geofabrik region to offer from `self._canvas_center()` --
+the QGIS **canvas's current view centre** -- never from the coordinate the request itself named.
+Both symptoms trace to the same root cause: whenever the canvas hadn't been panned to the
+request's actual area yet (a fresh/default project view, or one still showing a previous
+request's area), the offer named whatever region the canvas happened to be looking at instead of
+the region the request was actually about -- a neighboring country in the first report, and a
+canvas with no meaningful extent at all (hence literal zeros) in the second. `find_region()`
+itself was correctly cleared by the 2026-09-28 inspection above and needed no change; this was a
+caller bug, not a point-in-polygon bug.
+
+**Fixed** by preferring the coordinate the request itself names when it has one: a new
+`extract_coordinate_pair()` (`agent/local_data_sources.py`, QGIS-free, unit-tested) finds an
+"X,Y" pair in the request text -- tight on purpose, requiring a decimal point on both numbers, so
+a thousands separator or an unrelated list of numbers is never mistaken for a coordinate -- and a
+new `query_point_wgs84()` (`agent/local_data_loader.py`) reprojects it from the project's current
+CRS to WGS84, the exact same transform pattern `canvas_center_wgs84()` right above it already
+uses for the canvas's own numbers. `_maybe_ask_local_data` now tries this first and falls back to
+the canvas centre exactly as before when the request names no coordinate (e.g. "buffer 5km around
+active GDACS alerts", which has nothing to prefer over the canvas view). 6 new tests (4 for the
+text-parsing half in `tests/test_local_data_sources.py`, 2 for the QGIS-availability/no-coordinate
+short-circuit paths in `tests/test_local_data_loader.py` -- the full CRS-transform path itself is
+live-QGIS-only, same standing limitation as `canvas_center_wgs84` beside it, never independently
+tested from this sandbox). Full suite re-verified: 2282 tests, 0 failures, `ruff check .` clean.
+See `BUG_TRACKER.md` BUG-2026-09-28-7 for the bug-tracker entry. `fixed-unverified-pending-live-session`
+for the on-canvas behavior change itself (no live QGIS in this sandbox to confirm the offer now
+names the right region against a real project); the text-extraction and reprojection-fallback
+logic themselves are fully unit-tested.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)

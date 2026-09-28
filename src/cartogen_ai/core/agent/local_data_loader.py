@@ -18,7 +18,7 @@ import time
 import urllib.request
 import zipfile
 
-from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, find_region
+from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region
 from .tools._urllib_retry import urlopen_with_retry
 
 try:
@@ -247,5 +247,37 @@ def canvas_center_wgs84(canvas):
         if src.isValid() and src != wgs:
             center = QgsCoordinateTransform(src, wgs, QgsProject.instance()).transform(center)
         return center.x(), center.y()
+    except Exception:
+        return None
+
+
+def query_point_wgs84(text):
+    """(lon, lat) of the request's own "X,Y" coordinate (see
+    local_data_sources.extract_coordinate_pair), reprojected from the project's current CRS
+    -- or None if the request doesn't name one.
+
+    Live-reported, 2026-09-28: the local-data download offer used the QGIS CANVAS's current
+    view centre to pick which Geofabrik region to download, not the location the request
+    actually named -- wrong when the canvas hadn't been panned there yet (a fresh/default
+    project view, or one still showing a previous request's area). Both live symptoms trace
+    to this: an offer naming a neighboring country's region for a point well inside another,
+    and an offer for the literal, meaningless "(0.000, 0.000)". The request's own numbers are
+    assumed to already be in the project's current CRS -- true in every live report of this
+    flow so far (large 7-digit EPSG:3857 metre values, matching this plugin's default new-
+    project CRS) -- same assumption canvas_center_wgs84 above already makes about the canvas's
+    own numbers, just applied to the request's numbers instead."""
+    if not QGIS_AVAILABLE:
+        return None
+    pair = extract_coordinate_pair(text)
+    if pair is None:
+        return None
+    try:
+        from qgis.core import QgsPointXY
+        point = QgsPointXY(*pair)
+        src = QgsProject.instance().crs()
+        wgs = QgsCoordinateReferenceSystem("EPSG:4326")
+        if src.isValid() and src != wgs:
+            point = QgsCoordinateTransform(src, wgs, QgsProject.instance()).transform(point)
+        return point.x(), point.y()
     except Exception:
         return None

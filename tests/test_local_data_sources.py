@@ -110,6 +110,31 @@ class TestReplies(unittest.TestCase):
             self.assertIsNone(lds.parse_reply(t), t)
 
 
+class TestExtractCoordinatePair(unittest.TestCase):
+    """Live-reported, 2026-09-28: the local-data download offer picked its target region from
+    the QGIS canvas's current view centre instead of the coordinate the request itself named
+    -- wrong whenever the canvas hadn't been panned there yet (named the wrong neighboring
+    country, or literally "(0.000, 0.000)"). This is the text-parsing half of the fix; see
+    local_data_loader.query_point_wgs84 for the CRS-reprojection half."""
+
+    def test_finds_the_pair_from_a_real_live_reported_request(self):
+        pair = lds.extract_coordinate_pair(
+            "Health facilities beyond one hour's travel 3999770.2,3743455.7")
+        self.assertEqual(pair, (3999770.2, 3743455.7))
+
+    def test_finds_a_negative_pair(self):
+        self.assertEqual(lds.extract_coordinate_pair("origin -74.006,40.7128"), (-74.006, 40.7128))
+
+    def test_no_pair_returns_none(self):
+        for t in ("", "Buffer 5 km around active GDACS alerts", "Population within the flood extent"):
+            self.assertIsNone(lds.extract_coordinate_pair(t), t)
+
+    def test_requires_a_decimal_point_on_both_numbers(self):
+        # A thousands separator or a plain list must never be mistaken for a coordinate pair.
+        for t in ("Buffer 1,000 meters around the site", "facilities 1,2,3", "roads 12,34"):
+            self.assertIsNone(lds.extract_coordinate_pair(t), t)
+
+
 class TestFindRegion(unittest.TestCase):
     def setUp(self):
         self.index = {"features": [
