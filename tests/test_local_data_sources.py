@@ -94,6 +94,21 @@ class TestReplies(unittest.TestCase):
         for t in ("", "map schools in Irbid", "download roads for Syria please"):
             self.assertIsNone(lds.parse_reply(t), t)
 
+    def test_single_letter_typos_of_the_headline_words_still_resolve(self):
+        # Live-reported, 2026-09-28: "dowmload" (one transposed letter) fell through to
+        # None, silently dropped the pending local-data question, and derailed the rest
+        # of the conversation -- see local_data_sources.py's parse_reply docstring.
+        for t in ("dowmload", "donwload", "Downlaod"):
+            self.assertEqual(lds.parse_reply(t), "download", t)
+        for t in ("onlien", "onlline", "Onlne"):
+            self.assertEqual(lds.parse_reply(t), "online", t)
+
+    def test_typo_tolerance_does_not_swallow_unrelated_short_replies(self):
+        # A real new short request must never accidentally snap to "download"/"online"
+        # just because it shares some letters.
+        for t in ("decline", "delete", "cancel", "later", "roads"):
+            self.assertIsNone(lds.parse_reply(t), t)
+
 
 class TestFindRegion(unittest.TestCase):
     def setUp(self):

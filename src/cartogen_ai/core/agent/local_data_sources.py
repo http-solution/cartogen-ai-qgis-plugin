@@ -18,6 +18,7 @@ dataset). HDX links are searches filled in with the country name, not guessed da
 Geofabrik only reports a 2-letter country code, and not every pattern holds everywhere (e.g.
 OCHA's cod-ab-<iso3> admin boundaries exist for Pakistan but not for Jordan).
 """
+import difflib
 import re
 
 GEOFABRIK_INDEX_URL = "https://download.geofabrik.de/index-v1.json"
@@ -213,13 +214,32 @@ _DOWNLOAD_REPLIES = {"download", "local", "yes", "y", "ok", "okay", "sure", "dow
 _ONLINE_REPLIES = {"online", "no", "n", "fetch online", "skip", "not now", "no thanks", "continue"}
 
 
+_FUZZY_CANONICAL = (("download", "download"), ("online", "online"))
+_FUZZY_MIN_RATIO = 0.8
+
+
 def parse_reply(text):
-    """'download', 'online', or None when the reply is something else (a new request)."""
+    """'download', 'online', or None when the reply is something else (a new request).
+
+    Live-reported, 2026-09-28: a single-letter typo ("dowmload") missed the exact-match
+    sets below entirely, so the caller (chat_tab_widget.py's send_message) treated it as
+    an unrelated new message and silently dropped the pending local-data question -- the
+    ORIGINAL request it was about ("Health facilities beyond one hour's travel ...") was
+    then lost too, and the conversation never recovered. A close-match check against just
+    the two headline single-word replies (not the whole phrase sets -- "not now"/"decline"
+    are deliberate alternate phrasings, not typos to correct) closes the actual gap:
+    scoped to a single token (so a real new multi-word request never gets swallowed as an
+    accidental "yes") and a ratio high enough that unrelated short words ("delete",
+    "cancel", "decline") don't false-positive (checked: all score well under this cutoff)."""
     t = (text or "").strip().lower().rstrip("!.?")
     if t in _DOWNLOAD_REPLIES:
         return "download"
     if t in _ONLINE_REPLIES:
         return "online"
+    if t and " " not in t:
+        for canonical, choice in _FUZZY_CANONICAL:
+            if difflib.SequenceMatcher(None, t, canonical).ratio() >= _FUZZY_MIN_RATIO:
+                return choice
     return None
 
 
