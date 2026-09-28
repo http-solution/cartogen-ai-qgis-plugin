@@ -512,11 +512,41 @@ got one new regression test, no behavior change (ratifying existing code as the 
 answer, not a fix). Full suite: 2254 tests (2253 + 1), all passing, ruff clean. Full writeup:
 `SECURITY.md`'s "What it does not do" list, decisions 4/5/6 entries.
 
-**§1.4 is now closed as a set of decisions** — decision 3 (who classifies layers, manual vs. a
-load-time prompt) is the only one left open, and it's blocked on a real UX design question (what
-would a layer-load-time classification prompt actually look like, and would it be too much
-friction for every ordinary load) rather than something with a clear default to ratify like 4/5/6
-were. Revisit if/when that UX gets designed.
+**Update, 2026-09-28 — decision 3 (who classifies layers, and how) answered and built: manual
+tagging stays the model, but it's no longer chat-only.** Before this, `set_layer_sensitivity` was
+only reachable by asking the AI to call it -- no direct QGIS UI control existed at all. New
+`ui/layer_sensitivity_dialog.py` (`LayerSensitivityDialog`) opens from a new "🛡 Sensitivity"
+header button in `ui/dock_widget.py`, alongside the existing Memory/Settings buttons -- pick a
+loaded layer, see its current classification, set a new one with an optional reason. Calls
+`agent/tools/sensitivity_tools.py`'s `set_layer_sensitivity(..., confirmed=True)` rather than
+`models/sensitivity.py`'s bare function directly: this dialog itself IS the UI confirmation
+decision 2's egress-gate loosening lock already requires (a human filling out a dialog and
+clicking Apply is the same trust boundary as the chat confirm-card flow, not a way around it).
+
+**The load-time-prompt option was considered and explicitly rejected**, not left unresolved:
+interrupting every layer load (including ordinary basemaps and reference data, the overwhelming
+majority of loads) to ask "how sensitive is this?" adds real friction for a question this plugin
+usually can't answer better than the user can in the moment anyway. A narrower version -- prompt
+only after a humanitarian-data-fetching tool (HDX/OSM/geoBoundaries) adds a layer, since that's
+the actual risk surface for beneficiary-level data -- was considered as a middle ground but not
+built: it needs its own scoping pass (which tools, sync vs. async, does it interrupt an in-flight
+agent turn) that wasn't part of this decision's scope. Flagged as a real follow-up, not decided
+here.
+
+A new "shield" icon was added to `ui/icons.py`'s existing theme-reactive SVG set (`_ICON_TEMPLATES`,
+same stroke-only-outline convention as `notes`/`settings`), covered by that module's existing
+generic `test_every_known_icon_produces_well_formed_svg` test with no test-file changes needed.
+No unit test file was added for `LayerSensitivityDialog` itself, matching this codebase's existing
+convention for QGIS-heavy dialogs (`settings_dialog.py`/`memory_dialog.py` have none either) --
+live-verified instead against real QGIS 4.2.2 (screenshot-checked): the dialog lists loaded
+layers, shows "untagged" for a fresh layer, and correctly reports "SENSITIVE (contains individual
+beneficiary GPS coordinates)" immediately after Apply; the new header button renders correctly
+alongside Memory/Settings. Full suite: 2265 tests, all passing, ruff clean.
+
+**§1.4 is now fully closed — all six decisions answered.** Decisions 1, 3, 4, 6 kept or extended
+existing behavior with real UI/doc additions; decision 2 shipped a real override mechanism;
+decision 5 was accepted as out of scope. See `SECURITY.md`'s "What it does not do" list for the
+complete, consolidated record.
 
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 

@@ -69,6 +69,13 @@ _ICON_TEMPLATES = {
         '<path d="M3 13.5 L12 18.5 L21 13.5" stroke-linecap="round"/>'
         '</g>'
     ),
+    # §1.4 decision 3 (2026-09-28): the dock header's Sensitivity button
+    # (dock_widget.py's open_layer_sensitivity) -- a plain outline shield, same
+    # stroke-only weight as this row's other header icons (notes/settings).
+    "shield": (
+        '<path d="M12 3 L19 6 V11 C19 16 15.5 19.5 12 21 C8.5 19.5 5 16 5 11 V6 Z" '
+        'fill="none" stroke="{color}" stroke-width="1.8" stroke-linejoin="round"/>'
+    ),
 }
 
 
