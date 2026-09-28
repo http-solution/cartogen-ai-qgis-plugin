@@ -1271,6 +1271,23 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                         hull_layer.setName(hull_name)
                         QgsProject.instance().addMapLayer(hull_layer)
                         layers_created.append(hull_name)
+                        # Live-reported, 2026-09-28: this single-band hull polygon (the
+                        # common case -- one travel_cost value, not a list) was left at
+                        # QGIS's raw default new-layer symbology every time -- unlike the
+                        # multi-band path just below, which already gets
+                        # apply_graduated_style, and unlike buffer_analysis's polygon
+                        # output, which already gets this exact call. Same gap class as
+                        # BUG-2026-09-27-3 (route line casing), just for this tool's
+                        # polygon output instead of its line output.
+                        try:
+                            from ..map_intelligence import process_map_output
+                            process_map_output(
+                                hull_layer, output_role="proximity_buffer",
+                                source_layer_id=facilities.id() if hasattr(facilities, "id") else None,
+                            )
+                        except Exception as style_e:
+                            log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_hull_styling",
+                                      error_class=type(style_e).__name__, error=True)
 
             if is_multi_band and band_hulls:
                 merged_name = f"{facility_layer}_service_area_bands_{i}"

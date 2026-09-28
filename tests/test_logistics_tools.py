@@ -464,6 +464,45 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         self.assertEqual(res["layers_created"], ["facilities_service_area_lines_0", "facilities_service_area_0"])
         mock_apply_graduated.assert_not_called()
 
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.map_intelligence.process_map_output")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_single_band_hull_gets_proximity_buffer_styling(
+        self, mock_find, _mock_qgis_enum, _mock_context_cls, mock_processing, mock_project, mock_process_output,
+    ):
+        # Live-reported, 2026-09-28: the single-band hull polygon (the common case)
+        # was left at QGIS's raw default new-layer symbology -- unlike the lines_layer
+        # (already gets output_role="route_line") and the multi-band merged layer
+        # (already gets apply_graduated_style) right next to it. This is the fix.
+        facilities_layer = _stop_layer(["Warehouse"])
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": facilities_layer, "roads": network}.get(name)
+
+        lines_layer = MagicMock()
+        lines_layer.featureCount.return_value = 1
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+
+        res = calculate_service_area("facilities", "roads", 1000)
+
+        self.assertTrue(res.get("success"), res)
+        # Called once for the lines_layer (route_line) and once for the hull (proximity_buffer).
+        hull_calls = [c for c in mock_process_output.call_args_list if c.args[0] is hull_layer]
+        self.assertEqual(len(hull_calls), 1)
+        self.assertEqual(hull_calls[0].kwargs.get("output_role"), "proximity_buffer")
+        self.assertEqual(hull_calls[0].kwargs.get("source_layer_id"), facilities_layer.id())
+
 
 class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unittest.TestCase):
     """BUG-2026-09-05-2: a small/degenerate road network can make either
