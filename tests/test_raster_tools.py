@@ -16,7 +16,7 @@ from cartogen_ai.core.agent.tools.raster_tools import (
     _run_raster_and_add, slope_analysis, aspect_analysis, zonal_statistics,
     raster_clip, unsupervised_classification, supervised_classification,
     mosaic_rasters, band_composite, pan_sharpening, hillshade, _geographic_z_factor,
-    create_shaded_relief,
+    create_shaded_relief, _fit_affine_transform, _fit_helmert_transform,
 )
 
 
@@ -323,6 +323,126 @@ class TestGeoreferenceImageValidation(unittest.TestCase):
             self.assertIn("3 control points", res["error"])
         finally:
             os.remove(path)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_rejects_unknown_transform_type(self):
+        import tempfile
+        import os
+        fd, path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        try:
+            res = georeference_image(
+                path, [{"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0}] * 3, "/out.tif",
+                transform_type="kriging")
+            self.assertIn("error", res)
+            self.assertIn("transform_type", res["error"])
+        finally:
+            os.remove(path)
+
+
+class TestFitAffineTransform(unittest.TestCase):
+    """_fit_affine_transform: the 6-parameter least-squares fit backing
+    georeference_image(transform_type="linear")."""
+
+    def test_pure_translation_is_recovered_exactly(self):
+        pts = [
+            {"pixel_x": 0, "pixel_y": 0, "lon": 100, "lat": 200},
+            {"pixel_x": 10, "pixel_y": 0, "lon": 110, "lat": 200},
+            {"pixel_x": 0, "pixel_y": 10, "lon": 100, "lat": 210},
+        ]
+        r = _fit_affine_transform(pts)
+        self.assertAlmostEqual(r["rmse"], 0.0, places=9)
+        self.assertAlmostEqual(r["scale_x"], 1.0, places=9)
+        self.assertAlmostEqual(r["scale_y"], 1.0, places=9)
+        self.assertEqual(r["geotransform"], (100.0, 1.0, 0.0, 200.0, 0.0, 1.0))
+
+    def test_independent_x_and_y_scale_is_recovered(self):
+        # scale_x=3, scale_y=5, no rotation/shear -- exactly what a 4-param Helmert
+        # fit could NOT represent (it forces scale_x == scale_y).
+        pts = [
+            {"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0},
+            {"pixel_x": 2, "pixel_y": 0, "lon": 6, "lat": 0},
+            {"pixel_x": 0, "pixel_y": 2, "lon": 0, "lat": 10},
+        ]
+        r = _fit_affine_transform(pts)
+        self.assertAlmostEqual(r["rmse"], 0.0, places=9)
+        self.assertAlmostEqual(r["scale_x"], 3.0, places=9)
+        self.assertAlmostEqual(r["scale_y"], 5.0, places=9)
+
+    def test_fewer_than_three_points_is_rejected(self):
+        r = _fit_affine_transform([{"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0}] * 2)
+        self.assertIn("error", r)
+
+    def test_collinear_points_are_rejected_as_degenerate(self):
+        pts = [{"pixel_x": i, "pixel_y": i, "lon": i, "lat": i} for i in range(3)]
+        r = _fit_affine_transform(pts)
+        self.assertIn("error", r)
+        self.assertIn("degenerate", r["error"])
+
+    def test_noisy_points_produce_a_nonzero_rmse(self):
+        pts = [
+            {"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0},
+            {"pixel_x": 10, "pixel_y": 0, "lon": 10, "lat": 0.5},  # off the exact fit
+            {"pixel_x": 0, "pixel_y": 10, "lon": 0, "lat": 10},
+            {"pixel_x": 10, "pixel_y": 10, "lon": 10, "lat": 10},
+        ]
+        r = _fit_affine_transform(pts)
+        self.assertGreater(r["rmse"], 0.0)
+
+
+class TestFitHelmertTransform(unittest.TestCase):
+    """_fit_helmert_transform: the 4-parameter (uniform scale + rotation) least-squares
+    fit backing georeference_image(transform_type="helmert")."""
+
+    def test_pure_translation_is_recovered_exactly(self):
+        pts = [
+            {"pixel_x": 0, "pixel_y": 0, "lon": 100, "lat": 200},
+            {"pixel_x": 10, "pixel_y": 0, "lon": 110, "lat": 200},
+            {"pixel_x": 0, "pixel_y": 10, "lon": 100, "lat": 210},
+        ]
+        r = _fit_helmert_transform(pts)
+        self.assertAlmostEqual(r["rmse"], 0.0, places=9)
+        self.assertAlmostEqual(r["scale"], 1.0, places=9)
+        self.assertAlmostEqual(r["rotation_degrees"], 0.0, places=6)
+
+    def test_uniform_scale_and_rotation_are_recovered_exactly(self):
+        # scale=2, rotate 90 degrees: world_x = -2*y + 5, world_y = 2*x + 7
+        pts = []
+        for (x, y) in [(0, 0), (3, 0), (0, 4), (2, 2)]:
+            pts.append({"pixel_x": x, "pixel_y": y, "lon": -2 * y + 5, "lat": 2 * x + 7})
+        r = _fit_helmert_transform(pts)
+        self.assertAlmostEqual(r["scale"], 2.0, places=6)
+        self.assertAlmostEqual(r["rotation_degrees"], 90.0, places=6)
+        self.assertAlmostEqual(r["rmse"], 0.0, places=9)
+
+    def test_collinear_points_are_still_solvable_unlike_the_affine_fit(self):
+        # A Helmert fit has only 4 unknowns -- collinear points (unlike the 6-param
+        # affine fit above) don't make the system singular, only exactly-coincident
+        # points do.
+        pts = [{"pixel_x": i, "pixel_y": i, "lon": i + 1, "lat": i + 1} for i in range(3)]
+        r = _fit_helmert_transform(pts)
+        self.assertNotIn("error", r)
+
+    def test_coincident_points_are_rejected_as_degenerate(self):
+        pts = [{"pixel_x": 5, "pixel_y": 5, "lon": 1, "lat": 1}] * 3
+        r = _fit_helmert_transform(pts)
+        self.assertIn("error", r)
+
+    def test_fewer_than_three_points_is_rejected(self):
+        r = _fit_helmert_transform([{"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0}] * 2)
+        self.assertIn("error", r)
+
+    def test_cannot_represent_independent_xy_scale_and_leaves_a_residual(self):
+        # scale_x=3, scale_y=5 has no exact 4-param (uniform-scale) solution --
+        # confirms the fit doesn't silently degrade to something else, it just
+        # reports the resulting RMSE like a real Georeferencer would.
+        pts = [
+            {"pixel_x": 0, "pixel_y": 0, "lon": 0, "lat": 0},
+            {"pixel_x": 2, "pixel_y": 0, "lon": 6, "lat": 0},
+            {"pixel_x": 0, "pixel_y": 2, "lon": 0, "lat": 10},
+        ]
+        r = _fit_helmert_transform(pts)
+        self.assertGreater(r["rmse"], 0.0)
 
 
 class TestEstimatePopulationExposureValidation(unittest.TestCase):
