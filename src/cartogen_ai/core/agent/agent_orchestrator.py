@@ -523,16 +523,30 @@ class CartogenAi:
             return gate_response
 
         # Egress gate: also BEFORE the call, for the same reason -- a blocked call must never
-        # execute, since executing is what reads the protected layer.
+        # execute, since executing is what reads the protected layer -- UNLESS a human has
+        # already confirmed the override via the SAME UI Confirm-button path destructive
+        # actions use (user_confirmed=True never comes from the model; see filtered_args'
+        # own "confirmed" handling above). IMPLEMENTATION_TRACKER.md §1.4 decision 2.
         egress = self._egress_gate_decision(name, filtered_args)
-        if egress is not None and egress["action"] == "block":
-            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+        egress_overridable = egress is not None and egress["action"] == "block" and bool(egress.get("layers"))
+        egress_override_applied = egress_overridable and user_confirmed
+        if egress is not None and egress["action"] == "block" and not egress_override_applied:
+            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
+            if egress_overridable:
+                return egress_gate.preview_required(name, filtered_args, egress)
             return egress["result"]
+        if egress_override_applied:
+            log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
 
         try:
             res = func(**filtered_args)
             if egress is not None and egress["action"] == "warn" and isinstance(res, dict):
                 res["egress_warning"] = egress["warning"]
+            if egress_override_applied and isinstance(res, dict):
+                res["egress_override_note"] = (
+                    "User confirmed sending protected data (%s) to a cloud provider for this call."
+                    % ", ".join(sorted(egress["layers"]))
+                )
             if name == "create_plan" and isinstance(res, dict) and res.get("success"):
                 self._plan_gate.mark_plan_created()
             if isinstance(res, dict):

@@ -457,6 +457,67 @@ NOT auto-detected/auto-switched: whether a given install's DPIA is actually comp
 organizational fact this plugin cannot observe, so making the setting itself smart about it would
 mean guessing, not deciding. **Decisions 2, 3, 4, 5, 6 remain open, unchanged by this update.**
 
+**Update, 2026-09-28 — decision 2 (override policy) answered and built: yes, overridable, but only
+via the existing UI Confirm-button path, never a model-supplied argument.** A blocked tool call
+with known layers no longer returns a flat `EGRESS_BLOCKED` result to the model -- new
+`egress_gate.preview_required()` wraps it as `PREVIEW_REQUIRED` instead, so `_real_execute_tool`
+hands it to the exact same destructive-action confirm/cancel machinery `remove_layer`/
+`field_calculator` already use (`task_manager.set_task_preview`, `chat_tab_widget.py`'s
+`_resolve_pending_confirmation`, the Activity tab's Confirm button, a typed "Confirm" chat reply --
+all one code path). Only a real UI click sets `user_confirmed=True`; the dispatcher's own
+schema-filtering already guarantees the model cannot inject that itself (same trust boundary
+`SECURITY.md` §5 documents for the `confirmed` flag). No new free-text justification field --
+the deliberate click on a card naming the exact tool and layers involved is the audit record,
+matching that neither `remove_layer` nor `field_calculator` requires a note either. Both paths are
+logged (`egress_blocked` / `egress_override_confirmed`), and an overridden call's result carries an
+`egress_override_note` so the chat transcript itself shows what happened -- satisfies "who reviews
+those records": the same user who clicked Confirm, visible in their own chat/Activity history,
+matching how every other confirmation in this codebase is reviewed (no separate audit-log
+mechanism exists for the others either, so none was added here). **Deliberately excluded:** a
+check-failure block (`check_failed_decision`, the gate's own machinery erroring) has no known
+layers to show, so it stays a hard, non-overridable block -- nothing concrete to confirm.
+
+6 new/updated unit tests: `tests/test_agent_runner.py`'s `TestEgressGateWiring` (block-with-layers
+now returns `PREVIEW_REQUIRED` not the raw block; block-with-no-layers stays non-overridable even
+confirmed; a confirmed override actually runs the tool and attaches the note) and a new
+`TestPreviewRequired` class in `tests/test_egress_gate.py` (shape, rationale content, arguments
+copied not aliased, no crash on a missing `layers` key). Full suite: 2253 tests, all passing, ruff
+clean. **Decisions 3, 4, 5, 6 remain open, unchanged by this update.**
+
+**Update, 2026-09-28 — decisions 4, 5, 6 answered; only decision 3 (who classifies layers) remains
+genuinely open.**
+
+- **Decision 4 (`execute_pyqgis_script` on cloud): keep the existing whole-project rule, don't
+  widen it.** Already implemented via `WHOLE_PROJECT_TOOLS` — this tool is judged by the same
+  PROTECTED-levels standard as every other tool (RESTRICTED/SENSITIVE, or untagged in strict
+  mode), not a broader "any non-PUBLIC layer" rule. Verified live and now regression-tested
+  (`test_execute_pyqgis_script_is_allowed_with_only_internal_layers`): an all-INTERNAL project
+  does not block this tool on cloud, since INTERNAL is an explicit owner declaration the data may
+  leave the machine. Widening to block on any non-PUBLIC layer was considered and rejected — no
+  real security gain, real usability cost for ordinary INTERNAL working layers.
+- **Decision 5 (history on a provider switch): accepted as out of scope, not built.** The scope
+  doc's premise (a switch re-sends tool results) was already corrected 2026-09-24 — history holds
+  only user text and assistant prose. The real residual (the model repeating protected content in
+  its own prose) is the already-documented "What is not gated" gap, present regardless of whether
+  a provider switch happens — narrowly gating just the switch case wasn't judged worth the added
+  complexity for that small a slice of an already-open gap.
+- **Decision 6 (where the policy setting lives): `QgsSettings` stays it for Community.** A managed
+  org-level config is an Enterprise/Pro-tier deployment feature — real work §1.3's Path C decision
+  already named as unblocked but not started, not something to build ahead of that tier work
+  actually resuming.
+
+No code change for decisions 5/6 (documentation-only, per `CONTRIBUTING.md`'s "document, don't
+build ahead of demand" convention already used for the Ollama-only posture itself). Decision 4
+got one new regression test, no behavior change (ratifying existing code as the deliberate
+answer, not a fix). Full suite: 2254 tests (2253 + 1), all passing, ruff clean. Full writeup:
+`SECURITY.md`'s "What it does not do" list, decisions 4/5/6 entries.
+
+**§1.4 is now closed as a set of decisions** — decision 3 (who classifies layers, manual vs. a
+load-time prompt) is the only one left open, and it's blocked on a real UX design question (what
+would a layer-load-time classification prompt actually look like, and would it be too much
+friction for every ordinary load) rather than something with a clear default to ratify like 4/5/6
+were. Revisit if/when that UX gets designed.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.

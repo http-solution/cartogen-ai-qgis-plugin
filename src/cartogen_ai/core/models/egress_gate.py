@@ -249,6 +249,40 @@ def _block_result(tool_name, protected):
     }
 
 
+def preview_required(tool_name, arguments, decision):
+    """Wraps a normal block decision (one with known `layers` -- not a check-failure block,
+    see below) as a PREVIEW_REQUIRED response, so agent_orchestrator.py's `_real_execute_tool`
+    can hand it to the EXISTING destructive-action confirm/cancel machinery
+    (task_manager.set_task_preview, chat_tab_widget.py's _resolve_pending_confirmation, the
+    Activity tab's Confirm button) instead of a new UI.
+
+    This is IMPLEMENTATION_TRACKER.md §1.4 decision 2 (override policy), answered 2026-09-28:
+    yes, a blocked call can be overridden -- but ONLY via that existing Confirm-button path,
+    the same trust boundary SECURITY.md §5 already documents for `confirmed=True` (a UI click,
+    never something the model can inject into its own tool-call arguments). No new free-text
+    justification field was added: the deliberate confirm click on a card that names exactly
+    which layers are involved already IS the audit record, matching how `remove_layer`/
+    `field_calculator` confirmations work today (neither requires a note either). A malformed
+    egress-gate CHECK FAILURE (`check_failed_decision` below, empty `layers`) is deliberately
+    NOT wrapped this way -- there is nothing concrete to show the user to confirm, so that case
+    stays a hard, non-overridable block."""
+    layers = decision.get("layers") or {}
+    return {
+        "status": "PREVIEW_REQUIRED",
+        "rationale": (
+            "'%s' would send protected data (%s) to the currently-selected cloud AI provider, "
+            "which this deployment's cloud data protection setting blocks by default. "
+            "Confirming overrides that block for this one call only -- do this only if you "
+            "(the user) have decided this specific data may leave this machine. Switching to a "
+            "local provider (e.g. Ollama) in Settings avoids needing to override anything."
+            % (tool_name, _layer_list(layers))
+        ),
+        "code_snippet": "",
+        "is_destructive": True,
+        "arguments": dict(arguments),
+    }
+
+
 def check_failed_decision(tool_name):
     """The decision used when the gate's own machinery raised in enforce mode: block, and say why."""
     return {
