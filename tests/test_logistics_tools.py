@@ -504,6 +504,49 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         self.assertEqual(hull_calls[0].kwargs.get("source_layer_id"), facilities_layer.id())
 
 
+class TestReplaceNamedLayer(unittest.TestCase):
+    """Live-reported, 2026-09-28: a multi-step session ("health facilities beyond 1hr", then
+    "population outside the catchment") left THREE separately-named-but-identical
+    "Origin Point_service_area_0"-style layers stacked in the project -- described as the map
+    "losing control" on anything beyond a single simple request. Root cause:
+    calculate_service_area's output layer names are deterministic (derived from the facility
+    layer's own name and feature index, not a per-call id), and QgsProject.addMapLayer() does
+    not deduplicate by name at all -- re-running the same analysis just buried the old layer
+    under a new one with the identical name. _replace_named_layer is the fix: remove every
+    existing layer already using that name before adding the new one."""
+
+    def test_removes_every_existing_layer_with_that_name_before_adding(self):
+        project = MagicMock()
+        stale_a, stale_b = MagicMock(), MagicMock()
+        stale_a.id.return_value = "stale_a_id"
+        stale_b.id.return_value = "stale_b_id"
+        project.mapLayersByName.return_value = [stale_a, stale_b]
+        new_layer = MagicMock()
+
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True) as mock_qgs_project:
+            mock_qgs_project.instance.return_value = project
+            lt._replace_named_layer("Origin Point_service_area_0", new_layer)
+
+        project.mapLayersByName.assert_called_once_with("Origin Point_service_area_0")
+        project.removeMapLayer.assert_any_call("stale_a_id")
+        project.removeMapLayer.assert_any_call("stale_b_id")
+        self.assertEqual(project.removeMapLayer.call_count, 2)
+        new_layer.setName.assert_called_once_with("Origin Point_service_area_0")
+        project.addMapLayer.assert_called_once_with(new_layer)
+
+    def test_no_existing_layer_just_adds(self):
+        project = MagicMock()
+        project.mapLayersByName.return_value = []
+        new_layer = MagicMock()
+
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True) as mock_qgs_project:
+            mock_qgs_project.instance.return_value = project
+            lt._replace_named_layer("fresh_layer", new_layer)
+
+        project.removeMapLayer.assert_not_called()
+        project.addMapLayer.assert_called_once_with(new_layer)
+
+
 class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unittest.TestCase):
     """BUG-2026-09-05-2: a small/degenerate road network can make either
     native:serviceareafrompoint or native:convexhull raise for one facility --
