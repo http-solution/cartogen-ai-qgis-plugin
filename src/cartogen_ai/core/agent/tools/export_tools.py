@@ -307,7 +307,13 @@ def _default_export_dir(subdir="exports"):
             profile_dir = QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else os.path.expanduser("~")
         except Exception:
             profile_dir = os.path.expanduser("~")
-        base = os.path.join(profile_dir, "cartogen_ai", subdir)
+        # subdir may be a "/"-joined caller convenience (e.g. "exports/geospatial") --
+        # split it into separate os.path.join() components rather than passing it through
+        # as one argument, which would embed a literal "/" in the path on Windows and mix
+        # separators (CI failure on windows-latest, 2026-09-28: the resulting path had
+        # "...\\cartogen_ai\\exports/geospatial\\..." and no longer matched an
+        # os.path.join()-built expected path in the test).
+        base = os.path.join(profile_dir, "cartogen_ai", *subdir.split("/"))
     try:
         os.makedirs(base, exist_ok=True)
     except OSError:
