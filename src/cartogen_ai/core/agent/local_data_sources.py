@@ -36,6 +36,31 @@ _HEALTH_LAYER_WORDS = re.compile(r"health|hospital|clinic|medical|facilit", re.I
 # The user already said which way to go, so asking would just be an interruption.
 _ONLINE_WORDS = re.compile(r"\b(online|overpass|live data|don'?t download)\b", re.I)
 
+# A raw "X,Y" coordinate pair typed directly into a request (e.g. "... beyond one hour's
+# travel 3999770.2,3743455.7"), the way this project's own starter prompts and every live
+# report of this flow so far have written one. Requires a decimal point on BOTH numbers --
+# tight on purpose: a thousands separator ("1,000 meters"), a plain list, or two nearby
+# small integers must never be mistaken for a coordinate pair. Live-reported, 2026-09-28:
+# _maybe_ask_local_data (chat_tab_widget.py) used the QGIS CANVAS'S current view centre to
+# pick which Geofabrik region to offer, not the location the request actually named -- if
+# the canvas hadn't been panned there yet, the offer named the wrong country ("Israel and
+# Palestine" for a Jordan coordinate) or, when the canvas had no meaningful extent at all,
+# literally "(0.000, 0.000)". This regex is the fix's other half (see
+# local_data_loader.query_point_wgs84): prefer the coordinate the request itself names,
+# falling back to the canvas centre only when the request doesn't name one.
+_COORDINATE_PAIR = re.compile(r"(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)")
+
+
+def extract_coordinate_pair(text):
+    """The first "X,Y" pair in `text` with a decimal point on both numbers, as
+    (x, y) floats -- in whatever CRS the request's own numbers are in (the
+    caller is responsible for knowing/assuming that; see
+    local_data_loader.query_point_wgs84). None if no such pair is present."""
+    m = _COORDINATE_PAIR.search(text or "")
+    if not m:
+        return None
+    return float(m.group(1)), float(m.group(2))
+
 # Geofabrik "free" shapefile layers and the classes used for each theme.
 # gis_osm_pois_a_free_1 matters: in the Jordan extract 99 of 201 hospitals are mapped as building
 # outlines (pois_a), not points (pois); loading only the point file would silently lose half.
