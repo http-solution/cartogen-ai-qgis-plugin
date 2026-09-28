@@ -466,9 +466,20 @@ UI. Design and reasoning: `docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md`.
 - **Derived-layer inheritance follows names.** Lineage records a layer's sources by *name*, so
   renaming or removing a protected source layer breaks inheritance for the untagged layers derived
   from it. Tag derived layers explicitly, or use strict mode.
-- **Several decisions in the scope doc (§7) are still open** — defaults, override policy, who
+- **Several decisions in the scope doc (§7) are still open** — override policy, who
   classifies layers, history on a provider switch, where the policy setting should live. The
   defaults chosen here (Off; strict off) are the reversible ones.
+- **Decision 1 (default mode), answered 2026-09-28:** the code default stays **Off** for a
+  general Community install — a fresh install should not have its behavior silently changed
+  before anyone has looked at this setting. For a deployment that has completed the DPIA
+  sign-off above for protection/incident/displacement data, the recommended setting is
+  **Block, non-strict** — surfaced as guidance text directly under the Settings dropdown
+  (`ui/settings_dialog.py`) rather than auto-switched, since this plugin has no way to detect
+  on its own whether a given install's DPIA is actually complete — that is an organizational
+  fact, not a technical one it can observe. Non-strict (not strict-by-default even for a
+  DPIA-complete deployment) because strict mode requires every layer to be classified first,
+  which this plugin has no automatic-classification path for yet; recommending strict-by-default
+  would trade a real-but-solvable-by-tagging gap for guaranteed friction on day one.
 
 The plugin still does not restrict *which provider* a user selects, and does not disable the
 Hosted-Account dialog under any condition — both remain deliberately-scoped-out follow-ups. See

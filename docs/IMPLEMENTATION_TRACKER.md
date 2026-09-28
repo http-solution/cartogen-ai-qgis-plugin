@@ -444,6 +444,19 @@ scope doc:
 
 No code change accompanies this entry — it is the decision request itself, not a resolution.
 
+**Update, 2026-09-28 — decision 1 (default mode) answered by Alaa; documented, not auto-enforced.**
+Code default stays **Off** for a general Community install (unchanged — a fresh install's behavior
+should not silently change before anyone has opened Settings). For a deployment that has completed
+the DPIA sign-off above, the recommendation is **Block, non-strict** — not strict-by-default even
+there, since strict mode requires every layer classified first and this plugin has no automatic
+classification path yet (decision 3, still open). Surfaced as a guidance label directly under the
+"Cloud data protection" dropdown in `ui/settings_dialog.py`, live-verified rendering correctly in a
+real QGIS 4.2.2 session (screenshot-checked, not just "imports without error"), plus a matching
+paragraph in `SECURITY.md`'s "DPIA determination and deployment constraints" section. Deliberately
+NOT auto-detected/auto-switched: whether a given install's DPIA is actually complete is an
+organizational fact this plugin cannot observe, so making the setting itself smart about it would
+mean guessing, not deciding. **Decisions 2, 3, 4, 5, 6 remain open, unchanged by this update.**
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
