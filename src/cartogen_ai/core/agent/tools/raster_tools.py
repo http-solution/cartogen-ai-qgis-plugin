@@ -733,13 +733,146 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
         return {"error": f"elevation_profile failed: {e}"}
 
 
+def _crs_to_wkt(crs_string):
+    """Resolves an EPSG string (e.g. 'EPSG:4326') to WKT for GDAL's SetProjection(),
+    which -- unlike SetGCPs()/gdal.Warp(dstSRS=...) -- takes WKT/PROJ text, not a bare
+    EPSG string."""
+    from osgeo import osr
+    srs = osr.SpatialReference()
+    srs.SetFromUserInput(crs_string)
+    return srs.ExportToWkt()
+
+
+def _solve_3x3(matrix, rhs):
+    """Solves a 3x3 linear system via Cramer's rule -- pure Python, no numpy dependency
+    (this codebase has none). Returns None for a singular/near-singular system (collinear
+    or degenerate control points) rather than raising, so callers can turn it into a clear
+    error message instead of a ZeroDivisionError."""
+    def det3(m):
+        return (
+            m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+        )
+    d = det3(matrix)
+    if abs(d) < 1e-9:
+        return None
+    solution = []
+    for col in range(3):
+        replaced = [row[:] for row in matrix]
+        for row in range(3):
+            replaced[row][col] = rhs[row]
+        solution.append(det3(replaced) / d)
+    return tuple(solution)
+
+
+def _fit_affine_transform(control_points):
+    """Least-squares 6-parameter affine fit (independent x/y scale, shear, rotation,
+    translation) -- QGIS Georeferencer's "Linear" transform. Solves two decoupled 3x3
+    normal-equation systems (one for the world-X equation, one for world-Y), since neither
+    shares unknowns with the other for this model:
+        world_x = a*px + b*py + tx
+        world_y = c*px + d*py + ty
+    Returns a dict with the fitted coefficients, per-point residuals, and RMSE (the
+    standard way to report alignment quality -- QGIS's own Georeferencer panel shows this
+    same number), or an "error" key if fewer than 3 points or a degenerate/collinear set
+    make the system unsolvable."""
+    if len(control_points) < 3:
+        return {"error": "At least 3 control points are required for a linear (affine) fit."}
+    sxx = sxy = sx = syy = sy = n = 0.0
+    sxX = syX = sX = sxY = syY = sY = 0.0
+    for cp in control_points:
+        x, y, X, Y = float(cp["pixel_x"]), float(cp["pixel_y"]), float(cp["lon"]), float(cp["lat"])
+        sxx += x * x
+        sxy += x * y
+        sx += x
+        syy += y * y
+        sy += y
+        n += 1
+        sxX += x * X
+        syX += y * X
+        sX += X
+        sxY += x * Y
+        syY += y * Y
+        sY += Y
+    matrix = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]]
+    x_coeffs = _solve_3x3(matrix, [sxX, syX, sX])
+    y_coeffs = _solve_3x3(matrix, [sxY, syY, sY])
+    if x_coeffs is None or y_coeffs is None:
+        return {"error": "Control points are collinear or otherwise degenerate -- cannot fit a linear transform."}
+    a, b, tx = x_coeffs
+    c, d, ty = y_coeffs
+    residuals = []
+    for cp in control_points:
+        x, y, X, Y = float(cp["pixel_x"]), float(cp["pixel_y"]), float(cp["lon"]), float(cp["lat"])
+        px, py = a * x + b * y + tx, c * x + d * y + ty
+        residuals.append(math.hypot(px - X, py - Y))
+    rmse = math.sqrt(sum(r * r for r in residuals) / len(residuals))
+    return {
+        "geotransform": (tx, a, b, ty, c, d),  # GDAL SetGeoTransform order: origin_x, px_w, rot_x, origin_y, rot_y, px_h
+        "scale_x": math.hypot(a, c), "scale_y": math.hypot(b, d),
+        "rmse": rmse, "residuals": residuals,
+    }
+
+
+def _fit_helmert_transform(control_points):
+    """Least-squares 4-parameter similarity (Helmert) fit -- QGIS Georeferencer's "Helmert"
+    transform: a single uniform scale and rotation, never independent x/y scale or shear.
+    Preferred over the 6-parameter affine fit when the source image is known not to be
+    distorted (e.g. a clean scan of a rigid printed map) since it can't overfit noise in the
+    control points into a spurious shear/skew. Model:
+        world_x = a*px - b*py + tx
+        world_y = b*px + a*py + ty
+    with scale = sqrt(a^2 + b^2) and rotation = atan2(b, a). The closed-form least-squares
+    solution below is the standard 2D Helmert fit (mean-centered points, single 2x2 solve --
+    see e.g. Umeyama 1991 for the general case this specializes)."""
+    if len(control_points) < 3:
+        return {"error": "At least 3 control points are required for a Helmert fit."}
+    n = len(control_points)
+    mean_x = sum(float(cp["pixel_x"]) for cp in control_points) / n
+    mean_y = sum(float(cp["pixel_y"]) for cp in control_points) / n
+    mean_X = sum(float(cp["lon"]) for cp in control_points) / n
+    mean_Y = sum(float(cp["lat"]) for cp in control_points) / n
+    num_a = num_b = denom = 0.0
+    for cp in control_points:
+        dx = float(cp["pixel_x"]) - mean_x
+        dy = float(cp["pixel_y"]) - mean_y
+        dX = float(cp["lon"]) - mean_X
+        dY = float(cp["lat"]) - mean_Y
+        num_a += dx * dX + dy * dY
+        num_b += dx * dY - dy * dX
+        denom += dx * dx + dy * dy
+    if abs(denom) < 1e-9:
+        # Note: unlike the 6-parameter affine fit above, a Helmert fit (only 4 unknowns)
+        # is well-determined even from collinear points -- this only trips when every
+        # control point sits at the exact same pixel location.
+        return {"error": "Control points are degenerate (all at the same pixel location) -- cannot fit a Helmert transform."}
+    a = num_a / denom
+    b = num_b / denom
+    tx = mean_X - a * mean_x + b * mean_y
+    ty = mean_Y - b * mean_x - a * mean_y
+    residuals = []
+    for cp in control_points:
+        x, y, X, Y = float(cp["pixel_x"]), float(cp["pixel_y"]), float(cp["lon"]), float(cp["lat"])
+        px, py = a * x - b * y + tx, b * x + a * y + ty
+        residuals.append(math.hypot(px - X, py - Y))
+    rmse = math.sqrt(sum(r * r for r in residuals) / len(residuals))
+    return {
+        "geotransform": (tx, a, -b, ty, b, a),
+        "scale": math.hypot(a, b), "rotation_degrees": math.degrees(math.atan2(b, a)),
+        "rmse": rmse, "residuals": residuals,
+    }
+
+
 @register_tool(
     "georeference_image",
     "Georeference a scanned map or unreferenced image using control points (pixel coordinates "
-    "matched to real-world coordinates) -- e.g. aligning a scanned paper map to its true location. "
-    "Needs at least 3 non-collinear control points; more (well-distributed across the image) "
-    "generally gives a more accurate result than the minimum. Produces a real, spatially-"
-    "referenced raster and loads it into the project.",
+    "matched to real-world coordinates) -- e.g. aligning a scanned paper map to its true location "
+    "and scale on the map. Needs at least 3 non-collinear control points; more (well-distributed "
+    "across the image) generally gives a more accurate result than the minimum. Produces a real, "
+    "spatially-referenced raster, loads it into the project, and reports the fit's RMSE (in the "
+    "target CRS's units) so alignment quality can be judged -- QGIS Georeferencer shows the same "
+    "number for the same reason.",
     {
         "type": "object",
         "properties": {
@@ -760,17 +893,33 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
             },
             "output_path": {"type": "string", "description": "Where to save the georeferenced raster (.tif)."},
             "target_crs": {"type": "string", "description": "CRS of the lon/lat control point coordinates. Defaults to EPSG:4326."},
+            "transform_type": {
+                "type": "string",
+                "enum": ["tps", "linear", "helmert"],
+                "description": (
+                    "'tps' (default): thin-plate-spline rubber-sheeting -- best when the source "
+                    "image itself is locally distorted (an uneven scan, a hand-drawn sketch map) "
+                    "since it bends to fit every control point exactly. 'linear': a single "
+                    "6-parameter affine (independent x/y scale, shear, rotation) fit by least "
+                    "squares -- QGIS Georeferencer's 'Linear'. 'helmert': a single 4-parameter "
+                    "similarity (one uniform scale, one rotation, no shear) fit by least squares "
+                    "-- QGIS Georeferencer's 'Helmert', the right choice for a clean scan of a "
+                    "rigid printed map where the true transform can't have shear."
+                ),
+            },
         },
         "required": ["image_path", "control_points", "output_path"],
     },
 )
-def georeference_image(image_path, control_points, output_path, target_crs="EPSG:4326"):
+def georeference_image(image_path, control_points, output_path, target_crs="EPSG:4326", transform_type="tps"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not os.path.exists(image_path):
         return {"error": f"File not found: {image_path}"}
     if len(control_points) < 3:
         return {"error": "At least 3 control points are required."}
+    if transform_type not in ("tps", "linear", "helmert"):
+        return {"error": f"Unknown transform_type '{transform_type}' -- expected 'tps', 'linear', or 'helmert'."}
 
     try:
         from osgeo import gdal
@@ -778,44 +927,69 @@ def georeference_image(image_path, control_points, output_path, target_crs="EPSG
         return {"error": "GDAL Python bindings (osgeo) not available in this environment."}
 
     try:
-        gcps = []
         for i, cp in enumerate(control_points):
             try:
-                gcps.append(gdal.GCP(float(cp["lon"]), float(cp["lat"]), 0, float(cp["pixel_x"]), float(cp["pixel_y"])))
+                float(cp["lon"]), float(cp["lat"]), float(cp["pixel_x"]), float(cp["pixel_y"])
             except (KeyError, TypeError, ValueError) as e:
                 return {"error": f"Control point {i} is invalid: {e}"}
 
         src_ds = gdal.Open(image_path)
         if src_ds is None:
             return {"error": f"Could not open '{image_path}' as an image (unsupported or corrupt format)."}
-        src_ds.SetGCPs(gcps, target_crs)
 
-        warp_options = gdal.WarpOptions(
-            dstSRS=target_crs,
-            tps=True,
-            resampleAlg="bilinear",
-            format="GTiff",
-        )
-        result_ds = gdal.Warp(output_path, src_ds, options=warp_options)
-        src_ds = None
-        if result_ds is None:
-            return {"error": "gdal.Warp failed to produce output -- check control points are correct and not collinear."}
-        result_ds = None
+        fit = None
+        if transform_type == "tps":
+            gcps = [gdal.GCP(float(cp["lon"]), float(cp["lat"]), 0, float(cp["pixel_x"]), float(cp["pixel_y"]))
+                    for cp in control_points]
+            src_ds.SetGCPs(gcps, target_crs)
+            warp_options = gdal.WarpOptions(dstSRS=target_crs, tps=True, resampleAlg="bilinear", format="GTiff")
+            result_ds = gdal.Warp(output_path, src_ds, options=warp_options)
+            src_ds = None
+            if result_ds is None:
+                return {"error": "gdal.Warp failed to produce output -- check control points are correct and not collinear."}
+            result_ds = None
+        else:
+            # linear/helmert: fit our own closed-form transform (GDAL has no built-in
+            # Helmert/similarity fit, and relying on gdal.Warp's automatic polynomial-order
+            # selection for "linear" would silently change behavior across GDAL versions) --
+            # then set it directly as the output's geotransform rather than warping.
+            fit = _fit_affine_transform(control_points) if transform_type == "linear" else _fit_helmert_transform(control_points)
+            if "error" in fit:
+                src_ds = None
+                return fit
+            driver = gdal.GetDriverByName("GTiff")
+            result_ds = driver.CreateCopy(output_path, src_ds)
+            src_ds = None
+            if result_ds is None:
+                return {"error": "Could not write output raster -- check output_path is writable."}
+            result_ds.SetGeoTransform(fit["geotransform"])
+            result_ds.SetProjection(_crs_to_wkt(target_crs))
+            result_ds = None
 
         if not os.path.exists(output_path):
-            return {"error": "Warp completed but no output file was written."}
+            return {"error": "Georeferencing completed but no output file was written."}
 
         layer = QgsRasterLayer(output_path, os.path.splitext(os.path.basename(output_path))[0])
         if not layer.isValid():
             return {"error": f"Georeferenced file was created at '{output_path}' but QGIS could not load it as a valid raster."}
         QgsProject.instance().addMapLayer(layer)
 
-        return {
+        result = {
             "success": True,
             "output_path": output_path,
             "layer_name": layer.name(),
-            "control_point_count": len(gcps),
+            "control_point_count": len(control_points),
+            "transform_type": transform_type,
         }
+        if fit is not None:
+            result["rmse"] = round(fit["rmse"], 6)
+            if "scale" in fit:
+                result["scale"] = round(fit["scale"], 6)
+                result["rotation_degrees"] = round(fit["rotation_degrees"], 3)
+            else:
+                result["scale_x"] = round(fit["scale_x"], 6)
+                result["scale_y"] = round(fit["scale_y"], 6)
+        return result
     except Exception as e:
         return {"error": f"georeference_image failed: {e}"}
 
