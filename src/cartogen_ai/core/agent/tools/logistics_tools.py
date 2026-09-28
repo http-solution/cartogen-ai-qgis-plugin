@@ -363,6 +363,26 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+def _replace_named_layer(name, new_layer):
+    """Adds `new_layer` under `name`, first removing every existing layer already using that
+    exact name -- calculate_service_area's output names are deterministic (derived from the
+    facility layer's name and its feature index, not a per-call id), so re-running the same
+    analysis, or a follow-up request that reuses the same origin, produced a second layer with
+    the identical name every time: QgsProject.addMapLayer() does not deduplicate by name at
+    all, so the old one was never replaced, just buried under the new one. Live-reported,
+    2026-09-28: a multi-step session ("health facilities beyond 1hr", then "population outside
+    the catchment") left THREE separately-named-but-identical "Origin Point_service_area_0"-
+    style layers stacked in the project, described as the map "losing control" on anything
+    beyond a single simple request. Removing every prior same-named layer first, rather than
+    just the first match, also cleans up any already-accumulated duplicates from before this
+    fix, not just prevents new ones."""
+    new_layer.setName(name)
+    project = QgsProject.instance()
+    for stale in project.mapLayersByName(name):
+        project.removeMapLayer(stale.id())
+    project.addMapLayer(new_layer)
+
+
 def _style_risk_buffer_layer(layer):
     """Hardcoded, consistent 'risk corridor' look for score_route_incident_risk's
     buffer output -- same reasoning as humanitarian_tools._style_incident_layer:
@@ -1228,8 +1248,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                     f"{facility_layer}_service_area_lines_{i}" if not is_multi_band
                     else f"{facility_layer}_service_area_lines_{i}_band_{band:g}"
                 )
-                lines_layer.setName(lines_name)
-                QgsProject.instance().addMapLayer(lines_layer)
+                _replace_named_layer(lines_name, lines_layer)
                 layers_created.append(lines_name)
                 try:
                     from ..map_intelligence import process_map_output
@@ -1268,8 +1287,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                         band_hulls.append((band, hull_layer))
                     else:
                         hull_name = f"{facility_layer}_service_area_{i}"
-                        hull_layer.setName(hull_name)
-                        QgsProject.instance().addMapLayer(hull_layer)
+                        _replace_named_layer(hull_name, hull_layer)
                         layers_created.append(hull_name)
                         # Live-reported, 2026-09-28: this single-band hull polygon (the
                         # common case -- one travel_cost value, not a list) was left at
@@ -1293,7 +1311,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 merged_name = f"{facility_layer}_service_area_bands_{i}"
                 merged_layer = _merge_band_hulls(band_hulls, merged_name)
                 if merged_layer is not None:
-                    QgsProject.instance().addMapLayer(merged_layer)
+                    _replace_named_layer(merged_name, merged_layer)
                     layers_created.append(merged_name)
                     from .styling_tools import apply_graduated_style
                     apply_graduated_style(merged_name, "travel_cost_band")

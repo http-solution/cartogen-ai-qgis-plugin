@@ -1497,6 +1497,48 @@ for the on-canvas behavior change itself (no live QGIS in this sandbox to confir
 names the right region against a real project); the text-extraction and reprojection-fallback
 logic themselves are fully unit-tested.
 
+### 1.16 "Smart mapping" -- analysis-tool output layers pile up uncoordinated across a multi-step session, beyond the one confirmed-and-fixed mechanism
+
+**Added 2026-09-28.** Live report, a multi-step session on the same project (the exact one
+§1.15/BUG-2026-09-28-7 fixed the region-offer for): after "Health facilities beyond one hour's
+travel" then a follow-up "Estimate population outside the one-hour health facility catchment"
+reusing the same origin, the user's own words: *"the visual style in the map is not correct when
+you deal with complex analysis the tool loses the control and just creating layers on top of
+each other this should be smart mapping indicators."* The Layers panel screenshot showed three
+separate, near-identical "Origin Point_service_area..." entries (two polygon-fill variants, one
+line variant) plus a dense stack of Voronoi/district/population layers with no apparent visual
+coordination between them.
+
+**One concrete mechanism found and fixed same day** (`BUG_TRACKER.md` BUG-2026-09-28-9):
+`calculate_service_area` named its output layers deterministically (from the facility layer's
+name + feature index, not a per-call id) and never checked for an existing layer under that name
+before calling `QgsProject.addMapLayer()` -- which does not deduplicate by name at all. Re-running
+the same analysis, or a follow-up request reusing the same origin, silently stacked a new
+identically-named layer on top of the old one every time. Fixed with a new `_replace_named_layer`
+helper, scoped to `calculate_service_area`'s three output call sites only -- the tool actually
+named in this report.
+
+**What's still open, and why it's flagged rather than fixed here:** whether this same
+deterministic-naming-with-no-dedup pattern exists in the OTHER analysis tools this session's
+tool-call list shows running back to back (`estimate_population_exposure`,
+`run_allowlisted_processing_algorithm`, `difference_layers`, `apply_graduated_style`, and
+whatever built the "Jordan_Voronoi_Districts" layers visible in the screenshot -- likely a
+`fetch_hdx_admin_boundaries` fallback, since that tool failed twice in this same report with "No
+OCHA COD-AB ... for 'JOR'" and the model apparently built a Voronoi approximation instead of
+following the tool's own suggested `fetch_geoboundaries` fallback, worth a separate look at
+whether the router/prompt reliably steers the model to a tool's own suggested fallback) has not
+been audited. That is real, multi-file work (auditing every `addMapLayer` call site across
+`agent/tools/*.py` for the same class of gap), not a small fix, and the user's own phrasing --
+"this should be smart mapping indicators" -- reads as wanting something beyond mere
+deduplication: some coordinated way to tell which layers belong to the CURRENT analysis versus a
+superseded prior one (grouping? an active-analysis indicator? auto-collapsing/greying out
+superseded layers rather than removing them, so a user who wants to compare two runs isn't
+silently losing the older one?). That's a real product/design tradeoff this project's own
+`CLAUDE.md` says to flag rather than decide unilaterally, not a mechanical bug fix -- logged here
+per that guidance rather than guessed at. Whether a systemic policy (e.g. "every analysis tool
+replaces its own same-named output" as a house rule) is the right shape, versus a heavier
+answer (an explicit layer-grouping/session concept in `map_intelligence.py`), is Alaa's call.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
