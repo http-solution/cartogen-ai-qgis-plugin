@@ -105,7 +105,25 @@ def main():
             "QVariant": QVariant,
         }
 
-    qgs = _init_qgis()
+    try:
+        qgs = _init_qgis()
+    except Exception as e:
+        # No handshake sent -- the parent's startup-handshake timeout
+        # (script_isolation.py's _IsolationWorker._ensure_started) will fire
+        # and report this via stderr, still far faster than the old full
+        # per-job timeout with no explanation at all (live-reported, 2026-09-28).
+        sys.stderr.write(f"Isolation worker failed to initialize QGIS: {e}\n{traceback.format_exc()}\n")
+        sys.stderr.flush()
+        sys.exit(1)
+
+    # The startup handshake script_isolation.py's _ensure_started() waits for
+    # -- confirms the worker is a real, responsive Python process running this
+    # module, not (for example) the QGIS application binary itself silently
+    # spawned by a wrong interpreter-lookup result, which would otherwise sit
+    # here forever with no output at all.
+    sys.stdout.write(json.dumps({"ready": True}) + "\n")
+    sys.stdout.flush()
+
     try:
         for line in sys.stdin:
             line = line.strip()

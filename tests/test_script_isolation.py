@@ -35,27 +35,71 @@ class TestFindPythonInterpreter(unittest.TestCase):
                 result = si.find_python_interpreter()
         self.assertEqual(result, "python")
 
-    def test_windows_finds_python_exe_next_to_prefix(self):
-        fake_prefix = MagicMock()
-        fake_conda_meta = MagicMock(exists=lambda: False)
-        fake_prefix.__truediv__ = MagicMock(side_effect=lambda name: {
-            "conda-meta": fake_conda_meta,
-            "python.exe": MagicMock(exists=lambda: True, __str__=lambda self: r"C:\OSGeo4W\apps\Python312\python.exe"),
-        }.get(name, MagicMock(exists=lambda: False)))
+    def _windows_fixture(self, layout):
+        """Builds a real temp directory tree and patches sys.prefix/
+        base_prefix/exec_prefix/platform to point at it -- real filesystem
+        fixtures instead of deep Path mocking, which the 2026-09-28 widened
+        search (checking base_prefix/exec_prefix and an apps/Python3* child
+        too, after a live-reported worker timeout traced to this lookup
+        missing a real QGIS-for-Windows layout) made too awkward to mock
+        faithfully. `layout` is a list of relative paths to create as empty
+        files under a fresh temp dir, e.g. ["apps/Python312/python.exe"]."""
+        import tempfile
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, tmpdir, True)
+        for rel in layout:
+            full = os.path.join(tmpdir, rel)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            open(full, "w").close()
+        return tmpdir
 
-        with patch.object(si, "Path", return_value=fake_prefix):
-            with patch.object(si.sys, "platform", "win32"):
-                result = si.find_python_interpreter()
-        self.assertEqual(result, r"C:\OSGeo4W\apps\Python312\python.exe")
+    def test_windows_finds_python_exe_directly_under_prefix(self):
+        tmpdir = self._windows_fixture(["python.exe"])
+        with patch.object(si.sys, "prefix", tmpdir),              patch.object(si.sys, "base_prefix", tmpdir),              patch.object(si.sys, "exec_prefix", tmpdir),              patch.object(si.sys, "platform", "win32"):
+            result = si.find_python_interpreter()
+        self.assertEqual(result, os.path.join(tmpdir, "python.exe"))
+
+    def test_windows_finds_python_exe_under_an_apps_python3_child_dir(self):
+        # The real gap the widened search (2026-09-28) closes: some QGIS-for-
+        # Windows layouts put the bundled interpreter one level down from
+        # sys.prefix, under apps\Python3XX\, not at the prefix root itself.
+        tmpdir = self._windows_fixture(["apps/Python312/python.exe"])
+        with patch.object(si.sys, "prefix", tmpdir),              patch.object(si.sys, "base_prefix", tmpdir),              patch.object(si.sys, "exec_prefix", tmpdir),              patch.object(si.sys, "platform", "win32"):
+            result = si.find_python_interpreter()
+        self.assertEqual(result, os.path.join(tmpdir, "apps", "Python312", "python.exe"))
+
+    def test_windows_checks_base_prefix_and_exec_prefix_too(self):
+        # sys.prefix alone can differ from base_prefix/exec_prefix under a
+        # venv-like setup -- the interpreter can live under either.
+        tmpdir = self._windows_fixture(["python.exe"])
+        empty_dir = self._windows_fixture([])
+        with patch.object(si.sys, "prefix", empty_dir),              patch.object(si.sys, "base_prefix", tmpdir),              patch.object(si.sys, "exec_prefix", empty_dir),              patch.object(si.sys, "platform", "win32"):
+            result = si.find_python_interpreter()
+        self.assertEqual(result, os.path.join(tmpdir, "python.exe"))
 
     def test_windows_falls_back_to_sys_executable_when_nothing_found(self):
-        fake_prefix = MagicMock()
-        fake_prefix.__truediv__ = MagicMock(return_value=MagicMock(exists=lambda: False))
-
-        with patch.object(si, "Path", return_value=fake_prefix):
-            with patch.object(si.sys, "platform", "win32"):
-                result = si.find_python_interpreter()
+        tmpdir = self._windows_fixture([])
+        with patch.object(si.sys, "prefix", tmpdir),              patch.object(si.sys, "base_prefix", tmpdir),              patch.object(si.sys, "exec_prefix", tmpdir),              patch.object(si.sys, "platform", "win32"):
+            result = si.find_python_interpreter()
         self.assertEqual(result, sys.executable)
+
+
+class TestQgisBinaryRefusal(unittest.TestCase):
+    """§ script_isolation.py's _QGIS_BINARY_BASENAMES / _ensure_started's fast
+    refusal, added 2026-09-28 after a live-reported worker timeout traced to
+    a wrong interpreter lookup silently spawning the QGIS binary itself
+    instead of Python, which then hung for the full job timeout with no
+    diagnostic at all."""
+
+    def test_known_qgis_basenames_are_flagged(self):
+        from pathlib import Path
+        for name in si._QGIS_BINARY_BASENAMES:
+            self.assertIn(Path(name).name, si._QGIS_BINARY_BASENAMES)
+
+    def test_a_real_python_basename_is_not_flagged(self):
+        from pathlib import Path
+        for name in ("python.exe", "python3.exe", "python3", "python"):
+            self.assertNotIn(Path(name).name, si._QGIS_BINARY_BASENAMES)
 
 
 class TestBuildWorkerEnvironment(unittest.TestCase):
@@ -100,6 +144,31 @@ class TestPluginParentDir(unittest.TestCase):
         parent = si._plugin_parent_dir()
         self.assertIsNotNone(parent)
         self.assertTrue(os.path.isdir(os.path.join(parent, "cartogen_ai")))
+
+
+class TestEnsureStartedRefusesQgisBinary(unittest.TestCase):
+    """_ensure_started()'s fast-refusal branch never reaches subprocess.Popen at
+    all for a QGIS-basename interpreter, so it's exercisable without a real
+    QGIS process or spawning anything -- unlike the rest of _IsolationWorker,
+    which is live-QGIS-only (tests/manual_isolation_bench/)."""
+
+    def test_refuses_without_attempting_to_spawn(self):
+        worker = si._IsolationWorker()
+        with patch.object(si, "find_python_interpreter", return_value="/usr/bin/qgis-bin.exe"),              patch.object(si.subprocess, "Popen") as mock_popen:
+            error = worker._ensure_started()
+        self.assertIsNotNone(error)
+        self.assertIn("QGIS application binary", error["error"])
+        mock_popen.assert_not_called()
+
+    def test_a_real_interpreter_name_is_not_refused_by_this_check(self):
+        # Doesn't assert success (that needs a real spawnable interpreter --
+        # live-QGIS-only) -- just that the basename check itself doesn't
+        # reject a legitimate name before Popen is even attempted.
+        worker = si._IsolationWorker()
+        with patch.object(si, "find_python_interpreter", return_value="/usr/bin/python3"),              patch.object(si.subprocess, "Popen", side_effect=OSError("boom, not actually spawned")):
+            error = worker._ensure_started()
+        self.assertIsNotNone(error)
+        self.assertNotIn("QGIS application binary", error["error"])
 
 
 if __name__ == "__main__":
