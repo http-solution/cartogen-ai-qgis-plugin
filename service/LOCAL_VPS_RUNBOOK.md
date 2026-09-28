@@ -264,5 +264,4 @@ The commercial service is versioned independently from the public QGIS plugin.
 - `commercial-v0.2.1` — clean website container build and local port configuration.
 
 Every meaningful service change must update `service/CHANGELOG.md`, pass the local checks,
-update `docs/OPERATIONS_LOG.md`, and receive a private Git tag/release when the change is
-ready to hand off.
+and receive a private Git tag/release when the change is ready to hand off.

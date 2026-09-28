@@ -156,8 +156,7 @@ PROVIDERS = [
         "model_setting_key": SETTINGS_CARTOGEN_MODEL, "default_model": AUTO_SENTINEL,
         "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
         "key_default": "", "list_fn": _list_cartogen,
-        "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable in the "
-                        "Community edition today (see docs/PRODUCT_TIERS.md).",
+        "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable today.",
     },
 ]
 
