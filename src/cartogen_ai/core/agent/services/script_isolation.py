@@ -317,7 +317,22 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
     return new_layers_added, memory_layers_updated
 
 
-_WORKER_HANDSHAKE_TIMEOUT_SECONDS = 20
+# Widened 20 -> 60, 2026-09-28: the 20s figure was sized off Docker's own cold-start
+# measurement (~1.18s, see SECURITY.md 1b) -- a real desktop QGIS install can be much
+# slower to cold-start a worker (more bundled plugins/providers to register, disk I/O
+# contention with the already-running main QGIS process, antivirus scanning a freshly
+# spawned python.exe). Live-reported, same day: a real Windows QGIS 4.2.2 session, on
+# its FIRST execute_pyqgis_script call of the session (a true cold start, not a warm
+# worker), got killed at 20s with EMPTY stderr -- no traceback, no crash evidence, just
+# "didn't answer in time" -- consistent with a legitimately slow but otherwise healthy
+# cold start, not a hang. The two failure modes this handshake exists to catch (a wrong
+# interpreter lookup spawning the QGIS binary itself; a real crash) are covered
+# independently of this timeout's value: the QGIS-binary case is caught by the
+# _QGIS_BINARY_BASENAMES basename check above BEFORE this handshake ever starts
+# waiting, and a genuine crash still shows up immediately via _kill_and_drain_stderr's
+# captured stderr, not after a long wait. So there is no real downside to being more
+# patient here, and 60 gives a real desktop install the same budget as one full job.
+_WORKER_HANDSHAKE_TIMEOUT_SECONDS = 60
 
 
 class _IsolationWorker:
@@ -332,14 +347,18 @@ class _IsolationWorker:
 
     def _ensure_started(self):
         """Returns None on success, or an error dict if the worker could not be
-        started/confirmed alive. Does a fast READY handshake (§
-        _WORKER_HANDSHAKE_TIMEOUT_SECONDS, well under the full per-job timeout)
-        rather than relying on the first real job's timeout to notice a dead or
-        wrong-binary worker -- see find_python_interpreter()'s docstring and
-        _QGIS_BINARY_BASENAMES for the failure mode this specifically catches:
-        a wrong interpreter lookup silently spawning the QGIS binary itself,
-        which never answers and previously hung for the FULL job timeout
-        (live-reported, 2026-09-28) with nothing in the logs to explain it."""
+        started/confirmed alive. Does a READY handshake (§
+        _WORKER_HANDSHAKE_TIMEOUT_SECONDS) rather than relying on the first real
+        job's timeout to notice a dead or wrong-binary worker -- see
+        find_python_interpreter()'s docstring and _QGIS_BINARY_BASENAMES for the
+        failure mode this specifically catches: a wrong interpreter lookup
+        silently spawning the QGIS binary itself, which never answers and
+        previously hung for the FULL job timeout (live-reported, 2026-09-28)
+        with nothing in the logs to explain it. That specific failure mode is
+        caught by the basename check below, BEFORE this handshake ever starts
+        waiting -- so this handshake's own timeout doesn't need to be short to
+        catch it; see _WORKER_HANDSHAKE_TIMEOUT_SECONDS's own comment for why
+        it was later widened from a too-impatient 20s."""
         if self._proc is not None and self._proc.poll() is None:
             return None
         interpreter = find_python_interpreter()

@@ -1421,6 +1421,49 @@ is an open call, logged here rather than decided unilaterally per `CLAUDE.md`'s 
 Not built. `instructor`/`outlines`/`openai`/`pydantic` removed from this environment after
 testing; not a dependency of this repo.
 
+### 1.15 `local_data_sources.find_region()` picked the wrong country for a real Jordan coordinate — needs live Geofabrik data to diagnose, blocked in this sandbox
+
+**Added 2026-09-28**, found live-testing BUG-2026-09-28-1/2/3's fixes together (see
+`BUG_TRACKER.md` BUG-2026-09-28-4 for the full report). Asked whether to download local road/
+health-facility data for a point at 31.8335 N, 35.9304 E — which the SAME turn's own later
+analysis correctly identified as "southern Amman / Al-Jizah area, Jordan" — the download offer
+named the region "Israel and Palestine" (216 MB), not Jordan. The point is not near the actual
+Israel/West Bank border (~35.5 E); this is not a borderline case.
+
+`find_region()` (`agent/local_data_sources.py`) does real point-in-polygon matching against
+Geofabrik's published `index-v1.json` and picks the smallest-bbox-area region whose polygon
+contains the point. Two live possibilities, and this sandbox cannot distinguish between them:
+
+1. A logic bug in `find_region`/`_in_geometry`/`_bbox_area` (re-read closely, 2026-09-28: no bug
+   found by inspection — the point-in-polygon and smallest-area tie-break both look correct against
+   the GeoJSON spec), or
+2. A real data characteristic of Geofabrik's own index: their region polygons are documented as
+   simplified "download convenience" shapes, not precise political borders, and a combined
+   "israel-and-palestine" region (a real Geofabrik region, since Israel/West Bank/Gaza don't have
+   clean separate extracts) could plausibly have a polygon that overlaps into Jordan near the
+   border in their own published data — in which case "smallest region wins" is the wrong
+   tie-break rule for this specific pair, but only for this pair.
+
+**Could not be resolved further from this sandbox**: `download.geofabrik.de` is blocked by this
+environment's network egress policy (confirmed via the agent proxy's own status endpoint —
+`connect_rejected`, "gateway answered 403 to CONNECT (policy denial)" — checked directly, not
+assumed) and `WebFetch` hit the same `EGRESS_BLOCKED` wall. Without the real `index-v1.json`
+polygon coordinates for Jordan and israel-and-palestine, guessing a fix (e.g. preferring an exact
+ISO2 hint, or a different tie-break rule) risks fixing the wrong hypothesis or masking a real data
+quirk that would just resurface for some other border pair. Per `CLAUDE.md`'s "when you're not
+sure whether to just fix something" guidance, flagged here rather than guess-patched.
+
+**Real-world severity is low as actually observed**: the existing flow already shows the matched
+region's name and size to the user before downloading anything (`question_text`/the "Reply
+download to get local data" flow), so the wrong match was caught and declined by the user, not
+silently acted on. No wrong data was downloaded.
+
+**What would unblock this**: either network access to `download.geofabrik.de` from a future
+session, or the user pasting the actual matched region's raw GeoJSON feature (the `region` dict
+`resolve_region()` returns, or the raw Geofabrik index entries for "jordan" and
+"israel-and-palestine") so the polygon data can be inspected directly without needing network
+access.
+
 ---
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
