@@ -417,6 +417,33 @@ suggest. The tag-and-lineage gate (`egress_gate.py`) remains the actual, unchang
 `presidio-analyzer` and its models were removed from this environment after testing; not a
 dependency of this repo.
 
+**Update, 2026-09-28 — logging the still-open data-classification-gate decision explicitly, per
+Alaa's request.** The gate itself (`egress_gate.py`) is built and covers the tool-call, attachment,
+and result-serialization routes (see the two 2026-09-24 build-pass updates above), but
+`docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md` §7's six decisions were never answered —
+defaults were chosen as reversible placeholders (Off, non-strict, no override flow) specifically so
+shipping the gate wouldn't wait on them. Restating them here so they don't stay buried in a dated
+scope doc:
+
+1. **Default mode:** off / warn / enforce — and whether a deployment with a completed DPIA
+   sign-off should default to strict (fail-closed).
+2. **Override policy:** can a user lift a block with a recorded justification (as
+   `advance_dataset_status(override=True, note=...)` already does elsewhere), and who reviews
+   those records?
+3. **Who classifies layers, and how:** manual tagging only (today's behavior — untagged is
+   unprotected outside strict mode), or a prompt at layer-load time?
+4. **`execute_pyqgis_script` on cloud:** blanket-block whenever any non-PUBLIC layer exists in the
+   project, or a narrower rule?
+5. **History on provider switch:** the scope doc's original premise here (a switch re-sends prior
+   *tool results*) was already found wrong and corrected in the 2026-09-24 second-build-pass update
+   above — history holds only user messages and assistant prose. The decision narrows accordingly:
+   is gating that residual (user/assistant text potentially containing sensitive content) on a
+   provider switch worth building, or is it accepted as out of scope?
+6. **Where the policy setting lives:** user-editable `QgsSettings` (today's default — prevents
+   accidents, not a determined user) vs. a managed org-level config that a local user can't change.
+
+No code change accompanies this entry — it is the decision request itself, not a resolution.
+
 ### 1.5 Point 18 -- AI agent architecture redesign (Intent Interpreter -> Project Inspector -> Spatial Planner -> ...)
 
 **Added 2026-09-09.** Source: `docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md` point 18.
