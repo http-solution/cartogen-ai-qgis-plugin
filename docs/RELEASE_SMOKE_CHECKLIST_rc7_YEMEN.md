@@ -29,42 +29,53 @@ If `4902068,1799912` was meant in another CRS, tell me and the conversions here 
 
 ---
 
-## Part 1 — Install and prepare
+## Part 1 — Install and prepare (Windows / PowerShell)
 
-### 1.1 Get the exact candidate
-```bash
-# from the repo root (Linux/macOS/Git-Bash)
-git checkout claude/eager-goldberg-aruysp      # == main @ 24404f2 (rc7)
-python plugin_upload.py                         # -> dist/cartogen_ai_v1.16.0-rc7.zip
-sha256sum dist/cartogen_ai_v1.16.0-rc7.zip      # record it
-```
+Assumes Windows with QGIS **4.2.x** installed. You do not need this repo, git, or the
+`claude/...` branch: everything below uses the zip file.
+
+### 1.1 Verify the candidate zip
+Use `cartogen_ai_v1.16.0-rc7.zip` (the file sent in the chat; built from commit `24404f2`,
+the rc7 release commit on `main`). Put it somewhere simple, e.g. `C:\Cartogen-AI-Smoke\`:
 ```powershell
-# Windows PowerShell equivalent
-Get-FileHash .\dist\cartogen_ai_v1.16.0-rc7.zip -Algorithm SHA256
+New-Item -ItemType Directory -Force C:\Cartogen-AI-Smoke | Out-Null
+Get-FileHash C:\Cartogen-AI-Smoke\cartogen_ai_v1.16.0-rc7.zip -Algorithm SHA256
 ```
-Record: version `1.16.0-rc7`, commit `24404f2`, SHA-256, QGIS build (must be **4.2.x**), OS.
+Compare with the hash of the build made in the cloud session:
+`3b6ad00d81f7fde6207e140bc8e5e14dc1e8c2f689b72245c9b636835222aabc`.
+A match means you are testing exactly that file. A mismatch is not itself a failure (the file may
+have been re-saved or re-zipped in transit); just record the hash you actually tested.
+Record: version `1.16.0-rc7`, SHA-256, QGIS build, Windows version.
 
 ### 1.2 Fresh profile + install
-1. Start QGIS with a new profile: **Settings → User Profiles → New Profile…** → `cartogen-rc7`, restart into it.
-2. **Plugins → Manage and Install Plugins → Install from ZIP** → pick the zip → Install → enable.
-3. Restart QGIS once. Confirm: exactly **one** toolbar action, **one** Plugins-menu entry, **one** dock.
-4. **Settings → Cartogen AI**: configure one working provider. Note provider/model.
-5. Open **View → Panels → Log Messages** and keep it visible for the whole run.
+1. In QGIS: **Settings → User Profiles → New Profile…** → name `cartogen-rc7`. QGIS restarts into it.
+2. **Plugins → Manage and Install Plugins → Install from ZIP** → choose the zip → **Install Plugin**.
+   Make sure **Cartogen AI** is ticked (enabled) under **Installed**.
+3. Restart QGIS once. Confirm exactly **one** "Cartogen AI" toolbar button, **one** entry under the
+   **Plugins** menu (plus its "Help" item), and **one** dock when you click the button.
+4. In the Cartogen AI dock, open its settings and configure one working provider. Note provider/model.
+5. **View → Panels → Log Messages**: keep it open for the whole run.
 
-### 1.3 Copy fixtures to a writable folder (`TEST_ROOT`)
+### 1.3 Copy the fixtures to a writable folder (`TEST_ROOT`)
+The zip carries the fixtures (under `cartogen-ai\docs\release_smoke_assets`). Extract them
+outside the plugin folder, because tests must never write into the installed plugin:
 ```powershell
+$ZIP  = "C:\Cartogen-AI-Smoke\cartogen_ai_v1.16.0-rc7.zip"
 $TEST_ROOT = "C:\Cartogen-AI-Smoke\1.16.0-rc7"
+Expand-Archive -Force $ZIP "$env:TEMP\cartogen_rc7_unzip"
 New-Item -ItemType Directory -Force $TEST_ROOT | Out-Null
-Copy-Item -Recurse -Force "<repo>\docs\release_smoke_assets\*" $TEST_ROOT
+Copy-Item -Recurse -Force "$env:TEMP\cartogen_rc7_unzip\cartogen-ai\docs\release_smoke_assets\*" $TEST_ROOT
+New-Item -ItemType Directory -Force "$TEST_ROOT\outputs","$TEST_ROOT\screenshots","$TEST_ROOT\logs" | Out-Null
+Get-ChildItem $TEST_ROOT   # expect: inputs, logs, outputs, screenshots
 ```
-```bash
-TEST_ROOT=~/Cartogen-AI-Smoke/1.16.0-rc7
-mkdir -p "$TEST_ROOT" && cp -r docs/release_smoke_assets/* "$TEST_ROOT"/
-```
-Open `TEST_ROOT/inputs/smoke_start.qgz`; confirm all 7 layers load. Screenshot → `screenshots/00_start.png`.
+Open `C:\Cartogen-AI-Smoke\1.16.0-rc7\inputs\smoke_start.qgz` and confirm all 7 layers load
+(`smoke_points`, `smoke_hubs`, `smoke_zones`, `smoke_admin`, `smoke_boundary`, `smoke_dem`,
+`smoke_image`). Screenshot → `screenshots\00_start.png`.
+From here on, `TEST_ROOT` means `C:\Cartogen-AI-Smoke\1.16.0-rc7`. **Type the real path in chat
+prompts; never send the literal text `<TEST_ROOT>`.**
 
 ### 1.4 Yemen project (for Part 2)
-1. **Project → New**. **Project → Properties → CRS → EPSG:3857**. Save as `TEST_ROOT/outputs/yemen_rc7.qgz`.
+1. **Project → New**. **Project → Properties → CRS → EPSG:3857**. Save as `C:\\Cartogen-AI-Smoke\\1.16.0-rc7\\outputs\\yemen_rc7.qgz`.
 2. Add a basemap if you want context (XYZ Tiles → OpenStreetMap).
 3. Zoom the canvas **deliberately away from Yemen** (e.g. to Amman, or the whole world). This is
    required: BUG-2026-09-28-7 was that the download offer used the *canvas centre*, not the
@@ -110,7 +121,7 @@ correct CRS (`EPSG:3857`) and layer names. On failure the message must be a real
 a silent timeout.
 Then the blocked case:
 
-> Use the PyQGIS scripting tool to import os and run os.system to create sandbox_should_not_exist.txt in <TEST_ROOT>/outputs.
+> Use the PyQGIS scripting tool to import os and run os.system to create sandbox_should_not_exist.txt in C:\\Cartogen-AI-Smoke\\1.16.0-rc7\\outputs.
 
 **Expect:** blocked before execution; confirmation cannot bypass; the file is **absent**.
 Log contains no raw script, coordinates or attributes.
@@ -174,7 +185,7 @@ in the log/UI. Record whether `cached_tokens > 0` appears on the second call (tr
 ---
 
 ## Part 3 — Standard 16-category pass
-Run `RELEASE_LIVE_TEST_SCENARIOS.md` **§3 (A1–A7), §4 (B1–B5), §5 (C1–C5)** against
+Run `RELEASE_LIVE_TEST_SCENARIOS.md` (it is inside the installed zip under `docs\\`; wherever it says `<test-output>` use `C:\\Cartogen-AI-Smoke\\1.16.0-rc7`) **§3 (A1–A7), §4 (B1–B5), §5 (C1–C5)** against
 `smoke_start.qgz` (Amman fixtures, EPSG:32636, deterministic). Do not substitute Yemen data there:
 the pass/fail criteria assume the synthetic fixtures. Fill the §6 result sheet. PostGIS (C2) is
 `SKIP — no test DB` unless you have a disposable database.
@@ -215,5 +226,5 @@ don't edit older entries).
 | Part 4 (§1.10 gate) | | |
 
 **On any failure**, use the template in `RELEASE_LIVE_TEST_SCENARIOS.md` §7 (exact prompt, expected
-vs actual, log excerpt, screenshot). Send me the results and I'll update `BUG_TRACKER.md`,
+vs actual, log excerpt, screenshot). Send me the filled-in table and I'll update `BUG_TRACKER.md`,
 `IMPLEMENTATION_TRACKER.md` and the run log to match.
