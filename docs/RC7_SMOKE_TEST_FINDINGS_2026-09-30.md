@@ -46,16 +46,22 @@ low = cosmetic. "Status" is as of this snapshot.
 | F05 | high | Service-area re-run replaced a good road network with a **zero-length** layer, kept a stale hull, reported success | Open, cause unknown |
 | F06 | high | Analysis outputs are temporary memory layers; chat says "saved to your project" | Open |
 | F07 | med-high | Layer tree gets duplicate + orphaned nodes; basemap never moved; saved into the project file | Open, needs live reproduction |
-| F08 | high (perf) | "Health facilities beyond one hour" took **43 min 48 s** end to end (`travel_time_matrix` 42 min 38 s = 97%; ~48 min from request to answer); no estimate shown beforehand (known BUG-2026-09-25-2) | Open |
+| F08 | high (perf) | "Health facilities beyond one hour" agent task took **43 min 48 s** (`travel_time_matrix` 42 min 38 s = 97%); the operator estimates ~45 min including the download; no estimate shown beforehand; QGIS stayed responsive (operator-confirmed; Stop not tested) (known BUG-2026-09-25-2) | Open |
 | F09 | medium | Population exposure (778,156) computed inside a **convex hull** — overstates reach | Open |
 | F10 | medium | Router injects tools/deliverables at low confidence (0.42) and auto-nudges unrequested exports; ~1.86M tokens / 102 calls in one session | Open |
 | F11 | medium | Highlight overlays never deleted (7 stuck `QgsHighlight` items; large orange block) | Open |
 | F12 | medium | Dashboard: Temp file with random name, no full path in reply, no "sample" notice inside the file, poor first view | Open |
 | F13 | med-low | CSV: no UTF-8 BOM, no coordinate columns, awkward file name | Open |
 | F14 | low-med | Two confirmation prompts per action (model prose + real card); model-authored "Preview Ready" text | Open |
-| F15 | low | Sensitivity dialog silent on success; raw LaTeX in chat; stray `)`; ~130 "no route" lines logged CRITICAL | Open |
+| F15 | low | Sensitivity dialog silent on success; raw LaTeX in chat; stray `)`; ~130 "no route" lines logged CRITICAL; router text "a analysis"; console `print()` noise; one invalid-JSON PromptRefiner response | Open |
 | F16 | medium (unverified) | Generic replies ("yes", "ok", "sure", "go") can resolve a **stale pending destructive preview** (source reading only) | Open |
 | F17 | medium | `qgis-live-tests` do not cover F01/F02/F07/F11 — none of these was caught by CI | Open |
+| F18 | low-med | Plan-validation gate appears **enabled** (default is OFF): every export/dashboard/`load_project`/script action made a wasted first call + retry; the model's `create_plan` also discards any pending gate task | Open, needs operator confirmation |
+| F19 | medium | `fetch_worldpop_population` downloaded the **whole-country** raster (41.81–54.54 °E, 12.11–19.00 °N, 141 s) for a ~77 × 71 km catchment | Open |
+| F20 | low-med | Coordinates in a request are assumed to be in the **project CRS**; changing the project CRS silently changes their meaning (source reading + code comment) | Open, design risk |
+| F21 | low-med | Field names / schema (and counts) of a SENSITIVE layer reach the cloud model (`get_layers` is not gated) | Open, policy decision |
+| F22 | low | 103 MB downloaded **without asking** (rc7 "silent smart default") | Decision |
+| F23 | medium (unverified) | `store_project_memory` ran during a plain service-area request; content unknown to the operator, may contain coordinates | Open, to verify |
 
 ### F01 — live project renamed by isolation
 `script_isolation._build_scratch_project` called `QgsProject.instance().write(snapshot)`. After one isolated call
@@ -82,8 +88,14 @@ This conflicts with the repo's rule (`CONTRIBUTING.md`) against implying somethi
 Plugin used lat 15.970136; QGIS `QgsCoordinateTransform(3857→4326)` gives 15.958454 (measured in the QGIS console).
 
 ### F05 — re-run destroyed a good result
-After run 2 the lines layer (`output_f72d39e3`) had 1 feature, `wkbType` 5, **length 0.0**, extent a single point; run 1's
-network layer (`output_0d1f4267`) was removed; the hull (`output_1417a1d0`, valid, 17 vertices) was run 1's. The tool
+After run 2 the lines layer (`output_f72d39e3`) had 1 feature, `wkbType` 5, **length 0.0**, extent a single point (measured).
+*Inferred, not measured:* the orphaned tree node `output_0d1f4267` (named `…_lines_0`, layer gone) is run 1's network; the hull
+(`output_1417a1d0`, valid, 17 vertices, ≈3,155 km²) is run 1's because its id matches run 1's log line.
+*New evidence from the logs:* run 1's graph build took ~4 s and the algorithm 4.9 s; run 2's took ~50 s (50,922 ms). In
+`calculate_service_area` the network is clipped to the reachable area only when `reach_m` is known; it is set to `None`
+(**no clipping**) when a `speed_field` is supplied whose maximum cannot be read (`strategy == "fastest" and speed_field and
+_max_speed is None`). So run 2 very likely used different parameters (most likely a `speed_field`) — unverifiable because tool
+arguments are not shown. Check: how many roads in `OSM Roads (Yemen)` have a non-null `maxspeed`. The tool
 still reported success. `_replace_named_layer` removes the old layer before checking the new one is meaningful. Cause of the
 empty result unknown (tool arguments are not visible in the UI by design). Also unexplained: 5.8 s (run 1) vs 52 s (run 2),
 and differing catchment extents.
@@ -102,9 +114,39 @@ and reappeared after `load_project`.
 | `travel_time_matrix`: graph build (23:45:18 → 23:51:08) | ≈ 5 min 50 s |
 | `travel_time_matrix`: shortest paths to 3,369 facilities (→ 00:27:56) | ≈ 36 min 48 s |
 | `travel_time_matrix` total | 2,558,156 ms = **42 min 38 s** |
-| Download of the Yemen extract (103 MB), before the task | ≈ 4 min (approximate) |
-Request to answer was roughly 48 minutes; the matrix is 97% of the task. Recommendation D7 plus a pre-run time estimate
-and a working Stop for any job expected to exceed ~2 minutes.
+| Download of the Yemen extract (103 MB), before the task | **not logged** (end-to-end wait is the task time plus this; the operator's own estimate is ~45 min) |
+The matrix is 97% of the task. QGIS stayed responsive throughout (operator-confirmed); whether Stop works was not tested.
+Recommendation D7 plus a pre-run time estimate and a working Stop for any job expected to exceed ~2 minutes.
+
+### F18 — plan gate
+`PlanValidationGate` is OFF by default and only gates DELETE/PUBLISH-class tools. In the operator's session
+`export_to_csv`, `generate_html_dashboard`, `load_project` and `execute_pyqgis_script` each appeared as
+*tool → Create plan → same tool*. That is exactly what a `PLAN_REQUIRED` response produces, so the gate looks enabled in this
+profile (question for the operator: was it switched on in Settings?). Cost: one wasted call and one extra model round-trip
+per action. Interaction with F02: `create_plan` replaces the whole plan, so a gate task registered before it is lost.
+Recommendation: create the plan automatically (or state "create_plan first" in the prompt when the gate is on); the tracker
+notes the gate's benefit was never evaluated with a live model.
+
+### F19 — whole-country population raster
+`YEM_population_2020` has extent 41.81–54.54 °E, 12.11–19.00 °N (all of Yemen) although only a ~3,000 km² catchment was
+needed; fetch took 141.6 s. Clip to the catchment bounding box before downloading.
+
+### F20 — coordinate CRS assumption
+`local_data_loader.query_point_wgs84` reprojects the request's numbers *from the project's current CRS*. With the project set to
+EPSG:4326, `4902068.0, 1799912.0` would be read as degrees. Recommend range checks and asking ("assuming EPSG:3857 — correct?").
+
+### F21 — schema of a SENSITIVE layer
+With Cloud data protection = Block and `Health Facilities` tagged SENSITIVE, the model still quoted its field names
+(`fid, osm_id, fclass, name, source_geom`) and feature count. Probably intended (row contents are what the gate protects) but it
+should be stated in `SECURITY.md` or gated.
+
+### F22 — silent download
+The 103 MB Yemen extract downloaded with no prompt ("runs in the background; press Stop to cancel"). This is the intended rc7
+redesign (#67); consider a size threshold or metered-connection check.
+
+### F23 — unrequested project memory
+The 19-call service-area turn included `store_project_memory` although nothing asked for it. The operator should open the Memory
+dialog and check what was stored; project memory persists with the project.
 
 ### F11 — highlight leak
 `flash_layer_extent` creates a `QgsHighlight` (orange 255,140,0,160) and only calls `hide()`. The console found 7 items in the
@@ -133,7 +175,14 @@ canvas scene; removing them made the orange block disappear.
 **Needs live reproduction first:** F07 (D6), the cause of F05, verification of F01.
 **Performance:** D7.
 
-## 5. Not covered by this run
+## 5. Observed but not attributed to a defect
+- QGIS message "No legend entries selected" at 23:40:34 has no matching tool call (probably an operator click).
+- Chat-reported figures did not match the final layers: catchment area "~3,025 km²" vs ≈3,155 km² measured (0.2665 deg² hull);
+  bounding box "43.684–44.403 °E, 15.658–16.297 °N" vs hull layer extent 43.72–44.25 °E, 15.61–16.33 °N. Supports F03/F05.
+- Token use: 388,876 tokens after 10 calls, 890,037 after 34, 1,554,660 after 86, 1,856,989 after 102 calls (~48% served from cache).
+- Chat history appears to be per project (panel reset after `load_project`).
+
+## 6. Not covered by this run
 R5 routing lines · R9 georeference · R10 design-state memory · R11 prompt caching · Part 3 (16 categories) ·
 Part 4 clean-profile/upgrade gate (§1.10) · download cancel · typo/chip path · live sandbox tool call · Windows-only
 observations on a single machine.
