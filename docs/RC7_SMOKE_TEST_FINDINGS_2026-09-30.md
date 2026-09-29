@@ -46,7 +46,7 @@ low = cosmetic. "Status" is as of this snapshot.
 | F05 | high | Service-area re-run replaced a good road network with a **zero-length** layer, kept a stale hull, reported success | Open, cause unknown |
 | F06 | high | Analysis outputs are temporary memory layers; chat says "saved to your project" | Open |
 | F07 | med-high | Layer tree gets duplicate + orphaned nodes; basemap never moved; saved into the project file | Open, needs live reproduction |
-| F08 | high (perf) | `travel_time_matrix` took **42.6 min** on Yemen (known BUG-2026-09-25-2) | Open |
+| F08 | high (perf) | "Health facilities beyond one hour" took **43 min 48 s** end to end (`travel_time_matrix` 42 min 38 s = 97%; ~48 min from request to answer); no estimate shown beforehand (known BUG-2026-09-25-2) | Open |
 | F09 | medium | Population exposure (778,156) computed inside a **convex hull** — overstates reach | Open |
 | F10 | medium | Router injects tools/deliverables at low confidence (0.42) and auto-nudges unrequested exports; ~1.86M tokens / 102 calls in one session | Open |
 | F11 | medium | Highlight overlays never deleted (7 stuck `QgsHighlight` items; large orange block) | Open |
@@ -93,6 +93,18 @@ and differing catchment extents.
 (`layer() is None`). `_reorder_top_level_layers` moves nodes via `insertChildNode(0, node.clone())` + `removeChildNode(node)`
 and skips a layer if `node.parent() is not root`. Mechanism not proven. The corrupted tree is written into the saved `.qgz`
 and reappeared after `load_project`.
+
+### F08 — timing breakdown (from the operator's Log Messages)
+| Phase | Duration |
+|---|---|
+| Whole agent task (23:44:36 → 00:28:23) | 2,627,640 ms = **43 min 48 s** |
+| `calculate_service_area` | 5.8 s |
+| `travel_time_matrix`: graph build (23:45:18 → 23:51:08) | ≈ 5 min 50 s |
+| `travel_time_matrix`: shortest paths to 3,369 facilities (→ 00:27:56) | ≈ 36 min 48 s |
+| `travel_time_matrix` total | 2,558,156 ms = **42 min 38 s** |
+| Download of the Yemen extract (103 MB), before the task | ≈ 4 min (approximate) |
+Request to answer was roughly 48 minutes; the matrix is 97% of the task. Recommendation D7 plus a pre-run time estimate
+and a working Stop for any job expected to exceed ~2 minutes.
 
 ### F11 — highlight leak
 `flash_layer_extent` creates a `QgsHighlight` (orange 255,140,0,160) and only calls `hide()`. The console found 7 items in the
