@@ -11,8 +11,8 @@ area. Procedure: `RELEASE_SMOKE_CHECKLIST_rc7_YEMEN.md`. Evidence came from chat
 QGIS Log Messages, Python-console diagnostics, and one attached CSV; **nothing was verified by the
 assistant in a live QGIS session** — where a finding rests on reading source it says so.
 
-**GitHub tracking:** umbrella issue #72; findings F01–F17 are issues #73–#89 in the same order
-(F01 = #73 … F17 = #89), all in `http-solution/cartogen-ai-qgis-plugin`.
+**GitHub tracking:** umbrella issue #72; findings F01–F23 are issues #73–#95 in the same order
+(F01 = #73 … F23 = #95; numbering checked against the issue list), all in `http-solution/cartogen-ai-qgis-plugin`.
 
 ## 1. Results
 
