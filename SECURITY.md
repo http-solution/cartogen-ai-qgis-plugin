@@ -690,6 +690,17 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   plugin's own code fetches directly), this is an accepted, out-of-scope-for-this-code
   risk of the optional `ultralytics` dependency, not something the tool call itself
   introduces.
+- **What the model sees of your project, and what leaves the machine (rc7 smoke test F21/F22,
+  documented 2026-09-30).** Layer *schema* (layer names, field names/types, feature counts, CRS,
+  extents) is sent to the configured cloud LLM provider on every turn as map context; only layers
+  tagged SENSITIVE are held back from tool results by the egress gate, and the schema of an
+  untagged layer is not gated. Layer *values* are sent only when a tool returns them. Separately,
+  data-fetch tools (OSM/Geofabrik extracts, WorldPop rasters, geoBoundaries) download files from
+  public hosts without a size prompt: rc7 pulled a 103 MB country extract with no confirmation,
+  and `fetch_worldpop_population` downloads the whole-country raster even for a city-sized
+  analysis. Neither is fixed in rc8 (no download-size confirmation, no bbox clipping of the
+  WorldPop fetch) -- tracked as open items; until then treat any "fetch" tool as a potentially
+  large download.
 
 ## Licensing note
 

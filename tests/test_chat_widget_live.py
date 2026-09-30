@@ -742,6 +742,45 @@ class TestChatWidgetLive(unittest.TestCase):
         log = self._chat_text(ct)
         self.assertIn("Cancelled", log)
 
+    def test_a_casual_yes_does_not_confirm_a_pending_destructive_action(self):
+        """rc7 smoke test 2026-09-30 (F16): the router vocabulary ("yes", "ok", "sure") used to
+        also resolve a pending destructive gate, so a casual reply to something else could
+        confirm load_project / field_calculator / the cloud-data override."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "an ordinary reply"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen"}
+
+        self._reply(ct, "yes")
+
+        self.assertEqual(agent.real_execute_tool_calls, [],
+                          "a casual 'yes' must never execute a pending destructive action")
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+
+    def test_a_stale_preview_cannot_be_confirmed_by_typing(self):
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+
+        agent.task_manager.create_plan("Severity index", ["Calculate severity"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="field_calculator(...)",
+                                             rationale="test", is_destructive=True)
+        task["pending_tool"] = "field_calculator"
+        task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen"}
+        task["updated_at"] = "2020-01-01T00:00:00+00:00"
+
+        self._reply(ct, "Confirm")
+
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertIn("Activity tab", self._chat_text(ct))
+
     def test_a_pending_gate_does_not_hijack_an_unrelated_new_message(self):
         """Only an exact confirm/cancel-shaped reply resolves the gate -- anything else
         (a genuinely new request) must fall through to the normal send path, so a stale

@@ -86,6 +86,16 @@ class CartogenAiMemoryDialog(QDialog):
         permanently docked panel like the old tab was)."""
         agent = self._agent_provider() if self._agent_provider else None
         if agent is None or not hasattr(agent, "memory_manager"):
+            # rc7 smoke test, 2026-09-30 (F24): this used to return silently, so an operator saw an
+            # empty dialog while the same session's data export held 3 project and 26 global
+            # entries. Say why it is empty instead.
+            self._raw_memory_context = ""
+            self.memory_browser.setPlainText(
+                "Memory is not available yet: the assistant has not started for this project "
+                "(or could not start -- check the provider and API key in Settings). Send a message "
+                "in the chat, then reopen this window."
+            )
+            self.learned_items_combo.clear()
             return
         self._raw_memory_context = agent.memory_manager.get_formatted_memory_context()
         self._apply_memory_filter()

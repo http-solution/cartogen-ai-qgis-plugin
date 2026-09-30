@@ -216,5 +216,71 @@ class TestEnsureStartedSuppressesConsoleWindow(unittest.TestCase):
         self.assertEqual(mock_popen.call_args.kwargs["creationflags"], 0x08000000)
 
 
+class _FakeLiveProject:
+    """Stands in for QgsProject.instance(), reproducing the one QGIS behaviour that
+    matters here: write(path) re-points the project's file name at `path` (Save As
+    semantics) and marks it clean. The real class is live-QGIS-only."""
+
+    def __init__(self, file_name, dirty):
+        self._file_name = file_name
+        self._dirty = dirty
+        self.write_raises = None
+
+    def fileName(self):
+        return self._file_name
+
+    def setFileName(self, name):
+        self._file_name = name
+
+    def isDirty(self):
+        return self._dirty
+
+    def setDirty(self, value):
+        self._dirty = value
+
+    def write(self, path):
+        self._file_name = path
+        self._dirty = False
+        if self.write_raises:
+            raise self.write_raises
+        return True
+
+
+class TestSnapshotDoesNotRenameTheLiveProject(unittest.TestCase):
+    """Regression for the rc7 smoke-test finding (2026-09-30): an isolated script call
+    left the live project named ".../cartogen_isolation_xxxx/live_snapshot.qgz"."""
+
+    def test_file_name_is_restored_after_the_snapshot_write(self):
+        live = _FakeLiveProject("C:/proj/yemen_rc7.qgz", dirty=False)
+        si._write_snapshot_of_live_project(live, "C:/Temp/cartogen_isolation_x/live_snapshot.qgz")
+        self.assertEqual(live.fileName(), "C:/proj/yemen_rc7.qgz")
+
+    def test_an_unsaved_project_stays_unsaved(self):
+        live = _FakeLiveProject("", dirty=True)
+        si._write_snapshot_of_live_project(live, "C:/Temp/cartogen_isolation_x/live_snapshot.qgz")
+        self.assertEqual(live.fileName(), "")
+
+    def test_dirty_flag_is_restored_both_ways(self):
+        for was_dirty in (True, False):
+            live = _FakeLiveProject("C:/proj/p.qgz", dirty=was_dirty)
+            si._write_snapshot_of_live_project(live, "C:/Temp/x/live_snapshot.qgz")
+            self.assertEqual(live.isDirty(), was_dirty)
+
+    def test_a_failing_write_still_restores_the_file_name(self):
+        live = _FakeLiveProject("C:/proj/p.qgz", dirty=True)
+        live.write_raises = OSError("disk full")
+        with self.assertRaises(OSError):
+            si._write_snapshot_of_live_project(live, "C:/Temp/x/live_snapshot.qgz")
+        self.assertEqual(live.fileName(), "C:/proj/p.qgz")
+        self.assertTrue(live.isDirty())
+
+    def test_the_write_really_targets_the_snapshot_path(self):
+        live = MagicMock()
+        live.fileName.return_value = "C:/proj/p.qgz"
+        live.isDirty.return_value = False
+        si._write_snapshot_of_live_project(live, "C:/Temp/x/live_snapshot.qgz")
+        live.write.assert_called_once_with("C:/Temp/x/live_snapshot.qgz")
+
+
 if __name__ == "__main__":
     unittest.main()

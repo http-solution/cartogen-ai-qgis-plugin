@@ -38,6 +38,7 @@ from qgis.PyQt.QtWidgets import (
 from ..logger import log_warning
 
 
+from . import reply_vocab
 from .chat_formatting import (
     render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
     format_send_error,
@@ -52,17 +53,14 @@ from .chat_input_controller import ChatInputController
 # free text. Deliberately generous but not fuzzy-matched -- an unrecognized reply always falls
 # through to the "send as typed" edit path (see send_message()), never silently ignored or
 # misread as a confirmation it wasn't.
-_PREVIEW_CONFIRM_REPLIES = {
-    "yes", "y", "yeah", "yep", "ok", "okay", "sure", "go", "go ahead",
-    "send", "send this", "confirm", "proceed", "do it",
-}
-_PREVIEW_CANCEL_REPLIES = {
-    "no", "n", "nope", "cancel", "stop", "abort", "never mind", "nevermind", "nvm",
-}
+# Router-card replies (casual "yes" is fine there). A pending DESTRUCTIVE gate uses the stricter
+# reply_vocab.gate_reply -- see reply_vocab.py and rc7 smoke test finding F16.
+_PREVIEW_CONFIRM_REPLIES = reply_vocab.ROUTER_CONFIRM
+_PREVIEW_CANCEL_REPLIES = reply_vocab.CANCEL
 
 
 def _normalize_preview_reply(text):
-    return text.strip().lower().rstrip("!.?")
+    return reply_vocab.normalize_reply(text)
 
 
 class ChatInputEdit(QTextEdit):
@@ -1054,11 +1052,20 @@ class ChatTabWidget(QWidget):
         agent = self._agent_provider() if self._agent_provider else None
         pending_task = self._pending_confirmation_task(agent)
         if pending_task is not None:
-            reply_key = _normalize_preview_reply(text)
-            if reply_key in _PREVIEW_CONFIRM_REPLIES or reply_key in _PREVIEW_CANCEL_REPLIES:
+            # Only an explicit word confirms a destructive action -- a casual "yes"/"ok" typed to
+            # answer something else must never (F16) -- and only while the preview is recent.
+            decision = reply_vocab.gate_reply(text)
+            if decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
                 self._dock.receiveMessageSignal.emit("user", text)
-                self._resolve_pending_confirmation(
-                    agent, pending_task, confirmed=(reply_key in _PREVIEW_CONFIRM_REPLIES))
+                self._dock.receiveMessageSignal.emit(
+                    "ai",
+                    "That confirmation request is more than "
+                    f"{reply_vocab.PREVIEW_MAX_AGE_SECONDS // 60} minutes old, so typing Confirm no longer "
+                    "applies it. Use the Confirm button in the Activity tab, or ask again.")
+                return
+            if decision is not None:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._resolve_pending_confirmation(agent, pending_task, confirmed=(decision == "confirm"))
                 return
 
         # A fresh send attempt abandons any still-pending refinement cards from a previous

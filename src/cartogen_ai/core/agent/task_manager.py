@@ -42,6 +42,13 @@ class AgentTaskManager(QObject):
         """Creates a new multi-step execution plan. Archives the previous plan into
         plan_history first (if it had any tasks), so starting a new plan doesn't
         silently erase what the last one accomplished."""
+        # A safety gate (destructive action or cloud-data override) may already be awaiting the
+        # user's Confirm/Cancel when the model calls create_plan -- with the plan gate on it
+        # does so right after its first blocked call. Those tasks hold the only copy of
+        # pending_tool/pending_args, so replacing the plan must not discard them (rc7 smoke
+        # test, 2026-09-30: the confirmation vanished and the model made up an answer).
+        carried = [dict(t) for t in self.tasks
+                   if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
         if self.tasks:
             self.plan_history.insert(0, {
                 "title": self.title,
@@ -70,6 +77,11 @@ class AgentTaskManager(QObject):
             }
             self.tasks.append(task_item)
             self._next_id += 1
+
+        for old_task in carried:
+            old_task["id"] = str(self._next_id)
+            self._next_id += 1
+            self.tasks.append(old_task)
 
         plan_data = self.get_plan()
         if QT_AVAILABLE:

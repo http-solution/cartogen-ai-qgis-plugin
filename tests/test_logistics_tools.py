@@ -20,6 +20,18 @@ from cartogen_ai.core.agent.tools.logistics_tools import (
 )
 
 
+
+def _real_looking_lines(layer, length=1234.5):
+    """Gives a mock reachable-network layer one non-degenerate feature. calculate_service_area now
+    refuses a zero-length result (rc7 smoke test F05, 2026-09-30) and so reads each feature's
+    geometry length -- a bare MagicMock has no geometry at all."""
+    feature = MagicMock()
+    feature.geometry.return_value.isNull.return_value = False
+    feature.geometry.return_value.length.return_value = length
+    layer.featureCount.return_value = 1
+    layer.getFeatures.side_effect = lambda *a, **k: iter([feature])
+    return layer
+
 class TestMakeDistanceArea(unittest.TestCase):
     """QGIS-006 follow-up (2026-09-19): geographic-CRS layers previously measured distance
     in raw planar degrees -- _make_distance_area sets up real ellipsoidal (WGS84 geodesic)
@@ -299,7 +311,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -334,7 +346,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -352,6 +364,85 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         self.assertTrue(res.get("success"), res)
         self.assertNotIn("speed_field", res)
         self.assertNotIn("direction_field", res)
+
+
+class TestCalculateServiceAreaNeverReplacesAGoodResultWithAnEmptyOne(_LineNetworkMixin, unittest.TestCase):
+    """rc7 smoke test, 2026-09-30 (F05): a re-run produced a zero-length reachable network, the
+    previous good layer of the same name was removed by _replace_named_layer, and success was
+    reported. A zero-length result must leave existing layers alone and say so."""
+
+    def _run(self, lines_layer, mock_find, mock_processing, **kwargs):
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get(name)
+        hull_layer = MagicMock()
+
+        def run_side_effect(alg_id, params, context=None):
+            if alg_id == "native:serviceareafrompoint":
+                return {"OUTPUT_LINES": lines_layer}
+            if alg_id == "native:convexhull":
+                return {"OUTPUT": hull_layer}
+            raise AssertionError(f"unexpected alg_id {alg_id}")
+        mock_processing.run.side_effect = run_side_effect
+        return calculate_service_area("facilities", "roads", 1000, **kwargs)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._replace_named_layer")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_zero_length_result_does_not_touch_the_project(
+        self, mock_find, _enum, _ctx, mock_processing, _project, mock_replace
+    ):
+        degenerate = MagicMock()
+        _real_looking_lines(degenerate, length=0.0)  # one feature, zero length -- the observed shape
+
+        res = self._run(degenerate, mock_find, mock_processing)
+
+        mock_replace.assert_not_called()
+        self.assertIn("error", res)
+        self.assertIn("zero length", res["error"])
+        self.assertEqual(res["skipped"][0]["stage"], "serviceareafrompoint")
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._replace_named_layer")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_real_result_still_replaces_as_before(
+        self, mock_find, _enum, _ctx, mock_processing, _project, mock_replace
+    ):
+        good = MagicMock()
+        _real_looking_lines(good, length=5400.0)
+
+        res = self._run(good, mock_find, mock_processing)
+
+        self.assertTrue(res.get("success"), res)
+        self.assertTrue(mock_replace.called)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._replace_named_layer")
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProcessingContext", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.Qgis", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_metres_versus_hours_mixup_is_called_out(
+        self, mock_find, _enum, _ctx, mock_processing, _project, mock_replace
+    ):
+        good = MagicMock()
+        _real_looking_lines(good, length=1.0)
+        network = MagicMock()
+        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get(name)
+        mock_processing.run.side_effect = lambda alg_id, params, context=None: (
+            {"OUTPUT_LINES": good} if alg_id == "native:serviceareafrompoint" else {"OUTPUT": MagicMock()})
+
+        res = calculate_service_area("facilities", "roads", 1)  # "1 hour" meant, strategy left at 'shortest'
+
+        self.assertTrue(any("METRES" in n for n in res.get("notes", [])), res)
 
 
 class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
@@ -391,7 +482,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         # Two bands -> two lines_layer/hull_layer pairs.
         def make_lines_and_hull(band):
             lines_layer = MagicMock()
-            lines_layer.featureCount.return_value = 1
+            _real_looking_lines(lines_layer)
             hull_layer = MagicMock()
             hull_feat = MagicMock()
             hull_feat.geometry.return_value = MagicMock(isEmpty=lambda: False)
@@ -446,7 +537,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -483,7 +574,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         mock_find.side_effect = lambda name: {"facilities": facilities_layer, "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -582,7 +673,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -623,7 +714,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
         calls = {"count": 0}
 
@@ -690,7 +781,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         recovered_hull_layer = MagicMock()
         mock_fallback.return_value = recovered_hull_layer
 
@@ -730,7 +821,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
 
         lines_layer = MagicMock()
-        lines_layer.featureCount.return_value = 1
+        _real_looking_lines(lines_layer)
         hull_layer = MagicMock()
         mock_context_instance = self.mock_context
 

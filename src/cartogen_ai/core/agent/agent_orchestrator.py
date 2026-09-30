@@ -49,7 +49,7 @@ from . import tool_operations
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
-from ..services import learning
+from ..services import learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
@@ -197,6 +197,21 @@ _COMPACTED_TOOL_RESULT_PLACEHOLDER = json.dumps({
     "note": "Result omitted from this request to keep it within size/rate limits -- "
             "this action already completed successfully earlier in this turn.",
 })
+
+
+def _accepts_confirmed(func):
+    """True if `func` can take a `confirmed` keyword. Only the destructive-action tools declare
+    it; the cloud-data override (agent/egress gate) confirms calls to ANY tool, most of which
+    (execute_pyqgis_script, get_attributes, export_to_csv ...) do not. Injecting confirmed=True
+    into those raised TypeError, so a user's Confirm click could never complete -- found in the
+    rc7 smoke test, 2026-09-30 (tracker F02). The egress gate itself is bypassed by
+    user_confirmed=True, so the tool has no use for the flag."""
+    import inspect
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+    return "confirmed" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
 
 
 class CartogenAi:
@@ -477,6 +492,39 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _register_preview_task(self, name, args, res):
+        """Registers the dedicated, confirmable safety task for a PREVIEW_REQUIRED result --
+        one code path for the destructive-action gate AND the cloud-data override, so the two
+        can never disagree about what "Confirm" does."""
+        # Register a DEDICATED preview safety task -- never reuse tasks[0] of
+        # whatever plan happens to already be active. Real live bug, 2026-09-16:
+        # this used to only start a fresh plan `if not self.task_manager.tasks`,
+        # so when a plan from an earlier, unrelated turn was still active (the
+        # common case -- plans aren't cleared between turns), the preview state
+        # got glued onto tasks[0], silently overwriting an already-DONE task's
+        # status/result with this gate's PREVIEW_READY state. add_task() appends
+        # instead, so a pending confirmation can never collide with an existing
+        # task that already means something else.
+        if not self.task_manager.tasks:
+            self.task_manager.create_plan(
+                f"Safety Gate Preview: {name}",
+                [f"Preview {name} operation"]
+            )
+            preview_task = self.task_manager.tasks[0]
+        else:
+            preview_task = self.task_manager.add_task(f"Preview {name} operation")["task"]
+        self.task_manager.set_task_preview(
+            task_id=preview_task["id"],
+            code_snippet=res.get("code_snippet", ""),
+            rationale=res.get("rationale", ""),
+            is_destructive=res.get("is_destructive", True)
+        )
+        # Attach pending execution arguments to the SAME dedicated task object
+        # (set_task_preview mutates self.task_manager.tasks in place, so
+        # preview_task -- taken from that same list -- reflects it here too).
+        preview_task["pending_tool"] = name
+        preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage
         try:
@@ -512,7 +560,7 @@ class CartogenAi:
 
         # Strip unadvertised arguments (prevents model self-approval via injected parameters)
         filtered_args = {k: v for k, v in args.items() if k in schema_props}
-        if user_confirmed:
+        if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
@@ -533,7 +581,13 @@ class CartogenAi:
         if egress is not None and egress["action"] == "block" and not egress_override_applied:
             log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
             if egress_overridable:
-                return egress_gate.preview_required(name, filtered_args, egress)
+                # The confirmable task MUST be registered here: this branch returns before the
+                # generic PREVIEW_REQUIRED handling further down, so without it nothing
+                # confirmable exists, a typed "confirm" reaches the model instead of the
+                # plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
+                blocked = egress_gate.preview_required(name, filtered_args, egress)
+                self._register_preview_task(name, args, blocked)
+                return blocked
             return egress["result"]
         if egress_override_applied:
             log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
@@ -551,34 +605,7 @@ class CartogenAi:
                 self._plan_gate.mark_plan_created()
             if isinstance(res, dict):
                 if res.get("status") == "PREVIEW_REQUIRED":
-                    # Register a DEDICATED preview safety task -- never reuse tasks[0] of
-                    # whatever plan happens to already be active. Real live bug, 2026-09-16:
-                    # this used to only start a fresh plan `if not self.task_manager.tasks`,
-                    # so when a plan from an earlier, unrelated turn was still active (the
-                    # common case -- plans aren't cleared between turns), the preview state
-                    # got glued onto tasks[0], silently overwriting an already-DONE task's
-                    # status/result with this gate's PREVIEW_READY state. add_task() appends
-                    # instead, so a pending confirmation can never collide with an existing
-                    # task that already means something else.
-                    if not self.task_manager.tasks:
-                        self.task_manager.create_plan(
-                            f"Safety Gate Preview: {name}",
-                            [f"Preview {name} operation"]
-                        )
-                        preview_task = self.task_manager.tasks[0]
-                    else:
-                        preview_task = self.task_manager.add_task(f"Preview {name} operation")["task"]
-                    self.task_manager.set_task_preview(
-                        task_id=preview_task["id"],
-                        code_snippet=res.get("code_snippet", ""),
-                        rationale=res.get("rationale", ""),
-                        is_destructive=res.get("is_destructive", True)
-                    )
-                    # Attach pending execution arguments to the SAME dedicated task object
-                    # (set_task_preview mutates self.task_manager.tasks in place, so
-                    # preview_task -- taken from that same list -- reflects it here too).
-                    preview_task["pending_tool"] = name
-                    preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+                    self._register_preview_task(name, args, res)
 
                 elif res.get("success"):
                     self.memory_manager.log_spatial_action(name, str(args))
@@ -1104,6 +1131,23 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
+    def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
+        """Appends a visible warning when the final answer contains a data table but a call this
+        turn is still pending (waiting for the user, or blocked) or ended in an unresolved error --
+        the table cannot have come from that call. Also counts a gate task still awaiting
+        Confirm from an earlier turn. See services/response_guard.py (rc7 smoke test F03)."""
+        pending = list(turn_pending)
+        try:
+            pending += [t.get("pending_tool") for t in self.task_manager.tasks
+                        if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
+        except Exception:
+            pass
+        failed = []
+        for i, (name, is_error, _msg) in enumerate(turn_tool_log):
+            if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
+                failed.append(name)
+        return response_guard.apply_unbacked_data_warning(final_text, pending, failed)
+
     def _sandbox_flailing_nudge(self, turn_tool_log):
         """Returns a corrective message to inject mid-turn, or None, when the most recent
         SANDBOX_FLAILING_THRESHOLD entries in turn_tool_log are all execute_pyqgis_script
@@ -1226,6 +1270,9 @@ class CartogenAi:
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
+        # have not since succeeded -- feeds response_guard's unbacked-data warning below.
+        turn_pending = []
         # One-shot flag for _sandbox_flailing_nudge below -- the nudge is a single course-
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
@@ -1269,6 +1316,7 @@ class CartogenAi:
                 else:
                     final_text = content
                 final_text = self._reconcile_final_text_with_tool_log(final_text, turn_tool_log)
+                final_text = self._guard_unbacked_data(final_text, turn_tool_log, turn_pending)
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
 
@@ -1313,8 +1361,16 @@ class CartogenAi:
                 _tool_start = time.monotonic()
                 tool_result = self._execute_tool(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
+                # Put "this call did not run" into the data the model reasons over, not only
+                # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
+                tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = isinstance(tool_result, dict) and "error" in tool_result
                 turn_tool_log.append((name, is_error, tool_result.get("error") if is_error else None))
+                _status = tool_result.get("status") if isinstance(tool_result, dict) else None
+                if _status in response_guard.NOT_RUN_STATUSES:
+                    turn_pending.append(name)
+                elif not is_error and name in turn_pending:
+                    turn_pending = [n for n in turn_pending if n != name]
                 if is_error:
                     error_class = tool_result.get("error_class", "ToolError") if isinstance(tool_result, dict) else "ToolError"
                     log_event("tool_call", tag="Agent", tool=name, status="failed",

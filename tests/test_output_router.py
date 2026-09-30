@@ -56,7 +56,7 @@ class TestSatisfied(unittest.TestCase):
 
 class TestFollowup(unittest.TestCase):
     def setUp(self):
-        self.contract = {"kind": "dashboard", "render": ["generate_html_dashboard"]}
+        self.contract = {"kind": "dashboard", "render": ["generate_html_dashboard"], "explicit": True}
 
     def test_no_followup_when_already_delivered(self):
         self.assertIsNone(router.followup_instruction(self.contract, ["generate_html_dashboard"]))
@@ -78,7 +78,7 @@ class TestFollowup(unittest.TestCase):
         self.assertIsNone(router.followup_instruction({"kind": "guidance", "render": []}, []))
 
     def test_missing_layer_followup_demands_layer_creation(self):
-        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"], "explicit": True}
         # When no layer was created in the turn
         msg = router.followup_instruction(layer_contract, ["get_layers", "get_attributes"])
         self.assertIn("no layer has been created yet", msg)
@@ -86,16 +86,29 @@ class TestFollowup(unittest.TestCase):
         self.assertNotIn("Do not redo", msg)
 
     def test_missing_layer_followup_with_has_layers_false(self):
-        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"], "explicit": True}
         msg = router.followup_instruction(layer_contract, [], has_layers=False)
         self.assertIn("Call an appropriate layer creation tool now", msg)
 
     def test_layer_followup_with_existing_layer_demands_styling(self):
-        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
+        layer_contract = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"], "explicit": True}
         # When a layer was created but styling didn't run and satisfied() returned False
         msg = router.followup_instruction(layer_contract, ["custom_layer_creator"], has_layers=True)
         self.assertIn("apply_categorized_style", msg)
         self.assertIn("Do not redo the analysis", msg)
+
+
+class TestImpliedDeliverableIsNotNudged(unittest.TestCase):
+    """F10: a contract inferred from a task match (not named by the user) never forces a tool call."""
+
+    def test_implied_contract_gets_no_followup(self):
+        c = {"kind": "dataset", "render": ["export_layer", "export_to_csv"], "explicit": False}
+        self.assertIsNone(router.followup_instruction(c, ["get_layers"]))
+        self.assertIsNone(router.followup_instruction({"kind": "dashboard", "render": ["generate_html_dashboard"]}, []))
+
+    def test_only_a_named_output_is_explicit(self):
+        self.assertTrue(contract_for("export the flood extent as a geopackage")["explicit"])
+        self.assertFalse(contract_for("which clinics are within 1 hour of Sanaa")["explicit"])
 
 
 class TestNotes(unittest.TestCase):

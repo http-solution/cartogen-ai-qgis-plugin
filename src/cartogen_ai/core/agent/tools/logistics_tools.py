@@ -201,6 +201,86 @@ def _reach_metres(travel_costs, strategy, default_speed, max_field_speed=None):
     return cost
 
 
+# A speed_field with usable values (> 0) on fewer roads than this is ignored: OSM's `maxspeed` is
+# set on well under 1% of roads in the Geofabrik extracts (Jordan 0.9%, Yemen 0.66%), 0 meaning
+# "unset". Rc7 smoke test, 2026-09-30 (F05): a run with such a field produced a zero-length
+# reachable network while the previous good result was replaced and success was reported.
+MIN_USABLE_SPEED_SHARE = 0.5
+
+
+def _usable_speed_share(values):
+    """(share, usable, total) of `values` that are numbers > 0. NULL, 0, empty and non-numeric
+    all mean "no speed recorded"."""
+    total = usable = 0
+    for value in values:
+        total += 1
+        try:
+            if value is not None and float(value) > 0:
+                usable += 1
+        except (TypeError, ValueError):
+            pass
+    return ((usable / total) if total else 0.0), usable, total
+
+
+def _field_values(layer, field):
+    """Every value of `field` on `layer`, reading attributes only where the QGIS version allows."""
+    try:
+        from qgis.core import QgsFeatureRequest
+        request = QgsFeatureRequest()
+        request.setSubsetOfAttributes([field], layer.fields())
+        features = layer.getFeatures(request)
+    except Exception:
+        features = layer.getFeatures()
+    for feature in features:
+        try:
+            yield feature[field]
+        except (KeyError, IndexError):
+            yield None
+
+
+def _vet_speed_field(network, speed_field, default_speed):
+    """(speed_field_to_use, note). A field that is empty/0 on most roads is dropped in favour of the
+    flat default_speed -- with an explanation for the user -- instead of routing on a network where
+    nearly every road is untraversable."""
+    if not speed_field:
+        return None, None
+    share, usable, total = _usable_speed_share(_field_values(network, speed_field))
+    if total == 0 or share >= MIN_USABLE_SPEED_SHARE:
+        # An empty layer gives nothing to judge the field by -- leave the caller's choice alone.
+        return speed_field, None
+    pct = share * 100
+    pct_text = f"{pct:.0f}%" if pct >= 1 or usable == 0 else f"{pct:.2f}%"
+    return None, (
+        f"speed_field '{speed_field}' has a usable value on only {pct_text} of roads "
+        f"({usable:,} of {total:,}; 0/NULL means unset), so it was ignored and a flat "
+        f"default_speed of {default_speed} km/h was used instead. Run estimate_road_speeds first "
+        "for road-class based speeds."
+    )
+
+
+def _reachable_network_is_degenerate(lines_layer):
+    """True when the reachable-network layer has no length at all (no features, only null
+    geometries, or a zero-length line at the snapped start point)."""
+    for feature in lines_layer.getFeatures():
+        geometry = feature.geometry()
+        if geometry is None or geometry.isNull():
+            continue
+        if geometry.length() > 0:
+            return False
+    return True
+
+
+def _travel_cost_unit_note(strategy, travel_costs):
+    """A reminder when travel_cost looks like hours but the strategy makes it metres."""
+    if strategy == "shortest" and travel_costs and max(travel_costs) < 100:
+        largest = max(travel_costs)
+        return (
+            f"travel_cost {largest:g} was read in METRES because strategy='shortest' (a "
+            f"{largest:g} m service area). For hours of travel time use strategy='fastest'."
+        )
+    return None
+
+
 def _max_speed_in_field(network, speed_field):
     """The largest numeric value of speed_field (km/h), or None if it can't be determined."""
     try:
@@ -1150,6 +1230,17 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
     if field_error:
         return {"error": field_error}
 
+    notes = []
+    if speed_field:
+        vetted, speed_note = _vet_speed_field(network, speed_field, default_speed)
+        if speed_note:
+            notes.append(speed_note)
+            extra_params.pop("SPEED_FIELD", None)
+            speed_field = vetted
+    unit_note = _travel_cost_unit_note(strategy, travel_costs)
+    if unit_note:
+        notes.append(unit_note)
+
     try:
         strategy_val = 1 if strategy == "fastest" else 0
         layers_created = []
@@ -1243,6 +1334,17 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 lines_layer = output.get("OUTPUT_LINES")
                 if lines_layer is None or lines_layer.featureCount() == 0:
                     continue
+                if _reachable_network_is_degenerate(lines_layer):
+                    # Never replace an existing good layer with an empty result (rc7 smoke test F05):
+                    # _replace_named_layer below removes the previous layer of the same name first.
+                    skipped.append({
+                        "facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint",
+                        "reason": "the reachable network has zero length: the start point snapped to a "
+                                  "road but nothing is reachable within travel_cost. Check travel_cost's "
+                                  "unit (metres for 'shortest', hours for 'fastest') and the speed_field. "
+                                  "The existing layers were left untouched.",
+                    })
+                    continue
 
                 lines_name = (
                     f"{facility_layer}_service_area_lines_{i}" if not is_multi_band
@@ -1320,7 +1422,13 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 served_count += 1
 
         if served_count == 0:
-            return {"error": "Could not build a service area for any facility -- check the facility points are near the road network."}
+            failure = {"error": "Could not build a service area for any facility -- check the facility points are near the road network."}
+            if skipped:
+                failure["error"] += " Details: " + "; ".join(str(x.get("reason")) for x in skipped[:3])
+                failure["skipped"] = skipped
+            if notes:
+                failure["notes"] = notes
+            return failure
 
         result = {
             "success": True,
@@ -1342,6 +1450,14 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             result["speed_field"] = speed_field
         if direction_field:
             result["direction_field"] = direction_field
+        # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
+        # of them as saved analysis output. State the truth so the model relays it.
+        result["storage_note"] = (
+            "The layers created here are temporary (in-memory) layers: they are NOT saved to disk and "
+            "are lost when QGIS closes unless exported (export_layer) or saved into a GeoPackage."
+        )
+        if notes:
+            result["notes"] = notes
         if skipped:
             result["warnings"] = (
                 f"{len(skipped)} facility/band combination(s) could not be fully processed -- see "

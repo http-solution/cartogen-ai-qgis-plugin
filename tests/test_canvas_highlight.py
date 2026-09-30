@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
-from cartogen_ai.core.ui.canvas_highlight import find_mentioned_layers, zoom_to_layers
+from cartogen_ai.core.ui.canvas_highlight import _discard_highlight, find_mentioned_layers, zoom_to_layers
 
 
 class _FakeLayer:
@@ -154,6 +154,33 @@ class TestZoomToLayers(unittest.TestCase):
         iface.mapCanvas.side_effect = RuntimeError("boom")
         result = zoom_to_layers(iface, [_make_layer()])
         self.assertFalse(result)
+
+
+class TestDiscardHighlight(unittest.TestCase):
+    """F11: an expired highlight must leave the canvas scene, not just be hidden."""
+
+    def test_removed_from_scene_and_deleted(self):
+        from unittest.mock import MagicMock
+        h = MagicMock()
+        _discard_highlight(h)
+        h.hide.assert_called_once()
+        h.scene.return_value.removeItem.assert_called_once_with(h)
+        h.deleteLater.assert_called_once()
+
+    def test_a_failing_step_does_not_stop_the_rest(self):
+        from unittest.mock import MagicMock
+        h = MagicMock()
+        h.hide.side_effect = RuntimeError("wrapped C++ object deleted")
+        h.scene.side_effect = RuntimeError("gone")
+        _discard_highlight(h)
+        h.deleteLater.assert_called_once()
+
+    def test_an_item_with_no_scene_is_fine(self):
+        from unittest.mock import MagicMock
+        h = MagicMock()
+        h.scene.return_value = None
+        _discard_highlight(h)
+        h.deleteLater.assert_called_once()
 
 
 if __name__ == "__main__":

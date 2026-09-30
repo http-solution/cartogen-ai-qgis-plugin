@@ -17,6 +17,7 @@ from ...logger import log_event
 from ._cache_utils import TTLCache
 from ._urllib_retry import urlopen_with_retry
 from ._qgis_enum_compat import resolve_qgis_enum
+from .. import coordinates as _coords
 # SSRF protection (vector_tools.py's add_layer_from_path/_prefetch_url_to_temp already has
 # this, adversarially tested -- confirmed loopback/private/link-local/metadata addresses and
 # unsafe redirect targets are rejected before any bytes are fetched). Found missing here
@@ -59,7 +60,7 @@ try:
         QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBackgroundSettings,
         QgsVectorLayerSimpleLabeling, QgsSymbol, QgsSingleSymbolRenderer,
-        QgsRasterLayer,
+        QgsRasterLayer, QgsCoordinateTransform, QgsCoordinateReferenceSystem,
     )
     from qgis.PyQt.QtGui import QColor
     QGIS_AVAILABLE = True
@@ -1582,8 +1583,10 @@ def _style_named_point_layer(layer):
                 "items": {
                     "type": "object",
                     "properties": {
-                        "lat": {"type": "number"},
-                        "lon": {"type": "number"},
+                        "lat": {"type": "number", "description": "Latitude in degrees (or the northing when `crs` is a projected CRS)."},
+                        "lon": {"type": "number", "description": "Longitude in degrees (or the easting when `crs` is a projected CRS)."},
+                        "x": {"type": "number", "description": "Easting in `crs` (alternative to lon when `crs` is projected)."},
+                        "y": {"type": "number", "description": "Northing in `crs` (alternative to lat when `crs` is projected)."},
                         "name": {"type": "string"},
                         "description": {"type": "string"},
                         "category": {"type": "string", "description": "Optional severity/type label, e.g. 'High', 'Security', 'Flood'. Free text."},
@@ -1595,18 +1598,40 @@ def _style_named_point_layer(layer):
                         "event_end": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this point's event/hazard ended."},
                         "last_verified": {"type": "string", "description": "Optional ISO date (YYYY-MM-DD) this point's data was last confirmed accurate."},
                     },
-                    "required": ["lat", "lon", "name"],
+                    "required": ["name"],
                 },
+            },
+            "crs": {
+                "type": "string",
+                "description": "CRS the point coordinates are in, e.g. \"EPSG:3857\" or \"EPSG:32636\". Omit ONLY when the "
+                "coordinates are already lon/lat degrees. If the user gave projected coordinates (large numbers such as "
+                "4902068, 1799912), pass them UNCHANGED with their CRS (the project CRS unless the user says otherwise) -- "
+                "the code converts them exactly. NEVER convert coordinates yourself.",
             },
         },
         "required": ["layer_name", "points"],
     },
 )
-def add_point_layer(layer_name: str, points: list):
+def add_point_layer(layer_name: str, points: list, crs: str = None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not points:
         return {"error": "points list is empty."}
+
+    # Coordinates are converted here, in code -- never by the model. The rc7 smoke test
+    # (2026-09-30, finding F04) placed an analysis origin ~1.3 km from the requested point
+    # because the model converted EPSG:3857 -> WGS84 by hand.
+    source_crs = _coords.normalize_crs(crs)
+    transform = None
+    if not _coords.is_geographic(source_crs):
+        src = QgsCoordinateReferenceSystem(source_crs)
+        if not src.isValid():
+            return {"error": f"Unknown crs '{crs}'. Use a code such as \"EPSG:3857\"."}
+        _xf = QgsCoordinateTransform(src, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
+
+        def transform(x, y):
+            pt = _xf.transform(QgsPointXY(x, y))
+            return pt.x(), pt.y()
 
     existing = QgsProject.instance().mapLayersByName(layer_name)
     if existing:
@@ -1632,6 +1657,7 @@ def add_point_layer(layer_name: str, points: list):
 
     field_names = [f.name() for f in layer.fields()]
     added = 0
+    placed = []
     errors = []
     # Both ACLED/IMSMA coding warnings and event_start/event_end ordering
     # warnings land here -- kept as one per-point aggregate list rather than
@@ -1640,13 +1666,9 @@ def add_point_layer(layer_name: str, points: list):
     layer.startEditing()
     for i, pt in enumerate(points):
         try:
-            lat = float(pt["lat"])
-            lon = float(pt["lon"])
-        except (KeyError, TypeError, ValueError):
-            errors.append(f"Point {i}: missing or invalid lat/lon")
-            continue
-        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-            errors.append(f"Point {i}: lat/lon out of range ({lat}, {lon})")
+            lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
+        except ValueError as e:
+            errors.append(f"Point {i}: {e}")
             continue
 
         feat = QgsFeature(layer.fields())
@@ -1670,12 +1692,18 @@ def add_point_layer(layer_name: str, points: list):
             data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
         if layer.addFeature(feat):
             added += 1
+            placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
         else:
             errors.append(f"Point {i}: failed to add feature")
     layer.commitChanges()
     layer.triggerRepaint()
 
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
+    if placed:
+        # The exact WGS84 positions actually used -- report THESE, never numbers computed by hand.
+        result["placed_wgs84"] = placed[:20]
+    if source_crs and not _coords.is_geographic(source_crs):
+        result["converted_from_crs"] = source_crs
     if errors:
         result["errors"] = errors
     if data_quality_warnings:

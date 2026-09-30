@@ -6,6 +6,14 @@ Exposes tool functions allowing the LLM to manage task plans, preview safety che
 
 from typing import List
 from .registry import register_tool
+from ..coordinates import contains_coordinate_pair
+
+# rc7 smoke test, 2026-09-30 (F23): the model wrote "...service area around 44.036028, 15.970136 ..."
+# into project memory unprompted; memory persists with the project and is fed back into later prompts.
+_MEMORY_COORDINATE_REFUSAL = (
+    "Memory notes must not contain coordinates: they persist with the project and are fed back into "
+    "later prompts. Describe what was done without the numbers, or store nothing."
+)
 
 # References to active agent instance components will be bound dynamically or via runtime lookup
 _TASK_MANAGER = None
@@ -51,10 +59,12 @@ def update_task(task_id: str, status: str, result: str = "", rationale: str = ""
     return _TASK_MANAGER.update_task(task_id, status, result, rationale, code_snippet)
 
 
-@register_tool("store_project_memory", "Store persistent key-value note for current project.", {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]})
+@register_tool("store_project_memory", "Store persistent key-value note for current project. Only when the user asked you to remember something; never store coordinates or data values.", {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]})
 def store_project_memory(key: str, value: str):
     if _MEMORY_MANAGER is None:
         return {"error": "Memory manager not initialized."}
+    if contains_coordinate_pair(key) or contains_coordinate_pair(value):
+        return {"error": _MEMORY_COORDINATE_REFUSAL}
     return _MEMORY_MANAGER.store_project_note(key, value)
 
 
@@ -62,4 +72,6 @@ def store_project_memory(key: str, value: str):
 def store_global_memory(key: str, value: str):
     if _MEMORY_MANAGER is None:
         return {"error": "Memory manager not initialized."}
+    if contains_coordinate_pair(key) or contains_coordinate_pair(value):
+        return {"error": _MEMORY_COORDINATE_REFUSAL}
     return _MEMORY_MANAGER.store_global_note(key, value)

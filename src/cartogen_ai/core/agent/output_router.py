@@ -72,6 +72,10 @@ def followup_instruction(contract, executed_tools, already_retried=False, has_la
     """
     if already_retried or satisfied(contract, executed_tools):
         return None
+    # rc7 smoke test F10: the nudge forced an export_layer call nobody asked for because a task
+    # *match* implied a deliverable. Only an output the user named themselves is owed.
+    if not contract.get("explicit"):
+        return None
     kind = contract.get("kind")
     needed = required_renderers(contract)
     if not needed and kind != "layer":

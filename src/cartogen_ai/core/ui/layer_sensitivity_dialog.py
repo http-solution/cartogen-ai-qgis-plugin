@@ -175,3 +175,7 @@ class LayerSensitivityDialog(QDialog):
             return
         self.reason_edit.clear()
         self._on_layer_changed()
+        # rc7 smoke test F15: a successful change used to give no feedback at all, so the operator
+        # could not tell whether the click had applied anything.
+        QMessageBox.information(
+            self, "Layer Data Sensitivity", f"'{name}' is now tagged {level}.")

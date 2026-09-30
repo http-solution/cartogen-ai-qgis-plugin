@@ -219,11 +219,37 @@ def _export_layer_to_gpkg(layer, path):
     )
 
 
+def _write_snapshot_of_live_project(live, snapshot_path):
+    """Serializes the live project to `snapshot_path` WITHOUT changing which file the
+    live project thinks it is.
+
+    QgsProject.write(path) has Save As semantics: it re-points the project's file name
+    at `path`. Live-confirmed on QGIS 4.2.2, 2026-09-30 (rc7 smoke test): after one
+    isolated execute_pyqgis_script call the QGIS title bar read "*live_snapshot",
+    QgsProject.instance().fileName() returned
+    ".../Temp/cartogen_isolation_xxxx/live_snapshot.qgz", and every later tool that
+    derives an output folder from the project home (export_layer, downloads) wrote into
+    that temp folder -- which run_isolated_script deletes in its `finally`, taking the
+    user's exports with it. A plain Ctrl+S would also have saved into that vanished
+    folder instead of the user's project. This function's caller previously documented
+    "never touches the live QgsProject singleton", which was wrong for exactly this
+    reason. The file name and dirty flag are restored in a `finally` so a failed write
+    cannot leave the project renamed either."""
+    original_file_name = live.fileName()
+    was_dirty = live.isDirty()
+    try:
+        live.write(snapshot_path)
+    finally:
+        live.setFileName(original_file_name)
+        live.setDirty(was_dirty)
+
+
 def _build_scratch_project(tempdir):
     """Snapshots the live project into a scratch copy where every MEMORY-provider
     layer's data is exported to a real GPKG file and swapped in, so the worker
-    process actually receives its features. Never touches the live QgsProject
-    singleton or its layer objects.
+    process actually receives its features. Leaves the live QgsProject singleton's layers
+    untouched and restores its file name and dirty flag after serializing it (see
+    _write_snapshot_of_live_project for why that restore is needed).
 
     QGIS writes a memory layer's definition into a project file but not its
     feature data -- live-confirmed, 2026-09-24 Phase 0 benchmark (see the scoping
@@ -238,7 +264,7 @@ def _build_scratch_project(tempdir):
     """
     live = QgsProject.instance()
     snapshot_path = os.path.join(tempdir, "live_snapshot.qgz")
-    live.write(snapshot_path)
+    _write_snapshot_of_live_project(live, snapshot_path)
 
     scratch = QgsProject()
     scratch.read(snapshot_path)

@@ -1594,6 +1594,18 @@ it deserves its own dedicated pass with its own live-verification plan.
 
 ---
 
+### 1.17 rc7 smoke-test findings still open after rc8 (added 2026-09-30)
+
+Source: `docs/RC7_SMOKE_TEST_FINDINGS_2026-09-30.md`; GitHub #72 (umbrella) and #73-#97. rc8 fixed or mitigated
+F01-F06, F10-F16, F20, F23, F24 (offline-tested only; live-QGIS re-verification is part of the next smoke round).
+Open and needing a decision or a live reproduction:
+- **F07** layer-tree duplicate/orphan nodes (10 nodes for 7 layers) -- mechanism unproven, needs live reproduction.
+- **F08** 43-minute routing -- needs the service-area-based facility classification instead of a per-facility matrix (design change).
+- **F09** population exposure uses a convex hull -- needs buffered/concave geometry (behaviour change).
+- **F19/F22** whole-country WorldPop fetch and unprompted large downloads -- needs bbox clipping and a size confirmation.
+- **F25** chat-history export completeness; per-turn token display; dashboard marker clustering.
+- **F18** operator's plan-validation setting was ON during the smoke test; reset to OFF before the next round unless deliberately under test.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

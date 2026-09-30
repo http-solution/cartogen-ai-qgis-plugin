@@ -1099,5 +1099,41 @@ class TestEgressGateWiring(unittest.TestCase):
                                        raise_on_layers=True))
 
 
+class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
+    """rc7 smoke test 2026-09-30 (F23): the model wrote the (wrong) analysis origin into project memory
+    unprompted, where it persists and is fed back into later prompts."""
+
+    def _tools(self):
+        from cartogen_ai.core.agent.tools import task_tools
+        return task_tools
+
+    def test_a_note_with_coordinates_is_refused_and_not_stored(self):
+        task_tools = self._tools()
+        manager = MagicMock()
+        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+            res = task_tools.store_project_memory(
+                "service_area_analysis", "Computed 1-hour service area around 44.036028, 15.970136.")
+        self.assertIn("error", res)
+        self.assertIn("coordinates", res["error"].lower())
+        manager.store_project_note.assert_not_called()
+
+    def test_the_same_guard_applies_to_global_memory(self):
+        task_tools = self._tools()
+        manager = MagicMock()
+        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+            res = task_tools.store_global_memory("home_base", "4902068.0, 1799912.0")
+        self.assertIn("error", res)
+        manager.store_global_note.assert_not_called()
+
+    def test_an_ordinary_note_is_stored_as_before(self):
+        task_tools = self._tools()
+        manager = MagicMock()
+        manager.store_project_note.return_value = {"success": True}
+        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+            res = task_tools.store_project_memory("style", "User prefers hospitals shown in red.")
+        self.assertEqual(res, {"success": True})
+        manager.store_project_note.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

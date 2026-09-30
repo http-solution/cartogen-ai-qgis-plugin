@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc8](#v1-16-0-rc8) | 2026-09-30 | **Release candidate 8 for 1.16.0.** No breaking changes. Fixes from the rc7 Yemen smoke test (F01-F25): project no longer renamed by isolated scripts, gate confirmation works, no fabricated results, coordinates converted in code, service-area guards, explicit-only destructive confirmations, highlight cleanup, memory coordinate guard, findable dashboards, Excel-safe CSV. Several findings remain open (see entry) |
 | [1.16.0-rc7](#v1-16-0-rc7) | 2026-09-28 | **Release candidate 7 for 1.16.0.** No breaking changes. Four execute_pyqgis_script isolation-worker Windows bugs found and fixed (wrong-interpreter detection, missing PYTHONPATH, lost stderr, too-short handshake). Local-data download offer no longer loses the request on a typo or names the wrong region; the download/online prompt now decides silently for the routine case and only asks via clickable chips when there's a real decision (large/unknown size, poor/offline connectivity). calculate_service_area's hull polygon styled and deduplicated. Exported CSVs no longer get an unreadable, unstable filename. execute_pyqgis_script now process-isolated with its own QgsApplication. New direct UI control for layer sensitivity tagging. georeference_image gained Linear/Helmert transforms with RMSE/scale reporting. Analysis-tool output styling now remembered per project across similar follow-up requests |
 | [1.16.0-rc6](#v1-16-0-rc6) | 2026-09-27 | **Release candidate 6 for 1.16.0.** No breaking changes. Threshold parsing now catches spelled-out/plural time and distance phrasing ("one hour's travel"), not just digits. OSM road ingest fixed to build real lines (not one point per vertex) with Overpass retry-on-transient-failure. In-place upgrades no longer fail on stale cached modules. Automatic model selection actually takes effect and never escalates to an expensive/special-purpose model. Network analysis measures real metres/hours regardless of CRS/ellipsoid, no longer freezes QGIS on a large network (background + Stop button), and `calculate_service_area` routes only over reachable roads. GDACS/EONET alerts carry an `event_id` field; `buffer_analysis` gained `only_selected`. New opt-in tools: `estimate_road_speeds` and an offer to download a local Geofabrik extract before road-network requests. `docs/IMPLEMENTATION_TRACKER.md` §1.10 (clean-profile install/upgrade) closed with a real QGIS session |
 | [1.16.0-rc5](#v1-16-0-rc5) | 2026-09-24 | **Release candidate 5 for 1.16.0.** QGIS 4.2+ only (3.x dropped). New opt-in, off-by-default safeguards: a cloud-provider data-protection gate for sensitive layers and attachments, a plan-validation gate for DELETE/PUBLISH tools, and a Project Inspector. New `create_project_folder_structure` tool. Sandbox now also blocks `QgsProject.write()` and `authManager()`. Unnamed processing outputs are added hidden. Clearer errors when a URL doesn't serve geodata |
@@ -49,6 +50,29 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc8"></a>
+## [1.16.0-rc8] — 2026-09-30 — Release candidate 8 for 1.16.0: fixes from the rc7 interactive smoke test
+
+Source: `docs/RC7_SMOKE_TEST_FINDINGS_2026-09-30.md` (F01-F25; GitHub #72 umbrella, #73-#97). No breaking changes; QGIS 4.2+.
+Verification level: offline unit tests (full suite green, ruff clean). Nothing below was re-run in a live
+QGIS session; `tests/test_rc8_live.py` is written but has not yet executed in CI.
+
+**Trust and safety**
+- F02: cloud-data (egress) gate previews register a confirmable task, survive a re-plan, and `confirmed` is only passed to tools that accept it.
+- F03/F14: `core/services/response_guard.py` annotates not-run tool results and appends "No data was retrieved" when a reply presents data with no successful tool behind it; prompt rules 50-52.
+- F16: destructive confirmations need an explicit word (`core/ui/reply_vocab.py`); typed confirmations expire after 10 minutes (the Activity-tab button still works).
+- F23: `store_project_memory`/`store_global_memory` refuse coordinate pairs.
+
+**Data correctness**
+- F04/F20: `add_point_layer(crs=...)` converts in code (`core/agent/coordinates.py`); implausible request coordinates are no longer read as project CRS.
+- F05: `calculate_service_area` vets `speed_field`, flags a metre/hour mix-up, never replaces a good layer with a zero-length one.
+- F01: isolated scripts no longer rename the live project or clear its dirty flag.
+
+**UX / exports**
+- F10 nudge only for user-named outputs; F11 highlights removed from the canvas scene; F12 dashboard location/notice; F13 CSV BOM + X/Y; F06 temporary-layer note; F15 sensitivity confirmation; F24 Memory dialog empty state.
+
+**Still open:** F07, F08, F09, F19, F22, F25, per-turn token display, marker clustering; `SECURITY.md` now documents schema exposure and unprompted downloads.
 
 <a id="v1-16-0-rc7"></a>
 ## [1.16.0-rc7] — 2026-09-28 — Release candidate 7 for 1.16.0: isolation-worker Windows fixes, local-data UX redesign, georeferencing transforms, smart-mapping memory
