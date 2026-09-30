@@ -901,7 +901,8 @@ class CartogenAi:
                 except ValueError as e:
                     return {"error": str(e)}
             fetch_result = fetch_worldpop_population_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("year"), wp_bbox
+                filtered_args.get("iso3", ""), filtered_args.get("year"), wp_bbox,
+                bool(filtered_args.get("allow_whole_country")),
             )
             # No cleanup here, deliberately -- unlike fetch_geoboundaries above,
             # the downloaded file must stay on disk for as long as the raster

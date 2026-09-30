@@ -1264,7 +1264,7 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
             gdal.SetThreadLocalConfigOption(key, None)
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None) -> dict:
+def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
     fetches the GeoTIFF -- the WHOLE country (100MB-1GB+, slow) when bbox is None, or
@@ -1280,6 +1280,15 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
             window = pad_bbox(parse_bbox(bbox))
         except ValueError as e:
             return {"error": str(e)}
+    elif not allow_whole_country:
+        # rc7 smoke test F22/F19: a whole-country raster is 100MB-1GB+ and took 141 s for Yemen, for an
+        # analysis that needed a city-sized window. Refuse by default, like travel_time_matrix's size guard.
+        return {"error": (
+            "fetch_worldpop_population would download the WHOLE country's population raster (100 MB to over "
+            "1 GB, minutes). Pass extent_layer (a layer covering the area of interest) or bbox to fetch only "
+            "that area. Only if the whole country is genuinely needed, and the user has agreed to the "
+            "download, call again with allow_whole_country=true."),
+            "suggested_args": ["extent_layer", "bbox"]}
 
     cache_key = ("worldpop", iso3, year, window)
     cached = _LOOKUP_CACHE.get(cache_key)
@@ -1431,7 +1440,8 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     "~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's "
     "Business Analyst extension provides with proprietary demographic data. ALWAYS pass extent_layer "
     "(a layer covering the area of interest, e.g. the catchment or admin boundary) or bbox: without "
-    "either, the WHOLE country is downloaded (100MB-1GB+, minutes). With one, only that area plus a ~2 km "
+    "either the call is refused, because the WHOLE country would be downloaded (100MB-1GB+, minutes) -- "
+    "allow_whole_country=true overrides that, only after the user agreed. With one, only that area plus a ~2 km "
     "margin is fetched and the layer is named <ISO3>_population_<year>_area. After loading, use "
     "estimate_population_exposure to sum population within a specific area.",
     {
@@ -1441,11 +1451,13 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
             "year": {"type": "string", "description": "Population year, e.g. '2020'. Omit to use the most recent available."},
             "extent_layer": {"type": "string", "description": "Name of a project layer whose extent is the area to fetch (preferred -- handles any CRS)."},
             "bbox": {"type": "array", "items": {"type": "number"}, "description": "Alternative to extent_layer: [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees."},
+            "allow_whole_country": {"type": "boolean", "description": "Set true ONLY after the user agreed to download the whole country (100 MB to over 1 GB). Without extent_layer/bbox and without this, the tool refuses."},
         },
         "required": ["iso3"],
     },
 )
-def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = None, bbox=None):
+def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = None, bbox=None,
+                              allow_whole_country: bool = False):
     """Does both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
     to keep the (potentially large, slow) download off the QGIS main GUI
@@ -1456,7 +1468,7 @@ def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = N
             bbox = resolve_extent_bbox(extent_layer)
         except ValueError as e:
             return {"error": str(e)}
-    fetch_result = fetch_worldpop_population_network_phase(iso3, year, bbox)
+    fetch_result = fetch_worldpop_population_network_phase(iso3, year, bbox, allow_whole_country)
     return add_worldpop_population_layer_main_thread_phase(fetch_result)
 
 

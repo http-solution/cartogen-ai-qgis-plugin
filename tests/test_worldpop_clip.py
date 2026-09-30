@@ -110,7 +110,7 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
         body.__enter__.return_value = body
         body.__exit__.return_value = False
         opener.return_value.open.return_value = body
-        res = ht.fetch_worldpop_population_network_phase("YEM", "2020")
+        res = ht.fetch_worldpop_population_network_phase("YEM", "2020", allow_whole_country=True)
         try:
             self.assertTrue(res["success"])
             self.assertIn("WHOLE-country", res["note"])
@@ -158,6 +158,45 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
         finally:
             for r in (a, b):
                 os.remove(r["local_path"])
+
+
+class TestWholeCountryIsRefusedByDefault(unittest.TestCase):
+    """F22: a whole-country raster is 100 MB to over 1 GB; asking for it needs an explicit opt-in."""
+
+    def setUp(self):
+        ht._LOOKUP_CACHE._store.clear()
+
+    def test_no_box_and_no_opt_in_is_refused_before_any_request(self):
+        with patch.object(ht.urllib.request, "urlopen") as urlopen:
+            res = ht.fetch_worldpop_population_network_phase("YEM", "2020")
+            urlopen.assert_not_called()
+        self.assertIn("WHOLE country", res["error"])
+        self.assertIn("extent_layer", res["error"])
+        self.assertIn("allow_whole_country=true", res["error"])
+        self.assertEqual(res["suggested_args"], ["extent_layer", "bbox"])
+
+    def test_the_direct_tool_call_is_refused_too(self):
+        with patch.object(ht.urllib.request, "urlopen") as urlopen:
+            res = ht.fetch_worldpop_population("YEM", "2020")
+            urlopen.assert_not_called()
+        self.assertIn("error", res)
+
+    def test_a_box_needs_no_opt_in(self):
+        with patch.object(ht, "_is_safe_url", return_value=None), \
+                patch.object(ht.urllib.request, "urlopen", return_value=_resp(_LISTING)), \
+                patch.object(ht, "_clip_raster_to_bbox",
+                             side_effect=lambda s, b, d: (open(d, "wb").write(b"x"), {"width": 1, "height": 1})[1]):
+            res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
+        try:
+            self.assertTrue(res["success"], res)
+        finally:
+            os.remove(res["local_path"])
+
+    def test_the_schema_offers_the_opt_in_and_says_when_to_use_it(self):
+        from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
+        fn = next(t["function"] for t in TOOLS_SCHEMA if t["function"]["name"] == "fetch_worldpop_population")
+        self.assertIn("allow_whole_country", fn["parameters"]["properties"])
+        self.assertIn("ONLY after the user agreed", fn["parameters"]["properties"]["allow_whole_country"]["description"])
 
 
 class TestToolSchema(unittest.TestCase):

@@ -90,3 +90,8 @@ def workflow_run_key(run_id: str) -> str:
 # misbehaves in the field, setting this to false in QGIS's advanced settings restores the old
 # synchronous behaviour without a new release. See core/agent/tools/_background_processing.py.
 SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_background"
+
+# Size in MB above which a Geofabrik extract is offered as a choice instead of downloaded silently
+# (rc7 smoke test F22: a 103 MB extract was fetched with no question). Default 150 = the previous
+# fixed threshold, so nothing changes until someone lowers it in QGIS's advanced settings.
+SETTINGS_LOCAL_DATA_ASK_ABOVE_MB = "cartogen_ai/local_data_ask_above_mb"

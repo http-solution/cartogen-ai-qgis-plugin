@@ -35,7 +35,7 @@ except ImportError:
 _UA = {"User-Agent": "QGIS-AI-Assistant"}
 INDEX_MAX_AGE_S = 30 * 24 * 3600    # region outlines barely change
 EXTRACT_MAX_AGE_S = 7 * 24 * 3600   # Geofabrik rebuilds daily; a week-old copy is fine to reuse
-LARGE_DOWNLOAD_BYTES = 150 * 1000 * 1000
+LARGE_DOWNLOAD_BYTES = 150 * 1000 * 1000   # the default; see ask_threshold_bytes()
 MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1")
 
 # Road classes a vehicle can't use. The routing tools treat every line in the road layer as drivable, so
@@ -60,6 +60,46 @@ def data_dir():
 
 def _fresh(path, max_age_s):
     return os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_s
+
+
+def ask_threshold_bytes(read_setting=None):
+    """Size above which an extract is offered as a choice rather than downloaded silently.
+
+    rc7 smoke test F22: a 103 MB extract downloaded with no question because the fixed threshold
+    was 150 MB. Whether that is the right default is a product call (the 2026-09-28 live report was
+    that download prompts should be for "critical actions, not a routine task"), so the default is
+    unchanged and it is configurable: QGIS advanced settings -> cartogen_ai/local_data_ask_above_mb
+    (MB; 0 = always ask). An unreadable or negative value falls back to the default."""
+    if read_setting is None:
+        def read_setting():
+            from qgis.core import QgsSettings
+            from ...infrastructure.settings_keys import SETTINGS_LOCAL_DATA_ASK_ABOVE_MB
+            return QgsSettings().value(SETTINGS_LOCAL_DATA_ASK_ABOVE_MB, None)
+    try:
+        value = read_setting()
+        if value in (None, ""):
+            return LARGE_DOWNLOAD_BYTES
+        mb = float(value)
+        return int(mb * 1000 * 1000) if mb >= 0 else LARGE_DOWNLOAD_BYTES
+    except Exception:
+        return LARGE_DOWNLOAD_BYTES
+
+
+def extract_is_cached(region, dest_dir):
+    """True when download_extract() would reuse a fresh local copy, i.e. nothing crosses the network."""
+    path = os.path.join(dest_dir, "%s-latest-free.shp.zip" % region["id"])
+    return _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path)
+
+
+def should_ask_before_download(region, online_ok, cached, threshold_bytes):
+    """Whether the user gets a download/online choice. Pure.
+
+    Asked for a poor connection, or an unknown/over-threshold size -- unless the extract is already on
+    disk, when there is no download to ask about (before F22's change it was asked about anyway)."""
+    if cached:
+        return False
+    size = (region or {}).get("size_bytes") or 0
+    return (not online_ok) or size == 0 or size > threshold_bytes
 
 
 def load_index(cache_dir):

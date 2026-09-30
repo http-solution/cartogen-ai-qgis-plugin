@@ -1255,12 +1255,15 @@ class ChatTabWidget(QWidget):
             return
         pending["region"] = region
         from ..agent import local_data_loader
-        size = region.get("size_bytes") or 0
-        large_or_unknown = size == 0 or size > local_data_loader.LARGE_DOWNLOAD_BYTES
-        if online_ok and not large_or_unknown:
-            self._start_local_download(region)
+        try:
+            cached = local_data_loader.extract_is_cached(region, local_data_loader.data_dir())
+        except Exception:
+            cached = False
+        if local_data_loader.should_ask_before_download(
+                region, online_ok, cached, local_data_loader.ask_threshold_bytes()):
+            self._offer_local_data_choice(online_ok, region)
             return
-        self._offer_local_data_choice(online_ok, region)
+        self._start_local_download(region)
 
     def _offer_local_data_choice(self, online_ok, region):
         """Shows the download/online choice as clickable chips, not a free-text 'reply

@@ -305,7 +305,7 @@ Fetch OpenStreetMap vector features via Overpass API for a bounding box.
 
 ### `fetch_worldpop_population` _(two-phase)_
 
-Fetch a country's gridded population raster from WorldPop (open, free population data at ~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's Business Analyst extension provides with proprietary demographic data. ALWAYS pass extent_layer (a layer covering the area of interest, e.g. the catchment or admin boundary) or bbox: without either, the WHOLE country is downloaded (100MB-1GB+, minutes). With one, only that area plus a ~2 km margin is fetched and the layer is named <ISO3>_population_<year>_area. After loading, use estimate_population_exposure to sum population within a specific area.
+Fetch a country's gridded population raster from WorldPop (open, free population data at ~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's Business Analyst extension provides with proprietary demographic data. ALWAYS pass extent_layer (a layer covering the area of interest, e.g. the catchment or admin boundary) or bbox: without either the call is refused, because the WHOLE country would be downloaded (100MB-1GB+, minutes) -- allow_whole_country=true overrides that, only after the user agreed. With one, only that area plus a ~2 km margin is fetched and the layer is named <ISO3>_population_<year>_area. After loading, use estimate_population_exposure to sum population within a specific area.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -313,6 +313,7 @@ Fetch a country's gridded population raster from WorldPop (open, free population
 | `year` | string | no | Population year, e.g. '2020'. Omit to use the most recent available. |
 | `extent_layer` | string | no | Name of a project layer whose extent is the area to fetch (preferred -- handles any CRS). |
 | `bbox` | array[number] | no | Alternative to extent_layer: [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `allow_whole_country` | boolean | no | Set true ONLY after the user agreed to download the whole country (100 MB to over 1 GB). Without extent_layer/bbox and without this, the tool refuses. |
 
 ### `ingest_osm_features` _(two-phase)_
 
