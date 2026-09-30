@@ -18,6 +18,7 @@ import time
 import urllib.request
 import zipfile
 
+from .coordinates import interpret_request_pair
 from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region
 from .tools._urllib_retry import urlopen_with_retry
 
@@ -304,9 +305,16 @@ def query_point_wgs84(text):
         return None
     try:
         from qgis.core import QgsPointXY
-        point = QgsPointXY(*pair)
         src = QgsProject.instance().crs()
         wgs = QgsCoordinateReferenceSystem("EPSG:4326")
+        # F20 (rc7 smoke test, 2026-09-30): the numbers were transformed as "project CRS" with no
+        # plausibility check, so switching the project to EPSG:4326 -- or typing degrees into a
+        # metre project -- silently produced a wrong or meaningless point. Return None (caller
+        # falls back to the canvas centre) whenever the pair cannot be read unambiguously.
+        reading = interpret_request_pair(pair, project_crs_is_geographic=bool(src.isValid() and src == wgs))
+        if reading is None:
+            return None
+        point = QgsPointXY(reading[1], reading[2])
         if src.isValid() and src != wgs:
             point = QgsCoordinateTransform(src, wgs, QgsProject.instance()).transform(point)
         return point.x(), point.y()
