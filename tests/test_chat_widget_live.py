@@ -1256,7 +1256,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from qgis.core import QgsProject, QgsWkbTypes
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         shp = _geofabrik_fixture(self.tmp)
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
              patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=True), \
@@ -1314,7 +1314,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from unittest.mock import patch
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
              patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=False), \
              patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
@@ -1350,7 +1350,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from unittest.mock import patch
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         started = threading.Event()
 
         def slow(region_, dest, is_cancelled=None, progress=None):
