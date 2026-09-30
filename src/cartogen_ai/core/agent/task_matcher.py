@@ -287,7 +287,8 @@ def output_contract(entry, query=None):
     """
     if not entry:
         return None
-    kind = output_override(query) or entry["out"]
+    explicit = output_override(query)
+    kind = explicit or entry["out"]
     RENDER = {
         "layer":     ["apply_categorized_style", "zoom_to_layer"],
         "layout":    ["create_print_layout", "print_map"],
@@ -301,6 +302,10 @@ def output_contract(entry, query=None):
         "task": entry["id"],
         "kind": kind,
         "overridden": kind != entry["out"],
+        # True only when the user's own words named the output. The auto-follow-up in
+        # output_router acts on this alone: a task match merely *implying* a deliverable is
+        # not a request for one (rc7 smoke test F10: an unrequested CSV export was forced).
+        "explicit": explicit is not None,
         "intent": reg.OUTPUT_INTENT.get(kind, kind),
         "render": [t for t in RENDER.get(kind, []) if t in entry.get("tools", [])]
                   or RENDER.get(kind, []),
