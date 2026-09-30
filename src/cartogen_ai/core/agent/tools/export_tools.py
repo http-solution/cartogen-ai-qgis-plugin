@@ -851,6 +851,23 @@ def _resolve_basemap_kwargs(basemap):
     return entry, None
 
 
+# rc7 smoke test F12: a dashboard of 2,500 facility points drew 2,500 overlapping markers -- slow to
+# open, unreadable at country zoom. Point layers with at least this many features are drawn as
+# clustered markers (Leaflet.markercluster, loaded from a CDN like the rest of the page); smaller
+# layers keep plain markers, which read fine. Polygon and line layers are never clustered.
+CLUSTER_MIN_POINTS = 100
+
+
+def _should_cluster(features, min_points=CLUSTER_MIN_POINTS):
+    """True when a layer is mostly points and has enough of them to need clustering. Pure."""
+    point_count = 0
+    for feat in features or []:
+        geom_type = ((feat or {}).get("geometry") or {}).get("type")
+        if geom_type in ("Point", "MultiPoint"):
+            point_count += 1
+    return point_count >= min_points and point_count >= 0.9 * len(features)
+
+
 def _build_dashboard_html(layers, title=None, basemap=None):
     """Pure HTML-generation core, no QGIS needed -- takes already-extracted
     GeoJSON per layer and builds a Folium/Leaflet dashboard: one togglable
@@ -947,7 +964,19 @@ def _build_dashboard_html(layers, title=None, basemap=None):
             gj_kwargs["popup"] = popup
         if style_function:
             gj_kwargs["style_function"] = style_function
-        folium.GeoJson(geojson, **gj_kwargs).add_to(m)
+        if _should_cluster(features):
+            from folium.plugins import MarkerCluster
+            target = MarkerCluster(name=name).add_to(m)
+            warnings.append(
+                f"'{name}': {len(features):,} points are drawn as clusters that split as you zoom in "
+                "(the page loads the Leaflet.markercluster library from a CDN)."
+            )
+            if colormap is not None:
+                warnings.append(f"'{name}': color_field is not applied to clustered point markers.")
+                colormap = None
+        else:
+            target = m
+        folium.GeoJson(geojson, **gj_kwargs).add_to(target)
 
         if colormap is not None:
             colormap.caption = color_field
