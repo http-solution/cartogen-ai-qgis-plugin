@@ -1648,6 +1648,47 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": f"travel_time_matrix failed: {e}"}
 
 
+REACH_METHODS = ("concave_hull", "road_buffer", "convex_hull")
+DEFAULT_REACH_GEOMETRY = "concave_hull"
+# The published hospital-access method converts reached road vertices to a polygon with a GEOS concave hull at
+# ratio 0.85 (arXiv 2609.12696, found by search; the paper itself was not read in full). QGIS passes the ratio to GEOS
+# through QgsGeometry.concaveHull(targetPercent, allowHoles) (QGIS >= 3.28, needs GEOS >= 3.11).
+CONCAVE_HULL_RATIO = 0.85
+REACH_LABELS = {
+    "concave_hull": "Concave hull of the reached roads (ratio %s) -- headline" % CONCAVE_HULL_RATIO,
+    "road_buffer": "Reached roads buffered -- tight lower figure",
+    "convex_hull": "Convex hull of the reached roads -- upper bound",
+}
+CONCAVE_HULL_REACH_NOTE = (
+    "Reach polygon = the CONCAVE hull (GEOS ratio {r:g}) of the roads reached within the travel cost: it follows the "
+    "road pattern more closely than a convex hull but still counts land between roads, so it can overstate who is "
+    "reached where the network is sparse. Read it together with the road-buffer (lower) and convex-hull (upper) figures."
+)
+
+
+def _concave_reach_polygon(line_layers, ratio, name):
+    """One polygon layer (in the lines' CRS): the concave hull of every reached road. Raises RuntimeError with a
+    reason when QGIS/GEOS cannot produce a polygon (older GEOS lacks concave hulls)."""
+    geoms = []
+    for layer in line_layers:
+        for feat in layer.getFeatures():
+            g = feat.geometry()
+            if g is not None and not g.isEmpty():
+                geoms.append(g)
+    if not geoms:
+        raise RuntimeError("the reached-road layers have no geometry")
+    collected = QgsGeometry.collectGeometry(geoms)
+    hull = collected.concaveHull(float(ratio), False)
+    if hull is None or hull.isNull() or hull.isEmpty() or QgsWkbTypes.geometryType(hull.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
+        raise RuntimeError("no concave-hull polygon could be built (too few reached roads, or GEOS older than 3.11)")
+    layer = QgsVectorLayer(f"Polygon?crs={line_layers[0].crs().authid()}", name, "memory")
+    feat = QgsFeature()
+    feat.setGeometry(hull)
+    layer.dataProvider().addFeatures([feat])
+    layer.updateExtents()
+    return layer
+
+
 # ---- population reach geometry (F09) ---------------------------------------------------------------
 #
 # rc7 smoke test F09 (2026-09-30): the population counted as reached (778,156) was summed inside the
@@ -1894,10 +1935,11 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
     "coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population "
     "raster available (see fetch_worldpop_population). As a side effect of calling "
     "calculate_service_area internally, per-facility service-area polygons are also added to the "
-    "project, plus the combined reachable-area layer this tool builds from them. The reach polygon is the "
-    "reached roads buffered by reach_buffer_m (default 500 m), NOT a convex hull: a hull fills the land between "
-    "the roads and overstates who is reached (reach_geometry='convex_hull' exists only as a labelled upper "
-    "bound for comparison). Returns a MODELED "
+    "project, plus the combined reachable-area layers this tool builds from them. It reports THREE labelled "
+    "figures (reach_figures): a concave hull of the reached roads (the headline, the method used in published "
+    "hospital-access work), the reached roads buffered by reach_buffer_m (a tight lower figure) and the convex hull "
+    "(an UPPER BOUND that fills the land between roads). Always give the user the range "
+    "(reachable_population_range), not only the headline. Returns a MODELED "
     "estimate -- network-based reachability against a gridded population raster, not a verified count "
     "of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', "
     "not as a confirmed access-gap figure.",
@@ -1911,19 +1953,19 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
             "travel_cost": {"type": "number", "description": "Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'."},
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
             "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
-            "reach_geometry": {"type": "string", "description": "'road_buffer' (default): people within reach_buffer_m of a road reached inside the travel cost. 'convex_hull': the hull of the reached roads -- an UPPER BOUND that overstates who is reached; only for comparison."},
-            "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for reach_geometry='road_buffer'. Defaults to 500."},
+            "reach_geometry": {"type": "string", "description": "Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures."},
+            "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500."},
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
-                          reach_geometry="road_buffer", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
+                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    reach_geometry = (reach_geometry or "road_buffer").lower()
-    if reach_geometry not in ("road_buffer", "convex_hull"):
-        return {"error": "reach_geometry must be 'road_buffer' or 'convex_hull'."}
+    reach_geometry = (reach_geometry or DEFAULT_REACH_GEOMETRY).lower()
+    if reach_geometry not in REACH_METHODS:
+        return {"error": "reach_geometry must be 'concave_hull', 'road_buffer' or 'convex_hull'."}
     try:
         reach_buffer_m = float(reach_buffer_m)
     except (TypeError, ValueError):
@@ -1945,49 +1987,12 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
 
     # calculate_service_area names lines layers "..._service_area_lines_{i}"
     # and hull layers "..._service_area_{i}".
-    reachable_name = f"{facility_layer}_reachable_area"
-    if reach_geometry == "road_buffer":
-        line_names = [n for n in service_result["layers_created"] if "_lines_" in n]
-        line_layers = [layer for layer in (_find_layer_by_name(n) for n in line_names) if layer is not None]
-        if not line_layers:
-            return {"error": "calculate_service_area produced no reached-road layer to build the reach polygon from."}
-        reach_note = ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
-    else:
-        hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
-        hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
-        if not hull_layers:
-            return {"error": "calculate_service_area produced no reachable-area polygons to check coverage against."}
-        reach_note = CONVEX_HULL_REACH_NOTE
-
-    try:
-        if reach_geometry == "road_buffer":
-            reachable = _road_reach_polygon(line_layers, reach_buffer_m, reachable_name)
-        else:
-            if len(hull_layers) > 1:
-                merge_result = processing.run(
-                    "native:mergevectorlayers",
-                    {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
-                )
-                merged = merge_result["OUTPUT"]
-            else:
-                merged = hull_layers[0]
-
-            # Dissolve away overlaps between facilities' service areas -- a
-            # location reachable from two facilities must only count once, not
-            # be double-counted or need per-facility attribution here.
-            dissolve_result = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})
-            reachable = dissolve_result["OUTPUT"]
-            reachable.setName(reachable_name)
-        _replace_named_layer(reachable_name, reachable)
-
-        intersect_result = processing.run(
-            "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"}
-        )
-        reachable_within_area = intersect_result["OUTPUT"]
-        reachable_within_area_name = f"{area_layer}_reachable_by_{facility_layer}"
-        _replace_named_layer(reachable_within_area_name, reachable_within_area)
-    except Exception as e:
-        return {"error": f"population_access_gap geometry processing failed: {e}"}
+    line_names = [n for n in service_result["layers_created"] if "_lines_" in n]
+    line_layers = [layer for layer in (_find_layer_by_name(n) for n in line_names) if layer is not None]
+    hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
+    hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
+    if not line_layers and not hull_layers:
+        return {"error": "calculate_service_area produced no reached-road or reachable-area layer to build a reach polygon from."}
 
     from .raster_tools import estimate_population_exposure
 
@@ -1996,27 +2001,88 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         return total_pop_result
     total_population = total_pop_result["total_population"]
 
-    # A zero-feature intersection (the facilities' reach doesn't overlap
-    # area_layer at all) means literally 0 people are covered -- handled
-    # explicitly here rather than trusting estimate_population_exposure's
-    # zonal-statistics behavior against an empty layer, which isn't a path
-    # this codebase has verified against a real QGIS session.
-    if reachable_within_area.featureCount() == 0:
-        reachable_population = 0.0
-    else:
-        reachable_pop_result = estimate_population_exposure(population_raster_layer, reachable_within_area_name)
-        if "error" in reachable_pop_result:
-            return reachable_pop_result
-        reachable_population = reachable_pop_result["total_population"]
+    base_name = f"{facility_layer}_reachable_area"
 
-    # Clamped at zero: raster-vs-vector zonal statistics against a slightly
-    # different (intersected) geometry than the original area_layer can, in
-    # principle, disagree by a hair at the pixel level -- a negative gap from
-    # that kind of noise would be a nonsensical result to hand back.
-    gap_population = max(0.0, total_population - reachable_population)
-    gap_pct = round(gap_population / total_population * 100, 2) if total_population > 0 else None
+    def build_reach(method, name):
+        if method == "road_buffer":
+            if not line_layers:
+                raise RuntimeError("no reached-road layer to buffer")
+            return _road_reach_polygon(line_layers, reach_buffer_m, name), ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
+        if method == "concave_hull":
+            if not line_layers:
+                raise RuntimeError("no reached-road layer to build a concave hull from")
+            return _concave_reach_polygon(line_layers, CONCAVE_HULL_RATIO, name), CONCAVE_HULL_REACH_NOTE.format(r=CONCAVE_HULL_RATIO)
+        if not hull_layers:
+            raise RuntimeError("no reachable-area polygons for the convex hull")
+        if len(hull_layers) > 1:
+            merged = processing.run(
+                "native:mergevectorlayers",
+                {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
+            )["OUTPUT"]
+        else:
+            merged = hull_layers[0]
+        # Dissolve away overlaps between facilities' service areas -- a location reachable from two
+        # facilities must only count once.
+        reachable = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})["OUTPUT"]
+        reachable.setName(name)
+        return reachable, CONVEX_HULL_REACH_NOTE
 
-    return {
+    figures = {}
+    for method in REACH_METHODS:
+        layer_name = base_name if method == reach_geometry else f"{base_name}_{method}"
+        try:
+            reachable, note = build_reach(method, layer_name)
+            _replace_named_layer(layer_name, reachable)
+            within_name = f"{area_layer}_reachable_by_{facility_layer}" if method == reach_geometry \
+                else f"{area_layer}_reachable_by_{facility_layer}_{method}"
+            within = processing.run(
+                "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"})["OUTPUT"]
+            _replace_named_layer(within_name, within)
+            # A zero-feature intersection means literally 0 people are covered -- handled explicitly rather than
+            # trusting zonal statistics against an empty layer.
+            if within.featureCount() == 0:
+                reachable_pop = 0.0
+            else:
+                pop_result = estimate_population_exposure(population_raster_layer, within_name)
+                if "error" in pop_result:
+                    raise RuntimeError(pop_result["error"])
+                reachable_pop = pop_result["total_population"]
+            figures[method] = {"layer": layer_name, "within_layer": within_name, "note": note,
+                               "reachable_population": reachable_pop}
+        except Exception as e:
+            figures[method] = {"available": False, "reason": str(e)}
+
+    headline = reach_geometry
+    if "reachable_population" not in figures.get(headline, {}):
+        # The requested figure could not be computed: fall back in a fixed order and say so.
+        headline = next((m for m in ("road_buffer", "convex_hull", "concave_hull") if "reachable_population" in figures[m]), None)
+        if headline is None:
+            reasons = "; ".join(f"{m}: {f.get('reason')}" for m, f in figures.items())
+            return {"error": f"population_access_gap geometry processing failed for every reach method ({reasons})."}
+
+    def gap_fields(reachable_pop):
+        # Clamped at zero: zonal statistics over an intersected geometry can differ by a hair at the pixel level.
+        gap = max(0.0, total_population - reachable_pop)
+        return gap, (round(gap / total_population * 100, 2) if total_population > 0 else None)
+
+    reach_figures = []
+    for method in REACH_METHODS:
+        fig = figures[method]
+        if "reachable_population" not in fig:
+            reach_figures.append({"method": method, "available": False, "reason": fig.get("reason")})
+            continue
+        gap, pct = gap_fields(fig["reachable_population"])
+        reach_figures.append({
+            "method": method, "label": REACH_LABELS[method], "reachable_population": fig["reachable_population"],
+            "gap_population": gap, "gap_percent": pct, "is_upper_bound": method == "convex_hull",
+            "is_headline": method == headline, "layer": fig["layer"], "note": fig["note"],
+        })
+    available = [f["reachable_population"] for f in reach_figures if f.get("reachable_population") is not None]
+
+    head = figures[headline]
+    reachable_population = head["reachable_population"]
+    gap_population, gap_pct = gap_fields(reachable_population)
+    result = {
         "success": True,
         "facility_count": service_result["facility_count"],
         "travel_cost": travel_cost,
@@ -2025,11 +2091,16 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "reachable_population": reachable_population,
         "gap_population": gap_population,
         "gap_percent": gap_pct,
-        "reachable_area_layer": reachable_name,
-        "reachable_within_area_layer": reachable_within_area_name,
-        "reach_geometry": reach_geometry,
-        "reach_note": reach_note,
-        "is_upper_bound_on_reach": reach_geometry == "convex_hull",
+        "reachable_area_layer": head["layer"],
+        "reachable_within_area_layer": head["within_layer"],
+        "reach_geometry": headline,
+        "reach_note": head["note"],
+        "is_upper_bound_on_reach": headline == "convex_hull",
+        # Three labelled figures, not one: the published method is a concave hull, a road buffer is the tight bound
+        # and a convex hull the upper bound. The spread between them is the honest uncertainty of the estimate --
+        # report the range, not only the headline.
+        "reach_figures": reach_figures,
+        "reachable_population_range": [min(available), max(available)],
         # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: this
         # is a modeled gap (network reachability vs. a gridded population raster),
         # not a verified count of people confirmed to lack access -- carried
@@ -2040,6 +2111,11 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "pop_reference_year": total_pop_result.get("pop_reference_year"),
         "confidence": "estimate (modeled network reachability + gridded population raster; not field-verified)",
     }
+    if headline != reach_geometry:
+        result["headline_fallback"] = (
+            f"'{reach_geometry}' could not be computed ({figures[reach_geometry].get('reason')}); the headline uses "
+            f"'{headline}' instead.")
+    return result
 
 
 @register_tool(
