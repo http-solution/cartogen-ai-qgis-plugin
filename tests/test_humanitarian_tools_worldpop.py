@@ -49,7 +49,7 @@ _YEM_LISTING = {
 
 class TestFetchWorldpopNetworkPhaseValidation(unittest.TestCase):
     def test_rejects_non_three_letter_code(self):
-        res = fetch_worldpop_population_network_phase("YE")
+        res = fetch_worldpop_population_network_phase("YE", allow_whole_country=True)
         self.assertIn("error", res)
         self.assertIn("ISO", res["error"])
 
@@ -64,7 +64,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
-        res = fetch_worldpop_population_network_phase("yem")
+        res = fetch_worldpop_population_network_phase("yem", allow_whole_country=True)
 
         self.assertTrue(res["success"])
         self.assertEqual(res["iso3"], "YEM")
@@ -80,7 +80,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
-        res = fetch_worldpop_population_network_phase("YEM", year="2015")
+        res = fetch_worldpop_population_network_phase("YEM", year="2015", allow_whole_country=True)
 
         self.assertTrue(res["success"])
         self.assertEqual(res["year"], "2015")
@@ -91,7 +91,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
     def test_unavailable_year_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
 
-        res = fetch_worldpop_population_network_phase("YEM", year="1999")
+        res = fetch_worldpop_population_network_phase("YEM", year="1999", allow_whole_country=True)
 
         self.assertIn("error", res)
         self.assertIn("1999", res["error"])
@@ -106,7 +106,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         }
         mock_urlopen.return_value = _mock_response(unsafe_listing)
 
-        res = fetch_worldpop_population_network_phase("YEM")
+        res = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
 
         self.assertIn("error", res)
         self.assertIn("Refusing to fetch", res["error"])
@@ -115,7 +115,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
     def test_no_datasets_found_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": []})
 
-        res = fetch_worldpop_population_network_phase("ZZZ")
+        res = fetch_worldpop_population_network_phase("ZZZ", allow_whole_country=True)
 
         self.assertIn("error", res)
 
@@ -125,8 +125,8 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
-        first = fetch_worldpop_population_network_phase("YEM")
-        second = fetch_worldpop_population_network_phase("YEM")
+        first = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
+        second = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
 
         self.assertNotIn("cached", first)
         self.assertTrue(second.get("cached"))
@@ -142,7 +142,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
     def test_handles_network_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
-        res = fetch_worldpop_population_network_phase("YEM")
+        res = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
         self.assertIn("error", res)
 
 
@@ -175,13 +175,13 @@ class TestFetchWorldpopPopulationCombined(unittest.TestCase):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
 
-        res = fetch_worldpop_population("YEM")
+        res = fetch_worldpop_population("YEM", allow_whole_country=True)
 
         self.assertTrue(res["success"])
         # Outside QGIS, add_worldpop_population_layer_main_thread_phase never
         # even reports local_path, so check indirectly: the network-phase
         # cache should still resolve to a file that exists on disk.
-        cached = fetch_worldpop_population_network_phase("YEM")
+        cached = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
         self.assertTrue(cached.get("cached"))
         import os
         self.assertTrue(os.path.exists(cached["local_path"]))
