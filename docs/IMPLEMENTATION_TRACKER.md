@@ -1609,6 +1609,24 @@ Open and needing a decision or a live reproduction:
 - **F25** chat-history export -- cause found 2026-09-30 by code reading: the export reads the persisted rolling window (`MAX_HISTORY_MESSAGES` = 10); older turns are replaced by a one-line-per-message digest (role `system`) that `load_chat_history*()` filter out, so the export omitted stored text, and gave no hint that a short export was expected. Fixed: the export now includes `chat_history_digest` and a `chat_history_info` note (window size, persistence on/off, project-bound); a new user message is stamped with its send time instead of the save time. NOT changed: the 10-message window itself (a token-cost design choice, so a full transcript is still not kept -- decide whether the GDPR export needs one), and history is still stored per project file, so loading another project shows that project's history. Unverified in live QGIS. Still open here: per-turn token display; dashboard marker clustering.
 - **F18** operator's plan-validation setting was ON during the smoke test; reset to OFF before the next round unless deliberately under test.
 
+### 1.18 F25 -- should "Export My Data" hold a full chat transcript? (decision needed, added 2026-09-30)
+
+Today the export holds the agent's rolling window (`MAX_HISTORY_MESSAGES` = 10) plus the stored digest of older turns, and says so
+(`chat_history_info`). A 50-minute session therefore exports a handful of messages. Options:
+
+- **A. Keep as is.** No new stored data; the export is accurate about what is held. A right-of-access request covers data the controller
+  actually holds, and the plugin does not hold the rest.
+- **B. Store a full transcript** in the project file (only when "Save chat history" is on), capped by count or age. Gives a complete export and
+  a true restore, but: the conversation is written into a shareable `.qgz` (SECURITY.md §7 -- why this is opt-in, default off), the erasure
+  limitation for already-distributed copies (SECURITY.md, F9) grows with it, the project's custom property is rewritten on every save, and it
+  runs against the data-minimisation gap already noted in SECURITY.md. Storing more in order to be able to export more inverts the purpose.
+- **C. A user-initiated "Save this conversation..." action** that writes the on-screen transcript to a file the user chooses. Nothing new is stored
+  or retained; the user controls where it goes. Limits: it covers only what the chat window shows (lost on restart, since restore rebuilds
+  only the 10-message window), and it is a new UI control that needs a live-widget test.
+
+**Recommendation: A + C, not B.** Keep the honest export (done) and add C for the audit/smoke-test need, without widening what is stored.
+Nothing is built for B or C yet; say which you want.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
