@@ -305,12 +305,14 @@ Fetch OpenStreetMap vector features via Overpass API for a bounding box.
 
 ### `fetch_worldpop_population` _(two-phase)_
 
-Download a country's gridded population raster from WorldPop (open, free population data at ~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's Business Analyst extension provides with proprietary demographic data. Files are large (100MB-1GB+ depending on country size), so this can take a while. After loading, use estimate_population_exposure to sum population within a specific area.
+Fetch a country's gridded population raster from WorldPop (open, free population data at ~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's Business Analyst extension provides with proprietary demographic data. ALWAYS pass extent_layer (a layer covering the area of interest, e.g. the catchment or admin boundary) or bbox: without either, the WHOLE country is downloaded (100MB-1GB+, minutes). With one, only that area plus a ~2 km margin is fetched and the layer is named <ISO3>_population_<year>_area. After loading, use estimate_population_exposure to sum population within a specific area.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `iso3` | string | yes | 3-letter ISO country code, e.g. 'YEM'. |
 | `year` | string | no | Population year, e.g. '2020'. Omit to use the most recent available. |
+| `extent_layer` | string | no | Name of a project layer whose extent is the area to fetch (preferred -- handles any CRS). |
+| `bbox` | array[number] | no | Alternative to extent_layer: [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
 
 ### `ingest_osm_features` _(two-phase)_
 

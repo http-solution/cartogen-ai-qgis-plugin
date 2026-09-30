@@ -1,0 +1,174 @@
+# -*- coding: utf-8 -*-
+"""F19 (rc7 smoke test, 2026-09-30): fetch_worldpop_population downloaded the WHOLE-country raster
+(Yemen, 141 s) for a ~77 x 71 km catchment. With extent_layer/bbox only that window is read through
+GDAL /vsicurl/. Network and GDAL are mocked here; tests/test_worldpop_clip_live.py clips a real raster."""
+import json
+import os
+import unittest
+from unittest.mock import MagicMock, patch
+
+from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+
+_LISTING = {"data": [{"popyear": "2020", "files": ["https://data.worldpop.org/GIS/Population/yem_ppp_2020.tif"]}]}
+
+
+def _resp(payload):
+    r = MagicMock()
+    r.read.return_value = json.dumps(payload).encode()
+    r.__enter__.return_value = r
+    r.__exit__.return_value = False
+    return r
+
+
+class TestParseAndPadBbox(unittest.TestCase):
+    def test_list_and_string_forms(self):
+        self.assertEqual(ht.parse_bbox([43.5, 15.0, 44.5, 16.0]), (43.5, 15.0, 44.5, 16.0))
+        self.assertEqual(ht.parse_bbox("43.5, 15.0; 44.5, 16.0"), (43.5, 15.0, 44.5, 16.0))
+
+    def test_projected_metres_are_refused_with_advice(self):
+        with self.assertRaises(ValueError) as ctx:
+            ht.parse_bbox([4902068, 1799912, 4990000, 1850000])
+        self.assertIn("extent_layer", str(ctx.exception))
+
+    def test_bad_shapes_are_refused(self):
+        for bad in ([1, 2, 3], "a,b,c,d", [44, 15, 43, 16], [43, 16, 44, 15], None):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                ht.parse_bbox(bad)
+
+    def test_padding_grows_the_box_and_stays_inside_the_world(self):
+        self.assertEqual(ht.pad_bbox((43.5, 15.0, 44.5, 16.0), 0.02), (43.48, 14.98, 44.52, 16.02))
+        self.assertEqual(ht.pad_bbox((-180, -90, 180, 90), 1), (-180.0, -90.0, 180.0, 90.0))
+
+
+class TestWindowInsideRaster(unittest.TestCase):
+    """gdal.Translate(projWin) does not fail for a window outside the raster -- it writes an empty
+    raster -- so the overlap is checked first (found by the first CI run of the live clip test)."""
+    RASTER = (40.0, 10.0, 50.0, 20.0)
+
+    def test_inside_is_unchanged(self):
+        self.assertEqual(ht._window_inside_raster((42, 14, 44, 16), self.RASTER), ((42, 14, 44, 16), False))
+
+    def test_partly_outside_is_clamped(self):
+        self.assertEqual(ht._window_inside_raster((48, 14, 55, 16), self.RASTER), ((48, 14, 50, 16), True))
+
+    def test_entirely_outside_raises_naming_the_raster_extent(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            ht._window_inside_raster((100, 50, 101, 51), self.RASTER)
+        self.assertIn("does not overlap the raster", str(ctx.exception))
+        self.assertIn("40.000..50.000", str(ctx.exception))
+
+    def test_touching_only_at_an_edge_is_no_overlap(self):
+        with self.assertRaises(RuntimeError):
+            ht._window_inside_raster((50, 14, 52, 16), self.RASTER)
+
+
+class TestClipSourceAllowlist(unittest.TestCase):
+    def test_worldpop_https_hosts_only(self):
+        ok = ht._worldpop_clip_source_allowed
+        self.assertTrue(ok("https://data.worldpop.org/a.tif"))
+        self.assertTrue(ok("https://worldpop.org/a.tif"))
+        self.assertFalse(ok("http://data.worldpop.org/a.tif"))
+        self.assertFalse(ok("https://evil.example.com/worldpop.org/a.tif"))
+        self.assertFalse(ok("https://worldpop.org.evil.example.com/a.tif"))
+        self.assertFalse(ok("https://notworldpop.org/a.tif"))
+        self.assertFalse(ok(""))
+
+
+class TestNetworkPhaseWithABox(unittest.TestCase):
+    def setUp(self):
+        ht._LOOKUP_CACHE._store.clear()
+        # _is_safe_url resolves the host over DNS; these tests are about what happens AFTER that guard.
+        patcher = patch.object(ht, "_is_safe_url", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @patch.object(ht, "_build_safe_opener")
+    @patch.object(ht, "_clip_raster_to_bbox")
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_a_box_reads_only_the_window_and_never_downloads_the_country(self, urlopen, clip, opener):
+        urlopen.return_value = _resp(_LISTING)
+        clip.side_effect = lambda src, box, dest: (open(dest, "wb").write(b"x"), {"width": 40, "height": 30})[1]
+        res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
+        try:
+            self.assertTrue(res["success"], res)
+            opener.assert_not_called()                       # the full-download path was not taken
+            src, box, _dest = clip.call_args[0]
+            self.assertTrue(src.startswith("/vsicurl/https://data.worldpop.org/"))
+            self.assertEqual(box, (43.48, 14.98, 44.52, 16.02))
+            self.assertEqual(res["clipped_to_bbox"], [43.48, 14.98, 44.52, 16.02])
+            self.assertEqual(res["clipped_pixels"], [40, 30])
+            self.assertNotIn("note", res)
+        finally:
+            os.remove(res["local_path"])
+
+    @patch.object(ht, "_build_safe_opener")
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_without_a_box_the_whole_country_is_fetched_and_the_result_says_so(self, urlopen, opener):
+        urlopen.return_value = _resp(_LISTING)
+        body = MagicMock()
+        body.read.return_value = b"tiff"
+        body.__enter__.return_value = body
+        body.__exit__.return_value = False
+        opener.return_value.open.return_value = body
+        res = ht.fetch_worldpop_population_network_phase("YEM", "2020")
+        try:
+            self.assertTrue(res["success"])
+            self.assertIn("WHOLE-country", res["note"])
+            self.assertEqual(res["bytes_on_disk"], 4)
+        finally:
+            os.remove(res["local_path"])
+
+    @patch.object(ht, "_clip_raster_to_bbox", side_effect=RuntimeError("window outside the raster"))
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_a_failed_clip_is_an_error_not_a_silent_full_download(self, urlopen, clip):
+        urlopen.return_value = _resp(_LISTING)
+        with patch.object(ht, "_build_safe_opener") as opener:
+            res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [100, 10, 101, 11])
+            opener.assert_not_called()
+        self.assertIn("error", res)
+        self.assertIn("Nothing was downloaded", res["error"])
+        self.assertIn("window outside the raster", res["error"])
+
+    @patch.object(ht, "_clip_raster_to_bbox")
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_a_file_not_on_worldpop_is_not_read_remotely(self, urlopen, clip):
+        urlopen.return_value = _resp({"data": [{"popyear": "2020", "files": ["https://files.example.com/a.tif"]}]})
+        res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
+        clip.assert_not_called()
+        self.assertIn("not on worldpop.org", res["error"])
+
+    def test_a_bad_box_is_refused_before_any_request(self):
+        with patch.object(ht.urllib.request, "urlopen") as urlopen:
+            res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [1, 2, 3])
+            urlopen.assert_not_called()
+        self.assertIn("four numbers", res["error"])
+
+    @patch.object(ht, "_clip_raster_to_bbox")
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_different_boxes_are_cached_separately(self, urlopen, clip):
+        urlopen.return_value = _resp(_LISTING)
+        clip.side_effect = lambda src, box, dest: (open(dest, "wb").write(b"x"), {"width": 1, "height": 1})[1]
+        a = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
+        b = ht.fetch_worldpop_population_network_phase("YEM", "2020", [45.5, 15.0, 46.5, 16.0])
+        again = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
+        try:
+            self.assertNotEqual(a["local_path"], b["local_path"])
+            self.assertTrue(again.get("cached"))
+            self.assertEqual(clip.call_count, 2)
+        finally:
+            for r in (a, b):
+                os.remove(r["local_path"])
+
+
+class TestToolSchema(unittest.TestCase):
+    def test_extent_layer_and_bbox_are_offered_and_the_description_says_always_pass_one(self):
+        from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
+        fn = next(t["function"] for t in TOOLS_SCHEMA if t["function"]["name"] == "fetch_worldpop_population")
+        self.assertIn("extent_layer", fn["parameters"]["properties"])
+        self.assertIn("bbox", fn["parameters"]["properties"])
+        self.assertIn("ALWAYS pass extent_layer", fn["description"])
+        self.assertEqual(fn["parameters"]["required"], ["iso3"])
+
+
+if __name__ == "__main__":
+    unittest.main()

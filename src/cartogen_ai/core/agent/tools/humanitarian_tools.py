@@ -1157,18 +1157,131 @@ def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1"):
     return final
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None) -> dict:
+# ---- clipping the WorldPop download to the area that is needed (F19) --------------------------------
+#
+# rc7 smoke test F19 (2026-09-30): fetch_worldpop_population downloaded the WHOLE-COUNTRY raster
+# (Yemen, 41.81-54.54 E x 12.11-19.00 N, 141 s) for a ~77 x 71 km catchment. The GeoTIFF can be
+# read through GDAL's /vsicurl/ driver with HTTP range requests, so only the window that is asked for
+# crosses the network. Clipping keeps pixel values untouched, so population sums over the area are the
+# same as from the full raster.
+BBOX_PAD_DEGREES = 0.02          # ~2 km: keeps the raster slightly larger than the area it serves
+_WORLDPOP_HOST_SUFFIX = "worldpop.org"
+
+
+def parse_bbox(value):
+    """(min_lon, min_lat, max_lon, max_lat) from a 4-number list/tuple or a "a,b,c,d" string; raises
+    ValueError with a message the model can act on. Pure."""
+    if isinstance(value, str):
+        value = [part for part in value.replace(";", ",").split(",") if part.strip()]
+    try:
+        min_lon, min_lat, max_lon, max_lat = (float(v) for v in value)
+    except (TypeError, ValueError):
+        raise ValueError("bbox must be four numbers: min_lon, min_lat, max_lon, max_lat (WGS84 degrees).")
+    if not (-180 <= min_lon < max_lon <= 180 and -90 <= min_lat < max_lat <= 90):
+        raise ValueError(
+            f"bbox ({min_lon}, {min_lat}, {max_lon}, {max_lat}) is not a valid WGS84 box -- expected "
+            "min_lon < max_lon within -180..180 and min_lat < max_lat within -90..90. If these look like "
+            "projected metres, pass extent_layer instead of converting them."
+        )
+    return (min_lon, min_lat, max_lon, max_lat)
+
+
+def pad_bbox(bbox, margin=BBOX_PAD_DEGREES):
+    min_lon, min_lat, max_lon, max_lat = bbox
+    return (max(-180.0, min_lon - margin), max(-90.0, min_lat - margin),
+            min(180.0, max_lon + margin), min(90.0, max_lat + margin))
+
+
+def _worldpop_clip_source_allowed(url):
+    """Only https URLs on worldpop.org are read through /vsicurl/: GDAL follows redirects itself, outside
+    the SSRF-guarded opener the full download uses, so the set of hosts it may reach is kept to the one
+    data provider."""
+    from urllib.parse import urlparse
+    parts = urlparse(url or "")
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (host == _WORLDPOP_HOST_SUFFIX or host.endswith("." + _WORLDPOP_HOST_SUFFIX))
+
+
+def _window_inside_raster(requested, raster_bounds):
+    """(window, clamped): `requested` (min_lon, min_lat, max_lon, max_lat) intersected with the raster's own
+    bounds, and whether that changed it. Raises RuntimeError when they do not overlap at all. Pure.
+
+    Why: gdal.Translate(projWin=...) does NOT fail for a window outside the raster -- it writes an empty
+    (nodata) raster. A bbox that misses the country would then look like a successful fetch and every
+    population sum over it would silently be zero."""
+    r_min_lon, r_min_lat, r_max_lon, r_max_lat = raster_bounds
+    w = (max(requested[0], r_min_lon), max(requested[1], r_min_lat),
+         min(requested[2], r_max_lon), min(requested[3], r_max_lat))
+    if not (w[0] < w[2] and w[1] < w[3]):
+        raise RuntimeError(
+            f"the requested area {tuple(round(v, 4) for v in requested)} does not overlap the raster, which covers "
+            f"lon {r_min_lon:.3f}..{r_max_lon:.3f}, lat {r_min_lat:.3f}..{r_max_lat:.3f}")
+    return w, tuple(w) != tuple(requested)
+
+
+def _clip_raster_to_bbox(source, bbox, dest_path):
+    """Write the part of the GDAL-readable `source` (a local path or /vsicurl/ URL) inside `bbox` (WGS84,
+    the WorldPop CRS) to a compressed GeoTIFF at dest_path. The window is clamped to the raster's own
+    bounds; a window that does not overlap it, or a raster that is not geographic/north-up, raises
+    RuntimeError with a readable message."""
+    try:
+        from osgeo import gdal, osr
+    except ImportError as e:
+        raise RuntimeError(f"GDAL Python bindings are not available ({e}).")
+    gdal.UseExceptions()
+    options = {
+        "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
+        "GDAL_HTTP_TIMEOUT": "120", "GDAL_HTTP_MAX_RETRY": "2",
+    }
+    for key, val in options.items():
+        gdal.SetThreadLocalConfigOption(key, val)
+    try:
+        src_ds = gdal.Open(source)
+        gt = src_ds.GetGeoTransform()
+        if gt[2] or gt[4] or gt[5] >= 0:
+            raise RuntimeError("the raster is rotated or not north-up, which is not supported for clipping.")
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(src_ds.GetProjection() or "")
+        if not srs.IsGeographic():
+            raise RuntimeError("the raster is not in a geographic (lon/lat) CRS, so a WGS84 window cannot be applied.")
+        x0, y0 = gt[0], gt[3]
+        x1, y1 = x0 + gt[1] * src_ds.RasterXSize, y0 + gt[5] * src_ds.RasterYSize
+        window, clamped = _window_inside_raster(bbox, (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)))
+        ds = gdal.Translate(dest_path, src_ds, projWin=[window[0], window[3], window[2], window[1]],
+                            creationOptions=["COMPRESS=DEFLATE", "TILED=YES"])
+        if ds is None:
+            raise RuntimeError("GDAL returned no dataset for the requested window.")
+        width, height = ds.RasterXSize, ds.RasterYSize
+        ds = None
+        src_ds = None
+        return {"width": width, "height": height, "clamped": clamped, "window": list(window)}
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(str(e))
+    finally:
+        for key in options:
+            gdal.SetThreadLocalConfigOption(key, None)
+
+
+def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
-    downloads the actual GeoTIFF. These are large (100MB-1GB+ depending on
-    country size), so this can take a while -- exactly why it's split out to
-    run on a background thread rather than the QGIS main GUI thread. No
-    qgis.core access."""
+    fetches the GeoTIFF -- the WHOLE country (100MB-1GB+, slow) when bbox is None, or
+    only the window inside bbox (WGS84 min_lon, min_lat, max_lon, max_lat) when it is
+    given. Split out to run on a background thread rather than the QGIS main GUI
+    thread. No qgis.core access."""
     iso3 = (iso3 or "").upper().strip()
     if len(iso3) != 3 or not iso3.isalpha():
         return {"error": "iso3 must be a 3-letter ISO country code, e.g. 'YEM'."}
+    window = None
+    if bbox is not None:
+        try:
+            window = pad_bbox(parse_bbox(bbox))
+        except ValueError as e:
+            return {"error": str(e)}
 
-    cache_key = ("worldpop", iso3, year)
+    cache_key = ("worldpop", iso3, year, window)
     cached = _LOOKUP_CACHE.get(cache_key)
     if cached is not None:
         # local_path still points at a real, never-deleted temp file -- see
@@ -1205,12 +1318,45 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None) -> dict
         unsafe_reason = _is_safe_url(file_urls[0])
         if unsafe_reason:
             return {"error": f"Refusing to fetch WorldPop file URL: {unsafe_reason}"}
+
+        import os
+        import tempfile
+
+        if window is not None:
+            if not _worldpop_clip_source_allowed(file_urls[0]):
+                return {"error": (
+                    "The WorldPop file is not on worldpop.org, so it will not be read remotely for clipping. "
+                    "Call again without bbox/extent_layer to download the whole country instead.")}
+            fd, tmp_path = tempfile.mkstemp(suffix=".tif")
+            os.close(fd)
+            try:
+                size = _clip_raster_to_bbox("/vsicurl/" + file_urls[0], window, tmp_path)
+            except RuntimeError as e:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+                return {"error": (
+                    f"Could not fetch just the requested area from WorldPop ({e}). Nothing was downloaded. "
+                    "Check the bbox overlaps the country, or call again without bbox/extent_layer to "
+                    "download the whole country (large and slow).")}
+            result = {
+                "success": True, "iso3": iso3, "year": dataset.get("popyear"),
+                "download_url": file_urls[0], "local_path": tmp_path,
+                "clipped_to_bbox": list(size.get("window") or window),
+                "clipped_pixels": [size["width"], size["height"]],
+                "bytes_on_disk": os.path.getsize(tmp_path),
+            }
+            if size.get("clamped"):
+                result["clip_clamped"] = ("Part of the requested area lies outside the country's raster; only the "
+                                          "overlapping part was fetched.")
+            _LOOKUP_CACHE.set(cache_key, result)
+            return result
+
         req2 = urllib.request.Request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=300) as response2:
             raster_bytes = response2.read()
 
-        import os
-        import tempfile
         fd, tmp_path = tempfile.mkstemp(suffix=".tif")
         with os.fdopen(fd, "wb") as f:
             f.write(raster_bytes)
@@ -1218,11 +1364,34 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None) -> dict
         result = {
             "success": True, "iso3": iso3, "year": dataset.get("popyear"),
             "download_url": file_urls[0], "local_path": tmp_path,
+            "bytes_on_disk": len(raster_bytes),
+            "note": "The WHOLE-country raster was downloaded. Pass extent_layer (or bbox) to fetch only the "
+                    "area needed -- far smaller and faster.",
         }
         _LOOKUP_CACHE.set(cache_key, result)
         return result
     except Exception as e:
         return {"error": f"WorldPop API request failed: {e}"}
+
+
+def resolve_extent_bbox(layer_name):
+    """Main-thread helper: the WGS84 (min_lon, min_lat, max_lon, max_lat) extent of a project layer, or
+    raises ValueError. Kept out of the network phase, which has no qgis.core access."""
+    if not QGIS_AVAILABLE:
+        raise ValueError("QGIS not available")
+    layer = None
+    for candidate in QgsProject.instance().mapLayersByName(layer_name or ""):
+        layer = candidate
+        break
+    if layer is None:
+        raise ValueError(f"Layer '{layer_name}' not found")
+    extent = layer.extent()
+    if extent.isNull() or extent.isEmpty():
+        raise ValueError(f"Layer '{layer_name}' has no extent to clip to.")
+    wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+    if layer.crs().isValid() and layer.crs() != wgs84:
+        extent = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance()).transformBoundingBox(extent)
+    return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
 
 
 def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
@@ -1239,38 +1408,55 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     if not local_path or not QGIS_AVAILABLE:
         return {"success": True, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
 
-    layer_name = f"{fetch_result['iso3']}_population_{fetch_result.get('year')}"
+    clipped = bool(fetch_result.get("clipped_to_bbox"))
+    layer_name = f"{fetch_result['iso3']}_population_{fetch_result.get('year')}" + ("_area" if clipped else "")
     layer = QgsRasterLayer(local_path, layer_name)
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
-        return {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
+        out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
+        for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
+            if fetch_result.get(key) is not None:
+                out[key] = fetch_result[key]
+        if clipped:
+            out["clip_note"] = ("Only the requested area (plus a ~2 km margin) was fetched; population sums over "
+                                "areas inside it match the full-country raster. Areas outside it have no data.")
+        return out
 
     return {"success": True, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
 
 
 @register_tool(
     "fetch_worldpop_population",
-    "Download a country's gridded population raster from WorldPop (open, free population data at "
+    "Fetch a country's gridded population raster from WorldPop (open, free population data at "
     "~100m resolution) and load it as a layer -- an open-data approximation of what ArcGIS's "
-    "Business Analyst extension provides with proprietary demographic data. Files are large "
-    "(100MB-1GB+ depending on country size), so this can take a while. After loading, use "
+    "Business Analyst extension provides with proprietary demographic data. ALWAYS pass extent_layer "
+    "(a layer covering the area of interest, e.g. the catchment or admin boundary) or bbox: without "
+    "either, the WHOLE country is downloaded (100MB-1GB+, minutes). With one, only that area plus a ~2 km "
+    "margin is fetched and the layer is named <ISO3>_population_<year>_area. After loading, use "
     "estimate_population_exposure to sum population within a specific area.",
     {
         "type": "object",
         "properties": {
             "iso3": {"type": "string", "description": "3-letter ISO country code, e.g. 'YEM'."},
             "year": {"type": "string", "description": "Population year, e.g. '2020'. Omit to use the most recent available."},
+            "extent_layer": {"type": "string", "description": "Name of a project layer whose extent is the area to fetch (preferred -- handles any CRS)."},
+            "bbox": {"type": "array", "items": {"type": "number"}, "description": "Alternative to extent_layer: [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees."},
         },
         "required": ["iso3"],
     },
 )
-def fetch_worldpop_population(iso3: str, year: str = None):
+def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = None, bbox=None):
     """Does both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
     to keep the (potentially large, slow) download off the QGIS main GUI
     thread. No cleanup of the downloaded file -- see
     add_worldpop_population_layer_main_thread_phase for why."""
-    fetch_result = fetch_worldpop_population_network_phase(iso3, year)
+    if extent_layer and bbox is None:
+        try:
+            bbox = resolve_extent_bbox(extent_layer)
+        except ValueError as e:
+            return {"error": str(e)}
+    fetch_result = fetch_worldpop_population_network_phase(iso3, year, bbox)
     return add_worldpop_population_layer_main_thread_phase(fetch_result)
 
 

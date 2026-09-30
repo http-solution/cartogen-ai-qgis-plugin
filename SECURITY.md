@@ -698,8 +698,9 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   data-fetch tools (OSM/Geofabrik extracts, WorldPop rasters, geoBoundaries) download files from
   public hosts without a size prompt: rc7 pulled a 103 MB country extract with no confirmation,
   and `fetch_worldpop_population` downloads the whole-country raster even for a city-sized
-  analysis. Neither is fixed in rc8 (no download-size confirmation, no bbox clipping of the
-  WorldPop fetch) -- tracked as open items; until then treat any "fetch" tool as a potentially
+  analysis. Update 2026-09-30: passing `extent_layer`/`bbox` to `fetch_worldpop_population` now reads only that area
+  (GDAL `/vsicurl/`, restricted to `*.worldpop.org`), but the default without one is unchanged and no fetch tool
+  asks before a large download (tracked as open items). Until then treat any "fetch" tool as a potentially
   large download.
 
 ## Licensing note

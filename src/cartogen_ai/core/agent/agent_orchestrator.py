@@ -891,9 +891,17 @@ class CartogenAi:
         if name == "fetch_worldpop_population":
             from .tools.humanitarian_tools import (
                 fetch_worldpop_population_network_phase, add_worldpop_population_layer_main_thread_phase,
+                resolve_extent_bbox,
             )
+            wp_bbox = filtered_args.get("bbox")
+            if filtered_args.get("extent_layer") and wp_bbox is None:
+                # Needs QgsProject, so it runs on the main thread before the (background) download.
+                try:
+                    wp_bbox = self._run_on_main_thread(resolve_extent_bbox, filtered_args["extent_layer"])
+                except ValueError as e:
+                    return {"error": str(e)}
             fetch_result = fetch_worldpop_population_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("year")
+                filtered_args.get("iso3", ""), filtered_args.get("year"), wp_bbox
             )
             # No cleanup here, deliberately -- unlike fetch_geoboundaries above,
             # the downloaded file must stay on disk for as long as the raster
