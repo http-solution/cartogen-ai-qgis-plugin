@@ -108,3 +108,46 @@ class TestDashboardBackdrop(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestModelViewInRealQgis(unittest.TestCase):
+    """F21: get_layers and the map-context summary withhold field names of a protected layer under an enforcing gate
+    with a cloud provider, and show them for an open layer or a local provider."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        from cartogen_ai.core.models import model_view
+        self.addCleanup(model_view.set_policy_provider, None)
+        self.addCleanup(QgsProject.instance().clear)
+        layer = QgsVectorLayer("Point?crs=EPSG:4326&field=osm_id:integer&field=name:string", "Health", "memory")
+        QgsProject.instance().addMapLayer(layer)
+        from cartogen_ai.core.models import sensitivity
+        sensitivity.set_layer_sensitivity(layer, "SENSITIVE", "test")
+        self.layer = layer
+
+    def test_get_layers_withholds_the_fields_of_a_protected_layer(self):
+        from cartogen_ai.core.agent.tools.vector_tools import get_layers
+        from cartogen_ai.core.models import model_view
+        model_view.set_policy_provider(lambda: ("enforce", False, False))
+        entry = next(e for e in get_layers() if e["name"] == "Health")
+        self.assertEqual(entry["fields"], [])
+        self.assertTrue(entry["schema_hidden"])
+        self.assertIn("feature_count", entry)
+
+    def test_get_layers_shows_fields_to_a_local_provider(self):
+        from cartogen_ai.core.agent.tools.vector_tools import get_layers
+        from cartogen_ai.core.models import model_view
+        model_view.set_policy_provider(lambda: ("enforce", True, False))
+        entry = next(e for e in get_layers() if e["name"] == "Health")
+        self.assertEqual(entry["fields"], ["osm_id", "name"])
+
+    def test_the_map_context_summary_is_masked_the_same_way(self):
+        from cartogen_ai.core.agent.map_context import get_map_context_summary
+        from cartogen_ai.core.models import model_view
+        model_view.set_policy_provider(lambda: ("enforce", False, False))
+        ctx = get_map_context_summary()
+        entry = next(e for e in ctx["layers"] if e["name"] == "Health")
+        self.assertEqual(entry["fields"], [])
+        self.assertTrue(entry["schema_hidden"])

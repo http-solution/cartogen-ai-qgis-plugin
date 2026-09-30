@@ -48,13 +48,20 @@ def get_map_context_summary() -> dict:
                 except Exception:
                     feature_count = None
             layer_type = layer.type()
-            layers.append({
+            entry = {
                 "name": layer.name(),
                 "type": layer_type.name if hasattr(layer_type, "name") else str(layer_type),
                 "crs": layer.crs().authid() if layer.crs() else "",
                 "feature_count": feature_count,
                 "fields": fields,
-            })
+            }
+            try:
+                # F21: one rule for what the cloud model may see about a layer (models/model_view.py).
+                from ..models import model_view, sensitivity
+                entry = model_view.apply_to_layer_entry(entry, sensitivity.get_layer_sensitivity(layer).get("level"))
+            except Exception:
+                pass
+            layers.append(entry)
 
         active_layer = iface.activeLayer() if iface else None
         canvas = iface.mapCanvas() if iface else None

@@ -701,6 +701,8 @@ def _format_map_context(map_context: dict) -> str:
         lines.append(f"- **Loaded layers ({map_context.get('layer_count', len(layers))} total):**")
         for layer in layers:
             fields_str = f", fields: {layer['fields']}" if layer.get("fields") else ""
+            if layer.get("schema_hidden"):
+                fields_str = ", fields: (withheld: protected layer)"
             count_str = f", {layer['feature_count']} features" if layer.get("feature_count") is not None else ""
             lines.append(f"  - `{layer['name']}` ({layer.get('type', '?')}, {layer.get('crs', '?')}{count_str}{fields_str})")
         if map_context.get("truncated"):

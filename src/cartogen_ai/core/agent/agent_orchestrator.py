@@ -319,6 +319,11 @@ class CartogenAi:
         # Same turn-scoped reset lifecycle as _transaction_log above -- see plan_gate.py.
         self._plan_gate = PlanValidationGate()
 
+        # F21: what the cloud model may see about a protected layer (field names) follows the same egress-gate
+        # settings and provider as the gate itself; read lazily so a Settings change applies on the next call.
+        from ..models import model_view
+        model_view.set_policy_provider(self._model_view_policy)
+
         # Usage-pattern tracking (self-learning mechanism 3, 2026-09-02): one
         # provider-usage sample per session, since CartogenAi() is constructed
         # once per session (see _get_agent() in plugin_main.py). Feeds both the
@@ -451,6 +456,11 @@ class CartogenAi:
             return bool(QgsSettings().value(SETTINGS_PROJECT_INSPECTOR_ENABLED, False, type=bool))
         except Exception:
             return False
+
+    def _model_view_policy(self):
+        """(gate mode, provider is local, strict) for models/model_view.py."""
+        base_url = getattr(getattr(self, "client", None), "base_url", None)
+        return egress_gate.read_mode(), egress_gate.is_local_endpoint(base_url), egress_gate.read_strict()
 
     def _egress_gate_decision(self, name, filtered_args):
         """Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md): would
