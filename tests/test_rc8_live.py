@@ -19,12 +19,12 @@ _APP = None
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"rc8test"], False)
-        QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+    """Reuse test_chat_widget_live's QgsApplication -- one per process, as
+    test_network_units_live does. The first CI run of this module created a second
+    QgsApplication of its own and the job then segfaulted at exit (after 'OK'); a second
+    application object is a plausible, unproven contributor, so don't create one."""
+    from tests.test_chat_widget_live import _boot_qgis as _shared_boot
+    return _shared_boot()
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
