@@ -1452,6 +1452,11 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             result["direction_field"] = direction_field
         # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
         # of them as saved analysis output. State the truth so the model relays it.
+        result["hull_note"] = (
+            "The '..._service_area_N' polygons are CONVEX HULLS of the reached roads -- a display outline and an "
+            "UPPER BOUND on reach (they include land between the roads). Do not sum population inside them as "
+            "'people reached'; use population_access_gap (road-buffer reach) for that."
+        )
         result["storage_note"] = (
             "The layers created here are temporary (in-memory) layers: they are NOT saved to disk and "
             "are lost when QGIS closes unless exported (export_layer) or saved into a GeoPackage."
@@ -1630,6 +1635,60 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return _cancelled_result("travel-time matrix")
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}
+
+
+# ---- population reach geometry (F09) ---------------------------------------------------------------
+#
+# rc7 smoke test F09 (2026-09-30): the population counted as reached (778,156) was summed inside the
+# CONVEX HULL of the reached roads. A convex hull fills every gap between the roads -- valleys, water,
+# empty land and districts the roads never enter -- so it overstates who can be reached, and in a
+# humanitarian access-gap statistic that flatters the coverage. The reach polygon used for population
+# is now the reached roads buffered by reach_buffer_m (default = the snap distance classify_facilities_by_access
+# uses), which only covers land within walking distance of a road the travel cost actually reaches.
+# The convex hull stays available as reach_geometry="convex_hull" and is labelled an upper bound.
+ROAD_BUFFER_REACH_NOTE = (
+    "Reach polygon = the roads reached within the travel cost, buffered by {m:g} m. People farther than that "
+    "from a reached road are counted as NOT reached, so the figure is conservative near the edge of the network "
+    "and can undercount settlements served by tracks the road layer lacks."
+)
+CONVEX_HULL_REACH_NOTE = (
+    "Reach polygon = the CONVEX HULL of the reached roads: an UPPER BOUND that also counts the land between the "
+    "roads, so 'people reached' is overstated and the gap understated. Use reach_geometry='road_buffer' for a "
+    "defensible figure."
+)
+
+
+def _utm_epsg_for(lon, lat):
+    """EPSG code of the WGS84 UTM zone containing (lon, lat) -- a metric CRS to buffer in. Pure."""
+    zone = int((float(lon) + 180.0) // 6) + 1
+    zone = max(1, min(60, zone))
+    return (32600 if float(lat) >= 0 else 32700) + zone
+
+
+def _road_reach_polygon(line_layers, buffer_m, name):
+    """One dissolved polygon layer (in the lines' CRS) covering every point within buffer_m metres of the
+    reached roads. Buffered in the local UTM zone, so the distance is real metres whatever the road layer's CRS."""
+    if len(line_layers) > 1:
+        merged = processing.run(
+            "native:mergevectorlayers",
+            {"LAYERS": line_layers, "CRS": line_layers[0].crs().authid(), "OUTPUT": "memory:"},
+        )["OUTPUT"]
+    else:
+        merged = line_layers[0]
+    src_crs = merged.crs()
+    centre = QgsCoordinateTransform(src_crs, QgsCoordinateReferenceSystem("EPSG:4326"),
+                                    QgsProject.instance()).transform(merged.extent().center())
+    metric = QgsCoordinateReferenceSystem(f"EPSG:{_utm_epsg_for(centre.x(), centre.y())}")
+    projected = processing.run("native:reprojectlayer",
+                               {"INPUT": merged, "TARGET_CRS": metric, "OUTPUT": "memory:"})["OUTPUT"]
+    buffered = processing.run("native:buffer", {
+        "INPUT": projected, "DISTANCE": float(buffer_m), "SEGMENTS": 8, "END_CAP_STYLE": 0,
+        "JOIN_STYLE": 0, "MITER_LIMIT": 2, "DISSOLVE": True, "OUTPUT": "memory:",
+    })["OUTPUT"]
+    back = processing.run("native:reprojectlayer",
+                          {"INPUT": buffered, "TARGET_CRS": src_crs, "OUTPUT": "memory:"})["OUTPUT"]
+    back.setName(name)
+    return back
 
 
 # ---- which facilities are within / beyond a travel cost (F08) --------------------------------------
@@ -1822,7 +1881,10 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
     "coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population "
     "raster available (see fetch_worldpop_population). As a side effect of calling "
     "calculate_service_area internally, per-facility service-area polygons are also added to the "
-    "project, plus the combined reachable-area layer this tool builds from them. Returns a MODELED "
+    "project, plus the combined reachable-area layer this tool builds from them. The reach polygon is the "
+    "reached roads buffered by reach_buffer_m (default 500 m), NOT a convex hull: a hull fills the land between "
+    "the roads and overstates who is reached (reach_geometry='convex_hull' exists only as a labelled upper "
+    "bound for comparison). Returns a MODELED "
     "estimate -- network-based reachability against a gridded population raster, not a verified count "
     "of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', "
     "not as a confirmed access-gap figure.",
@@ -1836,13 +1898,25 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
             "travel_cost": {"type": "number", "description": "Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'."},
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
             "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
+            "reach_geometry": {"type": "string", "description": "'road_buffer' (default): people within reach_buffer_m of a road reached inside the travel cost. 'convex_hull': the hull of the reached roads -- an UPPER BOUND that overstates who is reached; only for comparison."},
+            "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for reach_geometry='road_buffer'. Defaults to 500."},
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
 )
-def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50):
+def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
+                          reach_geometry="road_buffer", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    reach_geometry = (reach_geometry or "road_buffer").lower()
+    if reach_geometry not in ("road_buffer", "convex_hull"):
+        return {"error": "reach_geometry must be 'road_buffer' or 'convex_hull'."}
+    try:
+        reach_buffer_m = float(reach_buffer_m)
+    except (TypeError, ValueError):
+        return {"error": "reach_buffer_m must be a number of metres."}
+    if reach_buffer_m <= 0:
+        return {"error": "reach_buffer_m must be greater than zero."}
 
     area = _find_layer_by_name(area_layer)
     if area is None:
@@ -1857,39 +1931,48 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         return service_result
 
     # calculate_service_area names lines layers "..._service_area_lines_{i}"
-    # and hull layers "..._service_area_{i}" -- only the hulls (the actual
-    # reachable-area polygons) are wanted here.
-    hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
-    hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
-    if not hull_layers:
-        return {"error": "calculate_service_area produced no reachable-area polygons to check coverage against."}
+    # and hull layers "..._service_area_{i}".
+    reachable_name = f"{facility_layer}_reachable_area"
+    if reach_geometry == "road_buffer":
+        line_names = [n for n in service_result["layers_created"] if "_lines_" in n]
+        line_layers = [layer for layer in (_find_layer_by_name(n) for n in line_names) if layer is not None]
+        if not line_layers:
+            return {"error": "calculate_service_area produced no reached-road layer to build the reach polygon from."}
+        reach_note = ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
+    else:
+        hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
+        hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
+        if not hull_layers:
+            return {"error": "calculate_service_area produced no reachable-area polygons to check coverage against."}
+        reach_note = CONVEX_HULL_REACH_NOTE
 
     try:
-        if len(hull_layers) > 1:
-            merge_result = processing.run(
-                "native:mergevectorlayers",
-                {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
-            )
-            merged = merge_result["OUTPUT"]
+        if reach_geometry == "road_buffer":
+            reachable = _road_reach_polygon(line_layers, reach_buffer_m, reachable_name)
         else:
-            merged = hull_layers[0]
+            if len(hull_layers) > 1:
+                merge_result = processing.run(
+                    "native:mergevectorlayers",
+                    {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
+                )
+                merged = merge_result["OUTPUT"]
+            else:
+                merged = hull_layers[0]
 
-        # Dissolve away overlaps between facilities' service areas -- a
-        # location reachable from two facilities must only count once, not
-        # be double-counted or need per-facility attribution here.
-        dissolve_result = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})
-        reachable = dissolve_result["OUTPUT"]
-        reachable_name = f"{facility_layer}_reachable_area"
-        reachable.setName(reachable_name)
-        QgsProject.instance().addMapLayer(reachable)
+            # Dissolve away overlaps between facilities' service areas -- a
+            # location reachable from two facilities must only count once, not
+            # be double-counted or need per-facility attribution here.
+            dissolve_result = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})
+            reachable = dissolve_result["OUTPUT"]
+            reachable.setName(reachable_name)
+        _replace_named_layer(reachable_name, reachable)
 
         intersect_result = processing.run(
             "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"}
         )
         reachable_within_area = intersect_result["OUTPUT"]
         reachable_within_area_name = f"{area_layer}_reachable_by_{facility_layer}"
-        reachable_within_area.setName(reachable_within_area_name)
-        QgsProject.instance().addMapLayer(reachable_within_area)
+        _replace_named_layer(reachable_within_area_name, reachable_within_area)
     except Exception as e:
         return {"error": f"population_access_gap geometry processing failed: {e}"}
 
@@ -1931,6 +2014,9 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "gap_percent": gap_pct,
         "reachable_area_layer": reachable_name,
         "reachable_within_area_layer": reachable_within_area_name,
+        "reach_geometry": reach_geometry,
+        "reach_note": reach_note,
+        "is_upper_bound_on_reach": reach_geometry == "convex_hull",
         # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: this
         # is a modeled gap (network reachability vs. a gridded population raster),
         # not a verified count of people confirmed to lack access -- carried

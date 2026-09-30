@@ -55,3 +55,22 @@ class TestToolIsWired(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReachGeometryHelpers(unittest.TestCase):
+    """F09: population is summed inside the buffered roads, not the convex hull (rc7 smoke test)."""
+
+    def test_utm_zone_for_sanaa(self):
+        self.assertEqual(lt._utm_epsg_for(44.036, 15.958), 32638)
+
+    def test_southern_hemisphere_uses_the_327xx_series(self):
+        self.assertEqual(lt._utm_epsg_for(151.2, -33.9), 32756)
+
+    def test_antimeridian_and_extremes_stay_in_range(self):
+        self.assertEqual(lt._utm_epsg_for(-180, 0), 32601)
+        self.assertEqual(lt._utm_epsg_for(180, 0), 32660)
+        self.assertEqual(lt._utm_epsg_for(0, 0), 32631)
+
+    def test_hull_note_says_upper_bound_and_buffer_note_names_the_distance(self):
+        self.assertIn("UPPER BOUND", lt.CONVEX_HULL_REACH_NOTE)
+        self.assertIn("500 m", lt.ROAD_BUFFER_REACH_NOTE.format(m=500))
