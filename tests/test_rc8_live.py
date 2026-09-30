@@ -53,5 +53,44 @@ class TestAddPointLayerConvertsInCode(unittest.TestCase):
         self.assertEqual(feature_count, 0, res)
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestLayerTreeHasOneNodePerLayer(unittest.TestCase):
+    """F07: 10 tree nodes for 7 layers. insert_layer_semantically added a second node for a layer
+    the tool had already added with addMapLayer(), and a re-run left an orphan node."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _counts(self):
+        root = QgsProject.instance().layerTreeRoot()
+        nodes = root.findLayers()
+        orphans = [n for n in nodes if n.layer() is None]
+        return len(nodes), len(QgsProject.instance().mapLayers()), len(orphans)
+
+    def _memory_layer(self, name):
+        from qgis.core import QgsVectorLayer
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326", name, "memory")
+        self.assertTrue(layer.isValid())
+        return layer
+
+    def test_semantic_insertion_reuses_the_existing_node(self):
+        from cartogen_ai.core.agent.map_intelligence import MapOutputDescriptor, insert_layer_semantically
+        layer = self._memory_layer("lines")
+        QgsProject.instance().addMapLayer(layer)
+        insert_layer_semantically(layer, MapOutputDescriptor(layer_id=layer.id(), output_role="route_line"))
+        self.assertEqual(self._counts(), (1, 1, 0))
+
+    def test_rerun_with_replace_named_layer_leaves_no_orphan(self):
+        from cartogen_ai.core.agent.map_intelligence import MapOutputDescriptor, insert_layer_semantically
+        from cartogen_ai.core.agent.tools.logistics_tools import _replace_named_layer
+        for _ in range(2):   # the second pass is the "re-run the same analysis" case
+            layer = self._memory_layer("x")
+            _replace_named_layer("service_area_lines_0", layer)
+            insert_layer_semantically(layer, MapOutputDescriptor(layer_id=layer.id(), output_role="route_line"))
+        self.assertEqual(self._counts(), (1, 1, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
