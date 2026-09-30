@@ -10,12 +10,11 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from qgis.core import QgsApplication, QgsProject
+    from qgis.core import QgsProject
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
 
 
 def _boot_qgis():
