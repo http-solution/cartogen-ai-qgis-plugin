@@ -120,7 +120,11 @@ class TestRoadBufferReachPolygon(unittest.TestCase):
     def test_buffered_reach_is_smaller_than_the_hull_and_still_covers_the_roads(self):
         from qgis.core import QgsGeometry, QgsPointXY
         lines = self._lines()
-        reach = self.lt._road_reach_polygon(lines, 300.0, "reach")
+        # 50 m against ~220 m road spacing: a buffer narrower than the gaps between roads, which is the
+        # case where a hull overstates. (A 300 m buffer here came out LARGER than the hull -- 16.3 vs 12.0
+        # km2 in CI -- because on a dense grid the buffer adds a margin past the last road and fills every
+        # gap; see ROAD_BUFFER_REACH_NOTE.)
+        reach = self.lt._road_reach_polygon(lines, 50.0, "reach")
         self.assertGreater(reach.featureCount(), 0)
         import processing
         hull = processing.run("native:convexhull", {"INPUT": lines[0], "OUTPUT": "memory:"})["OUTPUT"]

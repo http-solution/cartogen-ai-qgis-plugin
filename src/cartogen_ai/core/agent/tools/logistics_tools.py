@@ -1647,9 +1647,10 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
 # uses), which only covers land within walking distance of a road the travel cost actually reaches.
 # The convex hull stays available as reach_geometry="convex_hull" and is labelled an upper bound.
 ROAD_BUFFER_REACH_NOTE = (
-    "Reach polygon = the roads reached within the travel cost, buffered by {m:g} m. People farther than that "
-    "from a reached road are counted as NOT reached, so the figure is conservative near the edge of the network "
-    "and can undercount settlements served by tracks the road layer lacks."
+    "Reach polygon = the roads reached within the travel cost, buffered by {m:g} m. Land farther than that from every "
+    "reached road is counted as NOT reached, which removes the empty land a convex hull would add between sparse "
+    "roads. In a DENSE road network the buffer also reaches up to {m:g} m past the last reached road, so it can be "
+    "as large as or larger than a hull there; it can undercount settlements on tracks missing from the road layer."
 )
 CONVEX_HULL_REACH_NOTE = (
     "Reach polygon = the CONVEX HULL of the reached roads: an UPPER BOUND that also counts the land between the "
