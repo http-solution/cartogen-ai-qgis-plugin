@@ -82,13 +82,16 @@ class TestInsertLayerSemanticallyDoesNotDuplicate(unittest.TestCase):
         self.assertTrue(mi.insert_layer_semantically(layer, self._descriptor("buffer", "facilities")))
         self.assertEqual([n.layer_id for n in self.root.children()], ["buffer"])
 
-    def test_moving_an_existing_node_lands_it_at_the_requested_end(self):
+    def test_an_existing_node_is_left_where_it_is_and_never_removed(self):
+        """A first attempt moved the node (remove + re-insert); two live service-area tests then
+        could not find their layers in the project. Nothing may be removed from the tree."""
         for lid in ("a", "b", "c"):
             self.project.addMapLayer(_layer(lid))        # tree is now c, b, a (top first)
-        mi.insert_layer_semantically(_layer("c"), self._descriptor("c", "thematic_choropleth"))
-        self.assertEqual([n.layer_id for n in self.root.children()], ["b", "a", "c"])
-        mi.insert_layer_semantically(_layer("a"), self._descriptor("a", "facilities"))
-        self.assertEqual([n.layer_id for n in self.root.children()], ["a", "b", "c"])
+        with patch.object(self.root, "removeChildNode", wraps=self.root.removeChildNode) as removed:
+            mi.insert_layer_semantically(_layer("c"), self._descriptor("c", "thematic_choropleth"))
+            mi.insert_layer_semantically(_layer("a"), self._descriptor("a", "facilities"))
+        removed.assert_not_called()
+        self.assertEqual([n.layer_id for n in self.root.children()], ["c", "b", "a"])
 
     def test_calling_it_repeatedly_never_grows_the_tree(self):
         layer = _layer("x")

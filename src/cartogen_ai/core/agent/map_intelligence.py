@@ -122,16 +122,22 @@ def insert_layer_semantically(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
         project.addMapLayer(layer, True)
         return True
 
-    # Register in project without auto-adding to tree root -- unless the caller already added
-    # the layer the ordinary way (addMapLayer(layer) / _replace_named_layer), which has already
-    # given it a tree node. rc7 smoke test F07: this function used to insert a SECOND node for
-    # such a layer; calculate_service_area's lines/hull layers and optimize_delivery_route's
-    # route layer all arrive that way, so each was listed twice (10 nodes for 7 layers), and a
-    # later removeMapLayer() on a re-run removed only one of the pair, leaving an orphan node
-    # whose layer() is None -- both saved into the .qgz. The existing node is moved instead.
-    existing_node = root.findLayer(layer.id())
-    if existing_node is None:
-        project.addMapLayer(layer, False)
+    # A layer the caller already added the ordinary way (addMapLayer(layer) /
+    # _replace_named_layer) already has a tree node. rc7 smoke test F07: this function used to
+    # insert a SECOND node for such a layer; calculate_service_area's lines/hull layers and
+    # optimize_delivery_route's route layer all arrive that way, so each was listed twice (10 nodes
+    # for 7 layers), and a later removeMapLayer() on a re-run removed only one of the pair, leaving
+    # an orphan node whose layer() is None -- both saved into the .qgz. Leave such a layer's node
+    # where it is. Moving it was tried first and broke two live service-area tests in CI (the
+    # layers were no longer found in the project afterwards); the cause was not established --
+    # the likely one is that removing a layer's tree node goes through QGIS's layer-tree/registry
+    # bridge, which can delete the layer itself. So the semantic position is
+    # only applied to layers that have no node yet (buffer_analysis's output, for one).
+    if root.findLayer(layer.id()) is not None:
+        return True
+
+    # Register in project without auto-adding to tree root
+    project.addMapLayer(layer, False)
 
     target_parent = root
     insert_index = 0  # default to top
@@ -171,14 +177,6 @@ def insert_layer_semantically(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
         else:
             insert_index = len(target_parent.children())
 
-    if existing_node is not None:
-        old_parent = existing_node.parent()
-        if old_parent is not None:
-            if old_parent is target_parent:
-                # removing the old node shifts everything after it up by one
-                if old_parent.children().index(existing_node) < insert_index:
-                    insert_index -= 1
-            old_parent.removeChildNode(existing_node)
     insert_index = max(0, min(insert_index, len(target_parent.children())))
     target_parent.insertChildNode(insert_index, QgsLayerTreeLayer(layer))
     return True
