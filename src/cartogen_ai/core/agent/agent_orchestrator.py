@@ -49,7 +49,7 @@ from . import tool_operations
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
-from ..services import learning
+from ..services import learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
@@ -1131,6 +1131,23 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
+    def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
+        """Appends a visible warning when the final answer contains a data table but a call this
+        turn is still pending (waiting for the user, or blocked) or ended in an unresolved error --
+        the table cannot have come from that call. Also counts a gate task still awaiting
+        Confirm from an earlier turn. See services/response_guard.py (rc7 smoke test F03)."""
+        pending = list(turn_pending)
+        try:
+            pending += [t.get("pending_tool") for t in self.task_manager.tasks
+                        if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
+        except Exception:
+            pass
+        failed = []
+        for i, (name, is_error, _msg) in enumerate(turn_tool_log):
+            if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
+                failed.append(name)
+        return response_guard.apply_unbacked_data_warning(final_text, pending, failed)
+
     def _sandbox_flailing_nudge(self, turn_tool_log):
         """Returns a corrective message to inject mid-turn, or None, when the most recent
         SANDBOX_FLAILING_THRESHOLD entries in turn_tool_log are all execute_pyqgis_script
@@ -1253,6 +1270,9 @@ class CartogenAi:
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
+        # have not since succeeded -- feeds response_guard's unbacked-data warning below.
+        turn_pending = []
         # One-shot flag for _sandbox_flailing_nudge below -- the nudge is a single course-
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
@@ -1296,6 +1316,7 @@ class CartogenAi:
                 else:
                     final_text = content
                 final_text = self._reconcile_final_text_with_tool_log(final_text, turn_tool_log)
+                final_text = self._guard_unbacked_data(final_text, turn_tool_log, turn_pending)
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
 
@@ -1340,8 +1361,16 @@ class CartogenAi:
                 _tool_start = time.monotonic()
                 tool_result = self._execute_tool(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
+                # Put "this call did not run" into the data the model reasons over, not only
+                # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
+                tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = isinstance(tool_result, dict) and "error" in tool_result
                 turn_tool_log.append((name, is_error, tool_result.get("error") if is_error else None))
+                _status = tool_result.get("status") if isinstance(tool_result, dict) else None
+                if _status in response_guard.NOT_RUN_STATUSES:
+                    turn_pending.append(name)
+                elif not is_error and name in turn_pending:
+                    turn_pending = [n for n in turn_pending if n != name]
                 if is_error:
                     error_class = tool_result.get("error_class", "ToolError") if isinstance(tool_result, dict) else "ToolError"
                     log_event("tool_call", tag="Agent", tool=name, status="failed",
