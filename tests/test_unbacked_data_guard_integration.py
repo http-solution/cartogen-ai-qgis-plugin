@@ -57,7 +57,7 @@ class TestUnbackedDataGuardInRun(unittest.TestCase):
         text, _ = _run({"status": "PREVIEW_REQUIRED", "rationale": "protected data"})
         self.assertIn("No data was retrieved", text)
         self.assertIn("execute_pyqgis_script", text)
-        self.assertTrue(text.startswith(FAKE_ROWS.rstrip()))
+        self.assertNotIn("368412095", text)  # rows no tool produced are replaced by a notice
 
     def test_the_model_is_told_inside_the_tool_result_that_the_call_did_not_run(self):
         _, client = _run({"status": "PREVIEW_REQUIRED", "rationale": "protected data"})
@@ -86,6 +86,18 @@ class TestUnbackedDataGuardInRun(unittest.TestCase):
         task["pending_tool"] = "execute_pyqgis_script"
         text, _ = _run({"success": True}, task_manager=tm)
         self.assertIn("No data was retrieved", text)
+
+
+class TestConfirmationProseInRun(unittest.TestCase):
+    def test_the_models_own_confirm_request_is_dropped_when_a_gate_card_is_pending(self):
+        text, _ = _run({"status": "PREVIEW_REQUIRED", "rationale": "protected data"},
+                       final_text="The read is pending.\nPlease reply with Confirm to proceed.")
+        self.assertIn("pending", text)
+        self.assertNotIn("reply with Confirm", text)
+
+    def test_the_same_text_is_kept_when_nothing_is_pending(self):
+        text, _ = _run({"success": True}, final_text="Please reply with Confirm to proceed.")
+        self.assertIn("reply with Confirm", text)
 
 
 if __name__ == "__main__":

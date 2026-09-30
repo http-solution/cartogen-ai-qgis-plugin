@@ -1155,7 +1155,13 @@ class CartogenAi:
         for i, (name, is_error, _msg) in enumerate(turn_tool_log):
             if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
                 failed.append(name)
-        return response_guard.apply_unbacked_data_warning(final_text, pending, failed)
+        data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
+                            for name, is_error, _msg in turn_tool_log)
+        final_text = response_guard.apply_unbacked_data_warning(final_text, pending, failed, data_tool_ran)
+        if pending:
+            # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
+            final_text = response_guard.strip_confirmation_prose(final_text)
+        return final_text
 
     def _sandbox_flailing_nudge(self, turn_tool_log):
         """Returns a corrective message to inject mid-turn, or None, when the most recent
