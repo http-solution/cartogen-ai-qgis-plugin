@@ -164,13 +164,14 @@ Render one PNG frame per time step from a layer with start/end period fields alr
 
 ### `export_to_csv`
 
-Export layer attribute table to CSV file. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project isn't saved yet), under a clean, sanitized file name derived from the layer's own name. Never prompts interactively. If features are selected on the layer, only selected features are exported by default.
+Export layer attribute table to CSV file. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project isn't saved yet), under a clean, sanitized file name derived from the layer's own name. Never prompts interactively. If features are selected on the layer, only selected features are exported by default. Point layers get X and Y columns (in the layer's CRS) instead of a WKT column unless wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `output_path` | string | no |  |
 | `only_selected` | boolean | no |  |
+| `wkt_geometry` | boolean | no | Point layers only: write a WKT geometry column instead of X/Y columns. |
 
 ### `generate_html_dashboard`
 
@@ -180,7 +181,7 @@ Generate an interactive HTML situation dashboard (Leaflet/Folium map with layer 
 |---|---|---|---|
 | `layers` | array[object] | yes | One or more layers to include, each rendered as its own toggleable overlay. |
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
-| `output_path` | string | no | Where to save the HTML file. Defaults to a temp file. |
+| `output_path` | string | no | Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path. |
 | `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
 
 ### `generate_report`
@@ -211,7 +212,7 @@ Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or m
 |---|---|---|---|
 | `layers` | array[object] | yes | One or more layers. At least one must set start_field. |
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
-| `output_path` | string | no | Where to save the HTML file. Defaults to a temp file. |
+| `output_path` | string | no | Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path. |
 | `step_days` | integer | no | Slider step size / play-button advance, in days. Defaults to 30. |
 | `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
 
@@ -252,6 +253,7 @@ Create a new point layer (or append to an existing one with the same name) from 
 |---|---|---|---|
 | `layer_name` | string | yes | Name for the layer, e.g. 'Foreign Embassies'. |
 | `points` | array[object] | yes | List of points to add, e.g. [{"lat": 31.95, "lon": 35.93, "name": "Embassy of France", "description": "Amman", "category": "High"}]. |
+| `crs` | string | no | CRS the point coordinates are in, e.g. "EPSG:3857" or "EPSG:32636". Omit ONLY when the coordinates are already lon/lat degrees. If the user gave projected coordinates (large numbers such as 4902068, 1799912), pass them UNCHANGED with their CRS (the project CRS unless the user says otherwise) -- the code converts them exactly. NEVER convert coordinates yourself. |
 
 ### `fetch_building_footprints` _(two-phase)_
 
@@ -1106,7 +1108,7 @@ Store persistent global preference/note across sessions.
 
 ### `store_project_memory` _(task-management)_
 
-Store persistent key-value note for current project.
+Store persistent key-value note for current project. Only when the user asked you to remember something; never store coordinates or data values.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

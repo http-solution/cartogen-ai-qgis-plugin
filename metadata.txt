@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc7
+version=1.16.0-rc8
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,18 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc7 (2026-09-28):
+changelog=v1.16.0-rc8 (2026-09-30):
+    Release candidate 8 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc7 interactive Yemen smoke test (findings F01-F25, GitHub issues #72-#97). Mostly verified by offline unit tests only; QGIS-side behaviour is unverified until the next live smoke test.
+    - Fix: execute_pyqgis_script's isolated snapshot no longer renames the live project or clears its dirty flag (F01).
+    - Fix: confirming a cloud-data (egress) gate preview now works, survives a re-plan, and no longer injects `confirmed` into tools that do not accept it (F02).
+    - Fix: the reply no longer presents tables/results for tool calls that never ran; a "No data was retrieved" warning is appended, and new prompt rules forbid inventing results, hand-converting coordinates and unrequested memory notes (F03, F14, F23).
+    - Fix: add_point_layer takes a `crs` and converts projected coordinates in code (an EPSG:3857 origin had landed ~1.3 km off); the local-data offer no longer reads implausible request coordinates as the project CRS (F04, F20).
+    - Fix: calculate_service_area ignores a speed_field that is mostly empty, flags a 1-metre "1 hour" cost, and never replaces a good result with a zero-length one (F05).
+    - Fix: destructive confirmations require an explicit word (a casual "yes" no longer confirms) and typed confirmations expire after 10 minutes (F16).
+    - Fix: the unrequested output "nudge" only fires for an output the user named (F10); expired canvas highlights are removed from the scene (F11); memory notes containing coordinates are refused and an empty Memory dialog explains itself (F23, F24).
+    - Change: dashboards default to a timestamped file under data/20_processed/dashboards and show the sampling notice inside the HTML; CSV export writes a UTF-8 BOM and X/Y columns for point layers (F12, F13). Service-area results say their layers are temporary (F06). Sensitivity dialog confirms success (F15).
+    - Not fixed in rc8 (open): layer-tree duplicate nodes (F07), 43-minute routing (F08), convex-hull exposure geometry (F09), whole-country WorldPop fetch and silent large downloads (F19, F22), per-turn token display, marker clustering, chat-history export completeness (F25).
+    v1.16.0-rc7 (2026-09-28):
     Release candidate 7 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Everything merged to main since rc6 (PRs #43-#69).
     - Fix: execute_pyqgis_script's isolation worker could hang to the full timeout with no diagnostic on Windows (a wrong interpreter resolving to the QGIS binary itself, ModuleNotFoundError('qgis') from a missing PYTHONPATH entry, a Windows-only select() bug losing stderr, and a too-short handshake timeout for a real desktop cold start) -- all four root-caused and fixed, plus a blank console window during the worker's spawn suppressed.
     - Fix: a local-data download offer could lose track of the original request entirely on a one-letter typo in the reply ("dowmload"), and could name the wrong region -- a neighboring country, or literal (0,0) -- by reading the QGIS canvas's current view centre instead of the coordinate the request itself named.
