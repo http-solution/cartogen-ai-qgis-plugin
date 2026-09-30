@@ -260,7 +260,7 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
     reported as its own error rather than silently leaving unsanitized output in place."""
     import csv
     try:
-        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
             rows = list(csv.reader(f))
         if not rows:
             return None
@@ -280,6 +280,28 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
         return None
     except Exception as e:
         return f"Export succeeded but CSV formula-injection sanitization failed: {e}"
+
+
+def _ensure_utf8_bom(csv_path):
+    """Prefix the file with a UTF-8 BOM if it has none. rc7 smoke test F13: Excel opens a BOM-less
+    UTF-8 CSV as the local ANSI codepage, so Arabic (and any non-ASCII) place names arrive as
+    mojibake. Other tools (QGIS, pandas, GDAL) read a BOM transparently."""
+    try:
+        with open(csv_path, "rb") as f:
+            data = f.read()
+        if not data.startswith(b"\xef\xbb\xbf"):
+            with open(csv_path, "wb") as f:
+                f.write(b"\xef\xbb\xbf" + data)
+        return None
+    except Exception as e:
+        return f"Export succeeded but adding the UTF-8 BOM failed: {e}"
+
+
+def _csv_geometry_option(is_point_layer, wkt_geometry=False):
+    """OGR CSV GEOMETRY option. Point layers get plain X/Y columns (F13: a WKT 'POINT (..)' string
+    is unusable for a spreadsheet user or a pivot table); other geometry types keep WKT, the only
+    lossless text form. wkt_geometry=True is the opt-out for points."""
+    return "AS_WKT" if (wkt_geometry or not is_point_layer) else "AS_XY"
 
 
 def _sanitize_filename(name):
@@ -356,18 +378,24 @@ def _derive_csv_path(layer, output_path):
                "omit it to save under the project's data/20_processed folder (or the QGIS profile "
                "folder if the project isn't saved yet), under a clean, sanitized file name derived "
                "from the layer's own name. Never prompts interactively. "
-               "If features are selected on the layer, only selected features are exported by default.",
-               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
-def export_to_csv(layer_name, output_path=None, only_selected=None):
+               "If features are selected on the layer, only selected features are exported by default. "
+               "Point layers get X and Y columns (in the layer's CRS) instead of a WKT column unless "
+               "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
+               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
+def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     path, used_fallback = _derive_csv_path(layer, output_path)
+    try:
+        is_point = QGIS_AVAILABLE and layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry
+    except Exception:
+        is_point = False
     result = _write_vector(
         layer,
         path,
         "CSV",
-        layer_options=["GEOMETRY=AS_WKT", "SEPARATOR=COMMA"],
+        layer_options=[f"GEOMETRY={_csv_geometry_option(is_point, wkt_geometry)}", "SEPARATOR=COMMA"],
         only_selected=only_selected,
     )
     if result.get("success"):
@@ -375,6 +403,11 @@ def export_to_csv(layer_name, output_path=None, only_selected=None):
         sanitize_error = _sanitize_csv_formula_injection(path, string_field_names)
         if sanitize_error:
             return {"error": sanitize_error}
+        bom_error = _ensure_utf8_bom(path)
+        if bom_error:
+            return {"error": bom_error}
+        if is_point and not wkt_geometry:
+            result["geometry_columns"] = f"X and Y in the layer CRS ({layer.crs().authid()})"
         if used_fallback:
             result["note"] = f"No output_path given -- saved under {os.path.dirname(path)}."
     return result
@@ -1770,7 +1803,7 @@ def _write_layer_geojson_wgs84(layer, output_path):
                 "description": "One or more layers to include, each rendered as its own toggleable overlay.",
             },
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
-            "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a temp file."},
+            "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
             "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
         },
         "required": ["layers"],
@@ -1825,9 +1858,9 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None):
         if "error" in result:
             return result
 
-        out_path = output_path or _temp_html_path()
+        out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(result["html"])
+            f.write(_inject_notices(result["html"], size_warnings))
 
         response = {
             "success": True,
@@ -1864,6 +1897,39 @@ def _temp_html_path():
     fd, path = tempfile.mkstemp(suffix=".html")
     os.close(fd)
     return path
+
+
+def _dashboard_output_path(title, now=None):
+    """Default dashboard location: a readable, timestamped file under the project's
+    data/20_processed/dashboards (or the profile folder for an unsaved project).
+
+    rc7 smoke test F12: the default was an anonymous file in the OS temp folder
+    (tmpXXXXXXXX.html) that the user could not find again and the OS may delete. Falls back to the
+    temp path only if the folder cannot be created."""
+    import datetime
+    try:
+        folder = _default_export_dir("dashboards")
+        stamp = (now or datetime.datetime.now()).strftime("%Y%m%d_%H%M%S")
+        return os.path.join(folder, f"{_sanitize_filename(title or 'dashboard')}_{stamp}.html")
+    except Exception:
+        return _temp_html_path()
+
+
+def _inject_notices(html, notices):
+    """Show the cap/simplification notices inside the HTML file itself (F12): the warning used to
+    live only in the chat reply, so anyone opening the shared file saw a subset of the data with no
+    indication it was a subset."""
+    if not notices:
+        return html
+    import html as _html
+    box = (
+        '<div style="position:fixed;bottom:8px;left:8px;z-index:99999;max-width:420px;'
+        'background:#fff8e1;border:1px solid #f0c36d;border-radius:4px;padding:6px 10px;'
+        'font:12px/1.4 sans-serif;color:#5b4300">'
+        + "<br>".join(_html.escape(n) for n in notices) + "</div>"
+    )
+    idx = html.lower().rfind("</body>")
+    return html[:idx] + box + html[idx:] if idx != -1 else html + box
 
 
 @register_tool(
@@ -1919,7 +1985,7 @@ def _temp_html_path():
                 "description": "One or more layers. At least one must set start_field.",
             },
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
-            "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a temp file."},
+            "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
             "step_days": {"type": "integer", "description": "Slider step size / play-button advance, in days. Defaults to 30."},
             "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
         },
@@ -1976,9 +2042,9 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
         if "error" in result:
             return result
 
-        out_path = output_path or _temp_html_path()
+        out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(result["html"])
+            f.write(_inject_notices(result["html"], size_warnings))
 
         response = {
             "success": True,
