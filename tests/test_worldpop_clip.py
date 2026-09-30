@@ -40,6 +40,28 @@ class TestParseAndPadBbox(unittest.TestCase):
         self.assertEqual(ht.pad_bbox((-180, -90, 180, 90), 1), (-180.0, -90.0, 180.0, 90.0))
 
 
+class TestWindowInsideRaster(unittest.TestCase):
+    """gdal.Translate(projWin) does not fail for a window outside the raster -- it writes an empty
+    raster -- so the overlap is checked first (found by the first CI run of the live clip test)."""
+    RASTER = (40.0, 10.0, 50.0, 20.0)
+
+    def test_inside_is_unchanged(self):
+        self.assertEqual(ht._window_inside_raster((42, 14, 44, 16), self.RASTER), ((42, 14, 44, 16), False))
+
+    def test_partly_outside_is_clamped(self):
+        self.assertEqual(ht._window_inside_raster((48, 14, 55, 16), self.RASTER), ((48, 14, 50, 16), True))
+
+    def test_entirely_outside_raises_naming_the_raster_extent(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            ht._window_inside_raster((100, 50, 101, 51), self.RASTER)
+        self.assertIn("does not overlap the raster", str(ctx.exception))
+        self.assertIn("40.000..50.000", str(ctx.exception))
+
+    def test_touching_only_at_an_edge_is_no_overlap(self):
+        with self.assertRaises(RuntimeError):
+            ht._window_inside_raster((50, 14, 52, 16), self.RASTER)
+
+
 class TestClipSourceAllowlist(unittest.TestCase):
     def test_worldpop_https_hosts_only(self):
         ok = ht._worldpop_clip_source_allowed

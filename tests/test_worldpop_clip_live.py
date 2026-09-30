@@ -47,7 +47,9 @@ class TestClipKeepsPixelValues(unittest.TestCase):
         ds = gdal.Open(self.dst)
         out = ds.GetRasterBand(1).ReadAsArray()
         ds = None
-        full = gdal.Open(self.src).GetRasterBand(1).ReadAsArray()
+        src_ds = gdal.Open(self.src)       # keep a reference: a Band does not keep its Dataset alive
+        full = src_ds.GetRasterBand(1).ReadAsArray()
+        src_ds = None
         # lon 42 -> column 20, lat 16 -> row 40
         self.assertTrue((out == full[40:60, 20:40]).all())
         self.assertEqual(float(out.sum()), float(full[40:60, 20:40].sum()))
@@ -59,11 +61,19 @@ class TestClipKeepsPixelValues(unittest.TestCase):
         self.assertLess(ds.RasterXSize * ds.RasterYSize, 100 * 100 // 10)
         ds = None
 
+    def test_a_window_partly_outside_is_clamped_to_the_raster_not_padded(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _clip_raster_to_bbox
+        info = _clip_raster_to_bbox(self.src, (48.0, 14.0, 55.0, 16.0), self.dst)   # raster ends at lon 50
+        self.assertTrue(info["clamped"])
+        self.assertEqual((info["width"], info["height"]), (20, 20))                 # 48..50 x 14..16
+        self.assertEqual(info["window"], [48.0, 14.0, 50.0, 16.0])
+
     def test_a_window_outside_the_raster_is_a_runtime_error_with_a_message(self):
         from cartogen_ai.core.agent.tools.humanitarian_tools import _clip_raster_to_bbox
         with self.assertRaises(RuntimeError) as ctx:
             _clip_raster_to_bbox(self.src, (100.0, 50.0, 101.0, 51.0), self.dst)
-        self.assertTrue(str(ctx.exception))
+        self.assertIn("does not overlap the raster", str(ctx.exception))
+        self.assertFalse(os.path.exists(self.dst), "no empty raster may be left behind")
 
 
 if __name__ == "__main__":

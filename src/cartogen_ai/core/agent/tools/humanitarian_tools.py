@@ -1202,14 +1202,32 @@ def _worldpop_clip_source_allowed(url):
     return parts.scheme == "https" and (host == _WORLDPOP_HOST_SUFFIX or host.endswith("." + _WORLDPOP_HOST_SUFFIX))
 
 
+def _window_inside_raster(requested, raster_bounds):
+    """(window, clamped): `requested` (min_lon, min_lat, max_lon, max_lat) intersected with the raster's own
+    bounds, and whether that changed it. Raises RuntimeError when they do not overlap at all. Pure.
+
+    Why: gdal.Translate(projWin=...) does NOT fail for a window outside the raster -- it writes an empty
+    (nodata) raster. A bbox that misses the country would then look like a successful fetch and every
+    population sum over it would silently be zero."""
+    r_min_lon, r_min_lat, r_max_lon, r_max_lat = raster_bounds
+    w = (max(requested[0], r_min_lon), max(requested[1], r_min_lat),
+         min(requested[2], r_max_lon), min(requested[3], r_max_lat))
+    if not (w[0] < w[2] and w[1] < w[3]):
+        raise RuntimeError(
+            f"the requested area {tuple(round(v, 4) for v in requested)} does not overlap the raster, which covers "
+            f"lon {r_min_lon:.3f}..{r_max_lon:.3f}, lat {r_min_lat:.3f}..{r_max_lat:.3f}")
+    return w, tuple(w) != tuple(requested)
+
+
 def _clip_raster_to_bbox(source, bbox, dest_path):
     """Write the part of the GDAL-readable `source` (a local path or /vsicurl/ URL) inside `bbox` (WGS84,
-    the WorldPop CRS) to a compressed GeoTIFF at dest_path. Raises RuntimeError with a readable message."""
+    the WorldPop CRS) to a compressed GeoTIFF at dest_path. The window is clamped to the raster's own
+    bounds; a window that does not overlap it, or a raster that is not geographic/north-up, raises
+    RuntimeError with a readable message."""
     try:
-        from osgeo import gdal
+        from osgeo import gdal, osr
     except ImportError as e:
         raise RuntimeError(f"GDAL Python bindings are not available ({e}).")
-    min_lon, min_lat, max_lon, max_lat = bbox
     gdal.UseExceptions()
     options = {
         "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
@@ -1218,13 +1236,25 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
     for key, val in options.items():
         gdal.SetThreadLocalConfigOption(key, val)
     try:
-        ds = gdal.Translate(dest_path, source, projWin=[min_lon, max_lat, max_lon, min_lat],
+        src_ds = gdal.Open(source)
+        gt = src_ds.GetGeoTransform()
+        if gt[2] or gt[4] or gt[5] >= 0:
+            raise RuntimeError("the raster is rotated or not north-up, which is not supported for clipping.")
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(src_ds.GetProjection() or "")
+        if not srs.IsGeographic():
+            raise RuntimeError("the raster is not in a geographic (lon/lat) CRS, so a WGS84 window cannot be applied.")
+        x0, y0 = gt[0], gt[3]
+        x1, y1 = x0 + gt[1] * src_ds.RasterXSize, y0 + gt[5] * src_ds.RasterYSize
+        window, clamped = _window_inside_raster(bbox, (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)))
+        ds = gdal.Translate(dest_path, src_ds, projWin=[window[0], window[3], window[2], window[1]],
                             creationOptions=["COMPRESS=DEFLATE", "TILED=YES"])
         if ds is None:
             raise RuntimeError("GDAL returned no dataset for the requested window.")
         width, height = ds.RasterXSize, ds.RasterYSize
         ds = None
-        return {"width": width, "height": height}
+        src_ds = None
+        return {"width": width, "height": height, "clamped": clamped, "window": list(window)}
     except RuntimeError:
         raise
     except Exception as e:
@@ -1313,9 +1343,13 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
             result = {
                 "success": True, "iso3": iso3, "year": dataset.get("popyear"),
                 "download_url": file_urls[0], "local_path": tmp_path,
-                "clipped_to_bbox": list(window), "clipped_pixels": [size["width"], size["height"]],
+                "clipped_to_bbox": list(size.get("window") or window),
+                "clipped_pixels": [size["width"], size["height"]],
                 "bytes_on_disk": os.path.getsize(tmp_path),
             }
+            if size.get("clamped"):
+                result["clip_clamped"] = ("Part of the requested area lies outside the country's raster; only the "
+                                          "overlapping part was fetched.")
             _LOOKUP_CACHE.set(cache_key, result)
             return result
 
@@ -1380,7 +1414,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
-        for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note"):
+        for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
             if fetch_result.get(key) is not None:
                 out[key] = fetch_result[key]
         if clipped:
