@@ -35,7 +35,7 @@ except ImportError:
 _UA = {"User-Agent": "QGIS-AI-Assistant"}
 INDEX_MAX_AGE_S = 30 * 24 * 3600    # region outlines barely change
 EXTRACT_MAX_AGE_S = 7 * 24 * 3600   # Geofabrik rebuilds daily; a week-old copy is fine to reuse
-LARGE_DOWNLOAD_BYTES = 150 * 1000 * 1000   # the default; see ask_threshold_bytes()
+LARGE_DOWNLOAD_BYTES = 50 * 1000 * 1000   # the default; see ask_threshold_bytes()
 MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1")
 
 # Road classes a vehicle can't use. The routing tools treat every line in the road layer as drivable, so
@@ -66,9 +66,9 @@ def ask_threshold_bytes(read_setting=None):
     """Size above which an extract is offered as a choice rather than downloaded silently.
 
     rc7 smoke test F22: a 103 MB extract downloaded with no question because the fixed threshold
-    was 150 MB. Whether that is the right default is a product call (the 2026-09-28 live report was
-    that download prompts should be for "critical actions, not a routine task"), so the default is
-    unchanged and it is configurable: QGIS advanced settings -> cartogen_ai/local_data_ask_above_mb
+    was 150 MB. The default was lowered to 50 MB on the owner's decision
+    (2026-09-30): it asks for most country extracts but not small ones, which balances F22 against the
+    2026-09-28 report that prompts should be for "critical actions, not a routine task". It is configurable: QGIS advanced settings -> cartogen_ai/local_data_ask_above_mb
     (MB; 0 = always ask). An unreadable or negative value falls back to the default."""
     if read_setting is None:
         def read_setting():

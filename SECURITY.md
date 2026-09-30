@@ -710,7 +710,7 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   and `fetch_worldpop_population` downloads the whole-country raster even for a city-sized
   analysis. Update 2026-09-30: passing `extent_layer`/`bbox` to `fetch_worldpop_population` now reads only that area
   (GDAL `/vsicurl/`, restricted to `*.worldpop.org`), and without one the call is now refused unless `allow_whole_country=true`. OSM-extract downloads above a size
-  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 150 MB, unchanged) are offered as a choice; other
+  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 50 MB since 2026-09-30, was 150) are offered as a choice; other
   fetch tools still do not ask before a large download (tracked as open items). Until then treat any "fetch" tool as a potentially
   large download.
 

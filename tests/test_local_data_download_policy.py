@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """F22 (rc7 smoke test, 2026-09-30): a 103 MB OSM extract downloaded with no question because the
-silent-download threshold was a fixed 150 MB. The default is unchanged (a product call: the 2026-09-28
-live report was that prompts are for "critical actions, not a routine task"), but the threshold is now a
+silent-download threshold was a fixed 150 MB. The default is now 50 MB (owner decision 2026-09-30; it was 150), but the threshold is now a
 setting, and a fresh local copy no longer triggers a question about a download that will not happen."""
 import os
 import tempfile
@@ -16,8 +15,8 @@ MB = 1000 * 1000
 
 class TestAskThreshold(unittest.TestCase):
     def test_default_is_the_previous_fixed_threshold(self):
-        self.assertEqual(ldl.ask_threshold_bytes(lambda: None), 150 * MB)
-        self.assertEqual(ldl.ask_threshold_bytes(lambda: ""), 150 * MB)
+        self.assertEqual(ldl.ask_threshold_bytes(lambda: None), 50 * MB)
+        self.assertEqual(ldl.ask_threshold_bytes(lambda: ""), 50 * MB)
 
     def test_a_setting_in_megabytes_overrides_it(self):
         self.assertEqual(ldl.ask_threshold_bytes(lambda: 50), 50 * MB)
@@ -27,34 +26,34 @@ class TestAskThreshold(unittest.TestCase):
         self.assertEqual(ldl.ask_threshold_bytes(lambda: 0), 0)
 
     def test_garbage_or_negative_falls_back_to_the_default(self):
-        self.assertEqual(ldl.ask_threshold_bytes(lambda: "lots"), 150 * MB)
-        self.assertEqual(ldl.ask_threshold_bytes(lambda: -5), 150 * MB)
+        self.assertEqual(ldl.ask_threshold_bytes(lambda: "lots"), 50 * MB)
+        self.assertEqual(ldl.ask_threshold_bytes(lambda: -5), 50 * MB)
 
         def boom():
             raise RuntimeError("settings unavailable")
-        self.assertEqual(ldl.ask_threshold_bytes(boom), 150 * MB)
+        self.assertEqual(ldl.ask_threshold_bytes(boom), 50 * MB)
 
 
 class TestShouldAsk(unittest.TestCase):
     REGION = {"id": "yemen", "name": "Yemen", "size_bytes": 103 * MB}
 
-    def test_the_observed_103mb_case_is_silent_at_the_default_and_asked_at_50(self):
+    def test_the_observed_103mb_case_is_asked_at_the_default_but_silent_at_150(self):
+        self.assertTrue(ldl.should_ask_before_download(self.REGION, True, False, ldl.ask_threshold_bytes(lambda: None)))
         self.assertFalse(ldl.should_ask_before_download(self.REGION, True, False, 150 * MB))
-        self.assertTrue(ldl.should_ask_before_download(self.REGION, True, False, 50 * MB))
 
     def test_zero_threshold_asks_for_everything_with_a_known_size(self):
         self.assertTrue(ldl.should_ask_before_download(self.REGION, True, False, 0))
 
     def test_poor_connection_always_asks(self):
-        self.assertTrue(ldl.should_ask_before_download(self.REGION, False, False, 150 * MB))
+        self.assertTrue(ldl.should_ask_before_download(self.REGION, False, False, 50 * MB))
 
     def test_unknown_size_asks(self):
-        self.assertTrue(ldl.should_ask_before_download({"id": "x", "size_bytes": 0}, True, False, 150 * MB))
-        self.assertTrue(ldl.should_ask_before_download({"id": "x"}, True, False, 150 * MB))
+        self.assertTrue(ldl.should_ask_before_download({"id": "x", "size_bytes": 0}, True, False, 50 * MB))
+        self.assertTrue(ldl.should_ask_before_download({"id": "x"}, True, False, 50 * MB))
 
     def test_a_cached_extract_never_asks_even_if_huge_or_offline(self):
         big = {"id": "x", "size_bytes": 900 * MB}
-        self.assertFalse(ldl.should_ask_before_download(big, True, True, 150 * MB))
+        self.assertFalse(ldl.should_ask_before_download(big, True, True, 50 * MB))
         self.assertFalse(ldl.should_ask_before_download(big, False, True, 0))
 
 

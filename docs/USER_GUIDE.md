@@ -333,7 +333,7 @@ model:
   (about half of Jordan's), stored as points in a GeoPackage. Pharmacies are left out. Files are
   saved in the project's `data/00_raw/osm/` folder (or a folder in your QGIS profile if the
   project isn't saved yet), and a copy less than a week old is reused. If the extract is larger
-  than 150 MB, Cartogen tells you the size and asks again. **Stop** cancels the download and ends
+  than 50 MB (adjustable in QGIS advanced settings), Cartogen tells you the size and asks again. **Stop** cancels the download and ends
   the request.
 - **online**: the request goes ahead as before, fetching data live from OpenStreetMap's Overpass
   server. Cartogen won't ask again for the rest of the session. Saying "online" in the request
