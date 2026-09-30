@@ -27,6 +27,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_network_units_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_network_background_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_network_clip_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_rc8_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_facility_access_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)

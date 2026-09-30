@@ -41,7 +41,7 @@ try:
         QgsProject, QgsWkbTypes, QgsSymbol, QgsSingleSymbolRenderer,
         QgsGeometry, QgsVectorLayer, QgsFeature, QgsProcessingContext,
         QgsField, QgsDistanceArea, QgsCoordinateTransform, QgsPointXY,
-        QgsCoordinateReferenceSystem, QgsFeatureRequest,
+        QgsCoordinateReferenceSystem, QgsFeatureRequest, QgsSpatialIndex,
     )
     try:
         from qgis.core import Qgis
@@ -1516,7 +1516,9 @@ def _merge_band_hulls(band_hulls, output_name):
     "default_speed regardless of surface or condition -- when the network layer has a per-segment "
     "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
-    "traversable both directions.",
+    "traversable both directions. SLOW for many destinations (a full shortest-path search per destination, "
+    "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
+    "classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.",
     {
         "type": "object",
         "properties": {
@@ -1530,13 +1532,14 @@ def _merge_band_hulls(band_hulls, output_name):
             "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
             "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
             "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
+            "allow_large": {"type": "boolean", "description": "Set true to run a matrix over more than 200 destinations anyway (slow). Prefer classify_facilities_by_access."},
         },
         "required": ["origins_layer", "destinations_layer", "road_network_layer"],
     },
 )
 def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, strategy="shortest", default_speed=50,
                         speed_field=None, direction_field=None,
-                        value_forward="yes", value_backward="-1", value_both="no"):
+                        value_forward="yes", value_backward="-1", value_both="no", allow_large=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     strategy = (strategy or "shortest").lower()
@@ -1544,6 +1547,16 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": "strategy must be 'shortest' or 'fastest'."}
     origins = _find_layer_by_name(origins_layer)
     destinations = _find_layer_by_name(destinations_layer)
+    if destinations is not None and not allow_large and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
+        # rc7 smoke test F08: 3,369 destinations took ~37 minutes of shortest-path searches (one per
+        # destination) on top of a ~6 minute graph build. The usual question behind such a call --
+        # which facilities are within/beyond a travel cost of an origin -- has a seconds-long answer.
+        return {"error": (
+            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix runs a full "
+            "shortest-path search per destination and would take a very long time. To find which facilities are "
+            "within/beyond a travel cost of an origin, call classify_facilities_by_access instead. If a full "
+            "matrix is genuinely needed, call travel_time_matrix again with allow_large=true."),
+            "suggested_tool": "classify_facilities_by_access"}
     network = _find_layer_by_name(road_network_layer)
     if origins is None:
         return {"error": f"Layer '{origins_layer}' not found"}
@@ -1617,6 +1630,185 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return _cancelled_result("travel-time matrix")
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}
+
+
+# ---- which facilities are within / beyond a travel cost (F08) --------------------------------------
+#
+# rc7 smoke test F08 (2026-09-30): "health facilities beyond one hour" took 43 min 48 s, 97% of it
+# travel_time_matrix: native:shortestpathpointtolayer runs a separate shortest-path search for EVERY
+# destination (3,369 of them), after a ~6 minute graph build. The same question is answered by ONE
+# service area (calculate_service_area took 5.8 s in that session): a facility is within the cost
+# when it lies on, or within a short snap distance of, a road reached within the cost.
+#
+# This is NOT identical to routing to each facility: it ignores the access leg from the road to the
+# facility (bounded by snap_distance_m) and a facility farther than snap_distance_m from every
+# reached road counts as beyond even if its nearest road is reached. The result says so.
+DEFAULT_SNAP_DISTANCE_M = 500.0
+MATRIX_LARGE_DESTINATIONS = 200
+
+
+def _classify_by_distance(distances_m, snap_distance_m):
+    """'within' / 'beyond' per facility from its distance (metres) to the nearest reached road.
+    None (no reached road at all) is beyond. Pure, so it is unit tested without QGIS."""
+    return ["within" if (d is not None and d <= snap_distance_m) else "beyond" for d in distances_m]
+
+
+def _matrix_destination_count(layer):
+    """Feature count for the travel_time_matrix size guard; 0 when it cannot be read, so the guard never
+    blocks a call it cannot measure."""
+    try:
+        n = layer.featureCount()
+        return n if isinstance(n, int) and n > 0 else 0
+    except Exception:
+        return 0
+
+
+def _access_summary(classes):
+    within = sum(1 for c in classes if c == "within")
+    return {"within": within, "beyond": len(classes) - within, "total": len(classes)}
+
+
+def _nearest_distances_m(facilities, facilities_crs, reached_layers):
+    """Metres from each facility to the nearest reached road (None when there is none)."""
+    da = QgsDistanceArea()
+    ellipsoid = QgsProject.instance().ellipsoid()
+    da.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
+    indexed = []
+    for lyr in reached_layers:
+        feats = {f.id(): f for f in lyr.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()}
+        if not feats:
+            continue
+        index = QgsSpatialIndex()
+        for f in feats.values():
+            index.addFeature(f)
+        xf = QgsCoordinateTransform(facilities_crs, lyr.crs(), QgsProject.instance())
+        indexed.append((lyr.crs(), index, feats, xf))
+    out = []
+    for fac in facilities:
+        best = None
+        for crs, index, feats, xf in indexed:
+            pt = xf.transform(QgsPointXY(fac.geometry().asPoint()))
+            da.setSourceCrs(crs, QgsProject.instance().transformContext())
+            # QgsSpatialIndex ranks in layer units; take a few candidates, then measure in metres.
+            for fid in index.nearestNeighbor(pt, 3):
+                near = feats[fid].geometry().nearestPoint(QgsGeometry.fromPointXY(pt)).asPoint()
+                d = da.measureLine(pt, near)
+                best = d if best is None else min(best, d)
+        out.append(best)
+    return out
+
+
+@register_tool(
+    "classify_facilities_by_access",
+    "Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE "
+    "service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every "
+    "facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside "
+    "travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the "
+    "origin' question over many facilities: travel_time_matrix runs a full shortest-path search per "
+    "destination and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
+    "access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the "
+    "answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
+    "per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility "
+    "costs are needed.",
+    {
+        "type": "object",
+        "properties": {
+            "origin_layer": {"type": "string", "description": "Point layer holding the origin(s) the travel cost is measured from."},
+            "facility_layer": {"type": "string", "description": "Point layer of the facilities to classify."},
+            "road_network_layer": {"type": "string", "description": "Line layer of the road/path network."},
+            "travel_cost": {"type": "number", "description": "Max travel distance in METRES (strategy='shortest') or time in HOURS (strategy='fastest')."},
+            "strategy": {"type": "string", "description": "'shortest' (distance, default) or 'fastest' (time)."},
+            "default_speed": {"type": "number", "description": "Default speed in km/h, used only when strategy='fastest'. Defaults to 50."},
+            "speed_field": {"type": "string", "description": "Optional per-segment speed field (km/h); ignored with a note if mostly empty."},
+            "direction_field": {"type": "string", "description": "Optional one-way field on the road layer."},
+            "snap_distance_m": {"type": "number", "description": "A facility counts as reached when it is within this many metres of a reached road. Defaults to 500."},
+        },
+        "required": ["origin_layer", "facility_layer", "road_network_layer", "travel_cost"],
+    },
+)
+def classify_facilities_by_access(origin_layer, facility_layer, road_network_layer, travel_cost,
+                                  strategy="shortest", default_speed=50, speed_field=None,
+                                  direction_field=None, snap_distance_m=DEFAULT_SNAP_DISTANCE_M):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    facilities = _find_layer_by_name(facility_layer)
+    if facilities is None:
+        return {"error": f"Layer '{facility_layer}' not found"}
+    try:
+        snap = float(snap_distance_m)
+    except (TypeError, ValueError):
+        return {"error": "snap_distance_m must be a number of metres."}
+    if snap < 0:
+        return {"error": "snap_distance_m must not be negative."}
+    if isinstance(travel_cost, (list, tuple)):
+        return {"error": "travel_cost must be a single number here; call again for another threshold."}
+
+    service = calculate_service_area(origin_layer, road_network_layer, travel_cost, strategy, default_speed,
+                                     speed_field=speed_field, direction_field=direction_field)
+    if "error" in service:
+        return service
+    reached = [_find_layer_by_name(n) for n in service.get("layers_created", []) if "_lines_" in n]
+    reached = [lyr for lyr in reached if lyr is not None]
+    if not reached:
+        return {"error": "The service area produced no reached-road layer to classify against.",
+                "service_area": service}
+
+    try:
+        feats = [f for f in facilities.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
+        if not feats:
+            return {"error": f"'{facility_layer}' has no usable point features."}
+        distances = _nearest_distances_m(feats, facilities.crs(), reached)
+        classes = _classify_by_distance(distances, snap)
+
+        out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
+        provider = out.dataProvider()
+        provider.addAttributes(list(facilities.fields()) + [
+            QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
+        out.updateFields()
+        rows = []
+        for f, cls, d in zip(feats, classes, distances):
+            nf = QgsFeature(out.fields())
+            nf.setGeometry(f.geometry())
+            nf.setAttributes(list(f.attributes()) + [cls, None if d is None else round(d, 1)])
+            rows.append(nf)
+        provider.addFeatures(rows)
+        out.updateExtents()
+        out_name = f"{facility_layer}_access_{travel_cost:g}"
+        _replace_named_layer(out_name, out)
+        try:
+            from .styling_tools import apply_categorized_style
+            apply_categorized_style(out_name, "access_class")
+        except Exception as e:
+            log_event("swallowed_exception", tag="Tools", tool="classify_facilities_by_access_styling",
+                      error_class=type(e).__name__, error=True)
+
+        name_field = next((fld.name() for fld in facilities.fields() if fld.name().lower() in ("name", "name_en")), None)
+        beyond_names = []
+        if name_field:
+            beyond_names = [str(f[name_field]) for f, c in zip(feats, classes) if c == "beyond" and f[name_field]][:25]
+        summary = _access_summary(classes)
+        result = {
+            "success": True,
+            "travel_cost": travel_cost,
+            "travel_cost_unit": "hours" if (strategy or "").lower() == "fastest" else "meters",
+            "strategy": strategy,
+            "snap_distance_m": snap,
+            **summary,
+            "layer_created": out_name,
+            "service_area_layers": service.get("layers_created", []),
+            "method_note": (
+                "Classified from one service area, not routed per facility: a facility is 'within' when it is "
+                f"within {snap:g} m of a road reached inside the travel cost. The access leg from the road to the "
+                "facility is not counted, so this can differ slightly from a routed cost near the threshold."
+            ),
+        }
+        if beyond_names:
+            result["beyond_examples"] = beyond_names
+        if service.get("notes"):
+            result["notes"] = service["notes"]
+        return result
+    except Exception as e:
+        return {"error": f"classify_facilities_by_access failed: {e}"}
 
 
 @register_tool(

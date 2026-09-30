@@ -235,7 +235,7 @@ _ALL_RULES = {
         '25. Humanitarian logistics and security requests are often phrased in plain language that maps onto an existing '
         "tool without naming it -- recognize the intent, don't wait for the tool name: 'what area can this warehouse "
         "reach/serve' -> `calculate_service_area`; 'which of these sites is the best hub/warehouse location' -> "
-        "`optimal_hub_siting`; 'delivery distance/time between these points' -> `travel_time_matrix`; 'safe distance from "
+        "`optimal_hub_siting`; 'delivery distance/time between these points' -> `travel_time_matrix` (small sets only); 'which facilities are within/beyond N hours/km of this origin' over more than ~200 facilities -> `classify_facilities_by_access` (seconds, never `travel_time_matrix`, which took ~44 min for 3,369 facilities); 'safe distance from "
         "this facility to the nearest incident' or 'nearest threat to each site' -> `find_nearest_features`; 'risk/danger "
         "zone around X' or a simple straight-line reach (not road-based) -> `buffer_analysis`; 'where's the real "
         "concentration of incidents' (a statistical density surface you can rank areas by) -> `hotspot_analysis`, as "
@@ -562,7 +562,7 @@ _SENSITIVE_CLUSTER_TRIGGER_TOOLS = {
     "add_incident_point", "add_point_layer", "obfuscate_sensitive_points",
     "get_layer_sensitivity", "set_layer_sensitivity",
     # humanitarian-logistics / routing tools
-    "calculate_service_area", "optimal_hub_siting", "travel_time_matrix",
+    "calculate_service_area", "optimal_hub_siting", "travel_time_matrix", "classify_facilities_by_access",
     "find_nearest_features", "analyze_incident_trend", "score_route_incident_risk",
     "population_access_gap",
 }

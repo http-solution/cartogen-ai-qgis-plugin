@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (179 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (180 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -354,6 +354,22 @@ Calculate the reachable road-network area around one or more facilities (warehou
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
 
+### `classify_facilities_by_access`
+
+Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the origin' question over many facilities: travel_time_matrix runs a full shortest-path search per destination and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility costs are needed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `origin_layer` | string | yes | Point layer holding the origin(s) the travel cost is measured from. |
+| `facility_layer` | string | yes | Point layer of the facilities to classify. |
+| `road_network_layer` | string | yes | Line layer of the road/path network. |
+| `travel_cost` | number | yes | Max travel distance in METRES (strategy='shortest') or time in HOURS (strategy='fastest'). |
+| `strategy` | string | no | 'shortest' (distance, default) or 'fastest' (time). |
+| `default_speed` | number | no | Default speed in km/h, used only when strategy='fastest'. Defaults to 50. |
+| `speed_field` | string | no | Optional per-segment speed field (km/h); ignored with a note if mostly empty. |
+| `direction_field` | string | no | Optional one-way field on the road layer. |
+| `snap_distance_m` | number | no | A facility counts as reached when it is within this many metres of a reached road. Defaults to 500. |
+
 ### `estimate_road_speeds`
 
 Write an 'assumed_speed_kmh' field onto a road network layer's features, filled in from a fixed table of typical speeds per road class (motorway/primary/residential/track/etc, common routing-profile values -- see ASSUMED_SPEED_BY_ROAD_CLASS_KMH), read from the layer's 'fclass' (Geofabrik OSM extracts) or 'highway' (OSM/Overpass ingests) field. Use this when a road network has little or no real maxspeed data (very common: a real Jordan extract had maxspeed on only 0.9% of roads) and calculate_service_area/travel_time_matrix/optimize_delivery_route with strategy='fastest' would otherwise fall back to one flat default speed for nearly every road. IMPORTANT: this is an ASSUMPTION, not measured data for this specific road network -- tell the user the travel times that follow from it are estimates based on typical road-class speeds, not this network's real posted limits, especially if they ask for a precise duration. Never call this automatically as part of another tool's workflow; only when the user has actual maxspeed data will speed_field give a materially better answer. Pass country (an ISO 3166-1 alpha-2 code, e.g. 'JO', 'DE', 'US') to scale the table to that country's real legal urban/rural/motorway speed limits (see COUNTRY_SPEED_TIERS_KMH) instead of the generic global defaults -- covers a curated set of countries; falls back to the generic table for any other code or when omitted. Destructive action requiring UI confirmation -- in-place attribute mutation on the live layer, same class of operation as calculate_area/field_calculator.
@@ -430,7 +446,7 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (a full shortest-path search per destination, ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -444,6 +460,7 @@ Calculate road-network distance or travel time from each origin point to each de
 | `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
+| `allow_large` | boolean | no | Set true to run a matrix over more than 200 destinations anyway (slow). Prefer classify_facilities_by_access. |
 
 ## Monitoring & Scheduling
 
