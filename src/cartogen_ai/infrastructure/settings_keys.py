@@ -95,3 +95,9 @@ SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_backgrou
 # (rc7 smoke test F22: a 103 MB extract was fetched with no question). Default 50 (owner decision
 # 2026-09-30; it was a fixed 150 before). Adjustable in QGIS's advanced settings.
 SETTINGS_LOCAL_DATA_ASK_ABOVE_MB = "cartogen_ai/local_data_ask_above_mb"
+
+# Per-turn limits (rc7 smoke test F10: a session used ~1.86M tokens over 102 calls). The tool-call cap defaults to
+# the long-standing MAX_ITERATIONS (20); the token budget defaults to 0 = no limit, because no measured figure
+# says what a "too expensive" turn is -- set it in QGIS's advanced settings or Settings to stop a runaway turn.
+SETTINGS_MAX_TOOL_ITERATIONS = "cartogen_ai/max_tool_iterations"
+SETTINGS_MAX_TURN_TOKENS = "cartogen_ai/max_turn_tokens"

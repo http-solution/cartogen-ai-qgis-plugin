@@ -33,6 +33,34 @@ class UsageTracker:
             "calls_with_usage": 0, "calls_without_usage": 0,
         }
 
+    def begin_turn(self):
+        """Marks the start of one user request, so turn_tokens()/turn_text() report this turn only."""
+        self._turn_start = dict(self.usage)
+
+    def turn_tokens(self):
+        """Input+output tokens reported by provider calls since begin_turn() (0 if never begun)."""
+        start = getattr(self, "_turn_start", None)
+        if start is None:
+            return 0
+        u = self.usage
+        return ((u["input_tokens"] - start["input_tokens"]) + (u["output_tokens"] - start["output_tokens"]))
+
+    def turn_text(self):
+        """'This turn ~12,400 tokens (5 calls)', or None when no call this turn reported usage -- never a
+        made-up figure. Calls that reported no usage are said, not counted."""
+        start = getattr(self, "_turn_start", None)
+        if start is None:
+            return None
+        u = self.usage
+        calls = u["calls_with_usage"] - start["calls_with_usage"]
+        if calls <= 0:
+            return None
+        text = f"This turn ~{self.turn_tokens():,} tokens ({calls} call{'s' if calls != 1 else ''}"
+        silent = u["calls_without_usage"] - start["calls_without_usage"]
+        if silent > 0:
+            text += f"; {silent} with no usage reported"
+        return text + ")"
+
     def accumulate(self, usage):
         """Adds one API call's token usage into the session running total.
         usage is either the normalized {'input_tokens', 'output_tokens'} dict a

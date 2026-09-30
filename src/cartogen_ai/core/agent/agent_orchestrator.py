@@ -58,6 +58,8 @@ from ...infrastructure.settings_keys import (
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
+    SETTINGS_MAX_TOOL_ITERATIONS,
+    SETTINGS_MAX_TURN_TOKENS,
     provider_model_list_key,
 )
 
@@ -398,6 +400,26 @@ class CartogenAi:
         chat_tab_widget.py and test_new_tools.py's usage-reporting suite call
         it directly on the agent object."""
         self._get_usage_tracker().accumulate(usage)
+
+    def get_turn_usage_text(self):
+        """'This turn ~N tokens (K calls)' for the turn that just ran, or None. See UsageTracker.turn_text."""
+        return self._get_usage_tracker().turn_text()
+
+    def _turn_limits(self):
+        """(max tool-call rounds, max tokens) for one request. Settings override; a bad value falls back to the
+        defaults (MAX_ITERATIONS, no token limit). The round cap is clamped to 1-100."""
+        cap, budget = MAX_ITERATIONS, 0
+        try:
+            settings = QgsSettings()
+            raw_cap = settings.value(SETTINGS_MAX_TOOL_ITERATIONS, None)
+            raw_budget = settings.value(SETTINGS_MAX_TURN_TOKENS, None)
+            if raw_cap not in (None, ""):
+                cap = min(max(int(raw_cap), 1), 100)
+            if raw_budget not in (None, ""):
+                budget = max(int(raw_budget), 0)
+        except Exception:
+            cap, budget = MAX_ITERATIONS, 0
+        return cap, budget
 
     def get_session_usage_text(self):
         """Short, human-readable summary of this session's token usage for
@@ -832,7 +854,8 @@ class CartogenAi:
                 fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase,
             )
             fetch_result = fetch_geoboundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1")
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
+                bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
@@ -852,7 +875,8 @@ class CartogenAi:
                 fetch_hdx_admin_boundaries_network_phase, add_hdx_admin_boundaries_layer_main_thread_phase,
             )
             fetch_result = fetch_hdx_admin_boundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1")
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
+                bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
@@ -873,7 +897,7 @@ class CartogenAi:
             )
             fetch_result = fetch_building_footprints_network_phase(
                 filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
-                filtered_args.get("max_features", 5000),
+                filtered_args.get("max_features", 5000), bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
@@ -1281,6 +1305,8 @@ class CartogenAi:
         messages.extend(self._read_history_snapshot())
         messages.append(user_message)
 
+        self._get_usage_tracker().begin_turn()
+        max_rounds, max_turn_tokens = self._turn_limits()
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
@@ -1293,7 +1319,11 @@ class CartogenAi:
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
         sandbox_flailing_nudged = False
 
-        for iteration_index in range(MAX_ITERATIONS):
+        token_budget_hit = False
+        for iteration_index in range(max_rounds):
+            if max_turn_tokens and iteration_index > 0 and self._get_usage_tracker().turn_tokens() >= max_turn_tokens:
+                token_budget_hit = True
+                break
             if should_stop is not None and should_stop():
                 final_text = "[Agent stopped] Stopped by user."
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
@@ -1426,6 +1456,13 @@ class CartogenAi:
         # starts with zero memory of what was already tried and can repeat the exact same
         # doomed step-per-item approach (e.g. one tool call per item in a long list)
         # instead of the more efficient path rule 14 in the system prompt asks for.
+        if token_budget_hit:
+            final_text = (
+                "[Agent stopped] This request used its token budget (%s tokens, setting "
+                "cartogen_ai/max_turn_tokens) before finishing. Break it into smaller pieces, or raise the budget "
+                "in QGIS's advanced settings." % f"{max_turn_tokens:,}")
+            self._append_history(user_message, {"role": "assistant", "content": final_text})
+            return final_text
         final_text = (
             "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
             "means the request needed many individual actions (e.g. one call per item in a long list). Try "

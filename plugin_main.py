@@ -156,6 +156,14 @@ class CartogenAi:
             except Exception as e:
                 print(f"[CartogenAi] Processing provider registration failed: {e}")
 
+        # F18: say once, in the QGIS log, which behaviour-changing settings are on -- a persisted plan-validation
+        # gate from an earlier evaluation once made every export fail its first call without anyone knowing why.
+        try:
+            from cartogen_ai.core.logger import log_event, startup_state_fields
+            log_event("startup_settings", **startup_state_fields(QgsSettings().value))
+        except Exception as e:
+            print(f"[CartogenAi] startup settings log failed: {e}")
+
     def _maybe_show_first_use_dialogs(self):
         """First-use onboarding (role/experience/communication-style profile, real-session
         feature request 2026-09-12) plus Help auto-show (first use, and once again after any

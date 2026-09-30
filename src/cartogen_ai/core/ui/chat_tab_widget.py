@@ -1752,6 +1752,12 @@ class ChatTabWidget(QWidget):
             text = agent.get_session_usage_text()
         except Exception:
             return
+        try:
+            turn = agent.get_turn_usage_text() if hasattr(agent, "get_turn_usage_text") else None
+        except Exception:
+            turn = None
+        if text and turn:
+            text = f"{turn} \u00b7 {text}"
         self._dock.usageSignal.emit(text or "")
 
     def _after_successful_response(self, agent, response_text):
