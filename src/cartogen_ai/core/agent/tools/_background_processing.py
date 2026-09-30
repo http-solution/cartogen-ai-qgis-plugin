@@ -43,6 +43,17 @@ class AnalysisCancelled(Exception):
     """The user pressed Stop while the analysis was running."""
 
 
+def is_no_route_message(error):
+    """True for QGIS's per-destination 'There is no route from start point ... to end point ...' message."""
+    return "no route from start point" in str(error).lower()
+
+
+def new_feedback():
+    """A QgsProcessingFeedback that keeps unreachable-destination messages out of the CRITICAL log, or None
+    outside QGIS. Used by both the background and the synchronous routing paths."""
+    return _CollectingFeedback() if QGIS_AVAILABLE else None
+
+
 if QGIS_AVAILABLE:
     class _CollectingFeedback(QgsProcessingFeedback):
         """Keeps the algorithm's error messages so a failure can say why."""
@@ -50,8 +61,17 @@ if QGIS_AVAILABLE:
         def __init__(self):
             super().__init__()
             self.errors = []
+            self.no_route_count = 0
 
         def reportError(self, error, fatalError=False):  # noqa: N802 -- Qt override
+            # rc7 smoke test F15: ~130 "There is no route from start point ... to end point ..." lines were logged at
+            # CRITICAL for facilities the road network never reaches (islands, disconnected clusters). That is a normal
+            # result, not a failure: count it (see no_route_count) instead of raising it to CRITICAL, and let every
+            # other non-fatal message through unchanged. QgsProcessingFeedback::reportError(error, fatalError=false)
+            # is the documented virtual this overrides.
+            if not fatalError and is_no_route_message(error):
+                self.no_route_count += 1
+                return
             self.errors.append(str(error))
             super().reportError(error, fatalError)
 
@@ -160,5 +180,6 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
                 layer = context.takeResultLayer(value)
                 if layer:
                     results[out.name()] = layer
-    log_event("network_analysis", tag="Tools", tool=algorithm_id, status="done", duration_ms=int(elapsed * 1000))
+    log_event("network_analysis", tag="Tools", tool=algorithm_id, status="done", duration_ms=int(elapsed * 1000),
+              count=feedback.no_route_count)
     return results

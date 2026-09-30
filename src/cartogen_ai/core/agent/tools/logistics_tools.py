@@ -361,6 +361,15 @@ def _measure_distance(distance_area, geom_a, geom_b):
 BACKGROUND_MIN_FEATURES = 2000
 
 
+def _run_with_quiet_feedback(alg, prm, context=None):
+    """processing.run with the feedback that keeps 'no route' messages out of the CRITICAL log (F15). Outside QGIS
+    there is no such feedback and the plain call is made."""
+    feedback = _bg.new_feedback()
+    if feedback is None:
+        return processing.run(alg, prm, context=context)
+    return processing.run(alg, prm, context=context, feedback=feedback)
+
+
 def _run_network_algorithm(algorithm_id, params, context, network, label):
     """processing.run for the network algorithms, off the GUI thread when the network is big.
 
@@ -375,7 +384,7 @@ def _run_network_algorithm(algorithm_id, params, context, network, label):
         use_background = True
     return _bg.run_algorithm(
         algorithm_id, params, context,
-        fallback=lambda alg, prm, context=None: processing.run(alg, prm, context=context),
+        fallback=_run_with_quiet_feedback,
         use_background=use_background, label=label,
     )
 

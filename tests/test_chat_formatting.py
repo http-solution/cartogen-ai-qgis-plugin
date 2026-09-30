@@ -531,3 +531,54 @@ class TestBuildDockStylesheet(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSimplifyLatex(unittest.TestCase):
+    """rc7 smoke test F15: literal $\\le$ / $\\times$ / $\\text{km}^2$ in the chat."""
+
+    def setUp(self):
+        from cartogen_ai.core.ui.chat_formatting import simplify_latex
+        self.f = simplify_latex
+
+    def test_the_observed_fragments(self):
+        self.assertEqual(self.f(r"area $\le$ 3,000 $\text{km}^2$"), "area ≤ 3,000 km²")
+        self.assertEqual(self.f(r"3 $\times$ 4"), "3 × 4")
+
+    def test_powers_and_percent(self):
+        self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")
+        self.assertEqual(self.f(r"$\approx 5\%$"), "≈ 5%")
+
+    def test_dollar_amounts_are_not_math(self):
+        self.assertEqual(self.f("costs $5 and $10 each"), "costs $5 and $10 each")
+
+    def test_an_unconvertible_formula_is_left_untouched(self):
+        raw = r"see $\frac{a}{b}$ here"
+        self.assertEqual(self.f(raw), raw)
+
+    def test_plain_text_and_none(self):
+        self.assertEqual(self.f("no math"), "no math")
+        self.assertIsNone(self.f(None))
+
+    def test_render_markdown_uses_it_but_not_inside_code(self):
+        from cartogen_ai.core.ui.chat_formatting import render_markdown
+        html = render_markdown("size $\\le$ 5\n\n```\nx = '$\\le$'\n```")
+        self.assertIn("≤ 5", html)
+        self.assertIn("$\\le$", html)             # the code block keeps its literal text
+
+
+class TestActionChipWithParenthesesInLayerName(unittest.TestCase):
+    """rc7 smoke test F15: a stray ')' after '📁 Export Reachable Facilities to CSV' -- the layer name in the link
+    target ('Health Facilities (OSM, Yemen)') contains parentheses, which ended the link one character early."""
+
+    def test_the_closing_paren_is_part_of_the_link_not_stray_text(self):
+        from cartogen_ai.core.ui.chat_formatting import render_markdown
+        md = "- [📁 Export to CSV](cartogen://export/Health Facilities (OSM, Yemen))"
+        html = render_markdown(md)
+        self.assertIn("Export to CSV</a>", html)
+        self.assertNotIn("</a>)", html)           # no ')' left dangling after the chip
+        self.assertIn("Health%20Facilities%20%28OSM%2C%20Yemen%29", html)
+
+    def test_a_plain_name_still_works(self):
+        from cartogen_ai.core.ui.chat_formatting import render_markdown
+        html = render_markdown("[📁 Export](cartogen://export/Roads)")
+        self.assertIn('href="cartogen://export/Roads"', html)
