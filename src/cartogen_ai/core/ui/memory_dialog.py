@@ -39,7 +39,7 @@ class CartogenAiMemoryDialog(QDialog):
         self.export_data_btn.setObjectName("secondaryButton")
         self.export_data_btn.setToolTip(
             "Export everything Cartogen AI has stored for this project and this machine -- project "
-            "memory, global memory, and chat history (if chat history saving is enabled) -- as one "
+            "memory, global memory, and the saved conversation (if saving it is enabled) -- as one "
             "JSON file."
         )
         self.export_data_btn.clicked.connect(self._export_stored_data_clicked)
@@ -49,9 +49,18 @@ class CartogenAiMemoryDialog(QDialog):
         self.clear_global_memory_btn = QPushButton("🗑 Clear Global Memory")
         self.clear_global_memory_btn.setObjectName("dangerButton")
         self.clear_global_memory_btn.clicked.connect(self._clear_global_memory_clicked)
+        self.clear_saved_chat_btn = QPushButton("🗑 Clear Saved Chat")
+        self.clear_saved_chat_btn.setObjectName("dangerButton")
+        self.clear_saved_chat_btn.setToolTip(
+            "Delete the conversation saved inside this project's file (the full transcript and the short "
+            "summary of older turns). Does not affect the conversation currently on screen, and cannot "
+            "reach copies of the project file that were already shared."
+        )
+        self.clear_saved_chat_btn.clicked.connect(self._clear_saved_chat_clicked)
         actions_row.addWidget(self.export_data_btn)
         actions_row.addWidget(self.clear_memory_btn)
         actions_row.addWidget(self.clear_global_memory_btn)
+        actions_row.addWidget(self.clear_saved_chat_btn)
         layout.addLayout(actions_row)
 
         self.memory_search_edit = QLineEdit()
@@ -114,7 +123,8 @@ class CartogenAiMemoryDialog(QDialog):
             from ..agent import data_export, chat_persistence
             project_notes = agent.memory_manager.get_project_notes()
             global_notes = agent.memory_manager.get_global_notes()
-            chat_history = chat_persistence.load_chat_history_with_timestamps()
+            chat_history = (chat_persistence.load_chat_transcript()
+                            or chat_persistence.load_chat_history_with_timestamps())
             from ..agent.agent_orchestrator import MAX_HISTORY_MESSAGES
             document = data_export.build_export_document(
                 project_notes, global_notes, chat_history,
@@ -128,6 +138,26 @@ class CartogenAiMemoryDialog(QDialog):
             QMessageBox.information(self, "Export My Data", f"Exported to:\n{output_path}")
         else:
             QMessageBox.warning(self, "Export My Data", f"Failed to write export file to:\n{output_path}")
+
+    def _clear_saved_chat_clicked(self):
+        from ..agent import chat_persistence
+        stored = len(chat_persistence.load_chat_transcript())
+        reply = QMessageBox.question(
+            self, "Clear Saved Chat",
+            ("Permanently delete the conversation saved in this project's file (%d messages)?\n\n"
+             "The conversation on screen is not affected, and copies of the project file that were already "
+             "shared keep their own copy." % stored),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        result = chat_persistence.clear_saved_chat_history()
+        if result.get("success"):
+            QMessageBox.information(
+                self, "Clear Saved Chat",
+                "Deleted %d saved messages from this project. Save the project to keep the change." % result.get("removed", 0))
+        else:
+            QMessageBox.warning(self, "Clear Saved Chat", "Could not delete the saved conversation.")
 
     def _clear_project_memory_clicked(self):
         agent = self._agent_provider() if self._agent_provider else None

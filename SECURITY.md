@@ -291,9 +291,19 @@ mitigation, not a code-enforced one — see Limitations. (`fetch_worldpop_popula
 `fetch_nasa_active_fires` return only numeric/coded fields to the model — no free-text
 description/title fields — so neither is a text-injection vector the same way.)
 
-### 7. Chat history persistence is opt-in
-`agent/chat_persistence.py` — the AI conversation is only written into the active
-project's `.qgz` file if the user has explicitly turned on "Save chat history in the
+### 7. Chat history persistence (default ON since rc8; user-controllable)
+**Changed 2026-09-30 (owner decision, `docs/IMPLEMENTATION_TRACKER.md` §1.18):** the
+conversation is now saved by default -- a mapping project has a purpose and a lifetime and
+the conversation is part of its context. The FULL transcript is kept in the project file
+(`QgsProject` entry `cartogen_ai/chat_transcript`, not a project variable) for the life of the
+project, bounded at 2,000 messages / 2,000,000 characters (oldest dropped first, the count is
+reported in the data export). Users turn it off in Settings > "Save the conversation in the
+project file" and delete what is saved with "Clear Saved Chat" in the Memory window. **The risk
+below is unchanged and is now accepted by default; it is not mitigated for anyone who never
+opens Settings.** The rest of this section describes the original opt-in design.
+
+`agent/chat_persistence.py` — originally the AI conversation was only written into the active
+project's `.qgz` file if the user had explicitly turned on "Save chat history in the
 project file" in Settings (default: **off**). A project file is a shareable artifact
 — emailed, committed, uploaded — and previously the conversation was always saved
 into it with no way to opt out, which risked carrying sensitive content (humanitarian
@@ -700,7 +710,7 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   and `fetch_worldpop_population` downloads the whole-country raster even for a city-sized
   analysis. Update 2026-09-30: passing `extent_layer`/`bbox` to `fetch_worldpop_population` now reads only that area
   (GDAL `/vsicurl/`, restricted to `*.worldpop.org`), and without one the call is now refused unless `allow_whole_country=true`. OSM-extract downloads above a size
-  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 150 MB, unchanged) are offered as a choice; other
+  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 50 MB since 2026-09-30, was 150) are offered as a choice; other
   fetch tools still do not ask before a large download (tracked as open items). Until then treat any "fetch" tool as a potentially
   large download.
 

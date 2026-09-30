@@ -52,7 +52,7 @@ def export_stored_data(output_path):
         return {"error": f"Failed to read stored memory: {e}"}
 
     try:
-        chat_history = _chat_persistence.load_chat_history_with_timestamps()
+        chat_history = _chat_persistence.load_chat_transcript() or _chat_persistence.load_chat_history_with_timestamps()
     except Exception:
         chat_history = []
 

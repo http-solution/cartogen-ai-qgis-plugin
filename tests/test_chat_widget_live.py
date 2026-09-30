@@ -159,6 +159,14 @@ class TestChatWidgetLive(unittest.TestCase):
         from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
         cls.DockCls = CartogenAiDockWidget
 
+    def setUp(self):
+        # The full transcript is now saved by default and lives in the shared
+        # QgsProject.instance(), so an earlier test's turns would otherwise be
+        # restored into this test's fresh dock (CI run for PR #107: the welcome
+        # message was replaced by "Restored previous conversation").
+        from cartogen_ai.core.agent.chat_persistence import clear_saved_chat_history
+        clear_saved_chat_history()
+
     def _make_dock(self, agent):
         """Qt's isVisible() reflects ancestor visibility, not just a widget's
         own setVisible() flag -- an un-shown top-level dock leaves every
@@ -1033,6 +1041,35 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self.assertIn("EPSG:32638", dialog.memory_browser.toPlainText())
 
+    def test_memory_dialog_clear_saved_chat_deletes_the_stored_transcript(self):
+        """F25 option B: a default-on store needs a way out. The button asks first, then deletes the
+        project's saved conversation (full transcript + window), and declining deletes nothing."""
+        from unittest.mock import patch
+        from qgis.core import QgsProject
+        from qgis.PyQt.QtWidgets import QMessageBox
+        from cartogen_ai.core.agent import chat_persistence as cp
+        from cartogen_ai.core.ui.memory_dialog import CartogenAiMemoryDialog
+
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        dock = self._make_dock(_FakeAgent(script=[]))
+        cp.save_chat_transcript([{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}])
+        self.assertEqual(len(cp.load_chat_transcript()), 2)
+
+        dialog = CartogenAiMemoryDialog(dock)
+        self.addCleanup(dialog.close)
+        self.assertTrue(hasattr(dialog, "clear_saved_chat_btn"))
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No), \
+                patch.object(QMessageBox, "information"):
+            dialog._clear_saved_chat_clicked()
+        self.assertEqual(len(cp.load_chat_transcript()), 2, "declining must delete nothing")
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+                patch.object(QMessageBox, "information"):
+            dialog._clear_saved_chat_clicked()
+        self.assertEqual(cp.load_chat_transcript(), [])
+
     def test_memory_button_opens_a_dialog(self):
         """The header's Memory button (dock_widget.py's open_memory) must exist and use
         the "notes" icon -- confirms icons.py's new template renders without raising."""
@@ -1219,7 +1256,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from qgis.core import QgsProject, QgsWkbTypes
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         shp = _geofabrik_fixture(self.tmp)
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
              patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=True), \
@@ -1277,7 +1314,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from unittest.mock import patch
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
              patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=False), \
              patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
@@ -1313,7 +1350,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         from unittest.mock import patch
         ct, agent = self._dock()
         region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
-                  "size_bytes": 60_000_000}
+                  "size_bytes": 30_000_000}
         started = threading.Event()
 
         def slow(region_, dest, is_cancelled=None, progress=None):

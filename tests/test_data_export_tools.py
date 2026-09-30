@@ -26,6 +26,7 @@ class TestExportStoredData(unittest.TestCase):
         manager.get_project_notes.return_value = {"a": "1", "b": "2"}
         manager.get_global_notes.return_value = {"pref:x": "y"}
         mock_get_manager.return_value = manager
+        mock_chat.load_chat_transcript.return_value = []       # no full transcript -> falls back to the window
         mock_chat.load_chat_history_with_timestamps.return_value = [{"role": "user", "content": "hi", "ts": "t"}]
         mock_chat.load_chat_digest.return_value = []
         mock_chat.describe_retention.return_value = {"note": "rolling window"}
@@ -54,11 +55,33 @@ class TestExportStoredData(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.data_export_tools._chat_persistence")
     @patch("cartogen_ai.core.agent.tools.data_export_tools._export")
     @patch("cartogen_ai.core.agent.tools.data_export_tools.get_memory_manager")
+    def test_the_full_transcript_is_preferred_over_the_rolling_window(self, mock_get_manager, mock_export, mock_chat):
+        manager = MagicMock()
+        manager.get_project_notes.return_value = {}
+        manager.get_global_notes.return_value = {}
+        mock_get_manager.return_value = manager
+        full = [{"role": "user", "content": f"m{i}", "ts": "t"} for i in range(40)]
+        mock_chat.load_chat_transcript.return_value = full
+        mock_chat.load_chat_history_with_timestamps.return_value = full[-10:]
+        mock_chat.load_chat_digest.return_value = []
+        mock_chat.describe_retention.return_value = {}
+        mock_export.build_export_document.return_value = {"project_memory": {}, "global_memory": {}, "chat_history": full}
+        mock_export.write_export_document.return_value = True
+
+        result = export_stored_data("C:/tmp/export.json")
+
+        self.assertEqual(result["chat_history_count"], 40)
+        self.assertEqual(mock_export.build_export_document.call_args[0][2], full)
+
+    @patch("cartogen_ai.core.agent.tools.data_export_tools._chat_persistence")
+    @patch("cartogen_ai.core.agent.tools.data_export_tools._export")
+    @patch("cartogen_ai.core.agent.tools.data_export_tools.get_memory_manager")
     def test_reports_write_failure(self, mock_get_manager, mock_export, mock_chat):
         manager = MagicMock()
         manager.get_project_notes.return_value = {}
         manager.get_global_notes.return_value = {}
         mock_get_manager.return_value = manager
+        mock_chat.load_chat_transcript.return_value = []
         mock_chat.load_chat_history_with_timestamps.return_value = []
         mock_export.build_export_document.return_value = {"project_memory": {}, "global_memory": {}, "chat_history": []}
         mock_export.write_export_document.return_value = False
@@ -78,6 +101,7 @@ class TestExportStoredData(unittest.TestCase):
         manager.get_project_notes.return_value = {"a": "1"}
         manager.get_global_notes.return_value = {}
         mock_get_manager.return_value = manager
+        mock_chat.load_chat_transcript.return_value = []
         mock_chat.load_chat_history_with_timestamps.side_effect = Exception("boom")
         mock_chat.load_chat_digest.return_value = []
         mock_chat.describe_retention.return_value = {}

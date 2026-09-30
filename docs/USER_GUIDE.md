@@ -65,13 +65,15 @@ If Settings needed to fall back to storing a key without encryption (rare — on
 happens if QGIS's own encrypted credential store isn't available on your system),
 you'll get a warning dialog saying so.
 
-Settings also has a **"Save chat history in the project file"** checkbox, off by
-default. Turning it on saves the conversation into the current project's `.qgz` file
-so it's still there next time you open that project — but a project file is
-something you might share, email, or commit elsewhere, and the conversation
-travels with it if this is on. Leave it off unless you specifically want that.
-Turning it back off later doesn't remove history a project already saved while it
-was on.
+Settings also has a **"Save the conversation in the project file"** checkbox, **on by
+default** (changed in 1.16.0-rc8; it used to be off). With it on, the full conversation
+for a project is saved inside that project's `.qgz` file and kept for the life of the
+project, so it is still there — and exportable with *Export My Data* — next time you open
+it. Very long projects are bounded (the oldest messages are dropped first). A project file
+is something you might share, email, or commit elsewhere, and the conversation travels
+with it: **turn this off for projects that discuss sensitive material.** Turning it off
+doesn't remove what was already saved; use **Clear Saved Chat** in the Memory window to
+delete it (copies of the project file you already shared keep their own copy).
 
 ### Hosted Cartogen AI account
 
@@ -331,7 +333,7 @@ model:
   (about half of Jordan's), stored as points in a GeoPackage. Pharmacies are left out. Files are
   saved in the project's `data/00_raw/osm/` folder (or a folder in your QGIS profile if the
   project isn't saved yet), and a copy less than a week old is reused. If the extract is larger
-  than 150 MB, Cartogen tells you the size and asks again. **Stop** cancels the download and ends
+  than 50 MB (adjustable in QGIS advanced settings), Cartogen tells you the size and asks again. **Stop** cancels the download and ends
   the request.
 - **online**: the request goes ahead as before, fetching data live from OpenStreetMap's Overpass
   server. Cartogen won't ask again for the rest of the session. Saying "online" in the request

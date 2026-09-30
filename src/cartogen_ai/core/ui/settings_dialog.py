@@ -9,7 +9,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import QgsSettings
 
-from ..agent.chat_persistence import PERSIST_SETTING_KEY
+from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
 from ..agent.model_selector import AUTO_SENTINEL
@@ -432,13 +432,16 @@ class CartogenAiSettingsDialog(QDialog):
         # saving the conversation into it by default risked carrying
         # sensitive content (humanitarian incident/security details, internal
         # notes) along with the map without the user ever choosing that.
-        self.persist_history_checkbox = QCheckBox("Save chat history in the project file")
-        self.persist_history_checkbox.setChecked(bool(self.settings.value(PERSIST_SETTING_KEY, False, type=bool)))
+        self.persist_history_checkbox = QCheckBox("Save the conversation in the project file")
+        self.persist_history_checkbox.setChecked(
+            bool(self.settings.value(PERSIST_SETTING_KEY, PERSIST_DEFAULT, type=bool)))
         self.persist_history_checkbox.setToolTip(
-            "When on, the AI conversation is saved inside this project's .qgz file, so it's still there "
-            "next time you open it. The project file may be shared, emailed, or committed elsewhere -- "
-            "the conversation travels with it. Turning this off does not remove history already saved "
-            "in a project from before this was disabled."
+            "On by default. The full conversation for this project is saved inside its .qgz file and kept "
+            "for the life of the project, so it is still there -- and exportable -- next time you open it "
+            "(very long projects are bounded; the oldest messages are dropped first). The project file "
+            "may be shared, emailed, or committed elsewhere, and the conversation travels with it: turn "
+            "this off for projects that discuss sensitive material. Turning it off does not remove what is "
+            "already saved; use 'Clear Saved Chat' in the Memory window for that."
         )
         layout.addWidget(self.persist_history_checkbox)
 
