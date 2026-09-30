@@ -159,6 +159,14 @@ class TestChatWidgetLive(unittest.TestCase):
         from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
         cls.DockCls = CartogenAiDockWidget
 
+    def setUp(self):
+        # The full transcript is now saved by default and lives in the shared
+        # QgsProject.instance(), so an earlier test's turns would otherwise be
+        # restored into this test's fresh dock (CI run for PR #107: the welcome
+        # message was replaced by "Restored previous conversation").
+        from cartogen_ai.core.agent.chat_persistence import clear_saved_chat_history
+        clear_saved_chat_history()
+
     def _make_dock(self, agent):
         """Qt's isVisible() reflects ancestor visibility, not just a widget's
         own setVisible() flag -- an un-shown top-level dock leaves every
