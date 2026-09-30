@@ -1627,6 +1627,18 @@ Today the export holds the agent's rolling window (`MAX_HISTORY_MESSAGES` = 10) 
 **Recommendation: A + C, not B.** Keep the honest export (done) and add C for the audit/smoke-test need, without widening what is stored.
 Nothing is built for B or C yet; say which you want.
 
+**DECISION (owner, 2026-09-30): B, on by default, for the life of the project, with an enable/disable control in Settings** ("a mapping
+project has a purpose and context, it's not a long-term project"). Built the same day: the full transcript is stored with
+`QgsProject.writeEntry` (`cartogen_ai/chat_transcript` -- deliberately NOT the custom-property slot the rolling window uses, because on
+QGIS 4 that slot is `customVariables()`, shown in Project Properties > Variables); the export uses the transcript and falls back to the
+window; the persist setting defaults to ON (Settings label now "Save the conversation in the project file"); "Clear Saved Chat" in the
+Memory window deletes it. Additions of mine beyond the decision: safety bounds of 2,000 messages / 2,000,000 characters (oldest dropped
+first, the count reported in the export) so a very long project cannot bloat its own file; and the delete button, since a default-on
+store needs a way out. Consequences to be aware of: anyone who never opens Settings now has their conversation saved in every project
+they work in (SECURITY.md §7 updated); users who explicitly left the old default are unaffected only if the key was ever written by
+opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
+possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

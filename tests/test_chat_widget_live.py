@@ -1033,6 +1033,35 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self.assertIn("EPSG:32638", dialog.memory_browser.toPlainText())
 
+    def test_memory_dialog_clear_saved_chat_deletes_the_stored_transcript(self):
+        """F25 option B: a default-on store needs a way out. The button asks first, then deletes the
+        project's saved conversation (full transcript + window), and declining deletes nothing."""
+        from unittest.mock import patch
+        from qgis.core import QgsProject
+        from qgis.PyQt.QtWidgets import QMessageBox
+        from cartogen_ai.core.agent import chat_persistence as cp
+        from cartogen_ai.core.ui.memory_dialog import CartogenAiMemoryDialog
+
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        dock = self._make_dock(_FakeAgent(script=[]))
+        cp.save_chat_transcript([{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}])
+        self.assertEqual(len(cp.load_chat_transcript()), 2)
+
+        dialog = CartogenAiMemoryDialog(dock)
+        self.addCleanup(dialog.close)
+        self.assertTrue(hasattr(dialog, "clear_saved_chat_btn"))
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No), \
+                patch.object(QMessageBox, "information"):
+            dialog._clear_saved_chat_clicked()
+        self.assertEqual(len(cp.load_chat_transcript()), 2, "declining must delete nothing")
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+                patch.object(QMessageBox, "information"):
+            dialog._clear_saved_chat_clicked()
+        self.assertEqual(cp.load_chat_transcript(), [])
+
     def test_memory_button_opens_a_dialog(self):
         """The header's Memory button (dock_widget.py's open_memory) must exist and use
         the "notes" icon -- confirms icons.py's new template renders without raising."""

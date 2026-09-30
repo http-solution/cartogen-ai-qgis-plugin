@@ -46,14 +46,102 @@ class TestDigestAndRetention(unittest.TestCase):
         self.assertFalse(info["persistence_enabled"])
         self.assertIn("empty by design", info["note"])
 
-    def test_retention_note_when_saving_is_on_names_the_window(self):
-        with patch.object(cp, "is_persist_enabled", return_value=True):
+    def test_retention_note_with_no_transcript_yet_names_the_window(self):
+        with patch.object(cp, "is_persist_enabled", return_value=True), \
+                patch.object(cp, "_read_transcript_document", return_value={"messages": [], "dropped": 0}):
             info = cp.describe_retention(10)
         self.assertTrue(info["persistence_enabled"])
         self.assertEqual(info["max_messages_kept"], 10)
+        self.assertIn("No full transcript is stored", info["note"])
         self.assertIn("most recent 10 messages", info["note"])
-        self.assertIn("Not a full transcript", info["note"])
-        self.assertIn("chat_history_digest", info["note"])
+
+    def test_retention_note_with_a_transcript_reports_its_size_and_any_drops(self):
+        msgs = [{"role": "user", "content": "q", "ts": "t"}, {"role": "assistant", "content": "a", "ts": "t"}]
+        with patch.object(cp, "is_persist_enabled", return_value=True), \
+                patch.object(cp, "_read_transcript_document", return_value={"messages": msgs, "dropped": 7}):
+            info = cp.describe_retention(10)
+        self.assertEqual(info["transcript_messages"], 2)
+        self.assertEqual(info["transcript_dropped"], 7)
+        self.assertIn("Full stored conversation for this project: 2 messages", info["note"])
+        self.assertIn("7 older messages were dropped", info["note"])
+        self.assertIn("Saving is currently ON", info["note"])
+
+    def test_a_transcript_stays_reportable_after_saving_is_turned_off(self):
+        msgs = [{"role": "user", "content": "q", "ts": "t"}]
+        with patch.object(cp, "is_persist_enabled", return_value=False), \
+                patch.object(cp, "_read_transcript_document", return_value={"messages": msgs, "dropped": 0}):
+            info = cp.describe_retention(10)
+        self.assertIn("Saving is currently OFF", info["note"])
+        self.assertEqual(info["transcript_messages"], 1)
+
+
+class TestTranscriptMerge(unittest.TestCase):
+    """merge_into_transcript appends only what the stored transcript does not hold yet."""
+
+    @staticmethod
+    def _m(*pairs):
+        return [{"role": r, "content": c} for r, c in pairs]
+
+    def test_an_empty_transcript_takes_the_whole_window(self):
+        window = self._m(("user", "q1"), ("assistant", "a1"))
+        _, new = cp.merge_into_transcript([], window)
+        self.assertEqual(new, window)
+
+    def test_only_the_new_turn_is_appended(self):
+        t = self._m(("user", "q1"), ("assistant", "a1"))
+        window = t + self._m(("user", "q2"), ("assistant", "a2"))
+        _, new = cp.merge_into_transcript(t, window)
+        self.assertEqual(new, self._m(("user", "q2"), ("assistant", "a2")))
+
+    def test_a_trimmed_window_that_starts_later_still_finds_its_overlap(self):
+        t = self._m(("user", "q1"), ("assistant", "a1"), ("user", "q2"), ("assistant", "a2"))
+        window = self._m(("user", "q2"), ("assistant", "a2"), ("user", "q3"), ("assistant", "a3"))
+        _, new = cp.merge_into_transcript(t, window)
+        self.assertEqual(new, self._m(("user", "q3"), ("assistant", "a3")))
+
+    def test_the_digest_system_message_is_ignored(self):
+        t = self._m(("user", "q1"), ("assistant", "a1"))
+        window = self._m(("system", "[Earlier conversation digest] ...")) + t + self._m(("user", "q2"))
+        _, new = cp.merge_into_transcript(t, window)
+        self.assertEqual(new, self._m(("user", "q2")))
+
+    def test_an_identical_repeated_turn_is_still_appended(self):
+        t = self._m(("user", "yes"), ("assistant", "ok"))
+        window = t + self._m(("user", "yes"), ("assistant", "ok"))
+        _, new = cp.merge_into_transcript(t, window)
+        self.assertEqual(len(new), 2)
+
+    def test_nothing_new_appends_nothing(self):
+        t = self._m(("user", "q1"), ("assistant", "a1"))
+        _, new = cp.merge_into_transcript(t, list(t))
+        self.assertEqual(new, [])
+
+
+class TestTranscriptCaps(unittest.TestCase):
+    def test_under_the_bounds_nothing_is_dropped(self):
+        msgs = [{"role": "user", "content": "x"}] * 5
+        kept, dropped = cp.apply_transcript_caps(msgs, max_messages=10, max_chars=100)
+        self.assertEqual((len(kept), dropped), (5, 0))
+
+    def test_the_oldest_go_first_when_over_the_message_bound(self):
+        msgs = [{"role": "user", "content": str(i)} for i in range(10)]
+        kept, dropped = cp.apply_transcript_caps(msgs, max_messages=4, max_chars=10_000)
+        self.assertEqual([m["content"] for m in kept], ["6", "7", "8", "9"])
+        self.assertEqual(dropped, 6)
+
+    def test_the_character_bound_also_drops_oldest_first(self):
+        msgs = [{"role": "user", "content": "a" * 100} for _ in range(5)]
+        kept, dropped = cp.apply_transcript_caps(msgs, max_messages=100, max_chars=250)
+        self.assertEqual((len(kept), dropped), (2, 3))
+
+    def test_the_newest_message_is_always_kept_even_if_it_alone_is_too_big(self):
+        kept, dropped = cp.apply_transcript_caps([{"role": "user", "content": "a" * 500}], max_messages=1, max_chars=10)
+        self.assertEqual((len(kept), dropped), (1, 0))
+
+
+class TestPersistDefaultIsOn(unittest.TestCase):
+    def test_the_default_constant_is_on(self):
+        self.assertTrue(cp.PERSIST_DEFAULT)
 
 
 class TestExportDocumentCarriesThem(unittest.TestCase):

@@ -23,17 +23,35 @@ from ...infrastructure.settings_keys import (
 
 
 
+PERSIST_DEFAULT = True
+
+# The full transcript lives in QgsProject.writeEntry storage, NOT in the custom property / project-variable
+# slot the rolling window uses: on QGIS 4 that slot is customVariables(), which shows up in Project
+# Properties > Variables, and a transcript of up to megabytes does not belong there. Entries are saved in
+# the .qgz, are not shown in the variables UI, and work on QGIS 3 and 4.
+TRANSCRIPT_SCOPE = "cartogen_ai"
+TRANSCRIPT_KEY = "chat_transcript"
+# Safety bounds so a very long project cannot bloat its own file without limit. These are NOT the
+# retention policy (that is the project's lifetime); they only stop runaway growth. Oldest messages go first
+# and the number dropped is recorded and reported in the data export.
+MAX_TRANSCRIPT_MESSAGES = 2000
+MAX_TRANSCRIPT_CHARS = 2_000_000
+
+
 def is_persist_enabled() -> bool:
-    """Whether chat history should be written into the project file at all.
-    Opt-in, default OFF: a .qgz project file is a shareable artifact --
-    emailed, committed, uploaded -- and the conversation can reference
-    sensitive data (humanitarian incident/security details, internal notes)
-    the user never intended to travel with the map file itself. See Settings
-    > 'Save chat history in project file'."""
+    """Whether the conversation is written into the project file at all.
+
+    Default ON since 2026-09-30 (owner decision, recorded in IMPLEMENTATION_TRACKER 1.18): a mapping
+    project has a purpose and a lifetime, and the conversation is part of its context. It was opt-in
+    (default OFF) before, because a .qgz is a shareable artifact -- emailed, committed, uploaded -- and
+    the conversation can reference sensitive data (humanitarian incident/security details, internal
+    notes) that then travels with the map file. That risk is unchanged; it is now accepted by default
+    and the user can turn it off in Settings > 'Save the conversation in the project file', and delete
+    what is already saved from the Memory dialog."""
     if not QGIS_AVAILABLE:
         return False
     try:
-        return bool(QgsSettings().value(PERSIST_SETTING_KEY, False, type=bool))
+        return bool(QgsSettings().value(PERSIST_SETTING_KEY, PERSIST_DEFAULT, type=bool))
     except Exception:
         return False
 
@@ -127,9 +145,13 @@ def save_chat_history(history, user_ts=None) -> bool:
         return False
     try:
         timestamped = _attach_timestamps(history, _load_raw_entries(), user_ts=user_ts)
-        return set_project_custom_property(
+        ok = set_project_custom_property(
             QgsProject.instance(), CHAT_HISTORY_KEY, json.dumps(timestamped, default=str)
         )
+        # The agent's window above is what restores the model's context; the transcript below is the full
+        # record kept for the life of the project (and what "Export My Data" reports).
+        save_chat_transcript(history, user_ts=user_ts)
+        return ok
     except Exception as e:
         print(f"[ChatPersistence] Failed to save chat history: {e}")
         return False
@@ -180,16 +202,128 @@ def load_chat_digest() -> list:
 
 def describe_retention(max_messages=None) -> dict:
     """What the chat_history part of a data export does and does not contain, stated inside the export
-    itself so nobody reads it as a full transcript (F25: an export with 8 messages from a 50-minute
-    session looked like data loss; it was the designed rolling window)."""
+    itself so nobody reads it as something it is not (F25: an export with 8 messages from a 50-minute
+    session looked like data loss; it was the agent's rolling window).
+
+    Since 2026-09-30 the export carries the project's FULL stored transcript when one exists; the rolling
+    window is only the fallback for projects that have no transcript (saving was off, or the conversation
+    predates it)."""
     enabled = is_persist_enabled()
-    if not enabled:
-        note = ("Saving chat history in the project file is OFF (Settings), so no conversation is stored and "
+    doc = _read_transcript_document()
+    stored = len([m for m in doc["messages"] if m.get("role") in ("user", "assistant") and m.get("content")])
+    dropped = doc["dropped"]
+    if stored:
+        note = (f"Full stored conversation for this project: {stored} messages, kept for the life of the project "
+                "in the project file. ")
+        if dropped:
+            note += (f"{dropped} older messages were dropped to keep the file from growing without limit "
+                     f"(bounds: {MAX_TRANSCRIPT_MESSAGES} messages / {MAX_TRANSCRIPT_CHARS:,} characters). ")
+        note += ("Saving is currently ON." if enabled else
+                 "Saving is currently OFF (Settings), so nothing new is being added.")
+        note += " chat_history_digest is the agent's short summary of turns older than its working window."
+    elif not enabled:
+        note = ("Saving the conversation in the project file is OFF (Settings), so nothing is stored and "
                 "chat_history is empty by design.")
     else:
         kept = f"the most recent {max_messages} messages" if max_messages else "only the most recent messages"
-        note = (f"Not a full transcript: only {kept} are kept. Older messages are dropped and replaced by a short "
-                "extractive digest (one line per dropped message, capped in length), exported under "
-                "chat_history_digest. The history belongs to the project file that was open at export time; "
-                "opening a different project shows that project's history instead.")
-    return {"persistence_enabled": enabled, "max_messages_kept": max_messages, "note": note}
+        note = (f"No full transcript is stored for this project yet; chat_history holds {kept} of the agent's "
+                "working window. Older messages, if any, are summarised under chat_history_digest.")
+    return {"persistence_enabled": enabled, "max_messages_kept": max_messages,
+            "transcript_messages": stored, "transcript_dropped": dropped, "note": note}
+
+
+# ---- full transcript (project lifetime) --------------------------------------------------------------
+
+def merge_into_transcript(transcript, window):
+    """Append to `transcript` the messages in `window` that it does not hold yet. Pure.
+
+    `window` is the agent's current history (role/content dicts, possibly starting with a role-"system"
+    digest, which is skipped). It is always the tail of the full conversation so far plus this turn's
+    new messages, so the new ones are found by the longest overlap between the end of the transcript and
+    the start of the window. Returns (existing_transcript, new_messages)."""
+    conv = [{"role": m.get("role"), "content": m.get("content")} for m in (window or [])
+            if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")]
+    have = [{"role": m.get("role"), "content": m.get("content")} for m in (transcript or [])]
+    overlap = 0
+    for k in range(min(len(have), len(conv)), 0, -1):
+        if have[-k:] == conv[:k]:
+            overlap = k
+            break
+    return list(transcript or []), conv[overlap:]
+
+
+def apply_transcript_caps(messages, max_messages=None, max_chars=None):
+    """Drop the OLDEST messages until both safety bounds hold. Returns (kept, dropped_count). Pure.
+    Always keeps at least the newest message."""
+    max_messages = MAX_TRANSCRIPT_MESSAGES if max_messages is None else max_messages
+    max_chars = MAX_TRANSCRIPT_CHARS if max_chars is None else max_chars
+    kept = list(messages)
+    dropped = 0
+    total = sum(len(str(m.get("content", ""))) for m in kept)
+    while len(kept) > 1 and (len(kept) > max_messages or total > max_chars):
+        total -= len(str(kept[0].get("content", "")))
+        kept.pop(0)
+        dropped += 1
+    return kept, dropped
+
+
+def _read_transcript_document() -> dict:
+    """{"messages": [...], "dropped": int} as stored, or an empty one. Independent of the persist
+    setting: what is on disk can be exported or deleted even after the setting is turned off."""
+    empty = {"messages": [], "dropped": 0}
+    if not QGIS_AVAILABLE:
+        return empty
+    try:
+        raw, ok = QgsProject.instance().readEntry(TRANSCRIPT_SCOPE, TRANSCRIPT_KEY, "")
+        if ok and isinstance(raw, str) and raw.strip():
+            doc = json.loads(raw)
+            if isinstance(doc, dict) and isinstance(doc.get("messages"), list):
+                return {"messages": [m for m in doc["messages"] if isinstance(m, dict)],
+                        "dropped": int(doc.get("dropped") or 0)}
+    except Exception as e:
+        print(f"[ChatPersistence] Failed to read chat transcript: {e}")
+    return empty
+
+
+def load_chat_transcript() -> list:
+    """The full stored conversation for the open project: [{"role", "content", "ts"}]."""
+    return [m for m in _read_transcript_document()["messages"]
+            if m.get("role") in ("user", "assistant") and m.get("content")]
+
+
+def save_chat_transcript(history, user_ts=None) -> bool:
+    """Add this turn's new messages to the project's full transcript -- only when saving is enabled."""
+    if not QGIS_AVAILABLE or not is_persist_enabled():
+        return False
+    try:
+        doc = _read_transcript_document()
+        existing = doc["messages"]
+        _, new_messages = merge_into_transcript(existing, history)
+        if not new_messages:
+            return True
+        stamped = _attach_timestamps(new_messages, [], user_ts=user_ts)
+        kept, dropped = apply_transcript_caps(existing + stamped)
+        payload = json.dumps({"version": 1, "dropped": doc["dropped"] + dropped, "messages": kept},
+                             default=str, ensure_ascii=False)
+        return bool(QgsProject.instance().writeEntry(TRANSCRIPT_SCOPE, TRANSCRIPT_KEY, payload))
+    except Exception as e:
+        print(f"[ChatPersistence] Failed to save chat transcript: {e}")
+        return False
+
+
+def clear_saved_chat_history() -> dict:
+    """Delete everything saved for this project: the full transcript and the rolling window/digest. Does
+    not touch the live in-memory conversation, and cannot reach copies of the project file already shared."""
+    if not QGIS_AVAILABLE:
+        return {"success": False, "removed": 0}
+    removed = len(load_chat_transcript())
+    ok = True
+    try:
+        QgsProject.instance().removeEntry(TRANSCRIPT_SCOPE, TRANSCRIPT_KEY)
+    except Exception:
+        ok = False
+    try:
+        set_project_custom_property(QgsProject.instance(), CHAT_HISTORY_KEY, "")
+    except Exception:
+        ok = False
+    return {"success": ok, "removed": removed}

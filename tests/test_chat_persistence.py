@@ -74,6 +74,20 @@ class _FakeProject:
     shape get_project_custom_property/set_project_custom_property expect."""
     def __init__(self):
         self.custom_properties = {}
+        self.entries = {}          # QgsProject.writeEntry storage, used by the full transcript
+
+    def readEntry(self, scope, key, default=""):
+        if (scope, key) in self.entries:
+            return self.entries[(scope, key)], True
+        return default, False
+
+    def writeEntry(self, scope, key, value):
+        self.entries[(scope, key)] = value
+        return True
+
+    def removeEntry(self, scope, key):
+        self.entries.pop((scope, key), None)
+        return True
 
 
 class TestChatPersistence(unittest.TestCase):
@@ -223,7 +237,8 @@ class TestSaveLoadRoundTripWithTimestamps(unittest.TestCase):
             # test-runner clock: the behavior under test is that a later save
             # requests a fresh timestamp, not that datetime.now() advances
             # between two rapid calls in every environment.
-            with patch(
+            # (the full transcript has its own timestamping and is covered separately below)
+            with patch.object(cp, "save_chat_transcript"), patch(
                 "cartogen_ai.core.agent.chat_persistence._now_iso",
                 side_effect=["2000-01-02T00:00:00", "2000-01-02T00:00:01"],
             ):
@@ -240,6 +255,59 @@ class TestSaveLoadRoundTripWithTimestamps(unittest.TestCase):
             self.assertEqual(all_four[1]["ts"], first_two[1]["ts"])
             self.assertNotEqual(all_four[3]["ts"], first_two[0]["ts"])
             self.assertNotEqual(all_four[3]["ts"], first_two[1]["ts"])
+
+
+class TestFullTranscriptThroughSaveChatHistory(unittest.TestCase):
+    """F25 option B: save_chat_history also keeps the full transcript, beyond the agent's window."""
+
+    @staticmethod
+    def _turn(n):
+        return [{"role": "user", "content": f"q{n}"}, {"role": "assistant", "content": f"a{n}"}]
+
+    def test_the_transcript_keeps_every_message_while_the_window_is_trimmed(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            full = []
+            for n in range(1, 9):
+                full += self._turn(n)
+                cp.save_chat_history(full[-6:])          # the agent only ever holds its last 6 here
+            transcript = cp.load_chat_transcript()
+            self.assertEqual([m["content"] for m in transcript], [m["content"] for m in full])
+            self.assertEqual(len(cp.load_chat_history()), 6)    # the window restore is unchanged
+
+    def test_the_user_message_takes_the_send_time_the_reply_takes_the_save_time(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history(self._turn(1), user_ts="2026-09-30T01:00:00")
+            stored = cp.load_chat_transcript()
+            self.assertEqual(stored[0]["ts"], "2026-09-30T01:00:00")
+            self.assertNotEqual(stored[1]["ts"], "2026-09-30T01:00:00")
+
+    def test_turned_off_nothing_new_is_added_and_nothing_old_is_removed(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history(self._turn(1))
+        with _simulate_qgis_with_persist_setting(False, project=project) as cp:
+            cp.save_chat_history(self._turn(1) + self._turn(2))
+            self.assertEqual(len(cp.load_chat_transcript()), 2)
+
+    def test_clear_saved_chat_history_empties_transcript_and_window(self):
+        project = _FakeProject()
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            cp.save_chat_history(self._turn(1) + self._turn(2))
+            result = cp.clear_saved_chat_history()
+            self.assertTrue(result["success"])
+            self.assertEqual(result["removed"], 4)
+            self.assertEqual(cp.load_chat_transcript(), [])
+            self.assertEqual(cp.load_chat_history(), [])
+
+    def test_a_corrupt_stored_transcript_reads_as_empty_not_an_error(self):
+        project = _FakeProject()
+        project.entries[("cartogen_ai", "chat_transcript")] = "{not json"
+        with _simulate_qgis_with_persist_setting(True, project=project) as cp:
+            self.assertEqual(cp.load_chat_transcript(), [])
+            cp.save_chat_history(self._turn(1))        # and saving recovers
+            self.assertEqual(len(cp.load_chat_transcript()), 2)
 
 
 if __name__ == "__main__":
