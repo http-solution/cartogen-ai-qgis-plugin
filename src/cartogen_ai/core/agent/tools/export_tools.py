@@ -1311,6 +1311,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
         warnings.append(basemap_warning)
 
     temporal_js_vars = []
+    cluster_js_vars = []     # parallel to temporal_js_vars: a MarkerCluster's JS name, or "null"
     all_start_ms, all_end_ms = [], []
     all_locations = set()
     chart_inputs = []
@@ -1399,7 +1400,22 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
         if popup is not None:
             gj_kwargs["popup"] = popup
         gj = folium.GeoJson(temporal_geojson, **gj_kwargs)
-        gj.add_to(m)
+        if _should_cluster(features):
+            # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
+            # its opacity, which a cluster would still count, so the page script rebuilds this cluster
+            # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
+            from folium.plugins import MarkerCluster
+            cluster = MarkerCluster(name=name).add_to(m)
+            gj.add_to(cluster)
+            cluster_js_vars.append(cluster.get_name())
+            warnings.append(
+                f"'{name}': {len(features):,} points are drawn as clusters of the features active at the "
+                "selected date (cluster bubbles use the default colours; individual markers keep their "
+                "category colours once you zoom in)."
+            )
+        else:
+            gj.add_to(m)
+            cluster_js_vars.append("null")
         temporal_js_vars.append(gj.get_name())
 
     folium.LayerControl().add_to(m)
@@ -1428,6 +1444,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
 
     step_ms = max(int(step_days), 1) * 86400000
     layers_js_array = "[" + ",".join(temporal_js_vars) + "]"
+    clusters_js_array = "[" + ",".join(cluster_js_vars) + "]"
 
     location_list = sorted(all_locations)
     chart_data = _build_trend_chart_data(chart_inputs)
@@ -1549,7 +1566,12 @@ font-family:sans-serif;min-width:360px;">
 {chart_panel_html}
 <script>
 (function() {{
-  var __cartogenLayers = {layers_js_array};
+  // Resolved lazily, never at load: folium 0.20 emits the map script AFTER this block, so the
+  // geo_json_*/marker_cluster_* variables do not exist yet when this runs. Referencing them here
+  // threw a ReferenceError that stopped the whole script, leaving a dead slider and play button
+  // (found by opening the generated page in a real browser, 2026-09-30).
+  function __cartogenLayers() {{ return {layers_js_array}; }}
+  function __cartogenClusters() {{ return {clusters_js_array}; }}
   var __cartogenMin = {min_ms}, __cartogenMax = {max_ms}, __cartogenStep = {step_ms};
   var __cartogenRangeFrom = {min_ms}, __cartogenRangeTo = {max_ms};
   var __cartogenCheckedLocations = null;
@@ -1569,8 +1591,20 @@ font-family:sans-serif;min-width:360px;">
   }}
 
   function __cartogenUpdateFrame(ms) {{
-    __cartogenLayers.forEach(function(layerGroup) {{
+    var clusterList = __cartogenClusters();
+    __cartogenLayers().forEach(function(layerGroup, layerIndex) {{
       if (!layerGroup || typeof layerGroup.eachLayer !== "function") return;
+      var cluster = clusterList[layerIndex];
+      if (cluster) {{
+        var activeSubs = [];
+        layerGroup.eachLayer(function(sub) {{
+          var props = (sub.feature && sub.feature.properties) || {{}};
+          if (__cartogenIsActive(props, ms)) activeSubs.push(sub);
+        }});
+        cluster.clearLayers();
+        cluster.addLayers(activeSubs);
+        return;
+      }}
       layerGroup.eachLayer(function(sub) {{
         var p = (sub.feature && sub.feature.properties) || {{}};
         var active = __cartogenIsActive(p, ms);

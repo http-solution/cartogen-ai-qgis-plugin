@@ -83,3 +83,75 @@ class TestDashboardHtml(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTemporalDashboardClustering(unittest.TestCase):
+    """generate_temporal_dashboard's slider hides a feature by zeroing its opacity, which a cluster
+    would still count, so a clustered temporal layer is rebuilt from the ACTIVE markers every frame."""
+
+    def setUp(self):
+        try:
+            import folium  # noqa: F401
+        except ImportError:
+            self.skipTest("folium not installed")
+
+    @staticmethod
+    def _timed_points(n):
+        feats = _points(n)
+        for i, f in enumerate(feats):
+            f["properties"]["start"] = f"2020-{1 + i % 12:02d}-01"
+            f["properties"]["group"] = "A" if i % 2 else "B"
+        return feats
+
+    def _build(self, feats, **layer_kw):
+        layer = _layer("Incidents", feats, start_field="start", category_field="group", **layer_kw)
+        return et._build_temporal_dashboard_html([layer])
+
+    def test_a_large_temporal_point_layer_is_clustered_and_says_so(self):
+        res = self._build(self._timed_points(150))
+        self.assertNotIn("error", res, res)
+        self.assertEqual(res["html"].count("L.markerClusterGroup"), 1)
+        self.assertTrue(any("150 points are drawn as clusters" in w for w in res["warnings"]), res["warnings"])
+
+    def test_the_frame_update_rebuilds_the_cluster_from_active_markers_only(self):
+        html = self._build(self._timed_points(150))["html"]
+        self.assertIn("cluster.clearLayers();", html)
+        self.assertIn("cluster.addLayers(activeSubs);", html)
+        self.assertIn("__cartogenIsActive(props, ms)", html)
+
+    def test_the_cluster_is_wired_to_its_geojson_layer_by_position(self):
+        import re
+        html = self._build(self._timed_points(150))["html"]
+        layers = re.search(r"function __cartogenLayers\(\) \{ return \[(geo_json_[0-9a-f]+)\]; \}", html)
+        clusters = re.search(r"function __cartogenClusters\(\) \{ return \[(marker_cluster_[0-9a-f]+)\]; \}", html)
+        self.assertIsNotNone(layers, "layer list not found")
+        self.assertIsNotNone(clusters, "cluster list not found")
+
+    def test_layer_variables_are_not_referenced_when_the_script_loads(self):
+        """folium 0.20 emits the map script after this block, so a top-level reference to geo_json_*
+        is a ReferenceError that kills the slider (found by rendering the page in Chromium)."""
+        import re
+        html = self._build(self._timed_points(20))["html"]
+        script = html[html.index("function __cartogenLayers()"):]
+        top_level = re.search(r"^\s*var __cartogen\w+ = [^;]*geo_json_", script, flags=re.M)
+        self.assertIsNone(top_level)
+
+    def test_a_small_temporal_layer_keeps_the_opacity_toggle_and_no_cluster(self):
+        html = self._build(self._timed_points(20))["html"]
+        self.assertNotIn("L.markerClusterGroup", html)
+        self.assertIn("function __cartogenClusters() { return [null]; }", html)
+        self.assertIn("sub.setStyle({opacity: active ? 1 : 0", html)
+
+    def test_a_temporal_polygon_layer_is_not_clustered(self):
+        feats = [_polygon() for _ in range(150)]
+        for f in feats:
+            f["properties"].update({"start": "2020-01-01", "group": "A"})
+        res = self._build(feats)
+        self.assertNotIn("L.markerClusterGroup", res["html"])
+
+    def test_a_static_layer_beside_a_clustered_temporal_one_still_renders(self):
+        static = _layer("Outline", [_polygon()])
+        temporal = _layer("Incidents", self._timed_points(150), start_field="start", category_field="group")
+        res = et._build_temporal_dashboard_html([static, temporal])
+        self.assertNotIn("error", res, res)
+        self.assertEqual(res["html"].count("L.markerClusterGroup"), 1)
