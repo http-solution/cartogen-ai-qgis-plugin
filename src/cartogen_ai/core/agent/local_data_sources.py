@@ -26,7 +26,7 @@ GEOFABRIK_INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 # Tools whose results are only meaningful on a routable line network.
 ROAD_NETWORK_TOOLS = frozenset({
     "calculate_service_area", "travel_time_matrix", "optimize_delivery_route",
-    "population_access_gap",
+    "population_access_gap", "classify_facilities_by_access",
 })
 
 _HEALTH_WORDS = re.compile(r"\b(health|hospitals?|clinics?|medical|doctors?|facilit(y|ies))\b", re.I)

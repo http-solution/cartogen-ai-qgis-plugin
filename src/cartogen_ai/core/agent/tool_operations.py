@@ -166,6 +166,7 @@ TOOL_OPERATION_TYPES = {
     "location_allocation": READ,
     "optimize_delivery_route": CREATE,
     "calculate_service_area": CREATE,
+    "classify_facilities_by_access": CREATE,
     "travel_time_matrix": READ,
     "population_access_gap": CREATE,
     # Calls buffer_analysis() internally to build its risk-corridor layer,
