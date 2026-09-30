@@ -69,7 +69,7 @@ def _load_raw_entries() -> list:
     return []
 
 
-def _attach_timestamps(history, previous_entries) -> list:
+def _attach_timestamps(history, previous_entries, user_ts=None) -> list:
     """Pairs each {"role", "content"} message in `history` (the plain
     API-shaped list agent_orchestrator.py's conversation_history actually is -- see
     agent_orchestrator.py's run(), which extends it straight into an LLM `messages` list)
@@ -107,11 +107,15 @@ def _attach_timestamps(history, previous_entries) -> list:
         key = (entry.get("role"), entry.get("content"))
         bucket = pending.get(key)
         ts = bucket.pop(0) if bucket else None
-        result.append({"role": entry.get("role"), "content": entry.get("content"), "ts": ts or now})
+        # rc7 smoke test F25: every message new since the last save used to get the SAME `now`
+        # (the moment the reply finished), so a user message was stamped minutes after it was sent.
+        # A new user message takes the time it was actually sent, when the caller knows it.
+        fresh = user_ts if (entry.get("role") == "user" and user_ts) else now
+        result.append({"role": entry.get("role"), "content": entry.get("content"), "ts": ts or fresh})
     return result
 
 
-def save_chat_history(history) -> bool:
+def save_chat_history(history, user_ts=None) -> bool:
     """Persists the conversation history list into the active project --
     only if the user has opted in (see is_persist_enabled). Attaches a real
     per-message timestamp (see _attach_timestamps) before writing, without
@@ -122,7 +126,7 @@ def save_chat_history(history) -> bool:
     if not QGIS_AVAILABLE or not is_persist_enabled():
         return False
     try:
-        timestamped = _attach_timestamps(history, _load_raw_entries())
+        timestamped = _attach_timestamps(history, _load_raw_entries(), user_ts=user_ts)
         return set_project_custom_property(
             QgsProject.instance(), CHAT_HISTORY_KEY, json.dumps(timestamped, default=str)
         )
@@ -164,3 +168,28 @@ def load_chat_history_with_timestamps() -> list:
         e for e in _load_raw_entries()
         if e.get("role") in ("user", "assistant") and e.get("content")
     ]
+
+
+def load_chat_digest() -> list:
+    """The stored conversation digest entries (role "system"), which load_chat_history*() deliberately
+    filter out because they must not be fed back to an LLM as turns. They ARE stored text derived from
+    earlier user messages (agent/history_manager.py keeps one extractive line per trimmed message), so
+    a data export must include them: rc7 smoke test F25 found the export silently omitting them."""
+    return [e for e in _load_raw_entries() if e.get("role") == "system" and e.get("content")]
+
+
+def describe_retention(max_messages=None) -> dict:
+    """What the chat_history part of a data export does and does not contain, stated inside the export
+    itself so nobody reads it as a full transcript (F25: an export with 8 messages from a 50-minute
+    session looked like data loss; it was the designed rolling window)."""
+    enabled = is_persist_enabled()
+    if not enabled:
+        note = ("Saving chat history in the project file is OFF (Settings), so no conversation is stored and "
+                "chat_history is empty by design.")
+    else:
+        kept = f"the most recent {max_messages} messages" if max_messages else "only the most recent messages"
+        note = (f"Not a full transcript: only {kept} are kept. Older messages are dropped and replaced by a short "
+                "extractive digest (one line per dropped message, capped in length), exported under "
+                "chat_history_digest. The history belongs to the project file that was open at export time; "
+                "opening a different project shows that project's history instead.")
+    return {"persistence_enabled": enabled, "max_messages_kept": max_messages, "note": note}

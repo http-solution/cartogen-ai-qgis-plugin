@@ -1577,7 +1577,7 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 
 ### `export_stored_data`
 
-Exports everything Cartogen AI has stored for this project and this machine -- project memory notes, global memory notes/preferences, and chat history (if chat history saving is enabled in Settings) -- into one structured JSON file. Use this when the user asks what data the plugin has stored, wants a copy of their conversation/notes, or needs a data-portability export. Chat history is included only if the user has opted into 'Save chat history in the project file' -- this tool does not change that setting or read history that was never saved.
+Exports everything Cartogen AI has stored for this project and this machine -- project memory notes, global memory notes/preferences, and chat history (if chat history saving is enabled in Settings) -- into one structured JSON file. Use this when the user asks what data the plugin has stored, wants a copy of their conversation/notes, or needs a data-portability export. Chat history is included only if the user has opted into 'Save chat history in the project file' -- this tool does not change that setting or read history that was never saved. The chat history it exports is only a rolling window of the most recent messages plus a short digest of older ones (see chat_history_info in the file), never a full transcript; say so when reporting it.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
