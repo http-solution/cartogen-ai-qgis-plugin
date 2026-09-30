@@ -115,7 +115,11 @@ class CartogenAiMemoryDialog(QDialog):
             project_notes = agent.memory_manager.get_project_notes()
             global_notes = agent.memory_manager.get_global_notes()
             chat_history = chat_persistence.load_chat_history_with_timestamps()
-            document = data_export.build_export_document(project_notes, global_notes, chat_history)
+            from ..agent.agent_orchestrator import MAX_HISTORY_MESSAGES
+            document = data_export.build_export_document(
+                project_notes, global_notes, chat_history,
+                chat_digest=chat_persistence.load_chat_digest(),
+                chat_info=chat_persistence.describe_retention(MAX_HISTORY_MESSAGES))
             ok = data_export.write_export_document(document, output_path)
         except Exception as e:
             QMessageBox.warning(self, "Export My Data", f"Export failed: {e}")

@@ -27,11 +27,14 @@ class TestExportStoredData(unittest.TestCase):
         manager.get_global_notes.return_value = {"pref:x": "y"}
         mock_get_manager.return_value = manager
         mock_chat.load_chat_history_with_timestamps.return_value = [{"role": "user", "content": "hi", "ts": "t"}]
+        mock_chat.load_chat_digest.return_value = []
+        mock_chat.describe_retention.return_value = {"note": "rolling window"}
 
         mock_export.build_export_document.return_value = {
             "project_memory": {"a": "1", "b": "2"},
             "global_memory": {"pref:x": "y"},
             "chat_history": [{"role": "user", "content": "hi", "ts": "t"}],
+            "chat_history_info": {"note": "rolling window"},
         }
         mock_export.write_export_document.return_value = True
 
@@ -42,8 +45,10 @@ class TestExportStoredData(unittest.TestCase):
         self.assertEqual(result["project_memory_count"], 2)
         self.assertEqual(result["global_memory_count"], 1)
         self.assertEqual(result["chat_history_count"], 1)
+        self.assertEqual(result["chat_history_note"], "rolling window")
         mock_export.build_export_document.assert_called_once_with(
-            {"a": "1", "b": "2"}, {"pref:x": "y"}, [{"role": "user", "content": "hi", "ts": "t"}]
+            {"a": "1", "b": "2"}, {"pref:x": "y"}, [{"role": "user", "content": "hi", "ts": "t"}],
+            chat_digest=[], chat_info={"note": "rolling window"},
         )
 
     @patch("cartogen_ai.core.agent.tools.data_export_tools._chat_persistence")
@@ -74,6 +79,8 @@ class TestExportStoredData(unittest.TestCase):
         manager.get_global_notes.return_value = {}
         mock_get_manager.return_value = manager
         mock_chat.load_chat_history_with_timestamps.side_effect = Exception("boom")
+        mock_chat.load_chat_digest.return_value = []
+        mock_chat.describe_retention.return_value = {}
 
         with patch("cartogen_ai.core.agent.tools.data_export_tools._export") as mock_export:
             mock_export.build_export_document.return_value = {"project_memory": {"a": "1"}, "global_memory": {}, "chat_history": []}
@@ -81,7 +88,7 @@ class TestExportStoredData(unittest.TestCase):
             result = export_stored_data("C:/tmp/export.json")
 
         self.assertTrue(result["success"])
-        mock_export.build_export_document.assert_called_once_with({"a": "1"}, {}, [])
+        mock_export.build_export_document.assert_called_once_with({"a": "1"}, {}, [], chat_digest=[], chat_info={})
 
 
 if __name__ == "__main__":

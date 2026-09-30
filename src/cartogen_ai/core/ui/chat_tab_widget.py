@@ -1518,6 +1518,7 @@ class ChatTabWidget(QWidget):
         # be set AFTER this emit, not before, or it gets immediately clobbered.
         if not already_echoed:
             self._echo_original(text)
+        self._turn_sent_iso = now_iso()     # F25: stamped on the stored user message at save time
         self._dock.statusSignal.emit("Thinking...")
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -1761,7 +1762,7 @@ class ChatTabWidget(QWidget):
         try:
             from ..agent.chat_persistence import save_chat_history
             history = agent._read_history_snapshot() if hasattr(agent, "_read_history_snapshot") else getattr(agent, "conversation_history", [])
-            save_chat_history(history)
+            save_chat_history(history, user_ts=getattr(self, "_turn_sent_iso", None))
         except Exception as e:
             print(f"[ChatTabWidget] Failed to save chat history: {e}")
 

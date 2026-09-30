@@ -20,7 +20,7 @@ import json
 import datetime
 
 
-def build_export_document(project_notes, global_notes, chat_history):
+def build_export_document(project_notes, global_notes, chat_history, chat_digest=None, chat_info=None):
     """Pure assembly -- no I/O. project_notes/global_notes are the dicts
     memory.py's get_project_notes()/get_global_notes() already return;
     chat_history is the list chat_persistence.py's
@@ -36,6 +36,10 @@ def build_export_document(project_notes, global_notes, chat_history):
         "project_memory": dict(project_notes or {}),
         "global_memory": dict(global_notes or {}),
         "chat_history": list(chat_history or []),
+        # F25: the stored digest of older, trimmed messages, and a statement of what chat_history is
+        # (a rolling window, not a transcript; empty when saving is off).
+        "chat_history_digest": list(chat_digest or []),
+        "chat_history_info": dict(chat_info or {}),
     }
 
 
