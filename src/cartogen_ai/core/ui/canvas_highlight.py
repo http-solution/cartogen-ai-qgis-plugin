@@ -19,6 +19,30 @@ HIGHLIGHT_DURATION_MS = 2500
 HIGHLIGHT_COLOR = (255, 140, 0, 160)  # orange, semi-transparent
 
 
+def _discard_highlight(highlight):
+    """Remove a QgsHighlight from the canvas scene and schedule its deletion.
+
+    rc7 smoke test F11: the expiry only called hide(). A QgsHighlight is a QGraphicsItem that
+    stays in the canvas scene, so 7 hidden-but-present items accumulated; after a canvas CRS switch
+    or project reload they were drawn again as a solid orange block that no layer toggle removed
+    (removing them from the scene in the QGIS console made it vanish). hide() is kept first so a
+    failure below still leaves the item invisible."""
+    try:
+        highlight.hide()
+    except Exception:
+        pass
+    try:
+        scene = highlight.scene()
+        if scene is not None:
+            scene.removeItem(highlight)
+    except Exception:
+        pass
+    try:
+        highlight.deleteLater()
+    except Exception:
+        pass
+
+
 def flash_layer_extent(iface, layer, on_expired=None, duration_ms=HIGHLIGHT_DURATION_MS):
     """Creates a temporary QgsHighlight over layer's extent and removes it
     after duration_ms. Returns the QgsHighlight so the caller can keep a
@@ -44,10 +68,7 @@ def flash_layer_extent(iface, layer, on_expired=None, duration_ms=HIGHLIGHT_DURA
         highlight.show()
 
         def _expire():
-            try:
-                highlight.hide()
-            except Exception:
-                pass
+            _discard_highlight(highlight)
             if on_expired:
                 on_expired(highlight)
 
