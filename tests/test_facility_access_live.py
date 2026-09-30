@@ -83,5 +83,64 @@ class TestClassificationMatchesRouting(unittest.TestCase):
         self.assertTrue(ok.get("success"), ok)
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core bindings -- run from an OSGeo4W/QGIS Python")
+class TestRoadBufferReachPolygon(unittest.TestCase):
+    """F09: the reach polygon used for population is the reached roads buffered in metres, and is
+    smaller than the convex hull that overstated the exposure (778,156 people) in the rc7 smoke test."""
+
+    @classmethod
+    def setUpClass(cls):
+        why = _boot()
+        if why:
+            raise unittest.SkipTest(why)
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        cls.lt = lt
+
+    def setUp(self):
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        # A network covering only the lower-left corner, so the reached roads form an L-shaped region:
+        # a convex hull of them fills the empty corner, a road buffer does not.
+        _grid("EPSG:4326", N, only_rows=30)
+        _origins("EPSG:4326", [(LON0 + 10 * STEP, LAT + 10 * STEP)], name="origin")
+
+    def _lines(self):
+        res = self.lt.calculate_service_area("origin", "roads", 2500.0)
+        self.assertTrue(res.get("success"), res)
+        names = [n for n in res["layers_created"] if "_lines_" in n]
+        return [QgsProject.instance().mapLayersByName(n)[0] for n in names]
+
+    def _area_m2(self, layer):
+        from qgis.core import QgsDistanceArea
+        da = QgsDistanceArea()
+        da.setEllipsoid("WGS84")
+        da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+        return sum(da.measureArea(f.geometry()) for f in layer.getFeatures())
+
+    def test_buffered_reach_is_smaller_than_the_hull_and_still_covers_the_roads(self):
+        from qgis.core import QgsGeometry, QgsPointXY
+        lines = self._lines()
+        # 50 m against ~220 m road spacing: a buffer narrower than the gaps between roads, which is the
+        # case where a hull overstates. (A 300 m buffer here came out LARGER than the hull -- 16.3 vs 12.0
+        # km2 in CI -- because on a dense grid the buffer adds a margin past the last road and fills every
+        # gap; see ROAD_BUFFER_REACH_NOTE.)
+        reach = self.lt._road_reach_polygon(lines, 50.0, "reach")
+        self.assertGreater(reach.featureCount(), 0)
+        import processing
+        hull = processing.run("native:convexhull", {"INPUT": lines[0], "OUTPUT": "memory:"})["OUTPUT"]
+        self.assertLess(self._area_m2(reach), self._area_m2(hull), "the buffer must not be as large as the hull")
+        reach_geom = QgsGeometry.unaryUnion([f.geometry() for f in reach.getFeatures()])
+        self.assertTrue(reach_geom.contains(QgsGeometry.fromPointXY(QgsPointXY(LON0 + 10 * STEP, LAT + 10 * STEP))))
+        for f in lines[0].getFeatures():
+            self.assertTrue(reach_geom.contains(f.geometry().interpolate(f.geometry().length() / 2)),
+                            "every reached road must lie inside its own buffer")
+
+    def test_a_wider_buffer_covers_more(self):
+        lines = self._lines()
+        narrow = self._area_m2(self.lt._road_reach_polygon(lines, 100.0, "narrow"))
+        wide = self._area_m2(self.lt._road_reach_polygon(lines, 600.0, "wide"))
+        self.assertGreater(wide, narrow)
+
+
 if __name__ == "__main__":
     unittest.main()

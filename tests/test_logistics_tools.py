@@ -1069,44 +1069,48 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
     this test is only about the estimate-field propagation, not the
     geometry/network-analysis steps in between."""
 
-    @patch("cartogen_ai.core.agent.tools.raster_tools.estimate_population_exposure")
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.calculate_service_area")
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsWkbTypes", create=True)
-    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
-    def test_propagates_estimate_fields_from_population_exposure(
-        self, mock_wkb, mock_calc_service_area, mock_find, mock_processing, mock_project, mock_estimate_pop,
-    ):
-        mock_wkb.geometryType.return_value = "polygon-sentinel"
-        mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+    def _run(self, reach_geometry=None, **kw):
+        """population_access_gap with every QGIS-touching collaborator mocked. Returns (result, mocks)."""
+        from contextlib import ExitStack
+        lt_path = "cartogen_ai.core.agent.tools.logistics_tools"
+        with ExitStack() as stack:
+            mock_estimate_pop = stack.enter_context(
+                patch("cartogen_ai.core.agent.tools.raster_tools.estimate_population_exposure"))
+            stack.enter_context(patch(f"{lt_path}.QgsProject", create=True))
+            mock_processing = stack.enter_context(patch(f"{lt_path}.processing", create=True))
+            mock_find = stack.enter_context(patch(f"{lt_path}._find_layer_by_name"))
+            mock_calc = stack.enter_context(patch(f"{lt_path}.calculate_service_area"))
+            mock_reach = stack.enter_context(patch(f"{lt_path}._road_reach_polygon"))
+            mock_wkb = stack.enter_context(patch(f"{lt_path}.QgsWkbTypes", create=True))
+            stack.enter_context(patch(f"{lt_path}.QGIS_AVAILABLE", True))
+            mock_wkb.geometryType.return_value = "polygon-sentinel"
+            mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
 
-        area = MagicMock()
-        hull = MagicMock()
-        mock_find.side_effect = lambda name: {"districts": area, "Facilities_service_area_0": hull}.get(name)
+            area, hull, lines = MagicMock(), MagicMock(), MagicMock()
+            mock_find.side_effect = lambda name: {
+                "districts": area, "Facilities_service_area_0": hull,
+                "Facilities_service_area_lines_0": lines}.get(name)
+            mock_calc.return_value = {
+                "facility_count": 3,
+                "layers_created": ["Facilities_service_area_lines_0", "Facilities_service_area_0"],
+            }
+            intersect_mock = MagicMock()
+            intersect_mock.featureCount.return_value = 10
+            mock_reach.return_value = MagicMock()
+            mock_processing.run.side_effect = [{"OUTPUT": MagicMock()}, {"OUTPUT": intersect_mock}]
+            mock_estimate_pop.side_effect = [
+                {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
+                {"success": True, "total_population": 400.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
+            ]
+            args = ("Facilities", "roads", "YEM_population_2020", "districts", 1000)
+            if reach_geometry:
+                kw["reach_geometry"] = reach_geometry
+            res = population_access_gap(*args, **kw)
+            return res, mock_reach, mock_processing
 
-        mock_calc_service_area.return_value = {
-            "facility_count": 3,
-            "layers_created": ["Facilities_service_area_0"],
-        }
-
-        reachable_mock = MagicMock()
-        intersect_mock = MagicMock()
-        intersect_mock.featureCount.return_value = 10
-        mock_processing.run.side_effect = [
-            {"OUTPUT": reachable_mock},
-            {"OUTPUT": intersect_mock},
-        ]
-
-        mock_estimate_pop.side_effect = [
-            {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
-            {"success": True, "total_population": 400.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
-        ]
-
-        res = population_access_gap("Facilities", "roads", "YEM_population_2020", "districts", 1000)
-
-        self.assertTrue(res.get("success"))
+    def test_propagates_estimate_fields_from_population_exposure(self):
+        res, _, _ = self._run()
+        self.assertTrue(res.get("success"), res)
         self.assertEqual(res["total_population"], 1000.0)
         self.assertEqual(res["reachable_population"], 400.0)
         self.assertEqual(res["gap_population"], 600.0)
@@ -1118,6 +1122,28 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             res["confidence"],
             "estimate (modeled network reachability + gridded population raster; not field-verified)",
         )
+
+    def test_default_reach_is_the_buffered_roads_not_the_convex_hull(self):
+        """F09: 778,156 people were counted inside the convex hull of the reached roads."""
+        res, mock_reach, _ = self._run()
+        mock_reach.assert_called_once()
+        self.assertEqual(res["reach_geometry"], "road_buffer")
+        self.assertFalse(res["is_upper_bound_on_reach"])
+        self.assertIn("buffered by 500 m", res["reach_note"])
+
+    def test_the_convex_hull_is_still_available_and_labelled_an_upper_bound(self):
+        res, mock_reach, mock_processing = self._run(reach_geometry="convex_hull")
+        mock_reach.assert_not_called()
+        self.assertEqual(res["reach_geometry"], "convex_hull")
+        self.assertTrue(res["is_upper_bound_on_reach"])
+        self.assertIn("UPPER BOUND", res["reach_note"])
+
+    def test_bad_reach_arguments_are_refused_before_any_work(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        with patch.object(lt, "QGIS_AVAILABLE", True):
+            self.assertIn("error", population_access_gap("f", "r", "p", "a", 1, reach_geometry="blob"))
+            self.assertIn("error", population_access_gap("f", "r", "p", "a", 1, reach_buffer_m=0))
+            self.assertIn("error", population_access_gap("f", "r", "p", "a", 1, reach_buffer_m="far"))
 
 
 class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
