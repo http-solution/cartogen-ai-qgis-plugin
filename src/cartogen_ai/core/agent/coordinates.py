@@ -13,6 +13,8 @@ The QGIS-dependent part (building a QgsCoordinateTransform) stays in the tool; i
 `transform(x, y) -> (lon, lat)` callable in, which keeps this module free of QGIS imports.
 """
 
+import re
+
 _GEOGRAPHIC_ALIASES = {"EPSG:4326", "4326", "WGS84", "WGS 84", "CRS:84", "CRS84", "OGC:CRS84"}
 
 
@@ -107,3 +109,19 @@ def interpret_request_pair(pair, project_crs_is_geographic):
     if _in_degree_range(x, y):
         return None
     return ("project_crs", x, y)
+
+
+# Two numbers that read as one coordinate: decimal degrees with 3+ decimals, or 6-8 digit projected
+# values. Deliberately narrow (ordinary counts, years, prices and phone numbers must pass).
+_DEGREE_PAIR = re.compile(r"(?<![\d.])-?\d{1,3}\.\d{3,}(?:\s*[,;/]\s*|\s+)-?\d{1,3}\.\d{3,}(?!\d)")
+_PROJECTED_PAIR = re.compile(r"(?<![\d.,])-?\d{6,8}(?:\.\d+)?(?:\s*[,;/]\s*|\s+)-?\d{6,8}(?:\.\d+)?(?![\d.,])")
+
+
+def contains_coordinate_pair(text):
+    """True if `text` appears to hold a coordinate pair. Used to keep coordinates out of persistent
+    memory notes: they are stored with the project, fed back into later prompts, and (rc7 smoke test,
+    F23) were the wrong ones."""
+    if not text:
+        return False
+    text = str(text)
+    return bool(_DEGREE_PAIR.search(text) or _PROJECTED_PAIR.search(text))

@@ -131,5 +131,32 @@ class TestAddPointLayerSchema(unittest.TestCase):
         self.assertEqual(self._schema()["properties"]["points"]["items"]["required"], ["name"])
 
 
+class TestContainsCoordinatePair(unittest.TestCase):
+    """F23: project memory must not hold coordinates -- the smoke test stored
+    'Computed 1-hour service area around 44.036028, 15.970136 ...' (and they were wrong, F04)."""
+
+    def test_the_stored_note_from_the_smoke_test_is_detected(self):
+        note = "Computed 1-hour service area around 44.036028, 15.970136 using OSM Roads (Yemen) and WorldPop 2020."
+        self.assertTrue(co.contains_coordinate_pair(note))
+
+    def test_projected_pairs_are_detected(self):
+        self.assertTrue(co.contains_coordinate_pair("origin 4902068.0, 1799912.0"))
+        self.assertTrue(co.contains_coordinate_pair("origin at 4902068 1799912"))
+
+    def test_negative_and_semicolon_separated_degrees_are_detected(self):
+        self.assertTrue(co.contains_coordinate_pair("site -1.286389; 36.817223"))
+
+    def test_ordinary_notes_are_not_flagged(self):
+        for text in (
+            "User prefers hospitals shown in red.",
+            "Analysis used WorldPop 2020 at 100 m resolution and 3,369 facilities.",
+            "Budget 4,902,068 USD over 2026.5, 2027.5",
+            "Layer 'Health Facilities' tagged SENSITIVE.",
+            "",
+            None,
+        ):
+            self.assertFalse(co.contains_coordinate_pair(text), text)
+
+
 if __name__ == "__main__":
     unittest.main()
