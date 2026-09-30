@@ -199,6 +199,21 @@ _COMPACTED_TOOL_RESULT_PLACEHOLDER = json.dumps({
 })
 
 
+def _accepts_confirmed(func):
+    """True if `func` can take a `confirmed` keyword. Only the destructive-action tools declare
+    it; the cloud-data override (agent/egress gate) confirms calls to ANY tool, most of which
+    (execute_pyqgis_script, get_attributes, export_to_csv ...) do not. Injecting confirmed=True
+    into those raised TypeError, so a user's Confirm click could never complete -- found in the
+    rc7 smoke test, 2026-09-30 (tracker F02). The egress gate itself is bypassed by
+    user_confirmed=True, so the tool has no use for the flag."""
+    import inspect
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+    return "confirmed" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 class CartogenAi:
     def __init__(self):
         # Guards conversation_history against a genuine cross-thread race: run() executes
@@ -477,6 +492,39 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _register_preview_task(self, name, args, res):
+        """Registers the dedicated, confirmable safety task for a PREVIEW_REQUIRED result --
+        one code path for the destructive-action gate AND the cloud-data override, so the two
+        can never disagree about what "Confirm" does."""
+        # Register a DEDICATED preview safety task -- never reuse tasks[0] of
+        # whatever plan happens to already be active. Real live bug, 2026-09-16:
+        # this used to only start a fresh plan `if not self.task_manager.tasks`,
+        # so when a plan from an earlier, unrelated turn was still active (the
+        # common case -- plans aren't cleared between turns), the preview state
+        # got glued onto tasks[0], silently overwriting an already-DONE task's
+        # status/result with this gate's PREVIEW_READY state. add_task() appends
+        # instead, so a pending confirmation can never collide with an existing
+        # task that already means something else.
+        if not self.task_manager.tasks:
+            self.task_manager.create_plan(
+                f"Safety Gate Preview: {name}",
+                [f"Preview {name} operation"]
+            )
+            preview_task = self.task_manager.tasks[0]
+        else:
+            preview_task = self.task_manager.add_task(f"Preview {name} operation")["task"]
+        self.task_manager.set_task_preview(
+            task_id=preview_task["id"],
+            code_snippet=res.get("code_snippet", ""),
+            rationale=res.get("rationale", ""),
+            is_destructive=res.get("is_destructive", True)
+        )
+        # Attach pending execution arguments to the SAME dedicated task object
+        # (set_task_preview mutates self.task_manager.tasks in place, so
+        # preview_task -- taken from that same list -- reflects it here too).
+        preview_task["pending_tool"] = name
+        preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage
         try:
@@ -512,7 +560,7 @@ class CartogenAi:
 
         # Strip unadvertised arguments (prevents model self-approval via injected parameters)
         filtered_args = {k: v for k, v in args.items() if k in schema_props}
-        if user_confirmed:
+        if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
@@ -533,7 +581,13 @@ class CartogenAi:
         if egress is not None and egress["action"] == "block" and not egress_override_applied:
             log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
             if egress_overridable:
-                return egress_gate.preview_required(name, filtered_args, egress)
+                # The confirmable task MUST be registered here: this branch returns before the
+                # generic PREVIEW_REQUIRED handling further down, so without it nothing
+                # confirmable exists, a typed "confirm" reaches the model instead of the
+                # plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
+                blocked = egress_gate.preview_required(name, filtered_args, egress)
+                self._register_preview_task(name, args, blocked)
+                return blocked
             return egress["result"]
         if egress_override_applied:
             log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
@@ -551,34 +605,7 @@ class CartogenAi:
                 self._plan_gate.mark_plan_created()
             if isinstance(res, dict):
                 if res.get("status") == "PREVIEW_REQUIRED":
-                    # Register a DEDICATED preview safety task -- never reuse tasks[0] of
-                    # whatever plan happens to already be active. Real live bug, 2026-09-16:
-                    # this used to only start a fresh plan `if not self.task_manager.tasks`,
-                    # so when a plan from an earlier, unrelated turn was still active (the
-                    # common case -- plans aren't cleared between turns), the preview state
-                    # got glued onto tasks[0], silently overwriting an already-DONE task's
-                    # status/result with this gate's PREVIEW_READY state. add_task() appends
-                    # instead, so a pending confirmation can never collide with an existing
-                    # task that already means something else.
-                    if not self.task_manager.tasks:
-                        self.task_manager.create_plan(
-                            f"Safety Gate Preview: {name}",
-                            [f"Preview {name} operation"]
-                        )
-                        preview_task = self.task_manager.tasks[0]
-                    else:
-                        preview_task = self.task_manager.add_task(f"Preview {name} operation")["task"]
-                    self.task_manager.set_task_preview(
-                        task_id=preview_task["id"],
-                        code_snippet=res.get("code_snippet", ""),
-                        rationale=res.get("rationale", ""),
-                        is_destructive=res.get("is_destructive", True)
-                    )
-                    # Attach pending execution arguments to the SAME dedicated task object
-                    # (set_task_preview mutates self.task_manager.tasks in place, so
-                    # preview_task -- taken from that same list -- reflects it here too).
-                    preview_task["pending_tool"] = name
-                    preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+                    self._register_preview_task(name, args, res)
 
                 elif res.get("success"):
                     self.memory_manager.log_spatial_action(name, str(args))
