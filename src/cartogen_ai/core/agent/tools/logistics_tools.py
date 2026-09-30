@@ -1521,7 +1521,7 @@ def _merge_band_hulls(band_hulls, output_name):
     "default_speed regardless of surface or condition -- when the network layer has a per-segment "
     "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
-    "traversable both directions. SLOW for many destinations (a full shortest-path search per destination, "
+    "traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
     "classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.",
     {
@@ -1553,12 +1553,14 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
     origins = _find_layer_by_name(origins_layer)
     destinations = _find_layer_by_name(destinations_layer)
     if destinations is not None and not allow_large and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
-        # rc7 smoke test F08: 3,369 destinations took ~37 minutes of shortest-path searches (one per
-        # destination) on top of a ~6 minute graph build. The usual question behind such a call --
+        # rc7 smoke test F08: 3,369 destinations took ~37 minutes after a ~6 minute graph build. (Not one
+        # shortest-path search per destination: QGIS runs a single Dijkstra per origin. The likely cost is tying every
+        # destination into the graph -- QgsVectorLayerDirector.makeGraph compares each road segment with each tie point, so
+        # it grows with segments x destinations. Source-read, not profiled.) The usual question behind such a call --
         # which facilities are within/beyond a travel cost of an origin -- has a seconds-long answer.
         return {"error": (
-            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix runs a full "
-            "shortest-path search per destination and would take a very long time. To find which facilities are "
+            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix ties every "
+            "destination into the road graph and would take a very long time. To find which facilities are "
             "within/beyond a travel cost of an origin, call classify_facilities_by_access instead. If a full "
             "matrix is genuinely needed, call travel_time_matrix again with allow_large=true."),
             "suggested_tool": "classify_facilities_by_access"}
@@ -1695,8 +1697,9 @@ def _road_reach_polygon(line_layers, buffer_m, name):
 # ---- which facilities are within / beyond a travel cost (F08) --------------------------------------
 #
 # rc7 smoke test F08 (2026-09-30): "health facilities beyond one hour" took 43 min 48 s, 97% of it
-# travel_time_matrix: native:shortestpathpointtolayer runs a separate shortest-path search for EVERY
-# destination (3,369 of them), after a ~6 minute graph build. The same question is answered by ONE
+# travel_time_matrix: native:shortestpathpointtolayer ties EVERY destination (3,369 of them) into the road graph
+# after a ~6 minute graph build; QGIS runs only one Dijkstra per origin, and the graph tie-in compares each road segment with
+# each tie point (source-read, not profiled), so the cost grows with segments x destinations. The same question is answered by ONE
 # service area (calculate_service_area took 5.8 s in that session): a facility is within the cost
 # when it lies on, or within a short snap distance of, a road reached within the cost.
 #
@@ -1764,8 +1767,8 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
     "service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every "
     "facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside "
     "travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the "
-    "origin' question over many facilities: travel_time_matrix runs a full shortest-path search per "
-    "destination and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
+    "origin' question over many facilities: travel_time_matrix ties every destination into the road graph "
+    "and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
     "access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the "
     "answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
     "per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility "
