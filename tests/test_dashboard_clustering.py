@@ -155,3 +155,41 @@ class TestTemporalDashboardClustering(unittest.TestCase):
         res = et._build_temporal_dashboard_html([static, temporal])
         self.assertNotIn("error", res, res)
         self.assertEqual(res["html"].count("L.markerClusterGroup"), 1)
+
+
+class TestPinnedClusterLibraryAndSliderEnd(unittest.TestCase):
+    """F12 follow-ups from the rc8 audit: the page must load the markercluster version that was tested
+    (folium 0.20 defaults to 1.1.0), and the temporal slider must be able to reach the last date."""
+
+    def setUp(self):
+        try:
+            import folium  # noqa: F401
+        except ImportError:
+            self.skipTest("folium not installed")
+
+    def test_static_dashboard_loads_the_pinned_version_only(self):
+        html = et._build_dashboard_html([_layer("Health Facilities", _points(150))])["html"]
+        self.assertIn("leaflet.markercluster/%s/leaflet.markercluster.js" % et.MARKERCLUSTER_VERSION, html)
+        self.assertNotIn("leaflet.markercluster/1.1.0", html)
+
+    def test_temporal_dashboard_loads_the_pinned_version_only(self):
+        feats = _points(150)
+        for i, f in enumerate(feats):
+            f["properties"]["start"] = f"2020-{1 + i % 12:02d}-01"
+        html = et._build_temporal_dashboard_html([_layer("Incidents", feats, start_field="start")])["html"]
+        self.assertIn("leaflet.markercluster/%s/" % et.MARKERCLUSTER_VERSION, html)
+        self.assertNotIn("leaflet.markercluster/1.1.0", html)
+
+    def test_slider_can_reach_the_last_date_when_the_span_is_not_a_multiple_of_the_step(self):
+        import re
+        feats = _points(5)
+        for f, d in zip(feats, ["2020-01-01", "2020-01-10", "2020-01-20", "2020-01-25", "2020-02-01"]):
+            f["properties"]["start"] = d
+        html = et._build_temporal_dashboard_html([_layer("Incidents", feats, start_field="start")], step_days=30)["html"]
+        m = re.search(r'id="cartogen-slider" type="range" min="(\d+)" max="(\d+)" step="(\d+)"', html)
+        self.assertIsNotNone(m)
+        lo, hi, step = map(int, m.groups())
+        last_ms = 1580515200000  # 2020-02-01 00:00 UTC
+        self.assertGreaterEqual(hi, last_ms)            # the last date is inside the slider range
+        self.assertEqual((hi - lo) % step, 0)           # and the end is an actual step position
+        self.assertLess(hi - last_ms, step)             # without extending by a whole extra step

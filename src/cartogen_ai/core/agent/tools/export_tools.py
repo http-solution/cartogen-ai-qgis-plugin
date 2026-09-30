@@ -837,7 +837,11 @@ _DASHBOARD_BASEMAPS = {
         "attr": "&copy; OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team",
     },
 }
-_DEFAULT_DASHBOARD_BASEMAP = "positron"
+# Default is "hot", not "positron": Carto now requires an API key for Positron/Dark Matter (r-spatial/mapview#520) and
+# blocks requests without a Referer (python-visualization/folium#2285), which is what a dashboard opened from disk
+# (file://) sends. "hot" is the style the operator actually saw load in the rc7 smoke test (R7). Not re-tested in a
+# browser from this sandbox (no tile access).
+_DEFAULT_DASHBOARD_BASEMAP = "hot"
 
 
 def _resolve_basemap_kwargs(basemap):
@@ -856,6 +860,22 @@ def _resolve_basemap_kwargs(basemap):
 # clustered markers (Leaflet.markercluster, loaded from a CDN like the rest of the page); smaller
 # layers keep plain markers, which read fine. Polygon and line layers are never clustered.
 CLUSTER_MIN_POINTS = 100
+
+# folium 0.20 loads Leaflet.markercluster 1.1.0 from cdnjs; the F12 browser check used 1.5.3 (the current cdnjs
+# release, which needs Leaflet >= 1.0). Point the plugin at the tested version instead of an untested one.
+MARKERCLUSTER_VERSION = "1.5.3"
+_MARKERCLUSTER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/%s/" % MARKERCLUSTER_VERSION
+
+
+def _pinned_marker_cluster():
+    """folium's MarkerCluster class, with its CDN URLs set to MARKERCLUSTER_VERSION."""
+    from folium.plugins import MarkerCluster
+    MarkerCluster.default_js = [("markerclusterjs", _MARKERCLUSTER_CDN + "leaflet.markercluster.js")]
+    MarkerCluster.default_css = [
+        ("markerclustercss", _MARKERCLUSTER_CDN + "MarkerCluster.css"),
+        ("markerclusterdefaultcss", _MARKERCLUSTER_CDN + "MarkerCluster.Default.css"),
+    ]
+    return MarkerCluster
 
 
 def _should_cluster(features, min_points=CLUSTER_MIN_POINTS):
@@ -965,7 +985,7 @@ def _build_dashboard_html(layers, title=None, basemap=None):
         if style_function:
             gj_kwargs["style_function"] = style_function
         if _should_cluster(features):
-            from folium.plugins import MarkerCluster
+            MarkerCluster = _pinned_marker_cluster()
             target = MarkerCluster(name=name).add_to(m)
             warnings.append(
                 f"'{name}': {len(features):,} points are drawn as clusters that split as you zoom in "
@@ -1404,7 +1424,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
             # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
             # its opacity, which a cluster would still count, so the page script rebuilds this cluster
             # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
-            from folium.plugins import MarkerCluster
+            MarkerCluster = _pinned_marker_cluster()
             cluster = MarkerCluster(name=name).add_to(m)
             gj.add_to(cluster)
             cluster_js_vars.append(cluster.get_name())
@@ -1443,6 +1463,13 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
         max_ms = min_ms + 1  # avoid a zero-width/unusable <input type=range>
 
     step_ms = max(int(step_days), 1) * 86400000
+    # An <input type=range> only lands on min + k*step, so a span that is not a multiple of the step left
+    # the final date unreachable (a 31-day span with a 30-day step topped out on day 30, and features that
+    # start on the last date never showed -- found in the F12 browser check). Extend the slider to the first
+    # step at or past the last date; the frame logic already clamps to the data.
+    span_ms = max_ms - min_ms
+    if span_ms > 1 and span_ms % step_ms:
+        max_ms = min_ms + (span_ms // step_ms + 1) * step_ms
     layers_js_array = "[" + ",".join(temporal_js_vars) + "]"
     clusters_js_array = "[" + ",".join(cluster_js_vars) + "]"
 
@@ -1867,7 +1894,7 @@ def _write_layer_geojson_wgs84(layer, output_path):
             },
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
-            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
+            "basemap": {"type": "string", "description": "'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles)."},
         },
         "required": ["layers"],
     },
@@ -2050,7 +2077,7 @@ def _inject_notices(html, notices):
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
             "step_days": {"type": "integer", "description": "Slider step size / play-button advance, in days. Defaults to 30."},
-            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
+            "basemap": {"type": "string", "description": "'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles)."},
         },
         "required": ["layers"],
     },

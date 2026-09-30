@@ -91,15 +91,34 @@ def extract_is_cached(region, dest_dir):
     return _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path)
 
 
-def should_ask_before_download(region, online_ok, cached, threshold_bytes):
+def is_metered_connection(read_metered=None):
+    """True only when the OS says the current connection is metered. Never raises; False when unknown.
+
+    Qt 6.3+ exposes QNetworkInformation.isMetered() (the Windows backend is the networklistmanager
+    plugin). Where no backend supports it the property is always False, so this can only ADD a
+    question for the user, never remove one. `read_metered` lets tests inject the platform answer."""
+    try:
+        if read_metered is not None:
+            return bool(read_metered())
+        from qgis.PyQt.QtNetwork import QNetworkInformation
+        if QNetworkInformation.instance() is None:
+            QNetworkInformation.loadDefaultBackend()
+        info = QNetworkInformation.instance()
+        return bool(info is not None and info.isMetered())
+    except Exception:
+        return False
+
+
+def should_ask_before_download(region, online_ok, cached, threshold_bytes, metered=False):
     """Whether the user gets a download/online choice. Pure.
 
-    Asked for a poor connection, or an unknown/over-threshold size -- unless the extract is already on
-    disk, when there is no download to ask about (before F22's change it was asked about anyway)."""
+    Asked for a poor connection, a metered one (F22: a known size is still a data-plan cost), or an
+    unknown/over-threshold size -- unless the extract is already on disk, when there is no download
+    to ask about (before F22's change it was asked about anyway)."""
     if cached:
         return False
     size = (region or {}).get("size_bytes") or 0
-    return (not online_ok) or size == 0 or size > threshold_bytes
+    return (not online_ok) or bool(metered) or size == 0 or size > threshold_bytes
 
 
 def load_index(cache_dir):

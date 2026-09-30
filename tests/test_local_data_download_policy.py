@@ -89,3 +89,26 @@ class TestExtractIsCached(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMeteredConnection(unittest.TestCase):
+    REGION = {"id": "x", "name": "X", "size_bytes": 5 * MB}  # well under any threshold
+
+    def test_a_metered_connection_asks_even_for_a_small_known_size(self):
+        self.assertFalse(ldl.should_ask_before_download(self.REGION, True, False, 50 * MB))
+        self.assertTrue(ldl.should_ask_before_download(self.REGION, True, False, 50 * MB, metered=True))
+
+    def test_a_cached_extract_never_asks_even_when_metered(self):
+        self.assertFalse(ldl.should_ask_before_download(self.REGION, True, True, 50 * MB, metered=True))
+
+    def test_the_platform_answer_is_passed_through(self):
+        self.assertTrue(ldl.is_metered_connection(lambda: True))
+        self.assertFalse(ldl.is_metered_connection(lambda: False))
+
+    def test_an_unreadable_platform_answer_is_not_metered(self):
+        def boom():
+            raise RuntimeError("no backend")
+        self.assertFalse(ldl.is_metered_connection(boom))
+
+    def test_without_qt_it_is_not_metered(self):
+        self.assertFalse(ldl.is_metered_connection())
