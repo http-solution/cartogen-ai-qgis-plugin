@@ -57,7 +57,7 @@ low = cosmetic. "Status" is as of this snapshot.
 | F15 | low | Sensitivity dialog silent on success; raw LaTeX in chat; stray `)`; ~130 "no route" lines logged CRITICAL; router text "a analysis"; console `print()` noise; one invalid-JSON PromptRefiner response | Open |
 | F16 | medium (unverified) | Generic replies ("yes", "ok", "sure", "go") can resolve a **stale pending destructive preview** (source reading only) | Open |
 | F17 | medium | `qgis-live-tests` do not cover F01/F02/F07/F11 — none of these was caught by CI | Open |
-| F18 | low-med | The **first call to every PUBLISH/DELETE tool fails** and is retried after `create_plan` (5 tools; usage counters record exactly half). Plan gate suspected, but the operator reports the setting at its default (OFF) | Open, cause not established |
+| F18 | low-med | The plan-validation gate is **enabled** in this profile (`cartogen_ai/plan_validation_gate_enabled` = `'true'`; default OFF): every PUBLISH/DELETE action makes a wasted first call + retry | Open, cause confirmed |
 | F19 | medium | `fetch_worldpop_population` downloaded the **whole-country** raster (41.81–54.54 °E, 12.11–19.00 °N, 141 s) for a ~77 × 71 km catchment | Open |
 | F20 | low-med | Coordinates in a request are assumed to be in the **project CRS**; changing the project CRS silently changes their meaning (source reading + code comment) | Open, design risk |
 | F21 | low-med | Field names / schema (and counts) of a SENSITIVE layer reach the cloud model (`get_layers` is not gated) | Open, policy decision |
@@ -97,8 +97,10 @@ After run 2 the lines layer (`output_f72d39e3`) had 1 feature, `wkbType` 5, **le
 *New evidence from the logs:* run 1's graph build took ~4 s and the algorithm 4.9 s; run 2's took ~50 s (50,922 ms). In
 `calculate_service_area` the network is clipped to the reachable area only when `reach_m` is known; it is set to `None`
 (**no clipping**) when a `speed_field` is supplied whose maximum cannot be read (`strategy == "fastest" and speed_field and
-_max_speed is None`). So run 2 very likely used different parameters (most likely a `speed_field`) — unverifiable because tool
-arguments are not shown. Check: how many roads in `OSM Roads (Yemen)` have a non-null `maxspeed`. The tool
+_max_speed is None`). Operator check: only **929 of 139,758 roads (0.66%)** have a `maxspeed` other than NULL/0. Hypothesis that fits everything:
+run 2 passed `speed_field='maxspeed'` — the reach then uses the field's maximum (larger clip, slower build: 50 s vs 4 s) while 99.3% of roads have
+speed 0, so almost nothing is traversable and the network collapses to a zero-length line. `_network_direction_speed_params` checks only that the
+field exists, and `estimate_road_speeds` was never used in the session. Unproven (arguments are not shown); fix D4 now includes validating a speed field. The tool
 still reported success. `_replace_named_layer` removes the old layer before checking the new one is meaningful. Cause of the
 empty result unknown (tool arguments are not visible in the UI by design). Also unexplained: 5.8 s (run 1) vs 52 s (run 2),
 and differing catchment extents.
@@ -121,15 +123,12 @@ and reappeared after `load_project`.
 The matrix is 97% of the task. QGIS stayed responsive throughout (operator-confirmed); whether Stop works was not tested.
 Recommendation D7 plus a pre-run time estimate and a working Stop for any job expected to exceed ~2 minutes.
 
-### F18 — first call to PUBLISH/DELETE tools fails
-`export_to_csv`, `export_layer`, `generate_html_dashboard`, `load_project` and `execute_pyqgis_script` — precisely the tools
-`tool_operations.py` classifies PUBLISH/DELETE, i.e. the set `PlanValidationGate` blocks — each appeared as
-*tool → Create plan → same tool*. The operator's data export shows `usage:tool:*` (successful calls only) at half the listed
-calls: `export_to_csv` 2 of 4, `export_layer` 1 of 2, `generate_html_dashboard` 1 of 2. **Contradiction:** the gate is OFF by
-default and the operator reports the setting untouched. Resolve by reading
-`QgsSettings().value("cartogen_ai/plan_validation_gate_enabled")` in the QGIS console; if it is False/unset, another code path
-rejects the first call. Either way it costs a call and a model round-trip per action, and `create_plan` replaces the whole plan
-(interaction with F02).
+### F18 — plan gate enabled in this profile (confirmed)
+The operator read `QgsSettings().value("cartogen_ai/plan_validation_gate_enabled")` in the QGIS console: **`'true'`** (default is OFF; the
+operator believed it untouched — probably enabled during an earlier evaluation). That explains the pattern *tool → Create plan → same tool*
+for `export_to_csv`, `export_layer`, `generate_html_dashboard`, `load_project` and `execute_pyqgis_script` (all PUBLISH/DELETE), and the data
+export's `usage:tool:*` counters at half the listed calls. Cost: one wasted call + one model round-trip per action. Interaction with F02: plan
+gate first, model `create_plan`, then the egress gate returns its preview before registering the pending task; `create_plan` also replaces the plan.
 
 ### F19 — whole-country population raster
 `YEM_population_2020` has extent 41.81–54.54 °E, 12.11–19.00 °N (all of Yemen) although only a ~3,000 km² catchment was
