@@ -1450,6 +1450,12 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             result["speed_field"] = speed_field
         if direction_field:
             result["direction_field"] = direction_field
+        # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
+        # of them as saved analysis output. State the truth so the model relays it.
+        result["storage_note"] = (
+            "The layers created here are temporary (in-memory) layers: they are NOT saved to disk and "
+            "are lost when QGIS closes unless exported (export_layer) or saved into a GeoPackage."
+        )
         if notes:
             result["notes"] = notes
         if skipped:
