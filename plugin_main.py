@@ -31,6 +31,7 @@ from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 from qgis.core import QgsSettings, QgsProject, QgsApplication
 from cartogen_ai.infrastructure.settings_keys import (
     SETTINGS_API_KEY,
+    SETTINGS_AUTO_OPEN_DOCK,
     SETTINGS_HELP_LAST_SHOWN_VERSION,
 )
 
@@ -183,6 +184,23 @@ class CartogenAi:
             self.show_help()
             settings.setValue(HELP_LAST_SHOWN_VERSION_KEY, current_version)
         self._first_use_timer = None
+        self._auto_open_dock()
+
+    def _auto_open_dock(self):
+        """Opens the panel at startup (default on; Settings > "Open the Cartogen AI panel when QGIS starts").
+
+        The dock is created lazily on the first toolbar click, so QGIS has nothing of ours to restore from its saved window
+        layout and, until now, the panel stayed closed after every restart (rc10 smoke test, 2026-10-01: "the plugin should
+        load automatically"). Runs after the first-use dialogs, from the same deferred timer, so it never competes with
+        QGIS's own startup. No-op when the setting is off or the dock already exists."""
+        try:
+            if self.dock_widget is not None:
+                return
+            if not QgsSettings().value(SETTINGS_AUTO_OPEN_DOCK, True, type=bool):
+                return
+            self.toggle_dock(True)
+        except Exception as e:
+            print(f"[CartogenAi] auto-open of the panel failed: {e}")
 
     def _on_project_changed(self, *_args):
         # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).

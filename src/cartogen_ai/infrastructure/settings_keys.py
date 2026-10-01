@@ -105,3 +105,7 @@ SETTINGS_MAX_TURN_TOKENS = "cartogen_ai/max_turn_tokens"
 # Print-layout masthead colour as #rrggbb (rc9: the default slate is the developer's pick and has not been judged on a
 # real basemap; an invalid value falls back to it). Light colours automatically get dark title text.
 SETTINGS_LAYOUT_MASTHEAD_COLOR = "cartogen_ai/layout_masthead_color"
+
+# Open the assistant panel automatically when QGIS starts (default on). The dock is created lazily on the first toolbar click, so
+# without this it never reappeared after a restart (rc10 smoke test, 2026-10-01).
+SETTINGS_AUTO_OPEN_DOCK = "cartogen_ai/auto_open_dock"

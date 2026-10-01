@@ -110,6 +110,24 @@ class TestPluginMainLifecycleLive(unittest.TestCase):
         plugin.initGui()
         return plugin
 
+    def test_the_panel_opens_at_startup_unless_the_setting_is_off(self):
+        from qgis.core import QgsSettings
+        from cartogen_ai.infrastructure.settings_keys import SETTINGS_AUTO_OPEN_DOCK as KEY
+        settings = QgsSettings()
+        self.addCleanup(settings.remove, KEY)
+        settings.setValue(KEY, False)
+        plugin = self._make_plugin()
+        self.addCleanup(plugin.unload)
+        plugin._auto_open_dock()
+        self.assertIsNone(plugin.dock_widget, "setting off -> the dock is not created at startup")
+        settings.setValue(KEY, True)
+        plugin._auto_open_dock()
+        self.assertIsNotNone(plugin.dock_widget, "default/on -> the dock is created and shown")
+        self.assertTrue(plugin.toolbar_action.isChecked())
+        dock = plugin.dock_widget
+        plugin._auto_open_dock()
+        self.assertIs(plugin.dock_widget, dock, "a second call must not create another dock")
+
     def test_unload_disconnects_action_signals(self):
         plugin = self._make_plugin()
         actions = list(plugin.actions)
