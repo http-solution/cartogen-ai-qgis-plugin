@@ -39,6 +39,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_MAX_TOOL_ITERATIONS as MAX_TOOL_ITERATIONS_KEY,
     SETTINGS_MAX_TURN_TOKENS as MAX_TURN_TOKENS_KEY,
     SETTINGS_LAYOUT_MASTHEAD_COLOR as LAYOUT_MASTHEAD_COLOR_KEY,
+    SETTINGS_AUTO_OPEN_DOCK as AUTO_OPEN_DOCK_KEY,
     SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
     provider_model_list_key,
 )
@@ -436,6 +437,10 @@ class CartogenAiSettingsDialog(QDialog):
         # saving the conversation into it by default risked carrying
         # sensitive content (humanitarian incident/security details, internal
         # notes) along with the map without the user ever choosing that.
+        self.auto_open_dock_checkbox = QCheckBox("Open the Cartogen AI panel when QGIS starts")
+        self.auto_open_dock_checkbox.setChecked(bool(self.settings.value(AUTO_OPEN_DOCK_KEY, True, type=bool)))
+        layout.addWidget(self.auto_open_dock_checkbox)
+
         self.persist_history_checkbox = QCheckBox("Save the conversation in the project file")
         self.persist_history_checkbox.setChecked(
             bool(self.settings.value(PERSIST_SETTING_KEY, PERSIST_DEFAULT, type=bool)))
@@ -931,6 +936,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
         self.settings.setValue(MAX_TOOL_ITERATIONS_KEY, self.max_tool_iterations_spin.value())
         self.settings.setValue(MAX_TURN_TOKENS_KEY, self.max_turn_tokens_spin.value())
+        self.settings.setValue(AUTO_OPEN_DOCK_KEY, self.auto_open_dock_checkbox.isChecked())
         self.settings.setValue(LAYOUT_MASTHEAD_COLOR_KEY, self.layout_masthead_edit.text().strip())
         self.settings.setValue(LOCAL_DATA_ASK_ABOVE_MB_KEY, self.local_data_ask_spin.value())
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())

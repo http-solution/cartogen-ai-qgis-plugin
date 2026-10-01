@@ -87,6 +87,7 @@ class TestAuthAndDeps(unittest.TestCase):
         fake_auth_mgr = MagicMock()
         fake_auth_mgr.isDisabled.return_value = False
         fake_auth_mgr.storeAuthenticationConfig.return_value = False  # simulates the collision failure
+        fake_auth_mgr.updateAuthenticationConfig.return_value = False  # the stale id is genuinely unusable
 
         with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
              patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
@@ -294,3 +295,37 @@ class TestAuthSystemDiagnostic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_resaving_a_key_updates_the_stored_config_instead_of_failing_on_the_duplicate_id(self):
+        # rc10 smoke test, 2026-10-01: saving a provider key a second time logged "Store config: FAILED because pre-defined
+        # config ID is not unique" -- storeAuthenticationConfig rejects an id that already exists -- and the key fell back to
+        # session-only storage. An existing id must go through updateAuthenticationConfig.
+        store = {"cartogen_ai/auth_id_test_resave_provider": "existing-id"}
+
+        class FakeSettings:
+            def value(self, key, default=""):
+                return store.get(key, default)
+
+            def setValue(self, key, value):
+                store[key] = value
+
+            def remove(self, key):
+                store.pop(key, None)
+
+        fake_auth_mgr = MagicMock()
+        fake_auth_mgr.isDisabled.return_value = False
+        fake_auth_mgr.storeAuthenticationConfig.return_value = False   # what QGIS does for an existing id
+        fake_auth_mgr.updateAuthenticationConfig.return_value = True
+
+        with patch("cartogen_ai.infrastructure.auth.QGIS_AVAILABLE", True), \
+             patch("cartogen_ai.infrastructure.auth.QgsApplication", create=True) as mock_app, \
+             patch("cartogen_ai.infrastructure.auth.QgsSettings", side_effect=FakeSettings, create=True), \
+             patch("cartogen_ai.infrastructure.auth.QgsAuthMethodConfig", create=True):
+            mock_app.authManager.return_value = fake_auth_mgr
+            result = CredentialManager.save_credential("test_resave_provider", "second-key")
+
+        self.assertTrue(result)
+        fake_auth_mgr.updateAuthenticationConfig.assert_called_once()
+        fake_auth_mgr.storeAuthenticationConfig.assert_not_called()
+        self.assertFalse(CredentialManager.used_session_only_fallback("test_resave_provider"))
+        self.assertIn("cartogen_ai/auth_id_test_resave_provider", store)
