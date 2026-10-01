@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc10](#v1-16-0-rc10) | 2026-10-01 | **Release candidate 10 for 1.16.0.** No breaking changes. Includes rc9 (reply guard, turn limits, download-size guard, single-tree matrix, concave-hull exposure, results store, model view) plus the visualization round: cost-banded routing roads, grouped reach polygons, styled rasters/outputs with legend units, automatic labels, styled print layout with an access-map template, ten more allowlisted analysis algorithms. CI-verified on QGIS 4.2.2; not yet seen in a hands-on session |
 | [1.16.0-rc8](#v1-16-0-rc8) | 2026-09-30 | **Release candidate 8 for 1.16.0.** No breaking changes. Fixes from the rc7 Yemen smoke test (F01-F25): project no longer renamed by isolated scripts, gate confirmation works, no fabricated results, coordinates converted in code, service-area guards, explicit-only destructive confirmations, highlight cleanup, memory coordinate guard, findable dashboards, Excel-safe CSV. Several findings remain open (see entry) |
 | [1.16.0-rc7](#v1-16-0-rc7) | 2026-09-28 | **Release candidate 7 for 1.16.0.** No breaking changes. Four execute_pyqgis_script isolation-worker Windows bugs found and fixed (wrong-interpreter detection, missing PYTHONPATH, lost stderr, too-short handshake). Local-data download offer no longer loses the request on a typo or names the wrong region; the download/online prompt now decides silently for the routine case and only asks via clickable chips when there's a real decision (large/unknown size, poor/offline connectivity). calculate_service_area's hull polygon styled and deduplicated. Exported CSVs no longer get an unreadable, unstable filename. execute_pyqgis_script now process-isolated with its own QgsApplication. New direct UI control for layer sensitivity tagging. georeference_image gained Linear/Helmert transforms with RMSE/scale reporting. Analysis-tool output styling now remembered per project across similar follow-up requests |
 | [1.16.0-rc6](#v1-16-0-rc6) | 2026-09-27 | **Release candidate 6 for 1.16.0.** No breaking changes. Threshold parsing now catches spelled-out/plural time and distance phrasing ("one hour's travel"), not just digits. OSM road ingest fixed to build real lines (not one point per vertex) with Overpass retry-on-transient-failure. In-place upgrades no longer fail on stale cached modules. Automatic model selection actually takes effect and never escalates to an expensive/special-purpose model. Network analysis measures real metres/hours regardless of CRS/ellipsoid, no longer freezes QGIS on a large network (background + Stop button), and `calculate_service_area` routes only over reachable roads. GDACS/EONET alerts carry an `event_id` field; `buffer_analysis` gained `only_selected`. New opt-in tools: `estimate_road_speeds` and an offer to download a local Geofabrik extract before road-network requests. `docs/IMPLEMENTATION_TRACKER.md` §1.10 (clean-profile install/upgrade) closed with a real QGIS session |
@@ -50,6 +51,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc10"></a>
+## [1.16.0-rc10] — 2026-10-01 — Release candidate 10 for 1.16.0: rc9 plus the visualization round
+
+No breaking changes; QGIS 4.2+. rc9 was never published as its own release, so this entry also covers it: see `metadata.txt`
+for the full rc9 list (F03-F25 fixes). New since rc9: see the `v1.16.0-rc10` block in `metadata.txt` and
+`docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md`. Verification: offline suite plus the `qgis-live-tests` job on
+QGIS 4.2.2; not verified: how any colour or layout looks on a real canvas/page. Smoke procedure:
+`docs/RC10_SMOKE_TEST_2026-10-01.md`.
 
 <a id="v1-16-0-rc8"></a>
 ## [1.16.0-rc8] — 2026-09-30 — Release candidate 8 for 1.16.0: fixes from the rc7 interactive smoke test

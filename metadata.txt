@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc9
+version=1.16.0-rc10
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,14 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc9 (2026-10-01):
+changelog=v1.16.0-rc10 (2026-10-01):
+    Release candidate 10 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Includes everything in rc9 plus the visualization round; all QGIS-side behaviour was run in CI against QGIS 4.2.2, nothing yet in a hands-on smoke test, and nobody has looked at a rendered map or exported page.
+    - New: service-area roads are drawn in travel-cost bands, the reach figures are distinct translucent polygons grouped under one "Reach figures" group with the headline visible, and unreachable facilities are red, larger and on top.
+    - New: WorldPop, density and interpolated rasters get pseudocolour ramps (zero cells transparent) with a unit on the legend; tabular points get one consistent look; Processing outputs are styled by what the algorithm made; small named layers (facilities, admin areas, access points) are labelled automatically.
+    - New: create_print_layout styles the page (masthead, type scale, framed panels, a legend of only the visible layers, preparation date, classification prefix) and has template="access_map" for service-area results; the masthead colour is a Settings field.
+    - New: ten more allowlisted Processing algorithms (count points in polygon, create grid, extract by location, statistics by categories, DBSCAN and k-means clustering, raster sampling, zonal statistics, reclassify by table, cell statistics).
+    - Fix: raster Processing algorithms (slope, aspect, hillshade, IDW, TIN, kernel density, raster calculator) previously failed or reported no output; they now load as layers. A layout with no map extent no longer loses its CRS/scale line.
+    v1.16.0-rc9 (2026-10-01):
     Release candidate 9 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Follow-up to the rc8 audit; QGIS-side behaviour was run in CI against QGIS 4.2.2, not yet in a hands-on smoke test.
     - Fix: the reply guard also flags invented records given as bullets or prose and answers in turns where no data tool ran; ungrounded tables are replaced by a notice; the model's own "please confirm" text is dropped when the real confirmation card is shown (F03, F14).
     - New: per-turn tool-call cap and optional token budget, a per-turn token figure in the chat footer, and the limits plus the download-size threshold in Settings; the startup log states which gates are on (F10, F18, F22).
