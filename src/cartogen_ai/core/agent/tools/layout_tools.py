@@ -92,6 +92,33 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         return extent
 
 
+def _soften_graticule(grid):
+    """Thin pale grid lines and small whole-number annotations.
+
+    rc11 smoke test S7: the default graticule drew solid black lines across the map and ten-point annotations such as
+    '4880000.000' that ran over the CRS/scale row under the map and off the left and right page edges. Each step is
+    best-effort and independent (the API differs a little between QGIS versions): a failed one keeps that default and the
+    graticule itself is still added. Not re-run in a real QGIS session from the sandbox."""
+    try:
+        from qgis.core import QgsLineSymbol
+        grid.setLineSymbol(QgsLineSymbol.createSimple({"color": "110,110,110,110", "width": "0.12"}))
+    except Exception:
+        pass
+    try:
+        grid.setAnnotationPrecision(0)
+    except Exception:
+        pass
+    try:
+        from qgis.core import QgsTextFormat
+        fmt = QgsTextFormat()
+        fmt.setSize(6)
+        from qgis.PyQt.QtGui import QColor
+        fmt.setColor(QColor(90, 90, 90))
+        grid.setAnnotationTextFormat(fmt)
+    except Exception:
+        pass
+
+
 def _nice_interval(raw):
     """Rounds raw (a rough 'one grid line every this many map units' target) up to the
     nearest 1/2/5 x 10^n -- the same 'nice round number' convention QGIS's own scale bar
@@ -380,6 +407,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             grid.setEnabled(True)
             grid.setAnnotationEnabled(True)
             map_item.grids().addGrid(grid)
+            _soften_graticule(grid)
         except Exception as e:
             grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
 
