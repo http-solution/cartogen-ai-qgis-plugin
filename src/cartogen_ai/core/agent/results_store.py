@@ -57,6 +57,53 @@ def new_table_name(layer_name, now=None):
     return f"{table_base(layer_name)}__{stamp}"
 
 
+_STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+
+
+def stale_tables(all_tables, base, keep, in_use=()):
+    """Older timestamped tables for the same output: `<base>__YYYYMMDD_HHMMSS`, not `keep`, not in `in_use`. Pure.
+
+    The module docstring always promised that older tables are dropped, but nothing did it: on the rc10 smoke test one
+    re-run of a service area added three tables (31,583 road features among them) and grew the file from 8 MB to 14 MB,
+    and every further run would add the same again. Only tables of exactly this form and base are ever returned, so another
+    output's table, or anything the user added to the file, is never touched."""
+    prefix = f"{base}__"
+    out = []
+    for name in all_tables:
+        if name == keep or name in in_use or not str(name).startswith(prefix):
+            continue
+        if _STAMP_RE.match(str(name)[len(prefix):]):
+            out.append(name)
+    return out
+
+
+def _drop_stale_tables(path, base, keep, project):
+    """Best effort: delete the older tables for this output. Never raises (the file may be locked on Windows)."""
+    try:
+        from osgeo import ogr
+        in_use = set()
+        for layer in project.mapLayers().values():
+            source = layer.source() if hasattr(layer, "source") else ""
+            if "layername=" in source:
+                in_use.add(source.split("layername=", 1)[1].split("|", 1)[0])
+        ds = ogr.Open(path, 1)
+        if ds is None:
+            return 0
+        names = [ds.GetLayerByIndex(i).GetName() for i in range(ds.GetLayerCount())]
+        dropped = 0
+        for name in stale_tables(names, base, keep, in_use):
+            for i in range(ds.GetLayerCount()):
+                if ds.GetLayerByIndex(i).GetName() == name:
+                    if ds.DeleteLayer(i) == 0:
+                        dropped += 1
+                    break
+        ds = None
+        return dropped
+    except Exception as e:
+        log_event("results_store", tag="Tools", status="cleanup_failed", error_class=type(e).__name__, error=True)
+        return 0
+
+
 def is_persistable(layer):
     return bool(QGIS_AVAILABLE and layer is not None and hasattr(layer, "providerType")
                 and layer.providerType() == "memory" and layer.isValid())
@@ -111,7 +158,8 @@ def persist_layer(layer, tool="analysis", sources=None, project=None):
         md.setTitle(name)
         md.setAbstract(provenance_abstract(tool, sources))
         layer.setMetadata(md)
-        log_event("results_store", tag="Tools", tool=tool, status="persisted")
+        dropped = _drop_stale_tables(path, table_base(name), table, project)
+        log_event("results_store", tag="Tools", tool=tool, status="persisted", stale_tables_dropped=dropped)
         return {"persisted": True, "path": path, "table": table}
     except Exception as e:
         log_event("results_store", tag="Tools", tool=tool, status="failed", error=True)

@@ -62,3 +62,19 @@ class TestPersistWithoutQgis(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStaleTables(unittest.TestCase):
+    """rc10 smoke test: re-runs left old timestamped tables behind in cartogen_results.gpkg."""
+
+    def test_only_older_stamped_tables_of_the_same_output_are_stale(self):
+        names = ["Hull__20261001_205744", "Hull__20261001_214745", "Roads__20261001_205749", "Hull_notes",
+                 "Hull__final", "HullTwo__20261001_100000", "user_table"]
+        self.assertEqual(rs.stale_tables(names, "Hull", keep="Hull__20261001_214745"), ["Hull__20261001_205744"])
+
+    def test_a_table_a_layer_still_uses_is_kept(self):
+        names = ["Hull__20261001_205744", "Hull__20261001_214745"]
+        self.assertEqual(rs.stale_tables(names, "Hull", keep="Hull__20261001_214745", in_use={"Hull__20261001_205744"}), [])
+
+    def test_nothing_is_stale_when_there_is_only_the_kept_table(self):
+        self.assertEqual(rs.stale_tables(["Hull__20261001_214745"], "Hull", keep="Hull__20261001_214745"), [])
