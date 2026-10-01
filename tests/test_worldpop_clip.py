@@ -129,6 +129,20 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
         self.assertIn("Nothing was downloaded", res["error"])
         self.assertIn("window outside the raster", res["error"])
 
+    @patch("cartogen_ai.core.agent.local_data_loader._remote_size", return_value=129_000_000)
+    @patch.object(ht, "_clip_raster_to_bbox", side_effect=RuntimeError("Range downloading not supported by this server!"))
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_a_server_without_range_support_gets_an_actionable_error_with_the_real_size(self, urlopen, clip, size):
+        # rc10 smoke test: the first run against the real worldpop.org server. The model retried three times and then
+        # guessed "100 MB to over 1 GB"; the error must carry the real size and say not to retry.
+        urlopen.return_value = _resp(_LISTING)
+        res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [100, 10, 101, 11])
+        self.assertIn("129 MB", res["error"])
+        self.assertIn("Do NOT retry", res["error"])
+        self.assertIn("allow_whole_country=true", res["error"])
+        self.assertTrue(res["needs_user_confirmation"])
+        self.assertEqual(res["whole_country_size_bytes"], 129_000_000)
+
     @patch.object(ht, "_clip_raster_to_bbox")
     @patch.object(ht.urllib.request, "urlopen")
     def test_a_file_not_on_worldpop_is_not_read_remotely(self, urlopen, clip):
