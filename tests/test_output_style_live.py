@@ -197,9 +197,9 @@ class TestPrintLayoutStyling(unittest.TestCase):
         title = layout.itemById("TITLE")
         self.assertAlmostEqual(title.textFormat().size(), 20.0, places=1)
         self.assertTrue(title.hasBackground())
-        self.assertTrue(layout.itemById("MAP_MAIN").hasFrame())
-        self.assertTrue(layout.itemById("LEGEND").hasFrame())
-        self.assertTrue(layout.itemById("BODY_TEXT").hasFrame())
+        self.assertTrue(layout.itemById("MAP_MAIN").frameEnabled())
+        self.assertTrue(layout.itemById("LEGEND").frameEnabled())
+        self.assertTrue(layout.itemById("BODY_TEXT").frameEnabled())
 
     def test_the_info_row_carries_the_preparation_date(self):
         _, layout, _ = self._layout()

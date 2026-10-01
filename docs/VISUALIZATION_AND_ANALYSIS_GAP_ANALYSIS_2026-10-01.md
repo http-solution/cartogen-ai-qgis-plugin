@@ -46,7 +46,7 @@ allowlist, **each checked against the real QGIS 4.2.2 registry in CI** (a wrong 
 | `native:countpointsinpolygon` | facilities / incidents per admin area (the coverage-gap table); **run end-to-end in CI** |
 | `native:creategrid` | rectangle/hex grids for density and exposure aggregation |
 | `native:extractbylocation` | facilities inside a catchment or admin area as a new layer |
-| `native:statisticsbycategories` | count/sum/mean per category |
+| `qgis:statisticsbycategories` | count/sum/mean per category |
 | `native:dbscanclustering`, `native:kmeansclustering` | clusters of incidents / facilities |
 | `native:rastersampling` | population at facility points |
 | `native:zonalstatisticsfb` | zonal statistics (current form of the old `qgis:zonalstatistics`) |

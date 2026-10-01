@@ -109,8 +109,17 @@ def _nice_interval(raw):
 
 def _format_scale_denominator(n):
     """1:1234567 -> '1:1,234,567' -- the textual representative-fraction scale
-    cartographic convention expects alongside (not instead of) a graphical scale bar."""
-    return f"1:{int(round(n)):,}"
+    cartographic convention expects alongside (not instead of) a graphical scale bar.
+
+    A map item with no real extent (headless layout, empty canvas) reports a NaN/inf/zero
+    scale; int(round(nan)) raises, which silently dropped the whole CRS/scale info label
+    (seen in the live styling tests, 2026-10-01), so degrade to text instead."""
+    try:
+        if n is None or n != n or n in (float("inf"), float("-inf")) or n <= 0:
+            return "unavailable"
+        return f"1:{int(round(n)):,}"
+    except (TypeError, ValueError, OverflowError):
+        return "unavailable"
 
 
 @register_tool(

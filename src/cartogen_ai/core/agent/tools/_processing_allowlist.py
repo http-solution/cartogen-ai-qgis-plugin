@@ -69,7 +69,7 @@ ANALYSIS_EXTENSIONS = frozenset({
     "native:countpointsinpolygon",    # facilities (or incidents) per admin area: the basic coverage-gap table
     "native:creategrid",              # rectangle/hex grid for density and exposure aggregation
     "native:extractbylocation",       # features within/intersecting another layer, as a new layer
-    "native:statisticsbycategories",  # count/sum/mean per category
+    "qgis:statisticsbycategories",  # count/sum/mean per category
     "native:dbscanclustering",        # density clusters of points (incidents, facilities)
     "native:kmeansclustering",        # k clusters of points (service-region sketches)
     "native:rastersampling",          # sample a raster (e.g. population) at points
