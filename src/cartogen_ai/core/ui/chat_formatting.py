@@ -366,6 +366,22 @@ def _relative_time(iso_str):
         return ""
 
 
+def _clock_time(iso_str):
+    """Local clock time for a chat bubble: "23:41" for today, "Oct 01, 23:41" for another day. "" when missing or
+    unparseable. rc11 smoke test F25: a relative label ("just now") is computed once when the bubble is drawn and never
+    updated, so every bubble kept saying "just now" for the whole session; a clock time stays true."""
+    if not iso_str:
+        return ""
+    try:
+        ts = datetime.datetime.fromisoformat(iso_str)
+        if ts.tzinfo:
+            ts = ts.astimezone().replace(tzinfo=None)
+        now = datetime.datetime.now()
+        return ts.strftime("%H:%M") if ts.date() == now.date() else ts.strftime("%b %d, %H:%M")
+    except (ValueError, TypeError):
+        return ""
+
+
 def _blend_hex(hex_a, hex_b, t):
     """Linear-interpolates between two '#RRGGBB' colors; t=0 -> hex_a, t=1 -> hex_b."""
     a, b = hex_a.lstrip("#"), hex_b.lstrip("#")

@@ -40,7 +40,7 @@ from ..logger import log_warning
 
 from . import reply_vocab
 from .chat_formatting import (
-    render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
+    render_markdown, _clock_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
     format_send_error,
 )
 from .theme import theme_colors, extract_theme_palette
@@ -567,7 +567,7 @@ class ChatTabWidget(QWidget):
         # message; a restored message instead uses the real timestamp
         # _populate_initial_chat stashed in self._pending_restore_ts right before
         # this call, so a leftover bubble from an earlier session shows its actual
-        # age (e.g. "2h ago") instead of falsely claiming to have just happened --
+        # time (a clock time such as "23:41", not a relative label that would never update) instead of falsely claiming to have just happened --
         # this was a real, live-reported bug (a stale Ollama-provider error looked
         # like it had just occurred next to a brand-new reply from a different
         # provider). See chat_persistence.py's _attach_timestamps for where the ts
@@ -575,7 +575,7 @@ class ChatTabWidget(QWidget):
         colors = theme_colors()
         restore_ts = getattr(self, "_pending_restore_ts", None)
         self._pending_restore_ts = None
-        timestamp = _relative_time(restore_ts) if restore_ts else _relative_time(now_iso())
+        timestamp = _clock_time(restore_ts) if restore_ts else _clock_time(now_iso())
         # Table-based alignment, not a floated div -- Qt's rich-text engine
         # supports table cell alignment reliably; float-based layout is flaky.
         if role == "user":

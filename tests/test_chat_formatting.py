@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.ui.chat_formatting import (
-    render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
+    render_markdown, _relative_time, _clock_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
     render_tool_steps_toggle_html, render_tool_steps_failure_details_html,
     build_dock_stylesheet, format_send_error, _brand_accent, BRAND_TEAL, BRAND_ACCENT_BLEND_T,
@@ -207,6 +207,16 @@ class TestRelativeTime(unittest.TestCase):
 
     def test_just_now(self):
         self.assertEqual(_relative_time(now_iso()), "just now")
+
+    def test_clock_time_is_a_fixed_label_not_just_now(self):
+        # rc11 smoke test F25: every bubble kept saying "just now".
+        import datetime
+        now = datetime.datetime.now()
+        self.assertEqual(_clock_time(now.isoformat()), now.strftime("%H:%M"))
+        old = now - datetime.timedelta(days=2)
+        self.assertEqual(_clock_time(old.isoformat()), old.strftime("%b %d, %H:%M"))
+        self.assertEqual(_clock_time(""), "")
+        self.assertEqual(_clock_time("not-a-date"), "")
 
 
 class TestBlendHex(unittest.TestCase):
