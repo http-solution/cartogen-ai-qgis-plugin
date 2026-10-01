@@ -107,6 +107,10 @@ _SAFE_EVENT_FIELDS = {
     "tool", "status", "duration_ms", "correlation_id", "provider", "error_class", "count",
     # Startup state of behaviour-changing settings (F18) -- on/off or a mode name, never user content.
     "plan_validation_gate", "egress_gate_mode", "persist_chat",
+    # classify_facilities_by_access phase timings -- counts and milliseconds only. rc11 smoke test: the event was
+    # logged with these fields but this allowlist dropped them, so the line read just "classify_facilities_timing"
+    # and the 124 s could not be broken down.
+    "facilities", "reached_layers", "service_area_ms", "prepare_ms", "nearest_ms", "build_ms", "replace_ms",
 }
 
 
