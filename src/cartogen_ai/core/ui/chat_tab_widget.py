@@ -324,8 +324,10 @@ class ChatTabWidget(QWidget):
         self.chat_browser.anchorClicked.connect(self._on_step_anchor_clicked)
         # Keep chat scrolled to bottom as asynchronous document layout updates geometry
         sb = self.chat_browser.verticalScrollBar()
+        self._follow_bottom = True
         if sb:
             sb.rangeChanged.connect(self._on_scrollbar_range_changed)
+            sb.actionTriggered.connect(self._on_user_scroll_action)
         chat_layout.addWidget(self.chat_browser)
 
         self.status_label = QLabel("")
@@ -648,14 +650,31 @@ class ChatTabWidget(QWidget):
             except RuntimeError:
                 pass
 
+        self._follow_bottom = True        # a new message was added: show it, and keep following until the user scrolls up
         _do_scroll()
         QTimer.singleShot(50, _do_scroll)
         QTimer.singleShot(150, _do_scroll)
 
+    def _on_user_scroll_action(self, _action):
+        """Wheel, drag and key scrolling only (QAbstractSlider.actionTriggered is not emitted for setValue()).
+        Records whether the user left the bottom, so later layout changes stop pulling the view back.
+        rc11 smoke test: with a tall last card on screen the chat felt stuck at the last message. UNVERIFIED in a real
+        QGIS session -- this changes the follow rule from 'within 160 px of the bottom' to 'the user has not scrolled up'."""
+        from qgis.PyQt.QtCore import QTimer
+
+        def _update():
+            try:
+                sb = self.chat_browser.verticalScrollBar()
+                if sb:
+                    self._follow_bottom = (sb.maximum() - sb.value()) < 24
+            except RuntimeError:
+                pass
+        QTimer.singleShot(0, _update)     # the slider moves after the signal, so read its position afterwards
+
     def _on_scrollbar_range_changed(self, min_val, max_val):
-        """When document geometry changes asynchronously, follow to bottom if user was near bottom."""
+        """When document geometry changes asynchronously, follow to bottom unless the user scrolled up."""
         sb = self.chat_browser.verticalScrollBar()
-        if sb and (max_val - sb.value() < 160):
+        if sb and self._follow_bottom:
             sb.setValue(max_val)
 
     def _set_status(self, text):

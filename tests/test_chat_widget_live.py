@@ -1008,6 +1008,35 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertIn("Alpha", text)
         self.assertIn("Beta", text)
 
+    def test_scrolling_up_is_not_undone_by_later_layout_changes(self):
+        """rc11 smoke test: the chat felt stuck at the last message. A user who scrolled up must stay where they are when
+        the document grows; a user at the bottom keeps following new content."""
+        from qgis.PyQt.QtCore import QAbstractSlider
+        from qgis.PyQt.QtWidgets import QApplication
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        for i in range(40):
+            ct.chat_browser.append("line %d<br><br><br>" % i)
+        QApplication.processEvents()
+        sb = ct.chat_browser.verticalScrollBar()
+        self.assertGreater(sb.maximum(), 0)
+        ct._scroll_to_bottom()
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), sb.maximum())
+        # a user scroll up: the position moves, then the slider reports the action
+        sb.setValue(0)
+        sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum)
+        QApplication.processEvents()
+        for i in range(20):
+            ct.chat_browser.append("more %d<br><br><br>" % i)
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), 0, "document growth pulled a scrolled-up user back to the bottom")
+        # a new message always brings the view back to the end
+        ct._scroll_to_bottom()
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), sb.maximum())
+
     def test_task_inspector_dialog_confirm_resolves_via_the_shared_method(self):
         """task_inspector_dialog.py must route through the SAME
         _resolve_pending_confirmation the chat-typed reply and the safety-gate card's
