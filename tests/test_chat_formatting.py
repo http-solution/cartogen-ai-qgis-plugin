@@ -548,6 +548,12 @@ class TestSimplifyLatex(unittest.TestCase):
         self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")
         self.assertEqual(self.f(r"$\approx 5\%$"), "≈ 5%")
 
+    def test_degree_written_as_a_superscript_circ(self):
+        # rc11 smoke test F15: the Sana'a reply showed this span raw (a stray caret was left after \\circ became a degree sign).
+        self.assertEqual(self.f(r"(approx. $15.35^\circ\,\text{N},\,44.21^\circ\,\text{E}$)"),
+                         "(approx. 15.35° N, 44.21° E)")
+        self.assertEqual(self.f(r"$30^{\circ}$"), "30°")
+
     def test_dollar_amounts_are_not_math(self):
         self.assertEqual(self.f("costs $5 and $10 each"), "costs $5 and $10 each")
 

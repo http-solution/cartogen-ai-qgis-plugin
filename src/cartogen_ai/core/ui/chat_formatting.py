@@ -108,6 +108,9 @@ def _latex_inner(inner):
     """Unicode for a simple LaTeX fragment, or None if any command is left unconverted."""
     t = inner
     t = re.sub(r"\\(?:text|mathrm|textrm|mathbf|textbf)\{([^{}]*)\}", r"\1", t)
+    # rc11 smoke test F15: "$15.35^\circ\,\text{N}$" stayed raw because the degree sign is written as a superscript
+    # (^\circ / ^{\circ}); once \circ became a degree sign a stray caret was left and the whole span was rejected.
+    t = re.sub(r"\^\s*\{?\s*(?:\\circ|\\degree)\s*\}?", "\u00b0", t)
     for cmd in sorted(_LATEX_SYMBOLS, key=len, reverse=True):
         t = t.replace(cmd, _LATEX_SYMBOLS[cmd])
 
