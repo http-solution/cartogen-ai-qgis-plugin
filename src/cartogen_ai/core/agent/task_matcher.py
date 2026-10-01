@@ -179,8 +179,12 @@ _SLOT_EVIDENCE = {
                       r"conflict|heat|avalanche",
     "imagery":        r"sentinel|landsat|planet|maxar|drone|orthomos|radar|sar\b|ndvi|imagery from",
     "population_src": r"worldpop|hdx|census|gridded|facebook|meta population|our own|existing layer",
+    # A coordinate pair or "the point/origin" also answers it: a service area can start from a point rather than a
+    # facility, and asking "which facility type?" of "population within one hour's drive of the point 4902068.0, 1799912.0"
+    # was a question with no answer (rc10 smoke test, 2026-10-01).
     "facility_type":  r"health|school|clinic|hospital|water point|borehole|latrine|market|warehouse|"
-                      r"shelter|distribution point",
+                      r"shelter|distribution point|-?\d+\.\d+\s*,\s*-?\d+\.\d+|"
+                      r"\b(?:the|this|that|my|an?)\s+(?:point|origin|location|site|coordinates?)\b",
     # A number (digits or a word) followed by a distance or time unit, plurals included. This was
     # digits-only with singular-only units ("hour\b" can't match "hours"), so "one hour's travel",
     # "2 hours" and "30 minutes" all counted as no threshold. The 5 km default was then added

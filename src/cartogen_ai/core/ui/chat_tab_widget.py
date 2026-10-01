@@ -1105,7 +1105,11 @@ class ChatTabWidget(QWidget):
         # every missing slot would interrupt roughly nine messages in ten, and
         # a prompt that interrupts constantly gets clicked through unread,
         # which defeats the disclosure it exists for.
-        if analysis.get("blocking"):
+        # Asked ONCE. A request that already carries a "Details:" reply came back from a clarification; if a slot is still
+        # unresolved the register's policy ("ask once, then default") is to go on, not to ask again. rc10 smoke test: the
+        # same "Which facility or service type?" came back three times, and each repeated reply was appended to the
+        # request, growing it ("Details: ... Details: ...") without ever satisfying the question.
+        if analysis.get("blocking") and "\n\nDetails:" not in text:
             self._ask_requirement_in_chat(text, analysis)
             return
         self._pending_analysis_text = text
