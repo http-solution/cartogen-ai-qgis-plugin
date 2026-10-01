@@ -1003,9 +1003,11 @@ def georeference_image(image_path, control_points, output_path, target_crs="EPSG
         return {"error": f"georeference_image failed: {e}"}
 
 
-# fetch_worldpop_population names its output layers '<ISO3>_population_<year>'
-# (see add_worldpop_population_layer_main_thread_phase in humanitarian_tools.py).
-_WORLDPOP_LAYER_NAME_RE = re.compile(r"^[A-Za-z]{3}_population_(\d{4})$")
+# fetch_worldpop_population names its output layers '<ISO3>_population_<year>' (plus '_area' when clipped; see
+# add_worldpop_population_layer_main_thread_phase in humanitarian_tools.py). WorldPop's own file name is '<iso3>_ppp_<year>',
+# which is what a layer loaded from the cached download is called (rc11 smoke test S4: 'yem_ppp_2020' did not match, so
+# apply_raster_stretch replaced the population ramp with an opaque grey stretch that blacked out the country).
+_WORLDPOP_LAYER_NAME_RE = re.compile(r"^[A-Za-z]{3}_(?:population|ppp)_(\d{4})(?:_area)?$", re.IGNORECASE)
 
 
 def _describe_population_raster(layer_name):
