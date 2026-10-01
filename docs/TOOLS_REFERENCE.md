@@ -623,6 +623,7 @@ Apply a min/max contrast stretch or pseudocolor ramp to a single-band raster lay
 | `band` | integer | no | Raster band number to style. Defaults to 1. |
 | `min_value` | number | no | Optional. Overrides the auto-computed stretch/ramp minimum. |
 | `max_value` | number | no | Optional. Overrides the auto-computed stretch/ramp maximum. |
+| `keep_population_ramp` | boolean | no | Default true: a WorldPop population layer keeps the plugin's own ramp (empty cells transparent, unit on the legend) because a generic stretch over a whole country is unreadable. Pass false only if the user explicitly asked for a different look. |
 
 ### `aspect_analysis`
 
