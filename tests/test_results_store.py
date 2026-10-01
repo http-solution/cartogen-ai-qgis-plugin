@@ -9,8 +9,9 @@ from cartogen_ai.core.agent import results_store as rs
 
 class TestStorePath(unittest.TestCase):
     def test_lives_under_the_projects_data_folder(self):
-        p = rs.store_path(os.path.join("/work", "yemen", "yemen.qgz"))
-        self.assertEqual(p, os.path.join("/work", "yemen", "data", "20_processed", "cartogen_results.gpkg"))
+        project = os.path.abspath(os.path.join("work", "yemen", "yemen.qgz"))   # abspath: Windows adds a drive letter
+        p = rs.store_path(project)
+        self.assertEqual(p, os.path.join(os.path.dirname(project), "data", "20_processed", "cartogen_results.gpkg"))
 
     def test_an_unsaved_project_has_no_store(self):
         self.assertIsNone(rs.store_path(""))
