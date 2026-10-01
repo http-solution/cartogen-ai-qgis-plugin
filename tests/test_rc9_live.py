@@ -42,11 +42,14 @@ class TestConcaveReachPolygon(unittest.TestCase):
 
     def test_concave_is_smaller_than_convex_and_still_covers_the_roads(self):
         from cartogen_ai.core.agent.tools.logistics_tools import _concave_reach_polygon
-        # an L: a long horizontal road and a long vertical road meeting at the corner, plus a dense grid of vertices
+        # a U: roads along the bottom and both sides of a square, the top left open. Its convex hull is the whole square,
+        # so a concave hull that follows the roads must be smaller. (The first version used an L, whose convex hull is
+        # already as tight as any hull can be: CI showed equal areas.)
         lines = []
         for i in range(0, 11):
             lines.append(f"LINESTRING({i * 0.1} 0, {i * 0.1 + 0.1} 0)")
             lines.append(f"LINESTRING(0 {i * 0.1}, 0 {i * 0.1 + 0.1})")
+            lines.append(f"LINESTRING(1.1 {i * 0.1}, 1.1 {i * 0.1 + 0.1})")
         roads = _layer("LineString", "roads", lines)
         poly = _concave_reach_polygon([roads], 0.3, "reach")
         self.assertTrue(poly.isValid())
