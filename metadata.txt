@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc8
+version=1.16.0-rc9
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc8 (2026-09-30):
+changelog=v1.16.0-rc9 (2026-10-01):
+    Release candidate 9 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Follow-up to the rc8 audit; QGIS-side behaviour was run in CI against QGIS 4.2.2, not yet in a hands-on smoke test.
+    - Fix: the reply guard also flags invented records given as bullets or prose and answers in turns where no data tool ran; ungrounded tables are replaced by a notice; the model's own "please confirm" text is dropped when the real confirmation card is shown (F03, F14).
+    - New: per-turn tool-call cap and optional token budget, a per-turn token figure in the chat footer, and the limits plus the download-size threshold in Settings; the startup log states which gates are on (F10, F18, F22).
+    - New: geoBoundaries, HDX and building-footprint downloads ask first above the size threshold (default 50 MB); a metered connection also asks (F22).
+    - Change: population_access_gap reports three labelled figures (concave hull headline, road buffer, convex hull upper bound) and their range (F09). travel_time_matrix uses one shortest-path tree per origin for more than 200 destinations (F08).
+    - New: analysis outputs of a saved project are written to data/20_processed/cartogen_results.gpkg and survive Save and Reopen (F06); rc7 layer-tree duplicates are repaired on load (F07); a whole-country WorldPop file is cached and clipped locally when the remote window read fails and the user agreed to the download (F19).
+    - New: protected layers' field names are withheld from a cloud model under an enforcing gate (F21); dashboards accept basemap 'none' and a backdrop_layer, and default to the HOT basemap because Carto now needs a key (F12).
+    - Fix: LaTeX in replies is shown as symbols, a layer name with parentheses no longer leaves a stray ")" after an action chip, "an analysis", "no route" messages are no longer logged as CRITICAL (F15).
+    - Not changed: the chat transcript is still stored in the project file (F25); the 43-minute routing request was not profiled; WorldPop windowed reads, the Excel CSV and a dashboard opened from disk still need a hands-on check.
+    v1.16.0-rc8 (2026-09-30):
     Release candidate 8 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc7 interactive Yemen smoke test (findings F01-F25, GitHub issues #72-#97). Mostly verified by offline unit tests only; QGIS-side behaviour is unverified until the next live smoke test.
     - Fix: execute_pyqgis_script's isolated snapshot no longer renames the live project or clears its dirty flag (F01).
     - Fix: confirming a cloud-data (egress) gate preview now works, survives a re-plan, and no longer injects `confirmed` into tools that do not accept it (F02).

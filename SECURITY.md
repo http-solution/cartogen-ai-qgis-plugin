@@ -704,14 +704,13 @@ Hosted-Account dialog under any condition — both remain deliberately-scoped-ou
   documented 2026-09-30).** Layer *schema* (layer names, field names/types, feature counts, CRS,
   extents) is sent to the configured cloud LLM provider on every turn as map context; only layers
   tagged SENSITIVE are held back from tool results by the egress gate, and the schema of an
-  untagged layer is not gated. Layer *values* are sent only when a tool returns them. Separately,
+  untagged layer is not gated. **Update 2026-10-01 (rc9):** with the egress gate in ENFORCE mode and a non-local provider, the *field names* of a protected layer (RESTRICTED/SENSITIVE, or untagged in strict mode) are also withheld from `get_layers` and the map context (`models/model_view.py`); its name, type, CRS and feature count stay visible, and warn mode or a local provider hides nothing. Layer *values* are sent only when a tool returns them. Separately,
   data-fetch tools (OSM/Geofabrik extracts, WorldPop rasters, geoBoundaries) download files from
   public hosts without a size prompt: rc7 pulled a 103 MB country extract with no confirmation,
   and `fetch_worldpop_population` downloads the whole-country raster even for a city-sized
   analysis. Update 2026-09-30: passing `extent_layer`/`bbox` to `fetch_worldpop_population` now reads only that area
   (GDAL `/vsicurl/`, restricted to `*.worldpop.org`), and without one the call is now refused unless `allow_whole_country=true`. OSM-extract downloads above a size
-  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 50 MB since 2026-09-30, was 150) are offered as a choice; other
-  fetch tools still do not ask before a large download (tracked as open items). Until then treat any "fetch" tool as a potentially
+  threshold (setting `cartogen_ai/local_data_ask_above_mb`, default 50 MB since 2026-09-30, was 150) are offered as a choice; since rc9 geoBoundaries, HDX and building-footprint downloads above the threshold also stop and ask (`allow_large_download`), and a metered connection asks too. Until then treat any "fetch" tool as a potentially
   large download.
 
 ## Licensing note

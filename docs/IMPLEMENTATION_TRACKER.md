@@ -2415,3 +2415,17 @@ When you close an item above: move it to §4 with a one-line summary and the ver
 in, and update the "Last updated" line at the top. When you find something newly open: add it to
 the right section above with a source reference — don't let it live only in a chat response or a
 session summary that won't survive past this session.
+
+### 1.19 rc9: audit follow-up (added 2026-10-01; CI-verified on QGIS 4.2.2, not yet hands-on)
+
+Plan and evidence: `docs/RC8_AUDIT_AND_SOLUTIONS_2026-09-30.md`, `docs/RC8_FIX_PLAN_2026-09-30.md`; PR #108. Owner decisions 2026-10-01: F06 results GeoPackage, F09 concave-hull headline, F21 central model view, F25 unchanged. What shipped and how it was checked:
+- **F03/F14** `services/response_guard.py`: record-like bullets/prose and no-data-tool turns are flagged; ungrounded record tables replaced by a notice; the model's confirm lines dropped when a gate is pending. Heuristic: it cannot catch data written in an unrecognised shape. Offline tests only.
+- **F10/F18/F22** per-turn tool cap + token budget (`cartogen_ai/max_tool_iterations`, `max_turn_tokens`, 0 = no budget), footer text, Settings fields, startup log line, size guard for the other fetch tools (`allow_large_download`), `QNetworkInformation.isMetered()` check. Offline tests; the Settings dialog fields are not covered by a live widget test.
+- **F15** LaTeX to Unicode, balanced parentheses in action-chip links (the stray `)` cause), article, no-route feedback (`_CollectingFeedback`, QGIS-only, exercised indirectly by the network live tests), prints to the structured log.
+- **F12** `basemap='none'`, `backdrop_layer` (live-tested), markercluster 1.5.3, slider last date, default basemap `hot`. A dashboard opened from disk with real tiles is still unchecked.
+- **F09** three figures (`reach_figures`, `reachable_population_range`); concave hull via `QgsGeometry.concaveHull(0.85)` (QGIS >= 3.28, GEOS >= 3.11; live-tested). The constrained WorldPop product was NOT adopted: its REST alias is unverified.
+- **F21** `models/model_view.py` (live-tested through `get_layers` and the map context). Layer NAMES stay visible; only field names are withheld, in enforce mode with a non-local provider.
+- **F08** `travel_time_matrix` single-tree path for > 200 destinations. Live-tested for equivalence with `native:shortestpathpointtolayer` (shortest and fastest) on a small grid. NOT profiled on the 3,369-facility request; each destination takes its nearest road vertex's cost.
+- **F07** `heal_layer_tree()` on project load (live-tested). **F06** `results_store.py` called from `_replace_named_layer` (live-tested round trip); outputs of tools that do not use `_replace_named_layer` remain memory layers. **F19** whole-country cache-and-clip fallback (offline-tested only; needs `allow_whole_country`).
+- Live tests added: `tests/test_rc9_live.py` (F01 incl. auxiliary storage, F05 guards, F11). F02 and F16 widget flows were already covered by existing widget tests.
+- Still open: F25 transcript location (decision: unchanged); WorldPop windowed-read measurement (`gdalinfo` Block=); Excel CSV; the plan-validation setting in the operator's profile (F18); results store covers only `_replace_named_layer` outputs.
