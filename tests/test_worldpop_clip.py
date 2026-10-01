@@ -118,6 +118,33 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
         finally:
             os.remove(res["local_path"])
 
+    @patch.object(ht.urllib.request, "urlopen")
+    def test_a_whole_country_download_is_kept_in_the_cache_folder_and_reused(self, urlopen):
+        # rc10 smoke test: the whole-country raster was written to a random temp file (so a saved project pointed into
+        # %TEMP%) and never reused. With a cache folder it is streamed to <cache>/yem_ppp_2020.tif and kept.
+        import tempfile
+        urlopen.return_value = _resp(_LISTING)
+        cache_dir = os.path.join(tempfile.mkdtemp(), "worldpop")
+        calls = []
+
+        def fake_download(url, dest, chunk=1 << 20):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "wb") as fh:
+                fh.write(b"tiff-bytes")
+            calls.append(dest)
+
+        with patch.object(ht, "_download_to_file", side_effect=fake_download):
+            ht._LOOKUP_CACHE._store.clear()
+            first = ht.fetch_worldpop_population_network_phase("YEM", "2020", allow_whole_country=True, cache_dir=cache_dir)
+            ht._LOOKUP_CACHE._store.clear()
+            second = ht.fetch_worldpop_population_network_phase("YEM", "2020", allow_whole_country=True, cache_dir=cache_dir)
+        expected = os.path.join(cache_dir, "yem_ppp_2020.tif")
+        self.assertEqual(first["local_path"], expected)
+        self.assertEqual(first["country_file_cache"], "downloaded")
+        self.assertEqual(second["country_file_cache"], "reused")
+        self.assertEqual(len(calls), 1, "the second request must not download again")
+        self.assertEqual(first["bytes_on_disk"], 10)
+
     @patch.object(ht, "_clip_raster_to_bbox", side_effect=RuntimeError("window outside the raster"))
     @patch.object(ht.urllib.request, "urlopen")
     def test_a_failed_clip_is_an_error_not_a_silent_full_download(self, urlopen, clip):

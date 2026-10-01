@@ -1511,6 +1511,26 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
             _LOOKUP_CACHE.set(cache_key, result)
             return result
 
+        # Whole-country download. With a known cache folder, stream it into <project>/data/00_raw/worldpop/<iso3>_ppp_<year>.tif and
+        # reuse it next time. This used to read the whole file (~240 MB) into memory and write it to a random temp file, so on the
+        # rc10 smoke test the layer pointed into %TEMP% -- a file Windows may delete, that a saved project then references, and
+        # that was never reused by the next request or session.
+        country_file = _worldpop_cache_file(cache_dir, iso3, dataset.get("popyear"))
+        if country_file:
+            reused = os.path.exists(country_file)
+            if not reused:
+                _download_to_file(file_urls[0], country_file)
+            result = {
+                "success": True, "iso3": iso3, "year": dataset.get("popyear"),
+                "download_url": file_urls[0], "local_path": country_file,
+                "bytes_on_disk": os.path.getsize(country_file),
+                "country_file_cache": "reused" if reused else "downloaded", "country_file": country_file,
+                "note": "The WHOLE-country raster is kept at country_file and reused; pass extent_layer (or bbox) to clip "
+                        "to the area needed.",
+            }
+            _LOOKUP_CACHE.set(cache_key, result)
+            return result
+
         req2 = urllib.request.Request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=300) as response2:
             raster_bytes = response2.read()
