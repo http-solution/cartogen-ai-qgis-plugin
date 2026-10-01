@@ -151,7 +151,10 @@ _OUTPUT_OVERRIDE = [
     ("dashboard", r"\bdashboard\b"),
     ("report",    r"\breport\b|\bsitrep\b|\bsituation report\b|\bwrite[- ]?up\b|\bprofile\b"),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
-    ("dataset",   r"\bexport\b|\bgeopackage\b|\bshapefile\b|\bgeojson\b|\bcsv\b|\bdownload\b"),
+    # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
+    # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested
+    # export files (rc10 smoke test, 2026-10-01). A file is requested by naming a format or the word export.
+    ("dataset",   r"\bexport\b|\bgeopackage\b|\bshapefile\b|\bgeojson\b|\bcsv\b"),
     ("analysis",  r"\bhow many\b|\bhow much\b|\bcalculate\b|\bstatistics\b|\btable\b|\bcount\b"),
     ("layer",     r"\bon the map\b|\badd .*layer\b|\bstyle\b|\bsymboli[sz]e\b"),
 ]

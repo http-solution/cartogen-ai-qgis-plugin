@@ -164,6 +164,14 @@ class TestSlots(unittest.TestCase):
         q = "map flood hazard in Sindh district using sentinel imagery from 2026 within 10 km"
         self.assertEqual(tm.missing_slots(tm.classify(q)["best"], q), [])
 
+    def test_download_as_an_input_is_not_a_request_for_an_exported_file(self):
+        # rc10 smoke test: "download the whole Yemen population raster and then estimate ..." forced a GPKG+CSV deliverable
+        # and a follow-up call that wrote four unrequested export files.
+        q = "Yes, download the whole Yemen population raster and then estimate the population within one hour's drive"
+        self.assertNotEqual(tm.output_override(q), "dataset")
+        self.assertEqual(tm.output_override("export the clinics to CSV"), "dataset")
+        self.assertEqual(tm.output_override("save it as a geopackage"), "dataset")
+
     def test_one_question_covers_every_missing_slot(self):
         miss = tm.missing_slots(self.e, self.q)
         text = tm.clarify_question(self.e, miss)

@@ -165,7 +165,38 @@ def style_continuous_raster(layer, kind="surface", band=1, alg_id=None):
     raster_shader.setRasterShaderFunction(shader)
     layer.setRenderer(QgsSingleBandPseudoColorRenderer(provider, band, raster_shader))
     layer.triggerRepaint()
+    send_under_vectors(layer)
     return True
+
+
+def send_under_vectors(layer):
+    """Moves a raster result below every vector layer (still above the basemap) so it cannot hide the analysis on top of it.
+
+    A fetched population raster landed on top of the cost-banded roads, the reach polygon and the classified facilities on the
+    rc10 smoke test and painted over them. Only a top-level raster node is moved; visibility is kept. Never raises: ordering
+    is cosmetic."""
+    try:
+        from qgis.core import QgsMapLayer, QgsProject
+        root = QgsProject.instance().layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None or node.parent() is not root:
+            return False
+        children = root.children()
+        last_vector = -1
+        for i, child in enumerate(children):
+            child_layer = getattr(child, "layer", lambda: None)()
+            if child_layer is not None and child is not node and child_layer.type() == QgsMapLayer.LayerType.VectorLayer:
+                last_vector = i
+        if last_vector < 0 or children.index(node) > last_vector:
+            return False                                   # no vectors yet, or already below them
+        checked = node.itemVisibilityChecked()
+        moved = root.insertChildNode(last_vector + 1, node.clone())
+        root.removeChildNode(node)
+        if moved is not None:
+            moved.setItemVisibilityChecked(checked)
+        return True
+    except Exception:
+        return False
 
 
 def _set_unit_legend(shader, spec):
