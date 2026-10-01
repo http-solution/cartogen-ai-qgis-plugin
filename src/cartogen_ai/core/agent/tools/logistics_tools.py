@@ -452,7 +452,20 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
-def _replace_named_layer(name, new_layer):
+def _hide_layers(names):
+    """Unchecks the layers' tree nodes (they stay in the project). Never raises: hiding is cosmetic."""
+    try:
+        root = QgsProject.instance().layerTreeRoot()
+        for name in names:
+            for layer in QgsProject.instance().mapLayersByName(name):
+                node = root.findLayer(layer.id())
+                if node is not None:
+                    node.setItemVisibilityChecked(False)
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="hide_layers", error_class=type(e).__name__, error=True)
+
+
+def _replace_named_layer(name, new_layer, to_tree=True):
     """Adds `new_layer` under `name`, first removing every existing layer already using that
     exact name -- calculate_service_area's output names are deterministic (derived from the
     facility layer's name and its feature index, not a per-call id), so re-running the same
@@ -469,7 +482,10 @@ def _replace_named_layer(name, new_layer):
     project = QgsProject.instance()
     for stale in project.mapLayersByName(name):
         project.removeMapLayer(stale.id())
-    project.addMapLayer(new_layer)
+    if to_tree:
+        project.addMapLayer(new_layer)
+    else:
+        project.addMapLayer(new_layer, False)   # the caller puts the layer in a group itself
     # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
     try:
         from ..results_store import persist_layer
@@ -1196,6 +1212,7 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
             "default_speed": {"type": "number", "description": "Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50."},
             "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'."},
             "direction_field": {"type": "string", "description": "Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways."},
+            "style_by_cost": {"type": "boolean", "description": "Default true: also add a road layer graded by travel cost (near = dark, far = warm, labelled bands) and hide the plain reached-roads line layer, which stays in the project for analysis. Set false to keep only the plain lines."},
             "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
             "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
             "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
@@ -1205,7 +1222,7 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
 )
 def calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy="shortest", default_speed=50,
                             speed_field=None, direction_field=None,
-                            value_forward="yes", value_backward="-1", value_both="no"):
+                            value_forward="yes", value_backward="-1", value_both="no", style_by_cost=True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     # v1.8.0 workstream 4: travel_cost as a list builds a real isochrone/
@@ -1259,6 +1276,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
     try:
         strategy_val = 1 if strategy == "fastest" else 0
         layers_created = []
+        styled_layers = []
         served_count = 0
         skipped = []
         # BUG-2026-09-05-2 fix (2026-09-08): both processing.run() calls below used to
@@ -1424,6 +1442,32 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                             log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_hull_styling",
                                       error_class=type(style_e).__name__, error=True)
 
+            if facility_served and style_by_cost:
+                graded_name = f"{facility_layer}_roads_by_cost_{i}"
+                try:
+                    from . import routing_style
+                    max_cost = max(travel_costs)
+                    graded, graded_reason = _cost_graded_roads(
+                        routed_network, _point_xy_in_network_crs(point, facilities.crs(), network), strategy,
+                        default_speed, extra_params.get("SPEED_FIELD"), extra_params.get("DIRECTION_FIELD"),
+                        value_forward, value_backward, value_both, context.ellipsoid(), max_cost, graded_name)
+                    if graded is None:
+                        notes.append(f"Roads were not graded by travel cost for facility {i}: {graded_reason}.")
+                    else:
+                        _replace_named_layer(graded_name, graded)
+                        unit = "hours" if strategy == "fastest" else "meters"
+                        routing_style.style_lines_by_cost(
+                            graded, "travel_cost", routing_style.cost_band_edges(max_cost), unit)
+                        styled_layers.append(graded_name)
+                        _hide_layers([n for n in layers_created
+                                      if n == f"{facility_layer}_service_area_lines_{i}"
+                                      or n.startswith(f"{facility_layer}_service_area_lines_{i}_band_")])
+                except _bg.AnalysisCancelled:
+                    raise
+                except Exception as grade_e:
+                    notes.append(f"Roads were not graded by travel cost for facility {i} ({type(grade_e).__name__}: {grade_e}); "
+                                 "the plain reached-roads layer is shown instead.")
+
             if is_multi_band and band_hulls:
                 merged_name = f"{facility_layer}_service_area_bands_{i}"
                 merged_layer = _merge_band_hulls(band_hulls, merged_name)
@@ -1453,6 +1497,11 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             "travel_cost_unit": "hours" if strategy == "fastest" else "meters",
             "layers_created": layers_created,
         }
+        if styled_layers:
+            result["styled_layers"] = styled_layers
+            result["styling_note"] = (
+                "Roads are drawn in travel-cost bands (dark = near the origin, warm = far); the plain reached-roads line layers "
+                "are hidden but kept for analysis.")
         if clip_summary["facilities_clipped"]:
             # Exact, not an approximation (see _clip_network_to_reach): worth saying so the model
             # doesn't describe the analysis as "limited to nearby roads".
@@ -1556,12 +1605,11 @@ def _director_both_directions(director_cls):
     return value if value is not None else getattr(director_cls, "DirectionBoth", 2)
 
 
-def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field, direction_field,
-                       value_forward, value_backward, value_both, ellipsoid):
-    """Cost from origin_xy to each point in dest_xys, in the network's CRS, from one Dijkstra tree.
-
-    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination's nearest
-    graph vertex is not reachable. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
+def _build_cost_tree(network, origin_xy, strategy, default_speed, speed_field, direction_field,
+                     value_forward, value_backward, value_both, ellipsoid):
+    """(graph, costs, to_output, start_vertex): the road graph with ONLY the origin tied in, and the cost from the origin
+    to every vertex (QgsGraphAnalyzer.dijkstra). `to_output` converts a cost to the reported unit (metres, or hours for
+    strategy='fastest'). Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
     from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy,
                                QgsNetworkSpeedStrategy, QgsVectorLayerDirector)
     direction_idx = network.fields().indexOf(direction_field) if direction_field else -1
@@ -1584,7 +1632,18 @@ def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, sp
     if start < 0:
         raise RuntimeError("the origin's snapped point is not a vertex of the road graph")
     _tree, costs = QgsGraphAnalyzer.dijkstra(graph, start, 0)
+    return graph, costs, to_output, start
 
+
+def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field, direction_field,
+                       value_forward, value_backward, value_both, ellipsoid):
+    """Cost from origin_xy to each point in dest_xys, in the network's CRS, from one Dijkstra tree.
+
+    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination's nearest
+    graph vertex is not reachable. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
+    graph, costs, to_output, _start = _build_cost_tree(
+        network, origin_xy, strategy, default_speed, speed_field, direction_field,
+        value_forward, value_backward, value_both, ellipsoid)
     index = QgsSpatialIndex()
     for i in range(graph.vertexCount()):
         feat = QgsFeature(i)
@@ -1600,6 +1659,47 @@ def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, sp
         out.append(None if cost >= UNREACHABLE_COST else cost * to_output)
     return out
 
+
+
+def _cost_graded_roads(network, origin_xy, strategy, default_speed, speed_field, direction_field,
+                       value_forward, value_backward, value_both, ellipsoid, max_cost, name):
+    """A line layer of the roads reached within max_cost, each carrying the travel cost at its far end ('travel_cost',
+    metres or hours like the tool's own unit), for grading by cost. Built from the same one-origin shortest-path tree as
+    travel_time_matrix. An edge is kept when its near end is within max_cost, so the outermost road may run a little past
+    the limit (a whole segment, not a cut one); the native service-area lines stay the exact result. Returns
+    (layer or None, reason)."""
+    graph, costs, to_output, _start = _build_cost_tree(
+        network, origin_xy, strategy, default_speed, speed_field, direction_field,
+        value_forward, value_backward, value_both, ellipsoid)
+    layer = QgsVectorLayer(f"LineString?crs={network.crs().authid()}", name, "memory")
+    layer.dataProvider().addAttributes([QgsField("travel_cost", QVariant.Double)])
+    layer.updateFields()
+    seen = {}
+    for i in range(graph.edgeCount()):
+        edge = graph.edge(i)
+        a, b = edge.fromVertex(), edge.toVertex()
+        cost_a, cost_b = costs[a], costs[b]
+        if cost_a >= UNREACHABLE_COST:
+            continue
+        near = cost_a * to_output
+        if near > max_cost:
+            continue
+        far = (cost_b * to_output) if cost_b < UNREACHABLE_COST else near
+        key = (a, b) if a < b else (b, a)
+        if key in seen and seen[key][0] <= far:
+            continue
+        seen[key] = (far, a, b)
+    feats = []
+    for far, a, b in seen.values():
+        feat = QgsFeature(layer.fields())
+        feat.setGeometry(QgsGeometry.fromPolylineXY([graph.vertex(a).point(), graph.vertex(b).point()]))
+        feat.setAttribute("travel_cost", float(far))
+        feats.append(feat)
+    if not feats:
+        return None, "no road edge was reached within the travel cost"
+    layer.dataProvider().addFeatures(feats)
+    layer.updateExtents()
+    return layer, None
 
 
 def _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed, speed_field,
@@ -2018,8 +2118,10 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         out_name = f"{facility_layer}_access_{travel_cost:g}"
         _replace_named_layer(out_name, out)
         try:
-            from .styling_tools import apply_categorized_style
-            apply_categorized_style(out_name, "access_class")
+            from . import routing_style
+            if not routing_style.style_access_points(out, "access_class"):
+                from .styling_tools import apply_categorized_style
+                apply_categorized_style(out_name, "access_class")
         except Exception as e:
             log_event("swallowed_exception", tag="Tools", tool="classify_facilities_by_access_styling",
                       error_class=type(e).__name__, error=True)
@@ -2161,12 +2263,12 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         layer_name = base_name if method == reach_geometry else f"{base_name}_{method}"
         try:
             reachable, note = build_reach(method, layer_name)
-            _replace_named_layer(layer_name, reachable)
+            _replace_named_layer(layer_name, reachable, to_tree=False)   # grouped below, with the headline on top
             within_name = f"{area_layer}_reachable_by_{facility_layer}" if method == reach_geometry \
                 else f"{area_layer}_reachable_by_{facility_layer}_{method}"
             within = processing.run(
                 "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"})["OUTPUT"]
-            _replace_named_layer(within_name, within)
+            _replace_named_layer(within_name, within, to_tree=False)
             # A zero-feature intersection means literally 0 people are covered -- handled explicitly rather than
             # trusting zonal statistics against an empty layer.
             if within.featureCount() == 0:
@@ -2177,7 +2279,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
                     raise RuntimeError(pop_result["error"])
                 reachable_pop = pop_result["total_population"]
             figures[method] = {"layer": layer_name, "within_layer": within_name, "note": note,
-                               "reachable_population": reachable_pop}
+                               "reachable_population": reachable_pop, "_reach": reachable, "_within": within}
         except Exception as e:
             figures[method] = {"available": False, "reason": str(e)}
 
@@ -2207,6 +2309,28 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
             "is_headline": method == headline, "layer": fig["layer"], "note": fig["note"],
         })
     available = [f["reachable_population"] for f in reach_figures if f.get("reachable_population") is not None]
+
+    # Visualization: distinct translucent colours, one group with the headline on top and visible, the other figures hidden.
+    try:
+        from . import routing_style
+        groupable = {m: f["_reach"] for m, f in figures.items() if "_reach" in f}
+        for m, lyr in groupable.items():
+            routing_style.style_reach_polygon(lyr, m)
+        routing_style.group_reach_layers(
+            groupable, headline, facility_layer,
+            extra_hidden=[f["_within"] for f in figures.values() if "_within" in f])
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="population_access_gap_styling",
+                  error_class=type(e).__name__, error=True)
+        # The layers were added without a tree node; make sure they are still visible.
+        for f in figures.values():
+            for key in ("_reach", "_within"):
+                lyr = f.get(key)
+                try:
+                    if lyr is not None and QgsProject.instance().layerTreeRoot().findLayer(lyr.id()) is None:
+                        QgsProject.instance().layerTreeRoot().addLayer(lyr)
+                except Exception:
+                    pass
 
     head = figures[headline]
     reachable_population = head["reachable_population"]

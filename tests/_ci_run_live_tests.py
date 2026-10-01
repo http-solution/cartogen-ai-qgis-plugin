@@ -31,6 +31,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_facility_access_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_worldpop_clip_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_chat_transcript_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_rc9_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_routing_style_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)
