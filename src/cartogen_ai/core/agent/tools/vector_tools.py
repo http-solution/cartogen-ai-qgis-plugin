@@ -108,8 +108,18 @@ def get_layers():
             entry["fields"] = list(layer.fields().names())
         if hasattr(layer, "featureCount"):
             entry["feature_count"] = layer.featureCount()
-        result.append(entry)
+        result.append(_model_view_entry(entry, layer))
     return result
+
+
+def _model_view_entry(entry, layer):
+    """The layer entry as the model may see it: field names withheld for a protected layer when the cloud gate is
+    enforcing (F21). See models/model_view.py."""
+    try:
+        from ...models import model_view, sensitivity
+        return model_view.apply_to_layer_entry(entry, sensitivity.get_layer_sensitivity(layer).get("level"))
+    except Exception:
+        return entry
 
 
 @register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})

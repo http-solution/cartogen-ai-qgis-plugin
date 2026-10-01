@@ -1069,7 +1069,10 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
     this test is only about the estimate-field propagation, not the
     geometry/network-analysis steps in between."""
 
-    def _run(self, reach_geometry=None, **kw):
+    # people counted inside each reach polygon, by the name of the layer the zonal statistics is asked about
+    POP_BY_LAYER_SUFFIX = {"_concave_hull": 500.0, "_road_buffer": 400.0, "_convex_hull": 700.0}
+
+    def _run(self, reach_geometry=None, concave_error=None, **kw):
         """population_access_gap with every QGIS-touching collaborator mocked. Returns (result, mocks)."""
         from contextlib import ExitStack
         lt_path = "cartogen_ai.core.agent.tools.logistics_tools"
@@ -1081,6 +1084,7 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             mock_find = stack.enter_context(patch(f"{lt_path}._find_layer_by_name"))
             mock_calc = stack.enter_context(patch(f"{lt_path}.calculate_service_area"))
             mock_reach = stack.enter_context(patch(f"{lt_path}._road_reach_polygon"))
+            mock_concave = stack.enter_context(patch(f"{lt_path}._concave_reach_polygon"))
             mock_wkb = stack.enter_context(patch(f"{lt_path}.QgsWkbTypes", create=True))
             stack.enter_context(patch(f"{lt_path}.QGIS_AVAILABLE", True))
             mock_wkb.geometryType.return_value = "polygon-sentinel"
@@ -1097,11 +1101,22 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             intersect_mock = MagicMock()
             intersect_mock.featureCount.return_value = 10
             mock_reach.return_value = MagicMock()
-            mock_processing.run.side_effect = [{"OUTPUT": MagicMock()}, {"OUTPUT": intersect_mock}]
-            mock_estimate_pop.side_effect = [
-                {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
-                {"success": True, "total_population": 400.0, "pop_source": "WorldPop", "pop_reference_year": "2020"},
-            ]
+            if concave_error:
+                mock_concave.side_effect = RuntimeError(concave_error)
+            else:
+                mock_concave.return_value = MagicMock()
+            mock_processing.run.side_effect = lambda alg, params: {"OUTPUT": intersect_mock if alg == "native:intersection" else MagicMock()}
+
+            def pop(raster, layer_name):
+                if layer_name == "districts":
+                    return {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"}
+                for suffix, value in self.POP_BY_LAYER_SUFFIX.items():
+                    if layer_name.endswith(suffix):
+                        return {"success": True, "total_population": value, "pop_source": "WorldPop", "pop_reference_year": "2020"}
+                # the headline figure's layer carries no suffix
+                head = {"convex_hull": 700.0, "road_buffer": 400.0}.get(reach_geometry, 500.0)
+                return {"success": True, "total_population": head, "pop_source": "WorldPop", "pop_reference_year": "2020"}
+            mock_estimate_pop.side_effect = pop
             args = ("Facilities", "roads", "YEM_population_2020", "districts", 1000)
             if reach_geometry:
                 kw["reach_geometry"] = reach_geometry
@@ -1112,10 +1127,10 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
         res, _, _ = self._run()
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["total_population"], 1000.0)
-        self.assertEqual(res["reachable_population"], 400.0)
-        self.assertEqual(res["gap_population"], 600.0)
-        self.assertEqual(res["gap_population_est"], 600.0)
-        self.assertEqual(res["gap_percent"], 60.0)
+        self.assertEqual(res["reachable_population"], 500.0)        # the headline is the concave hull
+        self.assertEqual(res["gap_population"], 500.0)
+        self.assertEqual(res["gap_population_est"], 500.0)
+        self.assertEqual(res["gap_percent"], 50.0)
         self.assertEqual(res["pop_source"], "WorldPop")
         self.assertEqual(res["pop_reference_year"], "2020")
         self.assertEqual(
@@ -1123,20 +1138,41 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             "estimate (modeled network reachability + gridded population raster; not field-verified)",
         )
 
-    def test_default_reach_is_the_buffered_roads_not_the_convex_hull(self):
-        """F09: 778,156 people were counted inside the convex hull of the reached roads."""
-        res, mock_reach, _ = self._run()
-        mock_reach.assert_called_once()
-        self.assertEqual(res["reach_geometry"], "road_buffer")
+    def test_three_labelled_figures_and_their_range_are_reported(self):
+        """F09 (owner decision 2026-09-30): concave hull is the headline; buffer and convex hull bracket it."""
+        res, _, _ = self._run()
+        self.assertEqual(res["reach_geometry"], "concave_hull")
+        by_method = {f["method"]: f for f in res["reach_figures"]}
+        self.assertEqual(set(by_method), {"concave_hull", "road_buffer", "convex_hull"})
+        self.assertEqual(by_method["road_buffer"]["reachable_population"], 400.0)
+        self.assertEqual(by_method["concave_hull"]["reachable_population"], 500.0)
+        self.assertEqual(by_method["convex_hull"]["reachable_population"], 700.0)
+        self.assertTrue(by_method["concave_hull"]["is_headline"])
+        self.assertTrue(by_method["convex_hull"]["is_upper_bound"])
         self.assertFalse(res["is_upper_bound_on_reach"])
-        self.assertIn("buffered by 500 m", res["reach_note"])
+        self.assertEqual(res["reachable_population_range"], [400.0, 700.0])
 
-    def test_the_convex_hull_is_still_available_and_labelled_an_upper_bound(self):
-        res, mock_reach, mock_processing = self._run(reach_geometry="convex_hull")
-        mock_reach.assert_not_called()
+    def test_the_headline_can_be_the_buffer(self):
+        res, mock_reach, _ = self._run(reach_geometry="road_buffer")
+        self.assertEqual(res["reach_geometry"], "road_buffer")
+        self.assertEqual(res["reachable_population"], 400.0)
+        self.assertIn("buffered by 500 m", res["reach_note"])
+        mock_reach.assert_called_once()
+
+    def test_the_convex_hull_headline_is_labelled_an_upper_bound(self):
+        res, _, _ = self._run(reach_geometry="convex_hull")
         self.assertEqual(res["reach_geometry"], "convex_hull")
         self.assertTrue(res["is_upper_bound_on_reach"])
         self.assertIn("UPPER BOUND", res["reach_note"])
+
+    def test_an_unavailable_concave_hull_falls_back_and_says_so(self):
+        res, _, _ = self._run(concave_error="GEOS older than 3.11")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["reach_geometry"], "road_buffer")
+        self.assertIn("could not be computed", res["headline_fallback"])
+        failed = next(f for f in res["reach_figures"] if f["method"] == "concave_hull")
+        self.assertFalse(failed["available"])
+        self.assertEqual(res["reachable_population_range"], [400.0, 700.0])
 
     def test_bad_reach_arguments_are_refused_before_any_work(self):
         from cartogen_ai.core.agent.tools import logistics_tools as lt

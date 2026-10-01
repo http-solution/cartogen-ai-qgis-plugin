@@ -1260,7 +1260,8 @@ class ChatTabWidget(QWidget):
         except Exception:
             cached = False
         if local_data_loader.should_ask_before_download(
-                region, online_ok, cached, local_data_loader.ask_threshold_bytes()):
+                region, online_ok, cached, local_data_loader.ask_threshold_bytes(),
+                metered=local_data_loader.is_metered_connection()):
             self._offer_local_data_choice(online_ok, region)
             return
         self._start_local_download(region)
@@ -1751,6 +1752,12 @@ class ChatTabWidget(QWidget):
             text = agent.get_session_usage_text()
         except Exception:
             return
+        try:
+            turn = agent.get_turn_usage_text() if hasattr(agent, "get_turn_usage_text") else None
+        except Exception:
+            turn = None
+        if text and turn:
+            text = f"{turn} \u00b7 {text}"
         self._dock.usageSignal.emit(text or "")
 
     def _after_successful_response(self, agent, response_text):

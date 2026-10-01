@@ -79,7 +79,8 @@ class TestUnbackedDataWarning(unittest.TestCase):
 
     def test_apply_appends_the_warning_once(self):
         out = rg.apply_unbacked_data_warning(FAKE_TABLE, ["execute_pyqgis_script"], [])
-        self.assertTrue(out.startswith(FAKE_TABLE.rstrip()))
+        self.assertNotIn("368412095", out)            # the invented rows are gone
+        self.assertIn(rg._NOTICE_TABLE_REMOVED, out)    # replaced by a notice, not silently dropped
         self.assertEqual(out.count("No data was retrieved"), 1)
         again = rg.apply_unbacked_data_warning(out, ["execute_pyqgis_script"], [])
         self.assertEqual(again.count("No data was retrieved"), 1)
@@ -104,6 +105,93 @@ class TestPromptRulesForNotRunCalls(unittest.TestCase):
     def test_rule_51_forbids_hand_conversion_of_coordinates(self):
         from cartogen_ai.core.agent import prompts
         self.assertIn("never convert coordinates", prompts._ALL_RULES[51].lower())
+
+
+BULLETS = """Here are the first clinics I found:
+
+- 450157266 | clinic | Al Noor Medical Centre
+- 450157301 | hospital | Sanaa General Hospital
+- 450158112 | dentist | Smile Dental, 15.3547
+"""
+
+PROSE_CLAIM = "Retrieved Records: 5\n\n- 450157266: clinic, Al Noor\n"
+
+HOWTO = """To do this:
+
+1. Open the layer properties
+2. Choose the Symbology tab
+3. Pick a categorized style
+"""
+
+OPTIONS_TABLE = """| Option | Pros | Cons |
+|---|---|---|
+| Buffer | simple | can overcount |
+| Hull | tight | jagged |
+| Grid | regular | coarse |
+"""
+
+
+class TestRecordLikeLines(unittest.TestCase):
+    def test_bulleted_records_are_counted(self):
+        self.assertEqual(rg.count_record_lines(BULLETS), 3)
+
+    def test_a_how_to_list_has_no_records(self):
+        self.assertEqual(rg.count_record_lines(HOWTO), 0)
+
+    def test_an_options_table_has_no_records(self):
+        self.assertEqual(rg.count_record_lines(OPTIONS_TABLE), 0)
+
+    def test_arabic_names_count_as_words(self):
+        self.assertEqual(rg.count_record_lines("- 450157266 | hospital | \u0645\u0633\u062a\u0634\u0641\u0649\n" * 3), 3)
+
+    def test_a_retrieval_claim_needs_at_least_one_record(self):
+        self.assertTrue(rg.looks_like_retrieved_data(PROSE_CLAIM))
+        self.assertFalse(rg.looks_like_retrieved_data("Retrieved Records: 5"))
+
+
+class TestNoDataToolRanAtAll(unittest.TestCase):
+    def test_bullets_with_no_tool_in_the_turn_are_flagged(self):
+        note = rg.unbacked_data_warning(BULLETS, [], [], data_tool_ran=False)
+        self.assertIsNotNone(note)
+        self.assertIn("no data tool ran", note)
+
+    def test_the_same_bullets_after_a_successful_tool_are_left_alone(self):
+        self.assertIsNone(rg.unbacked_data_warning(BULLETS, [], [], data_tool_ran=True))
+
+    def test_a_how_to_list_with_no_tool_is_left_alone(self):
+        self.assertIsNone(rg.unbacked_data_warning(HOWTO, [], [], data_tool_ran=False))
+
+    def test_an_options_table_with_no_tool_is_left_alone_and_kept(self):
+        self.assertIsNone(rg.unbacked_data_warning(OPTIONS_TABLE, [], [], data_tool_ran=False))
+        self.assertEqual(rg.strip_ungrounded_tables(OPTIONS_TABLE).strip(), OPTIONS_TABLE.strip())
+
+    def test_an_invented_table_is_replaced_not_kept(self):
+        out = rg.apply_unbacked_data_warning(FAKE_TABLE, [], [], data_tool_ran=False)
+        self.assertNotIn("368412095", out)
+        self.assertIn("No data was retrieved", out)
+
+    def test_bullets_are_warned_about_but_kept(self):
+        out = rg.apply_unbacked_data_warning(BULLETS, [], [], data_tool_ran=False)
+        self.assertIn("450157266", out)
+        self.assertIn("No data was retrieved", out)
+
+
+class TestConfirmationProse(unittest.TestCase):
+    def test_the_models_own_confirm_lines_are_removed(self):
+        text = ("The read of Health Facilities is pending.\n\n"
+                "\u26a0\ufe0f **Destructive Action Confirmation**\n"
+                "Please reply with Confirm to proceed.\n")
+        out = rg.strip_confirmation_prose(text)
+        self.assertIn("pending", out)
+        self.assertNotIn("Confirm", out)
+
+    def test_only_a_confirm_request_leaves_the_card_notice(self):
+        self.assertEqual(rg.strip_confirmation_prose("Preview Ready. Reply Confirm or Proceed."),
+                         rg.CONFIRM_CARD_NOTICE)
+
+    def test_ordinary_text_is_untouched(self):
+        text = "I counted 12 facilities. Confirming the CRS is EPSG:3857."
+        self.assertEqual(rg.strip_confirmation_prose(text), text)
 
 
 if __name__ == "__main__":

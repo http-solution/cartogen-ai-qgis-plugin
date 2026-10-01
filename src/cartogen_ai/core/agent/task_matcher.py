@@ -33,6 +33,13 @@ were be been being do does did how what which where when who why all any some"""
 _REGISTER_STOP = frozenset(["map", "mapping", "data", "produce", "create", "area", "areas"])
 
 
+
+def _indefinite_article(word):
+    """'an' before a vowel letter, else 'a' (F15: the router card said 'a analysis')."""
+    first = str(word or "")[:1].lower()
+    return "an" if first and first in "aeiou" else "a"
+
+
 def _tokens(text):
     return {w for w in _WORD.findall((text or "").lower()) if w not in _STOP}
 
@@ -386,8 +393,8 @@ def reasoning(entry, score, filled, plan, query=None):
     ]
     over = output_override(query)
     if over and over != entry["out"]:
-        lines.append("You asked for a %s, so that overrides the task's usual %s output."
-                     % (over, entry["out"]))
+        lines.append("You asked for %s %s, so that overrides the task's usual %s output."
+                     % (_indefinite_article(over), over, entry["out"]))
     lines.append("Deliverable: %s." % expected_output(entry, query))
     if filled:
         lines.append("Assumed, because you did not specify: "

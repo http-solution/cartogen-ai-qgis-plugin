@@ -211,3 +211,29 @@ class TestToolSchema(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCountryFileCacheFallback(unittest.TestCase):
+    """F19: when the remote window read fails and the user agreed to the whole-country download, the file is fetched
+    ONCE, kept, and clipped from disk; an area that misses the raster must never trigger that download."""
+
+    def test_cache_file_is_per_country_and_year(self):
+        from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+        import os
+        self.assertEqual(ht._worldpop_cache_file(os.path.join("d", "worldpop"), "YEM", 2020),
+                         os.path.join("d", "worldpop", "yem_ppp_2020.tif"))
+        self.assertIsNone(ht._worldpop_cache_file(None, "YEM", 2020))
+
+    def test_a_non_overlapping_window_is_not_a_transport_failure(self):
+        from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+        self.assertFalse(ht._is_transport_failure(RuntimeError("the requested area (1, 2, 3, 4) does not overlap the raster")))
+        self.assertFalse(ht._is_transport_failure(RuntimeError("the raster is rotated or not north-up")))
+        self.assertTrue(ht._is_transport_failure(RuntimeError("HTTP error 403 while reading the file")))
+        self.assertTrue(ht._is_transport_failure(RuntimeError("Connection timed out")))
+
+    def test_the_cache_folder_sits_beside_the_osm_folder(self):
+        from unittest.mock import patch
+        import os
+        from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+        with patch("cartogen_ai.core.agent.local_data_loader.data_dir", return_value=os.path.join("p", "data", "00_raw", "osm")):
+            self.assertEqual(ht.worldpop_cache_dir(), os.path.join("p", "data", "00_raw", "worldpop"))

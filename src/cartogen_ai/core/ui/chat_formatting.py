@@ -88,6 +88,52 @@ def _linkify_output_paths(text):
     return _OUTPUT_PATH_RE.sub(_replace, text)
 
 
+# rc7 smoke test F15: replies showed literal "$\le$", "$\times$", "$\text{km}^2$". The chat view does not render
+# LaTeX, so simple inline math is converted to Unicode. Anything it cannot fully convert is left exactly as written
+# (a half-converted formula is worse than a raw one), and "$5 and $10" is not math: only $...$ spans that contain
+# a backslash or a caret are touched.
+_LATEX_SPAN = re.compile(r"\$([^$\n]{1,80}?)\$")
+_LATEX_SYMBOLS = {
+    r"\leq": "\u2264", r"\le": "\u2264", r"\geq": "\u2265", r"\ge": "\u2265", r"\neq": "\u2260",
+    r"\times": "\u00d7", r"\cdot": "\u00b7", r"\approx": "\u2248", r"\pm": "\u00b1",
+    r"\rightarrow": "\u2192", r"\to": "\u2192", r"\leftarrow": "\u2190", r"\Delta": "\u0394",
+    r"\mu": "\u00b5", r"\circ": "\u00b0", r"\degree": "\u00b0", r"\%": "%", r"\,": " ", r"\ ": " ",
+    r"\;": " ", r"\!": "",
+}
+_SUPERSCRIPTS = {"0": "\u2070", "1": "\u00b9", "2": "\u00b2", "3": "\u00b3", "4": "\u2074", "5": "\u2075",
+                 "6": "\u2076", "7": "\u2077", "8": "\u2078", "9": "\u2079", "-": "\u207b", "+": "\u207a"}
+
+
+def _latex_inner(inner):
+    """Unicode for a simple LaTeX fragment, or None if any command is left unconverted."""
+    t = inner
+    t = re.sub(r"\\(?:text|mathrm|textrm|mathbf|textbf)\{([^{}]*)\}", r"\1", t)
+    for cmd in sorted(_LATEX_SYMBOLS, key=len, reverse=True):
+        t = t.replace(cmd, _LATEX_SYMBOLS[cmd])
+
+    def _sup(m):
+        body = m.group(1) if m.group(1) is not None else m.group(2)
+        return "".join(_SUPERSCRIPTS.get(ch, None) or "\x00" for ch in body)
+    t = re.sub(r"\^(?:\{([0-9+\-]+)\}|([0-9]))", _sup, t)
+    if "\x00" in t or "\\" in t or "^" in t:
+        return None
+    return t.replace("{", "").replace("}", "")
+
+
+def simplify_latex(text):
+    """Converts simple inline LaTeX ($\\le$, $\\times$, $\\text{km}^2$, $10^3$) to Unicode. Pure."""
+    if not text or "$" not in text:
+        return text
+
+    def _span(m):
+        inner = m.group(1)
+        if "\\" not in inner and "^" not in inner:
+            return m.group(0)
+        converted = _latex_inner(inner)
+        return m.group(0) if converted is None else converted
+    return _LATEX_SPAN.sub(_span, text)
+
+
 def render_markdown(text, colors=None):
     """colors is the same theme-derived dict derive_bubble_colors() returns
     (text/subtle/border/agent_bg) -- threaded through so code blocks, inline
@@ -118,6 +164,7 @@ def render_markdown(text, colors=None):
         return f"\x00CODEBLOCK{len(code_blocks) - 1}\x00"
 
     text = re.sub(r'```(\w*)\n?(.*?)```', _stash_code, text, flags=re.DOTALL)
+    text = simplify_latex(text)
 
     # 2. Escape remaining HTML-sensitive characters.
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -233,6 +280,10 @@ def render_markdown(text, colors=None):
                 import urllib.parse
                 if " " in raw_prompt:
                     url = f"cartogen://prompt/{urllib.parse.quote(urllib.parse.unquote(raw_prompt))}"
+            elif url.startswith("cartogen://export/"):
+                import urllib.parse
+                raw_name = url[len("cartogen://export/"):].strip()
+                url = "cartogen://export/" + urllib.parse.quote(urllib.parse.unquote(raw_name), safe="")
             elif url.startswith("cartogen://zoom/"):
                 raw_zoom = url[len("cartogen://zoom/"):].strip()
                 import urllib.parse
@@ -247,7 +298,10 @@ def render_markdown(text, colors=None):
             return f'<a href="{url}" style="{chip_style}">{label}</a>'
         return f'<a href="{url}">{label}</a>'
 
-    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://[^\n)]+)\)', _style_link, text)
+    # F15: a layer name such as "Health Facilities (OSM, Yemen)" inside cartogen://export/... contains parentheses;
+    # the old pattern ended the URL at the first ")" and left the real closing ")" behind as stray text. One level
+    # of balanced parentheses is now part of the URL.
+    text = re.sub(r'\[([^\]\[]+)\]\(((?:https?|cartogen)://(?:[^\n()]|\([^\n()]*\))+)\)', _style_link, text)
 
     # Style any direct cartogen:// anchor tags generated during block parsing that lack style attributes:
     chip_css = (

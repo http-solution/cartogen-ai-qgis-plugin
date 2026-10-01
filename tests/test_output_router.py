@@ -147,3 +147,14 @@ class TestAgainstRealRegisterContracts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestIndefiniteArticle(unittest.TestCase):
+    """F15: the router card said 'You asked for a analysis'."""
+
+    def test_article_follows_the_next_word(self):
+        from cartogen_ai.core.agent.task_matcher import _indefinite_article
+        self.assertEqual(_indefinite_article("analysis"), "an")
+        self.assertEqual(_indefinite_article("dashboard"), "a")
+        self.assertEqual(_indefinite_article("export"), "an")
+        self.assertEqual(_indefinite_article(""), "a")

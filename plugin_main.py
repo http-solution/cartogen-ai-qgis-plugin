@@ -156,6 +156,14 @@ class CartogenAi:
             except Exception as e:
                 print(f"[CartogenAi] Processing provider registration failed: {e}")
 
+        # F18: say once, in the QGIS log, which behaviour-changing settings are on -- a persisted plan-validation
+        # gate from an earlier evaluation once made every export fail its first call without anyone knowing why.
+        try:
+            from cartogen_ai.core.logger import log_event, startup_state_fields
+            log_event("startup_settings", **startup_state_fields(QgsSettings().value))
+        except Exception as e:
+            print(f"[CartogenAi] startup settings log failed: {e}")
+
     def _maybe_show_first_use_dialogs(self):
         """First-use onboarding (role/experience/communication-style profile, real-session
         feature request 2026-09-12) plus Help auto-show (first use, and once again after any
@@ -177,6 +185,14 @@ class CartogenAi:
         self._first_use_timer = None
 
     def _on_project_changed(self, *_args):
+        # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).
+        try:
+            from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
+            healed = heal_layer_tree()
+            if healed["orphans_removed"] or healed["duplicates_removed"]:
+                print(f"[CartogenAi] repaired layer tree: {healed}")
+        except Exception as e:
+            print(f"[CartogenAi] layer tree repair failed: {e}")
         if self._agent is not None:
             try:
                 self._agent.reload_chat_history()

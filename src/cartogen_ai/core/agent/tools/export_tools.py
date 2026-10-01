@@ -832,12 +832,19 @@ _DASHBOARD_BASEMAPS = {
         "tiles": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         "attr": "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
     },
+    # No tiles at all: for offline viewing or when no tile server is wanted. Pair with backdrop_layer to draw the
+    # project's own boundary layer under the data.
+    "none": {"tiles": None, "attr": None},
     "hot": {
         "tiles": "https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png",
         "attr": "&copy; OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team",
     },
 }
-_DEFAULT_DASHBOARD_BASEMAP = "positron"
+# Default is "hot", not "positron": Carto now requires an API key for Positron/Dark Matter (r-spatial/mapview#520) and
+# blocks requests without a Referer (python-visualization/folium#2285), which is what a dashboard opened from disk
+# (file://) sends. "hot" is the style the operator actually saw load in the rc7 smoke test (R7). Not re-tested in a
+# browser from this sandbox (no tile access).
+_DEFAULT_DASHBOARD_BASEMAP = "hot"
 
 
 def _resolve_basemap_kwargs(basemap):
@@ -857,6 +864,22 @@ def _resolve_basemap_kwargs(basemap):
 # layers keep plain markers, which read fine. Polygon and line layers are never clustered.
 CLUSTER_MIN_POINTS = 100
 
+# folium 0.20 loads Leaflet.markercluster 1.1.0 from cdnjs; the F12 browser check used 1.5.3 (the current cdnjs
+# release, which needs Leaflet >= 1.0). Point the plugin at the tested version instead of an untested one.
+MARKERCLUSTER_VERSION = "1.5.3"
+_MARKERCLUSTER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/%s/" % MARKERCLUSTER_VERSION
+
+
+def _pinned_marker_cluster():
+    """folium's MarkerCluster class, with its CDN URLs set to MARKERCLUSTER_VERSION."""
+    from folium.plugins import MarkerCluster
+    MarkerCluster.default_js = [("markerclusterjs", _MARKERCLUSTER_CDN + "leaflet.markercluster.js")]
+    MarkerCluster.default_css = [
+        ("markerclustercss", _MARKERCLUSTER_CDN + "MarkerCluster.css"),
+        ("markerclusterdefaultcss", _MARKERCLUSTER_CDN + "MarkerCluster.Default.css"),
+    ]
+    return MarkerCluster
+
 
 def _should_cluster(features, min_points=CLUSTER_MIN_POINTS):
     """True when a layer is mostly points and has enough of them to need clustering. Pure."""
@@ -868,7 +891,29 @@ def _should_cluster(features, min_points=CLUSTER_MIN_POINTS):
     return point_count >= min_points and point_count >= 0.9 * len(features)
 
 
-def _build_dashboard_html(layers, title=None, basemap=None):
+_BACKDROP_STYLE = {"fillColor": "#eeeae0", "color": "#8c8c8c", "weight": 1, "fillOpacity": 1.0}
+
+
+def _backdrop_coords(backdrop):
+    """All (lon, lat) pairs of a backdrop GeoJSON, for fitting the view."""
+    out = []
+    for feat in (backdrop or {}).get("features", []):
+        out.extend(_iter_geojson_coords(feat.get("geometry")))
+    return out
+
+
+def _add_backdrop(folium_module, m, backdrop):
+    """Draws the project's own boundary polygons (already GeoJSON in WGS84) under the data: a map that needs no
+    tile server. Not interactive, not in the layer control."""
+    if not backdrop or not backdrop.get("features"):
+        return
+    folium_module.GeoJson(
+        backdrop, name="Project boundary", control=False, interactive=False,
+        style_function=lambda _feature: dict(_BACKDROP_STYLE),
+    ).add_to(m)
+
+
+def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
     """Pure HTML-generation core, no QGIS needed -- takes already-extracted
     GeoJSON per layer and builds a Folium/Leaflet dashboard: one togglable
     overlay per layer, popups on the requested fields, and an optional
@@ -918,6 +963,10 @@ def _build_dashboard_html(layers, title=None, basemap=None):
     # Humanitarian OSM Team style instead when that's more useful.
     basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
     m = folium.Map(**basemap_kwargs)
+    for lon, lat in _backdrop_coords(backdrop):
+        all_lats.append(lat)
+        all_lons.append(lon)
+    _add_backdrop(folium, m, backdrop)
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
@@ -965,7 +1014,7 @@ def _build_dashboard_html(layers, title=None, basemap=None):
         if style_function:
             gj_kwargs["style_function"] = style_function
         if _should_cluster(features):
-            from folium.plugins import MarkerCluster
+            MarkerCluster = _pinned_marker_cluster()
             target = MarkerCluster(name=name).add_to(m)
             warnings.append(
                 f"'{name}': {len(features):,} points are drawn as clusters that split as you zoom in "
@@ -1202,7 +1251,7 @@ def _json_for_inline_script(value):
     return json.dumps(value).replace("</", "<\\/")
 
 
-def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=None):
+def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=None, backdrop=None):
     """Pure HTML-generation core for generate_temporal_dashboard -- same
     QGIS-independent split as _build_dashboard_html (takes already-extracted
     GeoJSON, so this is directly unit-testable with synthetic data, no live
@@ -1303,6 +1352,10 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
     # CartoDB Positron default, same mechanism as _build_dashboard_html.
     basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
     m = folium.Map(**basemap_kwargs)
+    for lon, lat in _backdrop_coords(backdrop):
+        all_lats.append(lat)
+        all_lons.append(lon)
+    _add_backdrop(folium, m, backdrop)
     if all_lats and all_lons:
         m.fit_bounds([[min(all_lats), min(all_lons)], [max(all_lats), max(all_lons)]])
     else:
@@ -1404,7 +1457,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
             # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
             # its opacity, which a cluster would still count, so the page script rebuilds this cluster
             # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
-            from folium.plugins import MarkerCluster
+            MarkerCluster = _pinned_marker_cluster()
             cluster = MarkerCluster(name=name).add_to(m)
             gj.add_to(cluster)
             cluster_js_vars.append(cluster.get_name())
@@ -1443,6 +1496,13 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
         max_ms = min_ms + 1  # avoid a zero-width/unusable <input type=range>
 
     step_ms = max(int(step_days), 1) * 86400000
+    # An <input type=range> only lands on min + k*step, so a span that is not a multiple of the step left
+    # the final date unreachable (a 31-day span with a 30-day step topped out on day 30, and features that
+    # start on the last date never showed -- found in the F12 browser check). Extend the slider to the first
+    # step at or past the last date; the frame logic already clamps to the data.
+    span_ms = max_ms - min_ms
+    if span_ms > 1 and span_ms % step_ms:
+        max_ms = min_ms + (span_ms // step_ms + 1) * step_ms
     layers_js_array = "[" + ",".join(temporal_js_vars) + "]"
     clusters_js_array = "[" + ",".join(cluster_js_vars) + "]"
 
@@ -1831,6 +1891,30 @@ def _write_layer_geojson_wgs84(layer, output_path):
         return {"error": f"_write_layer_geojson_wgs84 failed: {e}"}
 
 
+def _load_backdrop(layer_name, tmp_files, size_warnings):
+    """(geojson, error_dict): the named polygon layer as WGS84 GeoJSON for use as a tile-free backdrop. (None, None)
+    when no backdrop was asked for. Needs QGIS."""
+    if not layer_name:
+        return None, None
+    layer = _find_layer_by_name(layer_name)
+    if layer is None:
+        return None, {"error": f"Backdrop layer '{layer_name}' not found"}
+    if QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
+        return None, {"error": f"Backdrop layer '{layer_name}' is not a polygon layer; pick an administrative boundary or area layer."}
+    export_layer, size_warning = _prepare_dashboard_layer(layer)
+    if size_warning:
+        size_warnings.append(size_warning)
+    fd, tmp_path = tempfile.mkstemp(suffix=".geojson")
+    os.close(fd)
+    tmp_files.append(tmp_path)
+    write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
+    if "error" in write_res:
+        return None, write_res
+    with open(tmp_path, "r", encoding="utf-8") as f:
+        return json.load(f), None
+
+
+
 @register_tool(
     "generate_html_dashboard",
     "Generate an interactive HTML situation dashboard (Leaflet/Folium map with layer toggles and "
@@ -1867,12 +1951,13 @@ def _write_layer_geojson_wgs84(layer, output_path):
             },
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
-            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
+            "basemap": {"type": "string", "description": "'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'none' (no tiles: works offline, pair with backdrop_layer), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles)."},
+            "backdrop_layer": {"type": "string", "description": "Optional name of a polygon layer in the project (e.g. an administrative boundary) drawn under the data as a tile-free backdrop. Best with basemap='none'."},
         },
         "required": ["layers"],
     },
 )
-def generate_html_dashboard(layers, title=None, output_path=None, basemap=None):
+def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, backdrop_layer=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -1917,7 +2002,10 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None):
                 "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
-        result = _build_dashboard_html(prepared, title=title, basemap=basemap)
+        backdrop, backdrop_error = _load_backdrop(backdrop_layer, tmp_files, size_warnings)
+        if backdrop_error:
+            return backdrop_error
+        result = _build_dashboard_html(prepared, title=title, basemap=basemap, backdrop=backdrop)
         if "error" in result:
             return result
 
@@ -2050,12 +2138,13 @@ def _inject_notices(html, notices):
             "title": {"type": "string", "description": "Optional dashboard title, shown as a heading overlay on the map."},
             "output_path": {"type": "string", "description": "Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path."},
             "step_days": {"type": "integer", "description": "Slider step size / play-button advance, in days. Defaults to 30."},
-            "basemap": {"type": "string", "description": "'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style)."},
+            "basemap": {"type": "string", "description": "'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'none' (no tiles: works offline, pair with backdrop_layer), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles)."},
+            "backdrop_layer": {"type": "string", "description": "Optional name of a polygon layer in the project (e.g. an administrative boundary) drawn under the data as a tile-free backdrop. Best with basemap='none'."},
         },
         "required": ["layers"],
     },
 )
-def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None):
+def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None, backdrop_layer=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -2101,7 +2190,10 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
                 "fetched_at": layer.customProperty(_FETCHED_AT_PROPERTY_KEY, "") or None,
             })
 
-        result = _build_temporal_dashboard_html(prepared, title=title, step_days=step_days, basemap=basemap)
+        backdrop, backdrop_error = _load_backdrop(backdrop_layer, tmp_files, size_warnings)
+        if backdrop_error:
+            return backdrop_error
+        result = _build_temporal_dashboard_html(prepared, title=title, step_days=step_days, basemap=basemap, backdrop=backdrop)
         if "error" in result:
             return result
 

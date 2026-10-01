@@ -58,6 +58,8 @@ from ...infrastructure.settings_keys import (
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
+    SETTINGS_MAX_TOOL_ITERATIONS,
+    SETTINGS_MAX_TURN_TOKENS,
     provider_model_list_key,
 )
 
@@ -317,6 +319,11 @@ class CartogenAi:
         # Same turn-scoped reset lifecycle as _transaction_log above -- see plan_gate.py.
         self._plan_gate = PlanValidationGate()
 
+        # F21: what the cloud model may see about a protected layer (field names) follows the same egress-gate
+        # settings and provider as the gate itself; read lazily so a Settings change applies on the next call.
+        from ..models import model_view
+        model_view.set_policy_provider(self._model_view_policy)
+
         # Usage-pattern tracking (self-learning mechanism 3, 2026-09-02): one
         # provider-usage sample per session, since CartogenAi() is constructed
         # once per session (see _get_agent() in plugin_main.py). Feeds both the
@@ -399,6 +406,26 @@ class CartogenAi:
         it directly on the agent object."""
         self._get_usage_tracker().accumulate(usage)
 
+    def get_turn_usage_text(self):
+        """'This turn ~N tokens (K calls)' for the turn that just ran, or None. See UsageTracker.turn_text."""
+        return self._get_usage_tracker().turn_text()
+
+    def _turn_limits(self):
+        """(max tool-call rounds, max tokens) for one request. Settings override; a bad value falls back to the
+        defaults (MAX_ITERATIONS, no token limit). The round cap is clamped to 1-100."""
+        cap, budget = MAX_ITERATIONS, 0
+        try:
+            settings = QgsSettings()
+            raw_cap = settings.value(SETTINGS_MAX_TOOL_ITERATIONS, None)
+            raw_budget = settings.value(SETTINGS_MAX_TURN_TOKENS, None)
+            if raw_cap not in (None, ""):
+                cap = min(max(int(raw_cap), 1), 100)
+            if raw_budget not in (None, ""):
+                budget = max(int(raw_budget), 0)
+        except Exception:
+            cap, budget = MAX_ITERATIONS, 0
+        return cap, budget
+
     def get_session_usage_text(self):
         """Short, human-readable summary of this session's token usage for
         ui/dock_widget.py's usage_label. See usage_tracker.UsageTracker.summary_text
@@ -429,6 +456,11 @@ class CartogenAi:
             return bool(QgsSettings().value(SETTINGS_PROJECT_INSPECTOR_ENABLED, False, type=bool))
         except Exception:
             return False
+
+    def _model_view_policy(self):
+        """(gate mode, provider is local, strict) for models/model_view.py."""
+        base_url = getattr(getattr(self, "client", None), "base_url", None)
+        return egress_gate.read_mode(), egress_gate.is_local_endpoint(base_url), egress_gate.read_strict()
 
     def _egress_gate_decision(self, name, filtered_args):
         """Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md): would
@@ -832,7 +864,8 @@ class CartogenAi:
                 fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase,
             )
             fetch_result = fetch_geoboundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1")
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
+                bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
@@ -852,7 +885,8 @@ class CartogenAi:
                 fetch_hdx_admin_boundaries_network_phase, add_hdx_admin_boundaries_layer_main_thread_phase,
             )
             fetch_result = fetch_hdx_admin_boundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1")
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
+                bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
@@ -873,7 +907,7 @@ class CartogenAi:
             )
             fetch_result = fetch_building_footprints_network_phase(
                 filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
-                filtered_args.get("max_features", 5000),
+                filtered_args.get("max_features", 5000), bool(filtered_args.get("allow_large_download")),
             )
             try:
                 res = self._run_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
@@ -900,9 +934,15 @@ class CartogenAi:
                     wp_bbox = self._run_on_main_thread(resolve_extent_bbox, filtered_args["extent_layer"])
                 except ValueError as e:
                     return {"error": str(e)}
+            # Where a whole-country file is cached (F19 fallback); asks QgsProject, so it runs on the main thread.
+            try:
+                from .tools.humanitarian_tools import worldpop_cache_dir
+                wp_cache_dir = self._run_on_main_thread(worldpop_cache_dir, None)
+            except Exception:
+                wp_cache_dir = None
             fetch_result = fetch_worldpop_population_network_phase(
                 filtered_args.get("iso3", ""), filtered_args.get("year"), wp_bbox,
-                bool(filtered_args.get("allow_whole_country")),
+                bool(filtered_args.get("allow_whole_country")), wp_cache_dir,
             )
             # No cleanup here, deliberately -- unlike fetch_geoboundaries above,
             # the downloaded file must stay on disk for as long as the raster
@@ -1155,7 +1195,13 @@ class CartogenAi:
         for i, (name, is_error, _msg) in enumerate(turn_tool_log):
             if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
                 failed.append(name)
-        return response_guard.apply_unbacked_data_warning(final_text, pending, failed)
+        data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
+                            for name, is_error, _msg in turn_tool_log)
+        final_text = response_guard.apply_unbacked_data_warning(final_text, pending, failed, data_tool_ran)
+        if pending:
+            # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
+            final_text = response_guard.strip_confirmation_prose(final_text)
+        return final_text
 
     def _sandbox_flailing_nudge(self, turn_tool_log):
         """Returns a corrective message to inject mid-turn, or None, when the most recent
@@ -1275,6 +1321,8 @@ class CartogenAi:
         messages.extend(self._read_history_snapshot())
         messages.append(user_message)
 
+        self._get_usage_tracker().begin_turn()
+        max_rounds, max_turn_tokens = self._turn_limits()
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
@@ -1287,7 +1335,11 @@ class CartogenAi:
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
         sandbox_flailing_nudged = False
 
-        for iteration_index in range(MAX_ITERATIONS):
+        token_budget_hit = False
+        for iteration_index in range(max_rounds):
+            if max_turn_tokens and iteration_index > 0 and self._get_usage_tracker().turn_tokens() >= max_turn_tokens:
+                token_budget_hit = True
+                break
             if should_stop is not None and should_stop():
                 final_text = "[Agent stopped] Stopped by user."
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
@@ -1420,6 +1472,13 @@ class CartogenAi:
         # starts with zero memory of what was already tried and can repeat the exact same
         # doomed step-per-item approach (e.g. one tool call per item in a long list)
         # instead of the more efficient path rule 14 in the system prompt asks for.
+        if token_budget_hit:
+            final_text = (
+                "[Agent stopped] This request used its token budget (%s tokens, setting "
+                "cartogen_ai/max_turn_tokens) before finishing. Break it into smaller pieces, or raise the budget "
+                "in QGIS's advanced settings." % f"{max_turn_tokens:,}")
+            self._append_history(user_message, {"role": "assistant", "content": final_text})
+            return final_text
         final_text = (
             "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
             "means the request needed many individual actions (e.g. one call per item in a long list). Try "

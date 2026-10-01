@@ -86,7 +86,7 @@ class AgentQgsTask(QgsTask):
 
     def finished(self, result):
         """Executes on the main Qt GUI thread when background processing finishes."""
-        print(f"[TaskRunner] AgentQgsTask.finished(result={result})")
+        log_event("agent_task_finished", tag="TaskRunner", status="ok" if result else "failed")
         if self.on_complete:
             # QGIS-001, 2026-09-13 audit: run() (background thread) wraps agent.run() in
             # try/except, but this call was not guarded at all -- on_complete is a closure

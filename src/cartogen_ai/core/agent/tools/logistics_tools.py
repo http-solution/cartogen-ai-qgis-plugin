@@ -361,6 +361,15 @@ def _measure_distance(distance_area, geom_a, geom_b):
 BACKGROUND_MIN_FEATURES = 2000
 
 
+def _run_with_quiet_feedback(alg, prm, context=None):
+    """processing.run with the feedback that keeps 'no route' messages out of the CRITICAL log (F15). Outside QGIS
+    there is no such feedback and the plain call is made."""
+    feedback = _bg.new_feedback()
+    if feedback is None:
+        return processing.run(alg, prm, context=context)
+    return processing.run(alg, prm, context=context, feedback=feedback)
+
+
 def _run_network_algorithm(algorithm_id, params, context, network, label):
     """processing.run for the network algorithms, off the GUI thread when the network is big.
 
@@ -375,7 +384,7 @@ def _run_network_algorithm(algorithm_id, params, context, network, label):
         use_background = True
     return _bg.run_algorithm(
         algorithm_id, params, context,
-        fallback=lambda alg, prm, context=None: processing.run(alg, prm, context=context),
+        fallback=_run_with_quiet_feedback,
         use_background=use_background, label=label,
     )
 
@@ -461,6 +470,12 @@ def _replace_named_layer(name, new_layer):
     for stale in project.mapLayersByName(name):
         project.removeMapLayer(stale.id())
     project.addMapLayer(new_layer)
+    # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
+    try:
+        from ..results_store import persist_layer
+        persist_layer(new_layer, tool="analysis")
+    except Exception:
+        pass
 
 
 def _style_risk_buffer_layer(layer):
@@ -1511,6 +1526,108 @@ def _merge_band_hulls(band_hulls, output_name):
     return merged
 
 
+# ---- many-destination travel costs from ONE shortest-path tree (F08) -------------------------------------------
+#
+# native:shortestpathpointtolayer ties every destination into the road graph (QgsVectorLayerDirector.makeGraph compares each
+# road segment with each tied point: segments x destinations, source-read, not profiled) and then runs ONE Dijkstra per origin.
+# For many destinations the same costs come from tying only the ORIGIN into the graph, running that one Dijkstra
+# (QgsGraphAnalyzer.dijkstra returns the incoming-edge tree and the cost to every vertex) and reading each destination's cost
+# from its nearest graph vertex. Edges are the segments between consecutive road vertices, so a destination is placed
+# at most half a segment from where the native algorithm would tie it; the leg from the destination to the road is reported,
+# not added (same convention as classify_facilities_by_access). API as in the PyQGIS developer cookbook, "Network analysis library".
+UNREACHABLE_COST = 1.0e300           # QgsGraphAnalyzer.dijkstra marks an unreachable vertex with DOUBLE_MAX (~1.8e308)
+_KMH_TO_MS = 1000.0 / 3600.0
+
+
+def single_tree_costs_available():
+    """True when the graph classes this path needs are importable (QGIS only)."""
+    if not QGIS_AVAILABLE:
+        return False
+    try:
+        from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy,  # noqa: F401
+                                   QgsNetworkSpeedStrategy, QgsVectorLayerDirector)
+        return True
+    except ImportError:
+        return False
+
+
+def _director_both_directions(director_cls):
+    value = resolve_qgis_enum(director_cls, "Direction", "Both")
+    return value if value is not None else getattr(director_cls, "DirectionBoth", 2)
+
+
+def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field, direction_field,
+                       value_forward, value_backward, value_both, ellipsoid):
+    """Cost from origin_xy to each point in dest_xys, in the network's CRS, from one Dijkstra tree.
+
+    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination's nearest
+    graph vertex is not reachable. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
+    from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy,
+                               QgsNetworkSpeedStrategy, QgsVectorLayerDirector)
+    direction_idx = network.fields().indexOf(direction_field) if direction_field else -1
+    director = QgsVectorLayerDirector(
+        network, direction_idx, value_forward if direction_field else "", value_backward if direction_field else "",
+        value_both if direction_field else "", _director_both_directions(QgsVectorLayerDirector))
+    if strategy == "fastest":
+        speed_idx = network.fields().indexOf(speed_field) if speed_field else -1
+        director.addStrategy(QgsNetworkSpeedStrategy(speed_idx, float(default_speed), _KMH_TO_MS))
+        to_output = 1.0 / 3600.0               # the strategy's cost is seconds; the matrix reports hours, like the native tool
+    else:
+        director.addStrategy(QgsNetworkDistanceStrategy())
+        to_output = 1.0
+    builder = QgsGraphBuilder(network.crs(), True, 0.0, ellipsoid)
+    tied = director.makeGraph(builder, [QgsPointXY(origin_xy)])
+    graph = builder.graph()
+    if not tied or tied[0] is None:
+        raise RuntimeError("the origin could not be tied into the road network")
+    start = graph.findVertex(tied[0])
+    if start < 0:
+        raise RuntimeError("the origin's snapped point is not a vertex of the road graph")
+    _tree, costs = QgsGraphAnalyzer.dijkstra(graph, start, 0)
+
+    index = QgsSpatialIndex()
+    for i in range(graph.vertexCount()):
+        feat = QgsFeature(i)
+        feat.setGeometry(QgsGeometry.fromPointXY(graph.vertex(i).point()))
+        index.addFeature(feat)
+    out = []
+    for xy in dest_xys:
+        nearest = index.nearestNeighbor(QgsPointXY(xy), 1)
+        if not nearest:
+            out.append(None)
+            continue
+        cost = costs[nearest[0]]
+        out.append(None if cost >= UNREACHABLE_COST else cost * to_output)
+    return out
+
+
+
+def _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed, speed_field,
+                        direction_field, value_forward, value_backward, value_both):
+    """{'matrix': {origin: {destination feature id: cost or None}}, 'unreachable_count': n} or {'error': ...}."""
+    dest_feats = [f for f in destinations.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
+    if not dest_feats:
+        return {"error": "The destination layer has no usable point features."}
+    ellipsoid = _network_context().ellipsoid()
+    matrix, unreachable = {}, 0
+    for i, origin_feat in enumerate(origin_features):
+        origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
+        try:
+            origin_xy = _point_xy_in_network_crs(origin_feat.geometry().asPoint(), origins.crs(), network)
+            dest_xys = [_point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network) for f in dest_feats]
+            costs = _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field,
+                                       direction_field, value_forward, value_backward, value_both, ellipsoid)
+        except Exception as e:
+            return {"error": f"travel_time_matrix could not build the shortest-path tree for origin '{origin_id}': {e}"}
+        row = {}
+        for feat, cost in zip(dest_feats, costs):
+            row[str(feat.id())] = cost
+            if cost is None:
+                unreachable += 1
+        matrix[str(origin_id)] = row
+    return {"matrix": matrix, "unreachable_count": unreachable}
+
+
 @register_tool(
     "travel_time_matrix",
     "Calculate road-network distance or travel time from each origin point to each destination "
@@ -1521,9 +1638,9 @@ def _merge_band_hulls(band_hulls, output_name):
     "default_speed regardless of surface or condition -- when the network layer has a per-segment "
     "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
-    "traversable both directions. SLOW for many destinations (a full shortest-path search per destination, "
+    "traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
-    "classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.",
+    "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; costs placed at the nearest road vertex) when the QGIS network classes are available.",
     {
         "type": "object",
         "properties": {
@@ -1537,7 +1654,7 @@ def _merge_band_hulls(band_hulls, output_name):
             "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
             "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
             "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
-            "allow_large": {"type": "boolean", "description": "Set true to run a matrix over more than 200 destinations anyway (slow). Prefer classify_facilities_by_access."},
+            "allow_large": {"type": "boolean", "description": "Only needed if the fast single-tree method is unavailable: set true to run a matrix over more than 200 destinations the slow way."},
         },
         "required": ["origins_layer", "destinations_layer", "road_network_layer"],
     },
@@ -1552,13 +1669,17 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": "strategy must be 'shortest' or 'fastest'."}
     origins = _find_layer_by_name(origins_layer)
     destinations = _find_layer_by_name(destinations_layer)
-    if destinations is not None and not allow_large and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
-        # rc7 smoke test F08: 3,369 destinations took ~37 minutes of shortest-path searches (one per
-        # destination) on top of a ~6 minute graph build. The usual question behind such a call --
+    use_single_tree = (destinations is not None and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS
+                       and single_tree_costs_available())
+    if destinations is not None and not allow_large and not use_single_tree and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
+        # rc7 smoke test F08: 3,369 destinations took ~37 minutes after a ~6 minute graph build. (Not one
+        # shortest-path search per destination: QGIS runs a single Dijkstra per origin. The likely cost is tying every
+        # destination into the graph -- QgsVectorLayerDirector.makeGraph compares each road segment with each tie point, so
+        # it grows with segments x destinations. Source-read, not profiled.) The usual question behind such a call --
         # which facilities are within/beyond a travel cost of an origin -- has a seconds-long answer.
         return {"error": (
-            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix runs a full "
-            "shortest-path search per destination and would take a very long time. To find which facilities are "
+            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix ties every "
+            "destination into the road graph and would take a very long time. To find which facilities are "
             "within/beyond a travel cost of an origin, call classify_facilities_by_access instead. If a full "
             "matrix is genuinely needed, call travel_time_matrix again with allow_large=true."),
             "suggested_tool": "classify_facilities_by_access"}
@@ -1586,6 +1707,25 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
 
         strategy_val = 1 if strategy == "fastest" else 0
         matrix = {}
+        if use_single_tree:
+            fast = _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed,
+                                       speed_field, direction_field, value_forward, value_backward, value_both)
+            if "error" in fast:
+                return fast
+            result = {
+                "success": True, "origins_layer": origins_layer, "destinations_layer": destinations_layer,
+                "strategy": strategy, "cost_unit": "hours" if strategy == "fastest" else "meters",
+                "matrix": fast["matrix"], "method": "single_shortest_path_tree",
+                "unreachable_count": fast["unreachable_count"],
+                "note": ("Costs come from one shortest-path tree per origin; each destination takes the cost of its nearest road "
+                         "vertex (at most half a road segment from where QGIS's own point-to-layer tool would tie it). The "
+                         "leg from the destination to the road is not added. Destination keys are feature ids."),
+            }
+            if speed_field:
+                result["speed_field"] = speed_field
+            if direction_field:
+                result["direction_field"] = direction_field
+            return result
         for i, origin_feat in enumerate(origin_features):
             origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
             point = origin_feat.geometry().asPoint()
@@ -1635,6 +1775,47 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return _cancelled_result("travel-time matrix")
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}
+
+
+REACH_METHODS = ("concave_hull", "road_buffer", "convex_hull")
+DEFAULT_REACH_GEOMETRY = "concave_hull"
+# The published hospital-access method converts reached road vertices to a polygon with a GEOS concave hull at
+# ratio 0.85 (arXiv 2609.12696, found by search; the paper itself was not read in full). QGIS passes the ratio to GEOS
+# through QgsGeometry.concaveHull(targetPercent, allowHoles) (QGIS >= 3.28, needs GEOS >= 3.11).
+CONCAVE_HULL_RATIO = 0.85
+REACH_LABELS = {
+    "concave_hull": "Concave hull of the reached roads (ratio %s) -- headline" % CONCAVE_HULL_RATIO,
+    "road_buffer": "Reached roads buffered -- tight lower figure",
+    "convex_hull": "Convex hull of the reached roads -- upper bound",
+}
+CONCAVE_HULL_REACH_NOTE = (
+    "Reach polygon = the CONCAVE hull (GEOS ratio {r:g}) of the roads reached within the travel cost: it follows the "
+    "road pattern more closely than a convex hull but still counts land between roads, so it can overstate who is "
+    "reached where the network is sparse. Read it together with the road-buffer (lower) and convex-hull (upper) figures."
+)
+
+
+def _concave_reach_polygon(line_layers, ratio, name):
+    """One polygon layer (in the lines' CRS): the concave hull of every reached road. Raises RuntimeError with a
+    reason when QGIS/GEOS cannot produce a polygon (older GEOS lacks concave hulls)."""
+    geoms = []
+    for layer in line_layers:
+        for feat in layer.getFeatures():
+            g = feat.geometry()
+            if g is not None and not g.isEmpty():
+                geoms.append(g)
+    if not geoms:
+        raise RuntimeError("the reached-road layers have no geometry")
+    collected = QgsGeometry.collectGeometry(geoms)
+    hull = collected.concaveHull(float(ratio), False)
+    if hull is None or hull.isNull() or hull.isEmpty() or QgsWkbTypes.geometryType(hull.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
+        raise RuntimeError("no concave-hull polygon could be built (too few reached roads, or GEOS older than 3.11)")
+    layer = QgsVectorLayer(f"Polygon?crs={line_layers[0].crs().authid()}", name, "memory")
+    feat = QgsFeature()
+    feat.setGeometry(hull)
+    layer.dataProvider().addFeatures([feat])
+    layer.updateExtents()
+    return layer
 
 
 # ---- population reach geometry (F09) ---------------------------------------------------------------
@@ -1695,8 +1876,9 @@ def _road_reach_polygon(line_layers, buffer_m, name):
 # ---- which facilities are within / beyond a travel cost (F08) --------------------------------------
 #
 # rc7 smoke test F08 (2026-09-30): "health facilities beyond one hour" took 43 min 48 s, 97% of it
-# travel_time_matrix: native:shortestpathpointtolayer runs a separate shortest-path search for EVERY
-# destination (3,369 of them), after a ~6 minute graph build. The same question is answered by ONE
+# travel_time_matrix: native:shortestpathpointtolayer ties EVERY destination (3,369 of them) into the road graph
+# after a ~6 minute graph build; QGIS runs only one Dijkstra per origin, and the graph tie-in compares each road segment with
+# each tie point (source-read, not profiled), so the cost grows with segments x destinations. The same question is answered by ONE
 # service area (calculate_service_area took 5.8 s in that session): a facility is within the cost
 # when it lies on, or within a short snap distance of, a road reached within the cost.
 #
@@ -1764,8 +1946,8 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
     "service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every "
     "facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside "
     "travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the "
-    "origin' question over many facilities: travel_time_matrix runs a full shortest-path search per "
-    "destination and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
+    "origin' question over many facilities: travel_time_matrix ties every destination into the road graph "
+    "and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
     "access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the "
     "answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
     "per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility "
@@ -1882,10 +2064,11 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
     "coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population "
     "raster available (see fetch_worldpop_population). As a side effect of calling "
     "calculate_service_area internally, per-facility service-area polygons are also added to the "
-    "project, plus the combined reachable-area layer this tool builds from them. The reach polygon is the "
-    "reached roads buffered by reach_buffer_m (default 500 m), NOT a convex hull: a hull fills the land between "
-    "the roads and overstates who is reached (reach_geometry='convex_hull' exists only as a labelled upper "
-    "bound for comparison). Returns a MODELED "
+    "project, plus the combined reachable-area layers this tool builds from them. It reports THREE labelled "
+    "figures (reach_figures): a concave hull of the reached roads (the headline, the method used in published "
+    "hospital-access work), the reached roads buffered by reach_buffer_m (a tight lower figure) and the convex hull "
+    "(an UPPER BOUND that fills the land between roads). Always give the user the range "
+    "(reachable_population_range), not only the headline. Returns a MODELED "
     "estimate -- network-based reachability against a gridded population raster, not a verified count "
     "of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', "
     "not as a confirmed access-gap figure.",
@@ -1899,19 +2082,19 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
             "travel_cost": {"type": "number", "description": "Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'."},
             "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (time-based)."},
             "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
-            "reach_geometry": {"type": "string", "description": "'road_buffer' (default): people within reach_buffer_m of a road reached inside the travel cost. 'convex_hull': the hull of the reached roads -- an UPPER BOUND that overstates who is reached; only for comparison."},
-            "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for reach_geometry='road_buffer'. Defaults to 500."},
+            "reach_geometry": {"type": "string", "description": "Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures."},
+            "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500."},
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
-                          reach_geometry="road_buffer", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
+                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    reach_geometry = (reach_geometry or "road_buffer").lower()
-    if reach_geometry not in ("road_buffer", "convex_hull"):
-        return {"error": "reach_geometry must be 'road_buffer' or 'convex_hull'."}
+    reach_geometry = (reach_geometry or DEFAULT_REACH_GEOMETRY).lower()
+    if reach_geometry not in REACH_METHODS:
+        return {"error": "reach_geometry must be 'concave_hull', 'road_buffer' or 'convex_hull'."}
     try:
         reach_buffer_m = float(reach_buffer_m)
     except (TypeError, ValueError):
@@ -1933,49 +2116,12 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
 
     # calculate_service_area names lines layers "..._service_area_lines_{i}"
     # and hull layers "..._service_area_{i}".
-    reachable_name = f"{facility_layer}_reachable_area"
-    if reach_geometry == "road_buffer":
-        line_names = [n for n in service_result["layers_created"] if "_lines_" in n]
-        line_layers = [layer for layer in (_find_layer_by_name(n) for n in line_names) if layer is not None]
-        if not line_layers:
-            return {"error": "calculate_service_area produced no reached-road layer to build the reach polygon from."}
-        reach_note = ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
-    else:
-        hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
-        hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
-        if not hull_layers:
-            return {"error": "calculate_service_area produced no reachable-area polygons to check coverage against."}
-        reach_note = CONVEX_HULL_REACH_NOTE
-
-    try:
-        if reach_geometry == "road_buffer":
-            reachable = _road_reach_polygon(line_layers, reach_buffer_m, reachable_name)
-        else:
-            if len(hull_layers) > 1:
-                merge_result = processing.run(
-                    "native:mergevectorlayers",
-                    {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
-                )
-                merged = merge_result["OUTPUT"]
-            else:
-                merged = hull_layers[0]
-
-            # Dissolve away overlaps between facilities' service areas -- a
-            # location reachable from two facilities must only count once, not
-            # be double-counted or need per-facility attribution here.
-            dissolve_result = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})
-            reachable = dissolve_result["OUTPUT"]
-            reachable.setName(reachable_name)
-        _replace_named_layer(reachable_name, reachable)
-
-        intersect_result = processing.run(
-            "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"}
-        )
-        reachable_within_area = intersect_result["OUTPUT"]
-        reachable_within_area_name = f"{area_layer}_reachable_by_{facility_layer}"
-        _replace_named_layer(reachable_within_area_name, reachable_within_area)
-    except Exception as e:
-        return {"error": f"population_access_gap geometry processing failed: {e}"}
+    line_names = [n for n in service_result["layers_created"] if "_lines_" in n]
+    line_layers = [layer for layer in (_find_layer_by_name(n) for n in line_names) if layer is not None]
+    hull_names = [n for n in service_result["layers_created"] if "_lines_" not in n]
+    hull_layers = [layer for layer in (_find_layer_by_name(n) for n in hull_names) if layer is not None]
+    if not line_layers and not hull_layers:
+        return {"error": "calculate_service_area produced no reached-road or reachable-area layer to build a reach polygon from."}
 
     from .raster_tools import estimate_population_exposure
 
@@ -1984,27 +2130,88 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         return total_pop_result
     total_population = total_pop_result["total_population"]
 
-    # A zero-feature intersection (the facilities' reach doesn't overlap
-    # area_layer at all) means literally 0 people are covered -- handled
-    # explicitly here rather than trusting estimate_population_exposure's
-    # zonal-statistics behavior against an empty layer, which isn't a path
-    # this codebase has verified against a real QGIS session.
-    if reachable_within_area.featureCount() == 0:
-        reachable_population = 0.0
-    else:
-        reachable_pop_result = estimate_population_exposure(population_raster_layer, reachable_within_area_name)
-        if "error" in reachable_pop_result:
-            return reachable_pop_result
-        reachable_population = reachable_pop_result["total_population"]
+    base_name = f"{facility_layer}_reachable_area"
 
-    # Clamped at zero: raster-vs-vector zonal statistics against a slightly
-    # different (intersected) geometry than the original area_layer can, in
-    # principle, disagree by a hair at the pixel level -- a negative gap from
-    # that kind of noise would be a nonsensical result to hand back.
-    gap_population = max(0.0, total_population - reachable_population)
-    gap_pct = round(gap_population / total_population * 100, 2) if total_population > 0 else None
+    def build_reach(method, name):
+        if method == "road_buffer":
+            if not line_layers:
+                raise RuntimeError("no reached-road layer to buffer")
+            return _road_reach_polygon(line_layers, reach_buffer_m, name), ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
+        if method == "concave_hull":
+            if not line_layers:
+                raise RuntimeError("no reached-road layer to build a concave hull from")
+            return _concave_reach_polygon(line_layers, CONCAVE_HULL_RATIO, name), CONCAVE_HULL_REACH_NOTE.format(r=CONCAVE_HULL_RATIO)
+        if not hull_layers:
+            raise RuntimeError("no reachable-area polygons for the convex hull")
+        if len(hull_layers) > 1:
+            merged = processing.run(
+                "native:mergevectorlayers",
+                {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
+            )["OUTPUT"]
+        else:
+            merged = hull_layers[0]
+        # Dissolve away overlaps between facilities' service areas -- a location reachable from two
+        # facilities must only count once.
+        reachable = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})["OUTPUT"]
+        reachable.setName(name)
+        return reachable, CONVEX_HULL_REACH_NOTE
 
-    return {
+    figures = {}
+    for method in REACH_METHODS:
+        layer_name = base_name if method == reach_geometry else f"{base_name}_{method}"
+        try:
+            reachable, note = build_reach(method, layer_name)
+            _replace_named_layer(layer_name, reachable)
+            within_name = f"{area_layer}_reachable_by_{facility_layer}" if method == reach_geometry \
+                else f"{area_layer}_reachable_by_{facility_layer}_{method}"
+            within = processing.run(
+                "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"})["OUTPUT"]
+            _replace_named_layer(within_name, within)
+            # A zero-feature intersection means literally 0 people are covered -- handled explicitly rather than
+            # trusting zonal statistics against an empty layer.
+            if within.featureCount() == 0:
+                reachable_pop = 0.0
+            else:
+                pop_result = estimate_population_exposure(population_raster_layer, within_name)
+                if "error" in pop_result:
+                    raise RuntimeError(pop_result["error"])
+                reachable_pop = pop_result["total_population"]
+            figures[method] = {"layer": layer_name, "within_layer": within_name, "note": note,
+                               "reachable_population": reachable_pop}
+        except Exception as e:
+            figures[method] = {"available": False, "reason": str(e)}
+
+    headline = reach_geometry
+    if "reachable_population" not in figures.get(headline, {}):
+        # The requested figure could not be computed: fall back in a fixed order and say so.
+        headline = next((m for m in ("road_buffer", "convex_hull", "concave_hull") if "reachable_population" in figures[m]), None)
+        if headline is None:
+            reasons = "; ".join(f"{m}: {f.get('reason')}" for m, f in figures.items())
+            return {"error": f"population_access_gap geometry processing failed for every reach method ({reasons})."}
+
+    def gap_fields(reachable_pop):
+        # Clamped at zero: zonal statistics over an intersected geometry can differ by a hair at the pixel level.
+        gap = max(0.0, total_population - reachable_pop)
+        return gap, (round(gap / total_population * 100, 2) if total_population > 0 else None)
+
+    reach_figures = []
+    for method in REACH_METHODS:
+        fig = figures[method]
+        if "reachable_population" not in fig:
+            reach_figures.append({"method": method, "available": False, "reason": fig.get("reason")})
+            continue
+        gap, pct = gap_fields(fig["reachable_population"])
+        reach_figures.append({
+            "method": method, "label": REACH_LABELS[method], "reachable_population": fig["reachable_population"],
+            "gap_population": gap, "gap_percent": pct, "is_upper_bound": method == "convex_hull",
+            "is_headline": method == headline, "layer": fig["layer"], "note": fig["note"],
+        })
+    available = [f["reachable_population"] for f in reach_figures if f.get("reachable_population") is not None]
+
+    head = figures[headline]
+    reachable_population = head["reachable_population"]
+    gap_population, gap_pct = gap_fields(reachable_population)
+    result = {
         "success": True,
         "facility_count": service_result["facility_count"],
         "travel_cost": travel_cost,
@@ -2013,11 +2220,16 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "reachable_population": reachable_population,
         "gap_population": gap_population,
         "gap_percent": gap_pct,
-        "reachable_area_layer": reachable_name,
-        "reachable_within_area_layer": reachable_within_area_name,
-        "reach_geometry": reach_geometry,
-        "reach_note": reach_note,
-        "is_upper_bound_on_reach": reach_geometry == "convex_hull",
+        "reachable_area_layer": head["layer"],
+        "reachable_within_area_layer": head["within_layer"],
+        "reach_geometry": headline,
+        "reach_note": head["note"],
+        "is_upper_bound_on_reach": headline == "convex_hull",
+        # Three labelled figures, not one: the published method is a concave hull, a road buffer is the tight bound
+        # and a convex hull the upper bound. The spread between them is the honest uncertainty of the estimate --
+        # report the range, not only the headline.
+        "reach_figures": reach_figures,
+        "reachable_population_range": [min(available), max(available)],
         # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: this
         # is a modeled gap (network reachability vs. a gridded population raster),
         # not a verified count of people confirmed to lack access -- carried
@@ -2028,6 +2240,11 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         "pop_reference_year": total_pop_result.get("pop_reference_year"),
         "confidence": "estimate (modeled network reachability + gridded population raster; not field-verified)",
     }
+    if headline != reach_geometry:
+        result["headline_fallback"] = (
+            f"'{reach_geometry}' could not be computed ({figures[reach_geometry].get('reason')}); the headline uses "
+            f"'{headline}' instead.")
+    return result
 
 
 @register_tool(

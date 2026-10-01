@@ -205,3 +205,32 @@ class TestSwallowedExceptionsAreLogged(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStartupStateFields(unittest.TestCase):
+    """rc7 smoke test F18: the plan-validation gate was silently ON; the startup log now says so."""
+
+    def test_reports_each_setting(self):
+        from cartogen_ai.core.logger import startup_state_fields
+        values = {"cartogen_ai/plan_validation_gate_enabled": "true", "cartogen_ai/egress_gate_mode": "block"}
+        out = startup_state_fields(lambda k, d=None: values.get(k, d))
+        self.assertEqual(out["plan_validation_gate"], "ON")
+        self.assertEqual(out["egress_gate_mode"], "block")
+        self.assertEqual(out["persist_chat"], "ON")          # default ON (F25 option B)
+
+    def test_defaults_when_nothing_is_set(self):
+        from cartogen_ai.core.logger import startup_state_fields
+        out = startup_state_fields(lambda k, d=None: d)
+        self.assertEqual(out["plan_validation_gate"], "OFF")
+
+    def test_an_unreadable_setting_is_unknown_not_a_crash(self):
+        from cartogen_ai.core.logger import startup_state_fields
+
+        def boom(k, d=None):
+            raise RuntimeError("no settings")
+        self.assertEqual(startup_state_fields(boom)["plan_validation_gate"], "unknown")
+
+    def test_the_fields_are_whitelisted_for_log_event(self):
+        from cartogen_ai.core import logger
+        for f in ("plan_validation_gate", "egress_gate_mode", "persist_chat"):
+            self.assertIn(f, logger._SAFE_EVENT_FIELDS)

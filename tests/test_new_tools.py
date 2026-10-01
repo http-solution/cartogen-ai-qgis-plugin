@@ -1023,12 +1023,15 @@ class TestNewTools(unittest.TestCase):
         mock_urlopen.return_value = mock_index_response
         mock_opener.return_value.open.return_value = mock_tile_response
 
-        res1 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
+        # F22's size probe (a HEAD request) is not a tile download; keep it out of the download count.
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._content_length", return_value=None):
+            res1 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
         self.assertTrue(res1.get("success"), res1)
         self.assertEqual(mock_opener.return_value.open.call_count, 1)
 
         # Second call, same bbox/tile -- must be served from the cache, not a second fetch.
-        res2 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._content_length", return_value=None):
+            res2 = fetch_building_footprints_network_phase("Yemen", bbox, max_features=10)
         self.assertTrue(res2.get("success"), res2)
         self.assertEqual(mock_opener.return_value.open.call_count, 1,
                          "second call must reuse the cached tile, not re-download it")

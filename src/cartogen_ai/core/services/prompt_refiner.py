@@ -30,6 +30,7 @@ except ImportError:
 # "not required for v1"; a future caller should fall back to the same
 # cheap-tier pick pick_model_for_complexity would choose for a "simple"
 # query when it's unset.
+from ..logger import log_warning
 from ...infrastructure.settings_keys import (
     SETTINGS_PROMPT_REFINEMENT_ENABLED as PROMPT_REFINEMENT_ENABLED_KEY,
     SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
@@ -197,7 +198,7 @@ def refine(query: str, profile: str, client, max_tokens: int = _DEFAULT_REFINEME
     content = message.get("content") if isinstance(message, dict) else None
     parsed = parse_refinement_response(content)
     if parsed is None:
-        print("[PromptRefiner] refinement response was not valid/complete JSON")
+        log_warning("refinement response was not valid/complete JSON", tag="PromptRefiner")
         return {"error": "invalid refinement response"}
 
     return parsed

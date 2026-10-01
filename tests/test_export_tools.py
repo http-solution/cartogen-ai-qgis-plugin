@@ -32,9 +32,10 @@ class TestResolveBasemapKwargs(unittest.TestCase):
     or reintroducing OSM's own directly-embedded tiles (the exact pattern OSM's tile usage
     policy blocks, already documented in _build_dashboard_html's own comment)."""
 
-    def test_default_is_positron_when_none_given(self):
+    def test_default_is_hot_when_none_given(self):
+        # Carto (positron) now needs an API key and blocks Referer-less file:// pages.
         kwargs, warning = _resolve_basemap_kwargs(None)
-        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["positron"])
+        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["hot"])
         self.assertIsNone(warning)
 
     def test_known_basemap_resolves_case_insensitively(self):
@@ -49,7 +50,7 @@ class TestResolveBasemapKwargs(unittest.TestCase):
 
     def test_unknown_basemap_falls_back_to_default_with_warning(self):
         kwargs, warning = _resolve_basemap_kwargs("bogus_basemap")
-        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["positron"])
+        self.assertEqual(kwargs, _DASHBOARD_BASEMAPS["hot"])
         self.assertIsNotNone(warning)
         self.assertIn("bogus_basemap", warning)
 

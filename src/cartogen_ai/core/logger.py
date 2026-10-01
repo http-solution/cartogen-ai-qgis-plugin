@@ -105,6 +105,8 @@ def log_error(message: str, tag: str = TAG) -> None:
 # is deliberately no longer the primary control for tool/turn logging.
 _SAFE_EVENT_FIELDS = {
     "tool", "status", "duration_ms", "correlation_id", "provider", "error_class", "count",
+    # Startup state of behaviour-changing settings (F18) -- on/off or a mode name, never user content.
+    "plan_validation_gate", "egress_gate_mode", "persist_chat",
 }
 
 
@@ -124,6 +126,34 @@ def log_event(event: str, tag: str = TAG, error=False, **fields) -> None:
         parts.append(f"{key}={value}")
     line = " ".join(parts)
     (log_error if error else log_info)(line, tag=tag)
+
+
+def startup_state_fields(read_setting):
+    """The on/off state of the settings that silently change behaviour, for one startup log line.
+
+    rc7 smoke test F18: the plan-validation gate was ON in the operator's profile although they believed
+    it untouched, which made every export make a wasted first call; nothing said so anywhere. `read_setting`
+    is QgsSettings().value-like: (key, default) -> value. Never raises."""
+    from ..infrastructure import settings_keys as k
+
+    def flag(key, default):
+        try:
+            v = read_setting(key, default)
+            return "ON" if str(v).lower() in ("true", "1", "yes") else "OFF"
+        except Exception:
+            return "unknown"
+
+    def text(key, default):
+        try:
+            return str(read_setting(key, default))
+        except Exception:
+            return "unknown"
+
+    return {
+        "plan_validation_gate": flag(k.SETTINGS_PLAN_VALIDATION_GATE_ENABLED, False),
+        "egress_gate_mode": text(k.SETTINGS_EGRESS_GATE_MODE, "off"),
+        "persist_chat": flag(k.SETTINGS_PERSIST_CHAT_HISTORY, True),
+    }
 
 
 _DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging_until"

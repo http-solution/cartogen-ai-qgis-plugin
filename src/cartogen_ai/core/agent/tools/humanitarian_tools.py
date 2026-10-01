@@ -554,7 +554,60 @@ def ingest_osm_features(
                 pass
 
 
-def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> dict:
+# ---- asking before a large download (F22) -----------------------------------------------------------------
+#
+# rc7 smoke test F22: downloads started with no size shown. The OSM-extract offer, the WorldPop tool and now these
+# fetch tools share one rule: when the server reports a size above the user's threshold (Settings, default 50 MB)
+# the tool stops and tells the model to ask the user, and only proceeds when called again with
+# allow_large_download=true. A server that does not report a size (no Content-Length) is not blocked: an unknown
+# size cannot be compared with a threshold, and these datasets are normally small.
+
+def _content_length(url, timeout=15):
+    """Bytes from a HEAD request's Content-Length, or None when the server gives none or HEAD fails. Uses the
+    SSRF-guarded opener, so a redirect to a private address is refused here too."""
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "QGIS-AI-Assistant"})
+        with _build_safe_opener().open(req, timeout=timeout) as response:
+            raw = response.headers.get("Content-Length")
+        return int(raw) if raw not in (None, "") else None
+    except Exception:
+        return None
+
+
+def large_download_error(label, total_bytes, threshold_bytes, allow_large_download):
+    """None to go ahead, or an error dict that tells the model to ask the user first. Pure."""
+    if allow_large_download or not total_bytes or total_bytes <= threshold_bytes:
+        return None
+    mb = total_bytes / 1e6
+    return {
+        "error": (f"{label} is about {mb:,.0f} MB, above the {threshold_bytes / 1e6:,.0f} MB size the user asked to be "
+                  "consulted about. Tell the user the size and ask whether to download it; if they agree, call this "
+                  "tool again with allow_large_download=true."),
+        "requires_user_decision": True, "size_mb": round(mb, 1),
+    }
+
+
+def _ask_threshold_bytes():
+    try:
+        from ..local_data_loader import ask_threshold_bytes
+        return ask_threshold_bytes()
+    except Exception:
+        return 50 * 1000 * 1000
+
+
+def check_download_size(label, urls, allow_large_download=False):
+    """large_download_error() for the combined Content-Length of `urls`; None when small, unknown or opted in."""
+    if allow_large_download:
+        return None
+    total = 0
+    for u in urls:
+        size = _content_length(u)
+        if size:
+            total += size
+    return large_download_error(label, total, _ask_threshold_bytes(), False)
+
+
+def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False) -> dict:
     """Pure network phase: queries the geoBoundaries API and downloads the actual
     geojson boundary file to a local temp file. No qgis.core access -- safe to
     run on a background thread. Used by agent_orchestrator.py's two-phase dispatch to keep
@@ -596,6 +649,9 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> d
         unsafe_reason = _is_safe_url(geojson_url)
         if unsafe_reason:
             return {"error": f"Refusing to fetch geoBoundaries download URL: {unsafe_reason}"}
+        too_big = check_download_size(f"The {iso3} {admin_level} boundary file", [geojson_url], allow_large_download)
+        if too_big:
+            return too_big
         req2 = urllib.request.Request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = response2.read()
@@ -636,7 +692,7 @@ def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
     return {"success": True, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
 
 
-def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1") -> dict:
+def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False) -> dict:
     """Pure network phase: looks up OCHA's Common Operational Dataset - Admin
     Boundaries (COD-AB) for a country on HDX, downloads its boundaries zip,
     and extracts just the requested admin-level GeoJSON to a local temp file.
@@ -716,6 +772,9 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     unsafe_reason = _is_safe_url(zip_url)
     if unsafe_reason:
         return {"error": f"Refusing to fetch HDX resource URL: {unsafe_reason}"}
+    too_big = check_download_size(f"The {iso3} {admin_level} HDX boundary file", [zip_url], allow_large_download)
+    if too_big:
+        return too_big
     try:
         req2 = urllib.request.Request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
@@ -804,16 +863,17 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
         "properties": {
             "iso3": {"type": "string", "description": "3-letter ISO country code, e.g. 'YEM'."},
             "admin_level": {"type": "string", "description": "Admin level, e.g. 'ADM1', 'ADM2'. Defaults to 'ADM1'."},
+            "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."},
         },
         "required": ["iso3"],
     },
 )
-def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1"):
+def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
     to keep the network fetch off the QGIS main GUI thread (same pattern as
     fetch_geoboundaries)."""
-    fetch_result = fetch_hdx_admin_boundaries_network_phase(iso3, admin_level)
+    fetch_result = fetch_hdx_admin_boundaries_network_phase(iso3, admin_level, allow_large_download)
     final = add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result)
     local_path = fetch_result.get("local_path")
     if local_path:
@@ -920,7 +980,7 @@ def _iter_coords(coords):
         yield from _iter_coords(c)
 
 
-def fetch_building_footprints_network_phase(country_name, bbox, max_features=5000):
+def fetch_building_footprints_network_phase(country_name, bbox, max_features=5000, allow_large_download=False):
     """Pure network phase: downloads Microsoft's Global ML Building
     Footprints tiles intersecting bbox for the matched country, crops to the
     exact bbox, and writes the combined features to a local temp GeoJSON
@@ -986,6 +1046,12 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     matching_rows = [r for r in rows if r["Location"] == location and r["QuadKey"] in quadkeys]
     if not matching_rows:
         return {"error": f"No building footprint tiles found for '{location}' intersecting the given bbox."}
+
+    uncached_urls = [r["Url"] for r in matching_rows if _LOOKUP_CACHE.get(("building_footprint_tile", r["Url"])) is None
+                     and not _is_safe_url(r["Url"])]
+    too_big = check_download_size(f"The {location} building-footprint tiles for this area", uncached_urls, allow_large_download)
+    if too_big:
+        return too_big
 
     import gzip
     features = []
@@ -1118,16 +1184,17 @@ def add_building_footprints_layer_main_thread_phase(fetch_result):
             "country_name": {"type": "string", "description": "Country name, e.g. 'Yemen'. Matched against the dataset's own location names, not an ISO3 code."},
             "bbox": {"type": "array", "items": {"type": "number"}, "description": "[south, west, north, east] in WGS84 degrees -- footprints are cropped to this area, not the whole country."},
             "max_features": {"type": "integer", "description": "Safety cap on returned features. Defaults to 5000; if exceeded, results are truncated (not silently dropped) and truncated=true is reported."},
+            "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."},
         },
         "required": ["country_name", "bbox"],
     },
 )
-def fetch_building_footprints(country_name, bbox, max_features=5000):
+def fetch_building_footprints(country_name, bbox, max_features=5000, allow_large_download=False):
     """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately
     instead, to keep the network fetch off the QGIS main GUI thread (same
     pattern as fetch_geoboundaries/fetch_hdx_admin_boundaries)."""
-    fetch_result = fetch_building_footprints_network_phase(country_name, bbox, max_features)
+    fetch_result = fetch_building_footprints_network_phase(country_name, bbox, max_features, allow_large_download)
     final = add_building_footprints_layer_main_thread_phase(fetch_result)
     local_path = fetch_result.get("local_path")
     if local_path:
@@ -1139,13 +1206,13 @@ def fetch_building_footprints(country_name, bbox, max_features=5000):
     return final
 
 
-@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}}, "required": ["iso3", "admin_level"]})
-def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1"):
+@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}, "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."}}, "required": ["iso3", "admin_level"]})
+def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Queries geoBoundaries API for ISO3 country code and ADM level. Does both
     phases inline for standalone/direct callers; agent_orchestrator.py's two-phase dispatch
     calls the two phase functions above separately instead, to keep the network
     fetch off the QGIS main GUI thread."""
-    fetch_result = fetch_geoboundaries_network_phase(iso3, admin_level)
+    fetch_result = fetch_geoboundaries_network_phase(iso3, admin_level, allow_large_download)
     final = add_geoboundaries_layer_main_thread_phase(fetch_result)
     local_path = fetch_result.get("local_path")
     if local_path:
@@ -1264,7 +1331,58 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
             gdal.SetThreadLocalConfigOption(key, None)
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False) -> dict:
+def worldpop_cache_dir(_unused=None):
+    """Folder for whole-country WorldPop rasters: <project>/data/00_raw/worldpop, or a folder in the QGIS profile for an
+    unsaved project. Needs QgsProject, so call it on the main thread."""
+    import os
+    from ..local_data_loader import data_dir
+    base = data_dir()
+    return os.path.join(os.path.dirname(base), "worldpop")
+
+
+def _worldpop_cache_file(cache_dir, iso3, popyear):
+    """Where the whole-country raster is kept once downloaded (or None when no cache folder is known). Pure."""
+    if not cache_dir:
+        return None
+    import os
+    return os.path.join(cache_dir, f"{iso3.lower()}_ppp_{popyear}.tif")
+
+
+def _is_transport_failure(error):
+    """True when a clip error is about reaching/reading the remote file, not about the requested area itself: an area that
+    does not overlap the raster would fail the same way from a local copy, so it must not trigger a big download. Pure."""
+    text = str(error).lower()
+    return not any(marker in text for marker in ("does not overlap", "rotated", "geographic", "bindings"))
+
+
+def _download_to_file(url, dest, chunk=1 << 20):
+    """Streams `url` to `dest` through the SSRF-guarded opener, via a .part file so an interrupted download never
+    leaves a truncated raster that later looks like a cache hit."""
+    import os
+    unsafe = _is_safe_url(url)
+    if unsafe:
+        raise RuntimeError(f"Refusing to fetch WorldPop file URL: {unsafe}")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    part = dest + ".part"
+    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    try:
+        with _build_safe_opener().open(req, timeout=300) as response, open(part, "wb") as out:
+            while True:
+                block = response.read(chunk)
+                if not block:
+                    break
+                out.write(block)
+        os.replace(part, dest)
+    except Exception as e:
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        raise RuntimeError(f"downloading the country file failed: {e}")
+
+
+def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False,
+                                            cache_dir=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
     fetches the GeoTIFF -- the WHOLE country (100MB-1GB+, slow) when bbox is None, or
@@ -1338,8 +1456,25 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                     "Call again without bbox/extent_layer to download the whole country instead.")}
             fd, tmp_path = tempfile.mkstemp(suffix=".tif")
             os.close(fd)
+            cache_file = _worldpop_cache_file(cache_dir, iso3, dataset.get("popyear"))
+            used_cache = None
             try:
-                size = _clip_raster_to_bbox("/vsicurl/" + file_urls[0], window, tmp_path)
+                if cache_file and os.path.exists(cache_file):
+                    # A whole-country file downloaded earlier: clip from disk, no network at all.
+                    size = _clip_raster_to_bbox(cache_file, window, tmp_path)
+                    used_cache = "reused"
+                else:
+                    try:
+                        size = _clip_raster_to_bbox("/vsicurl/" + file_urls[0], window, tmp_path)
+                    except RuntimeError as remote_error:
+                        # F19: a remote window read can fail or be impractically slow (a strip-organised file, or a server
+                        # that ignores range requests). With the user's consent to the whole-country download, fetch it ONCE,
+                        # keep it, and clip locally -- every later area for this country is then instant.
+                        if not (allow_whole_country and cache_file and _is_transport_failure(remote_error)):
+                            raise
+                        _download_to_file(file_urls[0], cache_file)
+                        size = _clip_raster_to_bbox(cache_file, window, tmp_path)
+                        used_cache = "downloaded"
             except RuntimeError as e:
                 try:
                     os.remove(tmp_path)
@@ -1356,6 +1491,9 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                 "clipped_pixels": [size["width"], size["height"]],
                 "bytes_on_disk": os.path.getsize(tmp_path),
             }
+            if used_cache:
+                result["country_file_cache"] = used_cache
+                result["country_file"] = cache_file
             if size.get("clamped"):
                 result["clip_clamped"] = ("Part of the requested area lies outside the country's raster; only the "
                                           "overlapping part was fetched.")

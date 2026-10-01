@@ -182,7 +182,8 @@ Generate an interactive HTML situation dashboard (Leaflet/Folium map with layer 
 | `layers` | array[object] | yes | One or more layers to include, each rendered as its own toggleable overlay. |
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
 | `output_path` | string | no | Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path. |
-| `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
+| `basemap` | string | no | 'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'none' (no tiles: works offline, pair with backdrop_layer), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles). |
+| `backdrop_layer` | string | no | Optional name of a polygon layer in the project (e.g. an administrative boundary) drawn under the data as a tile-free backdrop. Best with basemap='none'. |
 
 ### `generate_report`
 
@@ -214,7 +215,8 @@ Generate an animated, time-sliding HTML dashboard (Leaflet/Folium) from one or m
 | `title` | string | no | Optional dashboard title, shown as a heading overlay on the map. |
 | `output_path` | string | no | Where to save the HTML file. Defaults to a readable, timestamped file under the project's data/20_processed/dashboards folder. Tell the user the full path. |
 | `step_days` | integer | no | Slider step size / play-button advance, in days. Defaults to 30. |
-| `basemap` | string | no | 'positron' (default, light/unobtrusive), 'dark_matter', 'satellite' (Esri World Imagery), or 'hot' (Humanitarian OSM Team style). |
+| `basemap` | string | no | 'hot' (default, Humanitarian OSM Team style), 'satellite' (Esri World Imagery), or 'none' (no tiles: works offline, pair with backdrop_layer), or 'positron' / 'dark_matter' (Carto; these now need a Carto API key and may show no tiles). |
+| `backdrop_layer` | string | no | Optional name of a polygon layer in the project (e.g. an administrative boundary) drawn under the data as a tile-free backdrop. Best with basemap='none'. |
 
 ### `print_map`
 
@@ -264,6 +266,7 @@ Download building footprint polygons for an area of interest from Microsoft's Gl
 | `country_name` | string | yes | Country name, e.g. 'Yemen'. Matched against the dataset's own location names, not an ISO3 code. |
 | `bbox` | array[number] | yes | [south, west, north, east] in WGS84 degrees -- footprints are cropped to this area, not the whole country. |
 | `max_features` | integer | no | Safety cap on returned features. Defaults to 5000; if exceeded, results are truncated (not silently dropped) and truncated=true is reported. |
+| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_fts_funding_data` _(network-only)_
 
@@ -277,12 +280,13 @@ Fetch humanitarian funding data from OCHA's Financial Tracking Service (FTS) for
 
 ### `fetch_geoboundaries` _(two-phase)_
 
-Download administrative boundaries from geoBoundaries API.
+Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `iso3` | string | yes |  |
 | `admin_level` | string | yes |  |
+| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_hdx_admin_boundaries` _(two-phase)_
 
@@ -292,6 +296,7 @@ Download OCHA's Common Operational Dataset - Administrative Boundaries (COD-AB) 
 |---|---|---|---|
 | `iso3` | string | yes | 3-letter ISO country code, e.g. 'YEM'. |
 | `admin_level` | string | no | Admin level, e.g. 'ADM1', 'ADM2'. Defaults to 'ADM1'. |
+| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_osm_features` _(network-only)_
 
@@ -359,7 +364,7 @@ Calculate the reachable road-network area around one or more facilities (warehou
 
 ### `classify_facilities_by_access`
 
-Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the origin' question over many facilities: travel_time_matrix runs a full shortest-path search per destination and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility costs are needed.
+Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the origin' question over many facilities: travel_time_matrix ties every destination into the road graph and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility costs are needed.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -422,7 +427,7 @@ Find a good visiting order for a set of delivery/distribution stops -- e.g. 'wha
 
 ### `population_access_gap`
 
-Compute how many people, and what percentage of a population base, are BEYOND a given travel distance/time from the nearest facility -- e.g. 'X people / Y% of the population are more than 30 minutes from a functioning health facility', the standard access-to-services statistic in humanitarian gap analysis and cluster reporting. A thin composite over calculate_service_area (network-based reach per facility) and estimate_population_exposure (population sum within a polygon) rather than reimplementing either -- area_layer defines the population base to check coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population raster available (see fetch_worldpop_population). As a side effect of calling calculate_service_area internally, per-facility service-area polygons are also added to the project, plus the combined reachable-area layer this tool builds from them. The reach polygon is the reached roads buffered by reach_buffer_m (default 500 m), NOT a convex hull: a hull fills the land between the roads and overstates who is reached (reach_geometry='convex_hull' exists only as a labelled upper bound for comparison). Returns a MODELED estimate -- network-based reachability against a gridded population raster, not a verified count of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', not as a confirmed access-gap figure.
+Compute how many people, and what percentage of a population base, are BEYOND a given travel distance/time from the nearest facility -- e.g. 'X people / Y% of the population are more than 30 minutes from a functioning health facility', the standard access-to-services statistic in humanitarian gap analysis and cluster reporting. A thin composite over calculate_service_area (network-based reach per facility) and estimate_population_exposure (population sum within a polygon) rather than reimplementing either -- area_layer defines the population base to check coverage for (e.g. an admin-boundary or catchment polygon) and must already have a population raster available (see fetch_worldpop_population). As a side effect of calling calculate_service_area internally, per-facility service-area polygons are also added to the project, plus the combined reachable-area layers this tool builds from them. It reports THREE labelled figures (reach_figures): a concave hull of the reached roads (the headline, the method used in published hospital-access work), the reached roads buffered by reach_buffer_m (a tight lower figure) and the convex hull (an UPPER BOUND that fills the land between roads). Always give the user the range (reachable_population_range), not only the headline. Returns a MODELED estimate -- network-based reachability against a gridded population raster, not a verified count of people confirmed to lack access -- report it as 'an estimated N people/percent are beyond X', not as a confirmed access-gap figure.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -433,8 +438,8 @@ Compute how many people, and what percentage of a population base, are BEYOND a 
 | `travel_cost` | number | yes | Max travel distance in METRES (real-world, whatever the layers' CRS is) or time in HOURS if strategy='fastest'. |
 | `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (time-based). |
 | `default_speed` | number | no | Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50. |
-| `reach_geometry` | string | no | 'road_buffer' (default): people within reach_buffer_m of a road reached inside the travel cost. 'convex_hull': the hull of the reached roads -- an UPPER BOUND that overstates who is reached; only for comparison. |
-| `reach_buffer_m` | number | no | Buffer distance in metres around the reached roads for reach_geometry='road_buffer'. Defaults to 500. |
+| `reach_geometry` | string | no | Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures. |
+| `reach_buffer_m` | number | no | Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500. |
 
 ### `score_route_incident_risk`
 
@@ -451,7 +456,7 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (a full shortest-path search per destination, ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

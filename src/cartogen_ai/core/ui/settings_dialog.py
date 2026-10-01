@@ -4,7 +4,7 @@ import threading
 from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
-    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton,
+    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
     QScrollArea, QFrame, QButtonGroup,
 )
 from qgis.core import QgsSettings
@@ -36,6 +36,9 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED as PLAN_VALIDATION_GATE_ENABLED_KEY,
     SETTINGS_EGRESS_GATE_MODE as EGRESS_GATE_MODE_KEY,
     SETTINGS_EGRESS_GATE_STRICT as EGRESS_GATE_STRICT_KEY,
+    SETTINGS_MAX_TOOL_ITERATIONS as MAX_TOOL_ITERATIONS_KEY,
+    SETTINGS_MAX_TURN_TOKENS as MAX_TURN_TOKENS_KEY,
+    SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
     provider_model_list_key,
 )
 AUTO_LABEL = "auto (recommended)"
@@ -533,6 +536,34 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.plan_validation_gate_checkbox)
 
+        # rc7 smoke test F10/F22: limits that keep one request's cost and download size in the user's hands.
+        limits_form = QFormLayout()
+        self.max_tool_iterations_spin = QSpinBox()
+        self.max_tool_iterations_spin.setRange(1, 100)
+        self.max_tool_iterations_spin.setValue(self._int_setting(MAX_TOOL_ITERATIONS_KEY, 20, 1, 100))
+        self.max_tool_iterations_spin.setToolTip(
+            "The most tool-call rounds one request may use before the assistant stops and says so. Default 20.")
+        limits_form.addRow("Max tool-call rounds per request:", self.max_tool_iterations_spin)
+        self.max_turn_tokens_spin = QSpinBox()
+        self.max_turn_tokens_spin.setRange(0, 5_000_000)
+        self.max_turn_tokens_spin.setSingleStep(10_000)
+        self.max_turn_tokens_spin.setSpecialValueText("no limit")
+        self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, 0, 0, 5_000_000))
+        self.max_turn_tokens_spin.setToolTip(
+            "Stops a request once the model calls in it have used this many tokens (input + output). "
+            "0 = no limit. The chat footer shows what each request used, so you can pick a number from real use.")
+        limits_form.addRow("Max tokens per request:", self.max_turn_tokens_spin)
+        self.local_data_ask_spin = QSpinBox()
+        self.local_data_ask_spin.setRange(0, 100_000)
+        self.local_data_ask_spin.setSuffix(" MB")
+        self.local_data_ask_spin.setSpecialValueText("always ask")
+        self.local_data_ask_spin.setValue(self._int_setting(LOCAL_DATA_ASK_ABOVE_MB_KEY, 50, 0, 100_000))
+        self.local_data_ask_spin.setToolTip(
+            "Downloads larger than this (or of unknown size, or on a metered connection) ask you first. "
+            "Default 50 MB; 'always ask' asks for every download.")
+        limits_form.addRow("Ask before downloads larger than:", self.local_data_ask_spin)
+        layout.addLayout(limits_form)
+
         # Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md) -- OFF by
         # default. A safeguard against ACCIDENTS: the setting lives in this user's own QgsSettings,
         # so it does not stop someone determined to bypass it (see egress_gate.py's docstring).
@@ -869,6 +900,16 @@ QPushButton#settingsCancelButton {{
             return AUTO_SENTINEL
         return text
 
+    def _int_setting(self, key, default, low, high):
+        """An int setting clamped to [low, high]; the default when unset or unreadable."""
+        try:
+            raw = self.settings.value(key, None)
+            if raw in (None, ""):
+                return default
+            return min(max(int(float(raw)), low), high)
+        except (TypeError, ValueError):
+            return default
+
     def accept(self):
         from ...infrastructure.auth import CredentialManager
         provider = self._active_provider
@@ -879,6 +920,9 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())
         self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
+        self.settings.setValue(MAX_TOOL_ITERATIONS_KEY, self.max_tool_iterations_spin.value())
+        self.settings.setValue(MAX_TURN_TOKENS_KEY, self.max_turn_tokens_spin.value())
+        self.settings.setValue(LOCAL_DATA_ASK_ABOVE_MB_KEY, self.local_data_ask_spin.value())
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
         self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
