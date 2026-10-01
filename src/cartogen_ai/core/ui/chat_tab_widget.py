@@ -637,10 +637,16 @@ class ChatTabWidget(QWidget):
         from qgis.PyQt.QtCore import QTimer
 
         def _do_scroll():
-            self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
-            sb = self.chat_browser.verticalScrollBar()
-            if sb:
-                sb.setValue(sb.maximum())
+            # The two delayed calls below can fire after the dock (and so the browser) was destroyed -- on QGIS shutdown,
+            # plugin unload, or in CI when a test tears its window down. An uncaught RuntimeError inside a Qt slot aborts the
+            # whole process under PyQt6 (seen: "Aborted (core dumped)" in the live job once the panel opened at startup).
+            try:
+                self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
+                sb = self.chat_browser.verticalScrollBar()
+                if sb:
+                    sb.setValue(sb.maximum())
+            except RuntimeError:
+                pass
 
         _do_scroll()
         QTimer.singleShot(50, _do_scroll)
