@@ -164,6 +164,21 @@ class TestSlots(unittest.TestCase):
         q = "map flood hazard in Sindh district using sentinel imagery from 2026 within 10 km"
         self.assertEqual(tm.missing_slots(tm.classify(q)["best"], q), [])
 
+    def test_a_point_origin_answers_the_facility_question(self):
+        # rc10 smoke test: "Which facility or service type?" was asked three times of a request that names a coordinate.
+        q = ("Estimate the population within one hour's drive of the point 4902068.0, 1799912.0 "
+             "using WorldPop in Yemen")
+        entry = tm.classify(q)["best"]
+        self.assertNotIn("facility_type", tm.missing_slots(entry, q))
+        q2 = "population within one hour of the origin using WorldPop in Yemen"
+        self.assertNotIn("facility_type", tm.missing_slots(tm.classify(q2)["best"], q2))
+
+    def test_a_request_with_no_origin_and_no_facility_still_asks(self):
+        q = "Calculate population within service areas using WorldPop in Yemen within 1 hour"
+        entry = tm.classify(q)["best"]
+        if entry and "facility_type" in (entry.get("slots") or []):
+            self.assertIn("facility_type", tm.missing_slots(entry, q))
+
     def test_one_question_covers_every_missing_slot(self):
         miss = tm.missing_slots(self.e, self.q)
         text = tm.clarify_question(self.e, miss)
