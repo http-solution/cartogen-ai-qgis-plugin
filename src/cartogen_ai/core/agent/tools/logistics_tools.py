@@ -2122,6 +2122,8 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
             if not routing_style.style_access_points(out, "access_class"):
                 from .styling_tools import apply_categorized_style
                 apply_categorized_style(out_name, "access_class")
+            from .output_style import style_auto_labels
+            style_auto_labels(out)        # facility names, so "beyond reach" points can be read off the map
         except Exception as e:
             log_event("swallowed_exception", tag="Tools", tool="classify_facilities_by_access_styling",
                       error_class=type(e).__name__, error=True)

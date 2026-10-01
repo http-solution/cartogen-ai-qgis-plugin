@@ -930,6 +930,11 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         if not raster_layer.isValid():
             return {"error": "Generated density raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
+        try:
+            from .output_style import style_continuous_raster
+            style_continuous_raster(raster_layer, "density")   # a density surface in the default grey stretch was unreadable
+        except Exception:
+            pass
         return {"success": True, "layer_name": result_name, "radius": radius, "pixel_size": resolved_pixel_size}
     except Exception as e:
         return {"error": f"hotspot_analysis failed: {e}"}

@@ -19,10 +19,10 @@ preference, not a replacement.
 """
 
 from .registry import register_tool
-from ._processing_allowlist import ALLOWED_ALGORITHM_IDS
+from ._processing_allowlist import ALLOWED_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS
 
 try:
-    from qgis.core import QgsProject
+    from qgis.core import QgsProject, QgsRasterLayer
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -37,6 +37,7 @@ except ImportError:
 # processing.run() call in this codebase already uses.
 _OUTPUT_KEY_SUFFIXES = ("output", "output_lines")
 _SAFE_OUTPUT_VALUE = "memory:"
+_SAFE_RASTER_OUTPUT_VALUE = "TEMPORARY_OUTPUT"   # a temporary file: rasters cannot go to "memory:"
 
 
 def _find_layer_by_name(name):
@@ -46,7 +47,7 @@ def _find_layer_by_name(name):
     return layers[0] if layers else None
 
 
-def _resolve_params(params):
+def _resolve_params(params, raster_output=False):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -70,7 +71,7 @@ def _resolve_params(params):
     for key, value in params.items():
         key_lower = key.lower()
         if any(key_lower == suffix or key_lower.endswith("_" + suffix) for suffix in _OUTPUT_KEY_SUFFIXES):
-            resolved[key] = _SAFE_OUTPUT_VALUE
+            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
             has_output_key = True
             continue
         if isinstance(value, str):
@@ -79,7 +80,7 @@ def _resolve_params(params):
         else:
             resolved[key] = value
     if not has_output_key:
-        resolved["OUTPUT"] = _SAFE_OUTPUT_VALUE
+        resolved["OUTPUT"] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
     return resolved
 
 
@@ -127,12 +128,16 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         return {"error": "params must be an object/dict of algorithm parameters."}
 
     try:
-        resolved_params = _resolve_params(params)
+        resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS)
         output = processing.run(alg_id, resolved_params)
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}
 
     new_layer = output.get("OUTPUT") if isinstance(output, dict) else None
+    if isinstance(new_layer, str) and alg_id in RASTER_OUTPUT_ALGORITHM_IDS:
+        # A raster algorithm returns the path of the file it wrote; load it as a layer.
+        loaded = QgsRasterLayer(new_layer, "raster_output")
+        new_layer = loaded if loaded.isValid() else None
     if new_layer is None or not hasattr(new_layer, "setName"):
         return {"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."}
 
@@ -159,6 +164,13 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             layer_node.setItemVisibilityChecked(False)
 
     result = {"success": True, "alg_id": alg_id, "layer_name": layer_name, "visible": caller_named_it}
+    try:
+        from .output_style import style_algorithm_output
+        styled = style_algorithm_output(new_layer, alg_id)
+        if styled:
+            result["styled_as"] = styled
+    except Exception:
+        pass   # a result with the default look beats a failed tool call
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()
         result["feature_count"] = count

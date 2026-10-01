@@ -109,8 +109,17 @@ def _nice_interval(raw):
 
 def _format_scale_denominator(n):
     """1:1234567 -> '1:1,234,567' -- the textual representative-fraction scale
-    cartographic convention expects alongside (not instead of) a graphical scale bar."""
-    return f"1:{int(round(n)):,}"
+    cartographic convention expects alongside (not instead of) a graphical scale bar.
+
+    A map item with no real extent (headless layout, empty canvas) reports a NaN/inf/zero
+    scale; int(round(nan)) raises, which silently dropped the whole CRS/scale info label
+    (seen in the live styling tests, 2026-10-01), so degrade to text instead."""
+    try:
+        if n is None or n != n or n in (float("inf"), float("-inf")) or n <= 0:
+            return "unavailable"
+        return f"1:{int(round(n)):,}"
+    except (TypeError, ValueError, OverflowError):
+        return "unavailable"
 
 
 @register_tool(
@@ -149,16 +158,25 @@ def _format_scale_denominator(n):
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
+            "template": {"type": "string", "description": "'standard' (default) or 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present."},
             "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True):
+def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
     try:
+        template = "access_map" if str(template or "").lower() == "access_map" else "standard"
+        if template == "access_map":
+            from . import layout_style
+            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+            if not zoom_to_layer:
+                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+            if not body_text:
+                body_text = layout_style.access_reading_guide(visible)
         target_layer = None
         if zoom_to_layer:
             target_layer = _find_layer_by_name(zoom_to_layer)
@@ -449,7 +467,22 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, LAYOUT_MM))
         footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, LAYOUT_MM))
 
-        res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation}
+        # Look only (positions/sizes above are untouched): typography, panels, a legend of the VISIBLE layers, the
+        # preparation date and a classification prefix. See layout_style.py for what was wrong before.
+        style_report = {}
+        try:
+            from . import layout_style
+            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template=template)
+        except Exception as style_error:
+            style_report = {"warnings": [f"layout styling failed: {style_error}"]}
+
+        res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template}
+        if style_report.get("legend_layers") is not None:
+            res_msg["legend_layers"] = style_report.get("legend_layers", [])
+        if style_report.get("classification"):
+            res_msg["classification"] = style_report["classification"]
+        if style_report.get("warnings"):
+            res_msg["style_warnings"] = style_report["warnings"]
         if info_warning:
             res_msg["info_label_warning"] = info_warning
         if grid_warning:

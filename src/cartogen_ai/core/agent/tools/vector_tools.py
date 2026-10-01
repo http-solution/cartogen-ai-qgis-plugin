@@ -980,6 +980,15 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
             return {"error": f"Could not load '{file_path}' as a layer -- check the file and field names are correct."}
 
         QgsProject.instance().addMapLayer(layer)
+        if layer.isSpatial():
+            try:
+                from .output_style import style_points_default
+                if layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
+                    style_points_default(layer)   # one consistent point look instead of a random default colour
+                    from .output_style import style_auto_labels
+                    style_auto_labels(layer)      # facility names when the layer is small enough to read
+            except Exception:
+                pass
         result = {
             "success": True,
             "layer_name": layer.name(),

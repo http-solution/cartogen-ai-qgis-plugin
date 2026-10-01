@@ -660,6 +660,11 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
         if not raster_layer.isValid():
             return {"error": "Generated interpolation raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
+        try:
+            from .output_style import style_continuous_raster
+            style_continuous_raster(raster_layer, "surface")
+        except Exception:
+            pass
         return {"success": True, "layer_name": result_name, "method": method, "cell_size": resolved_cell_size}
     except Exception as e:
         return {"error": f"interpolate_surface failed: {e}"}

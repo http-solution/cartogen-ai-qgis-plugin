@@ -38,6 +38,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_EGRESS_GATE_STRICT as EGRESS_GATE_STRICT_KEY,
     SETTINGS_MAX_TOOL_ITERATIONS as MAX_TOOL_ITERATIONS_KEY,
     SETTINGS_MAX_TURN_TOKENS as MAX_TURN_TOKENS_KEY,
+    SETTINGS_LAYOUT_MASTHEAD_COLOR as LAYOUT_MASTHEAD_COLOR_KEY,
     SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
     provider_model_list_key,
 )
@@ -553,6 +554,14 @@ class CartogenAiSettingsDialog(QDialog):
             "Stops a request once the model calls in it have used this many tokens (input + output). "
             "0 = no limit. The chat footer shows what each request used, so you can pick a number from real use.")
         limits_form.addRow("Max tokens per request:", self.max_turn_tokens_spin)
+        self.layout_masthead_edit = QLineEdit()
+        self.layout_masthead_edit.setPlaceholderText("#1f2d3a (default slate)")
+        self.layout_masthead_edit.setMaxLength(7)
+        self.layout_masthead_edit.setText(str(self.settings.value(LAYOUT_MASTHEAD_COLOR_KEY, "") or ""))
+        self.layout_masthead_edit.setToolTip(
+            "Title-bar colour on exported print layouts, as #rrggbb. Empty or invalid = the default slate. "
+            "Light colours automatically get dark title text.")
+        limits_form.addRow("Print layout title colour:", self.layout_masthead_edit)
         self.local_data_ask_spin = QSpinBox()
         self.local_data_ask_spin.setRange(0, 100_000)
         self.local_data_ask_spin.setSuffix(" MB")
@@ -922,6 +931,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PLAN_VALIDATION_GATE_ENABLED_KEY, self.plan_validation_gate_checkbox.isChecked())
         self.settings.setValue(MAX_TOOL_ITERATIONS_KEY, self.max_tool_iterations_spin.value())
         self.settings.setValue(MAX_TURN_TOKENS_KEY, self.max_turn_tokens_spin.value())
+        self.settings.setValue(LAYOUT_MASTHEAD_COLOR_KEY, self.layout_masthead_edit.text().strip())
         self.settings.setValue(LOCAL_DATA_ASK_ABOVE_MB_KEY, self.local_data_ask_spin.value())
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
         self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())
