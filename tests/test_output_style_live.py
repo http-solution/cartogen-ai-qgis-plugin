@@ -251,6 +251,22 @@ class TestAutoArrangeOrder(unittest.TestCase):
         self.assertLess(names.index("Facilities_access_1"), names.index("Facilities"))
         self.assertLess(names.index("Facilities"), names.index("Roads"))
 
+    def test_a_data_raster_is_ordered_above_a_web_basemap(self):
+        # rc10 smoke test: the fetched population raster ended UNDER the OSM basemap and was hidden by it.
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        arr = np.zeros((10, 10), dtype="float32")
+        data = QgsRasterLayer(_tif(os.path.join(tempfile.mkdtemp(), "d.tif"), arr), "Data_raster")
+        self.assertTrue(data.isValid())
+        project.addMapLayer(data)
+        basemap = QgsRasterLayer("type=xyz&url=https://example.invalid/{z}/{x}/{y}.png&zmax=19&zmin=0", "OSM Standard", "wms")
+        if not basemap.isValid():
+            self.skipTest("no XYZ provider in this QGIS build")
+        project.addMapLayer(basemap)                              # added last -> on top of the data raster by default
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        names = self._names_top_to_bottom()
+        self.assertLess(names.index("Data_raster"), names.index("OSM Standard"))
+
     def test_reordering_keeps_each_layers_visibility(self):
         from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
         project = QgsProject.instance()
