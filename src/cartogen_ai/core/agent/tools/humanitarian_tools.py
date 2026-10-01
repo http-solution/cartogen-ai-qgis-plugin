@@ -1331,7 +1331,58 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
             gdal.SetThreadLocalConfigOption(key, None)
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False) -> dict:
+def worldpop_cache_dir(_unused=None):
+    """Folder for whole-country WorldPop rasters: <project>/data/00_raw/worldpop, or a folder in the QGIS profile for an
+    unsaved project. Needs QgsProject, so call it on the main thread."""
+    import os
+    from ..local_data_loader import data_dir
+    base = data_dir()
+    return os.path.join(os.path.dirname(base), "worldpop")
+
+
+def _worldpop_cache_file(cache_dir, iso3, popyear):
+    """Where the whole-country raster is kept once downloaded (or None when no cache folder is known). Pure."""
+    if not cache_dir:
+        return None
+    import os
+    return os.path.join(cache_dir, f"{iso3.lower()}_ppp_{popyear}.tif")
+
+
+def _is_transport_failure(error):
+    """True when a clip error is about reaching/reading the remote file, not about the requested area itself: an area that
+    does not overlap the raster would fail the same way from a local copy, so it must not trigger a big download. Pure."""
+    text = str(error).lower()
+    return not any(marker in text for marker in ("does not overlap", "rotated", "geographic", "bindings"))
+
+
+def _download_to_file(url, dest, chunk=1 << 20):
+    """Streams `url` to `dest` through the SSRF-guarded opener, via a .part file so an interrupted download never
+    leaves a truncated raster that later looks like a cache hit."""
+    import os
+    unsafe = _is_safe_url(url)
+    if unsafe:
+        raise RuntimeError(f"Refusing to fetch WorldPop file URL: {unsafe}")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    part = dest + ".part"
+    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    try:
+        with _build_safe_opener().open(req, timeout=300) as response, open(part, "wb") as out:
+            while True:
+                block = response.read(chunk)
+                if not block:
+                    break
+                out.write(block)
+        os.replace(part, dest)
+    except Exception as e:
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        raise RuntimeError(f"downloading the country file failed: {e}")
+
+
+def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False,
+                                            cache_dir=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
     fetches the GeoTIFF -- the WHOLE country (100MB-1GB+, slow) when bbox is None, or
@@ -1405,8 +1456,25 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                     "Call again without bbox/extent_layer to download the whole country instead.")}
             fd, tmp_path = tempfile.mkstemp(suffix=".tif")
             os.close(fd)
+            cache_file = _worldpop_cache_file(cache_dir, iso3, dataset.get("popyear"))
+            used_cache = None
             try:
-                size = _clip_raster_to_bbox("/vsicurl/" + file_urls[0], window, tmp_path)
+                if cache_file and os.path.exists(cache_file):
+                    # A whole-country file downloaded earlier: clip from disk, no network at all.
+                    size = _clip_raster_to_bbox(cache_file, window, tmp_path)
+                    used_cache = "reused"
+                else:
+                    try:
+                        size = _clip_raster_to_bbox("/vsicurl/" + file_urls[0], window, tmp_path)
+                    except RuntimeError as remote_error:
+                        # F19: a remote window read can fail or be impractically slow (a strip-organised file, or a server
+                        # that ignores range requests). With the user's consent to the whole-country download, fetch it ONCE,
+                        # keep it, and clip locally -- every later area for this country is then instant.
+                        if not (allow_whole_country and cache_file and _is_transport_failure(remote_error)):
+                            raise
+                        _download_to_file(file_urls[0], cache_file)
+                        size = _clip_raster_to_bbox(cache_file, window, tmp_path)
+                        used_cache = "downloaded"
             except RuntimeError as e:
                 try:
                     os.remove(tmp_path)
@@ -1423,6 +1491,9 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                 "clipped_pixels": [size["width"], size["height"]],
                 "bytes_on_disk": os.path.getsize(tmp_path),
             }
+            if used_cache:
+                result["country_file_cache"] = used_cache
+                result["country_file"] = cache_file
             if size.get("clamped"):
                 result["clip_clamped"] = ("Part of the requested area lies outside the country's raster; only the "
                                           "overlapping part was fetched.")

@@ -470,6 +470,12 @@ def _replace_named_layer(name, new_layer):
     for stale in project.mapLayersByName(name):
         project.removeMapLayer(stale.id())
     project.addMapLayer(new_layer)
+    # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
+    try:
+        from ..results_store import persist_layer
+        persist_layer(new_layer, tool="analysis")
+    except Exception:
+        pass
 
 
 def _style_risk_buffer_layer(layer):

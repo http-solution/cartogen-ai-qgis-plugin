@@ -243,3 +243,60 @@ class TestHealLayerTree(unittest.TestCase):
         from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
         self.assertEqual(heal_layer_tree(project), {"orphans_removed": 0, "duplicates_removed": 0})
         self.assertEqual(len(project.layerTreeRoot().findLayers()), 1)
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestResultsStoreRoundTrip(unittest.TestCase):
+    """F06: an analysis output survives Save + Reopen. The layer keeps its id, name and renderer; an unsaved project is told why."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+
+    def _memory_layer(self):
+        layer = _layer("LineString", "Origin_service_area_lines_0",
+                       ["LINESTRING(0 0, 1 1)", "LINESTRING(1 1, 2 0)"])
+        self.assertEqual(layer.providerType(), "memory")
+        return layer
+
+    def test_unsaved_project_is_not_written_and_says_why(self):
+        from cartogen_ai.core.agent.results_store import persist_layer
+        layer = self._memory_layer()
+        QgsProject.instance().addMapLayer(layer)
+        res = persist_layer(layer)
+        self.assertFalse(res["persisted"])
+        self.assertIn("not been saved", res["reason"])
+        self.assertEqual(layer.providerType(), "memory")
+
+    def test_saved_project_keeps_the_features_after_reopen(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _replace_named_layer
+        proj_path = os.path.join(self.tmp, "p.qgz")
+        QgsProject.instance().write(proj_path)
+        layer = self._memory_layer()
+        layer_id = layer.id()
+        renderer_class = type(layer.renderer()).__name__
+        _replace_named_layer("Origin_service_area_lines_0", layer)
+        self.assertEqual(layer.providerType(), "ogr")
+        self.assertEqual(layer.id(), layer_id)
+        self.assertEqual(type(layer.renderer()).__name__, renderer_class)
+        self.assertEqual(layer.featureCount(), 2)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "data", "20_processed", "cartogen_results.gpkg")))
+        self.assertIn("Cartogen AI", layer.metadata().abstract())
+        QgsProject.instance().write(proj_path)
+        reopened = QgsProject()
+        self.assertTrue(reopened.read(proj_path))
+        again = reopened.mapLayersByName("Origin_service_area_lines_0")[0]
+        self.assertTrue(again.isValid())
+        self.assertEqual(again.featureCount(), 2)
+
+    def test_a_rerun_replaces_the_layer_and_never_locks_the_store(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _replace_named_layer
+        QgsProject.instance().write(os.path.join(self.tmp, "p.qgz"))
+        for _ in range(2):
+            _replace_named_layer("Origin_service_area_lines_0", self._memory_layer())
+        layers = QgsProject.instance().mapLayersByName("Origin_service_area_lines_0")
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0].featureCount(), 2)

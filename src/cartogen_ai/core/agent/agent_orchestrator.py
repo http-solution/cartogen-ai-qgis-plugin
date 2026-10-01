@@ -934,9 +934,15 @@ class CartogenAi:
                     wp_bbox = self._run_on_main_thread(resolve_extent_bbox, filtered_args["extent_layer"])
                 except ValueError as e:
                     return {"error": str(e)}
+            # Where a whole-country file is cached (F19 fallback); asks QgsProject, so it runs on the main thread.
+            try:
+                from .tools.humanitarian_tools import worldpop_cache_dir
+                wp_cache_dir = self._run_on_main_thread(worldpop_cache_dir, None)
+            except Exception:
+                wp_cache_dir = None
             fetch_result = fetch_worldpop_population_network_phase(
                 filtered_args.get("iso3", ""), filtered_args.get("year"), wp_bbox,
-                bool(filtered_args.get("allow_whole_country")),
+                bool(filtered_args.get("allow_whole_country")), wp_cache_dir,
             )
             # No cleanup here, deliberately -- unlike fetch_geoboundaries above,
             # the downloaded file must stay on disk for as long as the raster
