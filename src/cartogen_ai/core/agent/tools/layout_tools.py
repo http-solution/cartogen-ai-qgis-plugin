@@ -449,7 +449,22 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         footer_label.attemptMove(QgsLayoutPoint(footer_x, footer_y, LAYOUT_MM))
         footer_label.attemptResize(QgsLayoutSize(footer_w, footer_h, LAYOUT_MM))
 
+        # Look only (positions/sizes above are untouched): typography, panels, a legend of the VISIBLE layers, the
+        # preparation date and a classification prefix. See layout_style.py for what was wrong before.
+        style_report = {}
+        try:
+            from . import layout_style
+            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM)
+        except Exception as style_error:
+            style_report = {"warnings": [f"layout styling failed: {style_error}"]}
+
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation}
+        if style_report.get("legend_layers") is not None:
+            res_msg["legend_layers"] = style_report.get("legend_layers", [])
+        if style_report.get("classification"):
+            res_msg["classification"] = style_report["classification"]
+        if style_report.get("warnings"):
+            res_msg["style_warnings"] = style_report["warnings"]
         if info_warning:
             res_msg["info_label_warning"] = info_warning
         if grid_warning:

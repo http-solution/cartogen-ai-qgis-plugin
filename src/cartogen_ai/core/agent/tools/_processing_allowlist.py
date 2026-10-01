@@ -59,3 +59,33 @@ ALLOWED_ALGORITHM_IDS = frozenset({
     # styling_tools.py
     "qgis:heatmapkerneldensityestimation",
 })
+
+# 2026-10-01 (visualization/analysis gap analysis): in-memory analysis algorithms QGIS ships that the project's tools
+# did not expose. Each is a single OUTPUT-sink algorithm with no expression, script or file-path parameter, so the tool's
+# "no code runs" property still holds; expression-taking algorithms (extractbyexpression, aggregate, refactorfields) were
+# left OUT on purpose. This is a trust-boundary change: it is flagged in the PR for the owner. Every id is checked against
+# the real QGIS processing registry by tests/test_output_style_live.py, so a wrong id fails CI instead of the model.
+ANALYSIS_EXTENSIONS = frozenset({
+    "native:countpointsinpolygon",    # facilities (or incidents) per admin area: the basic coverage-gap table
+    "native:creategrid",              # rectangle/hex grid for density and exposure aggregation
+    "native:extractbylocation",       # features within/intersecting another layer, as a new layer
+    "native:statisticsbycategories",  # count/sum/mean per category
+    "native:dbscanclustering",        # density clusters of points (incidents, facilities)
+    "native:kmeansclustering",        # k clusters of points (service-region sketches)
+    "native:rastersampling",          # sample a raster (e.g. population) at points
+    "native:zonalstatisticsfb",       # zonal statistics, feature-based (qgis:zonalstatistics is the older form)
+    "native:reclassifybytable",       # reclassify a raster by a value table (suitability classes)
+    "native:cellstatistics",          # per-cell statistics across several rasters
+})
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTENSIONS))
+
+# Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
+# result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
+RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
+    "native:hillshade", "native:slope", "native:aspect",
+    "gdal:rastercalculator", "gdal:cliprasterbymasklayer", "gdal:contraststretch", "gdal:merge", "gdal:pansharpening",
+    "saga:kmeansclassificationforgrid", "saga:supervisedclassificationforgrids",
+    "qgis:idwinterpolation", "qgis:tininterpolation", "qgis:heatmapkerneldensityestimation",
+    "native:reclassifybytable", "native:cellstatistics",
+})
+

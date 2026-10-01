@@ -1560,6 +1560,11 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer = QgsRasterLayer(local_path, layer_name)
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
+        try:
+            from .output_style import style_continuous_raster
+            style_continuous_raster(layer, "population")   # zero cells transparent, heavy-tailed warm ramp
+        except Exception:
+            pass   # styling is cosmetic: never fail the fetch over it
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
         for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
             if fetch_result.get(key) is not None:
