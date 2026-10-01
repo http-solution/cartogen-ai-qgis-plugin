@@ -29,6 +29,7 @@ intersect steps have not been run against a real QGIS session either.
 """
 
 import datetime
+import time
 from .registry import register_tool
 from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
@@ -2085,8 +2086,10 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
     if isinstance(travel_cost, (list, tuple)):
         return {"error": "travel_cost must be a single number here; call again for another threshold."}
 
+    _t0 = time.monotonic()
     service = calculate_service_area(origin_layer, road_network_layer, travel_cost, strategy, default_speed,
                                      speed_field=speed_field, direction_field=direction_field)
+    _t_service = time.monotonic()
     if "error" in service:
         return service
     reached = [_find_layer_by_name(n) for n in service.get("layers_created", []) if "_lines_" in n]
@@ -2099,7 +2102,9 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         feats = [f for f in facilities.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
         if not feats:
             return {"error": f"'{facility_layer}' has no usable point features."}
+        _t_prep = time.monotonic()
         distances = _nearest_distances_m(feats, facilities.crs(), reached)
+        _t_dist = time.monotonic()
         classes = _classify_by_distance(distances, snap)
 
         out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
@@ -2116,7 +2121,14 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         provider.addFeatures(rows)
         out.updateExtents()
         out_name = f"{facility_layer}_access_{travel_cost:g}"
+        _t_built = time.monotonic()
         _replace_named_layer(out_name, out)
+        # rc10 smoke test: this tool took 151 s on 3,369 facilities x ~140k roads, of which only ~5 s was the network
+        # algorithm. Say where the rest goes (counts and milliseconds only) so the next run can be fixed from evidence.
+        log_event("classify_facilities_timing", tag="Tools", facilities=len(feats), reached_layers=len(reached),
+                  service_area_ms=int((_t_service - _t0) * 1000), prepare_ms=int((_t_prep - _t_service) * 1000),
+                  nearest_ms=int((_t_dist - _t_prep) * 1000), build_ms=int((_t_built - _t_dist) * 1000),
+                  replace_ms=int((time.monotonic() - _t_built) * 1000))
         try:
             from . import routing_style
             if not routing_style.style_access_points(out, "access_class"):
