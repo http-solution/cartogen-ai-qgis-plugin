@@ -305,6 +305,28 @@ class TestResultsStoreRoundTrip(unittest.TestCase):
         self.assertEqual(layers[0].featureCount(), 2)
 
 
+    def test_a_rerun_drops_the_older_tables_of_the_same_output_only(self):
+        # rc10 smoke test: each re-run left its old tables behind (4 -> 7 tables, 8 MB -> 14 MB after one repeat).
+        import sqlite3
+        import time
+        from cartogen_ai.core.agent.tools.logistics_tools import _replace_named_layer
+        QgsProject.instance().write(os.path.join(self.tmp, "p.qgz"))
+        _replace_named_layer("Other_output", _layer("Point", "Other_output", ["POINT(0 0)"]))
+        for _ in range(3):
+            _replace_named_layer("Origin_service_area_lines_0", self._memory_layer())
+            time.sleep(1.1)                                        # table names carry a one-second timestamp
+        gpkg = os.path.join(self.tmp, "data", "20_processed", "cartogen_results.gpkg")
+        connection = sqlite3.connect(gpkg)
+        try:
+            tables = [r[0] for r in connection.execute("select table_name from gpkg_contents")]
+        finally:
+            connection.close()
+        mine = [n for n in tables if n.startswith("Origin_service_area_lines_0__")]
+        self.assertEqual(len(mine), 1, tables)
+        self.assertEqual(len([n for n in tables if n.startswith("Other_output__")]), 1, tables)
+        self.assertEqual(QgsProject.instance().mapLayersByName("Origin_service_area_lines_0")[0].featureCount(), 2)
+
+
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestSnapshotLeavesTheLiveProjectAlone(unittest.TestCase):
     """F01: writing the isolation snapshot must not rename the live project, clear its dirty flag, or touch its auxiliary
