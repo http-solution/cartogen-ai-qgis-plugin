@@ -174,6 +174,61 @@ class TestVectorOutputStyles(unittest.TestCase):
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestCsvExportColumns(unittest.TestCase):
+    """rc10 smoke test: the exported facilities CSV had no X/Y columns because _write_vector never applied layer_options."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp()
+
+    def _header(self, path):
+        with open(path, encoding="utf-8-sig") as fh:
+            return fh.readline().strip().split(",")
+
+    def test_a_point_layer_gets_x_and_y_columns_and_a_bom(self):
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        layer = _layer("Point", "Pts_csv", ["POINT(44.1 15.9)", "POINT(44.2 16.0)"], fields="&field=name:string")
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "pts.csv")
+        res = export_to_csv("Pts_csv", output_path=out)
+        self.assertTrue(res.get("success"), res)
+        header = self._header(out)
+        self.assertIn("X", header)
+        self.assertIn("Y", header)
+        with open(out, "rb") as fh:
+            self.assertEqual(fh.read(3), b"\xef\xbb\xbf")
+
+    def test_a_geopackage_backed_point_layer_also_gets_x_and_y(self):
+        # The analysis outputs are re-pointed at the results GeoPackage, so the exported layer is OGR-backed.
+        from qgis.core import QgsVectorFileWriter, QgsCoordinateTransformContext
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        mem = _layer("Point", "Pts_mem", ["POINT(44.1 15.9)"], fields="&field=name:string")
+        gpkg = os.path.join(self.tmp, "r.gpkg")
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "GPKG"
+        opts.layerName = "pts"
+        QgsVectorFileWriter.writeAsVectorFormatV3(mem, gpkg, QgsCoordinateTransformContext(), opts)
+        layer = QgsVectorLayer(f"{gpkg}|layername=pts", "Pts_gpkg", "ogr")
+        self.assertTrue(layer.isValid())
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "pts_gpkg.csv")
+        self.assertTrue(export_to_csv("Pts_gpkg", output_path=out).get("success"))
+        header = self._header(out)
+        self.assertIn("X", header)
+        self.assertIn("Y", header)
+
+    def test_a_polygon_layer_keeps_a_wkt_column(self):
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        layer = _layer("Polygon", "Poly_csv", ["POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"])
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "poly.csv")
+        self.assertTrue(export_to_csv("Poly_csv", output_path=out).get("success"))
+        self.assertIn("WKT", self._header(out))
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestAutoLabels(unittest.TestCase):
     def setUp(self):
         _boot_qgis()
