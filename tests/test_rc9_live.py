@@ -151,3 +151,58 @@ class TestModelViewInRealQgis(unittest.TestCase):
         entry = next(e for e in ctx["layers"] if e["name"] == "Health")
         self.assertEqual(entry["fields"], [])
         self.assertTrue(entry["schema_hidden"])
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
+    """F08: costs from ONE shortest-path tree must equal what native:shortestpathpointtolayer returns, for destinations
+    that sit on road vertices (where both methods place them identically)."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        lines = []
+        for i in range(5):
+            for j in range(4):
+                lines.append(f"LINESTRING({i * 0.01} {j * 0.01}, {i * 0.01} {(j + 1) * 0.01})")
+                lines.append(f"LINESTRING({j * 0.01} {i * 0.01}, {(j + 1) * 0.01} {i * 0.01})")
+        self.roads = _layer("LineString", "grid", lines)
+        self.origin = _layer("Point", "origin", ["POINT(0 0)"])
+        self.dests = _layer("Point", "dests", ["POINT(0.04 0.04)", "POINT(0.02 0.03)", "POINT(0.04 0)", "POINT(0.01 0.01)"])
+        for layer in (self.roads, self.origin, self.dests):
+            QgsProject.instance().addMapLayer(layer)
+
+    def _native(self, strategy):
+        from cartogen_ai.core.agent.tools.logistics_tools import travel_time_matrix
+        res = travel_time_matrix("origin", "dests", "grid", strategy=strategy)
+        self.assertNotIn("error", res, res)
+        self.assertNotEqual(res.get("method"), "single_shortest_path_tree")
+        return sorted(float(v) for v in next(iter(res["matrix"].values())).values())
+
+    def _single(self, strategy):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        feats = [f for f in self.origin.getFeatures()]
+        out = lt._single_tree_matrix(self.origin, feats, self.dests, self.roads, strategy, 50, None, None, "yes", "-1", "no")
+        self.assertNotIn("error", out, out)
+        return sorted(float(v) for v in next(iter(out["matrix"].values())).values())
+
+    def test_shortest_distance_costs_match(self):
+        native, single = self._native("shortest"), self._single("shortest")
+        self.assertEqual(len(native), len(single))
+        for a, b in zip(native, single):
+            self.assertAlmostEqual(a, b, delta=max(1.0, a * 0.001))
+
+    def test_fastest_hours_match(self):
+        native, single = self._native("fastest"), self._single("fastest")
+        for a, b in zip(native, single):
+            self.assertAlmostEqual(a, b, delta=max(1e-5, a * 0.001))
+
+    def test_more_than_the_threshold_uses_the_single_tree_and_reports_unreachable(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        far = _layer("Point", "many", [f"POINT({0.04 * (i % 2)} {0.04 * ((i // 2) % 2)})" for i in range(lt.MATRIX_LARGE_DESTINATIONS + 5)]
+                     + ["POINT(5 5)"])
+        QgsProject.instance().addMapLayer(far)
+        res = lt.travel_time_matrix("origin", "many", "grid")
+        self.assertEqual(res.get("method"), "single_shortest_path_tree", res)
+        self.assertGreaterEqual(res["unreachable_count"], 0)

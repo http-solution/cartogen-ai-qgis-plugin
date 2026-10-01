@@ -1520,6 +1520,108 @@ def _merge_band_hulls(band_hulls, output_name):
     return merged
 
 
+# ---- many-destination travel costs from ONE shortest-path tree (F08) -------------------------------------------
+#
+# native:shortestpathpointtolayer ties every destination into the road graph (QgsVectorLayerDirector.makeGraph compares each
+# road segment with each tied point: segments x destinations, source-read, not profiled) and then runs ONE Dijkstra per origin.
+# For many destinations the same costs come from tying only the ORIGIN into the graph, running that one Dijkstra
+# (QgsGraphAnalyzer.dijkstra returns the incoming-edge tree and the cost to every vertex) and reading each destination's cost
+# from its nearest graph vertex. Edges are the segments between consecutive road vertices, so a destination is placed
+# at most half a segment from where the native algorithm would tie it; the leg from the destination to the road is reported,
+# not added (same convention as classify_facilities_by_access). API as in the PyQGIS developer cookbook, "Network analysis library".
+UNREACHABLE_COST = 1.0e300           # QgsGraphAnalyzer.dijkstra marks an unreachable vertex with DOUBLE_MAX (~1.8e308)
+_KMH_TO_MS = 1000.0 / 3600.0
+
+
+def single_tree_costs_available():
+    """True when the graph classes this path needs are importable (QGIS only)."""
+    if not QGIS_AVAILABLE:
+        return False
+    try:
+        from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy,  # noqa: F401
+                                   QgsNetworkSpeedStrategy, QgsVectorLayerDirector)
+        return True
+    except ImportError:
+        return False
+
+
+def _director_both_directions(director_cls):
+    value = resolve_qgis_enum(director_cls, "Direction", "Both")
+    return value if value is not None else getattr(director_cls, "DirectionBoth", 2)
+
+
+def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field, direction_field,
+                       value_forward, value_backward, value_both, ellipsoid):
+    """Cost from origin_xy to each point in dest_xys, in the network's CRS, from one Dijkstra tree.
+
+    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination's nearest
+    graph vertex is not reachable. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
+    from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy,
+                               QgsNetworkSpeedStrategy, QgsVectorLayerDirector)
+    direction_idx = network.fields().indexOf(direction_field) if direction_field else -1
+    director = QgsVectorLayerDirector(
+        network, direction_idx, value_forward if direction_field else "", value_backward if direction_field else "",
+        value_both if direction_field else "", _director_both_directions(QgsVectorLayerDirector))
+    if strategy == "fastest":
+        speed_idx = network.fields().indexOf(speed_field) if speed_field else -1
+        director.addStrategy(QgsNetworkSpeedStrategy(speed_idx, float(default_speed), _KMH_TO_MS))
+        to_output = 1.0 / 3600.0               # the strategy's cost is seconds; the matrix reports hours, like the native tool
+    else:
+        director.addStrategy(QgsNetworkDistanceStrategy())
+        to_output = 1.0
+    builder = QgsGraphBuilder(network.crs(), True, 0.0, ellipsoid)
+    tied = director.makeGraph(builder, [QgsPointXY(origin_xy)])
+    graph = builder.graph()
+    if not tied or tied[0] is None:
+        raise RuntimeError("the origin could not be tied into the road network")
+    start = graph.findVertex(tied[0])
+    if start < 0:
+        raise RuntimeError("the origin's snapped point is not a vertex of the road graph")
+    _tree, costs = QgsGraphAnalyzer.dijkstra(graph, start, 0)
+
+    index = QgsSpatialIndex()
+    for i in range(graph.vertexCount()):
+        feat = QgsFeature(i)
+        feat.setGeometry(QgsGeometry.fromPointXY(graph.vertex(i).point()))
+        index.addFeature(feat)
+    out = []
+    for xy in dest_xys:
+        nearest = index.nearestNeighbor(QgsPointXY(xy), 1)
+        if not nearest:
+            out.append(None)
+            continue
+        cost = costs[nearest[0]]
+        out.append(None if cost >= UNREACHABLE_COST else cost * to_output)
+    return out
+
+
+
+def _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed, speed_field,
+                        direction_field, value_forward, value_backward, value_both):
+    """{'matrix': {origin: {destination feature id: cost or None}}, 'unreachable_count': n} or {'error': ...}."""
+    dest_feats = [f for f in destinations.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
+    if not dest_feats:
+        return {"error": "The destination layer has no usable point features."}
+    ellipsoid = _network_context().ellipsoid()
+    matrix, unreachable = {}, 0
+    for i, origin_feat in enumerate(origin_features):
+        origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
+        try:
+            origin_xy = _point_xy_in_network_crs(origin_feat.geometry().asPoint(), origins.crs(), network)
+            dest_xys = [_point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network) for f in dest_feats]
+            costs = _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field,
+                                       direction_field, value_forward, value_backward, value_both, ellipsoid)
+        except Exception as e:
+            return {"error": f"travel_time_matrix could not build the shortest-path tree for origin '{origin_id}': {e}"}
+        row = {}
+        for feat, cost in zip(dest_feats, costs):
+            row[str(feat.id())] = cost
+            if cost is None:
+                unreachable += 1
+        matrix[str(origin_id)] = row
+    return {"matrix": matrix, "unreachable_count": unreachable}
+
+
 @register_tool(
     "travel_time_matrix",
     "Calculate road-network distance or travel time from each origin point to each destination "
@@ -1532,7 +1634,7 @@ def _merge_band_hulls(band_hulls, output_name):
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
     "traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
-    "classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.",
+    "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; costs placed at the nearest road vertex) when the QGIS network classes are available.",
     {
         "type": "object",
         "properties": {
@@ -1546,7 +1648,7 @@ def _merge_band_hulls(band_hulls, output_name):
             "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
             "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
             "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
-            "allow_large": {"type": "boolean", "description": "Set true to run a matrix over more than 200 destinations anyway (slow). Prefer classify_facilities_by_access."},
+            "allow_large": {"type": "boolean", "description": "Only needed if the fast single-tree method is unavailable: set true to run a matrix over more than 200 destinations the slow way."},
         },
         "required": ["origins_layer", "destinations_layer", "road_network_layer"],
     },
@@ -1561,7 +1663,9 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": "strategy must be 'shortest' or 'fastest'."}
     origins = _find_layer_by_name(origins_layer)
     destinations = _find_layer_by_name(destinations_layer)
-    if destinations is not None and not allow_large and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
+    use_single_tree = (destinations is not None and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS
+                       and single_tree_costs_available())
+    if destinations is not None and not allow_large and not use_single_tree and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
         # rc7 smoke test F08: 3,369 destinations took ~37 minutes after a ~6 minute graph build. (Not one
         # shortest-path search per destination: QGIS runs a single Dijkstra per origin. The likely cost is tying every
         # destination into the graph -- QgsVectorLayerDirector.makeGraph compares each road segment with each tie point, so
@@ -1597,6 +1701,25 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
 
         strategy_val = 1 if strategy == "fastest" else 0
         matrix = {}
+        if use_single_tree:
+            fast = _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed,
+                                       speed_field, direction_field, value_forward, value_backward, value_both)
+            if "error" in fast:
+                return fast
+            result = {
+                "success": True, "origins_layer": origins_layer, "destinations_layer": destinations_layer,
+                "strategy": strategy, "cost_unit": "hours" if strategy == "fastest" else "meters",
+                "matrix": fast["matrix"], "method": "single_shortest_path_tree",
+                "unreachable_count": fast["unreachable_count"],
+                "note": ("Costs come from one shortest-path tree per origin; each destination takes the cost of its nearest road "
+                         "vertex (at most half a road segment from where QGIS's own point-to-layer tool would tie it). The "
+                         "leg from the destination to the road is not added. Destination keys are feature ids."),
+            }
+            if speed_field:
+                result["speed_field"] = speed_field
+            if direction_field:
+                result["direction_field"] = direction_field
+            return result
         for i, origin_feat in enumerate(origin_features):
             origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
             point = origin_feat.geometry().asPoint()
