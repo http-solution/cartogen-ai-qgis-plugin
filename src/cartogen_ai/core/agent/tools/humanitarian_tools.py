@@ -672,6 +672,15 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         return {"error": f"geoBoundaries API request failed: {e}"}
 
 
+def _auto_label_admin(layer):
+    """Name labels on an admin-boundary layer when it is small enough to read (a few dozen areas, not thousands)."""
+    try:
+        from .output_style import style_auto_labels
+        style_auto_labels(layer)
+    except Exception:
+        pass
+
+
 def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
     """Main-thread phase: builds the QgsVectorLayer from the already-downloaded
     local file and adds it to the project. Local disk I/O only -- fast, so it's
@@ -687,6 +696,7 @@ def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
+        _auto_label_admin(layer)
         return {"success": True, "layer_name": layer_name, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
 
     return {"success": True, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
@@ -837,6 +847,7 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
+        _auto_label_admin(layer)
         return {
             "success": True,
             "layer_name": layer_name,

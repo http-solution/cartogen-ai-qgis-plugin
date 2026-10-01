@@ -144,3 +144,59 @@ class TestClassificationAndStamps(unittest.TestCase):
 if __name__ == "__main__":
     import unittest.mock  # noqa: F401
     unittest.main()
+
+
+class TestUnitsAndAutoLabels(unittest.TestCase):
+    def test_units_come_from_the_algorithm_first_then_the_kind(self):
+        self.assertEqual(os_.raster_unit_for("surface", "native:slope"), "Slope (degrees)")
+        self.assertEqual(os_.raster_unit_for("population"), "People per cell")
+        self.assertEqual(os_.raster_unit_for("nonsense"), "Value")
+
+    def test_every_algorithm_raster_kind_has_a_unit(self):
+        for short in os_.ALGORITHM_RASTER_KINDS:
+            self.assertIn(short, os_.ALGORITHM_RASTER_UNITS, short)
+
+    def test_label_field_prefers_a_readable_name_and_ignores_codes(self):
+        self.assertEqual(os_.choose_label_field(["ID", "ADM1_PCODE", "Name", "name_en"]), "Name")
+        self.assertEqual(os_.choose_label_field(["fid", "admin1Name_en", "admin1Pcode"]), "admin1Name_en")
+        self.assertIsNone(os_.choose_label_field(["fid", "pcode", "value"]))
+        self.assertIsNone(os_.choose_label_field([]))
+
+    def test_only_small_named_layers_are_labelled(self):
+        self.assertEqual(os_.should_auto_label(12, ["name"]), (True, "name"))
+        self.assertEqual(os_.should_auto_label(os_.AUTO_LABEL_MAX_FEATURES, ["name"])[0], True)
+        self.assertEqual(os_.should_auto_label(os_.AUTO_LABEL_MAX_FEATURES + 1, ["name"]), (False, None))
+        self.assertEqual(os_.should_auto_label(5, ["value"]), (False, None))
+        self.assertEqual(os_.should_auto_label(0, ["name"]), (False, None))
+        self.assertEqual(os_.should_auto_label("x", ["name"]), (False, None))
+
+
+class TestAccessMapTemplate(unittest.TestCase):
+    NAMES = {"a": "Clinics_roads_by_cost_0", "b": "Clinics_access_30", "c": "Districts", "d": "Clinics_reachable_area"}
+
+    def test_ranking_puts_the_reach_polygon_first_and_other_layers_last(self):
+        self.assertEqual(ls.order_for_access_map(["a", "b", "c", "d"], self.NAMES), ["d", "b", "a", "c"])
+
+    def test_ranking_is_stable_for_layers_of_equal_rank(self):
+        self.assertEqual(ls.order_for_access_map(["c", "x"], {"c": "A", "x": "B"}), ["c", "x"])
+
+    def test_reading_guide_describes_only_the_layers_present(self):
+        guide = ls.access_reading_guide(["Clinics_access_30", "Districts"])
+        self.assertIn("red", guide)
+        self.assertNotIn("Road colour", guide)
+        self.assertEqual(ls.access_reading_guide(["Districts"]), "")
+
+    def test_zoom_layer_is_the_best_ranked_access_layer(self):
+        self.assertEqual(ls.access_zoom_layer_name(["Districts", "Clinics_access_30", "Clinics_reachable_area"]),
+                         "Clinics_reachable_area")
+        self.assertIsNone(ls.access_zoom_layer_name(["Districts"]))
+
+
+class TestMastheadColour(unittest.TestCase):
+    def test_default_for_empty_or_invalid(self):
+        for bad in ("", None, "red", "#12345", "#gggggg"):
+            self.assertEqual(ls.resolve_masthead(bad), (ls.PALETTE["masthead_bg"], ls.PALETTE["masthead_fg"]), bad)
+
+    def test_a_dark_colour_gets_white_text_and_a_light_one_dark_text(self):
+        self.assertEqual(ls.resolve_masthead("#003366"), ("#003366", "#ffffff"))
+        self.assertEqual(ls.resolve_masthead("#FFEEAA"), ("#ffeeaa", "#1f2d3a"))

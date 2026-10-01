@@ -32,9 +32,9 @@ say whether it is closed in PR (this branch, `claude/viz-gap-analysis`), how it 
 | V6 | **Print layout typography and panels** | no `QgsTextFormat`, no frames, no backgrounds anywhere in `layout_tools.py`; the title was a default-font label | **Closed**: 20 pt masthead title (light on dark slate), panel text 9 pt, info 8 pt, legend title/item sizes, footer 7 pt italic, thin frames and a light background on the legend and body panels, a frame on the map and inset. Live-tested (size, background, frames). **Not looked at on a rendered page by a person.** |
 | V7 | **No preparation date or classification on a layout** | none in the code | **Closed**: "Prepared YYYY-MM-DD" in the info row; footer gets `CLASSIFICATION: SENSITIVE/RESTRICTED -- ` when any visible layer carries that tag. Live-tested. |
 | V8 | Routing/reach results in defaults | see PR #109 | Closed there (cost-graded roads, grouped reach polygons, red unreachable facilities). |
-| V9 | Raster results with no legend entry beyond the QGIS default | ramps now carry numeric labels | Partly: labels are plain numbers, not units ("people per cell"). **Open.** |
-| V10 | Labels (facility names, admin names) are not applied automatically | `apply_labels` exists, no tool calls it | **Open.** A rule like "label points when fewer than N features and a name field exists" needs a threshold decision. |
-| V11 | Unreachable-facility and reach styles are not in the print layout flow | the layout shows whatever the canvas shows | Works through the legend fix; no dedicated "access map" layout template. **Open.** |
+| V9 | Raster legends are bare numbers | ramps carried numeric labels only | **Closed (live test written, first run pending)**: the colour-ramp legend is continuous and its title carries the unit ("People per cell", "Slope (degrees)", ...) via `QgsColorRampLegendNodeSettings`. |
+| V10 | Labels (facility names, admin names) are not applied automatically | `apply_labels` exists, no tool calls it | **Closed (first CI run pending)**: layers of at most 60 features with a readable name field (`name`, `name_en`, `admin1Name_en`, ...) are labelled with `apply_labels`' halo style: loaded facility tables, admin boundaries, access-classified facilities, point results. Larger layers stay unlabelled. The 60 is my choice (`AUTO_LABEL_MAX_FEATURES`). |
+| V11 | No access-map layout | the layout shows whatever the canvas shows | **Closed (first CI run pending)**: `create_print_layout(template="access_map")` fits the map to the reach layer when no zoom layer is given, lists reach polygon, access points and cost-graded roads first in the legend, and adds a "how to read this map" body text for the layers present when none is given. |
 | V12 | The graded roads are straight segments between road vertices | `_cost_graded_roads` | Matches the road geometry (edges are consecutive vertices); only a rendering choice if smoothing is wanted. Not planned. |
 
 ### Analysis (what QGIS offers that the tools did not expose)
@@ -52,7 +52,7 @@ allowlist, **each checked against the real QGIS 4.2.2 registry in CI** (a wrong 
 | `native:zonalstatisticsfb` | zonal statistics (current form of the old `qgis:zonalstatistics`) |
 | `native:reclassifybytable`, `native:cellstatistics` | suitability classes, multi-raster statistics |
 
-**Deliberately not added:** `extractbyexpression`, `aggregate`, `refactorfields`, `fieldcalculator`. They take QGIS expressions;
+**Owner decision (2026-10-01): the ten additions stay.** **Deliberately not added:** `extractbyexpression`, `aggregate`, `refactorfields`, `fieldcalculator`. They take QGIS expressions;
 the tool's safety argument is that it never evaluates code. This is a trust-boundary change and is **flagged in the PR for the
 owner**.
 
@@ -76,6 +76,5 @@ for moving between raster and vector results, `native:nearestneighbouranalysis` 
 ## 4. Still open (honest list)
 - No rendered inspection: everything above is verified by property tests (renderer type, ramp stops, text size, frames, legend
   contents), not by looking at the exported page. The PNG export is only checked to exist and be non-trivial in size.
-- Raster legends have no units (V9); labels are not automatic (V10); no access-map layout template (V11).
-- The palette is mine (slate masthead, YlOrRd-style population ramp, viridis-style surface); it should be judged on your basemap.
+- The palette is mine (slate masthead, YlOrRd-style population ramp, viridis-style surface); it should be judged on your basemap. I cannot render a page here, so what changed is that the masthead colour is now a setting (Settings > Limits > "Print layout title colour", `#rrggbb`, light colours get dark text); the raster/reach colours are still code constants.
 - The processing-allowlist extension needs your decision (section 2).

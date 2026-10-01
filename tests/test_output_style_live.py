@@ -101,6 +101,18 @@ class TestRasterStyles(unittest.TestCase):
         self.assertEqual(items[-1].color.alpha(), 255)
         self.assertAlmostEqual(items[-1].value, 900.0, places=1)
 
+    def test_the_legend_title_carries_the_unit(self):
+        from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
+        arr = np.zeros((20, 20), dtype="float32")
+        arr[5:8, 5:8] = 400.0
+        layer = self._raster("pop_unit", arr)
+        self.assertTrue(style_continuous_raster(layer, "population"))
+        shader = layer.renderer().shader().rasterShaderFunction()
+        self.assertEqual(shader.legendSettings().title(), "People per cell")
+        self.assertTrue(shader.legendSettings().useContinuousLegend())
+        self.assertTrue(style_continuous_raster(layer, "surface", unit="Slope (degrees)"))
+        self.assertEqual(layer.renderer().shader().rasterShaderFunction().legendSettings().title(), "Slope (degrees)")
+
     def test_a_surface_is_opaque_from_min_to_max(self):
         from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
         arr = np.linspace(10, 50, 400, dtype="float32").reshape(20, 20)
@@ -159,6 +171,37 @@ class TestVectorOutputStyles(unittest.TestCase):
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestAutoLabels(unittest.TestCase):
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _named(self, name, count, field="name"):
+        layer = _layer("Point", name, [f"POINT({i} 1)" for i in range(count)], fields=f"&field={field}:string")
+        QgsProject.instance().addMapLayer(layer)
+        return layer
+
+    def test_a_small_named_layer_is_labelled_with_its_name_field(self):
+        from cartogen_ai.core.agent.tools.output_style import style_auto_labels
+        layer = self._named("Clinics_lbl", 5)
+        self.assertEqual(style_auto_labels(layer), "name")
+        self.assertTrue(layer.labelsEnabled())
+        self.assertEqual(layer.labeling().settings().fieldName, "name")
+
+    def test_a_large_layer_is_left_unlabelled(self):
+        from cartogen_ai.core.agent.tools.output_style import style_auto_labels
+        layer = self._named("Many_lbl", 120)
+        self.assertIsNone(style_auto_labels(layer))
+        self.assertFalse(layer.labelsEnabled())
+
+    def test_a_layer_without_a_name_field_is_left_unlabelled(self):
+        from cartogen_ai.core.agent.tools.output_style import style_auto_labels
+        layer = self._named("Codes_lbl", 5, field="pcode")
+        self.assertIsNone(style_auto_labels(layer))
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestPrintLayoutStyling(unittest.TestCase):
     def setUp(self):
         _boot_qgis()
@@ -200,6 +243,28 @@ class TestPrintLayoutStyling(unittest.TestCase):
         self.assertTrue(layout.itemById("MAP_MAIN").frameEnabled())
         self.assertTrue(layout.itemById("LEGEND").frameEnabled())
         self.assertTrue(layout.itemById("BODY_TEXT").frameEnabled())
+
+    def test_access_map_template_fits_the_reach_layer_and_orders_the_legend(self):
+        project = QgsProject.instance()
+        reach = _layer("Polygon", "Clinics_reachable_area", ["POLYGON((44 15, 44.5 15, 44.5 15.5, 44 15.5, 44 15))"])
+        access = _layer("Point", "Clinics_access_30", ["POINT(44.1 15.1)"])
+        project.addMapLayer(access)
+        project.addMapLayer(reach)
+        res, layout, _ = self._layout(template="access_map")
+        self.assertEqual(res["template"], "access_map")
+        self.assertEqual(res["legend_layers"][:2], ["Clinics_reachable_area", "Clinics_access_30"])
+        self.assertIn("reachable area", layout.itemById("BODY_TEXT").text())
+
+    def test_the_masthead_colour_comes_from_settings(self):
+        from qgis.core import QgsSettings
+        from cartogen_ai.infrastructure.settings_keys import SETTINGS_LAYOUT_MASTHEAD_COLOR as KEY
+        settings = QgsSettings()
+        settings.setValue(KEY, "#ffeeaa")
+        self.addCleanup(settings.remove, KEY)
+        _, layout, _ = self._layout()
+        title = layout.itemById("TITLE")
+        self.assertEqual(title.backgroundColor().name(), "#ffeeaa")
+        self.assertEqual(title.textFormat().color().name(), "#1f2d3a")      # light background -> dark text
 
     def test_the_info_row_carries_the_preparation_date(self):
         _, layout, _ = self._layout()

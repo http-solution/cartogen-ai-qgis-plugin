@@ -985,6 +985,8 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
                 from .output_style import style_points_default
                 if layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
                     style_points_default(layer)   # one consistent point look instead of a random default colour
+                    from .output_style import style_auto_labels
+                    style_auto_labels(layer)      # facility names when the layer is small enough to read
             except Exception:
                 pass
         result = {

@@ -61,6 +61,56 @@ def legend_layer_ids(entries):
     return keep
 
 
+# --- access-map template: how the layers a service-area / access analysis leaves behind are ordered and explained.
+ACCESS_PARTS = (            # (name fragment, rank, plain-language reading-guide line)
+    ("_reachable_area", 0, "Shaded area: the reachable area within the chosen travel cost."),
+    ("_reachable_by_", 1, "Admin areas: the area reached by the facilities."),
+    ("_access_", 2, "Points: facilities within reach (green) and beyond reach (red)."),
+    ("_roads_by_cost_", 3, "Road colour: travel cost from the origin, near (dark) to far (warm)."),
+)
+
+
+def resolve_masthead(hex_value):
+    """(background, text) colours for the masthead. Pure. An invalid/empty value gives the default palette; a light
+    background gets dark text (relative luminance, WCAG weights) so the title stays readable."""
+    import re
+    text = str(hex_value or "").strip()
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", text):
+        return PALETTE["masthead_bg"], PALETTE["masthead_fg"]
+    r, g, b = (int(text[i:i + 2], 16) for i in (1, 3, 5))
+    luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+    return text.lower(), ("#1f2d3a" if luminance > 0.6 else "#ffffff")
+
+
+def access_rank(name):
+    """Legend/zoom rank of an access-analysis layer name (lower = more important); 9 for any other layer. Pure."""
+    text = str(name or "")
+    for fragment, rank, _ in ACCESS_PARTS:
+        if fragment in text:
+            return rank
+    return 9
+
+
+def order_for_access_map(ids, names_by_id):
+    """`ids` re-ordered so reach polygons come first, then access points, then roads, then everything else; stable. Pure."""
+    return sorted(ids, key=lambda i: access_rank(names_by_id.get(i)))
+
+
+def access_reading_guide(names):
+    """'How to read this map' lines for the access layers actually present, or '' when there are none. Pure."""
+    lines = []
+    for fragment, _rank, text in ACCESS_PARTS:
+        if any(fragment in str(n or "") for n in names) and text not in lines:
+            lines.append(text)
+    return "\n".join(lines)
+
+
+def access_zoom_layer_name(names):
+    """The layer the map should fit when none was named: the best-ranked access layer, else None. Pure."""
+    ranked = [(access_rank(n), n) for n in names if access_rank(n) < 9]
+    return min(ranked, key=lambda t: t[0])[1] if ranked else None
+
+
 def highest_protected_level(levels):
     """The most restrictive of RESTRICTED/SENSITIVE among `levels`, or None. Pure."""
     best = None
@@ -89,6 +139,15 @@ def info_text(base, today=None):
 
 
 # ----------------------------------------------------------- QGIS half --
+
+def _configured_masthead():
+    try:
+        from qgis.core import QgsSettings
+        from ....infrastructure.settings_keys import SETTINGS_LAYOUT_MASTHEAD_COLOR
+        return QgsSettings().value(SETTINGS_LAYOUT_MASTHEAD_COLOR, "")
+    except Exception:
+        return ""
+
 
 def _points_unit():
     unit = getattr(getattr(Qgis, "RenderUnit", None), "Points", None)
@@ -134,7 +193,7 @@ def visible_layer_entries(project=None):
     return out
 
 
-def apply_layout_style(layout, layout_mm, project=None, today=None):
+def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard"):
     """Styles the items create_print_layout made. Returns {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
     warnings = []
     if not QGIS_AVAILABLE:
@@ -142,6 +201,8 @@ def apply_layout_style(layout, layout_mm, project=None, today=None):
     project = project or QgsProject.instance()
     entries = visible_layer_entries(project)
     ids = legend_layer_ids(entries)
+    if template == "access_map":
+        ids = order_for_access_map(ids, {e["id"]: e["name"] for e in entries})
     by_id = {e["id"]: e["layer"] for e in entries}
 
     levels = []
@@ -164,9 +225,10 @@ def apply_layout_style(layout, layout_mm, project=None, today=None):
 
     def title():
         label = item("TITLE")
-        label.setTextFormat(text_format(TYPE_SCALE["title"], PALETTE["masthead_fg"], bold=True))
+        bg_hex, fg_hex = resolve_masthead(_configured_masthead())
+        label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
         label.setBackgroundEnabled(True)
-        label.setBackgroundColor(QColor(PALETTE["masthead_bg"]))
+        label.setBackgroundColor(QColor(bg_hex))
         label.setMarginX(3.0)
         label.setMarginY(1.0)
         label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
