@@ -58,7 +58,10 @@ ALGORITHM_RASTER_KINDS = {
 # Field-name candidates for an automatic label, best first (matched case-insensitively). Only names a person would read.
 LABEL_FIELD_CANDIDATES = ("name", "name_en", "facility_name", "facility", "site_name", "adm3_en", "adm2_en", "adm1_en",
                           "admin3name_en", "admin2name_en", "admin1name_en", "shapename", "name_1", "name_2", "title",
-                          "label", "name_ar")
+                          "label", "name_ar",
+                          # OCHA COD-AB layers from HDX name their areas adm1_name / adm2_name / ... (rc11 smoke test S5: the
+                          # governorates were not labelled because none of the names above match these).
+                          "adm1_name", "adm2_name", "adm3_name", "adm4_name", "adm0_name")
 AUTO_LABEL_MAX_FEATURES = 60          # above this a label layer is a cloud; the user can ask for labels explicitly
 POINT_STYLE = {"color": "#1d6fa5", "outline": "#ffffff", "size": "2.6"}
 

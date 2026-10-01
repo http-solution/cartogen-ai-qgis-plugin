@@ -156,6 +156,8 @@ class TestUnitsAndAutoLabels(unittest.TestCase):
         self.assertEqual(os_.choose_label_field(["ID", "ADM1_PCODE", "Name", "name_en"]), "Name")
         self.assertEqual(os_.choose_label_field(["fid", "admin1Name_en", "admin1Pcode"]), "admin1Name_en")
         self.assertIsNone(os_.choose_label_field(["fid", "pcode", "value"]))
+        # rc11 smoke test S5: OCHA COD-AB layers from HDX
+        self.assertEqual(os_.choose_label_field(["adm1_name", "adm1_pcode", "adm0_name"]), "adm1_name")
         self.assertIsNone(os_.choose_label_field([]))
 
     def test_only_small_named_layers_are_labelled(self):
