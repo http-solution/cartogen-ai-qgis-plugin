@@ -300,3 +300,125 @@ class TestResultsStoreRoundTrip(unittest.TestCase):
         layers = QgsProject.instance().mapLayersByName("Origin_service_area_lines_0")
         self.assertEqual(len(layers), 1)
         self.assertEqual(layers[0].featureCount(), 2)
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestSnapshotLeavesTheLiveProjectAlone(unittest.TestCase):
+    """F01: writing the isolation snapshot must not rename the live project, clear its dirty flag, or touch its auxiliary
+    storage (manually moved labels). The first CI run also answers the open question about auxiliary storage."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+
+    def test_a_saved_project_keeps_its_name_and_dirty_flag(self):
+        from cartogen_ai.core.agent.services.script_isolation import _write_snapshot_of_live_project
+        project = QgsProject.instance()
+        path = os.path.join(self.tmp, "mine.qgz")
+        project.addMapLayer(_layer("Point", "A", ["POINT(0 0)"]))
+        project.write(path)
+        project.setDirty(True)
+        home_before = project.homePath()
+        snapshot = os.path.join(self.tmp, "snap", "live_snapshot.qgz")
+        os.makedirs(os.path.dirname(snapshot))
+        _write_snapshot_of_live_project(project, snapshot)
+        self.assertTrue(os.path.exists(snapshot))
+        self.assertEqual(os.path.normpath(project.fileName()), os.path.normpath(path))
+        self.assertEqual(os.path.normpath(project.homePath()), os.path.normpath(home_before))
+        self.assertTrue(project.isDirty())
+
+    def test_an_unsaved_project_stays_unsaved(self):
+        from cartogen_ai.core.agent.services.script_isolation import _write_snapshot_of_live_project
+        project = QgsProject.instance()
+        project.addMapLayer(_layer("Point", "A", ["POINT(0 0)"]))
+        snapshot = os.path.join(self.tmp, "live_snapshot.qgz")
+        _write_snapshot_of_live_project(project, snapshot)
+        self.assertEqual(project.fileName(), "")
+
+    def test_the_auxiliary_storage_is_not_re_pointed_at_the_snapshot(self):
+        from cartogen_ai.core.agent.services.script_isolation import _write_snapshot_of_live_project
+        project = QgsProject.instance()
+        path = os.path.join(self.tmp, "aux.qgz")
+        project.addMapLayer(_layer("Point", "A", ["POINT(0 0)"]))
+        project.write(path)
+        aux = project.auxiliaryStorage()
+        if aux is None or not hasattr(aux, "fileName"):
+            self.skipTest("this QGIS exposes no auxiliary-storage file name")
+        before = aux.fileName()
+        _write_snapshot_of_live_project(project, os.path.join(self.tmp, "live_snapshot.qgz"))
+        after = project.auxiliaryStorage().fileName()
+        self.assertEqual(before, after, "the snapshot write re-pointed the live project's auxiliary storage")
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestReachGuardsOnRealLayers(unittest.TestCase):
+    """F05: the degenerate-network guard and the speed-field vetting behave on real QgsVectorLayers."""
+
+    def setUp(self):
+        _boot_qgis()
+
+    def test_a_zero_length_line_is_degenerate_and_a_real_one_is_not(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _reachable_network_is_degenerate
+        self.assertTrue(_reachable_network_is_degenerate(_layer("LineString", "z", ["LINESTRING(44 15.9, 44 15.9)"])))
+        self.assertTrue(_reachable_network_is_degenerate(_layer("LineString", "e", [])))
+        self.assertFalse(_reachable_network_is_degenerate(_layer("LineString", "r", ["LINESTRING(44 15.9, 44.1 16)"])))
+
+    def test_a_99_percent_empty_speed_field_is_dropped_with_a_note(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _vet_speed_field
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326&field=maxspeed:integer", "roads", "memory")
+        feats = []
+        for i in range(200):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromWkt(f"LINESTRING({i} 0, {i + 1} 0)"))
+            f.setAttribute("maxspeed", 60 if i == 0 else 0)
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        used, note = _vet_speed_field(layer, "maxspeed", 50)
+        self.assertIsNone(used)
+        self.assertIn("ignored", note)
+
+    def test_a_well_populated_speed_field_is_kept(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _vet_speed_field
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326&field=maxspeed:integer", "roads", "memory")
+        feats = []
+        for i in range(20):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromWkt(f"LINESTRING({i} 0, {i + 1} 0)"))
+            f.setAttribute("maxspeed", 50)
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        self.assertEqual(_vet_speed_field(layer, "maxspeed", 50), ("maxspeed", None))
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestHighlightIsRemovedFromTheCanvasScene(unittest.TestCase):
+    """F11: an expired highlight must leave no QgsHighlight item in the canvas scene."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def test_no_highlight_item_remains_after_the_timer_fires(self):
+        from unittest.mock import MagicMock
+        from qgis.gui import QgsHighlight, QgsMapCanvas
+        from qgis.PyQt.QtCore import QCoreApplication, QEventLoop, QTimer
+        from cartogen_ai.core.ui.canvas_highlight import flash_layer_extent
+        layer = _layer("Polygon", "Area", ["POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"])
+        QgsProject.instance().addMapLayer(layer)
+        canvas = QgsMapCanvas()
+        canvas.setLayers([layer])
+        canvas.setExtent(layer.extent())
+        iface = MagicMock()
+        iface.mapCanvas.return_value = canvas
+        highlight = flash_layer_extent(iface, layer, duration_ms=50)
+        self.assertIsNotNone(highlight)
+        self.assertEqual(len([i for i in canvas.scene().items() if isinstance(i, QgsHighlight)]), 1)
+        loop = QEventLoop()
+        QTimer.singleShot(400, loop.quit)
+        loop.exec()
+        QCoreApplication.processEvents()
+        self.assertEqual([i for i in canvas.scene().items() if isinstance(i, QgsHighlight)], [])
