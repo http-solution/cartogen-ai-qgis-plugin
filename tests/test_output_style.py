@@ -147,14 +147,10 @@ if __name__ == "__main__":
 
 
 class TestUnitsAndAutoLabels(unittest.TestCase):
-    def test_units_come_from_the_algorithm_first_then_the_kind(self):
-        self.assertEqual(os_.raster_unit_for("surface", "native:slope"), "Slope (degrees)")
-        self.assertEqual(os_.raster_unit_for("population"), "People per cell")
-        self.assertEqual(os_.raster_unit_for("nonsense"), "Value")
-
-    def test_every_algorithm_raster_kind_has_a_unit(self):
-        for short in os_.ALGORITHM_RASTER_KINDS:
-            self.assertIn(short, os_.ALGORITHM_RASTER_UNITS, short)
+    def test_legend_spec_comes_from_the_algorithm_first_then_the_kind(self):
+        self.assertEqual(os_.legend_spec_for("surface", "native:slope"), {"suffix": " \u00b0"})
+        self.assertEqual(os_.legend_spec_for("population"), {"suffix": " people/cell"})
+        self.assertEqual(os_.legend_spec_for("nonsense")["max"], "high")
 
     def test_label_field_prefers_a_readable_name_and_ignores_codes(self):
         self.assertEqual(os_.choose_label_field(["ID", "ADM1_PCODE", "Name", "name_en"]), "Name")

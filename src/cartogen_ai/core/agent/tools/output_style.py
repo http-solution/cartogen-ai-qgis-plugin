@@ -55,16 +55,6 @@ ALGORITHM_RASTER_KINDS = {
     "tininterpolation": "surface", "cellstatistics": "surface", "reclassifybytable": "surface",
     "heatmapkerneldensityestimation": "density",
 }
-# What a raster's values MEAN, shown as the legend title (QgsColorRampLegendNodeSettings) so the numbers carry a unit.
-# Population is WorldPop's "people per cell" (the cell size depends on the product the user fetched, so it is not stated).
-RASTER_UNITS = {"population": "People per cell", "density": "Relative density (0 = none, max = highest)",
-                "surface": "Value"}
-ALGORITHM_RASTER_UNITS = {"slope": "Slope (degrees)", "aspect": "Aspect (degrees from north)",
-                          "heatmapkerneldensityestimation": "Kernel density (relative)",
-                          "idwinterpolation": "Interpolated value", "tininterpolation": "Interpolated value",
-                          "cellstatistics": "Cell statistic", "reclassifybytable": "Reclassified value",
-                          "rastercalculator": "Calculated value"}
-
 # Field-name candidates for an automatic label, best first (matched case-insensitively). Only names a person would read.
 LABEL_FIELD_CANDIDATES = ("name", "name_en", "facility_name", "facility", "site_name", "adm3_en", "adm2_en", "adm1_en",
                           "admin3name_en", "admin2name_en", "admin1name_en", "shapename", "name_1", "name_2", "title",
@@ -107,10 +97,17 @@ def _label(value):
     return f"{v:.3g}"
 
 
-def raster_unit_for(kind, alg_id=None):
-    """Legend title for a raster: the algorithm's own meaning when known, else the kind's. Pure."""
+# What the colour-bar legend shows beside its numbers: a unit suffix where the values have one, otherwise words for the
+# two ends of a relative scale.
+RASTER_LEGEND = {"population": {"suffix": " people/cell"}, "density": {"min": "low", "max": "high"},
+                 "surface": {"min": "low", "max": "high"}}
+ALGORITHM_RASTER_LEGEND = {"slope": {"suffix": " \u00b0"}, "aspect": {"suffix": " \u00b0"}}
+
+
+def legend_spec_for(kind, alg_id=None):
+    """{'suffix'|'min'|'max': text} for a raster's colour-bar legend. Pure."""
     short = str(alg_id or "").split(":")[-1]
-    return ALGORITHM_RASTER_UNITS.get(short) or RASTER_UNITS.get(kind) or RASTER_UNITS["surface"]
+    return ALGORITHM_RASTER_LEGEND.get(short) or RASTER_LEGEND.get(kind) or RASTER_LEGEND["surface"]
 
 
 def choose_label_field(field_names):
@@ -148,7 +145,7 @@ def raster_kind_for(alg_id):
 
 # ----------------------------------------------------------- QGIS half --
 
-def style_continuous_raster(layer, kind="surface", band=1, unit=None):
+def style_continuous_raster(layer, kind="surface", band=1, alg_id=None):
     """Pseudocolour renderer from RASTER_RAMPS[kind] over the band's own min/max. Returns True when applied."""
     if not QGIS_AVAILABLE or layer is None:
         return False
@@ -163,7 +160,7 @@ def style_continuous_raster(layer, kind="surface", band=1, unit=None):
     shader.setColorRampType(_RAMP_INTERPOLATED)
     shader.setColorRampItemList([
         _COLOR_RAMP_SHADER_ITEM(value, QColor(*rgba), label) for value, rgba, label in stops])
-    _set_unit_legend(shader, unit or raster_unit_for(kind))
+    _set_unit_legend(shader, legend_spec_for(kind, alg_id))
     raster_shader = QgsRasterShader()
     raster_shader.setRasterShaderFunction(shader)
     layer.setRenderer(QgsSingleBandPseudoColorRenderer(provider, band, raster_shader))
@@ -171,15 +168,22 @@ def style_continuous_raster(layer, kind="surface", band=1, unit=None):
     return True
 
 
-def _set_unit_legend(shader, unit_text):
-    """Continuous colour-bar legend whose title carries the unit (QgsColorRampLegendNodeSettings, QGIS >= 3.18).
+def _set_unit_legend(shader, spec):
+    """Continuous colour-bar legend whose numbers carry the unit (QgsColorRampLegendNodeSettings, QGIS >= 3.18).
 
-    Without it the legend is a column of bare numbers. Best-effort: an older/odd build keeps the plain labelled entries."""
+    The class has no title setter (the first CI run said so: the earlier setTitle call raised and the swallowed error
+    meant NO unit was applied), so the unit goes in the label suffix, or in min/max words for a relative scale.
+    Best-effort: an older/odd build keeps the plain labelled entries. Returns True when applied."""
     try:
         from qgis.core import QgsColorRampLegendNodeSettings
         legend = QgsColorRampLegendNodeSettings()
         legend.setUseContinuousLegend(True)
-        legend.setTitle(unit_text)
+        if spec.get("suffix"):
+            legend.setSuffix(spec["suffix"])
+        if spec.get("min"):
+            legend.setMinimumLabel(spec["min"])
+        if spec.get("max"):
+            legend.setMaximumLabel(spec["max"])
         shader.setLegendSettings(legend)
         return True
     except Exception:
@@ -225,7 +229,7 @@ def style_algorithm_output(layer, alg_id):
         return None
     if hasattr(layer, "bandCount"):                       # raster
         kind = raster_kind_for(alg_id)
-        return f"raster:{kind}" if kind and style_continuous_raster(layer, kind, unit=raster_unit_for(kind, alg_id)) else None
+        return f"raster:{kind}" if kind and style_continuous_raster(layer, kind, alg_id=alg_id) else None
     role = vector_role_for(alg_id)
     try:
         from ..map_intelligence import process_map_output

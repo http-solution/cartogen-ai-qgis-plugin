@@ -101,17 +101,20 @@ class TestRasterStyles(unittest.TestCase):
         self.assertEqual(items[-1].color.alpha(), 255)
         self.assertAlmostEqual(items[-1].value, 900.0, places=1)
 
-    def test_the_legend_title_carries_the_unit(self):
+    def test_the_legend_numbers_carry_the_unit(self):
         from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
         arr = np.zeros((20, 20), dtype="float32")
         arr[5:8, 5:8] = 400.0
         layer = self._raster("pop_unit", arr)
         self.assertTrue(style_continuous_raster(layer, "population"))
-        shader = layer.renderer().shader().rasterShaderFunction()
-        self.assertEqual(shader.legendSettings().title(), "People per cell")
-        self.assertTrue(shader.legendSettings().useContinuousLegend())
-        self.assertTrue(style_continuous_raster(layer, "surface", unit="Slope (degrees)"))
-        self.assertEqual(layer.renderer().shader().rasterShaderFunction().legendSettings().title(), "Slope (degrees)")
+        legend = layer.renderer().shader().rasterShaderFunction().legendSettings()
+        self.assertTrue(legend.useContinuousLegend())
+        self.assertEqual(legend.suffix(), " people/cell")
+        self.assertTrue(style_continuous_raster(layer, "surface", alg_id="native:slope"))
+        self.assertEqual(layer.renderer().shader().rasterShaderFunction().legendSettings().suffix(), " \u00b0")
+        self.assertTrue(style_continuous_raster(layer, "density"))
+        density = layer.renderer().shader().rasterShaderFunction().legendSettings()
+        self.assertEqual((density.minimumLabel(), density.maximumLabel()), ("low", "high"))
 
     def test_a_surface_is_opaque_from_min_to_max(self):
         from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
