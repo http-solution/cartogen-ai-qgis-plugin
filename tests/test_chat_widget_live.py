@@ -1331,7 +1331,12 @@ class TestLocalDataOfferLive(unittest.TestCase):
     def test_online_continues_to_the_preview_and_is_not_asked_again(self):
         from unittest.mock import patch
         ct, agent = self._dock()
+        # resolve_region is patched like its siblings: unpatched it does a real region-index lookup, which in CI can
+        # outlast the 8 s pump (failed on 2 consecutive runs of PR #110 while passing on others -- network-dependent).
+        region = {"id": "jordan", "name": "Jordan", "shp_url": "https://example.invalid/x.zip",
+                  "size_bytes": 30_000_000}
         with patch.object(type(ct), "_canvas_center", return_value=(35.93, 31.95)), \
+             patch("cartogen_ai.core.agent.local_data_loader.resolve_region", return_value=region), \
              patch("cartogen_ai.core.agent.local_data_loader.probe_connectivity", return_value=False):
             TestChatWidgetLive._reply(ct, _TRAVEL_Q)
             _pump(8000, until=lambda: ct._awaiting_local_data_reply)
