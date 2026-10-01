@@ -1331,9 +1331,10 @@ class ChatTabWidget(QWidget):
         from ..services.task_runner import run_background_call
         dest = local_data_loader.data_dir()
         self._dock.receiveMessageSignal.emit(
-            "ai", "Downloading the OpenStreetMap extract for **%s** (%d MB) from Geofabrik. This "
+            "ai", "Downloading the OpenStreetMap extract for **%s** (%s) from Geofabrik. This "
                   "runs in the background; press Stop to cancel." % (
-                      region["name"], round((region.get("size_bytes") or 0) / 1e6)))
+                      region["name"],
+                      "%d MB" % round(region["size_bytes"] / 1e6) if region.get("size_bytes") else "size unknown"))
         self._set_local_data_busy(True)
 
         def work(is_cancelled):
