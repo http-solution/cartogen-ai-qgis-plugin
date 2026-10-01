@@ -144,13 +144,38 @@ def resolve_region(lon, lat, cache_dir):
     if not region:
         return {"error": "No Geofabrik extract covers this location (%.3f, %.3f). Zoom the map to "
                          "your area of interest and try again." % (lat, lon)}
-    try:
-        req = urllib.request.Request(region["shp_url"], method="HEAD", headers=_UA)
-        with urlopen_with_retry(req, timeout=30) as r:
-            region["size_bytes"] = int(r.headers.get("Content-Length") or 0)
-    except Exception:
-        region["size_bytes"] = 0  # unknown size: the caller treats it as "ask first"
+    region["size_bytes"] = _remote_size(region["shp_url"])  # 0 = unknown: the caller treats it as "ask first"
     return region
+
+
+def _remote_size(url):
+    """Size in bytes of the file at `url`, or 0 when it cannot be learned.
+
+    A HEAD request first. The rc10 smoke test (2026-10-01) offered the Yemen extract as "of unknown size" where rc7 said
+    103 MB: the HEAD either failed or carried no Content-Length (the cause was not captured). A one-byte ranged GET is the
+    standard second way to learn the total -- its Content-Range header ends in the full size -- so try it before giving up."""
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers=_UA)
+        with urlopen_with_retry(req, timeout=30) as r:
+            size = int(r.headers.get("Content-Length") or 0)
+        if size:
+            return size
+    except Exception:
+        pass
+    try:
+        req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
+        with urlopen_with_retry(req, timeout=30) as r:
+            content_range = r.headers.get("Content-Range") or ""
+            if "/" in content_range:
+                total = content_range.rsplit("/", 1)[1].strip()
+                if total.isdigit():
+                    return int(total)
+            # A server that ignored the Range header answers 200 with the whole body's length.
+            if getattr(r, "status", 200) == 200:
+                return int(r.headers.get("Content-Length") or 0)
+    except Exception:
+        pass
+    return 0
 
 
 CONNECTIVITY_PROBE_TIMEOUT_S = 4

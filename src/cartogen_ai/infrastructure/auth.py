@@ -16,6 +16,24 @@ from .settings_keys import (
 )
 
 
+def _store_auth_config(auth_mgr, config, had_existing_id):
+    """Saves `config`, UPDATING it when it already has a stored id.
+
+    storeAuthenticationConfig() with a pre-set id that already exists is rejected ("Store config: FAILED because pre-defined
+    config ID %1 is not unique" -- seen live again on the rc10 smoke test, 2026-10-01, the moment a key was saved a second
+    time). The caller then dropped to session-only storage, so a re-saved key silently stopped surviving a QGIS restart.
+    updateAuthenticationConfig() is the API for an existing id; when it reports failure (the id is gone) fall back to a
+    store, which is the right call for a fresh id."""
+    if had_existing_id:
+        update_fn = getattr(auth_mgr, "updateAuthenticationConfig", None)
+        if update_fn and update_fn(config):
+            return True
+    save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(auth_mgr, "storeConfig", None) \
+        or getattr(auth_mgr, "saveAuthenticationConfig", None)
+    return bool(save_fn and save_fn(config))
+
+
+
 class CredentialManager:
     """Manages API keys securely using QgsAuthManager when available."""
 
@@ -81,11 +99,7 @@ class CredentialManager:
                     config.setName(f"cartogen_ai_{provider}")
                     config.setConfig("password", key_value)
 
-                    # QGIS 4.x/Qt6 and QGIS 3.x have slightly different method names
-                    save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(
-                        auth_mgr, "storeConfig", None
-                    )
-                    if save_fn and save_fn(config):
+                    if _store_auth_config(auth_mgr, config, bool(existing_auth_id)):
                         settings.setValue(auth_id_setting, config.id())
                         CredentialManager._delete_plaintext_fallback(provider)
                         return True
@@ -250,8 +264,7 @@ class CredentialManager:
             config.setName(f"Cartogen AI ({name})")
             config.setConfig("username", "cartogen-account")
             config.setConfig("password", secret.strip())
-            save_fn = getattr(auth_mgr, "storeAuthenticationConfig", None) or getattr(auth_mgr, "saveAuthenticationConfig", None)
-            if not save_fn or not save_fn(config):
+            if not _store_auth_config(auth_mgr, config, bool(existing)):
                 return False
             settings.setValue(setting, config.id())
             return True

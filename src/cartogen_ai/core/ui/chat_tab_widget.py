@@ -637,10 +637,16 @@ class ChatTabWidget(QWidget):
         from qgis.PyQt.QtCore import QTimer
 
         def _do_scroll():
-            self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
-            sb = self.chat_browser.verticalScrollBar()
-            if sb:
-                sb.setValue(sb.maximum())
+            # The two delayed calls below can fire after the dock (and so the browser) was destroyed -- on QGIS shutdown,
+            # plugin unload, or in CI when a test tears its window down. An uncaught RuntimeError inside a Qt slot aborts the
+            # whole process under PyQt6 (seen: "Aborted (core dumped)" in the live job once the panel opened at startup).
+            try:
+                self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
+                sb = self.chat_browser.verticalScrollBar()
+                if sb:
+                    sb.setValue(sb.maximum())
+            except RuntimeError:
+                pass
 
         _do_scroll()
         QTimer.singleShot(50, _do_scroll)
@@ -1105,7 +1111,12 @@ class ChatTabWidget(QWidget):
         # every missing slot would interrupt roughly nine messages in ten, and
         # a prompt that interrupts constantly gets clicked through unread,
         # which defeats the disclosure it exists for.
-        if analysis.get("blocking"):
+        # At most TWO rounds of questions (the first, and one follow-up for a slot the first reply left open -- see
+        # test_multi_round_clarification_shows_every_reply_in_chat). Each answered round is appended as "\n\nDetails:", so
+        # the count says how many have happened. rc10 smoke test: the same "Which facility or service type?" came back
+        # three times and each repeated reply grew the request ("Details: ... Details: ...") without satisfying it.
+        # After the second round the register's "ask once, then default" policy applies: go on to the preview.
+        if analysis.get("blocking") and text.count("\n\nDetails:") < 2:
             self._ask_requirement_in_chat(text, analysis)
             return
         self._pending_analysis_text = text
@@ -1325,9 +1336,10 @@ class ChatTabWidget(QWidget):
         from ..services.task_runner import run_background_call
         dest = local_data_loader.data_dir()
         self._dock.receiveMessageSignal.emit(
-            "ai", "Downloading the OpenStreetMap extract for **%s** (%d MB) from Geofabrik. This "
+            "ai", "Downloading the OpenStreetMap extract for **%s** (%s) from Geofabrik. This "
                   "runs in the background; press Stop to cancel." % (
-                      region["name"], round((region.get("size_bytes") or 0) / 1e6)))
+                      region["name"],
+                      "%d MB" % round(region["size_bytes"] / 1e6) if region.get("size_bytes") else "size unknown"))
         self._set_local_data_busy(True)
 
         def work(is_cancelled):

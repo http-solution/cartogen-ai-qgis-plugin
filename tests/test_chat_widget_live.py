@@ -234,6 +234,20 @@ class TestChatWidgetLive(unittest.TestCase):
                          "the input box must stay live -- answering is just typing a normal reply")
         self.assertEqual(agent.client.calls, 0, "must not have sent anything to the model yet")
 
+    def test_a_still_unresolved_requirement_is_asked_at_most_twice(self):
+        """rc10 smoke test: the same clarification came back three times and each repeated reply grew the request. One
+        follow-up round is allowed (a slot the first reply left open); after that the request goes on to the preview."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "ok"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        self._reply(ct, "map population affected by a hazard")
+        self.assertTrue(ct._awaiting_requirement_reply)                      # round 1
+        self._reply(ct, "something that names no hazard at all")
+        self.assertTrue(ct._awaiting_requirement_reply)                      # round 2: still unresolved, one follow-up
+        self._reply(ct, "still nothing about a hazard")
+        self.assertFalse(ct._awaiting_requirement_reply, "a third question must not be asked")
+        self.assertTrue(ct._awaiting_preview_reply, "it proceeds to the normal preview with the default stated")
+
     def test_requirement_reply_merges_into_original_request(self):
         """The user's plain-typed reply ("flood") to the in-chat question above
         must be treated as answering it, not as an unrelated new message --

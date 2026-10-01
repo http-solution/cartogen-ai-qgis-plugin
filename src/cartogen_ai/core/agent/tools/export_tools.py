@@ -132,6 +132,11 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = driver_name
         options.fileEncoding = "UTF-8"
+        # layer_options was accepted by this function but never applied: the CSV's GEOMETRY=AS_XY (F13) and SEPARATOR never
+        # reached OGR, so point exports had no X/Y columns at all. Found on the rc10 smoke test from the exported file's
+        # header (fid, osm_id, fclass, name, ... with no X/Y); the offline test only covered the option-choosing helper.
+        if layer_options:
+            options.layerOptions = list(layer_options)
         has_selection = False
         if hasattr(layer, "selectedFeatureCount"):
             try:

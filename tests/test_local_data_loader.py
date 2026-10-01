@@ -116,6 +116,23 @@ class TestResolveRegion(_TmpDir):
             ldl.resolve_region(35.93, 31.95, self.dir)  # index comes from the cache now
         self.assertEqual(m.call_count, 1)
 
+    def test_a_head_without_a_length_falls_back_to_a_ranged_get(self):
+        # rc10 smoke test: the Yemen extract was offered as "of unknown size" (rc7 said 103 MB).
+        index = _response(json.dumps(self.INDEX).encode())
+        head = _response(b"", {})
+        ranged = _response(b"x", {"Content-Range": "bytes 0-0/108123456"})
+        with patch("urllib.request.urlopen", side_effect=[index, head, ranged]):
+            r = ldl.resolve_region(35.93, 31.95, self.dir)
+        self.assertEqual(r["size_bytes"], 108123456)
+
+    def test_both_probes_failing_still_gives_an_unknown_size_not_an_error(self):
+        index = _response(json.dumps(self.INDEX).encode())
+        with patch("urllib.request.urlopen", side_effect=[index, OSError("no"), OSError("no")]), \
+             patch("cartogen_ai.core.agent.tools._urllib_retry.time.sleep"):
+            r = ldl.resolve_region(35.93, 31.95, self.dir)
+        self.assertEqual(r["size_bytes"], 0)
+        self.assertEqual(r["id"], "jordan")
+
     def test_no_region_is_a_clear_error(self):
         with patch("urllib.request.urlopen", return_value=_response(json.dumps(self.INDEX).encode())):
             r = ldl.resolve_region(-30.0, 30.0, self.dir)

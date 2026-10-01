@@ -303,6 +303,14 @@ def _create_graduated_renderer(layer, field, num_classes, method_name, method_en
 _GEOMETRY_DRAW_ORDER = {"point": 0, "line": 1, "polygon": 2, "raster": 3, "unknown": 4}
 
 
+def _is_web_basemap(layer):
+    """True for tile/web-service raster layers (the basemap), False for any other layer. Never raises."""
+    try:
+        return str(layer.providerType() or "").lower() in ("wms", "xyz", "arcgismapserver", "vectortile")
+    except Exception:
+        return False
+
+
 def _geometry_sort_key(geometry_kind):
     """Pure Python, no QGIS import -- see _layer_geometry_kind below for the
     QGIS-dependent classification this is applied to."""
@@ -361,8 +369,12 @@ def _reorder_top_level_layers(ordered_layers):
         node = root.findLayer(layer.id())
         if node is None or node.parent() is not root:
             continue
-        root.insertChildNode(0, node.clone())
+        checked = node.itemVisibilityChecked()
+        moved = root.insertChildNode(0, node.clone())
         root.removeChildNode(node)
+        # Keep what the user (or an earlier tool) had ticked: a reorder must never show a hidden layer or hide a visible one.
+        if moved is not None:
+            moved.setItemVisibilityChecked(checked)
 
 
 @register_tool(
@@ -1033,7 +1045,15 @@ def auto_arrange_layer_order():
         layers = list(QgsProject.instance().mapLayers().values())
         if not layers:
             return {"error": "No layers in the project."}
-        ordered = sorted(layers, key=lambda layer: _geometry_sort_key(_layer_geometry_kind(layer)))
+        # Second key: an analysis output (a classified copy, a reach polygon, cost-banded roads) draws ABOVE the layer it was
+        # made from. With geometry alone two point layers kept an arbitrary relative order, so the original facilities
+        # covered the green/red classified copy on the rc10 smoke test and the access map looked unclassified.
+        from .layout_style import access_rank
+        # Third key: a web basemap (wms/xyz tiles) goes UNDER data rasters. Both are "raster" to the geometry key, so a fetched
+        # population raster ended below the OSM basemap and was hidden by it (rc10 smoke test).
+        ordered = sorted(layers, key=lambda layer: (_geometry_sort_key(_layer_geometry_kind(layer)),
+                                                    1 if _is_web_basemap(layer) else 0,
+                                                    access_rank(layer.name())))
         _reorder_top_level_layers(ordered)
         return {"success": True, "order_top_to_bottom": [layer.name() for layer in ordered]}
     except Exception as e:

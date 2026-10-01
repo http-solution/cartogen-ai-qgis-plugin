@@ -1491,6 +1491,26 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                     os.remove(tmp_path)
                 except OSError:
                     pass
+                if _is_transport_failure(e) and not allow_whole_country:
+                    # rc10 smoke test (first run against the real server): worldpop.org answers "Range downloading not
+                    # supported by this server", so the remote window read cannot work there and the model retried the same
+                    # call three times, then guessed the size ("100 MB to over 1 GB"). Say what is true and what to do:
+                    # the real size, that retrying is pointless, and the one call that downloads once and clips locally.
+                    size_bytes = 0
+                    try:
+                        from ..local_data_loader import _remote_size
+                        size_bytes = _remote_size(file_urls[0])
+                    except Exception:
+                        size_bytes = 0
+                    size_text = f"{round(size_bytes / 1e6)} MB" if size_bytes else "size unknown"
+                    return {"error": (
+                        f"WorldPop's server does not allow reading just the requested area ({e}). Nothing was downloaded. "
+                        f"The whole-country file for {iso3} is {size_text}. Do NOT retry this call. Ask the user whether to "
+                        "download it; if they agree, call again with the same extent_layer/bbox plus allow_whole_country=true "
+                        "-- it is downloaded once, kept, clipped to the area locally, and reused for every later area in "
+                        f"{iso3}."),
+                        "needs_user_confirmation": True, "whole_country_size_bytes": size_bytes,
+                        "retry_with": {"allow_whole_country": True}}
                 return {"error": (
                     f"Could not fetch just the requested area from WorldPop ({e}). Nothing was downloaded. "
                     "Check the bbox overlaps the country, or call again without bbox/extent_layer to "

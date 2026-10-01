@@ -174,6 +174,114 @@ class TestVectorOutputStyles(unittest.TestCase):
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestCsvExportColumns(unittest.TestCase):
+    """rc10 smoke test: the exported facilities CSV had no X/Y columns because _write_vector never applied layer_options."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp()
+
+    def _header(self, path):
+        with open(path, encoding="utf-8-sig") as fh:
+            return fh.readline().strip().split(",")
+
+    def test_a_point_layer_gets_x_and_y_columns_and_a_bom(self):
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        layer = _layer("Point", "Pts_csv", ["POINT(44.1 15.9)", "POINT(44.2 16.0)"], fields="&field=name:string")
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "pts.csv")
+        res = export_to_csv("Pts_csv", output_path=out)
+        self.assertTrue(res.get("success"), res)
+        header = self._header(out)
+        self.assertIn("X", header)
+        self.assertIn("Y", header)
+        with open(out, "rb") as fh:
+            self.assertEqual(fh.read(3), b"\xef\xbb\xbf")
+
+    def test_a_geopackage_backed_point_layer_also_gets_x_and_y(self):
+        # The analysis outputs are re-pointed at the results GeoPackage, so the exported layer is OGR-backed.
+        from qgis.core import QgsVectorFileWriter, QgsCoordinateTransformContext
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        mem = _layer("Point", "Pts_mem", ["POINT(44.1 15.9)"], fields="&field=name:string")
+        gpkg = os.path.join(self.tmp, "r.gpkg")
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "GPKG"
+        opts.layerName = "pts"
+        QgsVectorFileWriter.writeAsVectorFormatV3(mem, gpkg, QgsCoordinateTransformContext(), opts)
+        layer = QgsVectorLayer(f"{gpkg}|layername=pts", "Pts_gpkg", "ogr")
+        self.assertTrue(layer.isValid())
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "pts_gpkg.csv")
+        self.assertTrue(export_to_csv("Pts_gpkg", output_path=out).get("success"))
+        header = self._header(out)
+        self.assertIn("X", header)
+        self.assertIn("Y", header)
+
+    def test_a_polygon_layer_keeps_a_wkt_column(self):
+        from cartogen_ai.core.agent.tools.export_tools import export_to_csv
+        layer = _layer("Polygon", "Poly_csv", ["POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"])
+        QgsProject.instance().addMapLayer(layer)
+        out = os.path.join(self.tmp, "poly.csv")
+        self.assertTrue(export_to_csv("Poly_csv", output_path=out).get("success"))
+        self.assertIn("WKT", self._header(out))
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestAutoArrangeOrder(unittest.TestCase):
+    """rc10 smoke test: the original facilities layer stayed above its classified copy, hiding the green/red points."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _names_top_to_bottom(self):
+        return [n.name() for n in QgsProject.instance().layerTreeRoot().children()]
+
+    def test_an_analysis_output_is_drawn_above_its_source_layer(self):
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        project.addMapLayer(_layer("Point", "Facilities_access_1", ["POINT(44 15)"]))
+        project.addMapLayer(_layer("Point", "Facilities", ["POINT(44 15)"]))     # added last -> sits on top by default
+        project.addMapLayer(_layer("LineString", "Roads", ["LINESTRING(44 15, 45 16)"]))
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        names = self._names_top_to_bottom()
+        self.assertLess(names.index("Facilities_access_1"), names.index("Facilities"))
+        self.assertLess(names.index("Facilities"), names.index("Roads"))
+
+    def test_a_data_raster_is_ordered_above_a_web_basemap(self):
+        # rc10 smoke test: the fetched population raster ended UNDER the OSM basemap and was hidden by it.
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        arr = np.zeros((10, 10), dtype="float32")
+        data = QgsRasterLayer(_tif(os.path.join(tempfile.mkdtemp(), "d.tif"), arr), "Data_raster")
+        self.assertTrue(data.isValid())
+        project.addMapLayer(data)
+        basemap = QgsRasterLayer("type=xyz&url=https://example.invalid/{z}/{x}/{y}.png&zmax=19&zmin=0", "OSM Standard", "wms")
+        if not basemap.isValid():
+            self.skipTest("no XYZ provider in this QGIS build")
+        project.addMapLayer(basemap)                              # added last -> on top of the data raster by default
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        names = self._names_top_to_bottom()
+        self.assertLess(names.index("Data_raster"), names.index("OSM Standard"))
+
+    def test_reordering_keeps_each_layers_visibility(self):
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        hidden = _layer("Point", "Hidden_pts", ["POINT(44 15)"])
+        shown = _layer("Point", "Shown_pts", ["POINT(44 15)"])
+        project.addMapLayer(hidden)
+        project.addMapLayer(shown)
+        root = project.layerTreeRoot()
+        root.findLayer(hidden.id()).setItemVisibilityChecked(False)
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        self.assertFalse(root.findLayer(hidden.id()).itemVisibilityChecked())
+        self.assertTrue(root.findLayer(shown.id()).itemVisibilityChecked())
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestAutoLabels(unittest.TestCase):
     def setUp(self):
         _boot_qgis()
