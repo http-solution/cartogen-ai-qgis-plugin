@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc11](#v1-16-0-rc11) | 2026-10-01 | **Release candidate 11 for 1.16.0.** No breaking changes. Fixes from the first hands-on smoke test of rc10: re-saved API keys, panel at startup, CSV X/Y columns, layer order and visibility, whole-country WorldPop kept in the project folder, clarification loop, router mismatches, hull population labelled an upper bound, results GeoPackage cleanup. CI-verified on QGIS 4.2.2 |
 | [1.16.0-rc10](#v1-16-0-rc10) | 2026-10-01 | **Release candidate 10 for 1.16.0.** No breaking changes. Includes rc9 (reply guard, turn limits, download-size guard, single-tree matrix, concave-hull exposure, results store, model view) plus the visualization round: cost-banded routing roads, grouped reach polygons, styled rasters/outputs with legend units, automatic labels, styled print layout with an access-map template, ten more allowlisted analysis algorithms. CI-verified on QGIS 4.2.2; not yet seen in a hands-on session |
 | [1.16.0-rc8](#v1-16-0-rc8) | 2026-09-30 | **Release candidate 8 for 1.16.0.** No breaking changes. Fixes from the rc7 Yemen smoke test (F01-F25): project no longer renamed by isolated scripts, gate confirmation works, no fabricated results, coordinates converted in code, service-area guards, explicit-only destructive confirmations, highlight cleanup, memory coordinate guard, findable dashboards, Excel-safe CSV. Several findings remain open (see entry) |
 | [1.16.0-rc7](#v1-16-0-rc7) | 2026-09-28 | **Release candidate 7 for 1.16.0.** No breaking changes. Four execute_pyqgis_script isolation-worker Windows bugs found and fixed (wrong-interpreter detection, missing PYTHONPATH, lost stderr, too-short handshake). Local-data download offer no longer loses the request on a typo or names the wrong region; the download/online prompt now decides silently for the routine case and only asks via clickable chips when there's a real decision (large/unknown size, poor/offline connectivity). calculate_service_area's hull polygon styled and deduplicated. Exported CSVs no longer get an unreadable, unstable filename. execute_pyqgis_script now process-isolated with its own QgsApplication. New direct UI control for layer sensitivity tagging. georeference_image gained Linear/Helmert transforms with RMSE/scale reporting. Analysis-tool output styling now remembered per project across similar follow-up requests |
@@ -51,6 +52,11 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc11"></a>
+## [1.16.0-rc11] — 2026-10-01 — Release candidate 11 for 1.16.0: fixes from the first hands-on rc10 smoke test
+
+No breaking changes; QGIS 4.2+. Fixes merged as PRs #113-#117 after an operator ran rc10 against real Yemen data in QGIS 4.2.2; see the `v1.16.0-rc11` block in `metadata.txt` for the list. Verification: offline suite plus the `qgis-live-tests` job on QGIS 4.2.2. Not verified: none of these fixes has been re-run by hand; the model's reply text can still contain claims no tool produced.
 
 <a id="v1-16-0-rc10"></a>
 ## [1.16.0-rc10] — 2026-10-01 — Release candidate 10 for 1.16.0: rc9 plus the visualization round

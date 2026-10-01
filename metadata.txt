@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc10
+version=1.16.0-rc11
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc10 (2026-10-01):
+changelog=v1.16.0-rc11 (2026-10-01):
+    Release candidate 11 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the first hands-on smoke test of rc10 (Yemen / Sanaa, QGIS 4.2.2); each fix has tests, the QGIS-side ones were run in CI on QGIS 4.2.2, and none has been re-run by hand yet.
+    - Fix: a re-saved API key now updates the stored credential instead of failing with "pre-defined config ID is not unique" and falling back to session-only storage.
+    - New: the panel opens when QGIS starts (Settings > "Open the Cartogen AI panel when QGIS starts", on by default). A delayed chat-scroll callback no longer crashes when the panel is already destroyed.
+    - Fix: CSV export of a point layer now writes X/Y columns (the writer option was never applied). Analysis outputs are drawn above the layer they came from, a data raster above a web basemap, and a layer reorder keeps each layer's visibility; the classified facilities layer is shown on top.
+    - Fix: the whole-country WorldPop raster is streamed into <project>/data/00_raw/worldpop and reused (it was read into memory and written to a temp file); a server without range support gets an error with the real size and "do not retry". The Geofabrik extract size falls back to a ranged request and says "size unknown" instead of "0 MB".
+    - Fix: a clarification question is asked at most twice, and a coordinate or "the point/origin" answers the facility question; the word "download" no longer forces an exported GPKG/CSV; a drive-time or service-area request is no longer matched to an unrelated task.
+    - Fix: a population total summed inside a service-area convex hull is labelled an upper bound; a WorldPop population layer keeps its ramp (empty cells transparent, people/cell legend) when the model asks for a generic stretch; the band-statistics deprecation warning is gone.
+    - Fix: re-running an analysis drops the older timestamped tables of the same output from cartogen_results.gpkg (each repeat added ~5 MB).
+    - Not fixed: the model's reply still adds claims no tool returned (place names, national totals, terrain); classify_facilities_by_access took 151 s on 3,369 facilities and now logs a per-phase timing line; the orange outline seen on the cost-banded roads is unexplained; rc10's raster legend, labels and print layouts have not been looked at on a real map.
+    v1.16.0-rc10 (2026-10-01):
     Release candidate 10 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Includes everything in rc9 plus the visualization round; all QGIS-side behaviour was run in CI against QGIS 4.2.2, nothing yet in a hands-on smoke test, and nobody has looked at a rendered map or exported page.
     - New: service-area roads are drawn in travel-cost bands, the reach figures are distinct translucent polygons grouped under one "Reach figures" group with the headline visible, and unreachable facilities are red, larger and on top.
     - New: WorldPop, density and interpolated rasters get pseudocolour ramps (zero cells transparent) with a unit on the legend; tabular points get one consistent look; Processing outputs are styled by what the algorithm made; small named layers (facilities, admin areas, access points) are labelled automatically.
