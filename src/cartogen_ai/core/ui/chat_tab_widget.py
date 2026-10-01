@@ -658,8 +658,10 @@ class ChatTabWidget(QWidget):
     def _on_user_scroll_action(self, _action):
         """Wheel, drag and key scrolling only (QAbstractSlider.actionTriggered is not emitted for setValue()).
         Records whether the user left the bottom, so later layout changes stop pulling the view back.
-        rc11 smoke test: with a tall last card on screen the chat felt stuck at the last message. UNVERIFIED in a real
-        QGIS session -- this changes the follow rule from 'within 160 px of the bottom' to 'the user has not scrolled up'."""
+        rc11 smoke test: the view stayed at the top of a tall confirm card and did not follow later messages. Likely cause
+        (unverified in a real QGIS session): the card's layout settles after the forced scroll, so the range grows by more
+        than the old 160 px 'near the bottom' window and the follow rule gave up. The rule is now 'follow until the user
+        scrolls up'."""
         from qgis.PyQt.QtCore import QTimer
 
         def _update():
