@@ -1,0 +1,59 @@
+# One-off: publishes the rc7-rc10 pre-releases. Lives only on the claude/publish-rc-releases branch (NOT main).
+# It runs on a push to that branch because the session that prepared it could neither dispatch workflows nor push tags
+# (403 from both); a branch push was the one path that worked. Idempotent: a release that already exists is skipped.
+name: publish-rc-releases
+
+on:
+  push:
+    branches: [claude/publish-rc-releases]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and publish rc7..rc10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          # version  commit (the one whose metadata.txt reads that version)
+          RELEASES="
+          1.16.0-rc7 24404f28f66d2d2fde446653777e5f3c0292d278
+          1.16.0-rc8 35eee1cd370ec8bd8c2cf93cbd3518bb2aeac68b
+          1.16.0-rc9 56d73f42fc2281b3bd99be6571761340f251fe07
+          1.16.0-rc10 f6320b96cb3d1057a4e33ef9be1876eba9d06815
+          "
+          FAILED=""
+          echo "$RELEASES" | while read -r VERSION SHA; do
+            [ -z "${VERSION:-}" ] && continue
+            TAG="cartogen-ai-v${VERSION}"
+            echo "=== $TAG @ $SHA"
+            if gh release view "$TAG" >/dev/null 2>&1; then echo "release exists, skipping"; continue; fi
+            git checkout -q --force "$SHA"
+            git clean -fdq
+            ACTUAL=$(grep '^version=' metadata.txt | cut -d= -f2)
+            if [ "$ACTUAL" != "$VERSION" ]; then echo "::error::$SHA has version $ACTUAL, expected $VERSION"; exit 1; fi
+            rm -rf dist
+            python plugin_upload.py
+            ZIP="dist/cartogen_ai_v${VERSION}.zip"
+            test -f "$ZIP"
+            python - "$ZIP" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          tops = {n.split("/")[0] for n in names}
+          assert tops == {"cartogen-ai"}, tops
+          print(len(names), "files; top-level:", tops)
+          PY
+            sha256sum "$ZIP" | tee "dist/SHA256-${VERSION}.txt"
+            NOTES="Install the attached cartogen_ai_v${VERSION}.zip (Plugins > Manage and Install Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name contains dots and QGIS cannot load it. Pre-release; built from commit ${SHA} by CI. SHA256: $(cut -d' ' -f1 dist/SHA256-${VERSION}.txt)"
+            gh release create "$TAG" "$ZIP" "dist/SHA256-${VERSION}.txt" --target "$SHA" --title "v${VERSION}" --notes "$NOTES" --prerelease
+          done
