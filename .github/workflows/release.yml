@@ -1,0 +1,64 @@
+# Builds the release zip from a chosen ref with plugin_upload.py and publishes it as a GitHub pre-release asset.
+# Manual only (workflow_dispatch): publishing is a deliberate act, never a side effect of a push. Added 2026-10-01 because
+# rc7-rc9 had no GitHub release (the earlier ones were made by hand). Unverified until its first run.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag or commit sha) to build from"
+        required: true
+        default: main
+      tag:
+        description: "Release tag to create, e.g. cartogen-ai-v1.16.0-rc10"
+        required: true
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the zip
+        run: python plugin_upload.py
+      - name: Check the zip matches metadata.txt and has the single top-level folder
+        run: |
+          VERSION=$(grep '^version=' metadata.txt | cut -d= -f2)
+          ZIP="dist/cartogen_ai_v${VERSION}.zip"
+          test -f "$ZIP" || { echo "missing $ZIP"; ls dist; exit 1; }
+          python - "$ZIP" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          tops = {n.split("/")[0] for n in names}
+          assert tops == {"cartogen-ai"}, tops
+          print(len(names), "files; top-level:", tops)
+          PY
+          sha256sum "$ZIP" | tee dist/SHA256.txt
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cartogen_ai_v${{ env.VERSION }}
+          path: |
+            ${{ env.ZIP }}
+            dist/SHA256.txt
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Install the attached cartogen_ai_v${VERSION}.zip (Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name contains dots and QGIS cannot load it. Built from ${{ inputs.ref }} by the release workflow. SHA256: $(cut -d' ' -f1 dist/SHA256.txt)"
+          FLAGS=""
+          if [ "${{ inputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
+          gh release create "${{ inputs.tag }}" "$ZIP" dist/SHA256.txt --target "${{ inputs.ref }}" --title "v${VERSION}" --notes "$NOTES" $FLAGS
