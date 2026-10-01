@@ -453,6 +453,27 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+def _show_on_top(name):
+    """Makes the named layer visible and the topmost tree entry. The classified facilities layer was found unticked and
+    under the original facilities layer on the rc10 smoke test, so the green/red result was not what the map showed.
+    Never raises: placement is cosmetic."""
+    try:
+        project = QgsProject.instance()
+        root = project.layerTreeRoot()
+        for layer in project.mapLayersByName(name):
+            node = root.findLayer(layer.id())
+            if node is None:
+                continue
+            node.setItemVisibilityChecked(True)
+            if node.parent() is root and root.children() and root.children()[0] is not node:
+                moved = root.insertChildNode(0, node.clone())
+                root.removeChildNode(node)
+                if moved is not None:
+                    moved.setItemVisibilityChecked(True)
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="show_on_top", error_class=type(e).__name__, error=True)
+
+
 def _hide_layers(names):
     """Unchecks the layers' tree nodes (they stay in the project). Never raises: hiding is cosmetic."""
     try:
@@ -2136,6 +2157,7 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
                 apply_categorized_style(out_name, "access_class")
             from .output_style import style_auto_labels
             style_auto_labels(out)        # facility names, so "beyond reach" points can be read off the map
+            _show_on_top(out_name)
         except Exception as e:
             log_event("swallowed_exception", tag="Tools", tool="classify_facilities_by_access_styling",
                       error_class=type(e).__name__, error=True)

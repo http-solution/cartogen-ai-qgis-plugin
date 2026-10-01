@@ -229,6 +229,43 @@ class TestCsvExportColumns(unittest.TestCase):
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestAutoArrangeOrder(unittest.TestCase):
+    """rc10 smoke test: the original facilities layer stayed above its classified copy, hiding the green/red points."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _names_top_to_bottom(self):
+        return [n.name() for n in QgsProject.instance().layerTreeRoot().children()]
+
+    def test_an_analysis_output_is_drawn_above_its_source_layer(self):
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        project.addMapLayer(_layer("Point", "Facilities_access_1", ["POINT(44 15)"]))
+        project.addMapLayer(_layer("Point", "Facilities", ["POINT(44 15)"]))     # added last -> sits on top by default
+        project.addMapLayer(_layer("LineString", "Roads", ["LINESTRING(44 15, 45 16)"]))
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        names = self._names_top_to_bottom()
+        self.assertLess(names.index("Facilities_access_1"), names.index("Facilities"))
+        self.assertLess(names.index("Facilities"), names.index("Roads"))
+
+    def test_reordering_keeps_each_layers_visibility(self):
+        from cartogen_ai.core.agent.tools.styling_tools import auto_arrange_layer_order
+        project = QgsProject.instance()
+        hidden = _layer("Point", "Hidden_pts", ["POINT(44 15)"])
+        shown = _layer("Point", "Shown_pts", ["POINT(44 15)"])
+        project.addMapLayer(hidden)
+        project.addMapLayer(shown)
+        root = project.layerTreeRoot()
+        root.findLayer(hidden.id()).setItemVisibilityChecked(False)
+        self.assertTrue(auto_arrange_layer_order().get("success"))
+        self.assertFalse(root.findLayer(hidden.id()).itemVisibilityChecked())
+        self.assertTrue(root.findLayer(shown.id()).itemVisibilityChecked())
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestAutoLabels(unittest.TestCase):
     def setUp(self):
         _boot_qgis()
