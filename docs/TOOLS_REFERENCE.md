@@ -358,6 +358,7 @@ Calculate the reachable road-network area around one or more facilities (warehou
 | `default_speed` | number | no | Default travel speed in km/h for any segment with no speed_field value, used only when strategy='fastest'. Defaults to 50. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h (e.g. derived from OSM highway/surface tags). Only affects routing when strategy='fastest'. |
 | `direction_field` | string | no | Optional field on road_network_layer marking one-way segments (e.g. OSM's 'oneway' tag). Segments with no matching value still route both ways. |
+| `style_by_cost` | boolean | no | Default true: also add a road layer graded by travel cost (near = dark, far = warm, labelled bands) and hide the plain reached-roads line layer, which stays in the project for analysis. Set false to keep only the plain lines. |
 | `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
@@ -456,7 +457,7 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features are refused unless allow_large is true.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; costs placed at the nearest road vertex) when the QGIS network classes are available.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -470,7 +471,7 @@ Calculate road-network distance or travel time from each origin point to each de
 | `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
-| `allow_large` | boolean | no | Set true to run a matrix over more than 200 destinations anyway (slow). Prefer classify_facilities_by_access. |
+| `allow_large` | boolean | no | Only needed if the fast single-tree method is unavailable: set true to run a matrix over more than 200 destinations the slow way. |
 
 ## Monitoring & Scheduling
 
