@@ -107,6 +107,45 @@ class ChatActionRegistry:
 # 3. Local, Role-Based Layer Insertion
 # ---------------------------------------------------------------------------
 
+def heal_layer_tree(project=None):
+    """Removes layer-tree nodes that no longer point at a layer and extra nodes for a layer that has several.
+
+    rc7 smoke test F07: projects saved under rc7 carry 10 nodes for 7 layers (a duplicate pair plus an orphan whose
+    layer() is None), and the corruption is saved back into the .qgz on every save. Only REMOVES nodes, never moves one:
+    moving was tried first and broke live tests. An orphan's layer is already gone, so removing it cannot affect a
+    layer. For a duplicate, removing a node could in principle take the layer with it through the layer-tree/registry
+    bridge, so the layer object is held and re-added if it disappears. Returns {'orphans_removed': n, 'duplicates_removed': n}.
+    """
+    result = {"orphans_removed": 0, "duplicates_removed": 0}
+    if not QGIS_AVAILABLE:
+        return result
+    project = project or QgsProject.instance()
+    root = project.layerTreeRoot()
+    if root is None:
+        return result
+    seen = set()
+    for node in list(root.findLayers()):
+        layer = node.layer()
+        parent = node.parent()
+        if parent is None:
+            continue
+        if layer is None:
+            parent.removeChildNode(node)
+            result["orphans_removed"] += 1
+            continue
+        if layer.id() not in seen:
+            seen.add(layer.id())
+            continue
+        keep_alive = layer
+        parent.removeChildNode(node)
+        result["duplicates_removed"] += 1
+        if project.mapLayer(keep_alive.id()) is None:
+            project.addMapLayer(keep_alive, False)
+            if root.findLayer(keep_alive.id()) is None:
+                root.addLayer(keep_alive)
+    return result
+
+
 def insert_layer_semantically(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> bool:
     """Inserts a layer at its semantic cartographic position without disturbing unrelated layers.
 

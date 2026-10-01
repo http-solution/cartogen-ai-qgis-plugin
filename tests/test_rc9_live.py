@@ -206,3 +206,40 @@ class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
         res = lt.travel_time_matrix("origin", "many", "grid")
         self.assertEqual(res.get("method"), "single_shortest_path_tree", res)
         self.assertGreaterEqual(res["unreachable_count"], 0)
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestHealLayerTree(unittest.TestCase):
+    """F07: rc7 projects carry a duplicate node and an orphan node; healing removes them and keeps every layer."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def test_duplicates_and_orphans_are_removed_and_no_layer_is_lost(self):
+        project = QgsProject.instance()
+        a = _layer("Point", "A", ["POINT(0 0)"])
+        b = _layer("Point", "B", ["POINT(1 1)"])
+        project.addMapLayer(a)
+        project.addMapLayer(b)
+        root = project.layerTreeRoot()
+        root.insertLayer(0, a)                      # a second node for A: the rc7 duplicate
+        ghost = _layer("Point", "Ghost", ["POINT(2 2)"])
+        project.addMapLayer(ghost, False)
+        root.addLayer(ghost)
+        project.removeMapLayer(ghost.id())          # leaves a node with layer() None only if the tree keeps it
+        before_nodes = len(root.findLayers())
+        from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
+        healed = heal_layer_tree(project)
+        self.assertEqual(len(project.mapLayers()), 2, "healing must never remove a layer")
+        self.assertEqual(len(root.findLayers()), 2)
+        self.assertGreaterEqual(healed["duplicates_removed"], 1)
+        self.assertLessEqual(len(root.findLayers()), before_nodes)
+
+    def test_a_clean_tree_is_untouched(self):
+        project = QgsProject.instance()
+        project.addMapLayer(_layer("Point", "A", ["POINT(0 0)"]))
+        from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
+        self.assertEqual(heal_layer_tree(project), {"orphans_removed": 0, "duplicates_removed": 0})
+        self.assertEqual(len(project.layerTreeRoot().findLayers()), 1)

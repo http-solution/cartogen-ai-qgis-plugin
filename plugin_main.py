@@ -185,6 +185,14 @@ class CartogenAi:
         self._first_use_timer = None
 
     def _on_project_changed(self, *_args):
+        # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).
+        try:
+            from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
+            healed = heal_layer_tree()
+            if healed["orphans_removed"] or healed["duplicates_removed"]:
+                print(f"[CartogenAi] repaired layer tree: {healed}")
+        except Exception as e:
+            print(f"[CartogenAi] layer tree repair failed: {e}")
         if self._agent is not None:
             try:
                 self._agent.reload_chat_history()
