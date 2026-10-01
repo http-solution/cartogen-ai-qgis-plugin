@@ -1079,3 +1079,19 @@ class TestCreateShadedRelief(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHullAreaNote(unittest.TestCase):
+    """rc10 smoke test: 815,039 was reported as the catchment population though it was summed inside a convex hull."""
+
+    def test_a_service_area_hull_is_labelled_an_upper_bound(self):
+        from cartogen_ai.core.agent.tools.raster_tools import _hull_area_note
+        note = _hull_area_note("Origin Location_service_area_0")
+        self.assertEqual(note["figure_kind"], "upper_bound_convex_hull")
+        self.assertIn("UPPER BOUND", note["geometry_note"])
+        self.assertIn("population_access_gap", note["geometry_note"])
+
+    def test_other_areas_get_no_note(self):
+        from cartogen_ai.core.agent.tools.raster_tools import _hull_area_note
+        for name in ("Districts", "Amran_buffer", "Origin_service_area_lines_0", "", None):
+            self.assertEqual(_hull_area_note(name), {}, name)

@@ -104,7 +104,8 @@ def match(query, limit=MAX_CANDIDATES):
 # not silently "fixed" by this narrower, targeted re-rank).
 _ACCESS_TIME_LANGUAGE = re.compile(
     r"\b(within|beyond|under|over)\b.{0,20}\b(hour|hr|minute|min)s?\b|"
-    r"\b(hour|hr|minute|min)'?s?\s+(travel|drive|walk|reach)|"
+    r"\b(hour|hr|minute|min)'?s?\s+(travel|driv(?:e|ing)|walk(?:ing)?|reach)|"
+    r"\bservice[\s-]?areas?\b.{0,40}\b(hour|hr|minute|min)s?\b|\b(hour|hr|minute|min)s?\b.{0,30}\bservice[\s-]?areas?\b|"
     r"\btravel[\s-]?time\b|\bdrive[\s-]?time\b|\breachable\b|\bunreachable\b|\bisochrone\b"
 )
 
@@ -132,6 +133,13 @@ def classify(query):
             if "calculate_service_area" in e.get("tools", []):
                 best, top = e, s
                 break
+    # An access/drive-time request whose best task is NOT led by calculate_service_area is a wrong match, and a wrong directive is
+    # worse than none (rc10 smoke test: "Calculate a one-hour driving service area from the point ..." matched 21.23 "Calculate
+    # area and density" at 0.42 and the model went on to fetch a population raster, estimate exposure and export a CSV nobody
+    # asked for). Treat it like a below-floor match: no directive, the message is sent as typed.
+    if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and (best.get("tools") or [None])[0] != "calculate_service_area":
+        return {"matches": ms, "best": best, "score": top,
+                "ambiguous": True, "reason": "below confidence floor"}
     if top < CONFIDENT_SCORE:
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
@@ -151,7 +159,10 @@ _OUTPUT_OVERRIDE = [
     ("dashboard", r"\bdashboard\b"),
     ("report",    r"\breport\b|\bsitrep\b|\bsituation report\b|\bwrite[- ]?up\b|\bprofile\b"),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
-    ("dataset",   r"\bexport\b|\bgeopackage\b|\bshapefile\b|\bgeojson\b|\bcsv\b|\bdownload\b"),
+    # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
+    # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested
+    # export files (rc10 smoke test, 2026-10-01). A file is requested by naming a format or the word export.
+    ("dataset",   r"\bexport\b|\bgeopackage\b|\bshapefile\b|\bgeojson\b|\bcsv\b"),
     ("analysis",  r"\bhow many\b|\bhow much\b|\bcalculate\b|\bstatistics\b|\btable\b|\bcount\b"),
     ("layer",     r"\bon the map\b|\badd .*layer\b|\bstyle\b|\bsymboli[sz]e\b"),
 ]

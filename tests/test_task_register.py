@@ -164,6 +164,25 @@ class TestSlots(unittest.TestCase):
         q = "map flood hazard in Sindh district using sentinel imagery from 2026 within 10 km"
         self.assertEqual(tm.missing_slots(tm.classify(q)["best"], q), [])
 
+    def test_a_service_area_request_is_not_matched_to_an_unrelated_task(self):
+        # rc10 smoke test: matched 21.23 "Calculate area and density" at 0.42 and the model went on to fetch a population
+        # raster, estimate exposure and export a CSV nobody asked for. No directive is better than a wrong one.
+        q = "Calculate a one-hour driving service area from the point 4902068.0, 1799912.0 using the roads layer"
+        verdict = tm.classify(q)
+        self.assertTrue(verdict["ambiguous"])
+        self.assertEqual(verdict["reason"], "below confidence floor")
+
+    def test_a_travel_time_request_still_gets_its_task(self):
+        q = "Health facilities beyond one hour's travel from the point 4902068.0, 1799912.0 in Yemen."
+        self.assertEqual(tm.classify(q)["best"]["id"], "7.23")
+
+    def test_download_as_an_input_is_not_a_request_for_an_exported_file(self):
+        # rc10 smoke test: "download the whole Yemen population raster and then estimate ..." forced a GPKG+CSV deliverable
+        # and a follow-up call that wrote four unrequested export files.
+        q = "Yes, download the whole Yemen population raster and then estimate the population within one hour's drive"
+        self.assertNotEqual(tm.output_override(q), "dataset")
+        self.assertEqual(tm.output_override("export the clinics to CSV"), "dataset")
+        self.assertEqual(tm.output_override("save it as a geopackage"), "dataset")
     def test_a_point_origin_answers_the_facility_question(self):
         # rc10 smoke test: "Which facility or service type?" was asked three times of a request that names a coordinate.
         q = ("Estimate the population within one hour's drive of the point 4902068.0, 1799912.0 "

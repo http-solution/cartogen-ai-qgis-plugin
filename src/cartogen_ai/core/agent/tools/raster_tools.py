@@ -25,8 +25,12 @@ try:
     # QGIS 4.x/Qt6 nests these under a named sub-enum; QGIS 3.x/Qt5 exposes
     # them flat on the class itself. Resolved once here rather than assuming
     # one form -- see _qgis_enum_compat.py.
-    _RBS_MIN = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Min")
-    _RBS_MAX = resolve_qgis_enum(QgsRasterBandStats, "Stat", "Max")
+    # QgsRasterBandStats.Stat is deprecated since QGIS 3.40 (a WARNING with a traceback on every call in the rc10 smoke
+    # log); Qgis.RasterBandStatistic replaces it. Fall back to the old spelling only when the new one is absent.
+    _RBS_MIN = resolve_qgis_enum(_qgis_core_module.Qgis, "RasterBandStatistic", "Min") if hasattr(
+        _qgis_core_module.Qgis, "RasterBandStatistic") else resolve_qgis_enum(QgsRasterBandStats, "Stat", "Min")
+    _RBS_MAX = resolve_qgis_enum(_qgis_core_module.Qgis, "RasterBandStatistic", "Max") if hasattr(
+        _qgis_core_module.Qgis, "RasterBandStatistic") else resolve_qgis_enum(QgsRasterBandStats, "Stat", "Max")
     _STRETCH_MINMAX = resolve_qgis_enum(QgsContrastEnhancement, "ContrastEnhancementAlgorithm", "StretchToMinimumMaximum")
     _RAMP_INTERPOLATED = resolve_qgis_enum(QgsColorRampShader, "Type", "Interpolated")
     # QPainter.CompositionMode.CompositionMode_Multiply (Qt6/PyQt6) vs QPainter.CompositionMode_Multiply (Qt5/PyQt5)
@@ -1093,9 +1097,26 @@ def estimate_population_exposure(population_raster_layer, area_layer):
                 "crs": raster.crs().authid() if raster.crs() else None,
             },
             "confidence": "estimate (gridded population raster; not field-verified)",
+            **_hull_area_note(area_layer),
         }
     except Exception as e:
         return {"error": f"estimate_population_exposure failed: {e}"}
+
+
+_SERVICE_AREA_HULL_RE = re.compile(r"_service_area_\d+$")
+
+
+def _hull_area_note(area_layer):
+    """calculate_service_area's polygon (`<facility>_service_area_<n>`) is the CONVEX HULL of the reached roads, which also
+    contains land and people that cannot be reached in the time. A population summed inside it is an upper bound, and the
+    rc10 smoke test reported 815,039 as the catchment population with no such label (F09's three-figure range exists only
+    in population_access_gap). Pure."""
+    if _SERVICE_AREA_HULL_RE.search(str(area_layer or "")):
+        return {"figure_kind": "upper_bound_convex_hull",
+                "geometry_note": ("This area is the convex hull of the reachable roads, so the total is an UPPER BOUND on the "
+                                  "people reachable in that time. Say so when reporting it; population_access_gap gives a "
+                                  "concave-hull headline with a road-buffer and a convex-hull range.")}
+    return {}
 
 
 # Vegetation/water index layers are bounded roughly -1..1 and centered on 0 --
@@ -1177,13 +1198,27 @@ def _auto_raster_style(layer_name, mode):
             "band": {"type": "integer", "description": "Raster band number to style. Defaults to 1."},
             "min_value": {"type": "number", "description": "Optional. Overrides the auto-computed stretch/ramp minimum."},
             "max_value": {"type": "number", "description": "Optional. Overrides the auto-computed stretch/ramp maximum."},
+            "keep_population_ramp": {"type": "boolean", "description": "Default true: a WorldPop population layer keeps the plugin's own ramp (empty cells transparent, unit on the legend) because a generic stretch over a whole country is unreadable. Pass false only if the user explicitly asked for a different look."},
         },
         "required": ["layer_name"],
     },
 )
-def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_value=None, max_value=None):
+def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_value=None, max_value=None,
+                         keep_population_ramp=True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+
+    # rc10 smoke test: after fetching the Yemen WorldPop raster the model called this tool, replacing the population ramp with
+    # an opaque Viridis stretch (0.000152..595) that painted the whole country dark purple over the basemap and every analysis
+    # layer, with no unit on the legend. Keep the population look unless the caller explicitly opts out.
+    if keep_population_ramp and _describe_population_raster(layer_name)[1] is not None:
+        pop_layer = _find_layer_by_name(layer_name)
+        if pop_layer is not None:
+            from .output_style import style_continuous_raster
+            if style_continuous_raster(pop_layer, "population"):
+                return {"success": True, "layer_name": layer_name, "mode": "population_ramp", "band": band,
+                        "note": ("WorldPop population layers keep the plugin's population ramp (empty cells transparent, "
+                                 "people/cell on the legend). Pass keep_population_ramp=false to apply a generic stretch.")}
 
     resolved_mode, default_ramp = _auto_raster_style(layer_name, mode)
     if resolved_mode is None:
