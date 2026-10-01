@@ -7,7 +7,7 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsVectorLayer
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
@@ -77,10 +77,14 @@ class TestRendererBuilders(unittest.TestCase):
         renderer = layer.renderer()
         self.assertEqual(renderer.type(), "categorizedSymbol")
         self.assertTrue(renderer.usingSymbolLevels())
-        by_value = {c.value(): c.symbol() for c in renderer.categories()}
-        self.assertEqual(by_value["beyond"].color().name(), "#d62828")
-        self.assertGreater(by_value["beyond"].size(), by_value["within"].size())
-        self.assertGreater(by_value["beyond"].symbolLayer(0).renderingPass(), by_value["within"].symbolLayer(0).renderingPass())
+        # renderer.categories() returns COPIES; keep the list alive while the symbols are read (a temporary list freed
+        # its symbols under us and segfaulted the CI run).
+        categories = renderer.categories()
+        by_value = {c.value(): c for c in categories}
+        beyond, within = by_value["beyond"].symbol(), by_value["within"].symbol()
+        self.assertEqual(beyond.color().name(), "#d62828")
+        self.assertGreater(beyond.size(), within.size())
+        self.assertGreater(beyond.symbolLayer(0).renderingPass(), within.symbolLayer(0).renderingPass())
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
@@ -150,7 +154,7 @@ class TestCostGradedRoadsEndToEnd(unittest.TestCase):
         from cartogen_ai.core.agent.tools import logistics_tools as lt
         network = QgsProject.instance().mapLayersByName("grid")[0]
         ellipsoid = lt._network_context().ellipsoid()
-        layer, reason = lt._cost_graded_roads(network, (0.0, 0.0), "shortest", 50, None, None, "yes", "-1", "no",
+        layer, reason = lt._cost_graded_roads(network, QgsPointXY(0.0, 0.0), "shortest", 50, None, None, "yes", "-1", "no",
                                               ellipsoid, 3000.0, "graded")
         self.assertIsNotNone(layer, reason)
         costs = [f["travel_cost"] for f in layer.getFeatures()]
