@@ -58,6 +58,13 @@ class TestDashboardHtml(unittest.TestCase):
         self.assertIn("markerClusterGroup", res["html"])
         self.assertTrue(any("150 points are drawn as clusters" in w for w in res["warnings"]), res["warnings"])
 
+    def test_a_tile_free_map_still_declares_a_max_zoom(self):
+        # rc11 smoke test F12: basemap='none' + clusters showed no markers because Leaflet.markercluster throws
+        # "Map has no maxZoom specified" on a map without tiles.
+        for basemap in ("none", "hot"):
+            res = et._build_dashboard_html([_layer("Health Facilities", _points(150))], basemap=basemap)
+            self.assertIn('"maxZoom": 18', res["html"], basemap)
+
     def test_a_small_point_layer_keeps_plain_markers(self):
         res = et._build_dashboard_html([_layer("Few", _points(20))])
         self.assertNotIn("markerClusterGroup", res["html"])
