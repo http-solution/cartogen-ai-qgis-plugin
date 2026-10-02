@@ -414,6 +414,13 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
     if field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
+    # rc11 smoke test (#122): classify_facilities_by_access styles its own output (within blue, beyond red and larger,
+    # on top); the model then called this tool on it and replaced that with generic categories whose size and order were
+    # lost. The classified layer is already styled: say so and leave it.
+    if field == "access_class" and "_access_" in layer_name:
+        return {"success": True, "layer_name": layer_name, "already_styled": True,
+                "message": f"'{layer_name}' was styled by the access analysis (within reach / beyond reach); left as it is."}
+
     try:
         categories = []
         unique_values = layer.uniqueValues(layer.fields().indexOf(field))
