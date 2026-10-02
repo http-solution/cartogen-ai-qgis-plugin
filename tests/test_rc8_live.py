@@ -38,7 +38,8 @@ class TestAddPointLayerConvertsInCode(unittest.TestCase):
 
     def test_projected_point_lands_on_the_qgis_transform(self):
         from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
-        res = add_point_layer("Origin", [{"name": "Sanaa", "x": 4902068.0, "y": 1799912.0}], crs="EPSG:3857")
+        res = add_point_layer("Origin", [{"name": "Sanaa", "x": 4902068.0, "y": 1799912.0}], crs="EPSG:3857",
+                              crs_stated_by_user=True)      # #119: an unstated CRS that is not the project's is asked about
         self.assertNotIn("error", res, res)
         layer = QgsProject.instance().mapLayersByName("Origin")[0]
         geom = next(layer.getFeatures()).geometry().asPoint()

@@ -1025,7 +1025,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(sb.value(), sb.maximum())
         # a user scroll up: the position moves, then the slider reports the action
         sb.setValue(0)
-        sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum)
+        sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum.value)   # the signal takes an int
         QApplication.processEvents()
         for i in range(20):
             ct.chat_browser.append("more %d<br><br><br>" % i)
