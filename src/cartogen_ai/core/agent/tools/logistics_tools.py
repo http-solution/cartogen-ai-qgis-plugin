@@ -434,8 +434,19 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
             return None, f"speed_field '{speed_field}' not found on the road network layer."
         extra["SPEED_FIELD"] = speed_field
     if direction_field:
-        if network.fields().indexOf(direction_field) == -1:
+        dir_idx = network.fields().indexOf(direction_field)
+        if dir_idx == -1:
             return None, f"direction_field '{direction_field}' not found on the road network layer."
+        if (value_forward, value_backward, value_both) == ("yes", "-1", "no"):
+            # Geofabrik shapefile extracts encode one-way as F (forward) / T (towards, i.e. backward) / B (both), not OSM's
+            # yes / -1 / no. With the OSM defaults nothing matched, every road counted as two-way and one-way streets were
+            # silently ignored (rc11 smoke test: the Yemen roads layer held F and B). Detected from the layer's own values.
+            try:
+                seen = {str(v) for v in network.uniqueValues(dir_idx) if v is not None}
+                if seen and seen <= {"F", "T", "B"}:
+                    value_forward, value_backward, value_both = "F", "T", "B"
+            except Exception:
+                pass
         extra["DIRECTION_FIELD"] = direction_field
         extra["VALUE_FORWARD"] = value_forward
         extra["VALUE_BACKWARD"] = value_backward
@@ -1001,6 +1012,11 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         else:
             result["route_layer"] = route_layer_name
             result["road_snapped"] = True
+            # rc11 smoke test C1: a "fastest route" request returned this and the reply called it fastest. There is no
+            # travel-time strategy on this tool yet (tracked in #131); say what it is.
+            result["route_strategy"] = "shortest distance"
+            result["route_note"] = ("This is the shortest-distance road route, not a fastest-time route. Report it as "
+                                    "'shortest route' and do not call it 'fastest' or give a travel time.")
             if total_distance is None:
                 routed = _route_cost_sum(route_layer_name)
                 if routed is not None:

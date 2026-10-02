@@ -305,6 +305,24 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         self.assertEqual(len(searches), 1)
         self.assertEqual(searches[0].args[1].get("DIRECTION_FIELD"), "oneway")     # the route itself honours one-way now
 
+    def test_geofabrik_one_way_codes_are_detected_from_the_layers_own_values(self):
+        # rc11 smoke test: the Yemen roads hold F/B in 'oneway'; the OSM defaults yes/-1/no matched nothing.
+        from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params
+        net = MagicMock()
+        net.fields.return_value.indexOf.return_value = 3
+        net.uniqueValues.return_value = {"F", "B", "T"}
+        extra, err = _network_direction_speed_params(net, direction_field="oneway")
+        self.assertIsNone(err)
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("F", "T", "B"))
+
+    def test_osm_one_way_values_keep_the_defaults(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params
+        net = MagicMock()
+        net.fields.return_value.indexOf.return_value = 3
+        net.uniqueValues.return_value = {"yes", "-1", "no"}
+        extra, _ = _network_direction_speed_params(net, direction_field="oneway")
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("yes", "-1", "no"))
+
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
