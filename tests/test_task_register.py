@@ -351,3 +351,35 @@ class TestEveryContractIsCoherent(unittest.TestCase):
         missed = [e["id"] for e in self.data
                   if e["id"] not in [m[0]["id"] for m in tm.match(e["text"])]]
         self.assertEqual(missed, [], "unreachable tasks: %s" % missed[:10])
+
+
+class TestFacilityAccessToolHint(unittest.TestCase):
+    """rc11 smoke test (#122): the 7.23 preview listed travel_time_matrix (44 min on 3,369 facilities) and not the fast tool."""
+
+    def test_every_task_that_names_the_matrix_names_the_fast_classifier_first(self):
+        import json
+        import os
+        import cartogen_ai.core.agent.task_register as reg
+        data = json.load(open(os.path.join(os.path.dirname(reg.__file__), "task_register.json"), encoding="utf-8"))
+        checked = 0
+        for task in data:
+            if "travel_time_matrix" in task["tools"]:
+                checked += 1
+                self.assertIn("classify_facilities_by_access", task["tools"], task["id"])
+                self.assertLess(task["tools"].index("classify_facilities_by_access"),
+                                task["tools"].index("travel_time_matrix"), task["id"])
+        self.assertGreater(checked, 0)
+
+
+class TestNonRequestFragments(unittest.TestCase):
+    """rc11 smoke test (#130): a pasted fragment reached an analysis task and the user's 'yes' ran it."""
+
+    def test_fragments_without_an_action_word_get_no_task(self):
+        for text in ("template: access_map", "threshold = 5 km", "ok thanks", "the origin point"):
+            verdict = tm.classify(text)
+            self.assertIsNone(verdict["best"], text)
+            self.assertEqual(verdict["reason"], "too short to be a request", text)
+
+    def test_real_short_requests_still_match(self):
+        for text in ("map health facilities in Aleppo", "Show roads in Sanaa", "Which facilities are beyond one hour?"):
+            self.assertNotEqual(tm.classify(text)["reason"], "too short to be a request", text)

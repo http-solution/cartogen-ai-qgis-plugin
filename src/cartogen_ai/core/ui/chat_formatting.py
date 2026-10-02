@@ -108,6 +108,9 @@ def _latex_inner(inner):
     """Unicode for a simple LaTeX fragment, or None if any command is left unconverted."""
     t = inner
     t = re.sub(r"\\(?:text|mathrm|textrm|mathbf|textbf)\{([^{}]*)\}", r"\1", t)
+    # rc11 smoke test F15: "$15.35^\circ\,\text{N}$" stayed raw because the degree sign is written as a superscript
+    # (^\circ / ^{\circ}); once \circ became a degree sign a stray caret was left and the whole span was rejected.
+    t = re.sub(r"\^\s*\{?\s*(?:\\circ|\\degree)\s*\}?", "\u00b0", t)
     for cmd in sorted(_LATEX_SYMBOLS, key=len, reverse=True):
         t = t.replace(cmd, _LATEX_SYMBOLS[cmd])
 
@@ -359,6 +362,22 @@ def _relative_time(iso_str):
         if seconds < 86400:
             return f"{int(seconds // 3600)}h ago"
         return f"{int(seconds // 86400)}d ago"
+    except (ValueError, TypeError):
+        return ""
+
+
+def _clock_time(iso_str):
+    """Local clock time for a chat bubble: "23:41" for today, "Oct 01, 23:41" for another day. "" when missing or
+    unparseable. rc11 smoke test F25: a relative label ("just now") is computed once when the bubble is drawn and never
+    updated, so every bubble kept saying "just now" for the whole session; a clock time stays true."""
+    if not iso_str:
+        return ""
+    try:
+        ts = datetime.datetime.fromisoformat(iso_str)
+        if ts.tzinfo:
+            ts = ts.astimezone().replace(tzinfo=None)
+        now = datetime.datetime.now()
+        return ts.strftime("%H:%M") if ts.date() == now.date() else ts.strftime("%b %d, %H:%M")
     except (ValueError, TypeError):
         return ""
 
@@ -663,6 +682,31 @@ def render_refinement_html(recommendations, colors):
     return heading + hint + "".join(cards)
 
 
+def summarize_tool_result(result, limit=400):
+    """One readable line for the result of a tool run confirmed from a card. Pure.
+
+    rc11 smoke test (#124): after "Apply edit" the chat showed the raw Python dict, e.g.
+    "{'success': True, 'layer_name': ..., 'fields': {...}}". An error or a message is shown as text; anything else lists
+    the useful keys, never the whole structure."""
+    if not isinstance(result, dict):
+        text = str(result)
+        return text if len(text) <= limit else text[:limit].rstrip() + " ..."
+    if result.get("error"):
+        return "failed: " + str(result["error"])[:limit]
+    parts = []
+    if result.get("message"):
+        parts.append(str(result["message"]))
+    elif result.get("success") is True:
+        parts.append("completed")
+    for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated"):
+        if result.get(key) not in (None, ""):
+            parts.append(f"{key.replace('_', ' ')}: {result[key]}")
+    if result.get("egress_override_note"):
+        parts.append(str(result["egress_override_note"]))
+    text = "; ".join(parts) or "completed"
+    return text if len(text) <= limit else text[:limit].rstrip() + " ..."
+
+
 def render_safety_gate_html(task, colors):
     """Inline destructive-action confirmation card -- Broadsheet redesign Phase 2, mockup
     state 1f (the inline-card treatment, chosen over 1g's heavier bottom-anchored locking
@@ -728,11 +772,14 @@ def render_safety_gate_html(task, colors):
     # non-breaking-space run is the same &nbsp;-for-spacing workaround this file already
     # relies on elsewhere (render_markdown's list indentation, render_tool_step_html's
     # icon gap) for exactly this class of Qt rich-text CSS limitation.
+    # rc11 smoke test (#124): the cloud-data override card said "Apply edit", which reads as a data edit. It is a decision
+    # to let protected data leave the machine, so say that.
+    confirm_label = "Send to cloud once" if task.get("egress_override") else "Apply edit"
     actions = (
         f'<a href="cartogen://confirm/{task_id}" style="text-decoration:none;'
         f'display:inline-block;padding:5px 14px;'
         f'background-color:{danger};color:#ffffff;font-weight:600;font-size:12px;">'
-        '&#10003;&nbsp;Apply edit</a>'
+        f'&#10003;&nbsp;{confirm_label}</a>'
         '&nbsp;&nbsp;&nbsp;'
         f'<a href="cartogen://cancel/{task_id}" style="text-decoration:none;'
         f'display:inline-block;padding:5px 14px;border:1px solid {subtle_color};'

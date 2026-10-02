@@ -93,6 +93,26 @@ def resolve_lon_lat(point, crs=None, transform=None):
     return float(lon), float(lat)
 
 
+def crs_decision(crs, stated_by_user, project_crs):
+    """Whether a projected CRS the model passed may be used as-is (rc11 smoke test, F20 step C).
+
+    With the project CRS set to EPSG:4326 and the request "Add a point at 4902068.0, 1799912.0" (no CRS), the model chose
+    EPSG:3857 on its own and the point was placed with no question. A guess that happens to land right is still a guess:
+    other projected systems give numbers of the same size. Returns:
+      * None                      -- proceed (the user named the CRS, or it is geographic: out-of-range degrees are
+                                     refused later by resolve_lon_lat);
+      * ("assumed", normalized)   -- an unstated CRS equal to the project CRS: proceed and say it was assumed;
+      * ("ask", normalized)       -- an unstated CRS that is NOT the project CRS: do not place anything, ask the user.
+    The model reports `stated_by_user` itself, so this guards against accidents, not against a model that misreports."""
+    src = normalize_crs(crs)
+    if stated_by_user or is_geographic(src):
+        return None
+    project = normalize_crs(project_crs)
+    if project and src == project:
+        return ("assumed", src)
+    return ("ask", src)
+
+
 def interpret_request_pair(pair, project_crs_is_geographic):
     """How to read an "X, Y" pair typed into a request (F20).
 

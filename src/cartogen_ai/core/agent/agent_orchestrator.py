@@ -537,6 +537,12 @@ class CartogenAi:
         # status/result with this gate's PREVIEW_READY state. add_task() appends
         # instead, so a pending confirmation can never collide with an existing
         # task that already means something else.
+        # rc11 smoke test (#125): a vague reply made the model retry the same action through another tool, and every blocked
+        # attempt left its own pending preview -- one typed "confirm" then ran a leftover from an earlier attempt. Only the
+        # newest preview stays pending; older ones are closed so a confirmation always means the card on screen.
+        for older in self.task_manager.tasks:
+            if older.get("status") == "PREVIEW_READY" and older.get("pending_tool"):
+                self.task_manager.update_task(older["id"], "FAILED", "Superseded by a newer confirmation request")
         if not self.task_manager.tasks:
             self.task_manager.create_plan(
                 f"Safety Gate Preview: {name}",
@@ -556,6 +562,7 @@ class CartogenAi:
         # preview_task -- taken from that same list -- reflects it here too).
         preview_task["pending_tool"] = name
         preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
+        preview_task["egress_override"] = bool(res.get("egress_override"))
 
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         from .lineage import tag_layer_lineage

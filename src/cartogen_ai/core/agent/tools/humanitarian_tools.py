@@ -673,10 +673,24 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
 
 
 def _auto_label_admin(layer):
-    """Name labels on an admin-boundary layer when it is small enough to read (a few dozen areas, not thousands)."""
+    """Name labels on an admin-boundary layer when it is small enough to read (a few dozen areas, not thousands).
+
+    Also makes it a backdrop: rc11 smoke test S5 -- a downloaded governorate layer arrived as an opaque default-orange fill at
+    the TOP of the layer tree, hiding the roads and facilities under it. A pale fill with a grey outline, then the usual
+    points > lines > polygons order, keeps the analysis visible. Best-effort cosmetics; never raises. Not re-run in a real
+    QGIS session from the sandbox."""
     try:
         from .output_style import style_auto_labels
         style_auto_labels(layer)
+    except Exception:
+        pass
+    try:
+        from qgis.core import QgsFillSymbol
+        layer.renderer().setSymbol(QgsFillSymbol.createSimple({
+            "color": "238,234,224,70", "outline_color": "107,107,107,255", "outline_width": "0.4"}))
+        layer.triggerRepaint()
+        from .styling_tools import auto_arrange_layer_order
+        auto_arrange_layer_order()
     except Exception:
         pass
 
@@ -1920,6 +1934,39 @@ def add_incident_point(
     return result
 
 
+# rc11 smoke test (#121): the same origin typed again got a new, model-chosen layer name each time (Calculation Origin,
+# Service Area Origin, Origin Facility, ...), and every service-area result is named after its origin layer, so six
+# identical requests left six point layers and six result sets stacked on one spot. A single point that already exists in a
+# small point layer is reused instead.
+_REUSE_TOLERANCE_DEG = 2e-5        # about 2 m
+_REUSE_MAX_FEATURES = 5            # a small origin/scratch layer, never a 3,000-facility layer that happens to hold the spot
+
+
+def _find_point_layer_at(lon, lat):
+    """An existing small WGS84 point layer holding a feature within ~2 m of (lon, lat), else None. Names sorted so the
+    choice is stable. Never raises."""
+    try:
+        from qgis.core import QgsMapLayer, QgsWkbTypes
+        best = None
+        for lyr in QgsProject.instance().mapLayers().values():
+            if lyr.type() != QgsMapLayer.LayerType.VectorLayer or lyr.geometryType() != QgsWkbTypes.GeometryType.PointGeometry:
+                continue
+            if lyr.crs().authid() != "EPSG:4326" or lyr.featureCount() > _REUSE_MAX_FEATURES:
+                continue
+            for f in lyr.getFeatures():
+                g = f.geometry()
+                if g is None or g.isEmpty():
+                    continue
+                p = g.asPoint()
+                if abs(p.x() - lon) <= _REUSE_TOLERANCE_DEG and abs(p.y() - lat) <= _REUSE_TOLERANCE_DEG:
+                    if best is None or lyr.name() < best.name():
+                        best = lyr
+                    break
+        return best
+    except Exception:
+        return None
+
+
 def _style_named_point_layer(layer):
     """Neutral, readable default styling (black text, white background label by
     'name') for general-purpose layers created via add_point_layer -- distinct
@@ -2000,15 +2047,33 @@ def _style_named_point_layer(layer):
                 "4902068, 1799912), pass them UNCHANGED with their CRS (the project CRS unless the user says otherwise) -- "
                 "the code converts them exactly. NEVER convert coordinates yourself.",
             },
+            "crs_stated_by_user": {
+                "type": "boolean",
+                "description": "true ONLY when the user's own message named the CRS of these coordinates (for example "
+                "'in EPSG:3857'). When the user gave projected numbers WITHOUT a CRS, pass the project CRS and leave this "
+                "false: if that CRS is not the project's the tool asks the user instead of placing the point.",
+            },
         },
         "required": ["layer_name", "points"],
     },
 )
-def add_point_layer(layer_name: str, points: list, crs: str = None):
+def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_by_user: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not points:
         return {"error": "points list is empty."}
+
+    project_crs = QgsProject.instance().crs().authid()
+    decision = _coords.crs_decision(crs, crs_stated_by_user, project_crs)
+    if decision and decision[0] == "ask":
+        return {
+            "success": False, "needs_user_input": True, "placed": False,
+            "question": (f"Which coordinate system are these numbers in? You did not say, and the project CRS is "
+                         f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
+                         f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
+            "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
+        }
+    crs_assumed = decision[1] if decision and decision[0] == "assumed" else None
 
     # Coordinates are converted here, in code -- never by the model. The rc7 smoke test
     # (2026-09-30, finding F04) placed an analysis origin ~1.3 km from the requested point
@@ -2026,6 +2091,20 @@ def add_point_layer(layer_name: str, points: list, crs: str = None):
             return pt.x(), pt.y()
 
     existing = QgsProject.instance().mapLayersByName(layer_name)
+    if not existing and len(points) == 1:
+        try:
+            _lon, _lat = _coords.resolve_lon_lat(points[0], source_crs, transform)
+        except ValueError:
+            _lon = _lat = None
+        reused = _find_point_layer_at(_lon, _lat) if _lon is not None else None
+        if reused is not None:
+            return {
+                "success": True, "layer_name": reused.name(), "added": 0, "requested": 1,
+                "reused_existing_layer": True,
+                "placed_wgs84": [{"name": str(points[0].get("name", "")), "lon": round(_lon, 6), "lat": round(_lat, 6)}],
+                "message": (f"A point layer already holds this location: '{reused.name()}'. No duplicate layer was created. "
+                            f"Use '{reused.name()}' as the origin layer in the next step and tell the user it was reused."),
+            }
     if existing:
         layer = existing[0]
     else:
@@ -2096,6 +2175,8 @@ def add_point_layer(layer_name: str, points: list, crs: str = None):
         result["placed_wgs84"] = placed[:20]
     if source_crs and not _coords.is_geographic(source_crs):
         result["converted_from_crs"] = source_crs
+    if crs_assumed:
+        result["crs_assumed"] = f"The request gave no CRS, so the project CRS {crs_assumed} was assumed -- say so in the reply."
     if errors:
         result["errors"] = errors
     if data_quality_warnings:

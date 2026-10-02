@@ -447,3 +447,55 @@ class TestHighlightIsRemovedFromTheCanvasScene(unittest.TestCase):
         loop.exec()
         QCoreApplication.processEvents()
         self.assertEqual([i for i in canvas.scene().items() if isinstance(i, QgsHighlight)], [])
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestAddPointLayerReuseAndCrsAsk(unittest.TestCase):
+    """#121 (origin layers pile up) and #119 (an unstated projected CRS is asked about). First run is in CI."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def test_the_same_origin_again_reuses_the_existing_layer(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
+        first = add_point_layer("Origin Point", [{"lon": 44.036, "lat": 15.958, "name": "Origin"}])
+        self.assertTrue(first.get("success"), first)
+        second = add_point_layer("Calculation Origin", [{"lon": 44.036, "lat": 15.958, "name": "Origin"}])
+        self.assertTrue(second.get("reused_existing_layer"), second)
+        self.assertEqual(second["layer_name"], "Origin Point")
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("Calculation Origin")), 0)
+        self.assertEqual(QgsProject.instance().mapLayersByName("Origin Point")[0].featureCount(), 1)
+
+    def test_a_different_location_still_makes_its_own_layer(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
+        add_point_layer("A", [{"lon": 44.0, "lat": 15.9, "name": "a"}])
+        second = add_point_layer("B", [{"lon": 44.5, "lat": 15.9, "name": "b"}])
+        self.assertFalse(second.get("reused_existing_layer"), second)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("B")), 1)
+
+    def test_an_unstated_crs_that_is_not_the_project_crs_asks_and_places_nothing(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+        res = add_point_layer("Origin", [{"x": 4902068.0, "y": 1799912.0, "name": "o"}], crs="EPSG:3857")
+        self.assertTrue(res.get("needs_user_input"), res)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("Origin")), 0)
+
+    def test_a_crs_the_user_named_is_used(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+        res = add_point_layer("Origin", [{"x": 4902068.0, "y": 1799912.0, "name": "o"}], crs="EPSG:3857",
+                              crs_stated_by_user=True)
+        self.assertTrue(res.get("success"), res)
+        self.assertAlmostEqual(res["placed_wgs84"][0]["lon"], 44.036026, places=4)
+
+    def test_an_unstated_crs_equal_to_the_project_crs_is_assumed(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        from cartogen_ai.core.agent.tools.humanitarian_tools import add_point_layer
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:3857"))
+        res = add_point_layer("Origin", [{"x": 4902068.0, "y": 1799912.0, "name": "o"}], crs="EPSG:3857")
+        self.assertTrue(res.get("success"), res)
+        self.assertIn("crs_assumed", res)

@@ -967,7 +967,11 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
     # _DASHBOARD_BASEMAPS) lets a caller opt into satellite imagery or a
     # Humanitarian OSM Team style instead when that's more useful.
     basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
-    m = folium.Map(**basemap_kwargs)
+    # rc11 smoke test F12: with basemap='none' the page showed the backdrop but no markers and no layer control. folium
+    # puts max_zoom on the tile layer only, so a tile-free map has no maxZoom, and Leaflet.markercluster then throws
+    # 'Map has no maxZoom specified' (cause read from the saved page; not re-run in a browser here), aborting the rest
+    # of the page script. Setting it on the map itself fixes that and is harmless when tiles are present.
+    m = folium.Map(**basemap_kwargs, maxZoom=18, minZoom=0)
     for lon, lat in _backdrop_coords(backdrop):
         all_lats.append(lat)
         all_lons.append(lon)
@@ -1356,7 +1360,11 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
     # _DASHBOARD_BASEMAPS) opts into satellite/HOT imagery instead of the
     # CartoDB Positron default, same mechanism as _build_dashboard_html.
     basemap_kwargs, basemap_warning = _resolve_basemap_kwargs(basemap)
-    m = folium.Map(**basemap_kwargs)
+    # rc11 smoke test F12: with basemap='none' the page showed the backdrop but no markers and no layer control. folium
+    # puts max_zoom on the tile layer only, so a tile-free map has no maxZoom, and Leaflet.markercluster then throws
+    # 'Map has no maxZoom specified' (cause read from the saved page; not re-run in a browser here), aborting the rest
+    # of the page script. Setting it on the map itself fixes that and is harmless when tiles are present.
+    m = folium.Map(**basemap_kwargs, maxZoom=18, minZoom=0)
     for lon, lat in _backdrop_coords(backdrop):
         all_lats.append(lat)
         all_lons.append(lon)

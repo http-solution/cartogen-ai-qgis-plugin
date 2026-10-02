@@ -741,7 +741,7 @@ class TestChatWidgetLive(unittest.TestCase):
                           "a plain confirm reply must never go through the LLM loop")
         self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
         log = self._chat_text(ct)
-        self.assertIn("Confirmed & Executed", log)
+        self.assertIn("Confirmed & executed", log)
 
     def test_chat_typed_cancel_resolves_pending_destructive_action_without_executing(self):
         agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
@@ -803,10 +803,10 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.real_execute_tool_calls, [])
         self.assertIn("Activity tab", self._chat_text(ct))
 
-    def test_a_pending_gate_does_not_hijack_an_unrelated_new_message(self):
-        """Only an exact confirm/cancel-shaped reply resolves the gate -- anything else
-        (a genuinely new request) must fall through to the normal send path, so a stale
-        PREVIEW_READY task from an earlier turn can never swallow unrelated messages."""
+    def test_an_unrelated_message_expires_the_pending_gate_and_is_not_swallowed_by_it(self):
+        """Only an exact confirm/cancel-shaped reply resolves the gate. Anything else is a new request: it goes through the
+        normal send path, and the old preview EXPIRES instead of staying alive to be confirmed later (rc11 smoke test, F16
+        step 3 / #125: three leftover previews were run by three typed 'confirm's)."""
         agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "ok, mapped it"}}])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
@@ -820,12 +820,49 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self._reply(ct, "map health facilities in Aleppo")
 
-        # Whatever the normal send path does with this new, unrelated message (dispatch,
-        # show a prompt preview, ask a requirement question) is out of scope here -- the
-        # only thing under test is that the confirmation gate itself was NOT triggered.
         self.assertEqual(agent.real_execute_tool_calls, [])
-        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY",
-                          "an unrelated message must not disturb the still-pending gate")
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "FAILED")
+        self.assertIn("Expired", agent.task_manager.tasks[0]["result"])
+        # and a later typed Confirm has nothing left to confirm
+        self._reply(ct, "Confirm")
+        self.assertEqual(agent.real_execute_tool_calls, [])
+
+    def test_a_casual_yes_gets_a_hint_and_never_reaches_the_model(self):
+        """rc11 smoke test (#125): 'yes' made the model retry the delete through execute_pyqgis_script."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("Remove", ["Remove layer"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="remove(...)", rationale="t", is_destructive=True)
+        task["pending_tool"] = "remove_layer"
+        task["pending_args"] = {"layer_name": "X"}
+
+        for word in ("yes", "ok", "sure", "go"):
+            self._reply(ct, word)
+
+        self.assertEqual(agent.client.calls, 0)
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+        self.assertIn("not enough", self._chat_text(ct))
+
+    def test_a_typed_confirm_cannot_approve_a_cloud_data_override(self):
+        """rc11 smoke test (#125): the cloud-data override is decided on its card, not with a typed word."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("Egress", ["Run script"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="", rationale="t", is_destructive=True)
+        task["pending_tool"] = "execute_pyqgis_script"
+        task["pending_args"] = {"code": "pass", "confirmed": True}
+        task["egress_override"] = True
+
+        self._reply(ct, "Confirm")
+
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+        self.assertIn("Send to cloud once", self._chat_text(ct))
 
     # ------------------------------------------ inline safety-gate card (Phase 2) --
 
@@ -879,7 +916,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0,
                           "clicking the card's link must never go through the LLM loop")
         self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
-        self.assertIn("Confirmed & Executed", self._chat_text(ct))
+        self.assertIn("Confirmed & executed", self._chat_text(ct))
 
     def test_safety_gate_card_cancel_link_click_does_not_execute(self):
         agent = _FakeAgent(script=[])
@@ -1007,6 +1044,34 @@ class TestChatWidgetLive(unittest.TestCase):
         text = ct.chat_browser.toPlainText()
         self.assertIn("Alpha", text)
         self.assertIn("Beta", text)
+
+    def test_scrolling_up_is_not_undone_by_later_layout_changes(self):
+        """rc11 smoke test: the chat felt stuck at the last message. A user who scrolled up must stay where they are when
+        the document grows; a user at the bottom keeps following new content."""
+        from qgis.PyQt.QtWidgets import QAbstractSlider, QApplication
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        for i in range(40):
+            ct.chat_browser.append("line %d<br><br><br>" % i)
+        QApplication.processEvents()
+        sb = ct.chat_browser.verticalScrollBar()
+        self.assertGreater(sb.maximum(), 0)
+        ct._scroll_to_bottom()
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), sb.maximum())
+        # a user scroll up: the position moves, then the slider reports the action
+        sb.setValue(0)
+        sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum.value)   # the signal takes an int
+        QApplication.processEvents()
+        for i in range(20):
+            ct.chat_browser.append("more %d<br><br><br>" % i)
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), 0, "document growth pulled a scrolled-up user back to the bottom")
+        # a new message always brings the view back to the end
+        ct._scroll_to_bottom()
+        QApplication.processEvents()
+        self.assertEqual(sb.value(), sb.maximum())
 
     def test_task_inspector_dialog_confirm_resolves_via_the_shared_method(self):
         """task_inspector_dialog.py must route through the SAME

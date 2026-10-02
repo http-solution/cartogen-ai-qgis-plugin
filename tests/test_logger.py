@@ -234,3 +234,18 @@ class TestStartupStateFields(unittest.TestCase):
         from cartogen_ai.core import logger
         for f in ("plan_validation_gate", "egress_gate_mode", "persist_chat"):
             self.assertIn(f, logger._SAFE_EVENT_FIELDS)
+
+    def test_classify_timing_fields_survive_the_allowlist(self):
+        # rc11 smoke test: every field of classify_facilities_timing was silently dropped.
+        from cartogen_ai.core import logger
+        seen = []
+        orig = logger.log_info
+        logger.log_info = lambda line, tag=None: seen.append(line)
+        try:
+            logger.log_event("classify_facilities_timing", tag="Tools", facilities=3369, reached_layers=1,
+                             service_area_ms=4717, prepare_ms=10, nearest_ms=110000, build_ms=20, replace_ms=30)
+        finally:
+            logger.log_info = orig
+        self.assertEqual(len(seen), 1)
+        for token in ("facilities=3369", "service_area_ms=4717", "nearest_ms=110000", "replace_ms=30"):
+            self.assertIn(token, seen[0])

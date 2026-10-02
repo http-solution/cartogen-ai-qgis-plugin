@@ -110,6 +110,24 @@ _ACCESS_TIME_LANGUAGE = re.compile(
 )
 
 
+# A short fragment with no action word and no question is not a request. rc11 smoke test (#130): the pasted fragment
+# "template: access_map" matched a conflict-analysis task at 0.42, the preview invented "threshold = 5 km", and the user's "yes"
+# ran a whole new analysis. Such a message is sent as typed, with no task directive.
+_ACTION_WORDS = re.compile(
+    r"\b(calculate|compute|create|make|build|show|map|find|list|download|fetch|load|add|remove|delete|export|estimate|"
+    r"generate|run|classify|compare|analy[sz]e|draw|plot|clip|buffer|merge|join|style|label|zoom|select|count|"
+    r"summari[sz]e|identify|extract|convert|how|what|which|where|who|when|why|can|could|please)\b"
+)
+_FRAGMENT_MAX_WORDS = 4
+
+
+def _is_non_request_fragment(query):
+    text = (query or "").lower()
+    if "?" in text or len(_tokens(text)) > _FRAGMENT_MAX_WORDS:
+        return False
+    return not _ACTION_WORDS.search(text)
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -122,6 +140,9 @@ def classify(query):
     belongs to a different section (same-section neighbours are usually
     interchangeable enough not to be worth an extra call).
     """
+    if _is_non_request_fragment(query):
+        return {"matches": [], "best": None, "score": 0.0,
+                "ambiguous": False, "reason": "too short to be a request"}
     ms = match(query)
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,

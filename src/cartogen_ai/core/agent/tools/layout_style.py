@@ -91,6 +91,17 @@ def access_rank(name):
     return 9
 
 
+def arrange_rank(name):
+    """Draw-order tie-break inside one geometry kind: an access-analysis layer by its access rank, a road-snapped route
+    ('<stops>_road_route') above the plain road network it was built from, everything else last. Pure.
+
+    rc11 smoke test C1: the route line was drawn UNDER 'OSM Roads (Yemen)' because both are lines with no access rank."""
+    rank = access_rank(name)
+    if rank == 9 and str(name or "").endswith("_road_route"):
+        return 4
+    return rank
+
+
 def order_for_access_map(ids, names_by_id):
     """`ids` re-ordered so reach polygons come first, then access points, then roads, then everything else; stable. Pure."""
     return sorted(ids, key=lambda i: access_rank(names_by_id.get(i)))
@@ -262,7 +273,13 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
 
     def legend():
         leg = item("LEGEND")
-        leg.setAutoUpdateModel(False)                     # an explicit model, not "every layer in the project"
+        # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
+        # showed a DeprecationWarning per layout); setSyncMode(Manual) is its replacement, with the old call as the fallback.
+        try:
+            from qgis.core import Qgis
+            leg.setSyncMode(Qgis.LegendSyncMode.Manual)
+        except Exception:
+            leg.setAutoUpdateModel(False)
         root = leg.model().rootGroup()
         root.removeAllChildren()
         for layer_id in ids:

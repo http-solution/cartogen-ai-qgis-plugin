@@ -484,6 +484,13 @@ class TestDescribePopulationRaster(unittest.TestCase):
         self.assertEqual(source, "WorldPop")
         self.assertEqual(year, "2020")
 
+    def test_recognizes_worldpops_own_file_name_and_the_clipped_suffix(self):
+        # rc11 smoke test S4: a layer named yem_ppp_2020 lost the population ramp to a generic grey stretch.
+        for name in ("yem_ppp_2020", "YEM_PPP_2020", "YEM_population_2020_area"):
+            source, year = _describe_population_raster(name)
+            self.assertEqual((source, year), ("WorldPop", "2020"), name)
+        self.assertIsNone(_describe_population_raster("yem_ppp_2020_backup")[1])
+
     def test_falls_back_to_layer_name_for_non_worldpop_naming(self):
         source, year = _describe_population_raster("custom_pop_raster")
         self.assertEqual(source, "custom_pop_raster")

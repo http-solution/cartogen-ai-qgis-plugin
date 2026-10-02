@@ -414,6 +414,13 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
     if field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
+    # rc11 smoke test (#122): classify_facilities_by_access styles its own output (within blue, beyond red and larger,
+    # on top); the model then called this tool on it and replaced that with generic categories whose size and order were
+    # lost. The classified layer is already styled: say so and leave it.
+    if field == "access_class" and "_access_" in layer_name:
+        return {"success": True, "layer_name": layer_name, "already_styled": True,
+                "message": f"'{layer_name}' was styled by the access analysis (within reach / beyond reach); left as it is."}
+
     try:
         categories = []
         unique_values = layer.uniqueValues(layer.fields().indexOf(field))
@@ -1048,12 +1055,12 @@ def auto_arrange_layer_order():
         # Second key: an analysis output (a classified copy, a reach polygon, cost-banded roads) draws ABOVE the layer it was
         # made from. With geometry alone two point layers kept an arbitrary relative order, so the original facilities
         # covered the green/red classified copy on the rc10 smoke test and the access map looked unclassified.
-        from .layout_style import access_rank
+        from .layout_style import arrange_rank
         # Third key: a web basemap (wms/xyz tiles) goes UNDER data rasters. Both are "raster" to the geometry key, so a fetched
         # population raster ended below the OSM basemap and was hidden by it (rc10 smoke test).
         ordered = sorted(layers, key=lambda layer: (_geometry_sort_key(_layer_geometry_kind(layer)),
                                                     1 if _is_web_basemap(layer) else 0,
-                                                    access_rank(layer.name())))
+                                                    arrange_rank(layer.name())))
         _reorder_top_level_layers(ordered)
         return {"success": True, "order_top_to_bottom": [layer.name() for layer in ordered]}
     except Exception as e:

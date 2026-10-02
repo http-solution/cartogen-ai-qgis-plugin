@@ -40,7 +40,7 @@ from ..logger import log_warning
 
 from . import reply_vocab
 from .chat_formatting import (
-    render_markdown, _relative_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
+    render_markdown, _clock_time, now_iso, escape_plain_text, summarize_tool_result, render_tool_steps_toggle_html,
     format_send_error,
 )
 from .theme import theme_colors, extract_theme_palette
@@ -247,14 +247,27 @@ class ChatTabWidget(QWidget):
             pending_tool = task.get("pending_tool")
             pending_args = task.get("pending_args", {})
             exec_res = agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)
-            msg = f"Executed `{pending_tool}`: {exec_res}"
-            agent.task_manager.update_task(task_id, "DONE", msg)
+            # A readable line, not the raw dict (rc11 smoke test, #124). The full result stays in the task record.
+            readable = summarize_tool_result(exec_res)
+            failed = isinstance(exec_res, dict) and bool(exec_res.get("error"))
+            agent.task_manager.update_task(task_id, "FAILED" if failed else "DONE",
+                                           f"Executed `{pending_tool}`: {exec_res}")
             self._dock.receiveMessageSignal.emit(
-                "ai", f"✅ **Confirmed & Executed Task {task_id}:** {msg}")
+                "ai", f"{'⚠️ **Confirmed, but it failed' if failed else '✅ **Confirmed & executed'}"
+                      f" (Task {task_id}, `{pending_tool}`):** {readable}")
         else:
             agent.task_manager.update_task(task_id, "FAILED", "Cancelled by User")
             self._dock.receiveMessageSignal.emit(
                 "ai", f"❌ **Cancelled Task {task_id}:** {task.get('description')}")
+
+    def _expire_pending_previews(self, agent):
+        """Closes every pending confirmation after an unrelated message was sent (F16 step 3, #125)."""
+        if agent is None or not hasattr(agent, "task_manager"):
+            return
+        for task in list(agent.task_manager.tasks):
+            if task.get("status") == "PREVIEW_READY" and task.get("pending_tool"):
+                self._posted_safety_gate_task_ids.discard(task.get("id"))
+                agent.task_manager.update_task(task["id"], "FAILED", "Expired: a new request was sent")
 
     def _show_safety_gate_in_chat(self, agent):
         """Posts the inline destructive-action confirmation card (render_safety_gate_html,
@@ -324,8 +337,10 @@ class ChatTabWidget(QWidget):
         self.chat_browser.anchorClicked.connect(self._on_step_anchor_clicked)
         # Keep chat scrolled to bottom as asynchronous document layout updates geometry
         sb = self.chat_browser.verticalScrollBar()
+        self._follow_bottom = True
         if sb:
             sb.rangeChanged.connect(self._on_scrollbar_range_changed)
+            sb.actionTriggered.connect(self._on_user_scroll_action)
         chat_layout.addWidget(self.chat_browser)
 
         self.status_label = QLabel("")
@@ -565,7 +580,7 @@ class ChatTabWidget(QWidget):
         # message; a restored message instead uses the real timestamp
         # _populate_initial_chat stashed in self._pending_restore_ts right before
         # this call, so a leftover bubble from an earlier session shows its actual
-        # age (e.g. "2h ago") instead of falsely claiming to have just happened --
+        # time (a clock time such as "23:41", not a relative label that would never update) instead of falsely claiming to have just happened --
         # this was a real, live-reported bug (a stale Ollama-provider error looked
         # like it had just occurred next to a brand-new reply from a different
         # provider). See chat_persistence.py's _attach_timestamps for where the ts
@@ -573,7 +588,7 @@ class ChatTabWidget(QWidget):
         colors = theme_colors()
         restore_ts = getattr(self, "_pending_restore_ts", None)
         self._pending_restore_ts = None
-        timestamp = _relative_time(restore_ts) if restore_ts else _relative_time(now_iso())
+        timestamp = _clock_time(restore_ts) if restore_ts else _clock_time(now_iso())
         # Table-based alignment, not a floated div -- Qt's rich-text engine
         # supports table cell alignment reliably; float-based layout is flaky.
         if role == "user":
@@ -648,14 +663,33 @@ class ChatTabWidget(QWidget):
             except RuntimeError:
                 pass
 
+        self._follow_bottom = True        # a new message was added: show it, and keep following until the user scrolls up
         _do_scroll()
         QTimer.singleShot(50, _do_scroll)
         QTimer.singleShot(150, _do_scroll)
 
+    def _on_user_scroll_action(self, _action):
+        """Wheel, drag and key scrolling only (QAbstractSlider.actionTriggered is not emitted for setValue()).
+        Records whether the user left the bottom, so later layout changes stop pulling the view back.
+        rc11 smoke test: the view stayed at the top of a tall confirm card and did not follow later messages. Likely cause
+        (unverified in a real QGIS session): the card's layout settles after the forced scroll, so the range grows by more
+        than the old 160 px 'near the bottom' window and the follow rule gave up. The rule is now 'follow until the user
+        scrolls up'."""
+        from qgis.PyQt.QtCore import QTimer
+
+        def _update():
+            try:
+                sb = self.chat_browser.verticalScrollBar()
+                if sb:
+                    self._follow_bottom = (sb.maximum() - sb.value()) < 24
+            except RuntimeError:
+                pass
+        QTimer.singleShot(0, _update)     # the slider moves after the signal, so read its position afterwards
+
     def _on_scrollbar_range_changed(self, min_val, max_val):
-        """When document geometry changes asynchronously, follow to bottom if user was near bottom."""
+        """When document geometry changes asynchronously, follow to bottom unless the user scrolled up."""
         sb = self.chat_browser.verticalScrollBar()
-        if sb and (max_val - sb.value() < 160):
+        if sb and self._follow_bottom:
             sb.setValue(max_val)
 
     def _set_status(self, text):
@@ -1061,7 +1095,27 @@ class ChatTabWidget(QWidget):
             # Only an explicit word confirms a destructive action -- a casual "yes"/"ok" typed to
             # answer something else must never (F16) -- and only while the preview is recent.
             decision = reply_vocab.gate_reply(text)
-            if decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
+            if decision == "confirm" and pending_task.get("egress_override"):
+                # A decision to let protected data leave the machine is made on the card, not with a typed word
+                # (rc11 smoke test, #125: a typed "confirm" approved a cloud override the user was never shown).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "Sending protected data to a cloud provider can only be approved with the **Send to cloud once** "
+                          "button on its card. Typing a word does not approve it. Say **cancel** to drop it.")
+                return
+            if decision is None and reply_vocab.router_reply(text) == "confirm":
+                # "yes" / "ok" / "sure" / "go" never confirm a destructive action, and must not be passed to the model
+                # either: it answered by retrying the same action through another tool (rc11 smoke test, #125).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "That is not enough to confirm a change that cannot be undone. Click the button on the card, "
+                          "or type **Confirm** to go ahead, or **Cancel** to drop it.")
+                return
+            if decision is None:
+                # An unrelated message: the preview is not consent for anything the user types later (F16 step 3).
+                self._expire_pending_previews(agent)
+                pending_task = None
+            if pending_task is not None and decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
                     "ai",
@@ -1069,7 +1123,7 @@ class ChatTabWidget(QWidget):
                     f"{reply_vocab.PREVIEW_MAX_AGE_SECONDS // 60} minutes old, so typing Confirm no longer "
                     "applies it. Use the Confirm button in the Activity tab, or ask again.")
                 return
-            if decision is not None:
+            if pending_task is not None and decision is not None:
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._resolve_pending_confirmation(agent, pending_task, confirmed=(decision == "confirm"))
                 return

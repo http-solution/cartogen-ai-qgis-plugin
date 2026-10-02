@@ -256,6 +256,7 @@ Create a new point layer (or append to an existing one with the same name) from 
 | `layer_name` | string | yes | Name for the layer, e.g. 'Foreign Embassies'. |
 | `points` | array[object] | yes | List of points to add, e.g. [{"lat": 31.95, "lon": 35.93, "name": "Embassy of France", "description": "Amman", "category": "High"}]. |
 | `crs` | string | no | CRS the point coordinates are in, e.g. "EPSG:3857" or "EPSG:32636". Omit ONLY when the coordinates are already lon/lat degrees. If the user gave projected coordinates (large numbers such as 4902068, 1799912), pass them UNCHANGED with their CRS (the project CRS unless the user says otherwise) -- the code converts them exactly. NEVER convert coordinates yourself. |
+| `crs_stated_by_user` | boolean | no | true ONLY when the user's own message named the CRS of these coordinates (for example 'in EPSG:3857'). When the user gave projected numbers WITHOUT a CRS, pass the project CRS and leave this false: if that CRS is not the project's the tool asks the user instead of placing the point. |
 
 ### `fetch_building_footprints` _(two-phase)_
 

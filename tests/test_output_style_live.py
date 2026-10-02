@@ -355,6 +355,14 @@ class TestPrintLayoutStyling(unittest.TestCase):
         self.assertTrue(layout.itemById("LEGEND").frameEnabled())
         self.assertTrue(layout.itemById("BODY_TEXT").frameEnabled())
 
+    def test_the_graticule_is_thin_with_small_whole_number_annotations(self):
+        # rc11 smoke test S7: solid black grid lines and '4880000.000' annotations overran the info row and the page edges.
+        _, layout, _ = self._layout()
+        grid = layout.itemById("MAP_MAIN").grids().grid(0)
+        self.assertIsNotNone(grid)
+        self.assertEqual(grid.annotationPrecision(), 0)
+        self.assertLessEqual(grid.annotationTextFormat().size(), 7)
+
     def test_access_map_template_fits_the_reach_layer_and_orders_the_legend(self):
         project = QgsProject.instance()
         reach = _layer("Polygon", "Clinics_reachable_area", ["POLYGON((44 15, 44.5 15, 44.5 15.5, 44 15.5, 44 15))"])

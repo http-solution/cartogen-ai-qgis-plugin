@@ -169,6 +169,20 @@ class TestStylingToolsDegradeOutsideQgis(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
 
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_a_classified_access_layer_keeps_its_own_style(self, mock_find):
+        # rc11 smoke test (#122): the model re-styled the access layer, losing within-blue / larger red beyond.
+        layer = MagicMock()
+        field = MagicMock()
+        field.name.return_value = "access_class"
+        layer.fields.return_value = [field]
+        mock_find.return_value = layer
+        res = apply_categorized_style("Health Facilities_access_1", "access_class")
+        self.assertTrue(res.get("already_styled"), res)
+        layer.setRenderer.assert_not_called()
+
+
 class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
     """Point 13 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: no
     fixed-operational-threshold classification existed at all -- apply_graduated_style

@@ -286,6 +286,44 @@ class TestNetworkDirectionSpeedParams(unittest.TestCase):
 
 class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_two_stop_route_runs_one_shortest_path_search_not_three(self, mock_find, mock_processing, mock_project):
+        # rc11 smoke test C1: a two-stop route took 14 minutes (matrix A->B and B->A, then the route, ~3 min each).
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
+        mock_find.side_effect = lambda name: {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        res = optimize_delivery_route("stops", road_network_layer="roads", speed_field="speed_kmh", direction_field="oneway")
+
+        self.assertTrue(res["success"])
+        searches = [c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint"]
+        self.assertEqual(len(searches), 1)
+        self.assertEqual(searches[0].args[1].get("DIRECTION_FIELD"), "oneway")     # the route itself honours one-way now
+
+    def test_geofabrik_one_way_codes_are_detected_from_the_layers_own_values(self):
+        # rc11 smoke test: the Yemen roads hold F/B in 'oneway'; the OSM defaults yes/-1/no matched nothing.
+        from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params
+        net = MagicMock()
+        net.fields.return_value.indexOf.return_value = 3
+        net.uniqueValues.return_value = {"F", "B", "T"}
+        extra, err = _network_direction_speed_params(net, direction_field="oneway")
+        self.assertIsNone(err)
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("F", "T", "B"))
+
+    def test_osm_one_way_values_keep_the_defaults(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params
+        net = MagicMock()
+        net.fields.return_value.indexOf.return_value = 3
+        net.uniqueValues.return_value = {"yes", "-1", "no"}
+        extra, _ = _network_direction_speed_params(net, direction_field="oneway")
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("yes", "-1", "no"))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
         network = MagicMock()
@@ -2220,6 +2258,27 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
         calls = layer.changeAttributeValue.call_args_list
         self.assertEqual(calls[0].args, (feat_motorway.id(), 1, 100.0))
         self.assertEqual(calls[1].args, (feat_residential.id(), 1, 40.0))
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_refused_new_field_is_a_clear_error_not_a_bare_minus_one(self, mock_find, mock_geom_err, mock_qv, mock_qf):
+        # rc11 smoke test C1: "estimate_road_speeds failed: '-1'" when the provider would not add the field.
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "primary" if k == "fclass" else None
+        # indexOf never resolves assumed_speed_kmh: map it to -1 explicitly
+        layer = self._make_road_layer([feat], existing_fields=("fclass", "speed_kmh"),
+                                      index_map={"fclass": 0, "speed_kmh": 1, "assumed_speed_kmh": -1})
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+
+        self.assertNotIn("success", res)
+        self.assertIn("does not accept new fields", res["error"])
+        self.assertIn("speed_kmh", res["error"])          # points at the speed field the layer already has
+        layer.startEditing.assert_not_called()
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)

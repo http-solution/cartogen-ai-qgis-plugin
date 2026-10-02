@@ -108,6 +108,24 @@ class TestInterpretRequestPair(unittest.TestCase):
         self.assertIsNone(co.interpret_request_pair((44.03, 15.95), project_crs_is_geographic=False))
 
 
+class TestCrsDecision(unittest.TestCase):
+    """rc11 smoke test F20 step C: an unstated projected CRS that is not the project's is asked about, never guessed."""
+
+    def test_a_crs_the_user_named_proceeds(self):
+        self.assertIsNone(co.crs_decision("EPSG:3857", True, "EPSG:4326"))
+
+    def test_an_unstated_crs_equal_to_the_project_crs_is_assumed_and_said_so(self):
+        self.assertEqual(co.crs_decision("3857", False, "EPSG:3857"), ("assumed", "EPSG:3857"))
+
+    def test_an_unstated_crs_different_from_the_project_crs_asks(self):
+        self.assertEqual(co.crs_decision("EPSG:3857", False, "EPSG:4326"), ("ask", "EPSG:3857"))
+        self.assertEqual(co.crs_decision("EPSG:32638", False, "EPSG:3857"), ("ask", "EPSG:32638"))
+
+    def test_geographic_or_missing_crs_is_left_to_the_degree_range_check(self):
+        self.assertIsNone(co.crs_decision(None, False, "EPSG:3857"))
+        self.assertIsNone(co.crs_decision("WGS84", False, "EPSG:3857"))
+
+
 class TestAddPointLayerSchema(unittest.TestCase):
     """The tool schema is what tells the model to pass a CRS instead of converting by hand."""
 
@@ -121,6 +139,10 @@ class TestAddPointLayerSchema(unittest.TestCase):
     def test_a_crs_argument_exists_and_tells_the_model_not_to_convert(self):
         crs = self._schema()["properties"]["crs"]
         self.assertIn("NEVER convert", crs["description"])
+
+    def test_the_tool_schema_exposes_the_crs_stated_flag(self):
+        # rc11 smoke test F20 step C
+        self.assertIn("crs_stated_by_user", self._schema()["properties"])
 
     def test_points_accept_projected_x_and_y(self):
         item = self._schema()["properties"]["points"]["items"]["properties"]

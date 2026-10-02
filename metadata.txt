@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc11
+version=1.16.0-rc12
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,20 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc11 (2026-10-01):
+changelog=v1.16.0-rc12 (2026-10-02):
+    Release candidate 12 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the first full hands-on smoke test of rc11 (Yemen / Sanaa, QGIS 4.2.2). Each fix has tests and the QGIS-side ones ran in CI on QGIS 4.2.2, but none has been re-run by hand yet.
+    - Fix: an unstated projected CRS that is not the project CRS is asked about instead of guessed (the point was placed silently before); a single point that already exists in a small point layer reuses that layer instead of stacking a new origin layer and result set on every repeat.
+    - Fix: the chat follows new content only until you scroll up (a tall confirmation card used to leave the view stuck); chat bubbles show a clock time instead of a frozen "just now"; a degree written as ^\circ no longer shows raw LaTeX.
+    - Fix: the no-basemap HTML dashboard draws its markers (the map had no maxZoom, so the cluster library threw).
+    - Fix: a downloaded admin-boundary layer is labelled (adm1_name was not a label field) and drawn as a pale backdrop under the analysis; a population raster named yem_ppp_2020 keeps its ramp instead of going opaque black.
+    - Fix: print-layout graticule is thin and pale with small whole-number annotations; the legend uses the non-deprecated sync call.
+    - Fix: a two-stop route runs one shortest-path search instead of three (a 14-minute request); the route layer draws above the road network; the route step now receives the one-way and speed parameters; the reply says "shortest route", not "fastest". Geofabrik one-way codes F/T/B are recognised (they were ignored). estimate_road_speeds gives a clear error when a layer will not accept the new field.
+    - Change: "within reach" facilities are blue instead of teal.
+    - Fix: classify_facilities_timing now actually logs its phase times (the logger dropped the fields).
+    - Fix: only one confirmation card is live at a time (a newer request supersedes older previews); a casual "yes"/"ok" no longer approves a preview (it gets a hint, no model call); a typed word can no longer approve a one-time cloud override (the button must be used); an unrelated message expires pending previews; the executed/failed result is shown readably (#124, #125).
+    - Fix: a short pasted fragment without an action word ("template: access_map", "threshold = 5 km") no longer matches an analysis task; the router hints classify_facilities_by_access ahead of travel_time_matrix for facility-reach requests; re-styling the access layer's access_class keeps the built-in colours (#122, #130).
+    - Not fixed: the population answer is one number, not the three-figure range (#123); routes have no travel-time option (#131); layers already in a project (duplicates, the old black raster, scratch origin layers that are lost on close) are not cleaned up (#120, #121, #128); the print-layout body box is oversized and the access-map guide is incomplete (#129). The new confirmation, router and already-styled changes ran in offline and CI tests only.
+    v1.16.0-rc11 (2026-10-01):
     Release candidate 11 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the first hands-on smoke test of rc10 (Yemen / Sanaa, QGIS 4.2.2); each fix has tests, the QGIS-side ones were run in CI on QGIS 4.2.2, and none has been re-run by hand yet.
     - Fix: a re-saved API key now updates the stored credential instead of failing with "pre-defined config ID is not unique" and falling back to session-only storage.
     - New: the panel opens when QGIS starts (Settings > "Open the Cartogen AI panel when QGIS starts", on by default). A delayed chat-scroll callback no longer crashes when the panel is already destroyed.

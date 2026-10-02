@@ -434,8 +434,19 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
             return None, f"speed_field '{speed_field}' not found on the road network layer."
         extra["SPEED_FIELD"] = speed_field
     if direction_field:
-        if network.fields().indexOf(direction_field) == -1:
+        dir_idx = network.fields().indexOf(direction_field)
+        if dir_idx == -1:
             return None, f"direction_field '{direction_field}' not found on the road network layer."
+        if (value_forward, value_backward, value_both) == ("yes", "-1", "no"):
+            # Geofabrik shapefile extracts encode one-way as F (forward) / T (towards, i.e. backward) / B (both), not OSM's
+            # yes / -1 / no. With the OSM defaults nothing matched, every road counted as two-way and one-way streets were
+            # silently ignored (rc11 smoke test: the Yemen roads layer held F and B). Detected from the layer's own values.
+            try:
+                seen = {str(v) for v in network.uniqueValues(dir_idx) if v is not None}
+                if seen and seen <= {"F", "T", "B"}:
+                    value_forward, value_backward, value_both = "F", "T", "B"
+            except Exception:
+                pass
         extra["DIRECTION_FIELD"] = direction_field
         extra["VALUE_FORWARD"] = value_forward
         extra["VALUE_BACKWARD"] = value_backward
@@ -926,7 +937,13 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
 
         n = len(geoms)
         network_aware = network is not None
-        if network_aware:
+        two_stop_route = network_aware and n == 2
+        if two_stop_route:
+            # rc11 smoke test C1: a two-stop route took 14 minutes because the network distance matrix ran two shortest-path
+            # searches (A->B and B->A) before the route itself ran a third, ~3 minutes each on 140k roads. With two stops
+            # there is nothing to order, so the matrix is skipped; the distance is read from the route afterwards.
+            distance_matrix = None
+        elif network_aware:
             distance_matrix = _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs())
         else:
             distance_area = _make_distance_area(layer)
@@ -935,7 +952,10 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                 for i in range(n)
             ]
 
-        tour, total_distance = _optimize_route(distance_matrix, start_index)
+        if two_stop_route:
+            tour, total_distance = [start_index, 1 - start_index], None
+        else:
+            tour, total_distance = _optimize_route(distance_matrix, start_index)
         ordered_names = [names[i] for i in tour]
 
         result = {
@@ -943,9 +963,10 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "stops_layer": stops_layer,
             "stop_count": n,
             "route_order": ordered_names,
-            "total_distance": round(total_distance, 2),
             "network_aware_ordering": network_aware,
         }
+        if total_distance is not None:
+            result["total_distance"] = round(total_distance, 2)
         if network_aware:
             result["distance_unit"] = "meters"
 
@@ -980,7 +1001,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             result["warning"] = warning
             return result
 
-        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=layer.crs())
+        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=layer.crs(),
+                                                      extra_params=extra_params)
         if route_layer_name is None:
             result["warning"] = (
                 "Could not build a road-snapped route (stops may be too far from the network) -- "
@@ -990,6 +1012,15 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         else:
             result["route_layer"] = route_layer_name
             result["road_snapped"] = True
+            # rc11 smoke test C1: a "fastest route" request returned this and the reply called it fastest. There is no
+            # travel-time strategy on this tool yet (tracked in #131); say what it is.
+            result["route_strategy"] = "shortest distance"
+            result["route_note"] = ("This is the shortest-distance road route, not a fastest-time route. Report it as "
+                                    "'shortest route' and do not call it 'fastest' or give a travel time.")
+            if total_distance is None:
+                routed = _route_cost_sum(route_layer_name)
+                if routed is not None:
+                    result["total_distance"] = round(routed, 2)
 
         return result
     except _bg.AnalysisCancelled:
@@ -1074,7 +1105,19 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
     return matrix
 
 
-def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs=None):
+def _route_cost_sum(route_layer_name):
+    """Sum of the 'cost' field (metres for the shortest-path strategy) of the route layer just added, or None. Never raises."""
+    try:
+        layers = QgsProject.instance().mapLayersByName(route_layer_name)
+        if not layers or layers[0].fields().indexOf("cost") < 0:
+            return None
+        total = sum(float(f["cost"]) for f in layers[0].getFeatures() if f["cost"] is not None)
+        return total if total > 0 else None
+    except Exception:
+        return None
+
+
+def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs=None, extra_params=None):
     """Chain native:shortestpathpointtopoint across each consecutive pair in
     visiting order and merge the segments into one line layer added to the
     project, so optimize_delivery_route's output is an actual road-snapped
@@ -1095,6 +1138,11 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
             "TOLERANCE": 0,
             "OUTPUT": "memory:",
         }
+        if extra_params:
+            # The distance matrix always honoured the direction/speed fields but the route itself did not, so a route could
+            # run the wrong way along a one-way street (found while reading this code for rc11 smoke test C1). The
+            # strategy stays "shortest" (0): there is no travel-time option on this tool yet.
+            params.update(extra_params)
         try:
             params["START_POINT"] = _point_for_network(start, source_crs, network)
             params["END_POINT"] = _point_for_network(end, source_crs, network)
@@ -2718,6 +2766,17 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
             provider.addAttributes([QgsField("assumed_speed_kmh", QVariant.Double)])
             network.updateFields()
         field_idx = network.fields().indexOf("assumed_speed_kmh")
+        if field_idx < 0:
+            # rc11 smoke test C1: this surfaced as the bare error "estimate_road_speeds failed: '-1'" (PyQGIS raises
+            # KeyError('-1') for attribute(-1)). The provider silently refused the new field -- a read-only or filtered data
+            # source (the OSM Roads layer shows a filter) -- and every later call used index -1.
+            existing_speed = [n for n in field_names if n.lower() in ("speed_kmh", "maxspeed", "speed")]
+            hint = (f" This layer already has a speed field ({existing_speed[0]!r}); pass it as speed_field to the routing tool "
+                    "instead." if existing_speed else "")
+            return {"error": (
+                f"Could not add the 'assumed_speed_kmh' field to '{road_network_layer}': its data source does not accept new "
+                "fields (read-only, or opened with a filter). Export a copy of the layer (export_layer) and run this on the "
+                "copy." + hint)}
 
         network.startEditing()
         updated = 0

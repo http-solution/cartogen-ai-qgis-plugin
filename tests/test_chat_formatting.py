@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.ui.chat_formatting import (
-    render_markdown, _relative_time, _blend_hex, derive_bubble_colors,
+    render_markdown, _relative_time, _clock_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
     render_tool_steps_toggle_html, render_tool_steps_failure_details_html,
     build_dock_stylesheet, format_send_error, _brand_accent, BRAND_TEAL, BRAND_ACCENT_BLEND_T,
@@ -207,6 +207,16 @@ class TestRelativeTime(unittest.TestCase):
 
     def test_just_now(self):
         self.assertEqual(_relative_time(now_iso()), "just now")
+
+    def test_clock_time_is_a_fixed_label_not_just_now(self):
+        # rc11 smoke test F25: every bubble kept saying "just now".
+        import datetime
+        now = datetime.datetime.now()
+        self.assertEqual(_clock_time(now.isoformat()), now.strftime("%H:%M"))
+        old = now - datetime.timedelta(days=2)
+        self.assertEqual(_clock_time(old.isoformat()), old.strftime("%b %d, %H:%M"))
+        self.assertEqual(_clock_time(""), "")
+        self.assertEqual(_clock_time("not-a-date"), "")
 
 
 class TestBlendHex(unittest.TestCase):
@@ -548,6 +558,12 @@ class TestSimplifyLatex(unittest.TestCase):
         self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")
         self.assertEqual(self.f(r"$\approx 5\%$"), "≈ 5%")
 
+    def test_degree_written_as_a_superscript_circ(self):
+        # rc11 smoke test F15: the Sana'a reply showed this span raw (a stray caret was left after \\circ became a degree sign).
+        self.assertEqual(self.f(r"(approx. $15.35^\circ\,\text{N},\,44.21^\circ\,\text{E}$)"),
+                         "(approx. 15.35° N, 44.21° E)")
+        self.assertEqual(self.f(r"$30^{\circ}$"), "30°")
+
     def test_dollar_amounts_are_not_math(self):
         self.assertEqual(self.f("costs $5 and $10 each"), "costs $5 and $10 each")
 
@@ -582,3 +598,35 @@ class TestActionChipWithParenthesesInLayerName(unittest.TestCase):
         from cartogen_ai.core.ui.chat_formatting import render_markdown
         html = render_markdown("[📁 Export](cartogen://export/Roads)")
         self.assertIn('href="cartogen://export/Roads"', html)
+
+
+class TestSummarizeToolResult(unittest.TestCase):
+    """rc11 smoke test (#124): the confirmed result was shown as a raw Python dict."""
+
+    def setUp(self):
+        from cartogen_ai.core.ui.chat_formatting import summarize_tool_result
+        self.f = summarize_tool_result
+
+    def test_an_error_is_plain_text(self):
+        self.assertEqual(self.f({"error": "boom"}), "failed: boom")
+
+    def test_a_success_lists_the_useful_keys_not_the_dict(self):
+        out = self.f({"success": True, "layer_name": "Roads", "fields": {"a": {"b": 1}}, "egress_override_note": "User confirmed."})
+        self.assertIn("completed", out)
+        self.assertIn("layer name: Roads", out)
+        self.assertIn("User confirmed.", out)
+        self.assertNotIn("{", out)
+
+    def test_a_message_wins_and_long_text_is_cut(self):
+        self.assertTrue(self.f({"success": True, "message": "Layer removed."}).startswith("Layer removed."))
+        self.assertLessEqual(len(self.f({"message": "x" * 2000}, limit=100)), 104)
+
+    def test_non_dict_results_are_stringified(self):
+        self.assertEqual(self.f("done"), "done")
+
+    def test_the_cloud_override_card_names_what_it_does(self):
+        from cartogen_ai.core.ui.chat_formatting import render_safety_gate_html
+        card = render_safety_gate_html({"id": "1", "egress_override": True, "pending_args": {}}, {})
+        self.assertIn("Send to cloud once", card)
+        self.assertNotIn("Apply edit", card)
+        self.assertIn("Apply edit", render_safety_gate_html({"id": "2", "pending_args": {}}, {}))

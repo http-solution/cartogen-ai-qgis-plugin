@@ -80,3 +80,25 @@ class TestFormattedTaskContextSurfacesPendingConfirmation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreviewSupersede(unittest.TestCase):
+    """rc11 smoke test (#125): every blocked attempt left its own pending preview, so one typed 'confirm' ran a leftover."""
+
+    def _register(self, tm, name, **extra):
+        import types
+        from cartogen_ai.core.agent.agent_orchestrator import CartogenAi
+        res = {"status": "PREVIEW_REQUIRED", "rationale": "r", "code_snippet": "c", "is_destructive": True,
+               "arguments": {"layer_name": "A", "confirmed": True}, **extra}
+        CartogenAi._register_preview_task(types.SimpleNamespace(task_manager=tm), name, {"layer_name": "A"}, res)
+
+    def test_only_the_newest_preview_stays_pending(self):
+        tm = AgentTaskManager()
+        self._register(tm, "remove_layer")
+        self._register(tm, "execute_pyqgis_script", egress_override=True)
+        pending = [t for t in tm.tasks if t["status"] == "PREVIEW_READY" and t.get("pending_tool")]
+        self.assertEqual([t["pending_tool"] for t in pending], ["execute_pyqgis_script"])
+        self.assertTrue(pending[0]["egress_override"])
+        older = next(t for t in tm.tasks if t.get("pending_tool") == "remove_layer")
+        self.assertEqual(older["status"], "FAILED")
+        self.assertIn("Superseded", older["result"])
