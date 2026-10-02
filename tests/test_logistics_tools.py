@@ -286,6 +286,26 @@ class TestNetworkDirectionSpeedParams(unittest.TestCase):
 
 class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_two_stop_route_runs_one_shortest_path_search_not_three(self, mock_find, mock_processing, mock_project):
+        # rc11 smoke test C1: a two-stop route took 14 minutes (matrix A->B and B->A, then the route, ~3 min each).
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
+        mock_find.side_effect = lambda name: {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        res = optimize_delivery_route("stops", road_network_layer="roads", speed_field="speed_kmh", direction_field="oneway")
+
+        self.assertTrue(res["success"])
+        searches = [c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint"]
+        self.assertEqual(len(searches), 1)
+        self.assertEqual(searches[0].args[1].get("DIRECTION_FIELD"), "oneway")     # the route itself honours one-way now
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
         network = MagicMock()

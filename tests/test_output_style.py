@@ -175,6 +175,12 @@ class TestAccessMapTemplate(unittest.TestCase):
     def test_ranking_puts_the_reach_polygon_first_and_other_layers_last(self):
         self.assertEqual(ls.order_for_access_map(["a", "b", "c", "d"], self.NAMES), ["d", "b", "a", "c"])
 
+    def test_a_road_route_draws_above_the_plain_network_but_below_access_layers(self):
+        # rc11 smoke test C1: the route line was drawn under 'OSM Roads (Yemen)'.
+        self.assertLess(ls.arrange_rank("Route_Points_road_route"), ls.arrange_rank("OSM Roads (Yemen)"))
+        self.assertGreater(ls.arrange_rank("Route_Points_road_route"), ls.arrange_rank("Clinics_roads_by_cost_0"))
+        self.assertEqual(ls.arrange_rank("OSM Roads (Yemen)"), 9)
+
     def test_ranking_is_stable_for_layers_of_equal_rank(self):
         self.assertEqual(ls.order_for_access_map(["c", "x"], {"c": "A", "x": "B"}), ["c", "x"])
 

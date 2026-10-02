@@ -1048,12 +1048,12 @@ def auto_arrange_layer_order():
         # Second key: an analysis output (a classified copy, a reach polygon, cost-banded roads) draws ABOVE the layer it was
         # made from. With geometry alone two point layers kept an arbitrary relative order, so the original facilities
         # covered the green/red classified copy on the rc10 smoke test and the access map looked unclassified.
-        from .layout_style import access_rank
+        from .layout_style import arrange_rank
         # Third key: a web basemap (wms/xyz tiles) goes UNDER data rasters. Both are "raster" to the geometry key, so a fetched
         # population raster ended below the OSM basemap and was hidden by it (rc10 smoke test).
         ordered = sorted(layers, key=lambda layer: (_geometry_sort_key(_layer_geometry_kind(layer)),
                                                     1 if _is_web_basemap(layer) else 0,
-                                                    access_rank(layer.name())))
+                                                    arrange_rank(layer.name())))
         _reorder_top_level_layers(ordered)
         return {"success": True, "order_top_to_bottom": [layer.name() for layer in ordered]}
     except Exception as e:
