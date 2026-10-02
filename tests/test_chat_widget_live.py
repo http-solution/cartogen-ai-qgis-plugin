@@ -741,7 +741,7 @@ class TestChatWidgetLive(unittest.TestCase):
                           "a plain confirm reply must never go through the LLM loop")
         self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
         log = self._chat_text(ct)
-        self.assertIn("Confirmed & Executed", log)
+        self.assertIn("Confirmed & executed", log)
 
     def test_chat_typed_cancel_resolves_pending_destructive_action_without_executing(self):
         agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
@@ -916,7 +916,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0,
                           "clicking the card's link must never go through the LLM loop")
         self.assertEqual(agent.task_manager.tasks[0]["status"], "DONE")
-        self.assertIn("Confirmed & Executed", self._chat_text(ct))
+        self.assertIn("Confirmed & executed", self._chat_text(ct))
 
     def test_safety_gate_card_cancel_link_click_does_not_execute(self):
         agent = _FakeAgent(script=[])
