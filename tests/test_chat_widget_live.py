@@ -803,10 +803,10 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.real_execute_tool_calls, [])
         self.assertIn("Activity tab", self._chat_text(ct))
 
-    def test_a_pending_gate_does_not_hijack_an_unrelated_new_message(self):
-        """Only an exact confirm/cancel-shaped reply resolves the gate -- anything else
-        (a genuinely new request) must fall through to the normal send path, so a stale
-        PREVIEW_READY task from an earlier turn can never swallow unrelated messages."""
+    def test_an_unrelated_message_expires_the_pending_gate_and_is_not_swallowed_by_it(self):
+        """Only an exact confirm/cancel-shaped reply resolves the gate. Anything else is a new request: it goes through the
+        normal send path, and the old preview EXPIRES instead of staying alive to be confirmed later (rc11 smoke test, F16
+        step 3 / #125: three leftover previews were run by three typed 'confirm's)."""
         agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "ok, mapped it"}}])
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
@@ -820,12 +820,49 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self._reply(ct, "map health facilities in Aleppo")
 
-        # Whatever the normal send path does with this new, unrelated message (dispatch,
-        # show a prompt preview, ask a requirement question) is out of scope here -- the
-        # only thing under test is that the confirmation gate itself was NOT triggered.
         self.assertEqual(agent.real_execute_tool_calls, [])
-        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY",
-                          "an unrelated message must not disturb the still-pending gate")
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "FAILED")
+        self.assertIn("Expired", agent.task_manager.tasks[0]["result"])
+        # and a later typed Confirm has nothing left to confirm
+        self._reply(ct, "Confirm")
+        self.assertEqual(agent.real_execute_tool_calls, [])
+
+    def test_a_casual_yes_gets_a_hint_and_never_reaches_the_model(self):
+        """rc11 smoke test (#125): 'yes' made the model retry the delete through execute_pyqgis_script."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("Remove", ["Remove layer"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="remove(...)", rationale="t", is_destructive=True)
+        task["pending_tool"] = "remove_layer"
+        task["pending_args"] = {"layer_name": "X"}
+
+        for word in ("yes", "ok", "sure", "go"):
+            self._reply(ct, word)
+
+        self.assertEqual(agent.client.calls, 0)
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+        self.assertIn("not enough", self._chat_text(ct))
+
+    def test_a_typed_confirm_cannot_approve_a_cloud_data_override(self):
+        """rc11 smoke test (#125): the cloud-data override is decided on its card, not with a typed word."""
+        agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "should not be reached"}}])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        agent.task_manager.create_plan("Egress", ["Run script"])
+        task = agent.task_manager.tasks[0]
+        agent.task_manager.set_task_preview(task["id"], code_snippet="", rationale="t", is_destructive=True)
+        task["pending_tool"] = "execute_pyqgis_script"
+        task["pending_args"] = {"code": "pass", "confirmed": True}
+        task["egress_override"] = True
+
+        self._reply(ct, "Confirm")
+
+        self.assertEqual(agent.real_execute_tool_calls, [])
+        self.assertEqual(agent.task_manager.tasks[0]["status"], "PREVIEW_READY")
+        self.assertIn("Send to cloud once", self._chat_text(ct))
 
     # ------------------------------------------ inline safety-gate card (Phase 2) --
 

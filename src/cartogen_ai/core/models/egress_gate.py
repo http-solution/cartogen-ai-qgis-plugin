@@ -279,6 +279,7 @@ def preview_required(tool_name, arguments, decision):
         ),
         "code_snippet": "",
         "is_destructive": True,
+        "egress_override": True,        # only the card button may approve this (never a typed word)
         "arguments": dict(arguments),
     }
 

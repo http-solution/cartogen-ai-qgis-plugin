@@ -598,3 +598,35 @@ class TestActionChipWithParenthesesInLayerName(unittest.TestCase):
         from cartogen_ai.core.ui.chat_formatting import render_markdown
         html = render_markdown("[📁 Export](cartogen://export/Roads)")
         self.assertIn('href="cartogen://export/Roads"', html)
+
+
+class TestSummarizeToolResult(unittest.TestCase):
+    """rc11 smoke test (#124): the confirmed result was shown as a raw Python dict."""
+
+    def setUp(self):
+        from cartogen_ai.core.ui.chat_formatting import summarize_tool_result
+        self.f = summarize_tool_result
+
+    def test_an_error_is_plain_text(self):
+        self.assertEqual(self.f({"error": "boom"}), "failed: boom")
+
+    def test_a_success_lists_the_useful_keys_not_the_dict(self):
+        out = self.f({"success": True, "layer_name": "Roads", "fields": {"a": {"b": 1}}, "egress_override_note": "User confirmed."})
+        self.assertIn("completed", out)
+        self.assertIn("layer name: Roads", out)
+        self.assertIn("User confirmed.", out)
+        self.assertNotIn("{", out)
+
+    def test_a_message_wins_and_long_text_is_cut(self):
+        self.assertTrue(self.f({"success": True, "message": "Layer removed."}).startswith("Layer removed."))
+        self.assertLessEqual(len(self.f({"message": "x" * 2000}, limit=100)), 104)
+
+    def test_non_dict_results_are_stringified(self):
+        self.assertEqual(self.f("done"), "done")
+
+    def test_the_cloud_override_card_names_what_it_does(self):
+        from cartogen_ai.core.ui.chat_formatting import render_safety_gate_html
+        card = render_safety_gate_html({"id": "1", "egress_override": True, "pending_args": {}}, {})
+        self.assertIn("Send to cloud once", card)
+        self.assertNotIn("Apply edit", card)
+        self.assertIn("Apply edit", render_safety_gate_html({"id": "2", "pending_args": {}}, {}))

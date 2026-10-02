@@ -40,7 +40,7 @@ from ..logger import log_warning
 
 from . import reply_vocab
 from .chat_formatting import (
-    render_markdown, _clock_time, now_iso, escape_plain_text, render_tool_steps_toggle_html,
+    render_markdown, _clock_time, now_iso, escape_plain_text, summarize_tool_result, render_tool_steps_toggle_html,
     format_send_error,
 )
 from .theme import theme_colors, extract_theme_palette
@@ -247,14 +247,27 @@ class ChatTabWidget(QWidget):
             pending_tool = task.get("pending_tool")
             pending_args = task.get("pending_args", {})
             exec_res = agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)
-            msg = f"Executed `{pending_tool}`: {exec_res}"
-            agent.task_manager.update_task(task_id, "DONE", msg)
+            # A readable line, not the raw dict (rc11 smoke test, #124). The full result stays in the task record.
+            readable = summarize_tool_result(exec_res)
+            failed = isinstance(exec_res, dict) and bool(exec_res.get("error"))
+            agent.task_manager.update_task(task_id, "FAILED" if failed else "DONE",
+                                           f"Executed `{pending_tool}`: {exec_res}")
             self._dock.receiveMessageSignal.emit(
-                "ai", f"✅ **Confirmed & Executed Task {task_id}:** {msg}")
+                "ai", f"{'⚠️ **Confirmed, but it failed' if failed else '✅ **Confirmed & executed'}"
+                      f" (Task {task_id}, `{pending_tool}`):** {readable}")
         else:
             agent.task_manager.update_task(task_id, "FAILED", "Cancelled by User")
             self._dock.receiveMessageSignal.emit(
                 "ai", f"❌ **Cancelled Task {task_id}:** {task.get('description')}")
+
+    def _expire_pending_previews(self, agent):
+        """Closes every pending confirmation after an unrelated message was sent (F16 step 3, #125)."""
+        if agent is None or not hasattr(agent, "task_manager"):
+            return
+        for task in list(agent.task_manager.tasks):
+            if task.get("status") == "PREVIEW_READY" and task.get("pending_tool"):
+                self._posted_safety_gate_task_ids.discard(task.get("id"))
+                agent.task_manager.update_task(task["id"], "FAILED", "Expired: a new request was sent")
 
     def _show_safety_gate_in_chat(self, agent):
         """Posts the inline destructive-action confirmation card (render_safety_gate_html,
@@ -1082,7 +1095,27 @@ class ChatTabWidget(QWidget):
             # Only an explicit word confirms a destructive action -- a casual "yes"/"ok" typed to
             # answer something else must never (F16) -- and only while the preview is recent.
             decision = reply_vocab.gate_reply(text)
-            if decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
+            if decision == "confirm" and pending_task.get("egress_override"):
+                # A decision to let protected data leave the machine is made on the card, not with a typed word
+                # (rc11 smoke test, #125: a typed "confirm" approved a cloud override the user was never shown).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "Sending protected data to a cloud provider can only be approved with the **Send to cloud once** "
+                          "button on its card. Typing a word does not approve it. Say **cancel** to drop it.")
+                return
+            if decision is None and reply_vocab.router_reply(text) == "confirm":
+                # "yes" / "ok" / "sure" / "go" never confirm a destructive action, and must not be passed to the model
+                # either: it answered by retrying the same action through another tool (rc11 smoke test, #125).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "That is not enough to confirm a change that cannot be undone. Click the button on the card, "
+                          "or type **Confirm** to go ahead, or **Cancel** to drop it.")
+                return
+            if decision is None:
+                # An unrelated message: the preview is not consent for anything the user types later (F16 step 3).
+                self._expire_pending_previews(agent)
+                pending_task = None
+            if pending_task is not None and decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
                     "ai",
@@ -1090,7 +1123,7 @@ class ChatTabWidget(QWidget):
                     f"{reply_vocab.PREVIEW_MAX_AGE_SECONDS // 60} minutes old, so typing Confirm no longer "
                     "applies it. Use the Confirm button in the Activity tab, or ask again.")
                 return
-            if decision is not None:
+            if pending_task is not None and decision is not None:
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._resolve_pending_confirmation(agent, pending_task, confirmed=(decision == "confirm"))
                 return

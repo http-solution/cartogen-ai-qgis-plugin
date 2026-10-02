@@ -682,6 +682,31 @@ def render_refinement_html(recommendations, colors):
     return heading + hint + "".join(cards)
 
 
+def summarize_tool_result(result, limit=400):
+    """One readable line for the result of a tool run confirmed from a card. Pure.
+
+    rc11 smoke test (#124): after "Apply edit" the chat showed the raw Python dict, e.g.
+    "{'success': True, 'layer_name': ..., 'fields': {...}}". An error or a message is shown as text; anything else lists
+    the useful keys, never the whole structure."""
+    if not isinstance(result, dict):
+        text = str(result)
+        return text if len(text) <= limit else text[:limit].rstrip() + " ..."
+    if result.get("error"):
+        return "failed: " + str(result["error"])[:limit]
+    parts = []
+    if result.get("message"):
+        parts.append(str(result["message"]))
+    elif result.get("success") is True:
+        parts.append("completed")
+    for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated"):
+        if result.get(key) not in (None, ""):
+            parts.append(f"{key.replace('_', ' ')}: {result[key]}")
+    if result.get("egress_override_note"):
+        parts.append(str(result["egress_override_note"]))
+    text = "; ".join(parts) or "completed"
+    return text if len(text) <= limit else text[:limit].rstrip() + " ..."
+
+
 def render_safety_gate_html(task, colors):
     """Inline destructive-action confirmation card -- Broadsheet redesign Phase 2, mockup
     state 1f (the inline-card treatment, chosen over 1g's heavier bottom-anchored locking
@@ -747,11 +772,14 @@ def render_safety_gate_html(task, colors):
     # non-breaking-space run is the same &nbsp;-for-spacing workaround this file already
     # relies on elsewhere (render_markdown's list indentation, render_tool_step_html's
     # icon gap) for exactly this class of Qt rich-text CSS limitation.
+    # rc11 smoke test (#124): the cloud-data override card said "Apply edit", which reads as a data edit. It is a decision
+    # to let protected data leave the machine, so say that.
+    confirm_label = "Send to cloud once" if task.get("egress_override") else "Apply edit"
     actions = (
         f'<a href="cartogen://confirm/{task_id}" style="text-decoration:none;'
         f'display:inline-block;padding:5px 14px;'
         f'background-color:{danger};color:#ffffff;font-weight:600;font-size:12px;">'
-        '&#10003;&nbsp;Apply edit</a>'
+        f'&#10003;&nbsp;{confirm_label}</a>'
         '&nbsp;&nbsp;&nbsp;'
         f'<a href="cartogen://cancel/{task_id}" style="text-decoration:none;'
         f'display:inline-block;padding:5px 14px;border:1px solid {subtle_color};'
