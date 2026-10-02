@@ -2246,6 +2246,27 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_refused_new_field_is_a_clear_error_not_a_bare_minus_one(self, mock_find, mock_geom_err, mock_qv, mock_qf):
+        # rc11 smoke test C1: "estimate_road_speeds failed: '-1'" when the provider would not add the field.
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "primary" if k == "fclass" else None
+        # indexOf never resolves assumed_speed_kmh: map it to -1 explicitly
+        layer = self._make_road_layer([feat], existing_fields=("fclass", "speed_kmh"),
+                                      index_map={"fclass": 0, "speed_kmh": 1, "assumed_speed_kmh": -1})
+        mock_find.return_value = layer
+
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+
+        self.assertNotIn("success", res)
+        self.assertIn("does not accept new fields", res["error"])
+        self.assertIn("speed_kmh", res["error"])          # points at the speed field the layer already has
+        layer.startEditing.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_unknown_road_class_uses_default_speed(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
         feat = MagicMock()
         feat.attribute.side_effect = lambda k: "made_up_class" if k == "fclass" else None

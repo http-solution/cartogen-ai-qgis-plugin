@@ -2750,6 +2750,17 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
             provider.addAttributes([QgsField("assumed_speed_kmh", QVariant.Double)])
             network.updateFields()
         field_idx = network.fields().indexOf("assumed_speed_kmh")
+        if field_idx < 0:
+            # rc11 smoke test C1: this surfaced as the bare error "estimate_road_speeds failed: '-1'" (PyQGIS raises
+            # KeyError('-1') for attribute(-1)). The provider silently refused the new field -- a read-only or filtered data
+            # source (the OSM Roads layer shows a filter) -- and every later call used index -1.
+            existing_speed = [n for n in field_names if n.lower() in ("speed_kmh", "maxspeed", "speed")]
+            hint = (f" This layer already has a speed field ({existing_speed[0]!r}); pass it as speed_field to the routing tool "
+                    "instead." if existing_speed else "")
+            return {"error": (
+                f"Could not add the 'assumed_speed_kmh' field to '{road_network_layer}': its data source does not accept new "
+                "fields (read-only, or opened with a filter). Export a copy of the layer (export_layer) and run this on the "
+                "copy." + hint)}
 
         network.startEditing()
         updated = 0
