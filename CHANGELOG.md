@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc12](#v1-16-0-rc12) | 2026-10-02 | **Release candidate 12 for 1.16.0.** No breaking changes. Fixes from the first full hands-on smoke test of rc11: CRS asked when unstated, origin layers reused, chat scrolling and timestamps, no-basemap dashboard markers, admin boundary labels, population ramp name match, soft graticule, faster two-stop route with one-way and honest "shortest" wording, blue within-reach facilities. CI-verified on QGIS 4.2.2; not yet re-run by hand |
 | [1.16.0-rc11](#v1-16-0-rc11) | 2026-10-01 | **Release candidate 11 for 1.16.0.** No breaking changes. Fixes from the first hands-on smoke test of rc10: re-saved API keys, panel at startup, CSV X/Y columns, layer order and visibility, whole-country WorldPop kept in the project folder, clarification loop, router mismatches, hull population labelled an upper bound, results GeoPackage cleanup. CI-verified on QGIS 4.2.2 |
 | [1.16.0-rc10](#v1-16-0-rc10) | 2026-10-01 | **Release candidate 10 for 1.16.0.** No breaking changes. Includes rc9 (reply guard, turn limits, download-size guard, single-tree matrix, concave-hull exposure, results store, model view) plus the visualization round: cost-banded routing roads, grouped reach polygons, styled rasters/outputs with legend units, automatic labels, styled print layout with an access-map template, ten more allowlisted analysis algorithms. CI-verified on QGIS 4.2.2; not yet seen in a hands-on session |
 | [1.16.0-rc8](#v1-16-0-rc8) | 2026-09-30 | **Release candidate 8 for 1.16.0.** No breaking changes. Fixes from the rc7 Yemen smoke test (F01-F25): project no longer renamed by isolated scripts, gate confirmation works, no fabricated results, coordinates converted in code, service-area guards, explicit-only destructive confirmations, highlight cleanup, memory coordinate guard, findable dashboards, Excel-safe CSV. Several findings remain open (see entry) |
@@ -52,6 +53,11 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc12"></a>
+## [1.16.0-rc12] — 2026-10-02 — Release candidate 12 for 1.16.0: fixes from the first full hands-on rc11 smoke test
+
+No breaking changes; QGIS 4.2+. Fixes merged in PR #126 after an operator ran rc11 against real Yemen data in QGIS 4.2.2 (issues #119-#132); see the `v1.16.0-rc12` block in `metadata.txt` for the list and the open items. Verification: offline suite plus the `qgis-live-tests` job on QGIS 4.2.2. Not verified: none of these fixes has been re-run by hand. One correction to the rc11 entry below, which is left as written: it says the band-statistics deprecation warning was gone, but the operator's log still showed it at `raster_tools.py` line 1255; it is only log noise and is still open.
 
 <a id="v1-16-0-rc11"></a>
 ## [1.16.0-rc11] — 2026-10-01 — Release candidate 11 for 1.16.0: fixes from the first hands-on rc10 smoke test
