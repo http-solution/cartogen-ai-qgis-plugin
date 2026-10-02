@@ -1100,9 +1100,72 @@ def estimate_population_exposure(population_raster_layer, area_layer):
             },
             "confidence": "estimate (gridded population raster; not field-verified)",
             **_hull_area_note(area_layer),
+            **_service_area_reach_figures(raster, area_layer),
         }
     except Exception as e:
         return {"error": f"estimate_population_exposure failed: {e}"}
+
+
+def _zonal_population_total(raster, polygon_layer):
+    """Sum a population raster inside every polygon of `polygon_layer` (a scratch layer is fine: the pop_ fields are added
+    to it). Returns the total, or None when the sum could not be computed."""
+    from qgis.analysis import QgsZonalStatistics
+    stat_enum = getattr(QgsZonalStatistics, "Statistic", QgsZonalStatistics)
+    sum_flag = getattr(stat_enum, "Sum", None)
+    if sum_flag is None or polygon_layer is None or polygon_layer.featureCount() == 0:
+        return None
+    QgsZonalStatistics(polygon_layer, raster, "pop_", 1, sum_flag).calculateStatistics(None)
+    if polygon_layer.fields().indexFromName("pop_sum") < 0:
+        return None
+    return sum(v for v in (f.attribute("pop_sum") for f in polygon_layer.getFeatures()) if v is not None)
+
+
+def _service_area_reach_figures(raster, area_layer):
+    """#123 (rc11 smoke F09): "population within the service area" went to estimate_population_exposure on the convex hull
+    and came back as ONE number (815,039), the upper bound, as the headline. When the area is a calculate_service_area hull
+    and its reached-roads sibling layer is in the project, also report the concave-hull and road-buffer figures in the same
+    shape as population_access_gap's reach_figures, with the concave hull as the headline and the convex hull labelled an
+    upper bound. Best-effort: any failure just leaves the single (already labelled) figure. Needs real QGIS; not unit-tested
+    offline beyond the name match."""
+    match = _SERVICE_AREA_HULL_RE.search(str(area_layer or ""))
+    if not match or not QGIS_AVAILABLE:
+        return {}
+    try:
+        from . import logistics_tools as lt
+        lines = _find_layer_by_name(str(area_layer).replace("_service_area_", "_service_area_lines_"))
+        hull = _find_layer_by_name(area_layer)
+        if lines is None or hull is None:
+            return {}
+        convex = _zonal_population_total(raster, hull)
+        figures = []
+        builders = (
+            ("concave_hull", lambda: lt._concave_reach_polygon([lines], lt.CONCAVE_HULL_RATIO, "tmp_concave")),
+            ("road_buffer", lambda: lt._road_reach_polygon([lines], 500, "tmp_road_buffer")),
+        )
+        for method, build in builders:
+            try:
+                total = _zonal_population_total(raster, build())
+            except Exception:
+                total = None
+            if total is not None:
+                figures.append({"method": method, "label": lt.REACH_LABELS[method], "population": total,
+                                "is_upper_bound": False, "is_headline": method == "concave_hull"})
+        if convex is not None:
+            figures.append({"method": "convex_hull", "label": lt.REACH_LABELS["convex_hull"], "population": convex,
+                            "is_upper_bound": True, "is_headline": False})
+        if len(figures) < 2:
+            return {}
+        if not any(f["is_headline"] for f in figures):
+            figures[0]["is_headline"] = True
+        headline = next(f for f in figures if f["is_headline"])
+        return {
+            "reach_figures": figures,
+            "headline_population": headline["population"],
+            "figure_note": ("Report the headline with its range, never the convex-hull figure alone: "
+                            + "; ".join(f"{f['label']}: {f['population']:,.0f}" for f in figures) + "."),
+        }
+    except Exception:
+        return {}
 
 
 _SERVICE_AREA_HULL_RE = re.compile(r"_service_area_\d+$")

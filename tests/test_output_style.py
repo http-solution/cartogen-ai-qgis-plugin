@@ -204,3 +204,31 @@ class TestMastheadColour(unittest.TestCase):
     def test_a_dark_colour_gets_white_text_and_a_light_one_dark_text(self):
         self.assertEqual(ls.resolve_masthead("#003366"), ("#003366", "#ffffff"))
         self.assertEqual(ls.resolve_masthead("#FFEEAA"), ("#ffeeaa", "#1f2d3a"))
+
+
+class TestRc12AuditFixes(unittest.TestCase):
+    """GitHub #120 (placeholder labels), #129 (body panel size, reading guide for the service-area polygon)."""
+
+    def test_placeholder_names_are_not_labels(self):
+        for value in (None, "", "Point", "Origin Point", "Origin Location", "Point (4902068.0, 1799912.0)", "Origin 2"):
+            self.assertTrue(os_.is_generic_label_value(value), value)
+        for value in ("Sana'a Hospital", "Health Centre 3", "Al Thawra Hospital"):
+            self.assertFalse(os_.is_generic_label_value(value), value)
+
+    def test_body_panel_is_sized_to_its_text(self):
+        short = ls.body_text_height_mm("one line", 80, 9)
+        longer = ls.body_text_height_mm("word " * 200, 80, 9)
+        self.assertGreaterEqual(short, 8.0)
+        self.assertLess(short, 20.0)
+        self.assertGreater(longer, short * 2)
+
+    def test_blank_lines_count_and_empty_text_keeps_the_minimum(self):
+        self.assertGreaterEqual(ls.body_text_height_mm("", 80, 9), 8.0)
+        self.assertGreater(ls.body_text_height_mm("a\n\n\nb", 80, 9), ls.body_text_height_mm("a\nb", 80, 9))
+
+    def test_reading_guide_explains_the_service_area_polygon(self):
+        guide = ls.access_reading_guide(["Origin_service_area_0", "Origin_roads_by_cost_0"])
+        self.assertIn("Shaded area", guide)
+        self.assertEqual(guide.count("Shaded area"), 1)
+        both = ls.access_reading_guide(["Origin_service_area_0", "F_reachable_area"])
+        self.assertEqual(both.count("Shaded area"), 1)

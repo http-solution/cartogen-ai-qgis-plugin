@@ -1102,3 +1102,12 @@ class TestHullAreaNote(unittest.TestCase):
         from cartogen_ai.core.agent.tools.raster_tools import _hull_area_note
         for name in ("Districts", "Amran_buffer", "Origin_service_area_lines_0", "", None):
             self.assertEqual(_hull_area_note(name), {}, name)
+
+
+class TestServiceAreaReachFiguresGuard(unittest.TestCase):
+    """GitHub #123: the three-figure range only applies to a calculate_service_area hull."""
+
+    def test_other_layers_get_no_reach_figures(self):
+        from cartogen_ai.core.agent.tools import raster_tools as rt
+        self.assertEqual(rt._service_area_reach_figures(object(), "Districts"), {})
+        self.assertEqual(rt._service_area_reach_figures(object(), None), {})
