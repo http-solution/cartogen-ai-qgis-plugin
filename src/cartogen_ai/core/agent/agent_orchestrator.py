@@ -570,12 +570,6 @@ class CartogenAi:
         preview_task["egress_override"] = bool(res.get("egress_override"))
 
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
-        from .lineage import tag_layer_lineage
-        try:
-            from qgis.core import QgsProject
-        except ImportError:
-            QgsProject = None
-
         func = TOOL_REGISTRY.get(name)
         if func is None:
             return {"error": f"Unknown tool: {name}"}
@@ -656,12 +650,7 @@ class CartogenAi:
                     learning.record_tool_usage(self.memory_manager, name)
                     learning.maybe_infer_preferences(self.memory_manager)
                     self._last_tool_call = (name, args)
-                    created_layer_name = res.get("layer_name")
-                    if created_layer_name and QgsProject is not None:
-                        layers = QgsProject.instance().mapLayersByName(created_layer_name)
-                        if layers:
-                            source_layers = [v for k, v in args.items() if isinstance(v, str) and "layer" in k]
-                            tag_layer_lineage(layers[0], name, args, source_layers)
+                    self._tag_created_layers(name, args, res)
                     if name not in TASK_MANAGEMENT_TOOLS:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
             return res
@@ -811,18 +800,8 @@ class CartogenAi:
         security-critical, well-tested code path."""
         if not (isinstance(res, dict) and res.get("success")):
             return
-        from .lineage import tag_layer_lineage
-        try:
-            from qgis.core import QgsProject
-        except ImportError:
-            QgsProject = None
         self.memory_manager.log_spatial_action(name, str(args))
-        created_layer_name = res.get("layer_name")
-        if created_layer_name and QgsProject is not None:
-            layers = QgsProject.instance().mapLayersByName(created_layer_name)
-            if layers:
-                source_layers = [v for k, v in args.items() if isinstance(v, str) and "layer" in k]
-                tag_layer_lineage(layers[0], name, args, source_layers)
+        self._tag_created_layers(name, args, res)
         learning.record_tool_usage(self.memory_manager, name)
         learning.maybe_infer_preferences(self.memory_manager)
         self._last_tool_call = (name, args)
@@ -1191,6 +1170,25 @@ class CartogenAi:
                 f"aren't reflected above:\n{lines}"
             )
         return f"{final_text}\n\n{note}"
+
+    def _tag_created_layers(self, name, args, res):
+        """Records which layers a successful call read and tags every layer its result says it created (GitHub #150): sources are
+        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`."""
+        from .lineage import created_layer_names, derive_sources, tag_layer_lineage
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return
+        try:
+            project = QgsProject.instance()
+            known = [lyr.name() for lyr in project.mapLayers().values()]
+            sources = derive_sources(name, args, known)
+            for created in created_layer_names(res, sources, known):
+                for layer in project.mapLayersByName(created)[:1]:
+                    tag_layer_lineage(layer, name, args, sources)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
+                      error_class=type(e).__name__, error=True)
 
     _GROUNDING_PER_ITEM_CHARS = 60000
     _GROUNDING_TOTAL_CHARS = 400000

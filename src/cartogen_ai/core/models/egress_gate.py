@@ -25,6 +25,7 @@ the model repeating in its prose what it saw earlier, and text the user types or
 """
 
 import ipaddress
+import re
 from urllib.parse import urlparse
 
 MODE_OFF = "off"
@@ -47,7 +48,17 @@ EXEMPT_TOOLS = frozenset({"set_layer_sensitivity", "get_layer_sensitivity"})
 # execute_pyqgis_script names layers as string literals inside the script, not as arguments, so
 # the argument scan cannot see which it reads. The conservative rule is to treat every layer in
 # the project as touched.
-WHOLE_PROJECT_TOOLS = frozenset({"execute_pyqgis_script"})
+#
+# GitHub #149 (audit F13): run_monitoring_workflow is the same case. It takes only the NAME of a stored preset; the steps (and the
+# layers they read) are looked up inside the tool and called straight from the tool registry, so neither the argument scan nor
+# the per-call gate ever sees them. Until each nested step goes through the gate it is treated as touching the whole project.
+WORKFLOW_TOOLS = frozenset({"run_monitoring_workflow"})
+WHOLE_PROJECT_TOOLS = frozenset({"execute_pyqgis_script"}) | WORKFLOW_TOOLS
+
+# execute_read_only_sql names its layers INSIDE the query text ("SELECT * FROM \"restricted\""), where the exact-string scan
+# cannot see them (#149). Layer names found in the query are the touched layers; a query that names none and has no database
+# connection runs against the project, so it counts as touching all of it.
+SQL_TOOLS = frozenset({"execute_read_only_sql"})
 
 _MAX_LINEAGE_DEPTH = 8
 _MAX_ARG_DEPTH = 6
@@ -122,6 +133,37 @@ def collect_layer_names(value, known_names, _depth=0):
     return found
 
 
+_SQL_TOKEN = re.compile(r"\"([^\"]+)\"|'([^']+)'|`([^`]+)`|\[([^\]]+)\]|([A-Za-z_][\w$]*)")
+
+
+def sql_layer_names(sql, known_names):
+    """Loaded layers whose names appear in a SQL query, as quoted or bare identifiers (case-insensitive). Over-matches on
+    purpose (a string literal equal to a layer name counts): for a privacy gate a false match costs a prompt, a miss leaks. Pure."""
+    if not isinstance(sql, str) or not sql:
+        return set()
+    by_lower = {}
+    for name in known_names:
+        by_lower.setdefault(str(name).lower(), []).append(name)
+    found = set()
+    for m in _SQL_TOKEN.finditer(sql):
+        token = next((g for g in m.groups() if g), None)
+        if token is not None:
+            found.update(by_lower.get(token.lower(), ()))
+    return found
+
+
+def argument_layer_names(tool_name, arguments, known_names):
+    """(layer names a call touches, whether they could not be determined). The one rule the gate and the lineage tagger share, so
+    both see list-valued and nested arguments and the layers named inside SQL. Pure."""
+    names = collect_layer_names(arguments, known_names)
+    if tool_name in SQL_TOOLS:
+        args = arguments if isinstance(arguments, dict) else {}
+        names |= sql_layer_names(args.get("sql_query"), known_names)
+        if not args.get("connection_name") and not names:
+            return set(known_names), True
+    return names, False
+
+
 def _protection_reason(name, get_level, get_sources, strict, seen, depth):
     """Why `name` is protected, or None if it is not.
 
@@ -164,7 +206,7 @@ def evaluate(*, mode, provider_is_local, tool_name, arguments, project_layer_nam
     if tool_name in WHOLE_PROJECT_TOOLS:
         touched = known
     else:
-        touched = collect_layer_names(arguments, known)
+        touched, _unresolved = argument_layer_names(tool_name, arguments, known)
     protected = find_protected(touched, get_level, get_sources, strict)
     if not protected:
         return None
