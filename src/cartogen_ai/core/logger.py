@@ -111,6 +111,8 @@ _SAFE_EVENT_FIELDS = {
     # logged with these fields but this allowlist dropped them, so the line read just "classify_facilities_timing"
     # and the 124 s could not be broken down.
     "facilities", "reached_layers", "service_area_ms", "prepare_ms", "nearest_ms", "build_ms", "replace_ms",
+    # isolated-script reconciliation: how many parts of a script's work could not be applied (a count)
+    "problems",
 }
 
 
