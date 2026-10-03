@@ -42,6 +42,8 @@ if PACKAGE_DIR == "cartogen_ai":
 EXCLUDE_DIRS = {
     ".git", ".github", "__pycache__", ".pytest_cache", "tests", ".idea", ".vscode", ".claude",
     "dist", "brain", "scratch",
+    # setuptools output: a stale second copy of the plugin (build/lib/cartogen_ai) rode into the 2026-10-03 audited zip.
+    "build",
     # Brand assets (guidelines HTML, SVG lockups) have no function inside an
     # installed plugin.
     "branding",
