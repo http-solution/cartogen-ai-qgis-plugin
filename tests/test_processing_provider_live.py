@@ -130,5 +130,27 @@ class TestHubSitingToolsMixedCrs(unittest.TestCase):
         self.assertAlmostEqual(res["ranked_candidates"][0]["avg_distance"], 556.6, delta=15)
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestNearestReachedRoadIsExact(unittest.TestCase):
+    """#148 (audit F12): bounding-box ranking missed a straight road 1 m away behind three U-shaped roads whose envelopes
+    enclose the facility."""
+
+    def setUp(self):
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+
+    def test_a_close_straight_road_beats_three_enclosing_u_shapes(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _nearest_distances_m
+        u = lambda a: f"LINESTRING({-a} {a}, {-a} {-a}, {a} {-a}, {a} {a})"        # noqa: E731  -- about 111 m away at a=0.001
+        roads = _layer("LineString", "EPSG:4326",
+                       [u(0.001), u(0.0011), u(0.0012), "LINESTRING(0.00001 -0.0005, 0.00001 0.0005)"], "roads")
+        facility = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
+        distances = _nearest_distances_m(list(facility.getFeatures()), facility.crs(), [roads])
+        self.assertEqual(len(distances), 1)
+        self.assertLess(distances[0], 3.0)                       # ~1.1 m; the old box ranking returned ~111 m
+
+
 if __name__ == "__main__":
     unittest.main()

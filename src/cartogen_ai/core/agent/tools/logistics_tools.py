@@ -2137,6 +2137,22 @@ DEFAULT_SNAP_DISTANCE_M = 500.0
 MATRIX_LARGE_DESTINATIONS = 200
 
 
+def _exact_spatial_index():
+    """A QgsSpatialIndex that stores the feature geometries, so nearestNeighbor() ranks by the geometry itself.
+
+    GitHub #148 (audit F12): the index was built with no flags, so nearestNeighbor() ranked by BOUNDING BOX. For a road whose
+    envelope encloses the query point (a U- or L-shaped road), the box distance is zero while the road itself can be hundreds of
+    metres away, so the true nearest road was missed when more than three envelopes ranked ahead of it (three U-shaped roads and
+    a straight road 1 m away gave 100 m) and facilities near a threshold were classified wrongly. QGIS documents this limit of an
+    index without stored geometries."""
+    flag_type = getattr(QgsSpatialIndex, "Flag", QgsSpatialIndex)
+    flag = getattr(flag_type, "FlagStoreFeatureGeometries")
+    try:
+        return QgsSpatialIndex(flags=flag)
+    except TypeError:
+        return QgsSpatialIndex(flag)
+
+
 def _classify_by_distance(distances_m, snap_distance_m):
     """'within' / 'beyond' per facility from its distance (metres) to the nearest reached road.
     None (no reached road at all) is beyond. Pure, so it is unit tested without QGIS."""
@@ -2168,7 +2184,7 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
         feats = {f.id(): f for f in lyr.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()}
         if not feats:
             continue
-        index = QgsSpatialIndex()
+        index = _exact_spatial_index()
         for f in feats.values():
             index.addFeature(f)
         xf = QgsCoordinateTransform(facilities_crs, lyr.crs(), QgsProject.instance())
