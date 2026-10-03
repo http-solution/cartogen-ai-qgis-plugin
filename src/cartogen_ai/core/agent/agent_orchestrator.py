@@ -719,15 +719,57 @@ class CartogenAi:
         if self._turn_is_stale():
             return {"error": "The project changed while this request was running, so the tool was not run. "
                              "Ask again in the project you now have open.", "project_changed": True}
-        layer_ids_before = self._live_layer_ids()
         try:
             parsed_arguments = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
             if not isinstance(parsed_arguments, dict):
                 parsed_arguments = {}
         except (TypeError, ValueError):
             parsed_arguments = {}
+        operation_type = tool_operations.get_tool_operation_type(name)
+
+        # #138 (audit F02): the before-state (project layer ids + undo snapshot) and the after-state used to be read here, on
+        # the calling context, which for a turn is the AgentQgsTask worker thread -- only the tool body itself was marshalled
+        # to the main thread. QgsProject / layer access from the worker is not safe. Now the whole command (before-state,
+        # tool, after-state, transaction record) is ONE unit on the main thread for ordinary tools. Network-only and two-phase
+        # tools must keep their slow part on the worker, so only their project-state reads/writes are marshalled.
+        if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
+            before = self._run_on_main_thread(lambda _a: self._capture_before(name, parsed_arguments), None)
+            if not (isinstance(before, tuple) and len(before) == 2):
+                before = (set(), None)
+            result = self._guarded_dispatch(name, arguments)
+            self._run_on_main_thread(
+                lambda _a: self._record_after(name, operation_type, result, before[0], before[1]), None)
+            return result
+
+        def command(_unused):
+            ids_before, snap = self._capture_before(name, parsed_arguments)
+            res = self._guarded_dispatch(name, arguments)
+            self._record_after(name, operation_type, res, ids_before, snap)
+            return res
+
+        result = self._run_on_main_thread(command, None)
+        return result if isinstance(result, dict) else {"error": "Execution failed unexpectedly."}
+
+    def _capture_before(self, name, parsed_arguments):
+        """(layer ids, undo snapshot) before a tool runs. MAIN THREAD ONLY. A snapshot function that raises is reported, not
+        swallowed silently: the call then has no snapshot, which transactions.py already treats as 'fall back to the new-layer
+        diff', i.e. undo of that call is limited -- visible in the log instead of a crash of the whole turn."""
+        ids = self._live_layer_ids()
         snapshot_fn = get_snapshot_fn(name)
-        snapshot = snapshot_fn(parsed_arguments) if snapshot_fn else None
+        snapshot = None
+        if snapshot_fn:
+            try:
+                snapshot = snapshot_fn(parsed_arguments)
+            except Exception as e:
+                log_event("snapshot", tag="Agent", tool=name, status="failed", error_class=type(e).__name__, error=True)
+        return ids, snapshot
+
+    def _record_after(self, name, operation_type, result, ids_before, snapshot):
+        """Records the call in the turn's transaction log. MAIN THREAD ONLY (reads the live project)."""
+        ids_after = self._live_layer_ids()
+        self._transaction_log.record(name, operation_type, result, ids_before, ids_after, snapshot=snapshot)
+
+    def _guarded_dispatch(self, name, arguments):
         # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading
         # "Error: 'str' object has no attribute 'get'" -- an uncaught AttributeError
         # that escaped run()'s tool-call loop entirely (task_runner.py's outer
@@ -751,13 +793,9 @@ class CartogenAi:
         # any dispatch path, becomes a normal {"error": ...} result instead of
         # silently ending the whole turn.
         try:
-            result = self._execute_tool_dispatch(name, arguments)
+            return self._execute_tool_dispatch(name, arguments)
         except Exception as e:
-            result = {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
-        layer_ids_after = self._live_layer_ids()
-        operation_type = tool_operations.get_tool_operation_type(name)
-        self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=snapshot)
-        return result
+            return {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
 
     def _execute_tool_dispatch(self, name, arguments):
         if name in NETWORK_ONLY_TOOLS:
@@ -783,7 +821,8 @@ class CartogenAi:
         return {}
 
     def _run_on_main_thread(self, func, arg):
-        if self._on_dispatcher_thread():
+        # No dispatcher (no QGIS/Qt, e.g. the offline tests): there is no other thread to marshal to, run inline.
+        if getattr(self, "dispatcher", None) is None or self._on_dispatcher_thread():
             try:
                 return func(arg)
             except Exception as e:

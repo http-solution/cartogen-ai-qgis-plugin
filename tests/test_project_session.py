@@ -51,3 +51,43 @@ class TestAgentGuards(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestToolCommandBoundary(unittest.TestCase):
+    """GitHub #138 (audit F02): before-state, tool and after-state are one main-thread unit for ordinary tools; for network-only
+    tools only the project-state reads are marshalled. A fake `_run_on_main_thread` records what would cross the thread boundary."""
+
+    def _agent(self):
+        a = CartogenAi.__new__(CartogenAi)
+        a._turn_project_session = None
+        a.on_main = []
+        a._transaction_log = MagicMock()
+        a._live_layer_ids = MagicMock(return_value={"l1"})
+        a._execute_tool_dispatch = MagicMock(return_value={"success": True})
+
+        def fake_run(func, arg):
+            a.on_main.append(func)
+            return func(arg)
+        a._run_on_main_thread = fake_run
+        return a
+
+    def test_ordinary_tool_is_a_single_main_thread_command(self):
+        a = self._agent()
+        res = a._execute_tool("buffer", "{}")
+        self.assertEqual(len(a.on_main), 1)
+        self.assertTrue(res["success"])
+        a._transaction_log.record.assert_called_once()
+
+    def test_network_tool_marshals_only_the_state_reads(self):
+        a = self._agent()
+        a._execute_tool("search_web", "{}")
+        self.assertEqual(len(a.on_main), 2)  # before-state and record; the tool itself ran on the calling thread
+        a._transaction_log.record.assert_called_once()
+
+    def test_a_failing_snapshot_function_does_not_abort_the_call(self):
+        from unittest.mock import patch
+        a = self._agent()
+        with patch("cartogen_ai.core.agent.agent_orchestrator.get_snapshot_fn", return_value=MagicMock(side_effect=ValueError("x"))):
+            res = a._execute_tool("buffer", "{}")
+        self.assertTrue(res["success"])
+        self.assertIsNone(a._transaction_log.record.call_args.kwargs["snapshot"])
