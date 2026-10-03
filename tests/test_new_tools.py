@@ -82,10 +82,11 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", bad_res)
         self.assertIn("Destructive/non-read-only SQL keyword 'DROP' rejected", bad_res["error"])
 
-    def test_enforce_db_read_only_degrades_gracefully_outside_qgis(self):
-        # QgsProviderRegistry doesn't exist in this environment -- must not raise, must no-op (None)
+    def test_enforce_db_read_only_fails_closed_when_it_cannot_open_a_connection(self):
+        # #151: this used to assert None (= proceed). QgsProviderRegistry doesn't exist in this environment; the layer that
+        # claims to be a guarantee must refuse, not silently switch itself off. Must not raise.
         res = _enforce_db_read_only("dummy_uri", "SELECT 1")
-        self.assertIsNone(res)
+        self.assertIn("error", res)
 
     def test_enforce_db_read_only_fails_closed_when_set_read_only_fails(self):
         # A2: if the DB-level READ ONLY session can't be confirmed, this must

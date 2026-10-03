@@ -118,6 +118,7 @@ Execute a read-only SQL query against a named PostGIS connection or active proje
 |---|---|---|---|
 | `connection_name` | string | no |  |
 | `sql_query` | string | yes |  |
+| `geometry_column` | string | no | Name of the geometry column in the query result; omit for a non-spatial result table. |
 
 ### `load_workflow_preset`
 
