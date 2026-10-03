@@ -334,13 +334,26 @@ def content_signature(field_names, rows):
     return (tuple(field_names), normalized)
 
 
-def _layer_signature(layer):
+def _layer_signature(layer, skip_fields=()):
+    skip = {n.lower() for n in skip_fields}
+    keep = [i for i, fld in enumerate(layer.fields()) if fld.name().lower() not in skip]
     rows = []
     for f in layer.getFeatures():
         geom = f.geometry()
         wkb = bytes(geom.asWkb()).hex() if geom is not None and not geom.isEmpty() else ""
-        rows.append((list(f.attributes()), wkb))
-    return content_signature([fld.name() for fld in layer.fields()], rows)
+        attrs = f.attributes()
+        rows.append(([attrs[i] for i in keep], wkb))
+    return content_signature([layer.fields().at(i).name() for i in keep], rows)
+
+
+def _same_content(live_layer, result_layer):
+    """True when the two layers hold the same fields and features. The result copy has been through a GeoPackage, which adds its
+    own `fid` primary-key column; that column is ignored when only one side has it (CI run 37163181576 showed an untouched memory
+    layer reported as 'updated' because of it)."""
+    live_names = {f.name().lower() for f in live_layer.fields()}
+    result_names = {f.name().lower() for f in result_layer.fields()}
+    skip = ("fid",) if ("fid" in live_names) != ("fid" in result_names) else ()
+    return _layer_signature(live_layer, skip) == _layer_signature(result_layer, skip)
 
 
 def _detach_vector_layer(layer):
@@ -474,7 +487,7 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
         if live_layer is None or result_layer is None:
             continue
         try:
-            if _layer_signature(live_layer) == _layer_signature(result_layer):
+            if _same_content(live_layer, result_layer):
                 continue
             _replace_memory_layer(live_layer, result_layer)
         except Exception as e:
