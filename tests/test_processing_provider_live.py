@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+"""Live-QGIS tests for the native Processing algorithms (audit F03, F04, F06 -> GitHub #139, #140, #142).
+
+Written without a QGIS install: CI's first run is their first execution. The algorithms are run (not only their metadata) with
+QgsProcessingAlgorithm.run(), the way the Processing dialog and a model would run them."""
+import unittest
+
+try:
+    from qgis.core import (QgsFeature, QgsGeometry, QgsProcessingContext, QgsProcessingFeedback, QgsProject, QgsVectorLayer)
+    QGIS_LIVE_AVAILABLE = True
+except ImportError:
+    QGIS_LIVE_AVAILABLE = False
+
+
+def _layer(kind, crs, wkts, name):
+    layer = QgsVectorLayer(f"{kind}?crs={crs}&field=name:string", name, "memory")
+    feats = []
+    for i, wkt in enumerate(wkts):
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromWkt(wkt))
+        f.setAttributes([f"{name}{i}"])
+        feats.append(f)
+    layer.dataProvider().addFeatures(feats)
+    layer.updateExtents()
+    return layer
+
+
+def _run(alg, params):
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    feedback = QgsProcessingFeedback()
+    alg.initAlgorithm({})
+    results, ok = alg.run(params, context, feedback)
+    return results, ok, context, feedback
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestNativeProcessingAlgorithmsRun(unittest.TestCase):
+    def setUp(self):
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _hub(self, candidates, demand, **extra):
+        from cartogen_ai.processing.provider import OptimalHubSitingAlgorithm
+        params = {"INPUT_CANDIDATES": candidates, "INPUT_DEMAND": demand, "OUTPUT": "memory:"}
+        params.update(extra)
+        results, ok, context, _fb = _run(OptimalHubSitingAlgorithm(), params)
+        out = context.getMapLayer(results["OUTPUT"]) if ok else None
+        return ok, out
+
+    def test_hub_siting_runs_on_valid_points_and_ranks_the_nearer_candidate_first(self):
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)", "POINT(0.1 0)"], "cand")
+        demand = _layer("Point", "EPSG:4326", ["POINT(0.005 0)"], "dem")
+        ok, out = self._hub(cands, demand)
+        self.assertTrue(ok)
+        rows = sorted(out.getFeatures(), key=lambda f: f["rank"])
+        self.assertEqual([f["name"] for f in rows], ["cand0", "cand1"])
+        self.assertAlmostEqual(rows[0]["avg_dist_m"], 556.6, delta=15)
+
+    def test_demand_in_another_crs_is_transformed_not_misread(self):
+        # 556.6 m east of the origin, written in EPSG:3857 metres. Read as degrees (the old behaviour) it was ~18 million m.
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "cand")
+        demand = _layer("Point", "EPSG:3857", ["POINT(556.6 0)"], "dem")
+        ok, out = self._hub(cands, demand)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(next(out.getFeatures())["avg_dist_m"], 556.6, delta=15)
+
+    def test_a_multipart_candidate_is_skipped_not_a_crash(self):
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)", "MULTIPOINT((0.2 0),(0.3 0))"], "cand")
+        demand = _layer("Point", "EPSG:4326", ["POINT(0.005 0)"], "dem")
+        ok, out = self._hub(cands, demand)
+        self.assertTrue(ok)
+        self.assertEqual(out.featureCount(), 1)
+
+    def test_no_usable_demand_is_an_error_not_a_success(self):
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "cand")
+        demand = _layer("Point", "EPSG:4326", [], "dem")
+        ok, _out = self._hub(cands, demand)
+        self.assertFalse(ok)
+
+    def test_the_service_distance_threshold_is_in_metres(self):
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "cand")
+        demand = _layer("Point", "EPSG:4326", ["POINT(0.005 0)", "POINT(0.5 0)"], "dem")
+        ok, out = self._hub(cands, demand, MAX_DISTANCE=1000.0)
+        self.assertTrue(ok)
+        feat = next(out.getFeatures())
+        self.assertEqual(feat["served_count"], 1)
+
+    def test_service_area_runs_on_a_valid_road(self):
+        from cartogen_ai.processing.provider import CalculateServiceAreaAlgorithm
+        roads = _layer("LineString", "EPSG:4326", ["LINESTRING(0 0, 0.01 0)"], "roads")
+        fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
+        params = {"INPUT_FACILITIES": fac, "INPUT_NETWORK": roads, "TRAVEL_COST": 500.0, "STRATEGY": 0,
+                  "DEFAULT_SPEED": 50.0, "OUTPUT_LINES": "memory:"}
+        results, ok, context, _fb = _run(CalculateServiceAreaAlgorithm(), params)
+        self.assertTrue(ok)
+        out = context.getMapLayer(results["OUTPUT_LINES"])
+        self.assertGreater(out.featureCount(), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
