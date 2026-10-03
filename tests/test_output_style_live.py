@@ -385,6 +385,16 @@ class TestPrintLayoutStyling(unittest.TestCase):
         self.assertEqual(res["template"], "access_map")
         self.assertEqual(res["legend_layers"][:2], ["Clinics_reachable_area", "Clinics_access_30"])
         self.assertIn("reachable area", layout.itemById("BODY_TEXT").text())
+        # #129: the extent filter is the step that can drop a visible reach polygon, so the template leaves it off
+        self.assertFalse(layout.itemById("LEGEND").legendFilterByMapEnabled())
+
+    def test_a_plain_service_area_polygon_is_in_the_access_map_legend_and_guide(self):
+        project = QgsProject.instance()
+        hull = _layer("Polygon", "Origin_service_area_0", ["POLYGON((44 15, 44.5 15, 44.5 15.5, 44 15.5, 44 15))"])
+        project.addMapLayer(hull)
+        res, layout, _ = self._layout(template="access_map")
+        self.assertIn("Origin_service_area_0", res["legend_layers"])
+        self.assertIn("Shaded area", layout.itemById("BODY_TEXT").text())
 
     def test_the_masthead_colour_comes_from_settings(self):
         from qgis.core import QgsSettings

@@ -308,7 +308,10 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         root.removeAllChildren()
         for layer_id in ids:
             root.addLayer(by_id[layer_id])
-        leg.setLegendFilterByMapEnabled(True)             # only what the map extent shows
+        # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
+        # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
+        # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
+        leg.setLegendFilterByMapEnabled(template != "access_map")
         leg.setTitle("Legend")
         _panel(leg, layout_mm)
 
