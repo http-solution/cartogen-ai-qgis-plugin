@@ -716,6 +716,9 @@ class CartogenAi:
         (isinstance guard first, so re-parsing an already-dict value later is a no-op), fixes
         the actual reported bug -- the isinstance guard added to _compact_old_tool_results
         earlier this session was a real, separate gap, not this one."""
+        if self._turn_is_stale():
+            return {"error": "The project changed while this request was running, so the tool was not run. "
+                             "Ask again in the project you now have open.", "project_changed": True}
         layer_ids_before = self._live_layer_ids()
         try:
             parsed_arguments = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
@@ -1048,6 +1051,13 @@ class CartogenAi:
     def _trim_history(self):
         self._get_history_manager().trim(MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
+    _turn_project_session = None
+
+    def _turn_is_stale(self):
+        """True when the running turn was started in a project that has since been cleared or replaced (project_session.py)."""
+        from . import project_session
+        return project_session.is_stale(self._turn_project_session)
+
     def _append_history(self, *messages):
         """Appends one or more messages to conversation_history and trims it, all under
         one lock acquisition -- see history_manager.HistoryManager.append for the real
@@ -1055,6 +1065,8 @@ class CartogenAi:
         thread) goes through instead of touching conversation_history.append() directly,
         so a turn finishing concurrently on the background QgsTask thread can't
         interleave with it mid-mutation."""
+        if self._turn_is_stale():
+            return  # #147: a turn from the previous project must not write into the one open now
         self._get_history_manager().append(messages, MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
     def _read_history_snapshot(self):
@@ -1267,12 +1279,22 @@ class CartogenAi:
         national road network takes minutes -- can notice Stop and say what it is doing
         (cancel_signal.py). Before this, should_stop was only checked between tool calls, so a
         running tool could not be stopped and QGIS froze until it finished."""
-        from . import cancel_signal
-        token = cancel_signal.begin(should_stop, getattr(self.client, "_emit_status", None))
+        from . import cancel_signal, project_session
+        # #147 (audit F11): bind this turn to the project that is open now. A project clear/read bumps the generation, which
+        # both stops the turn at its next checkpoint (via the combined should_stop, also polled by long tools) and makes
+        # _execute_tool / _append_history refuse to touch whatever project is open by then.
+        captured = project_session.current()
+        self._turn_project_session = captured
+
+        def stop_or_stale():
+            return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
+
+        token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
         try:
-            return self._run_impl(user_query, map_context, should_stop, tool_step_callback)
+            return self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
         finally:
             cancel_signal.end(token)
+            self._turn_project_session = None
 
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the

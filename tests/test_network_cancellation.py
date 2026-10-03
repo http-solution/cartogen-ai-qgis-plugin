@@ -98,7 +98,9 @@ class TestRunPublishesAndClearsTheStopCheck(unittest.TestCase):
             got.update(q=user_query, ctx=map_context, stop=should_stop, cb=tool_step_callback)
         stop, cb = (lambda: False), (lambda *a: None)
         self._agent(impl).run("hello", map_context={"x": 1}, should_stop=stop, tool_step_callback=cb)
-        self.assertEqual(got, {"q": "hello", "ctx": {"x": 1}, "stop": stop, "cb": cb})
+        # #147: should_stop is now wrapped (it also reports a project change), so check behaviour rather than identity.
+        self.assertEqual({k: v for k, v in got.items() if k != "stop"}, {"q": "hello", "ctx": {"x": 1}, "cb": cb})
+        self.assertFalse(got["stop"]())
 
 
 class TestRunNetworkAlgorithmChoosesTheThread(unittest.TestCase):
