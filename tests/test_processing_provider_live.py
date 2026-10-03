@@ -25,8 +25,12 @@ def _layer(kind, crs, wkts, name):
     return layer
 
 
+_KEEP_ALIVE = []        # a QgsProcessingContext owns the temporary output layers: if it is collected the layers are deleted
+
+
 def _run(alg, params):
     context = QgsProcessingContext()
+    _KEEP_ALIVE.append(context)
     context.setProject(QgsProject.instance())
     feedback = QgsProcessingFeedback()
     alg.initAlgorithm({})
