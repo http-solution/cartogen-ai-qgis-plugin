@@ -709,7 +709,12 @@ def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer_name = f"{fetch_result['iso3']}_{fetch_result['admin_level']}_boundary"
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
-        QgsProject.instance().addMapLayer(layer)
+        # rc11 smoke S5 (#127): a re-download added a second layer with the same name next to the earlier one (QGIS does
+        # not dedupe by name), so the project held two "YEM_ADM1_boundary_hdx". Replace instead of stacking.
+        project = QgsProject.instance()
+        for stale in project.mapLayersByName(layer_name):
+            project.removeMapLayer(stale.id())
+        project.addMapLayer(layer)
         _auto_label_admin(layer)
         return {"success": True, "layer_name": layer_name, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
 
@@ -860,7 +865,10 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
     layer_name = f"{fetch_result['iso3']}_{fetch_result['admin_level']}_boundary_hdx"
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
-        QgsProject.instance().addMapLayer(layer)
+        project = QgsProject.instance()
+        for stale in project.mapLayersByName(layer_name):   # same re-download duplicate as above (#127)
+            project.removeMapLayer(stale.id())
+        project.addMapLayer(layer)
         _auto_label_admin(layer)
         return {
             "success": True,

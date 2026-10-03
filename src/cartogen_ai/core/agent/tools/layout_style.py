@@ -21,7 +21,7 @@ import datetime
 
 try:
     from qgis.core import (
-        Qgis, QgsLayoutMeasurement, QgsProject, QgsTextFormat, QgsUnitTypes,
+        Qgis, QgsLayoutMeasurement, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -64,6 +64,9 @@ def legend_layer_ids(entries):
 # --- access-map template: how the layers a service-area / access analysis leaves behind are ordered and explained.
 ACCESS_PARTS = (            # (name fragment, rank, plain-language reading-guide line)
     ("_reachable_area", 0, "Shaded area: the reachable area within the chosen travel cost."),
+    # calculate_service_area's own reach polygon (`<origin>_service_area_<n>`); rc11 smoke S8 (#129): with only that polygon
+    # visible the guide never explained the shaded area. Same sentence, so it is listed once when both are present.
+    ("_service_area_", 0, "Shaded area: the reachable area within the chosen travel cost."),
     ("_reachable_by_", 1, "Admin areas: the area reached by the facilities."),
     ("_access_", 2, "Points: facilities within reach (green) and beyond reach (red)."),
     ("_roads_by_cost_", 3, "Road colour: travel cost from the origin, near (dark) to far (warm)."),
@@ -114,6 +117,20 @@ def access_reading_guide(names):
         if any(fragment in str(n or "") for n in names) and text not in lines:
             lines.append(text)
     return "\n".join(lines)
+
+
+def body_text_height_mm(text, width_mm, font_pt, margin_mm=1.5, minimum_mm=8.0):
+    """Height a wrapped text panel needs, in mm. Pure estimate (average glyph ~0.5 em, line height 1.35 em).
+
+    rc11 smoke S7 (#129): the body box was as tall as the page for one or two lines of text. Slightly generous on purpose:
+    a clipped last line is worse than a little spare room."""
+    import math
+    usable = max(1.0, float(width_mm) - 2 * 2.0)               # the panel's side margins
+    chars_per_line = max(1, int(usable / (font_pt * 0.3528 * 0.5)))
+    lines = 0
+    for line in str(text or "").split("\n"):
+        lines += max(1, math.ceil(len(line) / chars_per_line))
+    return max(float(minimum_mm), lines * font_pt * 0.3528 * 1.35 + 2 * margin_mm + 1.0)
 
 
 def access_zoom_layer_name(names):
@@ -265,6 +282,13 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         _panel(label, layout_mm)
         label.setMarginX(2.0)
         label.setMarginY(1.5)
+        try:   # size the panel to its text instead of leaving a page-tall empty box (#129)
+            size = label.rect()
+            needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
+            if needed < size.height():
+                label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
+        except Exception:
+            pass
 
     def footer():
         label = item("FOOTER")

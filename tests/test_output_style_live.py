@@ -26,12 +26,14 @@ def _boot_qgis():
     return _shared_boot()
 
 
-def _layer(kind, name, wkts, fields=""):
+def _layer(kind, name, wkts, fields="", values=None):
     layer = QgsVectorLayer(f"{kind}?crs=EPSG:4326{fields}", name, "memory")
     feats = []
-    for wkt in wkts:
+    for i, wkt in enumerate(wkts):
         f = QgsFeature(layer.fields())
         f.setGeometry(QgsGeometry.fromWkt(wkt))
+        if values:
+            f.setAttributes([values[i]])
         feats.append(f)
     layer.dataProvider().addFeatures(feats)
     layer.updateExtents()
@@ -289,7 +291,9 @@ class TestAutoLabels(unittest.TestCase):
         self.addCleanup(QgsProject.instance().clear)
 
     def _named(self, name, count, field="name"):
-        layer = _layer("Point", name, [f"POINT({i} 1)" for i in range(count)], fields=f"&field={field}:string")
+        # Real names: an all-placeholder or empty name column is deliberately NOT labelled (#120).
+        layer = _layer("Point", name, [f"POINT({i} 1)" for i in range(count)], fields=f"&field={field}:string",
+                       values=[f"Health Centre {chr(65 + i % 26)}{i}" for i in range(count)])
         QgsProject.instance().addMapLayer(layer)
         return layer
 
@@ -299,6 +303,14 @@ class TestAutoLabels(unittest.TestCase):
         self.assertEqual(style_auto_labels(layer), "name")
         self.assertTrue(layer.labelsEnabled())
         self.assertEqual(layer.labeling().settings().fieldName, "name")
+
+    def test_a_layer_of_placeholder_names_is_left_unlabelled(self):
+        from cartogen_ai.core.agent.tools.output_style import style_auto_labels
+        layer = _layer("Point", "Origin_lbl", ["POINT(0 1)", "POINT(1 1)"], fields="&field=name:string",
+                       values=["Origin Point", "Point (4902068.0, 1799912.0)"])
+        QgsProject.instance().addMapLayer(layer)
+        self.assertIsNone(style_auto_labels(layer))
+        self.assertFalse(layer.labelsEnabled())
 
     def test_a_large_layer_is_left_unlabelled(self):
         from cartogen_ai.core.agent.tools.output_style import style_auto_labels

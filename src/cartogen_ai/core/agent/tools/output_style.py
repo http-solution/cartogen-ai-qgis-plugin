@@ -12,6 +12,8 @@ The pure half (ramp stops, labels, role mapping) is unit tested offline. The QGI
 repo already runs against QGIS 4.2.2 (raster_tools.apply_raster_stretch resolves the same enums) and is covered by
 tests/test_output_style_live.py in CI.
 """
+import re
+
 try:
     from qgis.core import (
         QgsColorRampShader, QgsMarkerSymbol, QgsRasterShader, QgsSingleBandPseudoColorRenderer, QgsSingleSymbolRenderer,
@@ -120,6 +122,18 @@ def choose_label_field(field_names):
         if candidate in lowered:
             return lowered[candidate]
     return None
+
+
+_GENERIC_LABEL_RE = re.compile(
+    r"^\s*(?:origin|origin point|origin location|point|facility|location|feature|site)?\s*(?:\(.*\))?\s*\d*\s*$", re.IGNORECASE)
+
+
+def is_generic_label_value(value):
+    """True for an empty or placeholder name ("Point", "Origin Point", "Point (4902068.0, 1799912.0)"). Pure.
+
+    rc11 smoke test (#120): a scratch origin layer's `name` field held only such placeholders, so automatic labels printed
+    "Origin Point", "Point" and a coordinate pair over the map. A layer whose names are ALL placeholders is not labelled."""
+    return value is None or bool(_GENERIC_LABEL_RE.match(str(value)))
 
 
 def should_auto_label(feature_count, field_names, limit=AUTO_LABEL_MAX_FEATURES):
@@ -234,6 +248,8 @@ def style_auto_labels(layer, limit=AUTO_LABEL_MAX_FEATURES):
     try:
         ok, field = should_auto_label(layer.featureCount(), [f.name() for f in layer.fields()], limit)
         if not ok:
+            return None
+        if all(is_generic_label_value(f[field]) for f in layer.getFeatures()):
             return None
         from .vector_tools import apply_labels
         from qgis.core import QgsProject
