@@ -116,41 +116,72 @@ class TestFieldWriteSnapshot(unittest.TestCase):
         self.assertTrue(snap["field_existed"])
         self.assertEqual(snap["values"], {1: "old1", 2: "old2"})
 
-    def test_restore_deletes_field_that_did_not_exist_before(self):
+    @staticmethod
+    def _owned_layer(field_index):
+        """A layer this undo will own: not editable yet, startEditing/commit succeed."""
         layer = MagicMock()
-        layer.fields.return_value.indexOf.return_value = 5
+        layer.fields.return_value.indexOf.return_value = field_index
+        layer.isEditable.return_value = False
+        layer.startEditing.return_value = True
+        layer.commitChanges.return_value = True
+        layer.deleteAttribute.return_value = True
+        layer.changeAttributeValue.return_value = True
+        return layer
+
+    def _restore(self, layer, snapshot):
         with patch("cartogen_ai.core.agent.tools._snapshot_registry.QGIS_AVAILABLE", True), \
              patch("cartogen_ai.core.agent.tools._snapshot_registry.QgsProject", create=True) as mock_project:
             mock_project.instance.return_value.mapLayer.return_value = layer
-            ok = _restore_field_write({"layer_id": "id1", "field_name": "score", "field_existed": False})
+            return _restore_field_write(snapshot)
+
+    def test_restore_deletes_field_that_did_not_exist_before(self):
+        layer = self._owned_layer(5)
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": False})
         self.assertTrue(ok)
-        layer.dataProvider.return_value.deleteAttributes.assert_called_once_with([5])
+        layer.deleteAttribute.assert_called_once_with(5)          # through the edit buffer, not the provider
+        layer.dataProvider.return_value.deleteAttributes.assert_not_called()
         layer.updateFields.assert_called_once()
         layer.commitChanges.assert_called_once()
 
     def test_restore_writes_back_old_values_for_existing_field(self):
-        layer = MagicMock()
-        layer.fields.return_value.indexOf.return_value = 3
-        with patch("cartogen_ai.core.agent.tools._snapshot_registry.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.tools._snapshot_registry.QgsProject", create=True) as mock_project:
-            mock_project.instance.return_value.mapLayer.return_value = layer
-            ok = _restore_field_write({"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1", 2: "old2"}})
+        layer = self._owned_layer(3)
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": True,
+                                   "values": {1: "old1", 2: "old2"}})
         self.assertTrue(ok)
         layer.changeAttributeValue.assert_any_call(1, 3, "old1")
         layer.changeAttributeValue.assert_any_call(2, 3, "old2")
         layer.commitChanges.assert_called_once()
 
     def test_restore_rolls_back_on_exception(self):
-        layer = MagicMock()
-        layer.fields.return_value.indexOf.return_value = 3
-        layer.isEditable.return_value = True
+        layer = self._owned_layer(3)
+        layer.isEditable.side_effect = [False, True]
         layer.changeAttributeValue.side_effect = RuntimeError("boom")
-        with patch("cartogen_ai.core.agent.tools._snapshot_registry.QGIS_AVAILABLE", True), \
-             patch("cartogen_ai.core.agent.tools._snapshot_registry.QgsProject", create=True) as mock_project:
-            mock_project.instance.return_value.mapLayer.return_value = layer
-            ok = _restore_field_write({"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1"}})
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1"}})
         self.assertFalse(ok)
         layer.rollBack.assert_called_once()
+
+    def test_undo_reports_failure_when_a_write_is_refused(self):
+        layer = self._owned_layer(3)
+        layer.changeAttributeValue.return_value = False
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1"}})
+        self.assertFalse(ok)                                       # it used to say True after a refused write
+        layer.commitChanges.assert_not_called()
+
+    def test_undo_reports_failure_when_the_commit_is_rejected(self):
+        layer = self._owned_layer(3)
+        layer.isEditable.side_effect = [False, True]
+        layer.commitChanges.return_value = False
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1"}})
+        self.assertFalse(ok)
+
+    def test_undo_does_not_commit_a_layer_the_user_is_editing(self):
+        layer = self._owned_layer(3)
+        layer.isEditable.return_value = True
+        ok = self._restore(layer, {"layer_id": "id1", "field_name": "score", "field_existed": True, "values": {1: "old1"}})
+        self.assertTrue(ok)
+        layer.startEditing.assert_not_called()
+        layer.commitChanges.assert_not_called()
+        layer.rollBack.assert_not_called()
 
     def test_restore_returns_false_when_layer_gone(self):
         with patch("cartogen_ai.core.agent.tools._snapshot_registry.QGIS_AVAILABLE", True), \

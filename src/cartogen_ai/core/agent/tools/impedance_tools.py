@@ -17,10 +17,10 @@ path.
 """
 
 from .registry import register_tool
+from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 
 try:
-    from qgis.core import QgsPointXY, QgsProject, QgsField
-    from qgis.PyQt.QtCore import QVariant
+    from qgis.core import QgsPointXY, QgsProject
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
@@ -150,60 +150,59 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     # All validation above must pass before any mutation below -- an
     # invalid damage_field previously still left a new output_field
     # attribute added to the layer before the error was returned.
-    if output_field not in field_names:
-        network.dataProvider().addAttributes([QgsField(output_field, QVariant.Double)])
-        network.updateFields()
-    out_idx = network.fields().indexOf(output_field)
-
+    #
+    # GitHub #143 / #144 (audit F07, F08): the field is now added through the edit buffer, inside one edit command, and every
+    # write is checked. A road layer the user already has in edit mode keeps its session (nothing is committed or rolled back
+    # on their behalf), and a read-only source reports an error instead of "success" with nothing written.
     non_numeric_damage_count = 0
     sampled_slope_count = 0
-    network.startEditing()
     try:
-        for feat in network.getFeatures():
-            geom = feat.geometry()
-            if geom is None or geom.isEmpty():
-                continue
+        with edit_command(network, "Cartogen AI: write " + output_field) as owned:
+            out_idx = add_numeric_field(network, output_field)
+            for feat in network.getFeatures():
+                geom = feat.geometry()
+                if geom is None or geom.isEmpty():
+                    continue
 
-            base_speed = _DEFAULT_BASE_SPEED_KMH
-            if has_highway:
-                highway_val = feat.attribute(highway_field)
-                if highway_val:
-                    base_speed = _HIGHWAY_BASE_SPEED_KMH.get(str(highway_val).strip().lower(), _DEFAULT_BASE_SPEED_KMH)
+                base_speed = _DEFAULT_BASE_SPEED_KMH
+                if has_highway:
+                    highway_val = feat.attribute(highway_field)
+                    if highway_val:
+                        base_speed = _HIGHWAY_BASE_SPEED_KMH.get(str(highway_val).strip().lower(), _DEFAULT_BASE_SPEED_KMH)
 
-            surface_penalty = _DEFAULT_SURFACE_PENALTY
-            if has_surface:
-                surface_val = feat.attribute(surface_field)
-                if surface_val:
-                    surface_penalty = _SURFACE_PENALTY.get(str(surface_val).strip().lower(), _DEFAULT_SURFACE_PENALTY)
+                surface_penalty = _DEFAULT_SURFACE_PENALTY
+                if has_surface:
+                    surface_val = feat.attribute(surface_field)
+                    if surface_val:
+                        surface_penalty = _SURFACE_PENALTY.get(str(surface_val).strip().lower(), _DEFAULT_SURFACE_PENALTY)
 
-            damage_multiplier = 1.0
-            if has_damage:
-                raw = feat.attribute(damage_field)
-                try:
-                    damage_multiplier = max(0.0, min(1.0, float(raw)))
-                except (TypeError, ValueError):
-                    non_numeric_damage_count += 1
-                    damage_multiplier = 1.0
+                damage_multiplier = 1.0
+                if has_damage:
+                    raw = feat.attribute(damage_field)
+                    try:
+                        damage_multiplier = max(0.0, min(1.0, float(raw)))
+                    except (TypeError, ValueError):
+                        non_numeric_damage_count += 1
+                        damage_multiplier = 1.0
 
-            slope_penalty = 1.0
-            if dem is not None:
-                polyline = geom.asPolyline() if not geom.isMultipart() else (geom.asMultiPolyline()[0] if geom.asMultiPolyline() else None)
-                if polyline and len(polyline) >= 2:
-                    start_pt, end_pt = polyline[0], polyline[-1]
-                    length = geom.length()
-                    slope_penalty = _slope_penalty(dem, start_pt, end_pt, length)
-                    if slope_penalty != 1.0:
-                        sampled_slope_count += 1
+                slope_penalty = 1.0
+                if dem is not None:
+                    polyline = geom.asPolyline() if not geom.isMultipart() else (geom.asMultiPolyline()[0] if geom.asMultiPolyline() else None)
+                    if polyline and len(polyline) >= 2:
+                        start_pt, end_pt = polyline[0], polyline[-1]
+                        length = geom.length()
+                        slope_penalty = _slope_penalty(dem, start_pt, end_pt, length)
+                        if slope_penalty != 1.0:
+                            sampled_slope_count += 1
 
-            effective_speed = max(
-                _MIN_EFFECTIVE_SPEED_KMH,
-                base_speed * surface_penalty * damage_multiplier * slope_penalty,
-            )
-            network.changeAttributeValue(feat.id(), out_idx, effective_speed)
-        network.commitChanges()
+                effective_speed = max(
+                    _MIN_EFFECTIVE_SPEED_KMH,
+                    base_speed * surface_penalty * damage_multiplier * slope_penalty,
+                )
+                set_value(network, feat.id(), out_idx, effective_speed)
+    except EditError as e:
+        return {"error": f"build_composite_impedance_field failed, nothing was changed: {e}"}
     except Exception as e:
-        if network.isEditable():
-            network.rollBack()
         return {"error": f"build_composite_impedance_field failed: {e}"}
 
     result = {
@@ -212,6 +211,9 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
         "output_field": output_field,
         "feature_count": network.featureCount(),
     }
+    if not owned:
+        result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT saved: "
+                          "save or discard the layer edits yourself.")
     if damage_field is not None:
         result["damage_field"] = damage_field
         if non_numeric_damage_count:

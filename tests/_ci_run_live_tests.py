@@ -35,6 +35,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_routing_style_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_output_style_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_project_tidy_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_processing_provider_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_edit_session_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)
