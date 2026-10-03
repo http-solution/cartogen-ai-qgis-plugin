@@ -196,3 +196,61 @@ class TestConfirmationProse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUngroundedClaims(unittest.TestCase):
+    """GitHub #75: the narrative around real numbers (rc11 smoke test) -- place names, national totals, terrain, file sizes."""
+
+    EVIDENCE = ("user asked: what population lives within one hour of Sanaa? tool: reachable 815,039 of total 1,200,000 "
+                "people; roads reached 31,583; worldpop file size_mb 481.70; layer YEM_ADM1_boundary_hdx")
+
+    def claims(self, text, evidence=None):
+        from cartogen_ai.core.services.response_guard import ungrounded_claims
+        return ungrounded_claims(text, self.EVIDENCE if evidence is None else evidence)
+
+    def test_the_rc11_examples_are_flagged(self):
+        found = self.claims("Amran Governorate is next. The WorldPop file is 240 MB. The national baseline is ~29.8M. "
+                            "The terrain is rugged and mountainous, with unpaved valley tracks.")
+        for expected in ("Amran Governorate", "240 MB", "29.8M", '"rugged"', '"mountainous"', '"unpaved"'):
+            self.assertIn(expected, found)
+
+    def test_figures_the_tools_returned_are_not_flagged(self):
+        self.assertEqual(self.claims("About 815,039 people (0.8M) are reached, of 1.2M in total; the file is 481.7 MB."), [])
+
+    def test_rounding_and_simple_derived_figures_are_not_flagged(self):
+        self.assertEqual(self.claims("Roughly 384,961 people (1,200,000 minus 815,039) are not reached."), [])
+
+    def test_a_place_the_user_or_a_tool_named_is_not_flagged(self):
+        self.assertEqual(self.claims("The Sanaa District is covered.", "user said Sanaa"), [])
+        self.assertIn("Amran Governorate", self.claims("Amran Governorate is covered.", "user said Sanaa"))
+
+    def test_generic_words_before_a_place_suffix_are_ignored(self):
+        self.assertEqual(self.claims("Each District is scored. The Region is large. This Province matters."), [])
+
+    def test_terrain_words_are_fine_when_the_user_or_a_terrain_tool_mentioned_them(self):
+        self.assertEqual(self.claims("The area is mountainous.", "user: analyse the mountainous terrain"), [])
+        self.assertEqual(self.claims("Steep roads slow the route.", "tool: slope raster computed"), [])
+        self.assertIn('"steep"', self.claims("Steep roads slow the route."))
+
+    def test_unpaved_is_not_grounded_by_the_word_paved(self):
+        self.assertIn('"unpaved"', self.claims("The roads are unpaved.", "surface field values: paved"))
+
+    def test_identifiers_and_coordinates_are_not_totals(self):
+        self.assertEqual(self.claims("osm_id 368412095 at 44.036028, 15.970136"), [])
+
+    def test_the_list_is_capped(self):
+        from cartogen_ai.core.services.response_guard import ungrounded_claims
+        text = " ".join(f"{n}00 MB" for n in range(2, 30))
+        self.assertLessEqual(len(ungrounded_claims(text, "")), 6)
+
+    def test_the_note_is_appended_once_after_a_data_tool_ran_and_is_visible_text(self):
+        from cartogen_ai.core.services.response_guard import apply_ungrounded_claims_note
+        out = apply_ungrounded_claims_note("Amran Governorate is next.", self.EVIDENCE, data_tool_ran=True)
+        self.assertIn("Not from a tool result", out)
+        self.assertTrue(out.startswith("Amran Governorate is next."))        # the answer itself is never rewritten
+        self.assertEqual(apply_ungrounded_claims_note(out, self.EVIDENCE, True), out)    # idempotent
+
+    def test_a_conceptual_answer_with_no_data_tool_is_left_alone(self):
+        from cartogen_ai.core.services.response_guard import apply_ungrounded_claims_note
+        text = "Yemen has about 34,000,000 people and mountainous terrain."
+        self.assertEqual(apply_ungrounded_claims_note(text, "", data_tool_ran=False), text)
