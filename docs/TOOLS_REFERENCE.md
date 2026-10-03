@@ -426,6 +426,8 @@ Find a good visiting order for a set of delivery/distribution stops -- e.g. 'wha
 | `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention). |
 | `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention). |
 | `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention). |
+| `strategy` | string | no | 'shortest' (distance-based, default) or 'fastest' (travel time). Use 'fastest' when the user asks for the fastest route or a travel time; it needs road_network_layer. The time is an ESTIMATE from speed_field (km/h per segment) or default_speed, not measured traffic. |
+| `default_speed` | number | no | Speed in km/h for road segments with no speed_field value. Only used with strategy='fastest'. Defaults to 50. |
 
 ### `population_access_gap`
 
