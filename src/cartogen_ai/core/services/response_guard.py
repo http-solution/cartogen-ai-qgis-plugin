@@ -209,3 +209,130 @@ def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, da
     if not warning:
         return final_text
     return f"{strip_ungrounded_tables(final_text).rstrip()}\n\n{warning}"
+
+
+# --- F03, second half (rc11 smoke test, GitHub #75): the narrative AROUND real numbers. The model answered with counts and
+# percentages that came from tools, plus claims no tool returned: "Amran Governorate", "~29.0M national remainder", "rugged
+# mountainous terrain ... unpaved valley tracks", a WorldPop file of "240 MB" (the real one was 481.70 MB). The table/record
+# guard above cannot see those. This one checks three narrow kinds of claim against what the conversation actually contained
+# (the user's words, the project summary and every tool result) and appends a visible footnote for the ones that are in none
+# of it. It never rewrites the answer, and it is deliberately limited to claim shapes that are cheap to verify, because a
+# loose check would flag every rounding and derived figure and train people to ignore the note.
+_UNGROUNDED_MARKER = "Not from a tool result"
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_SCALED = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*(million|billion|bn|m|b)\b(?![\w-])", re.IGNORECASE)
+_SIZE = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*(kb|mb|gb)\b", re.IGNORECASE)
+# Only comma-grouped numbers (29,812,345): a bare 9-digit run is an identifier (an osm_id), not a total.
+_BIG_PLAIN = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3}){2,})(?![\w.])")
+_PLACE = re.compile(
+    r"\b([A-Z][a-z]+(?:[ -][A-Z][a-z]+)?)\s+(Governorate|Province|District|Directorate|Sub-?district|Region|Valley|Mountains|Desert)\b")
+_PLACE_STOPWORDS = frozenset({
+    "the", "this", "that", "each", "every", "any", "all", "selected", "chosen", "same", "other", "another", "new", "old",
+    "first", "second", "third", "last", "next", "which", "what", "your", "our", "its", "their", "per", "one", "both",
+})
+_TERRAIN = re.compile(
+    r"\b(mountainous|rugged|hilly|steep|unpaved|paved|gravel|asphalt|desert|plateau|escarpment|rocky)\b", re.IGNORECASE)
+_TERRAIN_TOOL_HINTS = ("slope", "elevation", "hillshade", "terrain", "dem")
+_NUMBER_TOLERANCE = 0.01     # 1%: rounding ("29.8M" for 29,812,345) is not a fabrication
+_MAX_EVIDENCE_NUMBERS = 400
+_MAX_FLAGGED = 6
+
+
+def _evidence_numbers(evidence):
+    values = set()
+    for m in _NUMBER.finditer(evidence or ""):
+        try:
+            v = float(m.group(0).replace(",", ""))
+        except ValueError:
+            continue
+        if v > 0:
+            values.add(v)
+    return sorted(values, reverse=True)[:_MAX_EVIDENCE_NUMBERS]
+
+
+def _near(a, b):
+    return abs(a - b) <= _NUMBER_TOLERANCE * max(abs(a), abs(b))
+
+
+def _number_grounded(candidates, numbers):
+    """True when any candidate value equals an evidence number, or the sum / difference of two of them, within 1%."""
+    for c in candidates:
+        if any(_near(c, n) for n in numbers):
+            return True
+    top = numbers[:150]
+    for i, a in enumerate(top):
+        for b in top[i + 1:]:
+            for c in candidates:
+                if _near(c, a + b) or _near(c, a - b):
+                    return True
+    return False
+
+
+def _to_float(text):
+    return float(text.replace(",", ""))
+
+
+def ungrounded_claims(final_text, evidence):
+    """Short descriptions of claims in `final_text` that nothing in `evidence` supports. Pure.
+
+    Three kinds: large or scaled numbers (a million or more, "29.8M") and file sizes ("240 MB") that match no number in the
+    evidence (nor the sum/difference of two, within 1%); named administrative places ("Amran Governorate") whose name is not
+    in the evidence; and terrain / road-surface descriptions ("rugged", "unpaved") when neither the evidence nor a terrain
+    tool run mentions them. `evidence` is the plain text of the user's messages, the project summary and the tool results."""
+    if not final_text:
+        return []
+    text = str(final_text)
+    low_evidence = (evidence or "").lower()
+    numbers = _evidence_numbers(evidence)
+    found = []
+
+    def add(label):
+        if label not in found:
+            found.append(label)
+
+    scaled_spans = []
+    for m in _SCALED.finditer(text):
+        scale = {"million": 1e6, "m": 1e6, "billion": 1e9, "bn": 1e9, "b": 1e9}[m.group(2).lower()]
+        value = _to_float(m.group(1)) * scale
+        scaled_spans.append(m.span())
+        if value >= 1e6 and not _number_grounded([value], numbers):
+            add(m.group(0).strip().lstrip("~").strip())
+    for m in _SIZE.finditer(text):
+        unit = {"kb": 1024, "mb": 1024 ** 2, "gb": 1024 ** 3}[m.group(2).lower()]
+        decimal_unit = {"kb": 1e3, "mb": 1e6, "gb": 1e9}[m.group(2).lower()]
+        x = _to_float(m.group(1))
+        if not _number_grounded([x, x * unit, x * decimal_unit], numbers):
+            add(m.group(0).strip().lstrip("~").strip())
+    for m in _BIG_PLAIN.finditer(text):
+        if any(s <= m.start() < e for s, e in scaled_spans):
+            continue
+        if not _number_grounded([_to_float(m.group(1))], numbers):
+            add(m.group(1))
+    for m in _PLACE.finditer(text):
+        words = m.group(1).split()
+        if words[0].lower() in _PLACE_STOPWORDS:
+            continue
+        if not any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low_evidence) for w in re.split(r"[ -]", m.group(1))):
+            add(m.group(0))
+    terrain_tool_ran = any(h in low_evidence for h in _TERRAIN_TOOL_HINTS)
+    for m in _TERRAIN.finditer(text):
+        word = m.group(1).lower()
+        if terrain_tool_ran or re.search(r"\b" + re.escape(word) + r"\b", low_evidence):
+            continue
+        add(f"\"{word}\"")
+    return found[:_MAX_FLAGGED]
+
+
+def apply_ungrounded_claims_note(final_text, evidence, data_tool_ran=True):
+    """`final_text` with a one-paragraph footnote naming claims the conversation's data does not support, or unchanged.
+
+    Only after a data tool ran this turn -- that is when a reader assumes every line came from their own data. A purely
+    conceptual answer ("how does a service area work?") is general knowledge by nature and is left alone."""
+    if not final_text or not data_tool_ran or _UNGROUNDED_MARKER in str(final_text):
+        return final_text
+    claims = ungrounded_claims(final_text, evidence)
+    if not claims:
+        return final_text
+    listed = "; ".join(claims)
+    return (f"{str(final_text).rstrip()}\n\nℹ️ **{_UNGROUNDED_MARKER} in this conversation:** {listed}. "
+            "These come from the model's general knowledge, not from your data or a tool run here; verify them before relying on them.")

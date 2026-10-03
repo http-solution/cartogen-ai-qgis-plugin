@@ -342,6 +342,10 @@ class CartogenAi:
         # here to restore project-bound chat history is safe.
         from .chat_persistence import load_chat_history
         self.conversation_history = load_chat_history()
+        # Plain text of what this conversation actually contained (user messages, project summary, tool results), kept
+        # UNCOMPACTED because mid-turn compaction shrinks old tool results in `messages`. response_guard checks the final
+        # answer's numbers, place names and terrain claims against it (GitHub #75). Bounded; cleared with the history.
+        self._grounding_texts = []
         self.dispatcher = ToolDispatcher(self)
 
         # Session-scoped token usage totals -- see usage_tracker.py's own docstring for
@@ -396,6 +400,7 @@ class CartogenAi:
     def clear_history(self):
         with self._get_history_lock():
             self.conversation_history = []
+        self._grounding_texts = []
         self.task_manager.clear_plan()
 
     def _accumulate_usage(self, usage):
@@ -1187,6 +1192,21 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
+    _GROUNDING_PER_ITEM_CHARS = 60000
+    _GROUNDING_TOTAL_CHARS = 400000
+
+    def _remember_grounding(self, text):
+        """Keeps `text` as evidence for the claim check, newest last, within a fixed total size. Never raises."""
+        try:
+            # setdefault, not a bare attribute: tests (and any subclass) build agents without running __init__.
+            texts = self.__dict__.setdefault("_grounding_texts", [])
+            texts.append(str(text)[:self._GROUNDING_PER_ITEM_CHARS])
+            total = sum(len(t) for t in texts)
+            while total > self._GROUNDING_TOTAL_CHARS and len(texts) > 1:
+                total -= len(texts.pop(0))
+        except Exception:
+            pass
+
     def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
         """Appends a visible warning when the final answer contains a data table but a call this
         turn is still pending (waiting for the user, or blocked) or ended in an unresolved error --
@@ -1205,6 +1225,10 @@ class CartogenAi:
         data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
                             for name, is_error, _msg in turn_tool_log)
         final_text = response_guard.apply_unbacked_data_warning(final_text, pending, failed, data_tool_ran)
+        # #75: claims around real numbers that no tool returned (place names, national totals, terrain, file sizes).
+        final_text = response_guard.apply_ungrounded_claims_note(
+            final_text, "\n".join(getattr(self, "_grounding_texts", [])),
+            data_tool_ran and not pending)   # a call still waiting on the user produced no data; the other guard covers it
         if pending:
             # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
             final_text = response_guard.strip_confirmation_prose(final_text)
@@ -1324,6 +1348,8 @@ class CartogenAi:
             active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
         )
 
+        self._remember_grounding(user_query)
+        self._remember_grounding(map_context)
         messages = [{"role": "system", "content": system_prompt_content}]
         messages.extend(self._read_history_snapshot())
         messages.append(user_message)
@@ -1457,6 +1483,7 @@ class CartogenAi:
                     serialized = json.dumps(tool_result, default=str)
                 except Exception as e:
                     serialized = json.dumps({"error": f"Could not serialize tool result: {e}"})
+                self._remember_grounding(serialized)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call.get("id", "") if isinstance(call, dict) else "",

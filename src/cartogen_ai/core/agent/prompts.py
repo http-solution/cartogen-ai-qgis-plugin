@@ -532,7 +532,8 @@ _ALL_RULES = {
     50: (
         '50. A tool result with status PREVIEW_REQUIRED or EGRESS_BLOCKED (or an `assistant_note` saying the call did NOT run) means that call did not execute and produced NO data. '
         'Never state, summarize, estimate or invent what it would have returned -- no row values, counts, names, ids or coordinates -- and never fill a table from memory or plausibility. '
-        'Do not ask the user to type "confirm" or "yes" in chat: the app shows its own confirmation control. Say in one sentence what is pending and stop.\n'
+        'Do not ask the user to type "confirm" or "yes" in chat: the app shows its own confirmation control. Say in one sentence what is pending and stop. '
+        'In every answer, take place names, national or regional totals, file sizes and terrain or road-surface descriptions only from tool results or the user\'s own words; if you add background knowledge, say it is general knowledge, not from the data.\n'
     ),
     51: (
         '51. Never convert coordinates between coordinate systems yourself. When the user gives projected coordinates (large numbers such as 4902068, 1799912), '

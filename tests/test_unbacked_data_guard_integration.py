@@ -102,3 +102,21 @@ class TestConfirmationProseInRun(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUngroundedClaimsInRun(unittest.TestCase):
+    """GitHub #75 at run() level: the evidence is the user's words plus the tool results, kept uncompacted."""
+
+    def test_a_place_no_tool_returned_gets_the_note_after_a_successful_call(self):
+        text, _ = _run({"success": True, "reached": 1200}, final_text="1,200 roads were reached near Amran Governorate.")
+        self.assertIn("1,200 roads were reached near Amran Governorate.", text)
+        self.assertIn("Not from a tool result", text)
+        self.assertIn("Amran Governorate", text.split("Not from a tool result", 1)[1])
+
+    def test_a_place_the_tool_result_contains_is_not_flagged(self):
+        text, _ = _run({"success": True, "admin": "Amran Governorate"}, final_text="Reached roads lie in Amran Governorate.")
+        self.assertNotIn("Not from a tool result", text)
+
+    def test_a_blocked_call_does_not_count_as_a_data_tool(self):
+        text, _ = _run({"status": "PREVIEW_REQUIRED"}, final_text="Waiting. Amran Governorate would be included.")
+        self.assertNotIn("Not from a tool result", text)
