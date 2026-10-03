@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (180 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (181 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1726,6 +1726,16 @@ Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer thi
 | `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:contraststretch', 'gdal:merge', 'gdal:pansharpening', 'gdal:rastercalculator', 'native:aspect', 'native:buffer', 'native:cellstatistics', 'native:centroids', 'native:clip', 'native:convexhull', 'native:countpointsinpolygon', 'native:creategrid', 'native:dbscanclustering', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:extractbylocation', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:kmeansclustering', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:rastersampling', 'native:reclassifybytable', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'native:zonalstatisticsfb', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:statisticsbycategories', 'qgis:tininterpolation', 'qgis:zonalstatistics', 'saga:kmeansclassificationforgrid', 'saga:supervisedclassificationforgrids'] |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
 | `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
+
+## project_tidy_tools
+
+### `tidy_project_layers`
+
+Find and repair clutter left in a project by older Cartogen AI builds: (1) the same layer loaded more than once (identical name and data) -- the extra copies are HIDDEN, never deleted; (2) a WorldPop population raster drawn opaque black instead of with the population colour ramp -- restyled; (3) temporary scratch layers (such as origin points) that are lost when the project is closed -- saved into the project's results GeoPackage (the project must already be saved). Call with apply=false (default) to only list what it found, then apply=true to repair. It does not delete layers; use remove_layer, which asks for confirmation, to delete a hidden duplicate.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `apply` | boolean | no | false (default): report only. true: hide duplicate copies, restyle population rasters and save scratch layers. |
 
 ## provenance_tools
 

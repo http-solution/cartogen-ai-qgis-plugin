@@ -318,6 +318,8 @@ TOOL_OPERATION_TYPES = {
     "rename_layer": MODIFY,
     "zoom_to_layer": READ,
     "toggle_visibility": MODIFY,
+    # Hides duplicate copies, restyles population rasters and saves scratch layers; it never removes a layer.
+    "tidy_project_layers": MODIFY,
     "add_layer_from_path": CREATE,
     "load_tabular_data_as_layer": CREATE,
     "apply_labels": MODIFY,
