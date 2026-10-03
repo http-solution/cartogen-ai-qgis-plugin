@@ -69,3 +69,29 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStaleBuildTreeStaysOut(unittest.TestCase):
+    """2026-10-03 external audit F-05: a setuptools build/lib copy of the plugin rode into the release zip."""
+
+    def test_build_is_excluded_and_no_real_source_dir_is_called_build(self):
+        pu = _load()
+        self.assertIn("build", pu.EXCLUDE_DIRS)
+        for r, d, _f in os.walk(os.path.join(ROOT, "src")):
+            d[:] = [x for x in d if x != "__pycache__"]
+            self.assertNotIn("build", d, r)
+
+
+class TestZonalStatisticsImportModule(unittest.TestCase):
+    """2026-10-03 external audit F-03: QgsZonalStatistics is in qgis.analysis; qgis.core raised ImportError on 4.2.2."""
+
+    def test_no_module_imports_it_from_qgis_core(self):
+        import re
+        bad = []
+        for r, d, files in os.walk(os.path.join(ROOT, "src")):
+            for name in files:
+                if name.endswith(".py"):
+                    text = open(os.path.join(r, name), encoding="utf-8").read()
+                    if re.search(r"from qgis\.core import[^\n]*QgsZonalStatistics", text):
+                        bad.append(name)
+        self.assertEqual(bad, [])

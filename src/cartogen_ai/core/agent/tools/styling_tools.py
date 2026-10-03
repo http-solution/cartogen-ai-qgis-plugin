@@ -898,6 +898,22 @@ def apply_heatmap_style(layer_name, field=None):
         return {"error": f"Heatmap style failed: {e}"}
 
 
+def _heatmap_algorithm_id():
+    """The kernel-density algorithm id this QGIS actually has. The 2026-10-03 external audit found
+    `qgis:heatmapkerneldensityestimation` missing from the QGIS 4.2.2 registry (772 algorithms); the `native:` spelling is
+    the likely replacement but is NOT confirmed here, so ask the registry and fall back to the old id (whose failure then
+    reports the real error) rather than guess."""
+    try:
+        from qgis.core import QgsApplication
+        registry = QgsApplication.processingRegistry()
+        for candidate in ("qgis:heatmapkerneldensityestimation", "native:heatmapkerneldensityestimation"):
+            if registry.algorithmById(candidate) is not None:
+                return candidate
+    except Exception:
+        pass
+    return "qgis:heatmapkerneldensityestimation"
+
+
 @register_tool(
     "hotspot_analysis",
     "Compute a kernel density estimation surface from a point layer -- a real statistical density "
@@ -939,7 +955,7 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         }
         if weight_field:
             params["WEIGHT_FIELD"] = weight_field
-        output = processing.run("qgis:heatmapkerneldensityestimation", params)
+        output = processing.run(_heatmap_algorithm_id(), params)
         out_path = output.get("OUTPUT")
         if not out_path:
             return {"error": "hotspot_analysis produced no output."}

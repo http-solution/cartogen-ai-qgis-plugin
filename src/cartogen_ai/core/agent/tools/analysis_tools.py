@@ -973,7 +973,9 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     if "error" in change:
         return change
 
-    from qgis.core import QgsZonalStatistics
+    # QgsZonalStatistics lives in qgis.analysis, not qgis.core (QGIS 4.2.2: "cannot import name 'QgsZonalStatistics' from
+    # 'qgis.core'", found by the 2026-10-03 external audit; raster_tools.py already imports it from the right module).
+    from qgis.analysis import QgsZonalStatistics
     stat_enum = getattr(QgsZonalStatistics, "Statistic", QgsZonalStatistics)
     mean_flag = getattr(stat_enum, "Mean", None)
     if mean_flag is None:
