@@ -102,5 +102,33 @@ class TestNativeProcessingAlgorithmsRun(unittest.TestCase):
         self.assertGreater(out.featureCount(), 0)
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestHubSitingToolsMixedCrs(unittest.TestCase):
+    """#142 for the agent tools (not only the native algorithm)."""
+
+    def setUp(self):
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def test_optimal_hub_siting_measures_a_3857_demand_point_against_4326_candidates_correctly(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import optimal_hub_siting
+        QgsProject.instance().addMapLayer(_layer("Point", "EPSG:4326", ["POINT(0 0)"], "cands"))
+        QgsProject.instance().addMapLayer(_layer("Point", "EPSG:3857", ["POINT(556.6 0)"], "demand"))
+        res = optimal_hub_siting("cands", "demand")
+        self.assertTrue(res.get("success"), res)
+        self.assertAlmostEqual(res["ranked_candidates"][0]["avg_distance"], 556.6, delta=15)
+
+    def test_the_same_pair_in_one_crs_gives_the_same_distance(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import optimal_hub_siting
+        QgsProject.instance().addMapLayer(_layer("Point", "EPSG:4326", ["POINT(0 0)"], "cands"))
+        QgsProject.instance().addMapLayer(_layer("Point", "EPSG:4326", ["POINT(0.005 0)"], "demand"))
+        res = optimal_hub_siting("cands", "demand")
+        self.assertAlmostEqual(res["ranked_candidates"][0]["avg_distance"], 556.6, delta=15)
+
+
 if __name__ == "__main__":
     unittest.main()

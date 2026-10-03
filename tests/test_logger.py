@@ -183,24 +183,14 @@ class TestSwallowedExceptionsAreLogged(unittest.TestCase):
     only) while still returning their fallback value -- the QgsLabelObstacleSettings
     NameError this cycle hid behind exactly this kind of silent swallow."""
 
-    def test_distance_fallback_still_returns_value_and_logs_class_only(self):
+    def test_a_failed_ellipsoidal_measurement_now_raises_instead_of_falling_back(self):
+        # #142: this used to swallow the error, log its class and return a planar number labelled as metres.
         from cartogen_ai.core.agent.tools.logistics_tools import _measure_distance
         da = MagicMock()
         da.measureLine.side_effect = RuntimeError("secret-looking detail")
         a, b = MagicMock(), MagicMock()
-        a.distance.return_value = 7.0
-        buf = io.StringIO()
-        old = sys.stderr.write
-        sys.stderr.write = buf.write
-        try:
-            result = _measure_distance(da, a, b)
-        finally:
-            sys.stderr.write = old
-        self.assertEqual(result, 7.0)
-        out = buf.getvalue()
-        self.assertIn("swallowed_exception", out)
-        self.assertIn("error_class=RuntimeError", out)
-        self.assertNotIn("secret-looking detail", out)
+        with self.assertRaises(RuntimeError):
+            _measure_distance(da, a, b)
 
 
 if __name__ == "__main__":
