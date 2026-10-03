@@ -305,6 +305,52 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         self.assertEqual(len(searches), 1)
         self.assertEqual(searches[0].args[1].get("DIRECTION_FIELD"), "oneway")     # the route itself honours one-way now
 
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_fastest_route_runs_the_time_strategy_and_reports_an_estimate(self, mock_find, mock_processing, mock_project):
+        # #131: "fastest route" used to return a shortest-distance route. strategy='fastest' now runs STRATEGY 1.
+        network = MagicMock()
+        network.fields.return_value.indexOf.side_effect = lambda name: 0 if name == "speed_kmh" else -1
+        mock_find.side_effect = lambda name: {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        segment = MagicMock()
+        segment.featureCount.return_value = 1
+        mock_processing.run.return_value = {"OUTPUT": segment}
+
+        with patch("cartogen_ai.core.agent.tools.logistics_tools._route_cost_sum", return_value=0.75), \
+                patch("cartogen_ai.core.agent.tools.logistics_tools._route_length_m", return_value=41250.0):
+            res = optimize_delivery_route("stops", road_network_layer="roads", speed_field="speed_kmh",
+                                          strategy="fastest", default_speed=40)
+
+        self.assertTrue(res["success"])
+        search = [c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint"][0]
+        self.assertEqual(search.args[1]["STRATEGY"], 1)
+        self.assertEqual(search.args[1]["DEFAULT_SPEED"], 40)
+        self.assertEqual(res["total_travel_time_hours"], 0.75)
+        self.assertEqual(res["total_travel_time_minutes"], 45.0)
+        self.assertEqual(res["route_length_m"], 41250.0)
+        self.assertNotIn("total_distance", res)                    # the cost is hours, never labelled metres
+        self.assertIn("estimate", res["route_note"])
+        self.assertIn("speed_kmh", res["route_note"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    def test_strategy_arguments_are_validated_before_any_layer_lookup(self):
+        self.assertIn("strategy", optimize_delivery_route("stops", road_network_layer="roads", strategy="teleport")["error"])
+        self.assertIn("road_network_layer", optimize_delivery_route("stops", strategy="fastest")["error"])
+        self.assertIn("default_speed", optimize_delivery_route("stops", road_network_layer="roads",
+                                                                strategy="fastest", default_speed=0)["error"])
+
+    def test_the_default_route_still_says_shortest(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import route_strategy_summary
+        out = route_strategy_summary(False, 1200.0, 50, None)
+        self.assertEqual(out["route_strategy"], "shortest distance")
+        self.assertIn("strategy='fastest'", out["route_note"])
+        self.assertNotIn("total_travel_time_hours", out)
+        flat = route_strategy_summary(True, 0.5, 50, None)
+        self.assertIn("flat 50 km/h", flat["route_note"])
+        self.assertEqual(flat["total_travel_time_minutes"], 30.0)
+
     def test_geofabrik_one_way_codes_are_detected_from_the_layers_own_values(self):
         # rc11 smoke test: the Yemen roads hold F/B in 'oneway'; the OSM defaults yes/-1/no matched nothing.
         from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params

@@ -39,6 +39,7 @@ from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
 from . import representation_tools
 from . import map_tools
+from . import project_tidy_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -58,6 +59,7 @@ __all__ = [
     "multimodal_remote_sensing",
     "analysis_tools",
     "project_tools",
+    "project_tidy_tools",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",

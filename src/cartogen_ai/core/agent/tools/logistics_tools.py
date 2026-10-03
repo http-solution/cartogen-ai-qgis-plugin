@@ -892,15 +892,25 @@ def _optimize_route(distance_matrix, start_index=0):
             "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention)."},
             "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention)."},
             "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention)."},
+            "strategy": {"type": "string", "description": "'shortest' (distance-based, default) or 'fastest' (travel time). Use 'fastest' when the user asks for the fastest route or a travel time; it needs road_network_layer. The time is an ESTIMATE from speed_field (km/h per segment) or default_speed, not measured traffic."},
+            "default_speed": {"type": "number", "description": "Speed in km/h for road segments with no speed_field value. Only used with strategy='fastest'. Defaults to 50."},
         },
         "required": ["stops_layer"],
     },
 )
 def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_layer=None,
                              speed_field=None, direction_field=None,
-                             value_forward="yes", value_backward="-1", value_both="no"):
+                             value_forward="yes", value_backward="-1", value_both="no",
+                             strategy="shortest", default_speed=50):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    if strategy not in ("shortest", "fastest"):
+        return {"error": "strategy must be 'shortest' or 'fastest'."}
+    if strategy == "fastest" and road_network_layer is None:
+        return {"error": "strategy='fastest' needs road_network_layer: a travel time cannot be computed from straight-line distance."}
+    if not isinstance(default_speed, (int, float)) or isinstance(default_speed, bool) or default_speed <= 0:
+        return {"error": "default_speed must be a positive number of km/h."}
+    fastest = strategy == "fastest"
     layer = _find_layer_by_name(stops_layer)
     if layer is None:
         return {"error": f"Layer '{stops_layer}' not found"}
@@ -944,7 +954,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             # there is nothing to order, so the matrix is skipped; the distance is read from the route afterwards.
             distance_matrix = None
         elif network_aware:
-            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs())
+            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs(),
+                                                             fastest=fastest, default_speed=default_speed)
         else:
             distance_area = _make_distance_area(layer)
             distance_matrix = [
@@ -966,8 +977,12 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "network_aware_ordering": network_aware,
         }
         if total_distance is not None:
-            result["total_distance"] = round(total_distance, 2)
-        if network_aware:
+            # With strategy='fastest' the matrix cost is HOURS, not metres (#131), so it is not a distance.
+            if fastest:
+                result["total_travel_time_hours"] = round(total_distance, 3)
+            else:
+                result["total_distance"] = round(total_distance, 2)
+        if network_aware and not fastest:
             result["distance_unit"] = "meters"
 
         if network is None:
@@ -1002,7 +1017,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             return result
 
         route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=layer.crs(),
-                                                      extra_params=extra_params)
+                                                      extra_params=extra_params, fastest=fastest,
+                                                      default_speed=default_speed)
         if route_layer_name is None:
             result["warning"] = (
                 "Could not build a road-snapped route (stops may be too far from the network) -- "
@@ -1012,15 +1028,14 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         else:
             result["route_layer"] = route_layer_name
             result["road_snapped"] = True
-            # rc11 smoke test C1: a "fastest route" request returned this and the reply called it fastest. There is no
-            # travel-time strategy on this tool yet (tracked in #131); say what it is.
-            result["route_strategy"] = "shortest distance"
-            result["route_note"] = ("This is the shortest-distance road route, not a fastest-time route. Report it as "
-                                    "'shortest route' and do not call it 'fastest' or give a travel time.")
-            if total_distance is None:
-                routed = _route_cost_sum(route_layer_name)
-                if routed is not None:
-                    result["total_distance"] = round(routed, 2)
+            routed = _route_cost_sum(route_layer_name)
+            result.update(route_strategy_summary(fastest, routed, default_speed, speed_field))
+            if not fastest and total_distance is None and routed is not None:
+                result["total_distance"] = round(routed, 2)
+            if fastest:   # the cost is hours, so give the length separately, from the geometry
+                length_m = _route_length_m(route_layer_name)
+                if length_m is not None:
+                    result["route_length_m"] = round(length_m, 1)
 
         return result
     except _bg.AnalysisCancelled:
@@ -1029,7 +1044,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return {"error": f"optimize_delivery_route failed: {e}"}
 
 
-def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs=None):
+def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs=None, fastest=False, default_speed=50):
     """Real road-network point-to-point distance between every ordered pair
     of stops, via native:shortestpathpointtopoint's own 'cost' output
     field -- confirmed live this is the robust way to get this, not
@@ -1082,8 +1097,8 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
             end = geoms[j].asPoint()
             params = {
                 "INPUT": network,
-                "STRATEGY": 0,
-                "DEFAULT_SPEED": 50,
+                "STRATEGY": 1 if fastest else 0,
+                "DEFAULT_SPEED": default_speed,
                 "TOLERANCE": 0,
                 "OUTPUT": "memory:",
             }
@@ -1105,8 +1120,48 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
     return matrix
 
 
+def route_strategy_summary(fastest, routed_cost, default_speed, speed_field):
+    """The strategy fields of an optimize_delivery_route result. Pure.
+
+    rc11 smoke test C1/#131: "fastest route" returned a shortest-distance route that the reply called fastest. Now the
+    tool offers both and says which one it ran. A travel time is an ESTIMATE from per-segment speeds (or the default), never
+    measured traffic, and the note says so; `routed_cost` is metres for 'shortest' and hours for 'fastest'."""
+    if not fastest:
+        return {"route_strategy": "shortest distance",
+                "route_note": ("This is the shortest-distance road route, not a fastest-time route. Report it as 'shortest "
+                               "route' and do not call it 'fastest' or give a travel time. Call again with "
+                               "strategy='fastest' for a travel-time route.")}
+    basis = (f"the '{speed_field}' field (km/h) where it has a value, otherwise {default_speed:g} km/h" if speed_field
+             else f"a flat {default_speed:g} km/h on every road")
+    out = {"route_strategy": "fastest travel time (estimated)",
+           "route_note": (f"Fastest route by estimated travel time, using {basis}. It is a model estimate, not measured "
+                          "traffic: say 'about' and give the speed basis when reporting the time.")}
+    if routed_cost is not None:
+        out["total_travel_time_hours"] = round(routed_cost, 3)
+        out["total_travel_time_minutes"] = round(routed_cost * 60, 1)
+    return out
+
+
+def _route_length_m(route_layer_name):
+    """Ellipsoidal length in metres of the route layer just added (the 'cost' field is hours for a fastest route), or None.
+    Never raises."""
+    try:
+        layers = QgsProject.instance().mapLayersByName(route_layer_name)
+        if not layers:
+            return None
+        area = _make_distance_area(layers[0])
+        total = 0.0
+        for f in layers[0].getFeatures():
+            g = f.geometry()
+            if g is not None and not g.isEmpty():
+                total += area.measureLength(g) if area is not None else g.length()
+        return total if total > 0 else None
+    except Exception:
+        return None
+
+
 def _route_cost_sum(route_layer_name):
-    """Sum of the 'cost' field (metres for the shortest-path strategy) of the route layer just added, or None. Never raises."""
+    """Sum of the 'cost' field (metres for the shortest-path strategy, hours for fastest) of the route layer just added, or None. Never raises."""
     try:
         layers = QgsProject.instance().mapLayersByName(route_layer_name)
         if not layers or layers[0].fields().indexOf("cost") < 0:
@@ -1117,7 +1172,8 @@ def _route_cost_sum(route_layer_name):
         return None
 
 
-def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs=None, extra_params=None):
+def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs=None, extra_params=None,
+                               fastest=False, default_speed=50):
     """Chain native:shortestpathpointtopoint across each consecutive pair in
     visiting order and merge the segments into one line layer added to the
     project, so optimize_delivery_route's output is an actual road-snapped
@@ -1133,15 +1189,15 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
         end = geoms[tour[i + 1]].asPoint()
         params = {
             "INPUT": network,
-            "STRATEGY": 0,
-            "DEFAULT_SPEED": 50,
+            "STRATEGY": 1 if fastest else 0,
+            "DEFAULT_SPEED": default_speed,
             "TOLERANCE": 0,
             "OUTPUT": "memory:",
         }
         if extra_params:
             # The distance matrix always honoured the direction/speed fields but the route itself did not, so a route could
             # run the wrong way along a one-way street (found while reading this code for rc11 smoke test C1). The
-            # strategy stays "shortest" (0): there is no travel-time option on this tool yet.
+            # strategy is 'shortest' (0) unless the caller asked for 'fastest' (1, #131).
             params.update(extra_params)
         try:
             params["START_POINT"] = _point_for_network(start, source_crs, network)
