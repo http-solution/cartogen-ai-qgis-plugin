@@ -46,7 +46,6 @@ ALLOWED_ALGORITHM_IDS = frozenset({
     "native:hillshade",
     "native:slope",
     "native:aspect",
-    "gdal:rastercalculator",
     "gdal:cliprasterbymasklayer",
     "gdal:contraststretch",
     "gdal:merge",
@@ -83,9 +82,31 @@ ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTE
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
 RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
     "native:hillshade", "native:slope", "native:aspect",
-    "gdal:rastercalculator", "gdal:cliprasterbymasklayer", "gdal:contraststretch", "gdal:merge", "gdal:pansharpening",
+    "gdal:cliprasterbymasklayer", "gdal:contraststretch", "gdal:merge", "gdal:pansharpening",
     "saga:kmeansclassificationforgrid", "saga:supervisedclassificationforgrids",
     "qgis:idwinterpolation", "qgis:tininterpolation", "qgis:heatmapkerneldensityestimation",
     "native:reclassifybytable", "native:cellstatistics",
 })
+
+
+# GitHub #137 (audit F01): "gdal:rastercalculator" was on this list, and the generic tool passed its FORMULA through untouched.
+# gdal_calc evaluates that string with Python's eval(), so a model-controlled formula ran arbitrary Python outside the
+# execute_pyqgis_script sandbox. The dedicated tools (weighted overlay, NDVI, change detection) still call it, but with formulas
+# this plugin writes itself. The generic tool no longer offers it, and refuses the two parameter names that carry free-form
+# code or command-line text for ANY algorithm.
+FORBIDDEN_PARAM_KEYS = frozenset({"FORMULA", "EXTRA"})
+
+
+def parameter_violation(alg_id, params):
+    """A reason string when `params` carries something the generic tool must not pass to Processing, else None. Pure.
+
+    Refused: a FORMULA / EXTRA parameter (free-form expression or raw backend arguments), matched case-insensitively, and any
+    nested object value (the tool only ever accepts flat, JSON-primitive parameters)."""
+    for key, value in (params or {}).items():
+        if str(key).upper() in FORBIDDEN_PARAM_KEYS:
+            return (f"parameter '{key}' is not accepted: it carries a free-form expression or raw backend arguments, which "
+                    f"this tool does not pass to '{alg_id}'. Use a dedicated tool, or execute_pyqgis_script (sandboxed).")
+        if isinstance(value, dict):
+            return f"parameter '{key}' must be a plain value or a list of plain values, not an object."
+    return None
 
