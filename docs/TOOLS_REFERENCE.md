@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (181 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (184 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1629,6 +1629,44 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## engineering_tools
+
+### `assess_watershed_hydrology_request`
+
+Preflight a watershed/peak-flow engineering request before any result is reported. It normalizes a DMS outlet and identifies the measured data and cited design inputs still required. A coordinate plus return period is insufficient: never invent a DEM-derived basin, IDF intensity, runoff coefficient, elevation drop, flow length, Tc, or peak flow. Call this first for coordinate-only watershed requests.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `location` | string | yes | Outlet location in DMS form. |
+| `return_period_years` | number | yes | Requested design return period in years. |
+| `dem_source` | string | no | Loaded DEM layer or authoritative DEM dataset and resolution, if available. |
+| `idf_source` | string | no | Local authoritative IDF station/curve/publication, if available. |
+| `runoff_coefficient` | number | no | Locally justified Rational Method runoff coefficient C, if available. |
+
+### `calculate_rational_watershed_peak_flow`
+
+Calculate H, main-channel slope, Kirpich channel-flow Tc, and Rational Method peak discharge from explicit measured inputs. First call it WITHOUT rainfall_intensity_mm_h to get Tc, then read the cited local IDF curve at that duration and call again with the intensity, its duration, its source and the runoff coefficient. It does not delineate a watershed and must never receive guessed area, length, elevations, intensity, or C.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `area_km2` | number | yes | Delineated watershed area in km². |
+| `flow_length_km` | number | yes | Longest hydraulic flow-path/main-channel length in km; not total stream length. |
+| `upstream_elevation_m` | number | yes | DEM elevation at the selected hydraulically remote upstream point in metres. |
+| `outlet_elevation_m` | number | yes | DEM elevation at the snapped outlet in metres, using the same vertical datum. |
+| `return_period_years` | number | yes | Design return period in years. |
+| `rainfall_intensity_mm_h` | number | no | Local IDF rainfall intensity in mm/h for the return period and Tc duration. Omit on the first call to get Tc. |
+| `intensity_duration_minutes` | number | no | Duration in minutes used to read/interpolate the supplied IDF intensity. |
+| `intensity_source` | string | no | Authoritative local IDF station, curve, publication, and edition/date. |
+| `runoff_coefficient` | number | no | Dimensionless Rational Method runoff coefficient C, locally justified. |
+
+### `parse_dms_location`
+
+Convert a user-supplied latitude/longitude in degrees-minutes-seconds (DMS) to an exact WGS84 decimal-degree outlet coordinate. Use this instead of manually converting DMS. This only normalizes the coordinate; it does not delineate a watershed or infer elevations.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `location` | string | yes | DMS latitude and longitude, including N/S and E/W hemispheres. |
 
 ## hazard_monitoring_tools
 

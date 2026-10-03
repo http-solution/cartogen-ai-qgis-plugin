@@ -11,7 +11,7 @@ class TestRegisterIntegrity(unittest.TestCase):
         self.data = reg.load()
 
     def test_register_loads_all_tasks(self):
-        self.assertEqual(len(self.data), 791)
+        self.assertEqual(len(self.data), 792)
 
     def test_ids_are_unique(self):
         ids = [e["id"] for e in self.data]
@@ -304,11 +304,11 @@ class TestSlotsAreAnswerable(unittest.TestCase):
 
 
 class TestEveryContractIsCoherent(unittest.TestCase):
-    """Sweeps all 791 contracts rather than the handful anyone reads by hand.
+    """Sweeps all 792 contracts rather than the handful anyone reads by hand.
 
     Written after an audit of the full set found ten tasks promising a file
     their contract does not write. Hand-inspecting a few dozen entries out of
-    791 is not coverage; this is.
+    792 is not coverage; this is.
     """
 
     def setUp(self):

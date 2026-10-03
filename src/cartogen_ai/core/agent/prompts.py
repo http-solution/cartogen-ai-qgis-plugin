@@ -543,6 +543,17 @@ _ALL_RULES = {
     52: (
         '52. Do not call `store_project_memory` unless the user asked you to remember something, and never store coordinates, attribute values or other data about places or people in it.\n'
     ),
+    53: (
+        '53. For watershed, catchment, drainage-basin, time-of-concentration, rainfall-intensity or peak-flow requests, call '
+        '`assess_watershed_hydrology_request` first. A coordinate and return period cannot determine a watershed or design '
+        'discharge. Use `parse_dms_location` for DMS text; never convert it mentally. Do not state watershed area, longest '
+        'hydraulic flow path, H, slope, Tc, rainfall intensity, runoff coefficient or peak flow unless each measured or '
+        'design input and its source is explicit. `calculate_rational_watershed_peak_flow` is only for measured DEM-derived '
+        'geometry plus a cited local IDF intensity at duration Tc and a locally justified C; call it without the intensity '
+        'first to get Tc. This plugin does not delineate basins itself. Preserve the distinction between '
+        'longest hydraulic flow path and total stream-network length, and label Rational/Kirpich results preliminary and '
+        'subject to the governing local drainage standard.\n'
+    ),
 }
 
 CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49, 50, 51, 52)

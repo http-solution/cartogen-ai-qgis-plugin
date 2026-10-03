@@ -92,6 +92,20 @@ _TOOL_ALIASES = {
         "infrastructure", "schools", "road network", "highways",
         "osm", "amenities", "amenity",
     ],
+    # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare
+    # "tc" alias: aliases match as substrings of the query, so it would boost these tools on "match", "batch" or "catchment".
+    "parse_dms_location": [
+        "degrees minutes seconds", "dms coordinate", "watershed outlet",
+        "watershed area", "stream length", "steam length", "peak flow",
+    ],
+    "assess_watershed_hydrology_request": [
+        "watershed", "catchment", "drainage basin", "stream length", "steam length",
+        "return period", "rainfall intensity", "time of concentration", "peak flow",
+    ],
+    "calculate_rational_watershed_peak_flow": [
+        "watershed", "catchment", "rational method", "return period",
+        "rainfall intensity", "time of concentration", "peak flow", "kirpich",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",
