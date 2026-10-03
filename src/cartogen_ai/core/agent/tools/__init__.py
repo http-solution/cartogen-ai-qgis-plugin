@@ -40,6 +40,7 @@ from . import hazard_monitoring_tools
 from . import representation_tools
 from . import map_tools
 from . import project_tidy_tools
+from . import engineering_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -60,6 +61,7 @@ __all__ = [
     "analysis_tools",
     "project_tools",
     "project_tidy_tools",
+    "engineering_tools",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",

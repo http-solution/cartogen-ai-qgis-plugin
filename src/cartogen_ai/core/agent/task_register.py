@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """The Humanitarian Mapping Task Register, as machine-readable task contracts.
 
-791 tasks across 35 sections. Each entry carries:
+792 tasks across 36 sections. Each entry carries:
 
     id      "07.14"          section number . position, stable
     cat     "7"              section number
@@ -50,6 +50,9 @@ SLOT_QUESTIONS = {
     "facility_type":  "Which facility or service type?",
     "threshold":      "What distance or travel-time threshold?",
     "sector":         "Which sector?",
+    "dem_source":     "Which DEM should be used? Include resolution and vertical datum if known.",
+    "idf_source":     "Which authoritative local IDF curve or rainfall station should supply the design intensity?",
+    "runoff_coefficient": "What locally justified Rational Method runoff coefficient C should be used?",
 }
 
 # Defaults applied when the user does not answer. Per the 'ask once, then
@@ -64,6 +67,9 @@ SLOT_DEFAULTS = {
     "facility_type":  (None, "ask"),
     "threshold":      ("5 km", "static"),
     "sector":         (None, "ask"),
+    "dem_source":     (None, "ask"),          # never guessed: see task_matcher's note on the engineering slots
+    "idf_source":     (None, "ask"),
+    "runoff_coefficient": (None, "ask"),
 }
 
 _DATA = None

@@ -320,6 +320,11 @@ TOOL_OPERATION_TYPES = {
     "toggle_visibility": MODIFY,
     # Hides duplicate copies, restyles population rasters and saves scratch layers; it never removes a layer.
     "tidy_project_layers": MODIFY,
+
+    # -- engineering_tools.py -- pure calculations on supplied numbers; nothing in the project is read or changed.
+    "parse_dms_location": READ,
+    "assess_watershed_hydrology_request": READ,
+    "calculate_rational_watershed_peak_flow": READ,
     "add_layer_from_path": CREATE,
     "load_tabular_data_as_layer": CREATE,
     "apply_labels": MODIFY,

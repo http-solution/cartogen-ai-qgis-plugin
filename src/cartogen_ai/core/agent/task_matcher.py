@@ -226,6 +226,11 @@ _SLOT_EVIDENCE = {
                       r"fifteen|twenty|thirty|forty|forty-five|fifty|sixty|ninety|half an?)\s+)"
                       r"(?:km|kms|kilomet(?:er|re)s?|m|met(?:er|re)s?|mins?|minutes?|hours?|hrs?)\b",
     "sector":         r"\bwash\b|nutrition|food security|protection|education|shelter|livelihood|health",
+    # Engineering hydrology (task 36.01): none of these has a default, because a guessed DEM, IDF curve or runoff coefficient
+    # produces a confident-looking design number with nothing behind it.
+    "dem_source":     r"\bdem\b|digital elevation|copernicus dem|srtm|alos aw3d|elevation raster",
+    "idf_source":     r"\bidf\b|intensity.duration.frequency|rainfall station|design rainfall (?:curve|source)",
+    "runoff_coefficient": r"runoff coefficient|coefficient\s+c\b|\bc\s*=\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\b",
 }
 
 
