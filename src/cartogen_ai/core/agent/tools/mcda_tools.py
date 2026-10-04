@@ -60,6 +60,15 @@ def to_number(value):
     """float or None (missing, non-numeric, NaN, bool). Pure."""
     if value is None or isinstance(value, bool):
         return None
+    # A NULL read from a QGIS layer arrives as a QVariant, not None; depending on the binding float() of it can return 0.0 instead of
+    # raising, which would turn a missing value into a real zero. Ask the variant itself.
+    is_null = getattr(value, "isNull", None)
+    if callable(is_null):
+        try:
+            if is_null():
+                return None
+        except Exception:
+            pass
     try:
         number = float(value)
     except (TypeError, ValueError):

@@ -43,7 +43,7 @@ class TestAllocationEnvelope(unittest.TestCase):
         res = self._run(population_field="pop")
         self.assertTrue(res.get("success"), res)
         amounts = {r["unit"]: r["amount"] for r in res["results"]}
-        self.assertEqual({e["unit"] for e in res["excluded_units"]}, {"D", "E"})
+        self.assertEqual({e["unit"] for e in res["excluded_units"]}, {"D", "E"}, res)
         self.assertAlmostEqual(amounts["A"], 1200 * 0.2 / 1.4, places=3)
         self.assertAlmostEqual(amounts["C"], 1200 * 0.8 / 1.4, places=3)
         self.assertAlmostEqual(res["allocated"], 1200.0, places=3)

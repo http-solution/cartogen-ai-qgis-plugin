@@ -104,3 +104,20 @@ class TestToolIsWired(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNullsFromQgis(unittest.TestCase):
+    """A NULL read from a layer is a QVariant, not None; it must never count as a real zero."""
+
+    class _NullVariant:
+        def isNull(self):
+            return True
+
+        def __float__(self):          # some bindings return 0.0 here instead of raising
+            return 0.0
+
+    def test_a_null_variant_is_missing_not_zero(self):
+        from cartogen_ai.core.agent.tools.mcda_tools import to_number
+        self.assertIsNone(to_number(self._NullVariant()))
+        self.assertEqual(at.weight_for(0.5, self._NullVariant())[1], "missing or non-numeric population")
+        self.assertEqual(at.weight_for(self._NullVariant(), 10)[1], "missing or non-numeric need")
