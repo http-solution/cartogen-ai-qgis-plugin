@@ -388,33 +388,8 @@ def _layer(name):
     return layers[0] if layers else None
 
 
-@register_tool(
-    "import_jiaf_inputs",
-    "Read and validate the sector inputs for a JIAF 2 analysis (support for the JIAF 2 process; not the JIAF method, not endorsed by OCHA or the "
-    "IASC, no joint PiN or severity is computed here). Reads an .xlsx/.csv of one of three kinds: the OCHA Workspace 3A/3B worksheet ('WS - 3.1 "
-    "Overall PiN' + 'WS - 3.2 Intersectoral Severity'), an HXL-tagged published table (#adm2 +code, #inneed +wsh, #severity +shl ...), or the "
-    "manual's per-sector template (give `sector` and `template_kind`). Reports units, sectors found, per-sector totals, and every problem: "
-    "severity must be a phase 1-5 (0 is reported as not-applicable, never turned into a phase), PiN must be a non-negative number, duplicates and "
-    "missing values are listed and never filled. Stored columns (Preliminary/Final PiN, Final Severity) are returned only as stored and are NOT "
-    "trusted. Optionally joins to an admin layer by P-code and, after confirmation, writes the values as new numeric fields (jp_<sector> for PiN, "
-    "js_<sector> for severity). Never invent a threshold or fill a missing value.",
-    {
-        "type": "object",
-        "properties": {
-            "file_path": {"type": "string", "description": "Absolute path to the .xlsx or .csv file."},
-            "input_format": {"type": "string", "description": "'auto' (default), 'ocha_worksheet', 'hxl' or 'sector_template'."},
-            "sheet_name": {"type": "string", "description": "Sheet to read for 'hxl' or 'sector_template' (default: the first)."},
-            "sector": {"type": "string", "description": "For 'sector_template': the sector the file belongs to (cccm, education, nutrition, food_security, health, protection, shelter, wash, child_protection, gbv, mine_action, hlp)."},
-            "template_kind": {"type": "string", "description": "For 'sector_template': 'pin' or 'severity'."},
-            "layer_name": {"type": "string", "description": "Optional admin polygon layer to join to."},
-            "layer_key_field": {"type": "string", "description": "Field on that layer holding the Admin 2 P-code."},
-            "write_fields": {"type": "boolean", "description": "With layer_name: write jp_<sector> (PiN) and js_<sector> (severity) fields. Needs confirmation."},
-        },
-        "required": ["file_path"],
-    },
-)
-def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None, layer_name=None, layer_key_field=None,
-                       write_fields=False, confirmed: bool = False):
+def load_units(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None):
+    """Read `file_path` into (units, fmt, notes) or return {"error": ...}. Shared by the import tool and the calculation tool."""
     if not os.path.exists(file_path):
         return {"error": f"File not found: {file_path}"}
     fmt = str(input_format or "auto").lower()
@@ -455,6 +430,41 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
             units, notes = parse_sector_template(grid, str(sector).lower(), str(template_kind).lower())
     if not units:
         return {"error": "No units could be read. " + " ".join(notes), "format": fmt}
+
+    return units, fmt, notes
+
+
+@register_tool(
+    "import_jiaf_inputs",
+    "Read and validate the sector inputs for a JIAF 2 analysis (support for the JIAF 2 process; not the JIAF method, not endorsed by OCHA or the "
+    "IASC, no joint PiN or severity is computed here). Reads an .xlsx/.csv of one of three kinds: the OCHA Workspace 3A/3B worksheet ('WS - 3.1 "
+    "Overall PiN' + 'WS - 3.2 Intersectoral Severity'), an HXL-tagged published table (#adm2 +code, #inneed +wsh, #severity +shl ...), or the "
+    "manual's per-sector template (give `sector` and `template_kind`). Reports units, sectors found, per-sector totals, and every problem: "
+    "severity must be a phase 1-5 (0 is reported as not-applicable, never turned into a phase), PiN must be a non-negative number, duplicates and "
+    "missing values are listed and never filled. Stored columns (Preliminary/Final PiN, Final Severity) are returned only as stored and are NOT "
+    "trusted. Optionally joins to an admin layer by P-code and, after confirmation, writes the values as new numeric fields (jp_<sector> for PiN, "
+    "js_<sector> for severity). Never invent a threshold or fill a missing value.",
+    {
+        "type": "object",
+        "properties": {
+            "file_path": {"type": "string", "description": "Absolute path to the .xlsx or .csv file."},
+            "input_format": {"type": "string", "description": "'auto' (default), 'ocha_worksheet', 'hxl' or 'sector_template'."},
+            "sheet_name": {"type": "string", "description": "Sheet to read for 'hxl' or 'sector_template' (default: the first)."},
+            "sector": {"type": "string", "description": "For 'sector_template': the sector the file belongs to (cccm, education, nutrition, food_security, health, protection, shelter, wash, child_protection, gbv, mine_action, hlp)."},
+            "template_kind": {"type": "string", "description": "For 'sector_template': 'pin' or 'severity'."},
+            "layer_name": {"type": "string", "description": "Optional admin polygon layer to join to."},
+            "layer_key_field": {"type": "string", "description": "Field on that layer holding the Admin 2 P-code."},
+            "write_fields": {"type": "boolean", "description": "With layer_name: write jp_<sector> (PiN) and js_<sector> (severity) fields. Needs confirmation."},
+        },
+        "required": ["file_path"],
+    },
+)
+def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None, layer_name=None, layer_key_field=None,
+                       write_fields=False, confirmed: bool = False):
+    loaded = load_units(file_path, input_format, sheet_name, sector, template_kind)
+    if isinstance(loaded, dict):
+        return loaded
+    units, fmt, notes = loaded
 
     issues, summary = validate_units(units)
     stored = {}
