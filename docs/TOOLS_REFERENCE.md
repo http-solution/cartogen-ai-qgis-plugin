@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (184 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (185 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1555,6 +1555,22 @@ Zoom canvas to extent of layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+## barrier_tools
+
+### `apply_network_barriers`
+
+Put blocked or degraded places into a road network for routing: destroyed bridges, checkpoints, flooded stretches or any other barrier layer (points, lines or polygons such as a flood extent). Every road segment within buffer_m metres of a barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep their speed. Writes the result to a new numeric speed field (km/h) on the road layer; pass that field as speed_field to calculate_service_area / travel_time_matrix / optimize_delivery_route with strategy='fastest'. IMPORTANT: with strategy='shortest' the speed field is ignored and barriers have no effect, and 'block' is a near-zero speed rather than a true closure. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it unaffected segments are 30 km/h.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `road_network_layer` | string | yes | Line layer representing the road network. |
+| `barrier_layer` | string | yes | Layer of barriers: points (bridge, checkpoint), lines or polygons (flood extent). |
+| `buffer_m` | number | no | Distance in metres around each barrier within which roads are affected. 0 = only roads that touch/cross the barrier. Default 50. |
+| `mode` | string | no | 'block' (default) or 'penalise'. |
+| `penalty_factor` | number | no | For mode='penalise': speed multiplier between 0 and 1 (e.g. 0.25). Ignored for 'block'. |
+| `speed_field` | string | no | Optional existing numeric speed field (km/h) to start from, e.g. from build_composite_impedance_field. |
+| `output_field` | string | no | Name of the new speed field. Default 'barrier_speed'. |
 
 ## cartographic_advisory_tools
 

@@ -106,6 +106,11 @@ _TOOL_ALIASES = {
         "watershed", "catchment", "rational method", "return period",
         "rainfall intensity", "time of concentration", "peak flow", "kirpich",
     ],
+    # Road barriers (see tools/barrier_tools.py). No bare "bridge" or "closed": they would boost this tool on unrelated queries.
+    "apply_network_barriers": [
+        "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road",
+        "checkpoint", "barrier", "impassable", "avoid the", "cut off road",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

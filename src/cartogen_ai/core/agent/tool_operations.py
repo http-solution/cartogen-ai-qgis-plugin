@@ -272,6 +272,7 @@ TOOL_OPERATION_TYPES = {
     # -- impedance_tools.py -- writes a field onto the existing road network
     # layer in place, same category as field_calculator/calculate_area.
     "build_composite_impedance_field": MODIFY,
+    "apply_network_barriers": MODIFY,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
