@@ -57,7 +57,7 @@ class TestPartialEdgeCosts(_Base):
         with patch.object(self.lt, "MATRIX_LARGE_DESTINATIONS", limit):
             res = self.lt.travel_time_matrix("origin", "dest", "roads", **kw)
         self.assertTrue(res.get("success"), res)
-        self.assertEqual(res["method"] == "single_shortest_path_tree", single_tree, res.get("method"))
+        self.assertEqual(res.get("method") == "single_shortest_path_tree", single_tree, res.get("method"))
         row = list(res["matrix"].values())[0]
         layer = QgsProject.instance().mapLayersByName("dest")[0]
         ids = {f["name"]: str(f.id()) for f in layer.getFeatures()}
