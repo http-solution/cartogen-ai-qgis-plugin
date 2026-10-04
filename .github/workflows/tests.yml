@@ -40,6 +40,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11"]
+        include:
+          # The declared floor (Python 3.10, following QGIS; audit F32, #168) must be exercised, not just stated.
+          - os: ubuntu-latest
+            python-version: "3.10"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +52,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install optional dependencies
         # Everything except the heavy imagery-extraction group (torch/ultralytics,

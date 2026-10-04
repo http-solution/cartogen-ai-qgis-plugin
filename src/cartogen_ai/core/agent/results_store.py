@@ -17,6 +17,7 @@ Design points (each is a deliberate answer to a risk, not a guess about QGIS):
   reason) so the chat can ask the user to save the project first. No file is created in a surprise location.
 - Needs only the GDAL/OGR that ships with QGIS. No network, no extra package.
 """
+import itertools
 import os
 import re
 import time
@@ -51,13 +52,22 @@ def table_base(layer_name):
     return stem[:48]
 
 
+_persist_counter = itertools.count(1)
+
+
 def new_table_name(layer_name, now=None):
-    """Unique per persist, so an open table is never overwritten. Pure given `now`."""
+    """Unique per persist, so an open table is never overwritten. Pure given `now`.
+
+    The stamp alone has one-second precision, so two persists of the same stem inside one second got the same name and
+    the second overwrote the first (audit F22, #158). A per-process sequence number makes names distinct; it is encoded
+    as a letter-free suffix of the time stamp (`YYYYMMDD_HHMMSS` + `NNN`) so `stale_tables` and its `_STAMP_RE` keep
+    recognising exactly these tables. Several processes persisting into one file in the same second are not covered:
+    the sequence is per process."""
     stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now if now is not None else time.time()))
-    return f"{table_base(layer_name)}__{stamp}"
+    return f"{table_base(layer_name)}__{stamp}{next(_persist_counter) % 1000:03d}"
 
 
-_STAMP_RE = re.compile(r"^\d{8}_\d{6}$")
+_STAMP_RE = re.compile(r"^\d{8}_\d{6}(\d{3})?$")
 
 
 def stale_tables(all_tables, base, keep, in_use=()):

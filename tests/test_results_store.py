@@ -36,6 +36,12 @@ class TestTableNames(unittest.TestCase):
     def test_every_persist_gets_a_new_table_so_an_open_one_is_never_overwritten(self):
         self.assertNotEqual(rs.new_table_name("A", now=1_000_000), rs.new_table_name("A", now=1_000_001))
 
+    def test_two_persists_of_one_stem_in_the_same_second_get_different_tables(self):
+        # audit F22 (#158): one-second stamps made these identical, so the second persist overwrote the first.
+        first, second = rs.new_table_name("A", now=1_000_000), rs.new_table_name("A", now=1_000_000)
+        self.assertNotEqual(first, second)
+        self.assertEqual(rs.stale_tables([first, second], "A", keep=second), [first])
+
     def test_arabic_names_do_not_break_the_stem(self):
         self.assertEqual(rs.table_base("مستشفى"), "layer")
 
