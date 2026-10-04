@@ -1,0 +1,3 @@
+
+## 6. Status after work packages 1-6 (2026-10-04, end of day)
+Merged to `main` as PRs #175-#181: WP1 (#165 #158 #166 #168; #120/#129 re-read, already in place), WP2 (#159 #160 #161 #153 #154 -- partial, see the rc12 plan section I), WP3 (#155), WP4 (#156 #157 #162 #163), WP5 (#152), WP6 (#164 #93 #91, and #167 in part). Every one passed the offline suite and the QGIS 4.2.2 live job; **none is hand-verified, so no issue is closed.** Not touched: #151 (needs PostGIS), the unfinished parts listed in `RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md` section I, and the audit umbrella #169. Decision recorded against the plan: a closed road is a negative speed, not 0, because OSM `maxspeed` uses 0 for "unset".
