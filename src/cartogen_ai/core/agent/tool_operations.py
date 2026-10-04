@@ -284,6 +284,10 @@ TOOL_OPERATION_TYPES = {
     "analyze_critical_links": CREATE,
     "import_jiaf_inputs": MODIFY,
     "compute_jiaf_preliminary": MODIFY,
+    "record_jiaf_decisions": MODIFY,
+    "get_jiaf_decisions": READ,
+    "finalize_jiaf_results": MODIFY,
+    "compute_jiaf_patterns": MODIFY,
     "record_jiaf_setup": MODIFY,
     "get_jiaf_setup": READ,
 

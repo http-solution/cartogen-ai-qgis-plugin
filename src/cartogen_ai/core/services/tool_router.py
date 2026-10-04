@@ -143,6 +143,11 @@ _TOOL_ALIASES = {
         "preliminary joint pin", "preliminary pin", "mosaic method", "joint overall pin", "preliminary intersectoral severity", "jiaf flags",
         "pin flags", "highest sectoral pin", "compute the jiaf", "jiaf preliminary",
     ],
+    "record_jiaf_decisions": ["record the jiaf decision", "jiaf decisions", "final pin decision", "agreed severity", "flagged unit decision", "which sector pin"],
+    "get_jiaf_decisions": ["show the jiaf decisions", "stored jiaf decisions"],
+    "finalize_jiaf_results": ["final pin", "final joint overall pin", "finalize the jiaf", "finalise the jiaf", "jiaf final results", "pending flagged units"],
+    "compute_jiaf_patterns": ["jiaf patterns", "intersectoral patterns", "workspace 3c", "pin correlation between sectors", "sectors driving the needs",
+                              "needs patterns and linkages"],
     "record_jiaf_setup": ["jiaf set-up", "jiaf setup", "record the jiaf", "sector alignment", "jiaf scope", "manual edition"],
     "get_jiaf_setup": ["show the jiaf set-up", "jiaf setup record", "what jiaf scope"],
     "analyze_critical_links": [

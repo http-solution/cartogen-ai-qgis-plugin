@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (198 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (202 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1878,6 +1878,75 @@ Record the JIAF 2 analysis set-up in the project (support for the JIAF 2 process
 | `scope_note` | string | no |  |
 | `hct_endorsed_scope` | boolean | no | Whether the HCT endorsed the scope; omit if unknown. |
 | `sector_alignment` | array[object] | no |  |
+
+## jiaf_patterns
+
+### `compute_jiaf_patterns`
+
+Produce the JIAF 2 intersectoral pattern outputs of Workspace 3C (support for the JIAF 2 process; not the JIAF method, not endorsed by OCHA or the IASC): where the PiN is concentrated, which units have many sectors with more than 40% of the population in need, which sectors drive the PiN, the change against last year, units in severity phases 4-5 and with five or more sectors in phase 4-5, sector severity distributions, units with both high PiN and high severity, and the sector pairs whose PiN correlates above 0.7. These are lists and counts for the analysts' discussion, not conclusions. Thresholds are country-level settings (the manual's defaults where it gives one; the others are the module's and are echoed). Uses the recorded group decisions where they exist and the preliminary severity otherwise (reported). No national severity; not for ranking crises. Optionally writes jf_nsec40 and jf_nsev45 (counts per unit, for mapping) to an admin layer after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `input_format` | string | no |  |
+| `sheet_name` | string | no |  |
+| `previous_file_path` | string | no |  |
+| `previous_sheet_name` | string | no |  |
+| `sector_population_share` | number | no | Share of a unit's population that makes a sector's PiN 'large'. Manual: 0.40. |
+| `many_sectors_with_large_pin` | integer | no |  |
+| `top_units` | integer | no |  |
+| `high_pin_share` | number | no |  |
+| `severe_phases` | array[integer] | no | Default [4, 5]. |
+| `many_severe_sectors` | integer | no | Manual: 5. |
+| `top_sectors` | integer | no | Manual: 3. |
+| `correlation_threshold` | number | no | Manual: 0.7. |
+| `group_shares` | object | no | Optional population shares per group, e.g. {'girls': 0.25}, for the extrapolated estimates. |
+| `layer_name` | string | no |  |
+| `layer_key_field` | string | no |  |
+| `write_fields` | boolean | no | With layer_name: write jf_nsec40 and jf_nsev45. Needs confirmation. |
+
+## jiaf_review
+
+### `finalize_jiaf_results`
+
+Apply the recorded JIAF 2 group decisions to the preliminary figures and report the FINAL results (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). A unit with no flag keeps the preliminary figures; a flagged unit uses its recorded decision; a flagged unit with no decision is PENDING: its Final PiN is shown at the highest sectoral PiN as a provisional figure (counted and totalled separately) and its final severity is left empty. The Final PiN total is the sum over units; there is no national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those, which the team must have agreed. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, jf_pin_rk to an admin layer (needs confirmation) and a per-unit CSV with the Evidence & Comments (never overwrites).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `input_format` | string | no |  |
+| `sheet_name` | string | no |  |
+| `previous_file_path` | string | no |  |
+| `previous_sheet_name` | string | no |  |
+| `bulk_accepted_flags` | array[integer] | no | PiN flag numbers the team agreed to close in bulk, e.g. [1]. |
+| `f1_min_sectors` | integer | no |  |
+| `f2_pct` | number | no |  |
+| `f3_pct` | number | no |  |
+| `f4_subpopulation_sectors` | array[string] | no |  |
+| `f5_share` | number | no |  |
+| `f6_pct` | number | no |  |
+| `f6_min_previous_pin` | number | no |  |
+| `s4_sector_count` | integer | no |  |
+| `export_csv_path` | string | no | Optional new .csv file (refuses to overwrite). |
+| `layer_name` | string | no |  |
+| `layer_key_field` | string | no |  |
+| `write_fields` | boolean | no | With layer_name: write jf_fin_pin, jf_fin_sev, jf_pin_rk. Needs confirmation. |
+
+### `get_jiaf_decisions`
+
+Read the JIAF 2 group decisions stored in the project by record_jiaf_decisions (support for the JIAF 2 process; not endorsed by OCHA or the IASC).
+
+_No parameters._
+
+### `record_jiaf_decisions`
+
+Record the multi-partner group's JIAF 2 decisions for flagged units (support for the JIAF 2 process; not endorsed by OCHA or the IASC; this tool decides nothing, it only records what the group decided). pin_decisions: for a flagged unit, which main sector's PiN is used as the Final PiN (the manual offers the highest or second highest; any main sector is accepted and the rank of the chosen one is reported) with the rationale (required). severity_decisions: the agreed intersectoral severity phase 1-5 for a flagged unit with the evidence basis (outcome_indicators, proxy_indicators, expert_judgement or sector_overlap_accepted) and the evidence (required). Stored in the QGIS project, merged with earlier records unless replace=true. Never invent a decision; ask the team.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `pin_decisions` | array[object] | no |  |
+| `severity_decisions` | array[object] | no |  |
+| `replace` | boolean | no | Replace all stored decisions instead of merging. |
 
 ## mcda_tools
 

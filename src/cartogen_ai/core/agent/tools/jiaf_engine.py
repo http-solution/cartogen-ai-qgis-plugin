@@ -268,6 +268,24 @@ def _num(v):
     return f if f == f else None
 
 
+def run_analysis(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None, overrides=None):
+    """Load, validate and analyse: {"error"} or {"units", "format", "notes", "issues", "previous", "analysis"}. Shared by the JIAF tools."""
+    loaded = load_units(file_path, input_format, sheet_name)
+    if isinstance(loaded, dict):
+        return loaded
+    units, fmt, notes = loaded
+    issues, _summary = validate_units(units)
+    previous = None
+    if previous_file_path:
+        prev_loaded = load_units(previous_file_path, input_format, previous_sheet_name)
+        if isinstance(prev_loaded, dict):
+            return {"error": "Previous-year file: " + prev_loaded["error"]}
+        previous = prev_loaded[0]
+        validate_units(previous)
+    return {"units": units, "format": fmt, "notes": notes, "issues": issues, "previous": previous,
+            "analysis": analyze(units, previous, overrides)}
+
+
 # ------------------------------------------------------------------ tool --
 def _row_for_csv(r):
     out = {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
@@ -327,19 +345,10 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
     if export_csv_path and os.path.exists(export_csv_path):
         return {"error": f"'{export_csv_path}' already exists; choose a new file name (nothing is overwritten)."}
-    loaded = load_units(file_path, input_format, sheet_name)
-    if isinstance(loaded, dict):
-        return loaded
-    units, fmt, notes = loaded
-    issues, _summary = validate_units(units)
-    previous = None
-    if previous_file_path:
-        prev_loaded = load_units(previous_file_path, input_format, previous_sheet_name)
-        if isinstance(prev_loaded, dict):
-            return {"error": "Previous-year file: " + prev_loaded["error"]}
-        previous = prev_loaded[0]
-        validate_units(previous)
-    res = analyze(units, previous, overrides)
+    run = run_analysis(file_path, input_format, sheet_name, previous_file_path, previous_sheet_name, overrides)
+    if "error" in run:
+        return run
+    fmt, notes, issues, previous, res = run["format"], run["notes"], run["issues"], run["previous"], run["analysis"]
     rows = res["rows"]
     nflags = lambda r: sum(1 for f in r["pin_flags"].values() if f["fired"]) + sum(1 for f in r["severity_flags"].values() if f["fired"])  # noqa: E731
     top = sorted(rows, key=lambda r: (-nflags(r), -(r["preliminary_pin"] or 0)))[:_CAP]
