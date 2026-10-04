@@ -70,5 +70,33 @@ Reproduce each with a real-QGIS fixture before fixing; the acceptance line in ea
 #75 (needs the live check in C), and every issue in the earlier sweep that is still awaiting a hand re-test. The QGIS 4.2.2 audit's
 live-test gating finding concerns a file that is not in this repository.
 
+## I. Hand checks for the audit fixes made after the sweep (WP1-WP6, PRs #175-#181)
+Every row was built and checked offline and, where it touches QGIS, by the `qgis-live-tests` job (QGIS 4.2.2) -- the live tests for the
+newest code were written without a local QGIS. None of it has been run by hand. The issue stays open until its row passes here.
+
+| # | Prompt / action | Expected | Issue |
+|---|---|---|---|
+| I1 | "Estimated population in each district" on an admin layer with two districts of the same name and one NULL name; run it twice | One result per district (duplicates shown as `name [#id]`, the NULL one as `feature <id>`); the admin layer has **no** new `pop_*` field; the second run gives the same numbers; overlapping districts, if any, are reported | #159, #160 |
+| I2 | Hub siting / location-allocation / travel matrix with candidates or origins that share a name | Every candidate or origin appears once under its own label | #159 |
+| I3 | Damage-and-exposure severity with building centroids exactly on a shared district boundary | `building_assignment` shows matched / ambiguous / unmatched counts; a boundary building is counted in one district (the lowest feature id) | #161 |
+| I4 | NDVI / NDWI / change detection on two rasters of the same CRS but different extent or pixel size | Refused, naming the difference; two aligned rasters run; a pixel with a zero denominator is 0, not NaN | #153 |
+| I5 | `elevation_profile` for a line in EPSG:4326 over a DEM in a projected CRS; `build_composite_impedance_field` with a DEM | Distances in metres; the profile matches a profile drawn by hand in QGIS; slope penalties are plausible | #154 |
+| I6 | `apply_network_barriers` (block) at a bridge, then a service area from a point on one side, once with shortest and once with fastest | The reach stops at the blocked road in both; the result says `closed_segments_removed`; blocking every road gives an error, not an empty success; a damage field of 0 in `build_composite_impedance_field` does the same | #155 |
+| I7 | `travel_time_matrix` from one origin to the same facilities, once with up to 200 destinations and once with over 200 | The same destination gets the same cost (within a few metres) in both; keys are feature ids in both; on a one-way street a point behind the origin is unreachable | #152 |
+| I8 | Processing toolbox: Cartogen service-area algorithm, Fastest, 100 s at a 36 km/h speed field; a facility layer in another CRS; hub siting with the Cancel button | About 1 km reached; the facility starts where it really is; the output carries `facility_fid`; cancelling says the result is partial; a huge candidate x demand product is refused with a message | #156, #157, #163 |
+| I9 | Generic Processing tool: a misspelt parameter; `native:selectbylocation` on a named layer | The misspelt name is rejected with the valid names; the layer keeps its name and its selection changes | #162, #163 |
+| I10 | Histogram equalisation, unsupervised classification, pan-sharpening; supervised classification | The first three run (no SAGA needed); supervised classification says SAGA is not available | #162 |
+| I11 | Re-create a print layout with the same title but an unsupported `output_path` (for example `.docx`); then export an atlas where two features share the filename value | The error is shown and the **old layout is still there**, with no `..__building` layout left; the atlas writes one distinct file per feature and the layout's atlas settings are as before | #164 |
+| I12 | Reload the plugin twice with the Plugin Reloader; watch the task manager / `ps` for the isolation worker | No Python worker left running after unload; no duplicate translator; other `cartogen_ai` portions (none are expected in your install) untouched. **Known gap:** a running agent task at unload is not yet invalidated | #167 |
+| I13 | Open Settings and the Layer Data Sensitivity dialog | Both show the schema-disclosure text (name, type, CRS, feature count are always visible to a cloud provider) | #93 |
+| I14 | `fetch_worldpop_population` for a city bbox | If worldpop.org refuses a partial read the reply gives the real file size, says it is worldpop's limit, and asks before downloading once; only the bbox area is added to the project | #91 |
+| I15 | Access-map print layout | The reading guide says within-reach facilities are **blue** | #165 |
+| I16 | `pip wheel .` in a clean environment, then look inside the wheel | `task_register.json` and `validators/contracts/*.json` are present. (The wheel could not be built in the sandbox.) | #166 |
+
+**Not covered by any row and still open:** raster-unit validation (#160), score writes in `analysis_tools` (#159), reprojecting points into
+the admin CRS (#161), automatic raster alignment (#153), the DEM vertical unit (#154, assumed metres), running-task invalidation at unload
+(#167), and #151 (PostGIS, blocked on a database). #158 (same-second table names) and #168 (Python 3.10 floor) are checked automatically
+only.
+
 ## H. Recording
 For each row record: build, date, pass/fail, the exact prompt, what was seen, and screenshots or log lines. Close an issue only on a pass.
