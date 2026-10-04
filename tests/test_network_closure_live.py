@@ -47,10 +47,16 @@ class TestClosedSegmentsAreRemoved(_Base):
 
     def _reach_m(self, result):
         self.assertTrue(result.get("success"), result)
-        lines = [QgsProject.instance().mapLayersByName(n)[0] for n in result["layers_created"] if "_lines_" in n]
-        # a service area leaves several layers built from the same reached roads (reached roads, cost-graded roads), so
-        # summing them would count the roads twice: the longest one is the reached network.
-        return max(self.metres_of(layer) for layer in lines)
+        # The reached-roads layer repeats a road once per travel direction (measured in CI: 2,000 m for a 1,000 m road), and a
+        # service area leaves more than one such layer, so the length is that of the UNION of every reached line.
+        geoms = [f.geometry() for n in result["layers_created"] if "_lines_" in n
+                 for f in QgsProject.instance().mapLayersByName(n)[0].getFeatures()]
+        union = QgsGeometry.unaryUnion(geoms)
+        scratch = QgsVectorLayer("LineString?crs=EPSG:4326", "union", "memory")
+        feat = QgsFeature(scratch.fields())
+        feat.setGeometry(union)
+        scratch.dataProvider().addFeatures([feat])
+        return self.metres_of(scratch)
 
     def test_a_closed_middle_segment_cuts_the_network_for_both_strategies(self):
         for strategy, cost in (("shortest", 5000), ("fastest", 1.0)):
