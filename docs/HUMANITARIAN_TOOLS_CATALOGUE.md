@@ -64,7 +64,7 @@ Per-stratum sample sizes for a single proportion (confidence, margin of error, e
 WorldPop gridded population (about 100 m) clipped to your area. **Map output:** a heavy-tailed warm ramp with zero cells transparent, placed under the vector layers. **Better results:** always pass an `extent_layer` or `bbox`; whole-country downloads are refused unless you confirm; the figures are modelled estimates -- say "estimated".
 
 ### `estimate_population_exposure`
-Sums a population raster inside each polygon (adds `pop_sum`). **Map output:** values on the polygon layer; *no automatic style*. **Better results:** build the exposure polygon first (buffer, flood extent, service area) and say "estimated population within".
+Sums a population raster inside each polygon (one total per zone, on a detached copy: the polygon layer is not modified; overlapping zones are summed separately and the overlap is reported). **Map output:** values on the polygon layer; *no automatic style*. **Better results:** build the exposure polygon first (buffer, flood extent, service area) and say "estimated population within".
 
 ### `load_tabular_data_as_layer`
 Loads a CSV/XLSX in full as a layer, with coordinate or WKT columns where present. **Map output:** points get one consistent look and name labels on small layers. **Better results:** name the X/Y columns if the file's headings are unusual; check the reported CRS.

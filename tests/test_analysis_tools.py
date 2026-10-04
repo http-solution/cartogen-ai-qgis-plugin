@@ -472,6 +472,44 @@ def _fake_feature(field_values, geom_is_empty=False):
     return feat
 
 
+class TestPointAssignmentPolicy(unittest.TestCase):
+    """#161: boundary points are counted (intersects, not contains); overlaps go to the lowest feature id and are reported."""
+
+    @staticmethod
+    def _run(points, polygons):
+        """points: [name or None]; polygons: {fid: set of point names it intersects}."""
+        def geom(name):
+            g = MagicMock()
+            g.isEmpty.return_value = False
+            g.name = name
+            return g
+        features = {}
+        for fid, hits in polygons.items():
+            f = MagicMock()
+            f.geometry.return_value.intersects.side_effect = lambda g, hits=hits: g.name in hits
+            features[fid] = f
+        index = MagicMock()
+        # deliberately NOT in id order: the result must not depend on the index's iteration order
+        index.intersects.return_value = sorted(polygons, reverse=True)
+        geoms = [None if p is None else geom(p) for p in points]
+        return analysis_tools_mod._assign_points_to_polygons_indexed(index, features, geoms)
+
+    def test_a_point_on_a_shared_boundary_is_counted_once_in_the_lowest_id(self):
+        counts, stats = self._run(["edge"], {5: {"edge"}, 2: {"edge"}})
+        self.assertEqual(counts, {5: 0, 2: 1})
+        self.assertEqual(stats["ambiguous"], 1)
+        self.assertEqual(stats["matched"], 1)
+
+    def test_unmatched_and_missing_points_are_reported(self):
+        counts, stats = self._run(["in", "out", None], {1: {"in"}})
+        self.assertEqual(counts, {1: 1})
+        self.assertEqual((stats["matched"], stats["unmatched"], stats["skipped"], stats["ambiguous"]), (1, 1, 1, 0))
+
+    def test_counts_never_exceed_the_number_of_points(self):
+        counts, _ = self._run(["a", "b"], {1: {"a", "b"}, 2: {"a", "b"}, 3: {"a"}})
+        self.assertEqual(sum(counts.values()), 2)
+
+
 class TestAnalyzeIncidentTrendPerf003IndexReuse(unittest.TestCase):
     """PERF-003, 2026-09-13 audit: analyze_incident_trend used to call
     _count_points_in_polygons(zones, ...) once per time bucket, rebuilding the same

@@ -130,6 +130,16 @@ class TestFinalizeExtractedGeometry(unittest.TestCase):
 
         self.assertIs(result, geom)
 
+    def test_min_area_uses_the_metre_measure_not_planar_crs_units(self):
+        # #154: in EPSG:4326 the planar area is in degrees squared (tiny), so every feature fell under a metre threshold.
+        geom = MagicMock()
+        geom.simplify.return_value = geom
+        geom.isGeosValid.return_value = True
+        geom.isEmpty.return_value = False
+        geom.area.return_value = 1e-9
+        self.assertIs(_finalize_extracted_geometry(geom, 0.5, 10.0, area_m2=lambda g: 500.0), geom)
+        self.assertIsNone(_finalize_extracted_geometry(geom, 0.5, 10.0, area_m2=lambda g: 2.0))
+
 
 class TestExtractFeaturesFromImageryTool(unittest.TestCase):
     def test_degrades_gracefully_outside_qgis(self):

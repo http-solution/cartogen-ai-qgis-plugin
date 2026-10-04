@@ -78,7 +78,7 @@ def _mask_pixel_count(mask, threshold=0.5):
         return sum(1 for row in mask for v in row if v > threshold)
 
 
-def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2):
+def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None):
     """Simplifies a raw gdal.Polygonize-traced geometry (smooths the jagged pixel-grid
     "staircase" boundary by roughly one pixel width, Douglas-Peucker via
     QgsGeometry.simplify()), repairs it if simplification introduced a self-intersection
@@ -94,8 +94,13 @@ def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2):
         qgs_geom = qgs_geom.makeValid()
     if qgs_geom is None or qgs_geom.isEmpty():
         return None
-    if min_area_m2 is not None and qgs_geom.area() < min_area_m2:
-        return None
+    # Audit F18 (#154): geometry.area() is planar, in the layer's CRS units (degrees squared for EPSG:4326, feet squared for
+    # a US-foot CRS), so a "square metres" threshold was compared with the wrong unit. `area_m2` is a callable that measures
+    # in square metres on the ellipsoid; without one (unit tests) the planar area is used.
+    if min_area_m2 is not None:
+        area = area_m2(qgs_geom) if area_m2 is not None else qgs_geom.area()
+        if area < min_area_m2:
+            return None
     return qgs_geom
 
 
@@ -214,6 +219,11 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
 
     out_name = output_layer_name or f"{raster_layer}_extracted_features"
     crs = layer.crs().authid()
+    from qgis.core import QgsDistanceArea
+    distance_area = QgsDistanceArea()
+    distance_area.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+    project_ellipsoid = QgsProject.instance().ellipsoid()
+    distance_area.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
     out_layer = QgsVectorLayer(f"Polygon?crs={crs}", out_name, "memory")
     provider = out_layer.dataProvider()
     provider.addAttributes([QgsField("confidence", QVariant.Double)])
@@ -268,7 +278,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
             if geom is None or geom.IsEmpty():
                 continue
             qgs_geom = QgsGeometry.fromWkt(geom.ExportToWkt())
-            qgs_geom = _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2)
+            qgs_geom = _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, distance_area.measureArea)
             if qgs_geom is None:
                 continue
             new_feat = QgsFeature(out_layer.fields())

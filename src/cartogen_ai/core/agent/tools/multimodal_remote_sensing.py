@@ -132,13 +132,16 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str):
         return {"error": "QGIS not available"}
 
     try:
-        from .raster_tools import _find_layer_by_name, _run_raster_and_add
+        from .raster_tools import _common_grid_error, _find_layer_by_name, _run_raster_and_add
         r1 = _find_layer_by_name(raster_before)
         r2 = _find_layer_by_name(raster_after)
         if r1 is None:
             return {"error": f"Layer '{raster_before}' not found"}
         if r2 is None:
             return {"error": f"Layer '{raster_after}' not found"}
+        grid_error = _common_grid_error([r2, r1])
+        if grid_error:
+            return {"error": grid_error}
 
         result = _run_raster_and_add(
             "gdal:rastercalculator",

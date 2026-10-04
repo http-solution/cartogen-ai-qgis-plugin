@@ -20,7 +20,7 @@ from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 
 try:
-    from qgis.core import QgsPointXY, QgsProject
+    from qgis.core import QgsCoordinateTransform, QgsDistanceArea, QgsPointXY, QgsProject
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
@@ -65,9 +65,8 @@ _DEFAULT_SURFACE_PENALTY = 1.0
 
 # How strongly slope reduces speed: penalty = max(_MIN_SLOPE_PENALTY, 1 -
 # slope_ratio * _SLOPE_PENALTY_COEFFICIENT), where slope_ratio is
-# abs(elevation_change) / segment_length (both in the network layer's CRS
-# units -- a projected/metric CRS is assumed, same caveat buffer_analysis
-# already documents for CRS-unit-sensitive tools). A gentle, defensible
+# abs(elevation_change) / segment_length (elevation change in the DEM's
+# vertical unit, ASSUMED metres, over the segment length in metres -- see build_composite_impedance_field). A gentle, defensible
 # default -- not calibrated against real GPS data (the strategy doc's own
 # recommended calibration source), which this sandbox has no access to.
 _SLOPE_PENALTY_COEFFICIENT = 5.0
@@ -156,6 +155,18 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     # on their behalf), and a read-only source reports an error instead of "success" with nothing written.
     non_numeric_damage_count = 0
     sampled_slope_count = 0
+    # Audit F18 (#154): the slope used the endpoints as they are in the NETWORK's CRS (sampled in the DEM without a
+    # transform) divided by the planar length in that CRS's units, so a geographic or foot-unit network got a meaningless
+    # grade. Endpoints are now transformed into the DEM's CRS and the length is measured in metres on the ellipsoid.
+    # The DEM's vertical unit is still ASSUMED to be metres: it is not stored in a form QGIS exposes reliably.
+    to_dem = length_m = None
+    if dem is not None:
+        if network.crs().isValid() and dem.crs().isValid() and network.crs() != dem.crs():
+            to_dem = QgsCoordinateTransform(network.crs(), dem.crs(), QgsProject.instance().transformContext())
+        length_m = QgsDistanceArea()
+        length_m.setSourceCrs(network.crs(), QgsProject.instance().transformContext())
+        project_ellipsoid = QgsProject.instance().ellipsoid()
+        length_m.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
     try:
         with edit_command(network, "Cartogen AI: write " + output_field) as owned:
             out_idx = add_numeric_field(network, output_field)
@@ -190,7 +201,9 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
                     polyline = geom.asPolyline() if not geom.isMultipart() else (geom.asMultiPolyline()[0] if geom.asMultiPolyline() else None)
                     if polyline and len(polyline) >= 2:
                         start_pt, end_pt = polyline[0], polyline[-1]
-                        length = geom.length()
+                        if to_dem is not None:
+                            start_pt, end_pt = to_dem.transform(QgsPointXY(start_pt)), to_dem.transform(QgsPointXY(end_pt))
+                        length = length_m.measureLength(geom)
                         slope_penalty = _slope_penalty(dem, start_pt, end_pt, length)
                         if slope_penalty != 1.0:
                             sampled_slope_count += 1
