@@ -14,11 +14,11 @@ try:
         QgsProcessingParameterNumber,
         QgsProcessingParameterField,
         QgsProcessingParameterEnum,
+        QgsProcessingParameterString,
         QgsFeatureSink,
         QgsFields,
         QgsField,
         QgsFeature,
-        QgsWkbTypes,
         QgsDistanceArea,
         QgsFeatureRequest,
         QgsPointXY,
@@ -47,6 +47,32 @@ except ImportError:
             return string
     class QIcon:
         pass
+
+
+# Largest candidates x demand-points product the exact ranking will attempt (~25 million ellipsoidal distance measurements, i.e.
+# about a minute or two). Above it the algorithm stops with an explicit message instead of freezing QGIS (#157, audit F21).
+MAX_DISTANCE_PAIRS = 25_000_000
+_CANCEL_CHECK_EVERY = 2000
+
+
+def pair_limit_error(candidates, demand, limit=None):
+    """Error text when candidates x demand exceeds the limit (default: MAX_DISTANCE_PAIRS, read at call time), else None. Pure."""
+    if limit is None:
+        limit = MAX_DISTANCE_PAIRS
+    pairs = int(candidates) * int(demand)
+    if pairs > limit:
+        return (f"{candidates:,} candidates x {demand:,} demand points is {pairs:,} distance measurements, above the limit of "
+                f"{limit:,}. Filter the candidates or the demand points (for example to one region) and run it again.")
+    return None
+
+
+def child_travel_cost(strategy_index, cost):
+    """The travel cost to hand to native:serviceareafrompoint. Pure.
+
+    This algorithm's parameter is METRES for Shortest and SECONDS for Fastest; the child algorithm's cost for the fastest strategy is
+    in HOURS (the repo's own calculate_service_area reports hours), so seconds are converted. Before #156 (audit F20) the seconds
+    were passed through unchanged, which made every 'Fastest' service area 3,600 times too large."""
+    return float(cost) / 3600.0 if int(strategy_index) == 1 else float(cost)
 
 
 class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
@@ -124,9 +150,9 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
         max_dist = self.parameterAsDouble(parameters, self.MAX_DISTANCE, context)
 
         if candidates_source is None:
-            raise RuntimeError("Invalid candidate hub locations source")
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_CANDIDATES))
         if demand_source is None:
-            raise RuntimeError("Invalid demand points source")
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_DEMAND))
 
         fields = QgsFields(candidates_source.fields())
         fields.append(QgsField("avg_dist_m", QVariant.Double))
@@ -187,12 +213,17 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
         da.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
 
         scored_candidates = []
+        cancelled = False
         cand_features = list(candidates_source.getFeatures())
+        too_many = pair_limit_error(len(cand_features), len(demand_points))     # featureCount() can be -1 for some sources
+        if too_many:
+            raise QgsProcessingException(too_many)
         total_cands = len(cand_features)
         skipped_candidates = 0
 
         for idx, cand_feat in enumerate(cand_features):
             if feedback.isCanceled():
+                cancelled = True
                 break
             cand_geom = cand_feat.geometry()
             if not cand_feat.hasGeometry() or cand_geom.isEmpty():
@@ -202,7 +233,14 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
                 continue
 
             pt = QgsPointXY(cand_geom.asPoint())
-            distances = [da.measureLine(pt, dp) for dp in demand_points]
+            distances = []
+            for start in range(0, len(demand_points), _CANCEL_CHECK_EVERY):
+                if feedback.isCanceled():
+                    cancelled = True
+                    break
+                distances.extend(da.measureLine(pt, dp) for dp in demand_points[start:start + _CANCEL_CHECK_EVERY])
+            if cancelled:
+                break    # this candidate's distances are incomplete, so it is not ranked
             avg_dist = sum(distances) / len(distances) if distances else 0.0
             max_d = max(distances) if distances else 0.0
 
@@ -222,8 +260,6 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
         scored_candidates.sort(key=lambda item: item["avg_dist"])
 
         for rank, item in enumerate(scored_candidates, start=1):
-            if feedback.isCanceled():
-                break
             old_feat = item["feat"]
             new_feat = QgsFeature(fields)
             new_feat.setGeometry(old_feat.geometry())
@@ -235,8 +271,12 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
                 new_attrs.append(item["served"])
                 new_attrs.append(round(item["pct"], 1))
             new_feat.setAttributes(new_attrs)
-            sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
+            if not sink.addFeature(new_feat, QgsFeatureSink.FastInsert):
+                raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT))
 
+        if cancelled:
+            feedback.pushWarning(f"Cancelled: {len(scored_candidates)} of {len(cand_features)} candidates were ranked. The output is "
+                                 "PARTIAL, and the ranks are only among those candidates.")
         if skipped_candidates:
             feedback.pushWarning(
                 f"{skipped_candidates} multipart candidate feature(s) skipped: only single-point features are supported.")
@@ -252,6 +292,9 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
     DEFAULT_SPEED = "DEFAULT_SPEED"
     SPEED_FIELD = "SPEED_FIELD"
     DIRECTION_FIELD = "DIRECTION_FIELD"
+    VALUE_FORWARD = "VALUE_FORWARD"
+    VALUE_BACKWARD = "VALUE_BACKWARD"
+    VALUE_BOTH = "VALUE_BOTH"
     OUTPUT_LINES = "OUTPUT_LINES"
 
     def tr(self, string):
@@ -298,7 +341,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.TRAVEL_COST,
-                self.tr("Travel Cost (meters for Shortest, seconds for Fastest)"),
+                self.tr("Travel Cost (metres for Shortest, seconds for Fastest)"),
                 type=QgsProcessingParameterNumber.Double,
                 defaultValue=1000.0,
                 minValue=0.0,
@@ -337,6 +380,10 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
                 parentLayerParameterName=self.INPUT_NETWORK,
             )
         )
+        for name, label in ((self.VALUE_FORWARD, "Direction Field Value: forward only (optional)"),
+                            (self.VALUE_BACKWARD, "Direction Field Value: backward only (optional)"),
+                            (self.VALUE_BOTH, "Direction Field Value: both ways (optional)")):
+            self.addParameter(QgsProcessingParameterString(name, self.tr(label), optional=True))
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT_LINES,
@@ -355,23 +402,16 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
         direction_field = self.parameterAsString(parameters, self.DIRECTION_FIELD, context)
 
         if facilities_source is None:
-            raise RuntimeError("Invalid facilities source")
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_FACILITIES))
         if network_source is None:
-            raise RuntimeError("Invalid road network source")
-
-        sink, dest_id = self.parameterAsSink(
-            parameters,
-            self.OUTPUT_LINES,
-            context,
-            network_source.fields(),
-            QgsWkbTypes.MultiLineString,
-            network_source.sourceCrs(),
-        )
-        if sink is None:
-            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT_LINES))
+            raise QgsProcessingException(self.invalidSourceError(parameters, self.INPUT_NETWORK))
+        direction_values = {key: self.parameterAsString(parameters, key, context)
+                            for key in (self.VALUE_FORWARD, self.VALUE_BACKWARD, self.VALUE_BOTH)}
 
         facility_features = [f for f in facilities_source.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
         total = len(facility_features)
+        if not total:
+            raise QgsProcessingException("The facilities source has no features with a point geometry")
 
         # #140 (audit F04): materialize() takes a QgsFeatureRequest; the old code handed it a
         # QgsProcessingFeatureSourceDefinition and raised TypeError before the per-facility try block. Done once, outside the loop,
@@ -381,35 +421,96 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
         if network_layer is None:
             raise QgsProcessingException("Could not read the road network source")
 
+        # #156 (audit F20): facility points are moved into the NETWORK's CRS before they are used as start points (a facility layer
+        # in another CRS used to be read as if its numbers were already in the network's CRS), and the cost is converted to what
+        # the child algorithm expects (see child_travel_cost).
+        net_crs, fac_crs = network_source.sourceCrs(), facilities_source.sourceCrs()
+        to_net = None
+        if fac_crs.isValid() and net_crs.isValid() and fac_crs != net_crs:
+            to_net = QgsCoordinateTransform(fac_crs, net_crs, context.transformContext())
+        child_cost = child_travel_cost(strategy_idx, cost)
+
+        # native:serviceareafrompoint measures with the context's ellipsoid; a context without one measures in layer units
+        # (degrees for a WGS84 network), so the 100 s / 1 km live tests returned the whole 5 km road whatever the cost.
+        # setProject alone does not provide an ellipsoid, and "NONE" is a truthy sentinel, so check it by value.
+        project = context.project()
+        project_ellipsoid = project.ellipsoid() if project else ""
+        context.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+
+        sink = dest_id = sink_fields = None
+        failures, skipped_multipart, reached = [], 0, 0
         for idx, feat in enumerate(facility_features):
             if feedback.isCanceled():
+                feedback.pushWarning(f"Cancelled after {idx} of {total} facilities: the output is PARTIAL.")
                 break
-            pt = feat.geometry().asPoint()
+            geom = feat.geometry()
+            if geom.isMultipart():
+                skipped_multipart += 1
+                continue
+            pt = QgsPointXY(geom.asPoint())
+            if to_net is not None:
+                try:
+                    pt = to_net.transform(pt)
+                except Exception as e:
+                    failures.append((idx, f"could not transform the facility to {net_crs.authid()}: {e}"))
+                    continue
             params = {
                 "INPUT": network_layer,
                 "STRATEGY": strategy_idx,
                 "DEFAULT_SPEED": default_speed,
                 "TOLERANCE": 0,
                 "START_POINT": f"{pt.x()},{pt.y()}",
-                "TRAVEL_COST2": cost,
+                "TRAVEL_COST2": child_cost,
                 "OUTPUT_LINES": "memory:",
             }
             if speed_field:
                 params["SPEED_FIELD"] = speed_field
             if direction_field:
                 params["DIRECTION_FIELD"] = direction_field
+                for key, value in direction_values.items():
+                    if value:
+                        params[key] = value
 
             try:
                 out = processing.run("native:serviceareafrompoint", params, context=context, feedback=feedback)
                 lines_layer = out.get("OUTPUT_LINES")
-                if lines_layer:
-                    for line_feat in lines_layer.getFeatures():
-                        sink.addFeature(line_feat, QgsFeatureSink.FastInsert)
             except Exception as e:
-                feedback.pushWarning(f"Facility #{idx} skipped: {e}")
+                failures.append((idx, str(e)))
+                continue
+            if not lines_layer:
+                failures.append((idx, "the network algorithm returned no output layer"))
+                continue
 
+            if sink is None:
+                # The sink schema is what the child algorithm actually returns (it is NOT the road layer's fields: a fixture
+                # returned only 'type' and 'start'), plus the id of the facility each line belongs to.
+                sink_fields = QgsFields()
+                for fld in lines_layer.fields():
+                    sink_fields.append(fld)
+                sink_fields.append(QgsField("facility_fid", QVariant.LongLong))
+                sink, dest_id = self.parameterAsSink(
+                    parameters, self.OUTPUT_LINES, context, sink_fields, lines_layer.wkbType(),
+                    lines_layer.crs() if lines_layer.crs().isValid() else net_crs)
+                if sink is None:
+                    raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT_LINES))
+            for line_feat in lines_layer.getFeatures():
+                new_feat = QgsFeature(sink_fields)
+                new_feat.setGeometry(line_feat.geometry())
+                new_feat.setAttributes(list(line_feat.attributes()) + [feat.id()])
+                if not sink.addFeature(new_feat, QgsFeatureSink.FastInsert):
+                    raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT_LINES))
+            reached += 1
             feedback.setProgress(int((idx + 1) / total * 100))
 
+        if skipped_multipart:
+            feedback.pushWarning(f"{skipped_multipart} multipart facility feature(s) skipped: only single points are supported.")
+        for idx, message in failures:
+            feedback.pushWarning(f"Facility #{idx} produced no service area: {message}")
+        if sink is None:
+            detail = f" First error: {failures[0][1]}" if failures else ""
+            raise QgsProcessingException(f"No facility produced a service area.{detail}")
+        if failures:
+            feedback.pushWarning(f"{len(failures)} of {total} facilities failed; the output covers the other {reached}.")
         return {self.OUTPUT_LINES: dest_id}
 
 

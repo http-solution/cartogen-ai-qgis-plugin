@@ -49,7 +49,6 @@ ALLOWED_ALGORITHM_IDS = frozenset({
     "gdal:cliprasterbymasklayer",
     "gdal:merge",
     "gdal:pansharp",
-    "qgis:zonalstatistics",
     "qgis:idwinterpolation",
     "qgis:tininterpolation",
     # styling_tools.py
@@ -83,6 +82,12 @@ RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
     "qgis:idwinterpolation", "qgis:tininterpolation", "qgis:heatmapkerneldensityestimation",
     "native:reclassifybytable", "native:cellstatistics",
 })
+
+
+# GitHub #163 (audit F27): algorithms that change an EXISTING layer instead of making a new one. The generic tool must not rename such
+# a result (it is the user's own layer) or call it "a new layer": it reports what changed instead. qgis:zonalstatistics (which writes
+# new fields into its input) is no longer offered here; native:zonalstatisticsfb makes a new layer.
+MUTATES_INPUT_ALGORITHM_IDS = frozenset({"native:selectbylocation"})
 
 
 # GitHub #137 (audit F01): "gdal:rastercalculator" was on this list, and the generic tool passed its FORMULA through untouched.

@@ -19,10 +19,11 @@ preference, not a replacement.
 """
 
 from .registry import register_tool
-from ._processing_allowlist import ALLOWED_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation
+from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
+                                    parameter_violation)
 
 try:
-    from qgis.core import QgsProject, QgsRasterLayer
+    from qgis.core import QgsApplication, QgsProject, QgsRasterLayer
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -47,7 +48,53 @@ def _find_layer_by_name(name):
     return layers[0] if layers else None
 
 
-def _resolve_params(params, raster_output=False):
+def unknown_parameters(supplied_keys, defined_names):
+    """Sorted parameter names the caller supplied that the algorithm does not define (case-sensitive, as Processing is). Pure.
+    GitHub #163 (audit F27): these used to be passed straight through, so a typo was either silently ignored or surfaced as an
+    unrelated Processing error."""
+    defined = set(defined_names)
+    return sorted(k for k in supplied_keys if k not in defined)
+
+
+def _algorithm_definition(alg_id):
+    """(parameter names, destination parameter names, raster destination names, output definitions) of the algorithm in the
+    running registry, or None when it cannot be asked (no registry, unknown id). Callers fall back to the old behaviour then."""
+    try:
+        algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
+        if algorithm is None:
+            return None
+        params = list(algorithm.parameterDefinitions())
+        names = {p.name() for p in params}
+        destinations = {p.name() for p in params if p.isDestination()}
+        raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions())
+    except Exception:
+        return None
+
+
+def harvest_outputs(output, definition=None):
+    """[(key, value)] for every output of a finished algorithm that is a layer or a raster file path, in algorithm order. Pure
+    given plain values: a value is a layer when it has setName(), or a raster path when the output is declared a raster. GitHub #163:
+    only the key 'OUTPUT' used to be looked at, so multi-output algorithms lost their other results."""
+    if not isinstance(output, dict):
+        return []
+    raster_keys = set()
+    order = list(output.keys())
+    if definition is not None:
+        raster_keys = {d.name() for d in definition[3] if "raster" in str(d.type()).lower()}
+        declared = [d.name() for d in definition[3]]
+        order = [k for k in declared if k in output] + [k for k in output if k not in declared]
+    found = []
+    for key in order:
+        value = output[key]
+        if hasattr(value, "setName"):
+            found.append((key, value))
+        elif isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value:
+            found.append((key, value))
+    return found
+
+
+def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -70,8 +117,13 @@ def _resolve_params(params, raster_output=False):
     has_output_key = False
     for key, value in params.items():
         key_lower = key.lower()
-        if any(key_lower == suffix or key_lower.endswith("_" + suffix) for suffix in _OUTPUT_KEY_SUFFIXES):
-            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
+        if destination_keys is not None:
+            is_destination = key in destination_keys
+        else:
+            is_destination = any(key_lower == suffix or key_lower.endswith("_" + suffix) for suffix in _OUTPUT_KEY_SUFFIXES)
+        if is_destination:
+            as_raster = (key in raster_keys) if raster_keys is not None else raster_output
+            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if as_raster else _SAFE_OUTPUT_VALUE
             has_output_key = True
             continue
         if isinstance(value, str):
@@ -79,7 +131,14 @@ def _resolve_params(params, raster_output=False):
             resolved[key] = layer if layer is not None else value
         else:
             resolved[key] = value
-    if not has_output_key:
+    if destination_keys is not None:
+        # every destination the algorithm defines gets a safe sink, whether or not the caller named it (a second output such as
+        # OUTPUT_LINES used to be left unset, so Processing failed or wrote to its own default)
+        for key in destination_keys:
+            if key not in resolved:
+                as_raster = (key in raster_keys) if raster_keys is not None else raster_output
+                resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if as_raster else _SAFE_OUTPUT_VALUE
+    elif not has_output_key:
         resolved["OUTPUT"] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
     return resolved
 
@@ -95,8 +154,8 @@ def _resolve_params(params, raster_output=False):
     "are allowed -- an unlisted algorithm id is rejected outright, not run. Output is always kept "
     "in-memory as a new project layer (auto-named), never written to a file path -- use a "
     "dedicated export tool (export_layer, export_to_csv) afterward if a file is actually needed. "
-    "Don't specify an OUTPUT/OUTPUT_LINES parameter yourself -- it's set automatically and any "
-    "value you give is ignored. Any string parameter value matching a currently-loaded layer's "
+    "Don't specify the output (destination) parameters yourself -- they are set automatically and any "
+    "value you give is ignored. An unknown parameter name is rejected before the algorithm runs, with the list of valid names; an algorithm with several outputs returns each as its own layer (additional_outputs); native:selectbylocation changes the selection of the existing layer instead of creating one. Any string parameter value matching a currently-loaded layer's "
     "name is automatically resolved to that layer; every other value is passed through as-is.",
     {
         "type": "object",
@@ -131,19 +190,44 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if violation:
         return {"error": violation}
 
+    definition = _algorithm_definition(alg_id)
+    destination_keys = raster_keys = None
+    if definition is not None:
+        wrong = unknown_parameters(params.keys(), definition[0])
+        if wrong:
+            return {"error": f"'{alg_id}' has no parameter(s) {wrong}. Its parameters are: {sorted(definition[0])}.",
+                    "rejected_before_running": True}
+        destination_keys, raster_keys = definition[1], definition[2]
+
     try:
-        resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS)
+        resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
+                                          destination_keys=destination_keys, raster_keys=raster_keys)
         output = processing.run(alg_id, resolved_params)
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}
 
-    new_layer = output.get("OUTPUT") if isinstance(output, dict) else None
-    if isinstance(new_layer, str) and alg_id in RASTER_OUTPUT_ALGORITHM_IDS:
-        # A raster algorithm returns the path of the file it wrote; load it as a layer.
-        loaded = QgsRasterLayer(new_layer, "raster_output")
-        new_layer = loaded if loaded.isValid() else None
-    if new_layer is None or not hasattr(new_layer, "setName"):
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS:
+        # The result IS the user's own layer (for example a changed selection): never rename it or call it new.
+        target = resolved_params.get("INPUT")
+        result = {"success": True, "alg_id": alg_id, "changed_existing_layer": True,
+                  "message": f"'{alg_id}' changed the existing layer rather than creating a new one."}
+        if hasattr(target, "name"):
+            result["layer_name"] = target.name()
+        if hasattr(target, "selectedFeatureCount"):
+            result["selected_feature_count"] = target.selectedFeatureCount()
+        return result
+
+    harvested = harvest_outputs(output, definition)
+    layers = []
+    for key, value in harvested:
+        if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
+            loaded = QgsRasterLayer(value, "raster_output")
+            value = loaded if loaded.isValid() else None
+        if value is not None and hasattr(value, "setName"):
+            layers.append((key, value))
+    if not layers:
         return {"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."}
+    primary_key, new_layer = layers[0]
 
     # IMPLEMENTATION_TRACKER.md §1.9, option 1 (narrow fix, 2026-09-24): a real turn calling this
     # tool 4x to reproject/buffer/intersect its way to one answer left 3 purely-internal scratch
@@ -180,4 +264,22 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         result["feature_count"] = count
         if count == 0:
             result["warning"] = "The output layer has 0 features -- check the inputs before treating this as a real empty result."
+
+    # GitHub #163: algorithms with several outputs (for example a lines output AND a points output) return all of them, each as its
+    # own layer named <layer_name>_<output key>; the first output keeps the plain name above.
+    extra = []
+    for key, layer in layers[1:]:
+        extra_name = f"{layer_name}_{key.lower()}"
+        layer.setName(extra_name)
+        project.addMapLayer(layer)
+        node = project.layerTreeRoot().findLayer(layer.id())
+        if node is not None and not caller_named_it:
+            node.setItemVisibilityChecked(False)
+        entry = {"output": key, "layer_name": extra_name}
+        if hasattr(layer, "featureCount"):
+            entry["feature_count"] = layer.featureCount()
+        extra.append(entry)
+    if extra:
+        result["primary_output"] = primary_key
+        result["additional_outputs"] = extra
     return result

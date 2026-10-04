@@ -107,6 +107,82 @@ class TestNativeProcessingAlgorithmsRun(unittest.TestCase):
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
+    """#156 / #157 (audit F20, F21)."""
+
+    # About 5 km along the equator as 45 separate ~111 m road features. CI showed the network algorithm returns WHOLE road features
+    # (a single 5 km feature, or one polyline with many vertices, came back entirely for a 1,000 m cost), so the reach can only be
+    # told apart from the whole road when the road is made of many features.
+    ROADS = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
+
+    def setUp(self):
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _run_service_area(self, facility, strategy, cost, speed=36.0):
+        from cartogen_ai.processing.provider import CalculateServiceAreaAlgorithm
+        roads = _layer("LineString", "EPSG:4326", self.ROADS, "roads")
+        params = {"INPUT_FACILITIES": facility, "INPUT_NETWORK": roads, "TRAVEL_COST": cost, "STRATEGY": strategy,
+                  "DEFAULT_SPEED": speed, "OUTPUT_LINES": "memory:"}
+        results, ok, context, _fb = _run(CalculateServiceAreaAlgorithm(), params)
+        return ok, context.getMapLayer(results["OUTPUT_LINES"]) if ok else None
+
+    def _length_m(self, layer):
+        from qgis.core import QgsDistanceArea
+        da = QgsDistanceArea()
+        da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+        da.setEllipsoid("WGS84")
+        from qgis.core import QgsGeometry
+        merged = QgsGeometry.unaryUnion([f.geometry() for f in layer.getFeatures()])      # overlapping duplicates counted once
+        return da.measureLength(merged)
+
+    def test_fastest_cost_is_in_seconds_at_36_kmh_100_s_reaches_about_one_km(self):
+        fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
+        ok, out = self._run_service_area(fac, 1, 100.0)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(self._length_m(out), 1000.0, delta=250.0)       # 36 km/h = 10 m/s
+
+    def test_fastest_cost_of_3600_seconds_covers_the_whole_road(self):
+        fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
+        ok, out = self._run_service_area(fac, 1, 3600.0)
+        self.assertAlmostEqual(self._length_m(out), 5000.0, delta=300.0)
+
+    def test_a_facility_in_another_crs_starts_where_it_really_is(self):
+        fac = _layer("Point", "EPSG:3857", ["POINT(0 0)"], "fac")          # (0, 0) in 3857 is (0, 0) in 4326: start of the road
+        ok, out = self._run_service_area(fac, 0, 1000.0)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(self._length_m(out), 1000.0, delta=150.0)
+
+    def test_the_output_schema_is_the_child_algorithms_plus_the_facility_id(self):
+        fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
+        ok, out = self._run_service_area(fac, 0, 500.0)
+        names = [f.name() for f in out.fields()]
+        self.assertIn("facility_fid", names)
+        self.assertNotIn("name", names)                    # the road layer's own fields are not what the child returns
+        feature = next(out.getFeatures())
+        self.assertEqual(len(feature.attributes()), len(names))
+
+    def test_no_usable_facility_is_an_error_not_an_empty_success(self):
+        fac = _layer("Point", "EPSG:4326", [], "fac")
+        ok, _out = self._run_service_area(fac, 0, 500.0)
+        self.assertFalse(ok)
+
+    def test_a_hub_siting_run_over_the_pair_limit_stops_with_a_message(self):
+        from unittest.mock import patch
+        from cartogen_ai.processing.provider import OptimalHubSitingAlgorithm
+        cands = _layer("Point", "EPSG:4326", ["POINT(0 0)", "POINT(1 1)"], "c")
+        demand = _layer("Point", "EPSG:4326", ["POINT(0 1)", "POINT(1 0)"], "d")
+        with patch("cartogen_ai.processing.provider.MAX_DISTANCE_PAIRS", 3):
+            results, ok, _ctx, feedback = _run(OptimalHubSitingAlgorithm(),
+                                               {"INPUT_CANDIDATES": cands, "INPUT_DEMAND": demand, "OUTPUT": "memory:"})
+        self.assertFalse(ok)
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestHubSitingToolsMixedCrs(unittest.TestCase):
     """#142 for the agent tools (not only the native algorithm)."""
 
