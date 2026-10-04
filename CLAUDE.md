@@ -115,6 +115,10 @@ logic (verified, still true), and it isn't a variant of anything else. **Don't a
 licensing-gate logic to this repo.** If you're ever asked to add tier-gating directly to this
 codebase, flag it rather than implementing it.
 
+## Version bumps
+
+A bump of `version=` in `metadata.txt` must also update the in-plugin Help and the README "What's new" and humanitarian table (`src/cartogen_ai/core/release_notes.py`), the CHANGELOG and the counts; see CONTRIBUTING.md §8. `tests/test_release_docs_in_sync.py` enforces it.
+
 ## When you're not sure whether to just fix something
 
 Mechanical, low-risk fixes (wrong error message, missing retry, an obviously dead branch) — fix

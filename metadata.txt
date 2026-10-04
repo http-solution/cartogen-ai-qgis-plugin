@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc12
+version=1.16.0-rc13
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,17 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc12 (2026-10-02):
+changelog=v1.16.0-rc13 (2026-10-04):
+    Release candidate 13 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds the humanitarian work done after rc12 (PRs #183-#189).
+    - New: automatic humanitarian map looks (HX1) -- apply_humanitarian_look draws severity (five classes matching the tool's own), people-in-need / exposure (quantile classes, zero its own class), presence-gap and rank results; the analysis tools return a map_look hint; footprints, OSM layers, roads and detected features get humanitarian styles; a situation-report layout.
+    - Change: the humanitarian task register was corrected (HX2) -- the new H1-H6 tools are attached to the tasks they serve, and a coverage test keeps every non-guidance task tied to a tool that can acquire its data.
+    - New: calculate_allocation_envelope (HX3a) -- splits a budget you supply over areas by need (optionally x population) with ceiling, floor, need threshold and rounding; areas with missing values are excluded and listed, never imputed; an advisory calculation, not a recommendation of who should receive what.
+    - New: import_humanitarian_table (HX3b) -- file-based import and validation of IPC phase, INFORM Risk and UNOSAT damage tables with a P-code join to an admin layer. UNVERIFIED: the recognised column names were not checked against real HDX files; the result shows the mapping used and an explicit mapping overrides it.
+    - New: analyze_critical_links (HX3c) -- screens a road network for bottlenecks (how much origin-to-destination demand has its shortest path through each segment). A screening of dependence, not a closure simulation or traffic forecast. Performance on a national network has not been measured.
+    - Change: the in-plugin Help now shows what's new in this version and lists the humanitarian tools by workflow, with tool and task counts read from the live registries; the README, user guide and Help are kept in step with each version by a test.
+    - Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2 (live tests written without a local QGIS). Nothing in rc13 has been hand-tested in a desktop session, and no audit issue is closed by this build.
+
+v1.16.0-rc12 (2026-10-02):
     Release candidate 12 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the first full hands-on smoke test of rc11 (Yemen / Sanaa, QGIS 4.2.2). Each fix has tests and the QGIS-side ones ran in CI on QGIS 4.2.2, but none has been re-run by hand yet.
     - Fix: an unstated projected CRS that is not the project CRS is asked about instead of guessed (the point was placed silently before); a single point that already exists in a small point layer reuses that layer instead of stacking a new origin layer and result set on every repeat.
     - Fix: the chat follows new content only until you scroll up (a tall confirmation card used to leave the view stuck); chat bubbles show a clock time instead of a frozen "just now"; a degree written as ^\circ no longer shows raw LaTeX.

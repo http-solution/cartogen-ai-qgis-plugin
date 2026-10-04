@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc13](#v1-16-0-rc13) | 2026-10-04 | **Release candidate 13 for 1.16.0.** No breaking changes. Humanitarian map looks, task-register corrections, allocation envelope, IPC/INFORM/UNOSAT importers and critical-link screening; not hand-tested. |
 | [1.16.0-rc12](#v1-16-0-rc12) | 2026-10-02 | **Release candidate 12 for 1.16.0.** No breaking changes. Fixes from the first full hands-on smoke test of rc11: CRS asked when unstated, origin layers reused, chat scrolling and timestamps, no-basemap dashboard markers, admin boundary labels, population ramp name match, soft graticule, faster two-stop route with one-way and honest "shortest" wording, blue within-reach facilities. CI-verified on QGIS 4.2.2; not yet re-run by hand |
 | [1.16.0-rc11](#v1-16-0-rc11) | 2026-10-01 | **Release candidate 11 for 1.16.0.** No breaking changes. Fixes from the first hands-on smoke test of rc10: re-saved API keys, panel at startup, CSV X/Y columns, layer order and visibility, whole-country WorldPop kept in the project folder, clarification loop, router mismatches, hull population labelled an upper bound, results GeoPackage cleanup. CI-verified on QGIS 4.2.2 |
 | [1.16.0-rc10](#v1-16-0-rc10) | 2026-10-01 | **Release candidate 10 for 1.16.0.** No breaking changes. Includes rc9 (reply guard, turn limits, download-size guard, single-tree matrix, concave-hull exposure, results store, model view) plus the visualization round: cost-banded routing roads, grouped reach polygons, styled rasters/outputs with legend units, automatic labels, styled print layout with an access-map template, ten more allowlisted analysis algorithms. CI-verified on QGIS 4.2.2; not yet seen in a hands-on session |
@@ -53,6 +54,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc13"></a>
+## [1.16.0-rc13] — 2026-10-04 — Release candidate 13 for 1.16.0: humanitarian map looks and new analysis tools
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc12 build (PRs #183-#189):
+
+- New: automatic humanitarian map looks (HX1) -- apply_humanitarian_look draws severity (five classes matching the tool's own), people-in-need / exposure (quantile classes, zero its own class), presence-gap and rank results; the analysis tools return a map_look hint; footprints, OSM layers, roads and detected features get humanitarian styles; a situation-report layout.
+- Change: the humanitarian task register was corrected (HX2) -- the new H1-H6 tools are attached to the tasks they serve, and a coverage test keeps every non-guidance task tied to a tool that can acquire its data.
+- New: calculate_allocation_envelope (HX3a) -- splits a budget you supply over areas by need (optionally x population) with ceiling, floor, need threshold and rounding; areas with missing values are excluded and listed, never imputed; an advisory calculation, not a recommendation of who should receive what.
+- New: import_humanitarian_table (HX3b) -- file-based import and validation of IPC phase, INFORM Risk and UNOSAT damage tables with a P-code join to an admin layer. UNVERIFIED: the recognised column names were not checked against real HDX files; the result shows the mapping used and an explicit mapping overrides it.
+- New: analyze_critical_links (HX3c) -- screens a road network for bottlenecks (how much origin-to-destination demand has its shortest path through each segment). A screening of dependence, not a closure simulation or traffic forecast. Performance on a national network has not been measured.
+- Change: the in-plugin Help now shows what's new in this version and lists the humanitarian tools by workflow, with tool and task counts read from the live registries; the README, user guide and Help are kept in step with each version by a test.
+- Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2 (live tests written without a local QGIS). Nothing in rc13 has been hand-tested in a desktop session, and no audit issue is closed by this build.
 
 <a id="v1-16-0-rc12"></a>
 ## [1.16.0-rc12] — 2026-10-02 — Release candidate 12 for 1.16.0: fixes from the first full hands-on rc11 smoke test
