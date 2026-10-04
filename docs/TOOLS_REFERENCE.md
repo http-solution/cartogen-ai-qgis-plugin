@@ -1829,7 +1829,9 @@ Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 
 | `previous_sheet_name` | string | no |  |
 | `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1. |
 | `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing': what a severity of 0 means. |
-| `f1_min_sectors` | integer | no | Flag 1 fires at this many sectors with missing/zero PiN or more. Default 1 (the table says 1 or 2). |
+| `f1_min_sectors` | integer | no | Flag 1 fires at this many counted sectors or more. Default 1 (the table says 1 or 2). UNVERIFIED reading. |
+| `f1_count_missing` | boolean | no | Flag 1 counts sectors with NO PiN. Default true. |
+| `f1_count_zero` | boolean | no | Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts. |
 | `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30. |
 | `f3_pct` | number | no | Flag 3 threshold as a fraction. Default 0.50. |
 | `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given. |
@@ -1913,7 +1915,7 @@ Produce the JIAF 2 intersectoral pattern outputs of Workspace 3C (support for th
 
 ### `finalize_jiaf_results`
 
-Apply the recorded JIAF 2 group decisions to the preliminary figures and report the FINAL results (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). A unit with no flag keeps the preliminary figures; a flagged unit uses its recorded decision; a flagged unit with no decision is PENDING: its Final PiN is shown at the highest sectoral PiN as a provisional figure (counted and totalled separately) and its final severity is left empty. The Final PiN total is the sum over units; there is no national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those, which the team must have agreed. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, jf_pin_rk to an admin layer (needs confirmation) and a per-unit CSV with the Evidence & Comments (never overwrites).
+Apply the recorded JIAF 2 group decisions to the preliminary figures and report the FINAL results (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). A unit with no flag keeps the preliminary figures; a flagged unit uses its recorded decision; a flagged unit with no decision is PENDING: its Final PiN is shown at the highest sectoral PiN as a provisional figure (counted and totalled separately) and its final severity is left empty. The Final PiN total is the sum over units; there is no national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those; this is an analysis-team decision and REQUIRES bulk_rationale (why) and ideally bulk_decided_by, which are recorded in the result and against every unit closed. The flag conditions are unverified interpretations of the manual (see validation_blockers in the result): the number of pending units depends on them. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, jf_pin_rk to an admin layer (needs confirmation) and a per-unit CSV with the Evidence & Comments (never overwrites).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1922,10 +1924,14 @@ Apply the recorded JIAF 2 group decisions to the preliminary figures and report 
 | `sheet_name` | string | no |  |
 | `previous_file_path` | string | no |  |
 | `previous_sheet_name` | string | no |  |
-| `bulk_accepted_flags` | array[integer] | no | PiN flag numbers the team agreed to close in bulk, e.g. [1]. |
+| `bulk_accepted_flags` | array[integer] | no | PiN flag numbers the team agreed to close in bulk, e.g. [1]. Needs bulk_rationale. |
+| `bulk_rationale` | string | no | Why the team closed these flags in bulk (required with bulk_accepted_flags). |
+| `bulk_decided_by` | string | no | Who decided, e.g. 'JIAF analysis group, 12 Oct'. |
+| `f1_min_sectors` | integer | no |  |
+| `f1_count_missing` | boolean | no |  |
+| `f1_count_zero` | boolean | no |  |
 | `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight; a sector with no value is missing, never phase 1. |
 | `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing'. |
-| `f1_min_sectors` | integer | no |  |
 | `f2_pct` | number | no |  |
 | `f3_pct` | number | no |  |
 | `f4_subpopulation_sectors` | array[string] | no |  |

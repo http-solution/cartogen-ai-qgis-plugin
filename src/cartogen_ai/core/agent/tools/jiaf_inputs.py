@@ -33,6 +33,23 @@ except ImportError:
 STATEMENT = ("Support for the JIAF 2 process. This is not the JIAF method, is not endorsed by OCHA or the IASC, and does not decide any figure. "
              "Results are not for ranking crises.")
 _CAP = 50
+# Shown in every JIAF result: these are open, and neither is closed by anything the owner has supplied so far.
+VALIDATION_BLOCKERS = {
+    "claim": "Do not describe this as a faithful or complete JIAF implementation while either blocker below is open. A preview with these limits visible is fine.",
+    "blockers": [
+        {"id": "flag_formulas", "status": "open",
+         "text": ("The PiN and severity flag conditions are this module's INTERPRETATION of the manual's wording, not confirmed OCHA rules (the supplied worksheet has "
+                  "no flag formulas). Missing and explicit-zero PiN are kept distinct, and the 'missing or zero' trigger of flag 1 is unverified: how many units are "
+                  "flagged or pending depends on it and does not by itself show that review is required under the official rules."),
+         "closes_when": ("Each implemented condition is compared with OCHA's worksheet formulas or a Flags dashboard export, including missing, zero and partially "
+                         "populated inputs. Bulk closure of flags needs an analysis-team decision recorded with its rationale.")},
+        {"id": "annex4_reader", "status": "open",
+         "text": ("The Annex 4 sector-input reader was implemented from the manual's screenshots; compatibility with real files is unverified. The Yemen worksheet has a "
+                  "different layout and cannot validate Annex 4 support."),
+         "closes_when": ("A real filled Annex 4 sector-input file is read, and sheet detection, headers, geographic codes, sector values, missing cells and imported "
+                         "totals are checked against the source.")},
+    ],
+}
 SETUP_SCOPE = "cartogen_ai_jiaf"
 SETUP_KEY = "setup"
 
@@ -480,6 +497,7 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
         "issue_count": len(issues), "issues_shown": issues[:_CAP],
         "stored_columns_present": stored,
         "stored_columns_note": "Stored Preliminary/Final figures are returned only as stored; the analysis recomputes them and does not trust them.",
+        "validation_blockers": VALIDATION_BLOCKERS,
         "population_note": ("Population is missing for every unit." if all(u["population"] is None for u in units) else None),
     }
     if not layer_name:

@@ -199,6 +199,88 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual((csv_row["preliminary_severity"], csv_row["severity_review_status"], csv_row["final_severity"]), (None, "decided", 4))
 
 
+class TestMissingVersusZero(unittest.TestCase):
+    """The 'missing or zero PiN' trigger of flag 1 is an UNVERIFIED interpretation. Missing and explicit zero stay distinct everywhere, and the team
+    chooses whether the flag counts either or both."""
+
+    def _flag1(self, pin, **settings):
+        u = unit("U1", pin=pin)
+        row = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health", "shelter", "nutrition"], **settings})["rows"][0]
+        return row, row["pin_flags"][1]
+
+    def test_missing_and_zero_are_listed_apart(self):
+        row, f = self._flag1({"wash": 100, "health": 0, "shelter": 50})  # nutrition absent, health explicitly zero
+        self.assertEqual(f["detail"], {"missing_sectors": ["nutrition"], "zero_sectors": ["health"]})
+        self.assertEqual(row["pin_coverage"]["missing_sectors"], ["nutrition"])
+        self.assertEqual(row["pin_coverage"]["zero_sectors"], ["health"])
+        self.assertEqual(f["value"], 2)
+
+    def test_the_team_can_count_only_one_of_them(self):
+        pin = {"wash": 100, "health": 0, "shelter": 50}
+        self.assertEqual(self._flag1(pin, f1_count_zero=False)[1]["value"], 1)  # only the missing nutrition
+        self.assertEqual(self._flag1(pin, f1_count_missing=False)[1]["value"], 1)  # only the explicit zero
+        self.assertFalse(self._flag1(pin, f1_count_zero=False, f1_min_sectors=2)[1]["fired"])
+        with self.assertRaises(ValueError):
+            je.merge_settings({"f1_count_missing": False, "f1_count_zero": False})
+        with self.assertRaises(ValueError):
+            je.merge_settings({"f1_count_zero": "yes"})
+
+    def test_partially_populated_inputs(self):
+        _row, f = self._flag1({"wash": 100})  # three of four sectors have no figure
+        self.assertEqual(set(f["detail"]["missing_sectors"]), {"health", "shelter", "nutrition"})
+        self.assertEqual(f["detail"]["zero_sectors"], [])
+        _row, f = self._flag1({s: 10 for s in ("wash", "health", "shelter", "nutrition")})
+        self.assertFalse(f["fired"])
+        self.assertEqual(f["detail"], {"missing_sectors": [], "zero_sectors": []})
+
+    def test_an_explicit_zero_is_not_turned_into_missing_by_the_reader(self):
+        units, _ = ji.parse_hxl_table([["#adm2 +code", "#inneed +wsh", "#inneed +hea"], ["YE1", 0, ""]])
+        ji.validate_units(units)
+        self.assertEqual(units[0]["pin"]["wash"], 0.0)
+        self.assertIsNone(units[0]["pin"]["health"])
+
+    def test_the_csv_and_rows_carry_both_lists(self):
+        u = unit("U1", pin={"wash": 100, "health": 0}, sev={"wash": 3})
+        a = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health", "nutrition"]})
+        rows, _ = jr.finalize([u], a, {"pin": {}, "severity": {}})
+        csv_row = jr._csv_row(rows[0])
+        self.assertEqual((csv_row["pin_missing_sectors"], csv_row["pin_zero_sectors"]), ("nutrition", "health"))
+        self.assertEqual(je._row_for_csv(a["rows"][0])["pin_zero_sectors"], "health")
+
+
+class TestBulkClosureAndBlockers(unittest.TestCase):
+    def test_bulk_closure_is_recorded_against_every_unit_it_closes(self):
+        u = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 0}, sev=CALM["sev"])
+        a = je.analyze([u], overrides={"sectors_in_scope": scope_of([u])})
+        info = {"rationale": "no camps in these districts", "decided_by": "analysis group", "date": "2026-10-12"}
+        rows, s = jr.finalize([u], a, {"pin": {}, "severity": {}}, (1,), info)
+        r = rows[0]
+        self.assertEqual(r["final_pin_status"], "flags_closed_in_bulk")
+        self.assertEqual((r["pin_decision_note"], r["pin_decided_by"], r["pin_decision_date"]), ("no camps in these districts", "analysis group", "2026-10-12"))
+        self.assertEqual(s["bulk_closure"]["units_closed"], 1)
+        self.assertIsNone(run([unit("U2", **CALM)])[2]["bulk_closure"])
+
+    def test_every_jiaf_result_carries_both_open_blockers(self):
+        b = ji.VALIDATION_BLOCKERS
+        self.assertEqual([x["id"] for x in b["blockers"]], ["flag_formulas", "annex4_reader"])
+        self.assertTrue(all(x["status"] == "open" and x["closes_when"] for x in b["blockers"]))
+        self.assertIn("faithful or complete", b["claim"])
+        self.assertIn("screenshots", b["blockers"][1]["text"])
+        self.assertIn("unverified", b["blockers"][1]["text"])
+        self.assertIn("different layout", b["blockers"][1]["text"])
+        self.assertIn("does not by itself show", b["blockers"][0]["text"])
+        grid = TestTools.GRID
+        import tempfile as _t
+        fd, path = _t.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(os.remove, path)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows(grid)
+        for out in (ji.import_jiaf_inputs(path), je.compute_jiaf_preliminary(path), jr.finalize_jiaf_results(path), jp.compute_jiaf_patterns(path)):
+            self.assertTrue(out["success"], out)
+            self.assertEqual(out["validation_blockers"], b)
+
+
 class TestPatterns(unittest.TestCase):
     def _pat(self, units, **kw):
         a, rows, _ = run(units)
@@ -312,8 +394,14 @@ class TestTools(unittest.TestCase):
             self.assertIn(col, rows[0])  # preliminary result, review status, final result and justification are separate columns
         self.assertIn("error", jr.finalize_jiaf_results(path, export_csv_path=target))
         self.assertIn("error", jr.finalize_jiaf_results(path, bulk_accepted_flags=[9]))
-        closed = jr.finalize_jiaf_results(path, sectors_in_scope=scope, bulk_accepted_flags=[1, 2, 3, 4, 5, 6])
+        self.assertIn("bulk_rationale", jr.finalize_jiaf_results(path, sectors_in_scope=scope, bulk_accepted_flags=[1])["error"])
+        closed = jr.finalize_jiaf_results(path, sectors_in_scope=scope, bulk_accepted_flags=[1, 2, 3, 4, 5, 6],
+                                          bulk_rationale="analysis group agreed these flags are expected here", bulk_decided_by="session 1")
         self.assertFalse(closed["provisional"])
+        self.assertEqual(closed["bulk_closure"]["rationale"], "analysis group agreed these flags are expected here")
+        self.assertEqual(closed["bulk_closure"]["units_closed"], closed["pin_status_counts"]["flags_closed_in_bulk"])
+        self.assertGreaterEqual(closed["bulk_closure"]["units_closed"], 1)  # only a flagged unit has anything to close
+        self.assertIn("validation_blockers", closed)
 
     def test_patterns_tool(self):
         out = jp.compute_jiaf_patterns(self._csv(), sectors_in_scope=["nutrition", "health", "shelter", "wash"], high_pin_share=0.5)

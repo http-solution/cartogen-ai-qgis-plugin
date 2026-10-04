@@ -151,3 +151,13 @@ Each stage ends with a CI live test and an honest "not hand-tested" until the ow
 2. If available: the **OCHA analysis worksheet with live formulas** (or the JIAF Flags dashboard export) -- it settles section 6. The Yemen copy supplied has values only.
 3. Confirmation that the July 2024 manual is the current edition.
 4. Whether the supplied PDFs and Yemen workbooks may be stored in the repository (the PDFs show no licence terms, so until told otherwise they are only referenced; the Yemen files are published datasets but are not committed either).
+
+## 11. Validation blockers (OPEN) -- added 2026-10-04 after the stage 4 review
+
+The module is built (stages 2-4), but two items keep it from being called a faithful JIAF implementation. **Neither is closed, neither is closed by anything supplied so far, and neither should be marked complete.** A preview may be released with these limits visible; every JIAF tool result carries them (`validation_blockers`).
+
+1. **Flag conditions are an interpretation, not confirmed OCHA rules.** The supplied Yemen worksheet has values only, no flag formulas. The "missing or zero PiN" trigger of PiN flag 1 in particular is unverified. Missing PiN and an explicit zero PiN are kept distinct in the data, in the results and in the CSV (`pin_missing_sectors`, `pin_zero_sectors`), and the team chooses whether flag 1 counts either or both (`f1_count_missing`, `f1_count_zero`). The 249 of 333 Yemen units that come out pending under the defaults reflect that interpretation; they do not by themselves prove that review is required under the official rules.
+   *Closes when:* each implemented condition is compared with OCHA's worksheet formulas or a Flags dashboard export, including missing, zero and partially populated inputs. *Bulk closure* of flags is an analysis-team decision and cannot be recorded without its rationale (`bulk_rationale`, recorded against every unit it closes).
+2. **The Annex 4 reader was implemented from screenshots; compatibility is unverified.** The Yemen worksheet has a different layout and cannot validate Annex 4 support.
+   *Closes when:* a real filled Annex 4 sector-input file is read and sheet detection, headers, geographic codes, sector values, missing cells and imported totals are checked against the source.
+

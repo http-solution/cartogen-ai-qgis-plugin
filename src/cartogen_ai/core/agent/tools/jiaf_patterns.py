@@ -15,7 +15,7 @@ import math
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import run_analysis
-from .jiaf_inputs import STATEMENT
+from .jiaf_inputs import STATEMENT, VALIDATION_BLOCKERS
 from .jiaf_review import finalize, load_decisions
 from .table_importers import key_of, plan_join
 
@@ -254,7 +254,7 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
     rows, summary = finalize(run["units"], run["analysis"], decisions)
     res = patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares)
     counts = res.pop("_unit_counts")
-    result = {"success": True, "statement": STATEMENT, "units": len(rows), "format": run["format"], "decisions_used": {k: len(v) for k, v in decisions.items()},
+    result = {"success": True, "statement": STATEMENT, "validation_blockers": VALIDATION_BLOCKERS, "units": len(rows), "format": run["format"], "decisions_used": {k: len(v) for k, v in decisions.items()},
               "pending_flagged_units": summary["pending_pin_units"], "provisional": summary["provisional"],
               "provisional_note": ("Some flagged units have no recorded decision: PiN outputs use their highest sectoral PiN and severity outputs use the preliminary "
                                    "phase for them." if summary["provisional"] else None),

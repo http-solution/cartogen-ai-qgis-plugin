@@ -43,7 +43,7 @@ import os
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
-from .jiaf_inputs import MAIN_SECTORS, STATEMENT, load_units, validate_units
+from .jiaf_inputs import MAIN_SECTORS, STATEMENT, VALIDATION_BLOCKERS, load_units, validate_units
 from .table_importers import key_of, plan_join
 
 try:
@@ -54,10 +54,10 @@ except ImportError:
 
 _CAP = 50
 _TOL = 1e-9
-DEFAULTS = {"sectors_in_scope": tuple(MAIN_SECTORS), "zero_severity_as": "not_applicable", "f1_min_sectors": 1, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90, "f6_pct": 1.00,
+DEFAULTS = {"sectors_in_scope": tuple(MAIN_SECTORS), "zero_severity_as": "not_applicable", "f1_min_sectors": 1, "f1_count_missing": True, "f1_count_zero": True, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90, "f6_pct": 1.00,
             "f6_min_previous_pin": 1000.0, "s4_sector_count": 4}
 READINGS = [
-    "Flag 1: fires when the number of sectors with missing or zero PiN is at least f1_min_sectors (the table says '1 or 2').",
+    "Flag 1: fires when the number of sectors with a missing PiN and/or an explicit zero PiN (f1_count_missing, f1_count_zero; both by default) is at least f1_min_sectors (the table says 'missing or zero' and '1 or 2'). UNVERIFIED interpretation.",
     "Flags 2/3: the difference is measured relative to the 2nd/3rd highest PiN and fires at >= the threshold (Annex 5 implies this).",
     "Flag 4: only evaluated when f4_subpopulation_sectors is given; fires when the highest PiN belongs to one of them; the 50% is not applied.",
     "Flag 5: highest PiN above f5_share of the unit's population; above 100% is also marked as a likely data error.",
@@ -81,6 +81,11 @@ def merge_settings(overrides=None):
         s[k] = float(s[k])
         if s[k] < 0:
             raise ValueError(f"{k} must not be negative.")
+    for k in ("f1_count_missing", "f1_count_zero"):
+        if not isinstance(s[k], bool):
+            raise ValueError(f"{k} must be true or false.")
+    if not (s["f1_count_missing"] or s["f1_count_zero"]):
+        raise ValueError("flag 1 must count missing sectors, zero sectors or both.")
     s["sectors_in_scope"] = tuple(s["sectors_in_scope"] or ())
     if not s["sectors_in_scope"] or any(x not in MAIN_SECTORS for x in s["sectors_in_scope"]):
         raise ValueError(f"sectors_in_scope must be a non-empty list of main sectors {MAIN_SECTORS}.")
@@ -123,8 +128,12 @@ def _rel_diff(top, other):
 def pin_flags(unit, ranked, settings, expected, previous_unit=None):
     """{flag number: {"fired": bool or None (not evaluable), "value": ..., "note": ...}} for flags 1-6."""
     flags = {}
-    missing = [s for s in expected if unit["pin"].get(s) is None or unit["pin"].get(s) == 0]
-    flags[1] = {"fired": len(missing) >= settings["f1_min_sectors"], "value": len(missing), "note": ", ".join(missing) or None}
+    # An absent PiN and an explicit zero are different facts and stay different: they are listed apart, and the team chooses whether flag 1 counts
+    # either or both (default both: the table says "missing or zero"). This trigger is an UNVERIFIED interpretation (see VALIDATION_BLOCKERS).
+    absent = [s for s in expected if unit["pin"].get(s) is None]
+    zero = [s for s in expected if unit["pin"].get(s) == 0]
+    counted = (len(absent) if settings["f1_count_missing"] else 0) + (len(zero) if settings["f1_count_zero"] else 0)
+    flags[1] = {"fired": counted >= settings["f1_min_sectors"], "value": counted, "note": None, "detail": {"missing_sectors": absent, "zero_sectors": zero}}
     top = ranked[0][1] if ranked else None
     for n, idx, key in ((2, 1, "f2_pct"), (3, 2, "f3_pct")):
         if top is None or len(ranked) <= idx:
@@ -266,6 +275,7 @@ def analyze(units, previous_units=None, overrides=None):
         psev = sc["value"]
         sf = severity_flags(u, phases, psev, settings)
         miss_pin = [s for s in expected if u["pin"].get(s) is None]
+        zero_pin = [s for s in expected if u["pin"].get(s) == 0]
         if miss_pin and pre is not None:
             totals["units_with_missing_pin_sector"] += 1
         if sc["status"] == "incomplete_coverage":
@@ -306,7 +316,7 @@ def analyze(units, previous_units=None, overrides=None):
             stored["final_pin_rank"][str(r)] = stored["final_pin_rank"].get(str(r), 0) + 1
         rows.append({"admin2_code": u["admin2_code"], "admin2": u["admin2"], "population_group": u["population_group"], "population": u["population"],
                      "preliminary_pin": pre, "drivers": drivers, "pin_flags": pf, "preliminary_severity": psev, "severity_flags": sf,
-                     "pin_coverage": {"missing_sectors": miss_pin, "preliminary_pin_is_lower_bound": bool(miss_pin and pre is not None)},
+                     "pin_coverage": {"missing_sectors": miss_pin, "zero_sectors": zero_pin, "preliminary_pin_is_lower_bound": bool(miss_pin and pre is not None)},
                      "severity_coverage": {"status": sc["status"], "lower": sc["lower"], "upper": sc["upper"], "missing_sectors": miss_sev,
                                            "not_applicable_sectors": na_sev, "reporting_sectors": len(phases)},
                      "stored": {k: v for k, v in st.items() if k != "evidence"}})
@@ -344,7 +354,9 @@ def run_analysis(file_path, input_format="auto", sheet_name=None, previous_file_
 # ------------------------------------------------------------------ tool --
 def _row_for_csv(r):
     out = {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
-           "preliminary_pin": r["preliminary_pin"], "pin_drivers": "|".join(r["drivers"]), "preliminary_severity": r["preliminary_severity"]}
+           "preliminary_pin": r["preliminary_pin"], "pin_drivers": "|".join(r["drivers"]),
+           "pin_missing_sectors": "|".join(r["pin_coverage"]["missing_sectors"]), "pin_zero_sectors": "|".join(r["pin_coverage"]["zero_sectors"]),
+           "preliminary_severity": r["preliminary_severity"]}
     for n, f in r["pin_flags"].items():
         out[f"pin_flag_{n}"] = "" if f["fired"] is None else int(f["fired"])
     for n, f in r["severity_flags"].items():
@@ -375,7 +387,9 @@ def _row_for_csv(r):
             "previous_sheet_name": {"type": "string"},
             "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1."},
             "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing': what a severity of 0 means."},
-            "f1_min_sectors": {"type": "integer", "description": "Flag 1 fires at this many sectors with missing/zero PiN or more. Default 1 (the table says 1 or 2)."},
+            "f1_min_sectors": {"type": "integer", "description": "Flag 1 fires at this many counted sectors or more. Default 1 (the table says 1 or 2). UNVERIFIED reading."},
+            "f1_count_missing": {"type": "boolean", "description": "Flag 1 counts sectors with NO PiN. Default true."},
+            "f1_count_zero": {"type": "boolean", "description": "Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts."},
             "f2_pct": {"type": "number", "description": "Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30."},
             "f3_pct": {"type": "number", "description": "Flag 3 threshold as a fraction. Default 0.50."},
             "f4_subpopulation_sectors": {"type": "array", "items": {"type": "string"}, "description": "Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given."},
@@ -391,15 +405,16 @@ def _row_for_csv(r):
     },
 )
 def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                             sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
+                             sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
                              f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                              write_fields=False, confirmed: bool = False):
     try:
-        merge_settings({"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+        merge_settings({"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                         "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin, "s4_sector_count": s4_sector_count})
     except (ValueError, TypeError) as e:
         return {"error": str(e)}
-    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
+                                   "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
     if export_csv_path and os.path.exists(export_csv_path):
@@ -415,6 +430,7 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
         "success": True, "statement": STATEMENT, "stage": "preliminary only -- not the Final PiN, not the final severity",
         "format": fmt, "units": len(rows), "notes": notes, "input_issue_count": len(issues), "expected_sectors": res["expected_sectors"],
         "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in res["settings"].items()}, "readings_to_confirm": READINGS,
+        "validation_blockers": VALIDATION_BLOCKERS,
         "national_preliminary_pin": round(res["totals"]["preliminary_pin"], 2), "units_without_any_pin": res["totals"]["units_without_pin"],
         "national_note": "Sum over units of the highest sectoral PiN. It is a preliminary figure, not the Final Joint Overall PiN.",
         "sectors_absent_from_file": res["sectors_absent_from_file"],

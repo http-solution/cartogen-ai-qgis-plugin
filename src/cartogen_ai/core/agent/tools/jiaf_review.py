@@ -29,7 +29,7 @@ import os
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import ranked_pins, rank_of_value, run_analysis
-from .jiaf_inputs import MAIN_SECTORS, STATEMENT
+from .jiaf_inputs import MAIN_SECTORS, STATEMENT, VALIDATION_BLOCKERS
 from .table_importers import key_of, plan_join
 
 try:
@@ -126,7 +126,7 @@ def _fired(flags):
     return [n for n, f in flags.items() if f["fired"]]
 
 
-def finalize(units, analysis, decisions, bulk_accepted_flags=()):
+def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None):
     """Apply the recorded decisions to an `analyze` result. Returns (rows, summary). Pure."""
     expected = analysis["expected_sectors"]
     by_unit = {unit_id(u["admin2_code"], u["population_group"]): u for u in units}
@@ -154,6 +154,7 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
             status = "no_flag"
         elif set(pin_fired) <= bulk:
             status = "flags_closed_in_bulk"
+            note = (bulk_info or {}).get("rationale")
         else:
             status = "pending_flagged"
         if fin_pin is not None:
@@ -182,7 +183,9 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
         rows.append({"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
                      "preliminary_pin": r["preliminary_pin"], "pin_drivers": r["drivers"], "pin_flags_fired": pin_fired,
                      "final_pin": fin_pin, "final_pin_status": status, "final_pin_sector": sector, "final_pin_rank": rank, "pin_decision_note": note,
-                     "pin_decided_by": pd.get("decided_by") if pd else None, "pin_decision_date": pd.get("date") if pd else None,
+                     "pin_decided_by": pd.get("decided_by") if pd else (bulk_info or {}).get("decided_by") if status == "flags_closed_in_bulk" else None,
+                     "pin_decision_date": pd.get("date") if pd else (bulk_info or {}).get("date") if status == "flags_closed_in_bulk" else None,
+                     "pin_missing_sectors": r["pin_coverage"]["missing_sectors"], "pin_zero_sectors": r["pin_coverage"]["zero_sectors"],
                      "preliminary_severity": psev, "severity_coverage_status": cov["status"], "severity_lower": cov["lower"], "severity_upper": cov["upper"],
                      "severity_missing_sectors": cov["missing_sectors"], "severity_flags_fired": sev_fired,
                      "final_severity": fin_sev, "final_severity_status": sstatus,
@@ -202,6 +205,8 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
         "chosen_sector_rank_counts": counts["rank"], "final_severity_distribution": dict(sorted(sev_dist.items())),
         "decision_issues": issues,
         "bulk_accepted_flags": sorted(bulk),
+        "bulk_closure": ({"flags": sorted(bulk), "rationale": (bulk_info or {}).get("rationale"), "decided_by": (bulk_info or {}).get("decided_by"),
+                          "date": (bulk_info or {}).get("date"), "units_closed": counts["pin_status"].get("flags_closed_in_bulk", 0)} if bulk else None),
         "phase_5_units": [r["admin2_code"] for r in rows if 5 in (r["final_severity"], r["preliminary_severity"]) or 1 in r["severity_flags_fired"]],
     }
     return rows, summary
@@ -210,7 +215,8 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
 def _csv_row(r):
     """One row with the four things kept apart: preliminary result, review status, final result, justification (+ who and when)."""
     return {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
-            "preliminary_pin": r["preliminary_pin"], "pin_flags_fired": "|".join(str(n) for n in r["pin_flags_fired"]),
+            "preliminary_pin": r["preliminary_pin"], "pin_missing_sectors": "|".join(r["pin_missing_sectors"]),
+            "pin_zero_sectors": "|".join(r["pin_zero_sectors"]), "pin_flags_fired": "|".join(str(n) for n in r["pin_flags_fired"]),
             "pin_review_status": r["final_pin_status"], "final_pin": r["final_pin"], "final_pin_sector": r["final_pin_sector"],
             "final_pin_rank": r["final_pin_rank"], "pin_justification": r["pin_decision_note"], "pin_decided_by": r["pin_decided_by"],
             "pin_decision_date": r["pin_decision_date"],
@@ -283,18 +289,22 @@ def get_jiaf_decisions():
     "method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). A unit with no flag keeps the preliminary figures; a "
     "flagged unit uses its recorded decision; a flagged unit with no decision is PENDING: its Final PiN is shown at the highest sectoral PiN as a "
     "provisional figure (counted and totalled separately) and its final severity is left empty. The Final PiN total is the sum over units; there is no "
-    "national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those, which the team "
-    "must have agreed. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, "
+    "national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those; this is an "
+    "analysis-team decision and REQUIRES bulk_rationale (why) and ideally bulk_decided_by, which are recorded in the result and against every unit closed. The flag "
+    "conditions are unverified interpretations of the manual (see validation_blockers in the result): the number of pending units depends on them. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, "
     "jf_pin_rk to an admin layer (needs confirmation) and a per-unit CSV with the Evidence & Comments (never overwrites).",
     {
         "type": "object",
         "properties": {
             "file_path": {"type": "string"}, "input_format": {"type": "string"}, "sheet_name": {"type": "string"},
             "previous_file_path": {"type": "string"}, "previous_sheet_name": {"type": "string"},
-            "bulk_accepted_flags": {"type": "array", "items": {"type": "integer"}, "description": "PiN flag numbers the team agreed to close in bulk, e.g. [1]."},
+            "bulk_accepted_flags": {"type": "array", "items": {"type": "integer"}, "description": "PiN flag numbers the team agreed to close in bulk, e.g. [1]. Needs bulk_rationale."},
+            "bulk_rationale": {"type": "string", "description": "Why the team closed these flags in bulk (required with bulk_accepted_flags)."},
+            "bulk_decided_by": {"type": "string", "description": "Who decided, e.g. 'JIAF analysis group, 12 Oct'."},
+            "f1_min_sectors": {"type": "integer"}, "f1_count_missing": {"type": "boolean"}, "f1_count_zero": {"type": "boolean"},
             "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight; a sector with no value is missing, never phase 1."},
             "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing'."},
-            "f1_min_sectors": {"type": "integer"}, "f2_pct": {"type": "number"}, "f3_pct": {"type": "number"},
+            "f2_pct": {"type": "number"}, "f3_pct": {"type": "number"},
             "f4_subpopulation_sectors": {"type": "array", "items": {"type": "string"}}, "f5_share": {"type": "number"},
             "f6_pct": {"type": "number"}, "f6_min_previous_pin": {"type": "number"}, "s4_sector_count": {"type": "integer"},
             "export_csv_path": {"type": "string", "description": "Optional new .csv file (refuses to overwrite)."},
@@ -305,16 +315,22 @@ def get_jiaf_decisions():
     },
 )
 def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                          bulk_accepted_flags=None, sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None,
+                          bulk_accepted_flags=None, bulk_rationale=None, bulk_decided_by=None, sectors_in_scope=None, zero_severity_as=None,
+                          f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None,
                           f6_pct=None, f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                           write_fields=False, confirmed: bool = False):
-    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
+                                   "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
     if bulk_accepted_flags and any(n not in (1, 2, 3, 4, 5, 6) for n in bulk_accepted_flags):
         return {"error": "bulk_accepted_flags must be PiN flag numbers from 1 to 6."}
+    if bulk_accepted_flags and not str(bulk_rationale or "").strip():
+        return {"error": "bulk_accepted_flags needs bulk_rationale: closing flags in bulk is an analysis-team decision and must be recorded with its reason."}
     if export_csv_path and os.path.exists(export_csv_path):
         return {"error": f"'{export_csv_path}' already exists; choose a new file name (nothing is overwritten)."}
+    bulk_info = ({"rationale": str(bulk_rationale).strip(), "decided_by": str(bulk_decided_by or "").strip() or None, "date": datetime.date.today().isoformat()}
+                 if bulk_accepted_flags else None)
     try:
         run = run_analysis(file_path, input_format, sheet_name, previous_file_path, previous_sheet_name, overrides)
     except (ValueError, TypeError) as e:
@@ -322,11 +338,12 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
     if "error" in run:
         return run
     decisions = load_decisions()
-    rows, summary = finalize(run["units"], run["analysis"], decisions, bulk_accepted_flags or ())
+    rows, summary = finalize(run["units"], run["analysis"], decisions, bulk_accepted_flags or (), bulk_info)
     result = {
         "success": True, "statement": STATEMENT, "format": run["format"], "units": len(rows),
         "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in run["analysis"]["settings"].items()},
         "decisions_stored": {"pin": len(decisions["pin"]), "severity": len(decisions["severity"])},
+        "validation_blockers": VALIDATION_BLOCKERS,
         **summary,
         "total_note": ("PROVISIONAL: %d flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN." % summary["pending_pin_units"]
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
@@ -367,7 +384,8 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
         return {
             "status": "PREVIEW_REQUIRED", "requires_confirmation": True, "is_destructive": True, "tool_name": "finalize_jiaf_results",
             "arguments": dict({"file_path": file_path, "input_format": input_format, "sheet_name": sheet_name, "previous_file_path": previous_file_path,
-                               "previous_sheet_name": previous_sheet_name, "bulk_accepted_flags": bulk_accepted_flags, "layer_name": layer_name,
+                               "previous_sheet_name": previous_sheet_name, "bulk_accepted_flags": bulk_accepted_flags,
+                               "bulk_rationale": bulk_rationale, "bulk_decided_by": bulk_decided_by, "layer_name": layer_name,
                                "layer_key_field": layer_key_field, "write_fields": True, "confirmed": True}, **overrides),
             "code_snippet": f"# Add/update fields {names} on '{layer_name}' for {report['matched']} matched areas",
             "rationale": (f"Data Mutation Preview: write the JIAF final figures to {names} of layer '{layer_name}' ({report['matched']} of "
