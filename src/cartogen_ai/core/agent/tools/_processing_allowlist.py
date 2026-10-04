@@ -47,11 +47,8 @@ ALLOWED_ALGORITHM_IDS = frozenset({
     "native:slope",
     "native:aspect",
     "gdal:cliprasterbymasklayer",
-    "gdal:contraststretch",
     "gdal:merge",
-    "gdal:pansharpening",
-    "saga:kmeansclassificationforgrid",
-    "saga:supervisedclassificationforgrids",
+    "gdal:pansharp",
     "qgis:zonalstatistics",
     "qgis:idwinterpolation",
     "qgis:tininterpolation",
@@ -82,8 +79,7 @@ ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTE
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
 RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
     "native:hillshade", "native:slope", "native:aspect",
-    "gdal:cliprasterbymasklayer", "gdal:contraststretch", "gdal:merge", "gdal:pansharpening",
-    "saga:kmeansclassificationforgrid", "saga:supervisedclassificationforgrids",
+    "gdal:cliprasterbymasklayer", "gdal:merge", "gdal:pansharp",
     "qgis:idwinterpolation", "qgis:tininterpolation", "qgis:heatmapkerneldensityestimation",
     "native:reclassifybytable", "native:cellstatistics",
 })

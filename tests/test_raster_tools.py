@@ -879,21 +879,17 @@ class TestClassificationTools(unittest.TestCase):
         res = supervised_classification("img", "training")
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    def test_unsupervised_passes_num_classes_as_clusters_and_custom_output_key(self, mock_find, mock_run):
-        img = MagicMock()
-        mock_find.return_value = img
-        mock_run.return_value = {"success": True, "layer_name": "img_classified"}
-
-        res = unsupervised_classification("img", 7)
-
-        self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
-        self.assertEqual(alg, "saga:kmeansclassificationforgrid")
-        self.assertEqual(params["CLUSTERS"], 7)
-        self.assertEqual(mock_run.call_args[1]["output_key"], "CLUSTER")
+    def test_unsupervised_rejects_a_bad_class_count_before_reading_anything(self, mock_find):
+        # #162: saga:kmeansclassificationforgrid does not exist in QGIS 4.2.2, so the clustering is numpy (tests/test_raster_numpy.py);
+        # the entry check must still run before the raster is touched.
+        mock_find.return_value = MagicMock()
+        for bad in (1, 51, "x", None):
+            res = unsupervised_classification("img", bad)
+            self.assertIn("error", res)
+            self.assertIn("num_classes", res["error"])
+        mock_find.return_value.source.assert_not_called()
 
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name", return_value=None)
@@ -902,10 +898,21 @@ class TestClassificationTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("img", res["error"])
 
+    @patch("cartogen_ai.core.agent.tools.raster_tools._algorithm_available", return_value=False)
     @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    def test_supervised_passes_training_layer_and_custom_output_key(self, mock_find, mock_run):
+    def test_supervised_says_plainly_when_saga_is_not_installed(self, mock_find, mock_run, _avail):
+        mock_find.side_effect = lambda name: MagicMock()
+        res = supervised_classification("img", "training")
+        self.assertIn("SAGA", res["error"])
+        mock_run.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools._algorithm_available", return_value=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._run_raster_and_add")
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    def test_supervised_passes_training_layer_and_custom_output_key_when_saga_exists(self, mock_find, mock_run, _avail):
         img, training = MagicMock(), MagicMock()
         mock_find.side_effect = lambda name: {"img": img, "training": training}[name]
         mock_run.return_value = {"success": True, "layer_name": "img_classified"}
@@ -1009,7 +1016,7 @@ class TestMosaicBandCompositePanSharpening(unittest.TestCase):
 
         self.assertTrue(res["success"])
         alg, params, new_name = mock_run.call_args[0]
-        self.assertEqual(alg, "gdal:pansharpening")
+        self.assertEqual(alg, "gdal:pansharp")   # #162: the registry id is gdal:pansharp
         self.assertIs(params["SPECTRAL"], ms)
         self.assertIs(params["PANCHROMATIC"], pan)
 
