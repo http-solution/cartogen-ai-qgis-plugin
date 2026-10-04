@@ -14,8 +14,8 @@ import math
 
 try:
     from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLineSymbol,
-                           QgsMarkerSymbol, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsSingleBandPseudoColorRenderer,
-                           QgsSingleSymbolRenderer, QgsWkbTypes)
+                           QgsMarkerSymbol, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsRuleBasedRenderer,
+                           QgsSingleBandPseudoColorRenderer, QgsSingleSymbolRenderer, QgsWkbTypes)
     from qgis.PyQt.QtGui import QColor
     QGIS_AVAILABLE = True
 except ImportError:
@@ -192,6 +192,41 @@ def rank_ranges(max_rank, top_k):
         out.append((k + 0.5, 2 * k + 0.5, RANK_COLORS[1], f"Rank {k + 1} to {2 * k}"))
     if top > 2 * k:
         out.append((2 * k + 0.5, top + 0.5, RANK_COLORS[2], f"Rank {2 * k + 1} and below"))
+    return out
+
+
+# --- looks for layers the tools create themselves (HX1b) ------------------------------------------------------------------------
+# Reference layers (buildings, roads) are drawn quiet so the analysis on top of them is what the eye finds.
+FOOTPRINT_STYLE = {"color": "#8d99ae", "outline": "#4a4e69", "outline_width": "0.12", "opacity": 0.7}
+DETECTION_CONFIDENCE_COLORS = ["#a8dadc", "#457b9d", "#1d3557"]
+DETECTION_CONFIDENCE_EDGES = [0.0, 0.6, 0.8, 1.0]
+# OSM highway class -> (group, colour, width in mm). Dark and thick = through roads; pale and thin = local access.
+ROAD_GROUPS = [
+    ("Major roads", "#343a40", 1.4, ("motorway", "trunk", "primary", "motorway_link", "trunk_link", "primary_link")),
+    ("Secondary roads", "#6c757d", 0.9, ("secondary", "tertiary", "secondary_link", "tertiary_link")),
+    ("Local roads", "#adb5bd", 0.5, ("residential", "unclassified", "living_street", "service", "road")),
+    ("Tracks and paths", "#ced4da", 0.4, ("track", "path", "footway", "cycleway", "bridleway", "steps", "pedestrian")),
+]
+
+
+def road_rules(highway_field="highway"):
+    """[(label, filter expression, colour, width_mm)] for an OSM road layer, one rule per group plus a catch-all 'Other'. Pure."""
+    rules = []
+    for label, colour, width, values in ROAD_GROUPS:
+        quoted = ", ".join("'" + v + "'" for v in values)
+        rules.append((label, f'"{highway_field}" IN ({quoted})', colour, width))
+    return rules
+
+
+def detection_ranges():
+    """[(low, high, colour, label)] for model-confidence bands of detected features. Pure. Confidence is a score from the model, not a
+    probability that the object is real; the labels say 'confidence' and nothing stronger."""
+    edges = DETECTION_CONFIDENCE_EDGES
+    labels = ["Confidence below 0.6", "Confidence 0.6 to < 0.8", "Confidence 0.8 or more"]
+    out = []
+    for i, colour in enumerate(DETECTION_CONFIDENCE_COLORS):
+        high = math.nextafter(edges[i + 1], 0.0) if i < 2 else 1.0000001
+        out.append((edges[i], high, colour, labels[i]))
     return out
 
 # ---------------------------------------------------------------- QGIS --
@@ -378,3 +413,86 @@ def style_result_field(layer, look, field, top_k=None):
         return {"classes": classes, "notes": notes}
     except Exception as e:
         return {"error": f"Could not apply the {look} look: {e}"}
+
+
+# --- QGIS: looks for layers the tools create (HX1b) ----------------------------------------------------------------------------
+
+def style_footprints(layer):
+    """Building footprints: a quiet grey translucent fill with a thin dark edge, so they sit behind an analysis. True when applied."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        layer.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple(
+            {"color": FOOTPRINT_STYLE["color"], "outline_color": FOOTPRINT_STYLE["outline"],
+             "outline_width": FOOTPRINT_STYLE["outline_width"]})))
+        layer.setOpacity(FOOTPRINT_STYLE["opacity"])
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
+def style_osm_layer(layer):
+    """An OSM extract: roads graded by highway class when the layer is lines with a `highway` field, a pale fill for areas, the
+    standard point look for points. Other line layers (waterways, rail) get one neutral line. True when applied."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        kind = layer.geometryType()
+        if kind == QgsWkbTypes.GeometryType.PolygonGeometry:
+            layer.setRenderer(QgsSingleSymbolRenderer(QgsFillSymbol.createSimple(
+                {"color": "#e9ecef", "outline_color": "#868e96", "outline_width": "0.2"})))
+        elif kind == QgsWkbTypes.GeometryType.LineGeometry:
+            if layer.fields().indexOf("highway") >= 0:
+                return _style_roads(layer)
+            layer.setRenderer(QgsSingleSymbolRenderer(QgsLineSymbol.createSimple({"color": "#495057", "width": "0.6"})))
+        else:
+            from .output_style import style_points_default
+            return style_points_default(layer)
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
+def _style_roads(layer):
+    rules = road_rules()
+
+    def line(colour, width):
+        return QgsLineSymbol.createSimple({"color": colour, "width": str(width), "capstyle": "round", "joinstyle": "round"})
+    first = rules[0]
+    renderer = QgsRuleBasedRenderer(line(first[2], first[3]))
+    root = renderer.rootRule()
+    first_rule = root.children()[0]
+    first_rule.setFilterExpression(first[1])
+    first_rule.setLabel(first[0])
+    for label, expression, colour, width in rules[1:]:
+        rule = first_rule.clone()
+        rule.setSymbol(line(colour, width))
+        rule.setFilterExpression(expression)
+        rule.setLabel(label)
+        root.appendChild(rule)
+    other = first_rule.clone()
+    other.setSymbol(line("#ced4da", 0.4))
+    other.setFilterExpression("ELSE")
+    other.setLabel("Other")
+    other.setIsElse(True)
+    root.appendChild(other)
+    layer.setRenderer(renderer)
+    layer.triggerRepaint()
+    return True
+
+
+def style_detected_features(layer, field="confidence"):
+    """Imagery-extraction polygons in three model-confidence bands, translucent so the imagery shows through. True when applied."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        if layer.fields().indexOf(field) < 0:
+            return False
+        _graduated(layer, field, detection_ranges())
+        layer.setOpacity(0.75)
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False

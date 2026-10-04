@@ -26,10 +26,10 @@ Downloads OCHA COD-AB administrative boundaries with real P-codes. **Map output:
 Administrative boundaries from geoBoundaries (broader coverage, no P-codes). **Map output:** same backdrop styling as above. **Better results:** use as a fallback when COD-AB does not exist for the country; join by name only with care (spelling variants break joins).
 
 ### `fetch_osm_features` / `ingest_osm_features`
-Overpass queries for OSM features (`key`, `value`, bounding box or centre and radius); `ingest_osm_features` adds the result as a layer. **Map output:** *no automatic style* for most results (QGIS default colour). **Better results:** give a tight bounding box; combine values with `|` (`hospital|clinic|doctors`); ask for roads separately from facilities; for a road network to route on, request highways and then run `estimate_road_speeds`.
+Overpass queries for OSM features (`key`, `value`, bounding box or centre and radius); `ingest_osm_features` adds the result as a layer. **Map output:** roads are graded by highway class (major / secondary / local / tracks, thick and dark to thin and pale) with an "Other" class; areas get a pale fill, other layers a neutral look. **Better results:** give a tight bounding box; combine values with `|` (`hospital|clinic|doctors`); ask for roads separately from facilities; for a road network to route on, request highways and then run `estimate_road_speeds`.
 
 ### `fetch_building_footprints`
-Microsoft Global ML Building Footprints for an area. **Map output:** *no automatic style*. **Better results:** use a small bounding box; remember the dataset can lag real conditions by months, so it is a baseline, not a damage assessment.
+Microsoft Global ML Building Footprints for an area. **Map output:** a quiet translucent grey reference layer so an analysis on top stays readable. **Better results:** use a small bounding box; remember the dataset can lag real conditions by months, so it is a baseline, not a damage assessment.
 
 ### `search_stac_satellite_imagery`
 Finds Sentinel-2 scenes (Earth Search STAC) by bounding box and dates. **Map output:** none (scene list). **Better results:** give a before and an after date range and a low-cloud requirement; the tool lists scenes, it does not judge usability.
@@ -41,7 +41,7 @@ Pixel-wise after-minus-before difference of two rasters. **Map output:** a diver
 Per-admin-unit damage score combining the change raster, building counts and an optional hazard-intensity raster; reports buildings in the high-severity units. **Map output:** values on the admin layer (`output_field`); the layer keeps its colours until you ask -- the result carries a `map_look` hint for `apply_humanitarian_look` (severity classes). **Better results:** supply the before/after pair, the footprints layer and the admin layer with a P-code or name field; state it is a rapid indicative assessment, not a field-verified count.
 
 ### `extract_features_from_imagery`
-Segments object outlines from a raster you loaded (FastSAM, local, offline once the model is downloaded). **Map output:** polygons, *no automatic style*. **Better results:** use a clear, high-resolution image; the tool finds outlines, never identities -- do not call a polygon "a building" unless you know it is.
+Segments object outlines from a raster you loaded (FastSAM, local, offline once the model is downloaded). **Map output:** polygons in three model-confidence bands (below 0.6, 0.6 to < 0.8, 0.8 or more), translucent. The bands are the model's score, not a probability that the object is real. **Better results:** use a clear, high-resolution image; the tool finds outlines, never identities -- do not call a polygon "a building" unless you know it is.
 
 ### `add_incident_point` / `add_point_layer`
 Plot one incident, or a list of named points, from real verified coordinates. **Map output:** incidents: red marker with a red label on a shared Incidents layer; named point layers: consistent point look with labels. **Better results:** give coordinates and dates you have verified; set `severity` / `event_type` (ACLED-style) so a later categorized style can tell incidents apart; use `add_point_layer` for more than one point.
@@ -64,7 +64,7 @@ Per-stratum sample sizes for a single proportion (confidence, margin of error, e
 WorldPop gridded population (about 100 m) clipped to your area. **Map output:** a heavy-tailed warm ramp with zero cells transparent, placed under the vector layers. **Better results:** always pass an `extent_layer` or `bbox`; whole-country downloads are refused unless you confirm; the figures are modelled estimates -- say "estimated".
 
 ### `estimate_population_exposure`
-Sums a population raster inside each polygon (one total per zone, on a detached copy: the polygon layer is not modified; overlapping zones are summed separately and the overlap is reported). **Map output:** values on the polygon layer; *no automatic style*. **Better results:** build the exposure polygon first (buffer, flood extent, service area) and say "estimated population within".
+Sums a population raster inside each polygon (one total per zone, on a detached copy: the polygon layer is not modified; overlapping zones are summed separately and the overlap is reported). **Map output:** values in the result; pass `output_layer_name` to also get a NEW polygon layer (field `pop_estimate`) in exposure classes. The polygon layer you pass is never changed or restyled. **Better results:** build the exposure polygon first (buffer, flood extent, service area) and say "estimated population within".
 
 ### `load_tabular_data_as_layer`
 Loads a CSV/XLSX in full as a layer, with coordinate or WKT columns where present. **Map output:** points get one consistent look and name labels on small layers. **Better results:** name the X/Y columns if the file's headings are unusual; check the reported CRS.
@@ -159,7 +159,7 @@ Plan-level requirements, funding received and gap from FTS. **Map output:** none
 "Reached versus target" table and bar chart by sector or admin unit. **Map output:** a chart image. **Better results:** include a target column; missing targets sort with the worst performers deliberately.
 
 ### `weighted_overlay_analysis`
-Weighted sum of already-normalised rasters (suitability or risk surface). **Map output:** *no automatic style*. **Better results:** normalise inputs to a common scale first; share CRS and extent.
+Weighted sum of already-normalised rasters (suitability or risk surface). **Map output:** an opaque low-to-high surface ramp, placed under the vector layers. **Better results:** normalise inputs to a common scale first; share CRS and extent.
 
 ---
 

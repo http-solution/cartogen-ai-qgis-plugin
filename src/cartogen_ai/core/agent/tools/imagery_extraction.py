@@ -289,6 +289,8 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     provider.addFeatures(new_features)
     out_layer.updateExtents()
     QgsProject.instance().addMapLayer(out_layer)
+    from .humanitarian_style import style_detected_features
+    style_detected_features(out_layer)      # HX1b: confidence bands (best effort)
 
     return {
         "success": True,

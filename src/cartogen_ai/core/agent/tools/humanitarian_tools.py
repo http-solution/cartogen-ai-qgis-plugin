@@ -490,6 +490,8 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
+        from .humanitarian_style import style_osm_layer
+        style_osm_layer(layer)          # HX1b: graded roads / quiet areas instead of a random default colour (best effort)
         result["layer_id"] = layer.id()
         result["layer_name"] = layer_name
         result["success"] = True
@@ -1196,6 +1198,8 @@ def add_building_footprints_layer_main_thread_phase(fetch_result):
     result = {k: v for k, v in fetch_result.items() if k != "local_path"}
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
+        from .humanitarian_style import style_footprints
+        style_footprints(layer)         # HX1b: quiet reference layer (best effort)
         result["layer_name"] = layer_name
         result["success"] = True
     return result

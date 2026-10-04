@@ -91,3 +91,35 @@ class TestToolIsWired(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCreatedLayerLooks(unittest.TestCase):
+    """HX1b pure rules: road groups and detection bands."""
+
+    def test_road_rules_cover_the_groups_in_order_of_weight(self):
+        rules = h.road_rules()
+        self.assertEqual([r[0] for r in rules], ["Major roads", "Secondary roads", "Local roads", "Tracks and paths"])
+        widths = [r[3] for r in rules]
+        self.assertEqual(widths, sorted(widths, reverse=True))
+        self.assertIn("'primary'", rules[0][1])
+        self.assertIn("'residential'", rules[2][1])
+        self.assertTrue(all(r[1].startswith('"highway" IN (') for r in rules))
+
+    def test_road_rules_use_the_given_field_name(self):
+        self.assertTrue(h.road_rules("hwy")[0][1].startswith('"hwy" IN ('))
+
+    def test_every_listed_highway_value_is_in_exactly_one_group(self):
+        seen = {}
+        for label, _c, _w, values in h.ROAD_GROUPS:
+            for v in values:
+                self.assertNotIn(v, seen, v)
+                seen[v] = label
+
+    def test_detection_bands_cover_zero_to_one_without_gaps(self):
+        ranges = h.detection_ranges()
+        self.assertEqual(len(ranges), 3)
+        for score in (0.0, 0.4, 0.5999999, 0.6, 0.79, 0.8, 0.95, 1.0):
+            hits = [r for r in ranges if r[0] <= score <= r[1]]
+            self.assertEqual(len(hits), 1, score)
+        self.assertTrue(all("onfidence" in r[3] for r in ranges))
+        self.assertFalse(any("probab" in r[3].lower() for r in ranges))
