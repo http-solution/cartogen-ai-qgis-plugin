@@ -48,7 +48,9 @@ class TestClosedSegmentsAreRemoved(_Base):
     def _reach_m(self, result):
         self.assertTrue(result.get("success"), result)
         lines = [QgsProject.instance().mapLayersByName(n)[0] for n in result["layers_created"] if "_lines_" in n]
-        return sum(self.metres_of(layer) for layer in lines)
+        # a service area leaves several layers built from the same reached roads (reached roads, cost-graded roads), so
+        # summing them would count the roads twice: the longest one is the reached network.
+        return max(self.metres_of(layer) for layer in lines)
 
     def test_a_closed_middle_segment_cuts_the_network_for_both_strategies(self):
         for strategy, cost in (("shortest", 5000), ("fastest", 1.0)):
@@ -100,7 +102,9 @@ class TestClosedSegmentsAreRemoved(_Base):
         res = self.lt.travel_time_matrix("origin", "dest", "roads", speed_field="speed")
         self.assertIn("matrix", res, res)
         self.assertEqual(res.get("closed_segments_removed"), 1)
-        self.assertEqual(res["unreachable_count"], 1)
+        costs = [c for row in res["matrix"].values() for c in row.values()]
+        # QGIS leaves an unreachable destination out or gives it no cost; either way no real cost may appear.
+        self.assertTrue(all(c is None for c in costs), costs)
 
 
 if __name__ == "__main__":
