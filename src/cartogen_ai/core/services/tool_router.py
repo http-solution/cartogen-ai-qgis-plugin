@@ -126,6 +126,15 @@ _TOOL_ALIASES = {
         "sampling frame", "sample size", "stratified sample", "sampling design", "household survey", "needs assessment",
         "msna", "enumerator", "margin of error", "cluster sampling", "random sample of households",
     ],
+    # Multi-criteria ranking and survey aggregation (see tools/mcda_tools.py, tools/survey_tools.py). No bare "rank", "weights" or "survey".
+    "calculate_mcda_ranking": [
+        "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts", "prioritise areas",
+        "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
+    ],
+    "aggregate_survey_indicator": [
+        "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results", "proportion of households",
+        "share of households", "percentage of households",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

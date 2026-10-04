@@ -45,6 +45,8 @@ from . import barrier_tools
 from . import trigger_tools
 from . import task_grid_tools
 from . import sampling_tools
+from . import mcda_tools
+from . import survey_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -70,6 +72,8 @@ __all__ = [
     "trigger_tools",
     "task_grid_tools",
     "sampling_tools",
+    "mcda_tools",
+    "survey_tools",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",
