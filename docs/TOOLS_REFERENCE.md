@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (194 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (197 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1813,6 +1813,45 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
+
+## jiaf_inputs
+
+### `get_jiaf_setup`
+
+Read the JIAF 2 analysis set-up and sector alignment records stored in the project by record_jiaf_setup (support for the JIAF 2 process; not endorsed by OCHA or the IASC).
+
+_No parameters._
+
+### `import_jiaf_inputs`
+
+Read and validate the sector inputs for a JIAF 2 analysis (support for the JIAF 2 process; not the JIAF method, not endorsed by OCHA or the IASC, no joint PiN or severity is computed here). Reads an .xlsx/.csv of one of three kinds: the OCHA Workspace 3A/3B worksheet ('WS - 3.1 Overall PiN' + 'WS - 3.2 Intersectoral Severity'), an HXL-tagged published table (#adm2 +code, #inneed +wsh, #severity +shl ...), or the manual's per-sector template (give `sector` and `template_kind`). Reports units, sectors found, per-sector totals, and every problem: severity must be a phase 1-5 (0 is reported as not-applicable, never turned into a phase), PiN must be a non-negative number, duplicates and missing values are listed and never filled. Stored columns (Preliminary/Final PiN, Final Severity) are returned only as stored and are NOT trusted. Optionally joins to an admin layer by P-code and, after confirmation, writes the values as new numeric fields (jp_<sector> for PiN, js_<sector> for severity). Never invent a threshold or fill a missing value.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes | Absolute path to the .xlsx or .csv file. |
+| `input_format` | string | no | 'auto' (default), 'ocha_worksheet', 'hxl' or 'sector_template'. |
+| `sheet_name` | string | no | Sheet to read for 'hxl' or 'sector_template' (default: the first). |
+| `sector` | string | no | For 'sector_template': the sector the file belongs to (cccm, education, nutrition, food_security, health, protection, shelter, wash, child_protection, gbv, mine_action, hlp). |
+| `template_kind` | string | no | For 'sector_template': 'pin' or 'severity'. |
+| `layer_name` | string | no | Optional admin polygon layer to join to. |
+| `layer_key_field` | string | no | Field on that layer holding the Admin 2 P-code. |
+| `write_fields` | boolean | no | With layer_name: write jp_<sector> (PiN) and js_<sector> (severity) fields. Needs confirmation. |
+
+### `record_jiaf_setup`
+
+Record the JIAF 2 analysis set-up in the project (support for the JIAF 2 process; not endorsed by OCHA or the IASC): country, planning cycle, unit of analysis (e.g. admin 2), the manual edition followed (e.g. 'July 2024'), areas and population groups in scope, whether the Humanitarian Country Team endorsed the scope, and optionally each sector's alignment self-assessment (manual Workspaces 2A/2B): whether its PiN is aligned with the joint-overall-PiN guidance, whether its severity scale is aligned or adapted, with an explanation whenever it is not aligned or is adapted, and the indicators and thresholds it used. Replaces any earlier record. Stored in the QGIS project; nothing is computed or decided.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `country` | string | yes |  |
+| `planning_cycle` | string | yes | e.g. 'HPC 2026'. |
+| `unit_of_analysis` | string | yes | e.g. 'admin 2' or 'admin 2 x population group'. |
+| `manual_edition` | string | yes | The JIAF 2 Technical Manual edition followed, e.g. 'July 2024'. |
+| `areas_in_scope` | string | no |  |
+| `population_groups` | string | no |  |
+| `scope_note` | string | no |  |
+| `hct_endorsed_scope` | boolean | no | Whether the HCT endorsed the scope; omit if unknown. |
+| `sector_alignment` | array[object] | no |  |
 
 ## mcda_tools
 

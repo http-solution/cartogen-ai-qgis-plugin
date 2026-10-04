@@ -135,6 +135,12 @@ _TOOL_ALIASES = {
         "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget", "budget across districts",
         "budget by severity", "funding envelope", "share the funding", "allocate funding",
     ],
+    "import_jiaf_inputs": [
+        "jiaf input", "jiaf inputs", "import jiaf", "load the jiaf", "sector pin file", "sectoral pin", "jiaf worksheet", "hno dataset",
+        "people in need by sector", "sector inputs",
+    ],
+    "record_jiaf_setup": ["jiaf set-up", "jiaf setup", "record the jiaf", "sector alignment", "jiaf scope", "manual edition"],
+    "get_jiaf_setup": ["show the jiaf set-up", "jiaf setup record", "what jiaf scope"],
     "analyze_critical_links": [
         "critical link", "critical links", "bottleneck", "bottlenecks", "single point of failure", "which roads matter most",
         "which road is most important", "roads the routes depend on", "route dependence",

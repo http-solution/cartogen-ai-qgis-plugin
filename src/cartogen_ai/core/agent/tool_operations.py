@@ -282,6 +282,9 @@ TOOL_OPERATION_TYPES = {
     "calculate_allocation_envelope": MODIFY,
     "import_humanitarian_table": MODIFY,
     "analyze_critical_links": CREATE,
+    "import_jiaf_inputs": MODIFY,
+    "record_jiaf_setup": MODIFY,
+    "get_jiaf_setup": READ,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
