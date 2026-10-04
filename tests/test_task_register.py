@@ -383,3 +383,44 @@ class TestNonRequestFragments(unittest.TestCase):
     def test_real_short_requests_still_match(self):
         for text in ("map health facilities in Aleppo", "Show roads in Sanaa", "Which facilities are beyond one hour?"):
             self.assertNotEqual(tm.classify(text)["reason"], "too short to be a request", text)
+
+
+class TestHumanitarianToolsAreReachableFromTasks(unittest.TestCase):
+    """HX2: a tool the humanitarian catalogue offers must appear in at least one task, or task matching can never suggest it. Before this
+    test 38 catalogued tools (the H1-H6 tools among them) were in no task at all."""
+
+    # Tools that are ways to RENDER or edit rather than something a task is about, and cross-cutting helpers a task does not name.
+    EXEMPT = {"add_incident_point"}
+
+    def test_every_catalogued_tool_is_in_some_task(self):
+        import os
+        import re
+        from cartogen_ai.core.agent.tools import TOOL_REGISTRY
+        doc = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "HUMANITARIAN_TOOLS_CATALOGUE.md")
+        with open(doc, encoding="utf-8") as fh:
+            names = {n for n in re.findall(r"`([a-z]+(?:_[a-z0-9]+)+)`", fh.read()) if n in TOOL_REGISTRY}
+        in_tasks = {t for e in reg.load() for t in e["tools"]}
+        missing = sorted(names - in_tasks - self.EXEMPT)
+        self.assertEqual(missing, [], f"catalogued tools that no task suggests: {missing}")
+
+    def test_the_tasks_left_without_tools_are_the_genuinely_tool_free_ones(self):
+        # training, coordination, agreements and procedures: written guidance only
+        bare = [e for e in reg.load() if not e["tools"]]
+        self.assertTrue(all(e["out"] == "guidance" for e in bare))
+        self.assertLess(len(bare), 40)
+        words = ("train", "teach", "workshop", "mentor", "certif", "agreement", "procedure", "volunteer", "community", "support",
+                 "coordinat", "guideline", "instruction", "permission", "help desk", "interoperab", "request", "access rules", "staff",
+                 "exercise", "learning", "mapping help", "drone", "search-and-rescue", "referral", "authorit", "partners", "data-access",
+                 "establish", "provide", "develop", "build", "create", "design", "conduct", "organize", "plan", "obtain", "promote")
+        for e in bare:
+            self.assertTrue(any(w in e["text"].lower() for w in words), f"{e['id']} {e['text']}")
+
+    def test_new_tools_are_where_a_person_would_look_for_them(self):
+        by = {e["id"]: e for e in reg.load()}
+        expected = {
+            "2.04": "apply_network_barriers", "14.22": "evaluate_forecast_trigger", "19.08": "generate_mapping_task_grid",
+            "18.01": "design_sampling_frame", "22.13": "aggregate_survey_indicator", "21.17": "calculate_mcda_ranking",
+            "23.03": "apply_humanitarian_look",
+        }
+        for tid, tool in expected.items():
+            self.assertIn(tool, by[tid]["tools"], tid)
