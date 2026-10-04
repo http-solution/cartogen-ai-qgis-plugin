@@ -728,11 +728,12 @@ Generate hillshade surface from DEM layer.
 
 ### `histogram_equalization`
 
-Enhance raster image contrast using histogram equalization.
+Enhance raster image contrast using histogram equalization. Writes a NEW 8-bit raster (0-255) of one band; no-data cells stay no-data. A global equalisation of the band, for display and visual interpretation: the values are no longer the original measurements.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `raster_layer` | string | yes |  |
+| `band` | integer | no | Band to equalise, default 1. |
 
 ### `interpolate_surface`
 
@@ -790,12 +791,13 @@ Supervised classification using training polygons.
 
 ### `unsupervised_classification`
 
-Unsupervised K-Means raster classification.
+Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells (clip first).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `num_classes` | integer | yes |  |
+| `num_classes` | integer | yes | Number of clusters, 2 to 50. |
+| `seed` | integer | no | Random seed (default 0). |
 
 ### `weighted_overlay_analysis`
 
@@ -1795,7 +1797,7 @@ Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer thi
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:contraststretch', 'gdal:merge', 'gdal:pansharpening', 'native:aspect', 'native:buffer', 'native:cellstatistics', 'native:centroids', 'native:clip', 'native:convexhull', 'native:countpointsinpolygon', 'native:creategrid', 'native:dbscanclustering', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:extractbylocation', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:kmeansclustering', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:rastersampling', 'native:reclassifybytable', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'native:zonalstatisticsfb', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:statisticsbycategories', 'qgis:tininterpolation', 'qgis:zonalstatistics', 'saga:kmeansclassificationforgrid', 'saga:supervisedclassificationforgrids'] |
+| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:merge', 'gdal:pansharp', 'native:aspect', 'native:buffer', 'native:cellstatistics', 'native:centroids', 'native:clip', 'native:convexhull', 'native:countpointsinpolygon', 'native:creategrid', 'native:dbscanclustering', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:extractbylocation', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:kmeansclustering', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:rastersampling', 'native:reclassifybytable', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'native:zonalstatisticsfb', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:statisticsbycategories', 'qgis:tininterpolation', 'qgis:zonalstatistics'] |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
 | `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
 

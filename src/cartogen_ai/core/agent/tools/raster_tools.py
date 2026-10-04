@@ -14,7 +14,7 @@ from ...logger import log_warning, log_error
 
 try:
     from qgis.core import (
-        QgsProject, QgsRasterLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
+        QgsApplication, QgsProject, QgsRasterLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
         QgsSingleBandPseudoColorRenderer, QgsContrastEnhancement, QgsRasterShader,
         QgsColorRampShader, QgsRasterBandStats, QgsStyle,
     )
@@ -69,6 +69,14 @@ def _temp_raster_path(suffix=".tif"):
     fd, path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
     return path
+
+
+def _algorithm_available(alg_id):
+    """True when the running QGIS Processing registry has this algorithm (False if it cannot be asked)."""
+    try:
+        return QgsApplication.processingRegistry().algorithmById(alg_id) is not None
+    except Exception:
+        return False
 
 
 def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
@@ -484,25 +492,42 @@ def raster_clip(raster_layer, mask_layer):
     )
 
 
-@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer"}}, "required": ["layer_name", "num_classes"]})
-def unsupervised_classification(layer_name, num_classes):
+@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells (clip first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
+def unsupervised_classification(layer_name, num_classes, seed=0):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     ras = _find_layer_by_name(layer_name)
     if ras is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    return _run_raster_and_add(
-        "saga:kmeansclassificationforgrid",
-        {
-            "GRIDS": [ras],
-            "METHOD": 0,
-            "CLUSTERS": num_classes,
-            "MAXITER": 10,
-            "NORMALISE": False,
-        },
-        f"{layer_name}_classified",
-        output_key="CLUSTER",
-    )
+    # GitHub #162: saga:kmeansclassificationforgrid is not available (no SAGA provider in QGIS 4.2.2; CI registry diagnostic,
+    # PR #175), so the clustering is computed here with numpy.
+    from . import raster_numpy
+    problem = raster_numpy.validate_class_count(num_classes)
+    if problem:
+        return {"error": problem}
+    k = int(num_classes)
+    try:
+        values, valid, info = raster_numpy.read_bands(ras.source())
+        pixels = values[valid]
+        if len(pixels) < k:
+            return {"error": f"Only {len(pixels)} valid cells, fewer than the {k} classes requested."}
+        labels, _centres = raster_numpy.kmeans(pixels, k, seed=int(seed))
+        classified = raster_numpy._np().zeros(valid.shape, dtype="uint8")
+        classified[valid] = (labels + 1).astype("uint8")
+        path = raster_numpy.write_single_band(classified, info, nodata=0)
+        new_layer = QgsRasterLayer(path, f"{layer_name}_classified")
+        if not new_layer.isValid():
+            return {"error": "The classified raster could not be loaded."}
+        QgsProject.instance().addMapLayer(new_layer)
+        return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "bands_used": info["bands_used"],
+                "valid_cells": int(valid.sum()), "seed": int(seed),
+                "note": "Classes are statistical clusters of the band values, not land-cover categories; name them from knowledge of the area."}
+    except ValueError as e:
+        return {"error": f"unsupervised_classification: {e}"}
+    except ImportError:
+        return {"error": "unsupervised_classification needs numpy, which this QGIS does not provide."}
+    except Exception as e:
+        return {"error": f"unsupervised_classification failed: {e}"}
 
 
 @register_tool("supervised_classification", "Supervised classification using training polygons.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "training_layer": {"type": "string"}}, "required": ["layer_name", "training_layer"]})
@@ -515,6 +540,11 @@ def supervised_classification(layer_name, training_layer):
         return {"error": f"Layer '{layer_name}' not found"}
     if training is None:
         return {"error": f"Layer '{training_layer}' not found"}
+    if not _algorithm_available("saga:supervisedclassificationforgrids"):
+        # GitHub #162: the SAGA provider is not installed in QGIS 4.2.2 (CI registry diagnostic, PR #175). Say so plainly instead of
+        # failing inside Processing; the unsupervised tool does not need SAGA.
+        return {"error": "supervised_classification needs the SAGA Processing provider, which is not available in this QGIS. "
+                         "unsupervised_classification works without it (it gives statistical clusters, not training-based classes)."}
     return _run_raster_and_add(
         "saga:supervisedclassificationforgrids",
         {
@@ -529,18 +559,32 @@ def supervised_classification(layer_name, training_layer):
     )
 
 
-@register_tool("histogram_equalization", "Enhance raster image contrast using histogram equalization.", {"type": "object", "properties": {"raster_layer": {"type": "string"}}, "required": ["raster_layer"]})
-def histogram_equalization(raster_layer):
+@register_tool("histogram_equalization", "Enhance raster image contrast using histogram equalization. Writes a NEW 8-bit raster (0-255) of one band; no-data cells stay no-data. A global equalisation of the band, for display and visual interpretation: the values are no longer the original measurements.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "band": {"type": "integer", "description": "Band to equalise, default 1."}}, "required": ["raster_layer"]})
+def histogram_equalization(raster_layer, band=1):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     ras = _find_layer_by_name(raster_layer)
     if ras is None:
         return {"error": f"Layer '{raster_layer}' not found"}
-    return _run_raster_and_add(
-        "gdal:contraststretch",
-        {"INPUT": ras, "BAND": 1},
-        f"{raster_layer}_equalized",
-    )
+    # GitHub #162: gdal:contraststretch is not in the QGIS 4.2.2 registry (CI registry diagnostic, PR #175), so this tool could never
+    # have run there; the equalisation is computed with numpy instead.
+    try:
+        from . import raster_numpy
+        values, valid, info = raster_numpy.read_bands(ras.source(), [int(band)])
+        out = raster_numpy.equalize(values[..., 0], valid[...])
+        path = raster_numpy.write_single_band(out, info, nodata=0)
+        new_layer = QgsRasterLayer(path, f"{raster_layer}_equalized")
+        if not new_layer.isValid():
+            return {"error": "The equalised raster could not be loaded."}
+        QgsProject.instance().addMapLayer(new_layer)
+        return {"success": True, "layer_name": f"{raster_layer}_equalized", "band": int(band),
+                "note": "Output is an 8-bit display raster (0 = no data, 1-255 equalised); original values are not preserved."}
+    except ValueError as e:
+        return {"error": f"histogram_equalization: {e}"}
+    except ImportError:
+        return {"error": "histogram_equalization needs numpy, which this QGIS does not provide."}
+    except Exception as e:
+        return {"error": f"histogram_equalization failed: {e}"}
 
 
 @register_tool("mosaic_rasters", "Merge/mosaic multiple raster layers together.", {"type": "object", "properties": {"raster_layers_list": {"type": "array", "items": {"type": "string"}}}, "required": ["raster_layers_list"]})
@@ -589,7 +633,7 @@ def pan_sharpening(ms_layer, pan_layer):
     if pan is None:
         return {"error": f"Layer '{pan_layer}' not found"}
     return _run_raster_and_add(
-        "gdal:pansharpening",
+        "gdal:pansharp",
         {"SPECTRAL": ms, "PANCHROMATIC": pan},
         f"{ms_layer}_pansharpened",
     )

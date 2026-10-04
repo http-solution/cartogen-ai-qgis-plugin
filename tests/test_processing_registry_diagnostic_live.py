@@ -54,8 +54,12 @@ class TestProcessingRegistryDiagnostic(unittest.TestCase):
             lines.append("all referenced ids resolve")
         lines.append("=== END DIAGNOSTIC ===")
         print("\n".join(lines), flush=True)
-        # A diagnostic, not a gate: the providers must at least have loaded, otherwise "missing" would mean nothing.
+        # The report above covers every id mentioned anywhere in the source (a gated SAGA reference may still be listed). The
+        # ALLOWLIST is different: the generic tool offers those ids to the model, so each must exist in this registry.
         self.assertGreater(len(all_ids), 100, "the Processing registry is nearly empty, so the report above is meaningless")
+        from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS
+        offered_but_missing = sorted(i for i in ALLOWED_ALGORITHM_IDS if registry.algorithmById(i) is None)
+        self.assertEqual(offered_but_missing, [], f"allowlisted ids the registry does not have: {offered_but_missing}")
 
 
 if __name__ == "__main__":
