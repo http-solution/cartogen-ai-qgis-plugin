@@ -10,9 +10,12 @@ tests/test_humanitarian_style_live.py, written without a local QGIS (its first e
 cosmetics: a styling failure returns False and never turns a successful analysis into an error, and a user's own layers are not
 restyled (only layers these tools create).
 """
+import math
+
 try:
-    from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsLineSymbol, QgsMarkerSymbol,
-                           QgsRasterShader, QgsRendererCategory, QgsSingleBandPseudoColorRenderer, QgsSingleSymbolRenderer)
+    from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLineSymbol,
+                           QgsMarkerSymbol, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsSingleBandPseudoColorRenderer,
+                           QgsSingleSymbolRenderer, QgsWkbTypes)
     from qgis.PyQt.QtGui import QColor
     QGIS_AVAILABLE = True
 except ImportError:
@@ -70,6 +73,126 @@ def diverging_stops(vmin, vmax):
                (0.0, (247, 247, 247, 0)), (0.02, (247, 247, 247, 120)), (0.5, (244, 165, 130, 235)), (1.0, (178, 24, 43, 255))]
     return [(f * m, rgba, f"{f * m:+.3g}" if f else "0") for f, rgba in colours]
 
+
+
+# --- looks for analysis results written into a layer's fields (HX1) -----------------------------------------------------------
+# Severity runs yellow -> dark red (one hue family, light to dark = low to high need). The classes are the ones calculate_severity_index
+# uses (equal intervals of the 0-1 score), so a unit's colour and its reported class always agree. People-in-need and exposure are counts:
+# different hues (purple, brown) so they are never read as severity.
+SEVERITY_COLORS = ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c", "#800026"]
+PIN_COLORS = ["#f2f0f7", "#cbc9e2", "#9e9ac8", "#756bb1", "#54278f"]
+EXPOSURE_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#d94701", "#7f2704"]
+GAP_COLORS = {"gap": "#b2182b", "covered": "#2166ac", "unmatched": "#969696"}
+GAP_LABELS = {"gap": "Gap: high need, low presence", "covered": "Covered", "unmatched": "Unmatched (no presence data)"}
+NOT_ASSESSED_COLOR = "#f0f0f0"
+RANK_COLORS = ["#7f0000", "#fc8d59", "#fee8c8"]
+LOOKS = ("severity", "people_in_need", "exposure", "presence_gap", "rank")
+
+
+def look_hint(layer_name, look, field, **extra):
+    """The apply_humanitarian_look call an analysis result suggests for the field it just wrote, or None when there is no field. Pure.
+    The tools never restyle a layer they did not create; they hand the model this instead, to offer or to run when asked."""
+    if not layer_name or not field:
+        return None
+    args = {"layer_name": layer_name, "look": look, "field": field}
+    args.update({k: v for k, v in extra.items() if v is not None})
+    return {"tool": "apply_humanitarian_look", "args": args,
+            "note": "The result field is written but the layer is still in default colours. Offer to show it on the map by calling this tool "
+                    "with these arguments, or call it if the user asked to see the result on the map."}
+
+
+def severity_ranges():
+    """[(low, high, colour, label)] for the five equal-interval severity classes of a 0-1 composite score. Pure."""
+    edges = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    labels = ["1 (score < 0.2)", "2 (0.2 to < 0.4)", "3 (0.4 to < 0.6)", "4 (0.6 to < 0.8)", "5 (0.8 or more)"]
+    out = []
+    for i, colour in enumerate(SEVERITY_COLORS):
+        # QGIS ranges include both ends, so an exact 0.2 would land in class 1 while calculate_severity_index calls it class 2
+        # (int(score * 5) + 1). The upper end of every class but the last is the float just below the next class's start.
+        high = math.nextafter(edges[i + 1], 0.0) if i < 4 else 1.0000001
+        out.append((edges[i], high, colour, labels[i]))
+    return out
+
+
+def _nice(x):
+    """x rounded to two significant digits, so class limits read as 1,200 and not 1,187. Pure."""
+    if x == 0:
+        return 0
+    from math import floor, log10
+    digits = 1 - int(floor(log10(abs(x))))
+    return round(x, digits) if digits > 0 else int(round(x, digits))
+
+
+def count_ranges(values, colours, classes=5):
+    """[(low, high, colour, label)] for a count field (people, exposed population). Pure.
+
+    Classes are quantile-based on the positive values, with limits rounded to two significant digits, because counts are heavy-tailed and
+    equal intervals would put almost every unit in the first class. Zero (or no positive value) gets its own palest class so a real zero
+    is not confused with a missing value; missing values are not drawn. Returns [] when there are no numeric values."""
+    nums = []
+    for v in values:
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f == f and f >= 0:
+            nums.append(f)
+    if not nums:
+        return []
+    positives = sorted(x for x in nums if x > 0)
+    out = []
+    if len(positives) < len(nums):
+        out.append((0.0, 0.0, "#ffffff", "0"))
+    if not positives:
+        return out
+    k = max(1, min(classes, len(set(positives))))
+    cuts = [positives[0]]
+    for i in range(1, k):
+        cuts.append(_nice(positives[min(len(positives) - 1, int(len(positives) * i / k))]))
+    cuts.append(positives[-1])
+    # strictly increasing limits only
+    edges = [cuts[0]]
+    for c in cuts[1:]:
+        if c > edges[-1]:
+            edges.append(c)
+    if len(edges) < 2:
+        edges.append(edges[0] + 1)
+    n = len(edges) - 1
+    palette = [colours[-1]] if n == 1 else [colours[round(i * (len(colours) - 1) / (n - 1))] for i in range(n)]
+    for i in range(len(edges) - 1):
+        low, high = edges[i], edges[i + 1]
+        last = i == len(edges) - 2
+        label = f"{low:,.0f} to {high:,.0f}" if last else f"{low:,.0f} to < {high:,.0f}"
+        out.append((low, high + (0.5 if last else 0.0), palette[i], label))
+    return out
+
+
+def presence_gap_categories(values):
+    """[(value, colour, label)] for presence-gap status values present, gap first, plus 'not assessed' for empties. Pure."""
+    present = {v for v in values if v in GAP_COLORS}
+    out = [(k, GAP_COLORS[k], GAP_LABELS[k]) for k in ("gap", "covered", "unmatched") if k in present]
+    if any(v is None or str(v) == "" for v in values):
+        out.append(("", NOT_ASSESSED_COLOR, "Not assessed (below the high-severity classes)"))
+    return out
+
+
+def rank_ranges(max_rank, top_k):
+    """[(low, high, colour, label)] for a rank field (1 = highest priority): the top_k units dark, the next top_k mid, the rest pale. Pure.
+    Boundaries sit between integers so tied (shared) ranks stay in the class of their rank."""
+    try:
+        k = max(1, int(top_k))
+    except (TypeError, ValueError):
+        k = 10
+    try:
+        top = max(float(max_rank), 1.0)
+    except (TypeError, ValueError):
+        top = float(k)
+    out = [(0.5, k + 0.5, RANK_COLORS[0], f"Rank 1 to {k}")]
+    if top > k:
+        out.append((k + 0.5, 2 * k + 0.5, RANK_COLORS[1], f"Rank {k + 1} to {2 * k}"))
+    if top > 2 * k:
+        out.append((2 * k + 0.5, top + 0.5, RANK_COLORS[2], f"Rank {2 * k + 1} and below"))
+    return out
 
 # ---------------------------------------------------------------- QGIS --
 
@@ -189,3 +312,69 @@ def style_diverging_raster(layer, band=1):
         return True
     except Exception:
         return False
+
+
+# --- QGIS: looks for result fields (HX1) ---------------------------------------------------------------------------------------
+
+def _symbol(layer, colour):
+    kind = layer.geometryType()
+    if kind == QgsWkbTypes.GeometryType.PolygonGeometry:
+        return QgsFillSymbol.createSimple({"color": colour, "outline_color": "#ffffff", "outline_width": "0.26"})
+    if kind == QgsWkbTypes.GeometryType.LineGeometry:
+        return QgsLineSymbol.createSimple({"color": colour, "width": "0.9", "capstyle": "round"})
+    return QgsMarkerSymbol.createSimple({"name": "circle", "color": colour, "outline_color": "#333333", "outline_width": "0.3", "size": "3.2"})
+
+
+def _graduated(layer, field, ranges):
+    items = [QgsRendererRange(low, high, _symbol(layer, colour), label) for low, high, colour, label in ranges]
+    layer.setRenderer(QgsGraduatedSymbolRenderer(field, items))
+    layer.setCustomProperty("cartogen_look", field)
+    layer.triggerRepaint()
+    return [label for _l, _h, _c, label in ranges]
+
+
+def style_result_field(layer, look, field, top_k=None):
+    """Apply one of LOOKS to `field` of `layer`. Returns {"classes": [labels], "notes": [..]} on success or {"error": text}. Only the
+    renderer changes; nothing is written to the layer. Called by apply_humanitarian_look when the user asks for it."""
+    if not QGIS_AVAILABLE or layer is None:
+        return {"error": "QGIS not available"}
+    if look not in LOOKS:
+        return {"error": f"look must be one of {list(LOOKS)}."}
+    if layer.fields().indexOf(field) < 0:
+        return {"error": f"Field '{field}' not found on '{layer.name()}'."}
+    try:
+        values = _values(layer, field)
+        notes = []
+        if look == "presence_gap":
+            cats = presence_gap_categories(values)
+            if not cats:
+                return {"error": f"'{field}' holds no presence-gap status values (gap / covered / unmatched)."}
+
+            def symbol(colour):
+                return _symbol(layer, colour)
+            _categorized(layer, field, cats, symbol)
+            layer.setCustomProperty("cartogen_look", look)
+            return {"classes": [label for _v, _c, label in cats], "notes": notes}
+        if look == "severity":
+            nums = [float(v) for v in values if isinstance(v, (int, float))]
+            if not nums:
+                return {"error": f"'{field}' holds no numeric values."}
+            if max(nums) > 1.0 + 1e-9 or min(nums) < -1e-9:
+                notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
+                             "score, so those units fall outside the five classes and are not drawn.")
+            ranges = severity_ranges()
+        elif look in ("people_in_need", "exposure"):
+            ranges = count_ranges(values, PIN_COLORS if look == "people_in_need" else EXPOSURE_COLORS)
+            if not ranges:
+                return {"error": f"'{field}' holds no numeric values."}
+        else:  # rank
+            nums = [float(v) for v in values if isinstance(v, (int, float))]
+            if not nums:
+                return {"error": f"'{field}' holds no numeric values."}
+            ranges = rank_ranges(max(nums), top_k if top_k else 10)
+        notes.append("Units with no value in the field are not drawn.")
+        classes = _graduated(layer, field, ranges)
+        layer.setCustomProperty("cartogen_look", look)
+        return {"classes": classes, "notes": notes}
+    except Exception as e:
+        return {"error": f"Could not apply the {look} look: {e}"}

@@ -47,6 +47,7 @@ from . import task_grid_tools
 from . import sampling_tools
 from . import mcda_tools
 from . import survey_tools
+from . import humanitarian_look_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -74,6 +75,7 @@ __all__ = [
     "sampling_tools",
     "mcda_tools",
     "survey_tools",
+    "humanitarian_look_tools",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",

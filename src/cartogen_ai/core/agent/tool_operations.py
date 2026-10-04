@@ -278,6 +278,7 @@ TOOL_OPERATION_TYPES = {
     "design_sampling_frame": CREATE,
     "calculate_mcda_ranking": MODIFY,
     "aggregate_survey_indicator": READ,
+    "apply_humanitarian_look": MODIFY,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,

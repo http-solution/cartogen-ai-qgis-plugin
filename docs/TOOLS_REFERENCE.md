@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (190 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (191 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -85,7 +85,7 @@ Cross-reference a computed severity/needs index (see calculate_severity_index) a
 
 ### `calculate_severity_index`
 
-Build a composite multi-indicator severity/needs index across admin units (JIAF/INFORM-style), the standard basis for prioritizing which areas receive funding. Takes several numeric indicator fields already on a polygon layer's attribute table (e.g. food insecurity %, displacement %, protection incidents, WASH coverage), min-max normalizes each so higher always means worse, applies relative weights, and returns a 0-1 composite score plus a 1-5 severity class per unit, ranked worst-first. Use invert_indicators for fields where a HIGHER value means a BETTER situation (e.g. % with water access) -- otherwise well-served areas score as high-severity. Units missing any indicator are excluded and listed, never imputed. Always report the weights and any excluded units alongside the ranking, since both change how it should be read. Results are capped to the worst 50 units (see truncated/scored_units) -- output_field still writes the score for every unit to the layer regardless of the cap, so styling/mapping the full set is unaffected; only the returned JSON is capped.
+Build a composite multi-indicator severity/needs index across admin units (a simple weighted min-max index in the style of INFORM/JIAF -- exploratory analysis only: it is NOT the JIAF method, so never call its result JIAF-compliant or an official severity classification), the standard basis for prioritizing which areas receive funding. Takes several numeric indicator fields already on a polygon layer's attribute table (e.g. food insecurity %, displacement %, protection incidents, WASH coverage), min-max normalizes each so higher always means worse, applies relative weights, and returns a 0-1 composite score plus a 1-5 severity class per unit, ranked worst-first. Use invert_indicators for fields where a HIGHER value means a BETTER situation (e.g. % with water access) -- otherwise well-served areas score as high-severity. Units missing any indicator are excluded and listed, never imputed. Always report the weights and any excluded units alongside the ranking, since both change how it should be read. Results are capped to the worst 50 units (see truncated/scored_units) -- output_field still writes the score for every unit to the layer regardless of the cap, so styling/mapping the full set is unaffected; only the returned JSON is capped.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1735,6 +1735,19 @@ Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disa
 | `include_fires` | boolean | no | Include NASA FIRMS active fires. Defaults to true. |
 | `include_eonet` | boolean | no | Include NASA EONET natural events. Defaults to true. |
 | `include_disasters` | boolean | no | Include GDACS disaster alerts. Defaults to true. |
+
+## humanitarian_look_tools
+
+### `apply_humanitarian_look`
+
+Style a layer's analysis-result field the way humanitarian maps expect, after calculate_severity_index, calculate_population_in_need, calculate_presence_gap, calculate_damage_exposure_severity or calculate_mcda_ranking wrote it (their results carry a `map_look` hint with the exact arguments). look='severity': a 0-1 score in five equal classes yellow to dark red that match the tool's own 1-5 classes; 'people_in_need' or 'exposure': a count in quantile classes; 'presence_gap': gap / covered / unmatched; 'rank': the top_k ranked units dark. Changes only the layer's renderer (nothing is written to the data); units with no value in the field are not drawn. Only call it when the user wants the result shown on the map or accepts the offer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The layer that holds the result field. |
+| `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
+| `field` | string | yes | The result field to style. |
+| `top_k` | integer | no | For look='rank': how many top-ranked units to emphasise. Defaults to 10. |
 
 ## impedance_tools
 

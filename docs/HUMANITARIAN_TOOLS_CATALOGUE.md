@@ -38,7 +38,7 @@ Finds Sentinel-2 scenes (Earth Search STAC) by bounding box and dates. **Map out
 Pixel-wise after-minus-before difference of two rasters. **Map output:** a diverging ramp symmetric about zero -- blue = decrease, red = increase, no change transparent -- drawn under the vector layers. **Better results:** use two rasters of the same sensor, band, resolution and CRS; co-registration and clouds are your responsibility.
 
 ### `calculate_damage_exposure_severity`
-Per-admin-unit damage score combining the change raster, building counts and an optional hazard-intensity raster; reports buildings in the high-severity units. **Map output:** values on the admin layer (`output_field`); *no automatic style* -- follow with `apply_graduated_style`. **Better results:** supply the before/after pair, the footprints layer and the admin layer with a P-code or name field; state it is a rapid indicative assessment, not a field-verified count.
+Per-admin-unit damage score combining the change raster, building counts and an optional hazard-intensity raster; reports buildings in the high-severity units. **Map output:** values on the admin layer (`output_field`); the layer keeps its colours until you ask -- the result carries a `map_look` hint for `apply_humanitarian_look` (severity classes). **Better results:** supply the before/after pair, the footprints layer and the admin layer with a P-code or name field; state it is a rapid indicative assessment, not a field-verified count.
 
 ### `extract_features_from_imagery`
 Segments object outlines from a raster you loaded (FastSAM, local, offline once the model is downloaded). **Map output:** polygons, *no automatic style*. **Better results:** use a clear, high-resolution image; the tool finds outlines, never identities -- do not call a polygon "a building" unless you know it is.
@@ -123,14 +123,17 @@ Counts and distances of incidents near a route, optionally recent or severity-we
 **Outputs.** A severity layer, hotspot surfaces, coverage-gap lists.
 **Supporting data sources.** IPC, ACLED and 3W/4W tables (loaded as files; no automatic IPC or ACLED download).
 
+### `apply_humanitarian_look` -- new (HX1)
+Gives a result field written by one of the analysis tools above its humanitarian map look: `severity` (0-1 score, five equal classes, the same classes the tool reports), `people_in_need` and `exposure` (counts in quantile classes, zero kept as its own class), `presence_gap` (gap / covered / unmatched) and `rank` (top_k emphasised). **Map output:** changes only the layer's renderer; nothing is written to the data; units with no value are not drawn. **Better results:** use it when you want the result shown on the map; the analysis tools return a `map_look` hint with the exact arguments.
+
 ### `calculate_severity_index`
-Min-max normalised, weighted composite score and a 1-5 class per unit. **Map output:** an optional score field; *no automatic style* -- follow with `apply_graduated_style` on the score. **Better results:** state the weights and which indicators are "higher is better" (`invert_indicators`); report excluded units. It is JIAF/INFORM-**style**, not the JIAF method.
+Min-max normalised, weighted composite score and a 1-5 class per unit. **Map output:** an optional score field; the layer keeps its colours until you ask -- `apply_humanitarian_look` (look `severity`) draws the five classes the tool reports, yellow to dark red. **Better results:** state the weights and which indicators are "higher is better" (`invert_indicators`); report excluded units. It is JIAF-**style exploratory analysis** (a weighted min-max index), not the JIAF method, and must not be called JIAF-compliant; a JIAF 2 analysis-support module is planned separately.
 
 ### `calculate_presence_gap` / `load_3w_data`
-Cross-reference high-severity units with 3W/4W presence. **Map output:** an optional status field (gap / covered / unmatched); *no automatic style* -- follow with `apply_categorized_style`. **Better results:** join by P-code, not name; look at the "unmatched" list before concluding a gap.
+Cross-reference high-severity units with 3W/4W presence. **Map output:** an optional status field (gap / covered / unmatched); `apply_humanitarian_look` (look `presence_gap`) colours it. **Better results:** join by P-code, not name; look at the "unmatched" list before concluding a gap.
 
 ### `calculate_population_in_need`
-Population in the high-severity classes using a population raster. **Map output:** an optional field; *no automatic style*. **Better results:** quote as an estimate and give the severity classes counted.
+Population in the high-severity classes using a population raster. **Map output:** an optional field; `apply_humanitarian_look` (look `people_in_need`) draws quantile classes. **Better results:** quote as an estimate and give the severity classes counted.
 
 ### `hotspot_analysis`
 Kernel density surface of a point layer. **Map output:** warm density ramp, transparent where empty. **Better results:** choose the radius to match the question; weight by severity if relevant.
@@ -147,7 +150,7 @@ Is incident density rising or falling per zone; linear projection of a numeric f
 **Supporting data sources.** FTS, INFORM (as files).
 
 ### `calculate_mcda_ranking` -- new (H5)
-Weighted multi-criteria ranking of areas, each criterion with a weight and a priority direction, plus a test of how much the ranking depends on the weights. **Map output:** optional `<prefix>_score`, `_rank`, `_rank_min`, `_rank_max` fields; *no automatic style* -- follow with `apply_graduated_style` on the score or rank. **Better results:** give the weights yourself; say for each criterion whether a high or low value gets priority; use `top_k` to see which areas stay in the top group; treat areas whose best and worst rank differ widely as weight-dependent, not firm.
+Weighted multi-criteria ranking of areas, each criterion with a weight and a priority direction, plus a test of how much the ranking depends on the weights. **Map output:** optional `<prefix>_score`, `_rank`, `_rank_min`, `_rank_max` fields; `apply_humanitarian_look` (look `rank`, with `top_k`) emphasises the top-ranked units. **Better results:** give the weights yourself; say for each criterion whether a high or low value gets priority; use `top_k` to see which areas stay in the top group; treat areas whose best and worst rank differ widely as weight-dependent, not firm.
 
 ### `fetch_fts_funding_data`
 Plan-level requirements, funding received and gap from FTS. **Map output:** none; it is not geographic. **Better results:** name the plan year; quote it as a snapshot.
