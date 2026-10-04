@@ -23,7 +23,7 @@ import statistics
 from .registry import register_tool
 
 try:
-    from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsPointXY,
+    from qgis.core import (QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsPointXY,
                            QgsProject, QgsSpatialIndex, QgsVectorLayer)
     QGIS_AVAILABLE = True
 except ImportError:
