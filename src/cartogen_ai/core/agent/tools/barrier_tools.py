@@ -130,12 +130,40 @@ def affected_feature_ids(network, barriers, buffer_m):
     return hit
 
 
+def _affected_layer(network, hit, mode, speed_field, name):
+    """A separate layer holding only the affected road segments, drawn red (blocked) or orange (slowed), so the effect of the
+    barriers is visible on the map without restyling the user's road layer. Replaces an earlier layer of the same name. Returns
+    the layer name, or None (cosmetic: never fails the tool)."""
+    try:
+        from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
+        for old in QgsProject.instance().mapLayersByName(name):
+            QgsProject.instance().removeMapLayer(old.id())
+        out = QgsVectorLayer(f"{QgsWkbTypes.displayString(network.wkbType())}?crs={network.crs().authid()}"
+                             f"&field=source_id:integer&field={speed_field}:double", name, "memory")
+        feats = []
+        for fid in sorted(hit):
+            src = network.getFeature(fid)
+            f = QgsFeature(out.fields())
+            f.setGeometry(src.geometry())
+            f.setAttributes([fid, src[speed_field]])
+            feats.append(f)
+        out.dataProvider().addFeatures(feats)
+        out.updateExtents()
+        QgsProject.instance().addMapLayer(out)
+        from .humanitarian_style import style_barrier_segments
+        style_barrier_segments(out, mode)
+        return name
+    except Exception:
+        return None
+
+
 @register_tool(
     "apply_network_barriers",
     "Put blocked or degraded places into a road network for routing: destroyed bridges, checkpoints, flooded stretches or any "
     "other barrier layer (points, lines or polygons such as a flood extent). Every road segment within buffer_m metres of a "
     "barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep "
-    "their speed. Writes the result to a new numeric speed field (km/h) on the road layer; pass that field as speed_field to "
+    "their speed. Writes the result to a new numeric speed field (km/h) on the road layer, and draws the affected segments as a "
+    "separate red (blocked) or orange (slowed) layer '<roads>_barrier_affected' so the effect is visible on the map; pass that field as speed_field to "
     "calculate_service_area / travel_time_matrix / optimize_delivery_route with strategy='fastest'. IMPORTANT: with "
     "strategy='shortest' the speed field is ignored and barriers have no effect, and 'block' is a near-zero speed rather than "
     "a true closure. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it "
@@ -213,6 +241,10 @@ def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode=
         "segments_affected": len(hit),
         "notes": _result_notes(mode, speed_field is not None),
     }
+    if hit:
+        shown = _affected_layer(network, hit, mode, output_field, f"{road_network_layer}_barrier_affected")
+        if shown:
+            result["affected_layer"] = shown
     if non_numeric:
         result["warning"] = (f"{non_numeric} segment(s) had a missing, non-numeric or non-positive value in '{speed_field}' and "
                              f"were treated as {_DEFAULT_SPEED_KMH:g} km/h.")

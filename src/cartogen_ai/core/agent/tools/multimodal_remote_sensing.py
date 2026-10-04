@@ -122,9 +122,8 @@ def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers")
     "admin unit, building exposure counts, severity classing) -- use this tool directly only for "
     "the raw pixel-difference layer itself, calculate_damage_exposure_severity for a per-district "
     "severity score. Produces a new raster layer named 'change_detection_<after>_vs_<before>' "
-    "added to the project with QGIS's default (unstretched) rendering -- this plugin has no "
-    "dedicated raster styling tool, so a diverging color ramp needs to be applied manually in "
-    "QGIS's own layer properties to make the change pattern visible.",
+    "added to the project with a diverging ramp symmetric about zero (blue = decrease, red = "
+    "increase, no change transparent) so the change pattern is visible straight away.",
     {"type": "object", "properties": {"raster_before": {"type": "string"}, "raster_after": {"type": "string"}}, "required": ["raster_before", "raster_after"]},
 )
 def calculate_raster_change_detection(raster_before: str, raster_after: str):
@@ -141,7 +140,7 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str):
         if r2 is None:
             return {"error": f"Layer '{raster_after}' not found"}
 
-        return _run_raster_and_add(
+        result = _run_raster_and_add(
             "gdal:rastercalculator",
             {
                 "INPUT_A": r2,
@@ -154,5 +153,15 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str):
             },
             f"change_detection_{raster_after}_vs_{raster_before}",
         )
+        if isinstance(result, dict) and result.get("success"):
+            try:
+                from qgis.core import QgsProject
+                from .humanitarian_style import style_diverging_raster
+                made = QgsProject.instance().mapLayersByName(result["layer_name"])
+                if made:
+                    result["styled"] = style_diverging_raster(made[-1])
+            except Exception:
+                pass
+        return result
     except Exception as e:
         return {"error": f"calculate_raster_change_detection failed: {e}"}

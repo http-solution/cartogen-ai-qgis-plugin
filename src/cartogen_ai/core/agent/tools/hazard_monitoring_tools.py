@@ -59,6 +59,17 @@ def _find_layer_by_name(name):
 FETCHED_AT_PROPERTY_KEY = PROJECT_PROPERTY_FETCHED_AT
 
 
+
+def _style_hazard(layer, kind):
+    """A readable default look for a newly created hazard layer (alert-level colours for GDACS, one small dot for fires,
+    category colours for EONET) instead of QGIS's random single colour. Only on creation, so a re-fetch that replaces the
+    features keeps whatever styling the user has since applied. Cosmetic; never raises."""
+    try:
+        from .humanitarian_style import style_hazard_layer
+        style_hazard_layer(layer, kind)
+    except Exception:
+        pass
+
 def _stamp_fetched_at(layer):
     layer.setCustomProperty(FETCHED_AT_PROPERTY_KEY, datetime.now(timezone.utc).isoformat())
 
@@ -249,6 +260,7 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
     if not QGIS_AVAILABLE:
         return {"success": True, "detection_count": len(fetch_result.get("detections", []))}
 
+    created = False
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         layer = QgsVectorLayer(
@@ -260,6 +272,7 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
         if not layer.isValid():
             return {"error": f"Failed to create layer '{layer_name}'"}
         QgsProject.instance().addMapLayer(layer)
+        created = True
 
     rows = [{
         "__geom__": QgsGeometry.fromPointXY(QgsPointXY(d["lon"], d["lat"])),
@@ -273,6 +286,9 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
     } for d in fetch_result.get("detections", [])]
 
     added = _replace_point_features(layer, rows)
+    if created:
+        # styled AFTER the features are in: the EONET categories come from the values present
+        _style_hazard(layer, "fires")
     set_layer_confidence(layer, "OBSERVED", reason="NASA FIRMS VIIRS/MODIS satellite thermal-anomaly detection")
     _stamp_fetched_at(layer)
 
@@ -401,6 +417,7 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
     if not QGIS_AVAILABLE:
         return {"success": True, "event_count": len(fetch_result.get("events", []))}
 
+    created = False
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         layer = QgsVectorLayer(
@@ -416,6 +433,7 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
         if not layer.isValid():
             return {"error": f"Failed to create layer '{layer_name}'"}
         QgsProject.instance().addMapLayer(layer)
+        created = True
 
     rows = [{
         "__geom__": QgsGeometry.fromPointXY(QgsPointXY(e["lon"], e["lat"])),
@@ -428,6 +446,9 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
     } for e in fetch_result.get("events", [])]
 
     added = _replace_point_features(layer, rows)
+    if created:
+        # styled AFTER the features are in: the EONET categories come from the values present
+        _style_hazard(layer, "eonet")
     set_layer_confidence(layer, "OBSERVED", reason="NASA EONET satellite/instrument-detected natural event")
     _stamp_fetched_at(layer)
 
@@ -561,6 +582,7 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
     if not QGIS_AVAILABLE:
         return {"success": True, "alert_count": len(fetch_result.get("alerts", []))}
 
+    created = False
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         layer = QgsVectorLayer(
@@ -577,6 +599,7 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
         if not layer.isValid():
             return {"error": f"Failed to create layer '{layer_name}'"}
         QgsProject.instance().addMapLayer(layer)
+        created = True
 
     rows = [{
         "__geom__": QgsGeometry.fromPointXY(QgsPointXY(a["lon"], a["lat"])),
@@ -591,6 +614,9 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
     } for a in fetch_result.get("alerts", [])]
 
     added = _replace_point_features(layer, rows)
+    if created:
+        # styled AFTER the features are in: the EONET categories come from the values present
+        _style_hazard(layer, "gdacs")
     set_layer_confidence(layer, "DERIVED", reason="GDACS computed multi-input alert level, human-reviewed")
     _stamp_fetched_at(layer)
 

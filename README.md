@@ -20,45 +20,23 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc6 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc12 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status:** active Community edition. The automated suite is green (2,247 passed, 0 failures, 139 skipped);
-> a clean-profile install and in-place upgrade have been verified in a real QGIS 4.2.2 session, while the
-> full interactive chat-UI test scenarios still need a live LLM-backed run.
-> See [the release smoke test](docs/RELEASE_SMOKE_TEST.md) and
-> [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md) for current status.
-
-> This repository is the single public Cartogen AI Community codebase. See the
-> [changelog](CHANGELOG.md) for the consolidation history.
-
-<details>
-<summary><strong>Table of contents</strong></summary>
-
-- [What it does](#what-it-does)
-- [Editions](#editions)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Documentation](#documentation)
-  - [Getting started](#getting-started)
-  - [Security & compliance](#security--compliance)
-  - [Engineering & process](#engineering--process)
-  - [Product & humanitarian standards](#product--humanitarian-standards)
-  - [Roadmap, specs & dated reviews (archive)](#roadmap-specs--dated-reviews-archive)
-  - [Project reference](#project-reference)
-- [Contributing](#contributing)
-- [Development](#development)
-- [Support](#support)
-
-</details>
-
-<p align="center">
-  <img src="docs/images/dock-panel.png" alt="Cartogen AI dock panel — Chat and Activity tabs, with the provider switcher" width="440">
-</p>
+> **Project status (2026-10-04):** active Community edition, currently at the **1.16.0-rc12 pre-release**.
+> - **Tests:** 3,069 automated tests, 0 failures; 247 of them are live-QGIS tests that are skipped outside QGIS and run in CI
+>   (the `qgis-live-tests` job, QGIS 4.2.2).
+> - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
+>   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists; the remaining 17 are still
+>   open. None of the fixes has been re-checked by hand yet.
+> - **Not yet verified:** a hands-on smoke test of rc12 in a desktop QGIS session. A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc12 zip has passed CI packaging and a load/unload/reload check only.
+> - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
+>   [the rc12 live-test and audit plan](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -69,7 +47,7 @@ black-box answer.
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **179 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **190 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
@@ -80,7 +58,7 @@ black-box answer.
   badges, ellipsoidal geodetic distance measurement (`QgsDistanceArea`), geoprivacy obfuscation for
   sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
-- **Guided by a 791-task Humanitarian Mapping Task Register** (v1.4.3–1.4.4): a request that
+- **Guided by a 792-task Humanitarian Mapping Task Register**: a request that
   matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
   it's sent; stops to ask only when a detail genuinely can't be safely guessed (e.g. hazard or
   facility type); and checks the response against what the task promised, with one automatic,
@@ -106,6 +84,50 @@ black-box answer.
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
 
+## What's new in 1.16.0-rc12
+
+A pre-release; every item below was tested offline and, for the QGIS-side code, in CI on QGIS 4.2.2 -- **not yet by hand** in a
+desktop session. The full list is the `v1.16.0-rc12` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- **Six new humanitarian tools**: `apply_network_barriers`, `evaluate_forecast_trigger`, `generate_mapping_task_grid`,
+  `design_sampling_frame`, `calculate_mcda_ranking`, `aggregate_survey_indicator` -- see [Humanitarian tools](#humanitarian-tools).
+- **Hydrology engineering tools**: `parse_dms_location`, `assess_watershed_hydrology_request` and
+  `calculate_rational_watershed_peak_flow`. They refuse to invent a DEM, rainfall intensity or runoff coefficient and do **not**
+  delineate a watershed ([docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md](docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md)).
+- **Audit hardening (issues #137-#151)**: no code execution through Processing parameters; owned, checked edit sessions that never
+  commit a layer you are editing; SI-unit area/length and ellipsoidal distances; safer script-isolation results; the cloud egress
+  gate and layer lineage now see SQL, workflow and list-valued arguments; a running request stops and writes nothing if you switch
+  project; read-only SQL fails closed.
+- **Honesty guard** (#75): a footnote when an answer contains place names, large totals, file sizes or terrain claims that no tool
+  result or user message supports. A heuristic over three claim shapes, not a fact checker.
+- **Routing and map polish**: faster two-stop routes, `strategy='fastest'` for delivery routes with an estimated time, one-way road
+  codes honoured, readable defaults for task grids, barrier segments, hazard alerts and before/after difference rasters, and
+  `tidy_project_layers` to clean up projects made by older builds.
+
+## Humanitarian tools
+
+The humanitarian tools follow the six workflows in the "Humanitarian Mapping Workflows" document: field operations first, then
+strategic orchestration. The full catalogue -- what each tool does, what it draws on the map, and how to get better results -- is
+in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
+[docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
+[docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
+Tools marked **new** were added in 1.16.0-rc12 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+
+| Workflow | Tools |
+|---|---|
+| **1. Rapid crisis and base mapping** | `search_hdx_datasets`, `fetch_hdx_admin_boundaries`, `fetch_geoboundaries`, `fetch_osm_features`, `ingest_osm_features`, `fetch_building_footprints`, `search_stac_satellite_imagery`, `calculate_raster_change_detection`, `calculate_damage_exposure_severity`, `extract_features_from_imagery`, `add_incident_point`, `add_point_layer`, `generate_mapping_task_grid` (**new**) |
+| **2. MSNA and field data** | `design_sampling_frame` (**new**), `fetch_worldpop_population`, `estimate_population_exposure`, `load_tabular_data_as_layer`, `extract_pdf_tables`, `extract_word_tables`, `aggregate_data`, `aggregate_survey_indicator` (**new**) |
+| **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers` (**new**), `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk` |
+| **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend` |
+| **5. Allocation and prioritisation** | `calculate_mcda_ranking` (**new**), `fetch_fts_funding_data`, `generate_sector_coverage_report`, `weighted_overlay_analysis` |
+| **6. Anticipatory action** | `evaluate_forecast_trigger` (**new**), `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
+| **Data quality and governance** | `check_pcode_uniqueness`, `check_pcode_hierarchy`, `validate_schema`, `list_schema_contracts`, `get_dataset_status`, `set_dataset_status`, `advance_dataset_status`, `get_provenance_record`, `write_provenance_sidecar`, `set_layer_sensitivity`, `get_layer_sensitivity`, `generate_map_product_qa_checklist` |
+| **Reporting and products** | `generate_chart`, `generate_html_dashboard`, `generate_temporal_dashboard`, `generate_spatial_report`, `generate_report` |
+| **Engineering hydrology** | `parse_dms_location`, `assess_watershed_hydrology_request`, `calculate_rational_watershed_peak_flow` |
+
+Where a number is a judgement call -- a trigger threshold, criteria weights, a design effect, a minimum survey cell size -- the tool
+asks you for it and repeats it in the result instead of choosing one.
+
 ## Editions
 
 This is a free, GPL v2 open-source project — everything in this README and in
@@ -115,7 +137,10 @@ repository is tier-gated.
 
 ## Installation
 
-**From the release zip** (recommended):
+**From the release zip** (recommended). The current build is the
+[1.16.0-rc12 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc12); the release
+also carries a `SHA256-1.16.0-rc12.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
    download the attached asset `cartogen_ai_v<version>.zip`, **not** GitHub's auto-generated
@@ -124,10 +149,10 @@ repository is tier-gated.
 
 > **Don't install GitHub's "Source code (zip)".** QGIS uses the zip's top-level folder name as
 > the plugin's Python module name. GitHub names that folder `<repo>-<tag>`, for example
-> `cartogen-ai-qgis-plugin-commercial-plugin-v1.16.0-rc4`. The dots in the version make it an
+> `cartogen-ai-qgis-plugin-cartogen-ai-v1.16.0-rc12`. The dots in the version make it an
 > invalid module name, so QGIS fails with
-> `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-commercial-plugin-v1'`
-> (seen live on QGIS 4.2.2 with the v1.16.0-rc4 release). The release asset built by
+> `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-cartogen-ai-v1'`
+> (seen live on QGIS 4.2.2 with an earlier release candidate). The release asset built by
 > `plugin_upload.py` always uses the folder `cartogen-ai`. If you already installed the source
 > zip, delete its folder from your profile's `python/plugins/` directory and install the asset.
 
@@ -186,7 +211,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 179 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 190 tools, auto-generated from the live registry |
 
 ### Security & compliance
 
@@ -213,7 +238,18 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md](docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md) | Cartographic design/QA standards the agent's styling and layout tools follow |
+| [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md) | Every humanitarian tool by workflow: what it does, what it draws on the map, how to get better results, and a map-styling review |
 | [docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md](docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
+
+### Current reviews and plans (dated, not archived)
+
+| Doc | Covers |
+|---|---|
+| [docs/RC10_RC12_AUDIT_2026-10-02.md](docs/RC10_RC12_AUDIT_2026-10-02.md) | Audit of the rc10-rc12 changes |
+| [docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md) | What to test by hand in rc12, in what order |
+| [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md) | Humanitarian workflow document compared with the tools: what is covered, partial, missing, and the build plan |
+| [docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md](docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md) | Output styling and analysis gaps found on the rc10 smoke test |
+| [docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md](docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md) | The hydrology engineering tools and their limits |
 
 ### Roadmap, specs & dated reviews (archive)
 
@@ -270,10 +306,10 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 179 tools across 30 domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 190 tools across 44 domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
-- `tests/` — 2,247 automated unit and integration tests, runnable outside QGIS.
+- `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.
 - `docs/` — User guide, auto-generated tools reference, living implementation tracker, and specs.
 - `branding/` — Logo and visual assets.
 
