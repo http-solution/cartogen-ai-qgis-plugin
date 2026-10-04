@@ -283,6 +283,7 @@ TOOL_OPERATION_TYPES = {
     "import_humanitarian_table": MODIFY,
     "analyze_critical_links": CREATE,
     "import_jiaf_inputs": MODIFY,
+    "compute_jiaf_preliminary": MODIFY,
     "record_jiaf_setup": MODIFY,
     "get_jiaf_setup": READ,
 

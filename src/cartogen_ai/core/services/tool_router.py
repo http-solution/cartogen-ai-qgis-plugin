@@ -139,6 +139,10 @@ _TOOL_ALIASES = {
         "jiaf input", "jiaf inputs", "import jiaf", "load the jiaf", "sector pin file", "sectoral pin", "jiaf worksheet", "hno dataset",
         "people in need by sector", "sector inputs",
     ],
+    "compute_jiaf_preliminary": [
+        "preliminary joint pin", "preliminary pin", "mosaic method", "joint overall pin", "preliminary intersectoral severity", "jiaf flags",
+        "pin flags", "highest sectoral pin", "compute the jiaf", "jiaf preliminary",
+    ],
     "record_jiaf_setup": ["jiaf set-up", "jiaf setup", "record the jiaf", "sector alignment", "jiaf scope", "manual edition"],
     "get_jiaf_setup": ["show the jiaf set-up", "jiaf setup record", "what jiaf scope"],
     "analyze_critical_links": [

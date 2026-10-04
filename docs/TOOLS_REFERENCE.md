@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (197 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (198 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1813,6 +1813,32 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
+
+## jiaf_engine
+
+### `compute_jiaf_preliminary`
+
+Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). Per unit: the preliminary joint PiN (the highest of the eight main sectors' PiN -- the Mosaic Method; never an average, never a sum across sectors; AoRs excluded), the PiN flags 1-6 of Reference Table 3A, the preliminary intersectoral severity from the overlap of sectoral severities, and the severity flags 1-4 of Table 3B1. The national figure is the sum over units. This is not the Final PiN or the final severity: those are group decisions for flagged units, recorded later, and nothing here decides them. Intersectoral severity is per unit; there is no national severity and no PiN per severity phase. Several flag thresholds are readings of the manual that are not verified against OCHA's worksheet formulas: they are settings, echoed in the result, to be confirmed by the analysis team. Reads the same files as import_jiaf_inputs; give previous_file_path for flag 6. Optionally writes jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl to an admin layer (needs confirmation) and a per-unit CSV.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes | The sector-input file (OCHA worksheet, HXL table or sector template), as for import_jiaf_inputs. |
+| `input_format` | string | no | 'auto' (default), 'ocha_worksheet', 'hxl' or 'sector_template'. |
+| `sheet_name` | string | no |  |
+| `previous_file_path` | string | no | Optional previous-year file of the same kind, for flag 6. |
+| `previous_sheet_name` | string | no |  |
+| `f1_min_sectors` | integer | no | Flag 1 fires at this many sectors with missing/zero PiN or more. Default 1 (the table says 1 or 2). |
+| `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30. |
+| `f3_pct` | number | no | Flag 3 threshold as a fraction. Default 0.50. |
+| `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given. |
+| `f5_share` | number | no | Flag 5 threshold as a share of population. Default 0.90. |
+| `f6_pct` | number | no | Flag 6 threshold, increase on last year as a fraction. Default 1.0. |
+| `f6_min_previous_pin` | number | no | Flag 6 is only evaluated when last year's PiN is at least this. Default 1000. |
+| `s4_sector_count` | integer | no | Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4. |
+| `export_csv_path` | string | no | Optional new .csv file for the per-unit table (refuses to overwrite). |
+| `layer_name` | string | no |  |
+| `layer_key_field` | string | no | Admin 2 P-code field on that layer. |
+| `write_fields` | boolean | no | With layer_name: write jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl. Needs confirmation. |
 
 ## jiaf_inputs
 

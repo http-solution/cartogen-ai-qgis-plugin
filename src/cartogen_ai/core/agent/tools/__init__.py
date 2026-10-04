@@ -52,6 +52,7 @@ from . import allocation_tools
 from . import table_importers
 from . import critical_link_tools
 from . import jiaf_inputs
+from . import jiaf_engine
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -84,6 +85,7 @@ __all__ = [
     "table_importers",
     "critical_link_tools",
     "jiaf_inputs",
+    "jiaf_engine",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",
