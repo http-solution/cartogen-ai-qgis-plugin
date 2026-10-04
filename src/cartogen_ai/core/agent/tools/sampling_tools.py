@@ -274,6 +274,8 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
     out.dataProvider().addFeatures(feats)
     out.updateExtents()
     QgsProject.instance().addMapLayer(out)
+    from .humanitarian_style import style_sample_points
+    result["styled"] = style_sample_points(out)      # one colour per stratum; cosmetic
     result["layer_name"] = output_layer_name
     result["total_drawn"] = len(feats)
     if units is None:

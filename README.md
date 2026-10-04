@@ -40,6 +40,7 @@ black-box answer.
 <summary><strong>Table of contents</strong></summary>
 
 - [What it does](#what-it-does)
+- [Humanitarian tools](#humanitarian-tools)
 - [Editions](#editions)
 - [Installation](#installation)
 - [Quick start](#quick-start)
@@ -105,6 +106,30 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## Humanitarian tools
+
+The humanitarian tools follow the six workflows in the "Humanitarian Mapping Workflows" document: field operations first, then
+strategic orchestration. The full catalogue -- what each tool does, what it draws on the map, and how to get better results -- is
+in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
+[docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
+[docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
+Tools marked **new** were added in 1.16.0-rc12 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+
+| Workflow | Tools |
+|---|---|
+| **1. Rapid crisis and base mapping** | `search_hdx_datasets`, `fetch_hdx_admin_boundaries`, `fetch_geoboundaries`, `fetch_osm_features`, `ingest_osm_features`, `fetch_building_footprints`, `search_stac_satellite_imagery`, `calculate_raster_change_detection`, `calculate_damage_exposure_severity`, `extract_features_from_imagery`, `add_incident_point`, `add_point_layer`, `generate_mapping_task_grid` (**new**) |
+| **2. MSNA and field data** | `design_sampling_frame` (**new**), `fetch_worldpop_population`, `estimate_population_exposure`, `load_tabular_data_as_layer`, `extract_pdf_tables`, `extract_word_tables`, `aggregate_data`, `aggregate_survey_indicator` (**new**) |
+| **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers` (**new**), `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk` |
+| **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend` |
+| **5. Allocation and prioritisation** | `calculate_mcda_ranking` (**new**), `fetch_fts_funding_data`, `generate_sector_coverage_report`, `weighted_overlay_analysis` |
+| **6. Anticipatory action** | `evaluate_forecast_trigger` (**new**), `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
+| **Data quality and governance** | `check_pcode_uniqueness`, `check_pcode_hierarchy`, `validate_schema`, `list_schema_contracts`, `get_dataset_status`, `set_dataset_status`, `advance_dataset_status`, `get_provenance_record`, `write_provenance_sidecar`, `set_layer_sensitivity`, `get_layer_sensitivity`, `generate_map_product_qa_checklist` |
+| **Reporting and products** | `generate_chart`, `generate_html_dashboard`, `generate_temporal_dashboard`, `generate_spatial_report`, `generate_report` |
+| **Engineering hydrology** | `parse_dms_location`, `assess_watershed_hydrology_request`, `calculate_rational_watershed_peak_flow` |
+
+Where a number is a judgement call -- a trigger threshold, criteria weights, a design effect, a minimum survey cell size -- the tool
+asks you for it and repeats it in the result instead of choosing one.
 
 ## Editions
 
@@ -213,6 +238,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md](docs/HUMANITARIAN_CARTOGRAPHY_STANDARDS.md) | Cartographic design/QA standards the agent's styling and layout tools follow |
+| [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md) | Every humanitarian tool by workflow: what it does, what it draws on the map, how to get better results, and a map-styling review |
 | [docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md](docs/HUMANITARIAN_MAPPING_TASK_REFERENCE.md) | Humanitarian mapping task taxonomy for tool coverage, prompts, workflows, and acceptance testing |
 
 ### Roadmap, specs & dated reviews (archive)
