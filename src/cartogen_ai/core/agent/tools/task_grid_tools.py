@@ -266,9 +266,12 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     out.dataProvider().addFeatures(features)
     out.updateExtents()
     QgsProject.instance().addMapLayer(out)
+    from .humanitarian_style import style_task_grid
+    styled = style_task_grid(out)       # priority colours + task ids; cosmetic, never fails the tool
 
     result = {
         "success": True,
+        "styled": styled,
         "layer_name": output_layer_name,
         "task_count": len(features),
         "cell_size_m": size,
