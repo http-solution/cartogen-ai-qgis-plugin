@@ -18,6 +18,7 @@ path.
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
+from ._network_closure import CLOSED_SPEED_KMH
 
 try:
     from qgis.core import QgsCoordinateTransform, QgsDistanceArea, QgsPointXY, QgsProject
@@ -72,11 +73,9 @@ _DEFAULT_SURFACE_PENALTY = 1.0
 _SLOPE_PENALTY_COEFFICIENT = 5.0
 _MIN_SLOPE_PENALTY = 0.2
 
-# A speed floor so a fully-impassable segment (damage_multiplier reaching
-# 0.0) still gets a real, finite, very slow speed rather than literal 0 --
-# avoids a divide-by-zero or undefined-cost downstream in whatever
-# consumes this field, while still making that segment overwhelmingly
-# unattractive to any routing algorithm comparing real alternatives.
+# A speed floor so a segment slowed to (nearly) nothing by surface, slope or a small passability still gets a real, finite
+# speed -- avoids a divide-by-zero downstream. A damage_field passability of exactly 0 is NOT floored: it is a closure (see
+# _network_closure), written as CLOSED_SPEED_KMH.
 _MIN_EFFECTIVE_SPEED_KMH = 0.1
 
 
@@ -118,7 +117,7 @@ def _slope_penalty(dem_layer, start_point, end_point, segment_length):
             "road_network_layer": {"type": "string", "description": "Line layer representing the road/path network."},
             "highway_field": {"type": "string", "description": "Field holding the OSM highway=* class (e.g. 'primary', 'track'). Defaults to 'highway'."},
             "surface_field": {"type": "string", "description": "Field holding the OSM surface=* value (e.g. 'paved', 'gravel'). Defaults to 'surface'."},
-            "damage_field": {"type": "string", "description": "Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=impassable, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable)."},
+            "damage_field": {"type": "string", "description": "Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable)."},
             "dem_layer": {"type": "string", "description": "Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed."},
             "output_field": {"type": "string", "description": "Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'."},
         },
@@ -155,6 +154,7 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     # on their behalf), and a read-only source reports an error instead of "success" with nothing written.
     non_numeric_damage_count = 0
     sampled_slope_count = 0
+    closed_count = 0
     # Audit F18 (#154): the slope used the endpoints as they are in the NETWORK's CRS (sampled in the DEM without a
     # transform) divided by the planar length in that CRS's units, so a geographic or foot-unit network got a meaningless
     # grade. Endpoints are now transformed into the DEM's CRS and the length is measured in metres on the ellipsoid.
@@ -208,10 +208,16 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
                         if slope_penalty != 1.0:
                             sampled_slope_count += 1
 
-                effective_speed = max(
-                    _MIN_EFFECTIVE_SPEED_KMH,
-                    base_speed * surface_penalty * damage_multiplier * slope_penalty,
-                )
+                # Audit F19 (#155): passability 0 used to be clamped to the 0.1 km/h floor, so routing could still cross a
+                # "closed" road. It now writes the closed sentinel, which the routing tools remove from the network.
+                if has_damage and damage_multiplier == 0.0:
+                    effective_speed = CLOSED_SPEED_KMH
+                    closed_count += 1
+                else:
+                    effective_speed = max(
+                        _MIN_EFFECTIVE_SPEED_KMH,
+                        base_speed * surface_penalty * damage_multiplier * slope_penalty,
+                    )
                 set_value(network, feat.id(), out_idx, effective_speed)
     except EditError as e:
         return {"error": f"build_composite_impedance_field failed, nothing was changed: {e}"}
@@ -227,6 +233,10 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     if not owned:
         result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT saved: "
                           "save or discard the layer edits yourself.")
+    if closed_count:
+        result["closed_segments"] = closed_count
+        result["closure_note"] = (f"{closed_count} segment(s) with passability 0 are written as closed (speed {CLOSED_SPEED_KMH:g}); "
+                                  "calculate_service_area / travel_time_matrix / optimize_delivery_route remove them from the network.")
     if damage_field is not None:
         result["damage_field"] = damage_field
         if non_numeric_damage_count:

@@ -5,12 +5,13 @@ Road barriers for the routing tools (H1, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS
 Destroyed bridges, checkpoints and flooded stretches are the first thing a logistics planner needs to put into a network
 analysis. calculate_service_area / travel_time_matrix / optimize_delivery_route already take a `speed_field` (km/h per segment);
 this tool writes such a field: every road segment within `buffer_m` metres of a barrier (points, lines or polygons such as a
-flood extent) gets its speed multiplied by `penalty_factor` (block = a near-zero speed), every other segment keeps its base speed.
+flood extent) gets its speed multiplied by `penalty_factor` (block = the segment is closed and removed from the network), every other segment keeps its base speed.
 
-What "block" really means. A routing algorithm cannot be told "closed" through a speed field; a blocked segment gets
-_BLOCKED_SPEED_KMH, a finite, very slow speed (the same floor impedance_tools uses), so a route only crosses it when no other
-way exists within the limit. And a speed field is only read when the downstream tool is run with strategy='fastest' -- with
-'shortest' it is ignored and the barriers have NO effect. Both are repeated in the tool's result.
+What "block" means (audit F19, #155; owner decision 2026-10-04: blocked roads are removed from the network). A blocked segment is
+written as _network_closure.CLOSED_SPEED_KMH (a negative speed); calculate_service_area / travel_time_matrix /
+optimize_delivery_route then route on a copy of the network WITHOUT those segments, whatever the strategy, so nothing can cross
+them. 'penalise' is a slow-down only and is read just like any other speed, i.e. with strategy='fastest'. Both are repeated in
+the tool's result.
 
 Distances are measured in a metric (UTM) CRS chosen from the data, never in degrees. The pure helpers are unit tested offline;
 the layer work needs real QGIS and is covered by tests/test_barrier_tools_live.py in CI (written without a local QGIS).
@@ -19,6 +20,7 @@ import math
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
+from ._network_closure import CLOSED_SPEED_KMH
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsSpatialIndex)
@@ -26,7 +28,7 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-_BLOCKED_SPEED_KMH = 0.1      # same floor as impedance_tools._MIN_EFFECTIVE_SPEED_KMH
+_SLOW_FLOOR_KMH = 0.1         # a slowed ('penalise') segment never goes below this; same floor as impedance_tools
 _DEFAULT_SPEED_KMH = 30.0     # same default as impedance_tools._DEFAULT_BASE_SPEED_KMH
 MODES = ("block", "penalise")
 
@@ -41,13 +43,16 @@ def utm_epsg(lon, lat):
 
 
 def effective_speed(base_speed, hit, mode, penalty_factor):
-    """Speed (km/h) for one segment. Pure. A hit in 'block' mode gets the blocked floor; in 'penalise' mode the base speed times
-    penalty_factor, never below the floor; a miss keeps the base speed unchanged."""
+    """Speed (km/h) for one segment. Pure. A hit in 'block' mode is closed (CLOSED_SPEED_KMH); in 'penalise' mode the base speed
+    times penalty_factor, never below the slow floor; a miss keeps the base speed unchanged. A segment that is already closed
+    stays closed."""
+    if base_speed < 0:
+        return CLOSED_SPEED_KMH
     if not hit:
         return base_speed
     if mode == "block":
-        return _BLOCKED_SPEED_KMH
-    return max(_BLOCKED_SPEED_KMH, base_speed * penalty_factor)
+        return CLOSED_SPEED_KMH
+    return max(_SLOW_FLOOR_KMH, base_speed * penalty_factor)
 
 
 def validate_options(mode, buffer_m, penalty_factor):
@@ -70,11 +75,13 @@ def validate_options(mode, buffer_m, penalty_factor):
 
 
 def _result_notes(mode, speed_field_used):
-    notes = ["Pass the output field as speed_field with strategy='fastest' to calculate_service_area / travel_time_matrix / "
-             "optimize_delivery_route. With strategy='shortest' the speed field is ignored and the barriers have no effect."]
+    notes = ["Pass the output field as speed_field to calculate_service_area / travel_time_matrix / optimize_delivery_route."]
     if mode == "block":
-        notes.append(f"A blocked segment gets {_BLOCKED_SPEED_KMH} km/h, not a true closure: a route can still cross it if there is no "
-                     "other way within the limit.")
+        notes.append("Blocked segments are removed from the network for any strategy ('shortest' or 'fastest'): nothing can "
+                     "cross them. If every segment were blocked the routing tools report that there is no network.")
+    else:
+        notes.append("Slowed segments only change the result with strategy='fastest'; with 'shortest' the speed field is not "
+                     "read for the cost.")
     if not speed_field_used:
         notes.append(f"No speed_field was given, so every unaffected segment is {_DEFAULT_SPEED_KMH:g} km/h. Run "
                      "build_composite_impedance_field first and pass its output as speed_field for realistic base speeds.")
@@ -164,9 +171,8 @@ def _affected_layer(network, hit, mode, speed_field, name):
     "barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep "
     "their speed. Writes the result to a new numeric speed field (km/h) on the road layer, and draws the affected segments as a "
     "separate red (blocked) or orange (slowed) layer '<roads>_barrier_affected' so the effect is visible on the map; pass that field as speed_field to "
-    "calculate_service_area / travel_time_matrix / optimize_delivery_route with strategy='fastest'. IMPORTANT: with "
-    "strategy='shortest' the speed field is ignored and barriers have no effect, and 'block' is a near-zero speed rather than "
-    "a true closure. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it "
+    "calculate_service_area / travel_time_matrix / optimize_delivery_route. Blocked segments are REMOVED from the network by "
+    "those tools (any strategy), so nothing can cross them; slowed segments only matter with strategy='fastest'. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it "
     "unaffected segments are 30 km/h.",
     {
         "type": "object",
@@ -218,7 +224,9 @@ def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode=
                 if speed_field is not None:
                     try:
                         base = float(feat.attribute(speed_field))
-                        if not base > 0:
+                        if base < 0:
+                            pass                        # already closed by an earlier barrier run: stays closed
+                        elif not base > 0:
                             raise ValueError
                     except (TypeError, ValueError):
                         non_numeric += 1
