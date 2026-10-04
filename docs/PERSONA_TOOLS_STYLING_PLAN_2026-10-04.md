@@ -18,16 +18,18 @@ capabilities below are proposals, not promises. Supersede with a new doc rather 
    category 36 is engineering hydrology (1 task). Only **67 of the 190 tools** appear in any task, so 123 tools (65%) are invisible to task
    matching. No persona other than humanitarian has tasks written for it (agriculture, utilities, transport, real estate and research only
    overlap by accident, for example through 9 food security or 11 accessibility).
-4. **Coverage is lopsided.** Humanitarian is well covered and was reviewed in detail (`HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md`,
-   `HUMANITARIAN_TOOLS_CATALOGUE.md`). Generalist, logistics, agriculture (indices), engineering (partly) and disaster risk are partly covered.
-   Public health, utilities, transport, urban planning, real estate, research and environment are mostly missing their *defining* capability.
+4. **Only humanitarian has persona-built tools; the rest are not built.** (Corrected 2026-10-04 after the owner's review: the first draft rated
+   several personas "partly covered", which overstated it.) A persona today is a name and a sentence. The tools, functions, styling and
+   visualisations *specific to* a persona do not exist yet for 13 of the 15. What exists for them is generic (vector, raster, routing, MCDA)
+   and can be used by a skilled person, but nothing was built for that persona, so it is classified **generic-only**, not "covered". The
+   exceptions are humanitarian (built, see its own gap analysis), engineering (3 hydrology tools built, nothing else) and logistics (routing
+   tools built, but for humanitarian access, not VRP).
 5. **Four capability gaps unlock most of the personas** (section 4): spatial statistics, raster indices and time series, terrain and hydrology,
    and network/movement. All four can be built on numpy/GDAL/QGIS-native pieces already used here, and their core can be unit-tested without
    QGIS, which is the verification this environment allows.
 6. **Styling is strong where a persona has been designed for** (humanitarian hazards, routing/access, task grids, rasters, labels) **and absent
    elsewhere.** There is no place that says "what does a health-rate map, a utility network or a land-cover change map look like".
-7. **Two items in the document need an owner decision, not a build:** persona 15 (defense and intelligence) and the licensed or classified data
-   sources (section 7).
+7. **Persona 15 and the licensed or classified data sources were decided by the owner on 2026-10-04** (section 7).
 
 ## 2. What exists today
 
@@ -61,7 +63,7 @@ tier logic (`CLAUDE.md` forbids tier-gating in this repo).
 | `data_sources`: ids into a central source catalogue | data offers and the download guard |
 | `style_profile` id | output styling (section 5) |
 | `layout_templates`, `dashboard` | print and web outputs |
-| `readiness`: per capability `covered` / `partial` / `missing` / `out_of_scope`, with the tool or the reason | the picker and `docs/PERSONA_CATALOGUE.md`, so the plugin says honestly what it can do for you |
+| `readiness`: per capability `built` / `generic-only` / `not-built` / `out-of-scope`, with the tool or the reason | the picker and `docs/PERSONA_CATALOGUE.md`, so the plugin says honestly what it can do for you; a persona is shown as *built* only when its own tools, look and layout exist |
 | `guardrails`: method limits the model must state (for example "no discharge without a cited IDF value") | the response guard and prompt |
 
 **Rules.** (1) One primary persona plus an optional secondary, set in Settings and the onboarding dialog, never inferred silently. (2) The 15
@@ -73,10 +75,23 @@ already changed is never overwritten (the per-project remembered style already d
 
 ## 4. Persona by persona
 
-Legend: **Have** = tools that exist. **Gap** = what the document asks for that has no tool (priority H/M/L = how many personas need it and
-how central it is to this one; effort S/M/L; "offline" = the core can be verified without QGIS). Data: **have / missing**.
+**Status vocabulary (used here and in each persona's `readiness` field):** **built** = tools, styling and outputs were made for this persona;
+**generic-only** = no persona-specific work, but existing general tools can be used; **not built** = nothing usable yet; **out of scope** =
+deliberately not planned. Persona status today:
 
-| # | Persona | Have | Gap (priority, effort) | Data |
+| Persona | Status today |
+|---|---|
+| 2 Humanitarian | **built** (open items in the humanitarian gap analysis) |
+| 3 Engineering | **partly built**: rational-method peak flow, DMS parsing, hydrology request check; no basin delineation, no engineering sheet, no engineering look |
+| 5 Logistics | **partly built**: routing, matrix, hub siting, location-allocation exist but were made for humanitarian access; no VRP, no logistics look |
+| 1, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14 | **generic-only**: no persona-specific tools, functions, looks or layouts (agriculture has the NDVI/NDWI/NDRE tools, which are generic raster indices) |
+| 15 Defense and intelligence | **out of scope as written** (accepted); see section 7 |
+
+In the table below, **"Generic tools usable today"** lists general tools that exist; it does **not** mean the persona is supported. **Gap** =
+what the document asks for that has no tool (priority H/M/L = how many personas need it and how central it is to this one; effort S/M/L).
+Data: what is already fetched vs missing.
+
+| # | Persona | Generic tools usable today (not built for this persona) | Gap (priority, effort) | Data |
 |---|---|---|---|---|
 | 1 | **GIS Generalist** | format conversion (`add_layer_from_path`, `export_layer`, reproject, merge, join), `fix_geometries`, `diagnose_topology` (validity, slivers, overlaps; **not** gaps), schema contracts and P-code checks, dataset status, provenance sidecar, workflow presets, `execute_pyqgis_script` | Topology rules beyond overlaps (gaps, must-be-covered-by) **M, M**; ISO 19115 metadata **see 13**; model-builder style reusable workflows beyond presets **L, L** | have: HDX search, file loads. missing: generic open-data portals (CKAN, ArcGIS Hub, Socrata) **M, M** |
 | 2 | **Humanitarian aid and crisis response** | the 792-task register, HDX/OSM/WorldPop/GDACS/FIRMS/FTS, H1-H6 tools, service areas and access, severity/JIAF-style scoring, task grid, survey aggregation, sitrep/dashboard | already itemised in the humanitarian gap analysis: Kobo/ODK pull, QField package, UNOSAT/damage loader, critical-link analysis | have most; missing: Kobo/ODK, ACLED (key), Maxar/Planet open-data STAC |
@@ -92,7 +107,7 @@ how central it is to this one; effort S/M/L; "offline" = the core can be verifie
 | 12 | **Public safety and security** | `hotspot_analysis` + heatmap styling, `score_route_incident_risk`, routing with barriers, `obfuscate_sensitive_points` | Hotspot *tests* (Gi*, scan statistic) beyond a density surface **H, M** (shared with 8); viewshed **M, M**; 2D buffers exist, 3D blast radius does not **L**; CAD/RMS import is tabular loading | missing: high-resolution DSM; incident data is user-supplied and sensitive (egress gate applies) |
 | 13 | **Research and academia** | provenance sidecar, workflow presets, `generate_report`, `execute_pyqgis_script` | ISO 19115 metadata record (extend the sidecar) **H, M**; OGC API Features publishing (generate a QGIS Server project and layer config) **M, L**; metadata validation **M, M**; Jupyter/R **out of scope** | missing: repository/SDI clearinghouse connectors (CKAN covers many) |
 | 14 | **Real estate and site selection** | buffers + `estimate_population_exposure`, service areas as drive-time polygons, MCDA, OSM POI fetch, dashboard | **Huff gravity model H, M** (pure maths over a distance matrix that already exists); weighted centre of gravity **M, S**; revenue scenarios from explicit inputs only (no invented market rates) **M, S** | missing: census and spending indices (user-supplied), Google Places is licensed (user key only) |
-| 15 | **Defense and intelligence** | change detection, slope, geocoding, web search | **Not planned as written. Needs an owner decision (section 7).** What is safe and useful (open-source conflict and access analysis for aid and security teams) belongs under personas 2 and 12 | ACLED needs a licence key; classified feeds must never be used with this plugin |
+| 15 | **Defense and intelligence** (accepted: not built as written) | change detection, slope, geocoding, web search | **Not planned as written. Needs an owner decision (section 7).** What is safe and useful (open-source conflict and access analysis for aid and security teams) belongs under personas 2 and 12 | ACLED needs a licence key; classified feeds must never be used with this plugin |
 
 ### Common shortfalls that cut across personas (not tied to one)
 - **Task register coverage:** seed it with the document's three-to-four tasks per persona (about 50 tasks), then grow it the way category 36 was
@@ -157,23 +172,19 @@ Order by how many personas a source serves and how little it needs:
 Licensed or closed sources (HERE, TomTom, Google Places, MarineTraffic/AIS, commercial Maxar/Planet, SCADA, mobile telemetry, classified
 feeds) are **not integrated**: the plugin accepts a user-supplied file or user-supplied key and says so; it never bundles or resells them.
 
-## 7. Decisions and boundaries that need the owner
+## 7. Decisions and boundaries
 
-1. **Persona 15 (defense and intelligence).** Terrain mobility for mechanised units, fusing classified imagery, and OSINT scraping for targeting
-   are dual-use, and this plugin sends context to cloud models by default, which is incompatible with classified work. Recommendation: do not
-   ship a "defense" persona as written; keep the id so existing settings do not break, map it to a **"conflict and access analysis (open
-   sources)"** pack under personas 2 and 12 (access constraints, ACLED-style event density, route risk), and state in the picker that classified
-   data must not be used with this plugin. Your call.
-2. **One persona or several?** Recommendation: one primary + one optional secondary.
-3. **Re-rank only, never hide tools?** Recommendation: yes (and never tier-gate).
-4. **Dependency policy.** Everything above is planned on numpy/GDAL/QGIS-native (what the repo uses now). OR-Tools (VRP), scikit-learn
-   (classification), scipy and rasterio would make some tools better but are not guaranteed in a QGIS install and the plugin has no installer for
-   them. Recommendation: numpy-only first; optional accelerators later, detected at run time.
-5. **Regional conventions:** the utility colour code (APWA is US; other regions differ) and the land-use palette. Needs your choice or a setting.
-6. **IFC/Revit to CityGML and 3D digital twins:** needs FME or ifcopenshell and a 3D pipeline. Recommendation: out of scope; document the
-   hand-off (export from the BIM tool, load in QGIS) instead.
-7. **Prediction tools** (crop yield, scenario land use, revenue): only with explicit user inputs and a stated model; no default coefficients.
-   Recommendation: build scenario *allocation* and *calculators*, not forecasts.
+**Accepted by the owner (2026-10-04):**
+1. **Persona 15.** Not built as written. The id is kept so settings do not break; it maps to an open-source **conflict and access analysis** pack
+   under personas 2 and 12 (access constraints, ACLED-style event density, route risk). The picker states that classified data must not be
+   used with this plugin. No terrain mobility for mechanised units, no classified-imagery fusion.
+2. **Dependencies:** numpy/GDAL/QGIS-native only for now; no OR-Tools, scikit-learn, scipy. Optional accelerators may be added later, detected at run time.
+3. **Licensed data:** HERE, TomTom, Google Places, AIS/MarineTraffic and commercial imagery are user-supplied only (file or user key), never bundled.
+4. **Out of scope:** IFC/Revit to CityGML and 3D digital twins (document the hand-off instead); yield and revenue prediction without explicit
+   user inputs (build scenario allocation and calculators, not forecasts).
+
+**Still open (my recommendation in brackets):** one primary + one optional secondary persona (yes); persona re-ranks tools and never hides or
+tier-gates them (yes); regional conventions, namely the utility colour code (APWA is US) and the land-use palette (a setting, you choose the defaults).
 
 ## 8. Phased plan
 
