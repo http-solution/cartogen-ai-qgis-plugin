@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (186 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (187 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1897,6 +1897,21 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `layer_name` | string | yes |  |
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
+
+## task_grid_tools
+
+### `generate_mapping_task_grid`
+
+Split an area of interest into a grid of square mapping tasks for remote or crowd mapping (Tasking Manager style), so volunteers can digitise roads and buildings without overlapping. Cells are cell_size_m wide (measured in a local metric projection) and clipped to the area. Optionally ranks tasks High / Medium / Low by how many points of priority_points_layer fall in each (e.g. damage reports, existing buildings) or by the population in population_raster_layer, so the most important cells are mapped first. Creates a polygon layer and can write the tasks as GeoJSON (EPSG:4326, properties task_id, area_km2, value, priority) for import into a tasking tool; it has NOT been checked against a specific Tasking Manager instance's import rules.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `aoi_layer` | string | yes | Polygon layer with the area of interest. |
+| `cell_size_m` | number | no | Task width in metres (minimum 100). Default 2000. |
+| `priority_points_layer` | string | no | Optional point (or other vector) layer; the priority value is the number of its features in each cell. |
+| `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
+| `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
+| `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
 
 ## tool_operations_tools
 
