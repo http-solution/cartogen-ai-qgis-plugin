@@ -430,6 +430,13 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             to_net = QgsCoordinateTransform(fac_crs, net_crs, context.transformContext())
         child_cost = child_travel_cost(strategy_idx, cost)
 
+        # native:serviceareafrompoint measures with the context's ellipsoid; a context without one measures in layer units
+        # (degrees for a WGS84 network), so the 100 s / 1 km live tests returned the whole 5 km road whatever the cost.
+        # setProject alone does not provide an ellipsoid, and "NONE" is a truthy sentinel, so check it by value.
+        project = context.project()
+        project_ellipsoid = project.ellipsoid() if project else ""
+        context.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+
         sink = dest_id = sink_fields = None
         failures, skipped_multipart, reached = [], 0, 0
         for idx, feat in enumerate(facility_features):
