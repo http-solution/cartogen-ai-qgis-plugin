@@ -67,7 +67,7 @@ class TestApplyNetworkBarriers(unittest.TestCase):
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["segments_affected"], 1)
         a, b, c = _speeds(roads, "barrier_speed")
-        self.assertEqual(a, 0.1)
+        self.assertEqual(a, -1.0)          # closed: the routing tools remove it from the network
         self.assertEqual(b, 60.0)
         self.assertEqual(c, 30.0)          # no speed value -> the default
         self.assertIn("warning", res)

@@ -31,6 +31,7 @@ intersect steps have not been run against a real QGIS session either.
 import datetime
 import time
 from .registry import register_tool
+from ._network_closure import routable_network
 from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
@@ -435,6 +436,24 @@ def _run_network_algorithm(algorithm_id, params, context, network, label):
 
 def _cancelled_result(what):
     return {"error": f"Stopped before the {what} finished. Nothing was added to the project.", "cancelled": True}
+
+
+def _closed_note(closed):
+    """Result entry for the closed segments that were left out of the routing network, or {}. Pure."""
+    if not closed:
+        return {}
+    return {"closed_segments_removed": closed,
+            "closed_note": f"{closed} closed road segment(s) (negative speed in the speed field) were removed from the network "
+                           "for this analysis; no route or service area crosses them."}
+
+
+def _open_network(network, speed_field, layer_name):
+    """(network_to_route_on, closed_count, error) -- the network without closed segments (audit F19, #155; see
+    _network_closure). `layer_name` only words the error."""
+    open_network, closed, error = routable_network(network, speed_field)
+    if error:
+        return None, closed, f"'{layer_name}': {error}"
+    return open_network, closed, None
 
 
 def _network_geometry_error(network, layer_name):
@@ -958,6 +977,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return {"error": f"Layer '{stops_layer}' not found"}
 
     network = None
+    closed_segments = 0
     extra_params = {}
     if road_network_layer is not None:
         network = _find_layer_by_name(road_network_layer)
@@ -966,6 +986,9 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         geometry_error = _network_geometry_error(network, road_network_layer)
         if geometry_error:
             return {"error": geometry_error}
+        network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
+        if closed_error:
+            return {"error": closed_error}
         extra_params, field_error = _network_direction_speed_params(
             network, speed_field, direction_field, value_forward, value_backward, value_both
         )
@@ -1017,6 +1040,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "stop_count": n,
             "route_order": ordered_names,
             "network_aware_ordering": network_aware,
+            **_closed_note(closed_segments),
         }
         if total_distance is not None:
             # With strategy='fastest' the matrix cost is HOURS, not metres (#131), so it is not a distance.
@@ -1423,6 +1447,9 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
     geometry_error = _network_geometry_error(network, road_network_layer)
     if geometry_error:
         return {"error": geometry_error}
+    network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
+    if closed_error:
+        return {"error": closed_error}
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
@@ -1680,6 +1707,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             }
         if speed_field:
             result["speed_field"] = speed_field
+        result.update(_closed_note(closed_segments))
         if direction_field:
             result["direction_field"] = direction_field
         # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
@@ -1961,6 +1989,9 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
     geometry_error = _network_geometry_error(network, road_network_layer)
     if geometry_error:
         return {"error": geometry_error}
+    network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
+    if closed_error:
+        return {"error": closed_error}
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
@@ -1991,6 +2022,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             }
             if speed_field:
                 result["speed_field"] = speed_field
+            result.update(_closed_note(closed_segments))
             if direction_field:
                 result["direction_field"] = direction_field
             return result
@@ -2036,6 +2068,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         }
         if speed_field:
             result["speed_field"] = speed_field
+        result.update(_closed_note(closed_segments))
         if direction_field:
             result["direction_field"] = direction_field
         return result

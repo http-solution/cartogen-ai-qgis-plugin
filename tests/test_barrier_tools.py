@@ -3,6 +3,7 @@
 import unittest
 
 from cartogen_ai.core.agent.tools import barrier_tools as b
+from cartogen_ai.core.agent.tools._network_closure import CLOSED_SPEED_KMH
 
 
 class TestUtmEpsg(unittest.TestCase):
@@ -21,12 +22,16 @@ class TestEffectiveSpeed(unittest.TestCase):
     def test_a_miss_keeps_the_base_speed(self):
         self.assertEqual(b.effective_speed(50.0, False, "block", 0.25), 50.0)
 
-    def test_block_gives_the_floor(self):
-        self.assertEqual(b.effective_speed(50.0, True, "block", 0.25), b._BLOCKED_SPEED_KMH)
+    def test_block_closes_the_segment(self):
+        self.assertEqual(b.effective_speed(50.0, True, "block", 0.25), CLOSED_SPEED_KMH)
+
+    def test_a_closed_segment_stays_closed(self):
+        self.assertEqual(b.effective_speed(CLOSED_SPEED_KMH, False, "block", 0.25), CLOSED_SPEED_KMH)
+        self.assertEqual(b.effective_speed(CLOSED_SPEED_KMH, True, "penalise", 0.25), CLOSED_SPEED_KMH)
 
     def test_penalise_scales_and_never_goes_below_the_floor(self):
         self.assertEqual(b.effective_speed(40.0, True, "penalise", 0.25), 10.0)
-        self.assertEqual(b.effective_speed(0.2, True, "penalise", 0.25), b._BLOCKED_SPEED_KMH)
+        self.assertEqual(b.effective_speed(0.2, True, "penalise", 0.25), b._SLOW_FLOOR_KMH)
 
 
 class TestValidateOptions(unittest.TestCase):
@@ -44,12 +49,12 @@ class TestValidateOptions(unittest.TestCase):
 
 
 class TestNotes(unittest.TestCase):
-    def test_always_warns_that_shortest_ignores_the_speed_field(self):
+    def test_slowing_warns_that_shortest_does_not_read_the_speed_field(self):
         self.assertTrue(any("shortest" in n for n in b._result_notes("penalise", True)))
 
-    def test_block_note_says_it_is_not_a_true_closure(self):
-        self.assertTrue(any("not a true closure" in n for n in b._result_notes("block", True)))
-        self.assertFalse(any("not a true closure" in n for n in b._result_notes("penalise", True)))
+    def test_block_note_says_the_segments_are_removed_for_any_strategy(self):
+        self.assertTrue(any("removed from the network" in n for n in b._result_notes("block", True)))
+        self.assertFalse(any("removed from the network" in n for n in b._result_notes("penalise", True)))
 
     def test_missing_speed_field_is_disclosed(self):
         self.assertTrue(any("30 km/h" in n for n in b._result_notes("block", False)))

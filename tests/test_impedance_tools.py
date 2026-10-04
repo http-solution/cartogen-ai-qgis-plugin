@@ -8,8 +8,9 @@ from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.impedance_tools import (
     build_composite_impedance_field, _slope_penalty,
     _HIGHWAY_BASE_SPEED_KMH, _SURFACE_PENALTY, _DEFAULT_BASE_SPEED_KMH,
-    _DEFAULT_SURFACE_PENALTY, _MIN_EFFECTIVE_SPEED_KMH,
+    _DEFAULT_SURFACE_PENALTY,
 )
+from cartogen_ai.core.agent.tools._network_closure import CLOSED_SPEED_KMH
 
 
 def _mock_network(field_names, features):
@@ -187,7 +188,7 @@ class TestDamageField(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsField", create=True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QVariant", create=True)
-    def test_zero_damage_value_floors_at_minimum_speed_not_zero(self, mock_variant, mock_field, mock_project):
+    def test_zero_damage_value_is_written_as_closed_not_floored(self, mock_variant, mock_field, mock_project):
         feat = _mock_feature({"highway": "residential", "damage": "0.0"})
         network = _mock_network(["highway", "damage"], [feat])
         mock_project.instance.return_value.mapLayersByName.return_value = [network]
@@ -195,7 +196,7 @@ class TestDamageField(unittest.TestCase):
         build_composite_impedance_field("roads", damage_field="damage")
 
         called_value = network.changeAttributeValue.call_args[0][2]
-        self.assertEqual(called_value, _MIN_EFFECTIVE_SPEED_KMH)
+        self.assertEqual(called_value, CLOSED_SPEED_KMH)
 
 
 class TestFieldCreation(unittest.TestCase):

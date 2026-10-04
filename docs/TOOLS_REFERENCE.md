@@ -1562,7 +1562,7 @@ Zoom canvas to extent of layer.
 
 ### `apply_network_barriers`
 
-Put blocked or degraded places into a road network for routing: destroyed bridges, checkpoints, flooded stretches or any other barrier layer (points, lines or polygons such as a flood extent). Every road segment within buffer_m metres of a barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep their speed. Writes the result to a new numeric speed field (km/h) on the road layer, and draws the affected segments as a separate red (blocked) or orange (slowed) layer '<roads>_barrier_affected' so the effect is visible on the map; pass that field as speed_field to calculate_service_area / travel_time_matrix / optimize_delivery_route with strategy='fastest'. IMPORTANT: with strategy='shortest' the speed field is ignored and barriers have no effect, and 'block' is a near-zero speed rather than a true closure. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it unaffected segments are 30 km/h.
+Put blocked or degraded places into a road network for routing: destroyed bridges, checkpoints, flooded stretches or any other barrier layer (points, lines or polygons such as a flood extent). Every road segment within buffer_m metres of a barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep their speed. Writes the result to a new numeric speed field (km/h) on the road layer, and draws the affected segments as a separate red (blocked) or orange (slowed) layer '<roads>_barrier_affected' so the effect is visible on the map; pass that field as speed_field to calculate_service_area / travel_time_matrix / optimize_delivery_route. Blocked segments are REMOVED from the network by those tools (any strategy), so nothing can cross them; slowed segments only matter with strategy='fastest'. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it unaffected segments are 30 km/h.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1747,7 +1747,7 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `road_network_layer` | string | yes | Line layer representing the road/path network. |
 | `highway_field` | string | no | Field holding the OSM highway=* class (e.g. 'primary', 'track'). Defaults to 'highway'. |
 | `surface_field` | string | no | Field holding the OSM surface=* value (e.g. 'paved', 'gravel'). Defaults to 'surface'. |
-| `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=impassable, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
+| `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 
