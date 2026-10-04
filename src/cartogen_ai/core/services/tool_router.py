@@ -131,6 +131,11 @@ _TOOL_ALIASES = {
         "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts", "prioritise areas",
         "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
     ],
+    "apply_humanitarian_look": [
+        "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
+        "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
+        "style the ranking", "show the rank on the map",
+    ],
     "aggregate_survey_indicator": [
         "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results", "proportion of households",
         "share of households", "percentage of households",

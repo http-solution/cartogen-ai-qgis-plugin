@@ -10,6 +10,7 @@ apply_graduated_style (mean/variance/skewness computed by hand there too).
 import datetime
 import os
 from .registry import register_tool
+from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure
 from .multimodal_remote_sensing import calculate_raster_change_detection
 
@@ -291,7 +292,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
 
 @register_tool(
     "calculate_severity_index",
-    "Build a composite multi-indicator severity/needs index across admin units (JIAF/INFORM-style), "
+    "Build a composite multi-indicator severity/needs index across admin units (a simple weighted min-max index in the style of INFORM/JIAF -- exploratory analysis only: it is NOT the JIAF method, so never call its result JIAF-compliant or an official severity classification), "
     "the standard basis for prioritizing which areas receive funding. Takes several numeric indicator "
     "fields already on a polygon layer's attribute table (e.g. food insecurity %, displacement %, "
     "protection incidents, WASH coverage), min-max normalizes each so higher always means worse, "
@@ -372,6 +373,7 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
         else:
             result["output_field"] = output_field
             result["layer_name"] = layer_name
+            result["map_look"] = look_hint(layer_name, "severity", output_field)
 
     result["results"], _, result["truncated"] = _cap_entries(result["results"])
     if result["truncated"]:
@@ -626,6 +628,7 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
         else:
             result["output_field"] = output_field
             result["layer_name"] = layer_name
+            result["map_look"] = look_hint(layer_name, "presence_gap", output_field)
     return result
 
 
@@ -808,6 +811,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
         else:
             result["output_field"] = output_field
             result["layer_name"] = layer_name
+            result["map_look"] = look_hint(layer_name, "people_in_need", output_field)
     return result
 
 
@@ -1081,6 +1085,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         else:
             result["output_field"] = output_field
             result["layer_name"] = admin_layer
+            result["map_look"] = look_hint(admin_layer, "severity", output_field)
     return result
 
 

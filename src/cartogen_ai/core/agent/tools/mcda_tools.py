@@ -19,6 +19,7 @@ import random
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
+from .humanitarian_style import look_hint
 
 try:
     from qgis.core import QgsProject
@@ -272,6 +273,7 @@ def calculate_mcda_ranking(layer_name, criteria, unit_name_field=None, top_k=Non
                         set_value(layer, fid, idx[k], r[k])
             result["output_prefix"] = output_prefix
             result["layer_name"] = layer_name
+            result["map_look"] = look_hint(layer_name, "rank", f"{output_prefix}_rank", top_k=top_k)
             if not owned:
                 result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
         except EditError as e:
