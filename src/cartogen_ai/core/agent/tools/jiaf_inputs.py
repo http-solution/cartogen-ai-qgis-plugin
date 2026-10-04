@@ -140,9 +140,12 @@ def read_grid(path, sheet=None):
     if ext in (".xlsx", ".xlsm"):
         import openpyxl
         wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-        names = list(wb.sheetnames)
-        ws = wb[sheet] if sheet else wb[names[0]]
-        return [list(r) for r in ws.iter_rows(values_only=True)], names
+        try:
+            names = list(wb.sheetnames)
+            ws = wb[sheet] if sheet else wb[names[0]]
+            return [list(r) for r in ws.iter_rows(values_only=True)], names
+        finally:
+            wb.close()
     raise ValueError(f"Unsupported file type '{ext}' -- use .xlsx or .csv.")
 
 
@@ -150,7 +153,10 @@ def read_sheets(path):
     """{sheet name: grid} for every sheet of an Excel file."""
     import openpyxl
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+    try:
+        return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+    finally:
+        wb.close()
 
 
 def _find_header_row(grid, must):
@@ -290,18 +296,21 @@ def read_workbook_tables(path):
     read-only) load because the tables are not visible otherwise. Named cells whose target is broken (#REF!) are left out."""
     import openpyxl
     wb = openpyxl.load_workbook(path, data_only=True)
-    tables = {}
-    for ws in wb.worksheets:
-        for t in ws.tables.values():
-            tables[t.name] = {"sheet": ws.title, "ref": t.ref, "grid": [[c.value for c in r] for r in ws[t.ref]]}
-    names = {}
-    for name, d in wb.defined_names.items():
-        try:
-            for sheet, coord in d.destinations:
-                names[name] = wb[sheet][coord.replace("$", "")].value
-        except Exception:
-            continue
-    return {"tables": tables, "names": names}
+    try:
+        tables = {}
+        for ws in wb.worksheets:
+            for t in ws.tables.values():
+                tables[t.name] = {"sheet": ws.title, "ref": t.ref, "grid": [[c.value for c in r] for r in ws[t.ref]]}
+        names = {}
+        for name, d in wb.defined_names.items():
+            try:
+                for sheet, coord in d.destinations:
+                    names[name] = wb[sheet][coord.replace("$", "")].value
+            except Exception:
+                continue
+        return {"tables": tables, "names": names}
+    finally:
+        wb.close()  # Windows keeps the file locked otherwise (CI: PermissionError WinError 32 when the caller deletes it)
 
 
 def worksheet_thresholds(wb_tables):
