@@ -170,6 +170,23 @@ class TestGeomsInCrs(unittest.TestCase):
             _geoms_in_crs([MagicMock()], a, b)
 
 
+class TestUniqueLabels(unittest.TestCase):
+    """#159: first-attribute keys used to collapse duplicate or NULL names into one entry."""
+
+    def test_unique_names_are_unchanged(self):
+        self.assertEqual(lt.unique_labels(["A", "B"], "stop"), ["A", "B"])
+
+    def test_duplicates_and_nulls_each_get_their_own_label(self):
+        out = lt.unique_labels(["A", "A", None, "", "NULL", "B"], "origin")
+        self.assertEqual(len(set(out)), 6)
+        self.assertEqual(out[0], "A [#1]")
+        self.assertEqual(out[2], "origin_3")
+        self.assertEqual(out[5], "B")
+
+    def test_numbers_are_labelled_as_text(self):
+        self.assertEqual(lt.unique_labels([1, 2], "x"), ["1", "2"])
+
+
 class TestRankHubCandidates(unittest.TestCase):
     """Pure Python, no QGIS needed."""
 

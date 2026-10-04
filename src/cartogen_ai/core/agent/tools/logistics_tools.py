@@ -91,6 +91,28 @@ def _check_hub_siting_pair_count(candidate_count, demand_count, tool_name):
     return None
 
 
+def unique_labels(raw_labels, fallback_prefix):
+    """One distinct text label per feature, in order. Pure.
+
+    These tools keyed their results by the layer's first attribute, so two features with the same name, or a NULL name,
+    overwrote each other and silently dropped candidates, stops or origins (audit F23, #159). A unique label is kept as is;
+    a repeated one becomes 'name [#n]' (n = 1-based position), an empty/NULL one '<fallback_prefix>_<n>'."""
+    texts = [None if v is None or str(v).strip() in ("", "NULL") else str(v) for v in raw_labels]
+    counts = {}
+    for t in texts:
+        if t is not None:
+            counts[t] = counts.get(t, 0) + 1
+    out = []
+    for i, t in enumerate(texts, start=1):
+        if t is None:
+            out.append(f"{fallback_prefix}_{i}")
+        elif counts[t] > 1:
+            out.append(f"{t} [#{i}]")
+        else:
+            out.append(t)
+    return out
+
+
 def _make_distance_area(layer):
     """A QgsDistanceArea configured for real-world (ellipsoidal, in metres) distance in the layer's CRS, or None when it
     cannot be set up (the caller then reports it; see optimal_hub_siting / location_allocation).
@@ -635,12 +657,11 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
 
         distance_area = _make_distance_area(candidates)
         candidate_distances = {}
-        for i, cand_feat in enumerate(candidates.getFeatures()):
-            cand_geom = cand_feat.geometry()
-            if cand_geom.isEmpty():
-                continue
-            name = cand_feat.attribute(0) if cand_feat.fields().count() else f"candidate_{i}"
-            candidate_distances[str(name)] = [_measure_distance(distance_area, cand_geom, dg) for dg in demand_geoms]
+        usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
+        candidate_names = unique_labels(
+            [f.attribute(0) if f.fields().count() else None for f in usable_candidates], "candidate")
+        for cand_feat, name in zip(usable_candidates, candidate_names):
+            candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
@@ -787,12 +808,11 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
 
         distance_area = _make_distance_area(candidates)
         candidate_distances = {}
-        for i, cand_feat in enumerate(candidates.getFeatures()):
-            cand_geom = cand_feat.geometry()
-            if cand_geom.isEmpty():
-                continue
-            name = cand_feat.attribute(0) if cand_feat.fields().count() else f"candidate_{i}"
-            candidate_distances[str(name)] = [_measure_distance(distance_area, cand_geom, dg) for dg in demand_geoms]
+        usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
+        candidate_names = unique_labels(
+            [f.attribute(0) if f.fields().count() else None for f in usable_candidates], "candidate")
+        for cand_feat, name in zip(usable_candidates, candidate_names):
+            candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
@@ -958,7 +978,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             return {"error": f"'{stops_layer}' needs at least 2 usable point features."}
 
         has_name_field = feats[0].fields().count() > 0
-        names = [str(f.attribute(0)) if has_name_field else f"stop_{i}" for i, f in enumerate(feats)]
+        names = unique_labels([f.attribute(0) if has_name_field else None for f in feats], "stop")
         geoms = [f.geometry() for f in feats]
 
         start_index = 0
@@ -1858,8 +1878,8 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
         return {"error": "The destination layer has no usable point features."}
     ellipsoid = _network_context().ellipsoid()
     matrix, unreachable = {}, 0
-    for i, origin_feat in enumerate(origin_features):
-        origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
+    origin_ids = unique_labels([f.attribute(0) if f.fields().count() else None for f in origin_features], "origin")
+    for origin_feat, origin_id in zip(origin_features, origin_ids):
         try:
             origin_xy = _point_xy_in_network_crs(origin_feat.geometry().asPoint(), origins.crs(), network)
             dest_xys = [_point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network) for f in dest_feats]
@@ -1974,8 +1994,8 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             if direction_field:
                 result["direction_field"] = direction_field
             return result
-        for i, origin_feat in enumerate(origin_features):
-            origin_id = origin_feat.attribute(0) if origin_feat.fields().count() else f"origin_{i}"
+        origin_ids = unique_labels([f.attribute(0) if f.fields().count() else None for f in origin_features], "origin")
+        for origin_feat, origin_id in zip(origin_features, origin_ids):
             point = origin_feat.geometry().asPoint()
             params = {
                 "INPUT": network,

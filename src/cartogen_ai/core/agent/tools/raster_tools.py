@@ -79,6 +79,55 @@ def _algorithm_available(alg_id):
         return False
 
 
+def grid_differences(signatures):
+    """Reasons the rasters do not share one pixel grid; [] when they do. Pure.
+
+    `signatures` is a list of (name, crs_key, width, height, xmin, ymax, pixel_x, pixel_y). Audit F17 (#153): the tools only
+    compared CRS auth ids, so rasters with the same CRS but a different extent, origin or resolution were combined pixel by
+    pixel by GDAL (which checks dimensions, not geography) into a meaningless result, and two custom CRSs both have an
+    empty auth id. Compared against the first raster, with a tolerance of 1e-6 of a pixel for origin and size."""
+    problems = []
+    if len(signatures) < 2:
+        return problems
+    ref = signatures[0]
+    for sig in signatures[1:]:
+        reasons = []
+        if sig[1] != ref[1]:
+            reasons.append("a different CRS")
+        if (sig[2], sig[3]) != (ref[2], ref[3]):
+            reasons.append(f"a different size ({sig[2]}x{sig[3]} vs {ref[2]}x{ref[3]} pixels)")
+        tol_x, tol_y = 1e-6 * abs(ref[6] or 1.0), 1e-6 * abs(ref[7] or 1.0)
+        if abs(sig[6] - ref[6]) > tol_x or abs(sig[7] - ref[7]) > tol_y:
+            reasons.append("a different pixel size")
+        if abs(sig[4] - ref[4]) > max(tol_x, 1e-6 * abs(ref[6] or 1.0)) or abs(sig[5] - ref[5]) > tol_y:
+            reasons.append("a different origin/extent")
+        if reasons:
+            problems.append(f"'{sig[0]}' has " + " and ".join(reasons) + f" than '{ref[0]}'")
+    return problems
+
+
+def _common_grid_error(layers):
+    """An error message when the raster layers are not on one pixel grid, else None. Needs QGIS."""
+    sigs = []
+    for layer in layers:
+        ext = layer.extent()
+        crs = layer.crs()
+        # The CRS definition itself is the key, not its auth id: two custom CRSs both have an empty one.
+        sigs.append((layer.name(), crs.toWkt() if crs.isValid() else "", layer.width(), layer.height(),
+                     ext.xMinimum(), ext.yMaximum(), layer.rasterUnitsPerPixelX(), layer.rasterUnitsPerPixelY()))
+    problems = grid_differences(sigs)
+    if not problems:
+        return None
+    return ("The rasters are not on the same pixel grid: " + "; ".join(problems) + ". Combining them pixel by pixel would "
+            "give a meaningless result. Resample/warp them onto one grid first (e.g. the gdal:warpreproject algorithm "
+            "with the same extent and resolution).")
+
+
+def _index_expression():
+    """Normalised-difference formula with a stated rule for a zero denominator: those pixels become 0, not inf/NaN."""
+    return "numpy.where((A.astype(float)+B)==0, 0, (A.astype(float)-B)/(A.astype(float)+B))"
+
+
 def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -118,6 +167,9 @@ def calculate_ndvi(red_layer, nir_layer):
         return {"error": f"Layer '{red_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
+    grid_error = _common_grid_error([nir, red])
+    if grid_error:
+        return {"error": grid_error}
     return _run_raster_and_add(
         "gdal:rastercalculator",
         {
@@ -125,7 +177,7 @@ def calculate_ndvi(red_layer, nir_layer):
             "BAND_A": 1,
             "INPUT_B": red,
             "BAND_B": 1,
-            "FORMULA": "(A.astype(float)-B)/(A.astype(float)+B)",
+            "FORMULA": _index_expression(),
             "NO_DATA": None,
             "RTYPE": 5,
         },
@@ -155,6 +207,9 @@ def calculate_ndwi(green_layer, nir_layer):
         return {"error": f"Layer '{green_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
+    grid_error = _common_grid_error([green, nir])
+    if grid_error:
+        return {"error": grid_error}
     return _run_raster_and_add(
         "gdal:rastercalculator",
         {
@@ -162,7 +217,7 @@ def calculate_ndwi(green_layer, nir_layer):
             "BAND_A": 1,
             "INPUT_B": nir,
             "BAND_B": 1,
-            "FORMULA": "(A.astype(float)-B)/(A.astype(float)+B)",
+            "FORMULA": _index_expression(),
             "NO_DATA": None,
             "RTYPE": 5,
         },
@@ -228,12 +283,9 @@ def weighted_overlay_analysis(raster_layers, weights):
             return {"error": f"Layer '{name}' not found"}
         layers.append(layer)
 
-    crs_set = {layer.crs().authid() for layer in layers}
-    if len(crs_set) > 1:
-        return {
-            "error": f"Input rasters have mismatched CRS ({sorted(crs_set)}) -- reproject them to a "
-            "common CRS first so pixels align; combining unaligned rasters would produce a meaningless result."
-        }
+    grid_error = _common_grid_error(layers)
+    if grid_error:
+        return {"error": grid_error}
 
     params = {"NO_DATA": None, "RTYPE": 5}
     formula_terms = []
@@ -271,6 +323,9 @@ def calculate_ndre(red_edge_layer, nir_layer):
         return {"error": f"Layer '{red_edge_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
+    grid_error = _common_grid_error([nir, re])
+    if grid_error:
+        return {"error": grid_error}
     return _run_raster_and_add(
         "gdal:rastercalculator",
         {
@@ -278,7 +333,7 @@ def calculate_ndre(red_edge_layer, nir_layer):
             "BAND_A": 1,
             "INPUT_B": re,
             "BAND_B": 1,
-            "FORMULA": "(A.astype(float)-B)/(A.astype(float)+B)",
+            "FORMULA": _index_expression(),
             "NO_DATA": None,
             "RTYPE": 5,
         },
@@ -754,16 +809,31 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
         geom = features[0].geometry()
         if geom.isEmpty():
             return {"error": f"'{line_layer}'s first feature has no geometry."}
-        length = geom.length()
+        # Audit F18 (#154): the line's coordinates were sampled in the DEM as they are, and the length was planar in the
+        # line CRS's own units, so a line and DEM in different CRSs sampled the wrong places and "distance" could be degrees.
+        # Sample points are now transformed into the DEM's CRS and distances are metres on the ellipsoid.
+        from qgis.core import QgsCoordinateTransform, QgsDistanceArea
+        context = QgsProject.instance().transformContext()
+        distance_area = QgsDistanceArea()
+        distance_area.setSourceCrs(line.crs(), context)
+        project_ellipsoid = QgsProject.instance().ellipsoid()
+        distance_area.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+        length = distance_area.measureLength(geom)
         if length <= 0:
             return {"error": f"'{line_layer}'s first feature has zero length."}
+        to_dem = None
+        if line.crs().isValid() and dem.crs().isValid() and line.crs() != dem.crs():
+            to_dem = QgsCoordinateTransform(line.crs(), dem.crs(), context)
 
         provider = dem.dataProvider()
         distances = []
         elevations = []
         for i in range(num_samples):
             fraction = i / (num_samples - 1)
-            point = geom.interpolate(fraction * length).asPoint()
+            # interpolate() works in the line's own units, so the position is a fraction of the line, not of the metres.
+            point = geom.interpolate(fraction * geom.length()).asPoint()
+            if to_dem is not None:
+                point = to_dem.transform(point)
             value, ok = provider.sample(point, 1)
             distances.append(round(fraction * length, 2))
             elevations.append(value if ok else None)
@@ -777,6 +847,8 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
             "line_layer": line_layer,
             "dem_layer": dem_layer,
             "total_length": round(length, 2),
+            "distance_unit": "metres (ellipsoidal)",
+            "elevation_unit_note": "Elevations are the DEM's own values; their vertical unit is not checked and is assumed to be metres.",
             "sample_count": num_samples,
             "valid_sample_count": valid_count,
             "distances": distances,
@@ -1075,7 +1147,8 @@ def _describe_population_raster(layer_name):
     "Sum population within each polygon of a vector layer, using an already-loaded population "
     "raster (e.g. from fetch_worldpop_population) -- e.g. 'how many people live within 5km of "
     "this facility' (combine with buffer_analysis first to build the area), or 'population per "
-    "district' (pass admin boundaries directly). Adds a 'pop_sum' field to the vector layer. "
+    "district' (pass admin boundaries directly). Does not modify the vector layer; returns one total per zone (keyed by "
+    "name, made unique when names repeat) and says whether zones overlap. "
     "Returns an ESTIMATE derived from a gridded population raster, not a verified count of people "
     "actually present -- report results as 'estimated population within <area>', never as a "
     "confirmed or affected-population figure, unless field data corroborates it.",
@@ -1101,25 +1174,27 @@ def estimate_population_exposure(population_raster_layer, area_layer):
         return {"error": "area_layer must be a polygon layer."}
 
     try:
-        from qgis.analysis import QgsZonalStatistics
-        stat_enum = getattr(QgsZonalStatistics, "Statistic", QgsZonalStatistics)
-        sum_flag = getattr(stat_enum, "Sum", None)
-        if sum_flag is None:
-            return {"error": "Could not resolve QgsZonalStatistics.Sum in this QGIS version."}
+        # Audit F23/F24 (#159, #160): this used to run QgsZonalStatistics ON the caller's layer (adding pop_* fields; a
+        # repeat run could add a suffixed field while the old one was read), keyed the answer by the first attribute (so
+        # duplicate or NULL names overwrote each other and the total undercounted), and summed overlapping zones silently.
+        # Now: statistics are computed on a detached copy, every zone is reported under its own feature id, and the
+        # overlap rule is stated. Decision (owner, 2026-10-04): totals are PER ZONE; total_population is their plain sum.
+        zone_sums = _zonal_sums_detached(raster, vector)
+        if zone_sums is None:
+            return {"error": "Zonal statistics produced no population field -- check area_layer overlaps the raster."}
 
-        zonal = QgsZonalStatistics(vector, raster, "pop_", 1, sum_flag)
-        zonal.calculateStatistics(None)
-
-        if vector.fields().indexFromName("pop_sum") < 0:
-            return {"error": "Zonal statistics ran but no 'pop_sum' field was created -- check area_layer overlaps the raster."}
-
-        totals = {}
-        has_name_field = vector.fields().count() > 0
-        for i, feat in enumerate(vector.getFeatures()):
-            key = feat.attribute(0) if has_name_field else f"feature_{i}"
-            totals[str(key)] = feat.attribute("pop_sum")
+        name_field = vector.fields()[0].name() if vector.fields().count() > 0 else None
+        zones = []
+        for feat in vector.getFeatures():
+            label = feat.attribute(name_field) if name_field else None
+            zones.append({"feature_id": feat.id(), "label": None if label in (None, "") else str(label),
+                          "population": zone_sums.get(feat.id())})
+        keys = unique_zone_keys([(z["feature_id"], z["label"]) for z in zones])
+        totals = {keys[z["feature_id"]]: z["population"] for z in zones}
+        zones_without_value = [keys[z["feature_id"]] for z in zones if z["population"] is None]
 
         total_population = sum(v for v in totals.values() if v is not None)
+        overlap_pairs = _overlapping_zone_count(vector)
         pop_source, pop_reference_year = _describe_population_raster(population_raster_layer)
 
         return {
@@ -1127,7 +1202,12 @@ def estimate_population_exposure(population_raster_layer, area_layer):
             "area_layer": area_layer,
             "population_raster_layer": population_raster_layer,
             "totals": totals,
+            "zones": zones,
             "total_population": total_population,
+            "zones_without_value": zones_without_value,
+            "overlap_rule": ("Each zone is summed on its own. total_population is the plain sum of the zones, so people "
+                             "inside two overlapping zones are counted in both."),
+            "overlapping_zone_pairs": overlap_pairs,
             # Point 9 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: a
             # zonal sum of a gridded population raster is an ESTIMATE of exposure,
             # not a verified count of people actually affected. These fields make
@@ -1150,18 +1230,80 @@ def estimate_population_exposure(population_raster_layer, area_layer):
         return {"error": f"estimate_population_exposure failed: {e}"}
 
 
-def _zonal_population_total(raster, polygon_layer):
-    """Sum a population raster inside every polygon of `polygon_layer` (a scratch layer is fine: the pop_ fields are added
-    to it). Returns the total, or None when the sum could not be computed."""
+def unique_zone_keys(zones):
+    """{feature_id: unique display key} for [(feature_id, label-or-None), ...]. Pure.
+
+    A label that is unique is used as is; a duplicate, empty or NULL label becomes '<label> [#<id>]' / 'feature <id>', so
+    two zones can never share a key and overwrite each other (#159)."""
+    counts = {}
+    for _fid, label in zones:
+        if label:
+            counts[label] = counts.get(label, 0) + 1
+    keys = {}
+    for fid, label in zones:
+        if not label:
+            keys[fid] = f"feature {fid}"
+        elif counts[label] > 1:
+            keys[fid] = f"{label} [#{fid}]"
+        else:
+            keys[fid] = label
+    return keys
+
+
+def _zonal_sums_detached(raster, polygon_layer):
+    """{feature id of `polygon_layer`: raster sum or None} computed on a geometry-only copy, so the caller's layer gets no
+    new fields and a repeat run cannot read a stale one (#160). None when the statistics could not be computed at all."""
     from qgis.analysis import QgsZonalStatistics
+    from qgis.core import QgsFeature, QgsVectorLayer
     stat_enum = getattr(QgsZonalStatistics, "Statistic", QgsZonalStatistics)
     sum_flag = getattr(stat_enum, "Sum", None)
     if sum_flag is None or polygon_layer is None or polygon_layer.featureCount() == 0:
         return None
-    QgsZonalStatistics(polygon_layer, raster, "pop_", 1, sum_flag).calculateStatistics(None)
-    if polygon_layer.fields().indexFromName("pop_sum") < 0:
+    scratch = QgsVectorLayer(f"Polygon?crs={polygon_layer.crs().authid()}", "zonal_scratch", "memory")
+    if not scratch.isValid():
         return None
-    return sum(v for v in (f.attribute("pop_sum") for f in polygon_layer.getFeatures()) if v is not None)
+    original_ids, copies = [], []
+    for feat in polygon_layer.getFeatures():
+        copy = QgsFeature()
+        copy.setGeometry(feat.geometry())
+        copies.append(copy)
+        original_ids.append(feat.id())
+    scratch.dataProvider().addFeatures(copies)
+    QgsZonalStatistics(scratch, raster, "pop_", 1, sum_flag).calculateStatistics(None)
+    if scratch.fields().indexFromName("pop_sum") < 0:
+        return None
+    # A memory layer numbers its features in insertion order, which is how the originals are matched back.
+    values = [f.attribute("pop_sum") for f in sorted(scratch.getFeatures(), key=lambda f: f.id())]
+    return {fid: (None if v is None or v != v else v) for fid, v in zip(original_ids, values)}
+
+
+def _zonal_population_total(raster, polygon_layer):
+    """Sum a population raster inside every polygon of `polygon_layer`. Returns the total, or None when the sum could not
+    be computed. Works on a detached copy: the layer is not modified."""
+    sums = _zonal_sums_detached(raster, polygon_layer)
+    if sums is None:
+        return None
+    return sum(v for v in sums.values() if v is not None)
+
+
+def _overlapping_zone_count(polygon_layer, limit=2000):
+    """How many pairs of zones overlap (positive-area intersection); 0 when there are more than `limit` zones, which are
+    not checked. Needs QGIS."""
+    try:
+        from qgis.core import QgsSpatialIndex
+        feats = {f.id(): f for f in polygon_layer.getFeatures()}
+        if len(feats) > limit:
+            return 0
+        index = QgsSpatialIndex(polygon_layer.getFeatures())
+        pairs = 0
+        for fid, feat in feats.items():
+            geom = feat.geometry()
+            for other in index.intersects(geom.boundingBox()):
+                if other > fid and geom.intersection(feats[other].geometry()).area() > 0:
+                    pairs += 1
+        return pairs
+    except Exception:
+        return 0
 
 
 def _service_area_reach_figures(raster, area_layer):

@@ -190,17 +190,48 @@ class TestWeightedOverlayAnalysisValidation(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
-    def test_rejects_mismatched_crs(self, mock_find):
-        layer_a = MagicMock()
-        layer_a.crs.return_value.authid.return_value = "EPSG:4326"
-        layer_b = MagicMock()
-        layer_b.crs.return_value.authid.return_value = "EPSG:32636"
-        mock_find.side_effect = [layer_a, layer_b]
+    def test_rejects_rasters_that_are_not_on_one_pixel_grid(self, mock_find):
+        def layer(name, wkt, width):
+            m = MagicMock()
+            m.name.return_value = name
+            m.crs.return_value.toWkt.return_value = wkt
+            m.crs.return_value.isValid.return_value = True
+            m.width.return_value, m.height.return_value = width, 10
+            m.extent.return_value.xMinimum.return_value = 0.0
+            m.extent.return_value.yMaximum.return_value = 10.0
+            m.rasterUnitsPerPixelX.return_value = m.rasterUnitsPerPixelY.return_value = 1.0
+            return m
+        mock_find.side_effect = [layer("a", "WKT-1", 10), layer("b", "WKT-2", 10)]
 
         res = weighted_overlay_analysis(["a", "b"], [0.5, 0.5])
 
         self.assertIn("error", res)
-        self.assertIn("CRS", res["error"])
+        self.assertIn("same pixel grid", res["error"])
+        self.assertIn("different CRS", res["error"])
+
+
+class TestGridDifferences(unittest.TestCase):
+    """#153: only CRS auth ids were compared, so same-CRS rasters with another extent or resolution were combined anyway."""
+
+    @staticmethod
+    def sig(name="a", crs="C", w=10, h=10, x=0.0, y=10.0, px=1.0, py=1.0):
+        return (name, crs, w, h, x, y, px, py)
+
+    def test_identical_grids_pass(self):
+        from cartogen_ai.core.agent.tools.raster_tools import grid_differences
+        self.assertEqual(grid_differences([self.sig("a"), self.sig("b")]), [])
+
+    def test_each_kind_of_difference_is_named(self):
+        from cartogen_ai.core.agent.tools.raster_tools import grid_differences
+        base = self.sig("a")
+        self.assertIn("different CRS", grid_differences([base, self.sig("b", crs="D")])[0])
+        self.assertIn("different size", grid_differences([base, self.sig("b", w=20)])[0])
+        self.assertIn("different pixel size", grid_differences([base, self.sig("b", px=2.0)])[0])
+        self.assertIn("different origin", grid_differences([base, self.sig("b", x=0.5)])[0])
+
+    def test_float_noise_is_tolerated(self):
+        from cartogen_ai.core.agent.tools.raster_tools import grid_differences
+        self.assertEqual(grid_differences([self.sig("a"), self.sig("b", x=1e-9, px=1.0 + 1e-9)]), [])
 
 
 class TestNewToolsDegradeOutsideQgis(unittest.TestCase):
@@ -248,6 +279,17 @@ class TestInterpolateSurfaceValidation(unittest.TestCase):
 
 
 class TestElevationProfileValidation(unittest.TestCase):
+    def setUp(self):
+        # qgis.core is not importable offline: elevation_profile imports QgsCoordinateTransform/QgsDistanceArea from it.
+        self.fake_core = MagicMock()
+        self.fake_core.QgsDistanceArea.return_value.measureLength.return_value = 2000.0
+        patcher = patch.dict(sys.modules, {"qgis": MagicMock(), "qgis.core": self.fake_core})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        project = patch("cartogen_ai.core.agent.tools.raster_tools.QgsProject", create=True)
+        project.start()
+        self.addCleanup(project.stop)
+
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     def test_rejects_too_few_samples(self):
         res = elevation_profile("line", "dem", num_samples=1)
@@ -279,6 +321,30 @@ class TestElevationProfileValidation(unittest.TestCase):
         self.assertEqual(res["sample_count"], 5)
         self.assertEqual(res["valid_sample_count"], 5)
         self.assertEqual(res["elevations"], [123.4] * 5)
+        # distances are the ellipsoidal metres (2000 here), not the planar length in the line CRS's units (100)
+        self.assertEqual(res["total_length"], 2000.0)
+        self.assertEqual(res["distances"][-1], 2000.0)
+
+    @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
+    def test_sample_points_are_transformed_into_the_dem_crs(self, mock_find):
+        # #154: the line was sampled in the DEM without a transform.
+        line_layer, dem_layer = MagicMock(), MagicMock()
+        line_geom = MagicMock()
+        line_geom.isEmpty.return_value = False
+        line_geom.length.return_value = 0.02
+        line_geom.interpolate.return_value.asPoint.return_value = "line-crs-point"
+        line_layer.getFeatures.return_value = [MagicMock(geometry=MagicMock(return_value=line_geom))]
+        line_layer.crs.return_value = MagicMock(isValid=MagicMock(return_value=True), __ne__=lambda a, b: True)
+        dem_layer.crs.return_value = MagicMock(isValid=MagicMock(return_value=True))
+        dem_layer.dataProvider.return_value.sample.return_value = (5.0, True)
+        self.fake_core.QgsCoordinateTransform.return_value.transform.return_value = "dem-crs-point"
+        mock_find.side_effect = lambda name: {"line": line_layer, "dem": dem_layer}.get(name)
+
+        res = elevation_profile("line", "dem", num_samples=2)
+
+        self.assertTrue(res["success"])
+        dem_layer.dataProvider.return_value.sample.assert_called_with("dem-crs-point", 1)
 
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
@@ -473,6 +539,22 @@ class TestEstimatePopulationExposureValidation(unittest.TestCase):
         self.assertIn("polygon", res["error"])
 
 
+class TestUniqueZoneKeys(unittest.TestCase):
+    """#159: duplicate or NULL names used to overwrite each other in the totals dict, undercounting."""
+
+    def test_unique_labels_are_kept(self):
+        from cartogen_ai.core.agent.tools.raster_tools import unique_zone_keys
+        self.assertEqual(unique_zone_keys([(1, "A"), (2, "B")]), {1: "A", 2: "B"})
+
+    def test_duplicate_and_null_labels_get_distinct_keys(self):
+        from cartogen_ai.core.agent.tools.raster_tools import unique_zone_keys
+        keys = unique_zone_keys([(1, "A"), (2, "A"), (3, None), (4, ""), (5, "B")])
+        self.assertEqual(len(set(keys.values())), 5)
+        self.assertEqual(keys[5], "B")
+        self.assertEqual(keys[1], "A [#1]")
+        self.assertEqual(keys[3], "feature 3")
+
+
 class TestDescribePopulationRaster(unittest.TestCase):
     """Pure Python, no QGIS needed -- point 9 of
     docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: provenance for a
@@ -526,8 +608,11 @@ class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
         vector.fields.return_value.indexFromName.return_value = 0
         vector.fields.return_value.count.return_value = 0
         feat = MagicMock()
-        feat.attribute.side_effect = lambda f: 1000 if f == "pop_sum" else None
+        feat.id.return_value = 7
+        feat.attribute.return_value = "District A"
         vector.getFeatures.return_value = [feat]
+        vector.fields.return_value.count.return_value = 1
+        vector.fields.return_value.__getitem__.return_value.name.return_value = "name"
 
         with patch.dict(sys.modules, {"qgis.analysis": fake_zonal_module}):
             with patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True), \
@@ -535,7 +620,12 @@ class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
                  patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name") as mock_find:
                 mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
                 mock_find.side_effect = lambda name: {population_raster_layer: raster, "districts": vector}.get(name)
-                return estimate_population_exposure(population_raster_layer, "districts")
+                with patch("cartogen_ai.core.agent.tools.raster_tools._zonal_sums_detached",
+                           return_value={7: 1000}) as detached, \
+                     patch("cartogen_ai.core.agent.tools.raster_tools._overlapping_zone_count", return_value=0):
+                    result = estimate_population_exposure(population_raster_layer, "districts")
+                self.detached_called_with = detached.call_args
+                return result
 
     def test_worldpop_named_raster_gets_source_and_year(self):
         res = self._run("YEM_population_2020")
@@ -549,6 +639,13 @@ class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
             {"pixel_width": 100.0, "pixel_height": 100.0, "crs": "EPSG:4326"},
         )
         self.assertEqual(res["confidence"], "estimate (gridded population raster; not field-verified)")
+
+    def test_every_zone_is_reported_under_its_own_id_and_the_input_layer_is_not_touched(self):
+        res = self._run("YEM_population_2020")
+        self.assertEqual(res["zones"], [{"feature_id": 7, "label": "District A", "population": 1000}])
+        self.assertEqual(res["totals"], {"District A": 1000})
+        self.assertEqual(res["overlapping_zone_pairs"], 0)
+        self.assertIn("overlap", res["overlap_rule"])
 
     def test_non_worldpop_named_raster_falls_back_to_layer_name(self):
         res = self._run("custom_pop_raster")

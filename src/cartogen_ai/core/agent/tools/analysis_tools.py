@@ -746,17 +746,15 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
     if "error" in severity:
         return severity
 
-    # Reused purely for its zonal-statistics side effect (adds a "pop_sum"
-    # field to `layer`). Its own returned "totals" dict is keyed by the
-    # layer's first attribute field, not necessarily unit_name_field, so
-    # it isn't trustworthy to match against severity's "unit" keys -- read
-    # pop_sum back per-feature by fid instead, below.
+    # estimate_population_exposure no longer adds a "pop_sum" field to `layer` (audit F24, #160: it ran zonal statistics
+    # on the caller's layer). Its per-zone list is keyed by feature id, which is how the populations are matched to
+    # severity's units below -- its "totals" dict is keyed by display label and is not used here.
     exposure = estimate_population_exposure(population_raster_layer, layer_name)
     if "error" in exposure:
         return exposure
 
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-    pop_by_fid = {feat.id(): feat["pop_sum"] for feat in layer.getFeatures()}
+    pop_by_fid = {z["feature_id"]: z["population"] for z in exposure.get("zones", [])}
 
     unit_results = []
     units_missing_population = []
@@ -862,19 +860,38 @@ def _build_polygon_index(admin_layer):
 
 
 def _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries):
-    """Same counting logic as _count_points_in_polygons, against an
-    already-built (index, admin_features_by_id) pair from _build_polygon_index."""
+    """Per-polygon point counts, keyed by polygon feature id. See _assign_points_to_polygons_indexed for the rule and for
+    the unmatched/ambiguous figures this drops."""
+    return _assign_points_to_polygons_indexed(index, admin_features_by_id, point_geometries)[0]
+
+
+def _assign_points_to_polygons_indexed(index, admin_features_by_id, point_geometries):
+    """(counts, stats) against an already-built (index, admin_features_by_id) pair from _build_polygon_index.
+
+    Policy (owner decision 2026-10-04, audit F25 #161): a point belongs to a polygon that INTERSECTS it, so a point exactly
+    on a shared boundary is counted instead of silently dropped (`contains` excludes the boundary). A point that intersects
+    several polygons (a shared boundary or overlapping polygons) goes to the one with the LOWEST feature id, never to
+    whichever the spatial index happened to return first, and is counted in stats['ambiguous']. Points that match nothing
+    are stats['unmatched']; empty/missing geometries are stats['skipped']. Every point is counted at most once, so the
+    per-polygon counts never sum to more than the number of points."""
     counts = {fid: 0 for fid in admin_features_by_id}
+    stats = {"matched": 0, "ambiguous": 0, "unmatched": 0, "skipped": 0}
 
     for geom in point_geometries:
         if geom is None or geom.isEmpty():
+            stats["skipped"] += 1
             continue
-        for fid in index.intersects(geom.boundingBox()):
-            if admin_features_by_id[fid].geometry().contains(geom):
-                counts[fid] += 1
-                break
+        hits = sorted(fid for fid in index.intersects(geom.boundingBox())
+                      if admin_features_by_id[fid].geometry().intersects(geom))
+        if not hits:
+            stats["unmatched"] += 1
+            continue
+        counts[hits[0]] += 1
+        stats["matched"] += 1
+        if len(hits) > 1:
+            stats["ambiguous"] += 1
 
-    return counts
+    return counts, stats
 
 
 def _count_points_in_polygons(admin_layer, point_geometries):
@@ -998,7 +1015,8 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
             return {"error": "Zonal statistics ran but no 'hzd_mean' field was created -- check hazard_intensity_raster overlaps admin_layer."}
 
     footprint_centroids = (feat.geometry().centroid() for feat in footprints.getFeatures())
-    building_counts = _count_points_in_polygons(layer, footprint_centroids)
+    index, admin_features_by_id = _build_polygon_index(layer)
+    building_counts, assignment_stats = _assign_points_to_polygons_indexed(index, admin_features_by_id, footprint_centroids)
 
     rows = []
     for feat in layer.getFeatures():
@@ -1049,6 +1067,12 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         "truncated": truncated,
         "excluded_units_missing_data": severity["excluded_units_missing_data"],
         "indicators_with_no_variation": severity["indicators_with_no_variation"],
+        "building_assignment": {
+            **assignment_stats,
+            "rule": ("A building is counted in the admin unit its centroid intersects (a boundary point counts); if it "
+                     "intersects several, the lowest feature id wins. 'ambiguous' buildings sit on a shared boundary or "
+                     "in overlapping units; 'unmatched' ones are outside every unit."),
+        },
     }
 
     if output_field:
