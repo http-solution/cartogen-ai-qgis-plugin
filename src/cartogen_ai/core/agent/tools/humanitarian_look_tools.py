@@ -21,6 +21,7 @@ LOOK_DESCRIPTIONS = {
                 "yellow to dark red, the same classes the tools report",
     "people_in_need": "a people / population count (calculate_population_in_need): quantile classes in purple",
     "exposure": "an exposed-population count: quantile classes in orange-brown",
+    "allocation": "an allocation amount (calculate_allocation_envelope): quantile classes in green",
     "presence_gap": "the gap / covered / unmatched status from calculate_presence_gap",
     "rank": "a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale",
 }
@@ -29,9 +30,9 @@ LOOK_DESCRIPTIONS = {
 @register_tool(
     "apply_humanitarian_look",
     "Style a layer's analysis-result field the way humanitarian maps expect, after calculate_severity_index, calculate_population_in_need, "
-    "calculate_presence_gap, calculate_damage_exposure_severity or calculate_mcda_ranking wrote it (their results carry a `map_look` hint "
+    "calculate_presence_gap, calculate_damage_exposure_severity, calculate_mcda_ranking or calculate_allocation_envelope wrote it (their results carry a `map_look` hint "
     "with the exact arguments). look='severity': a 0-1 score in five equal classes yellow to dark red that match the tool's own 1-5 classes; "
-    "'people_in_need' or 'exposure': a count in quantile classes; 'presence_gap': gap / covered / unmatched; 'rank': the top_k ranked units "
+    "'people_in_need', 'exposure' or 'allocation': a count or amount in quantile classes; 'presence_gap': gap / covered / unmatched; 'rank': the top_k ranked units "
     "dark. Changes only the layer's renderer (nothing is written to the data); units with no value in the field are not drawn. Only call it "
     "when the user wants the result shown on the map or accepts the offer.",
     {

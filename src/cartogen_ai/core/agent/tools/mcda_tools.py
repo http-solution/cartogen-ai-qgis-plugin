@@ -15,7 +15,9 @@ excluded and listed, never imputed. The perturbation is a sensitivity check on W
 data, the choice of criteria, or the min-max scaling. Pure logic is unit tested offline; the layer work needs QGIS
 (tests/test_mcda_tools_live.py, written without a local QGIS).
 """
+import numbers
 import random
+from decimal import Decimal
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
@@ -59,6 +61,10 @@ def validate_criteria(criteria):
 def to_number(value):
     """float or None (missing, non-numeric, NaN, bool). Pure."""
     if value is None or isinstance(value, bool):
+        return None
+    # Only real numbers and numeric text count. A NULL read from a QGIS layer arrives as a QVariant-like object, and float() of it does not
+    # reliably raise: on QGIS 4.2.2 the allocation live test read a NULL population as 1, which turned a missing value into a real weight.
+    if not isinstance(value, (numbers.Real, str, Decimal)):
         return None
     try:
         number = float(value)
