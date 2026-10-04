@@ -19,6 +19,8 @@ is reported as a warning and the layout is still produced.
 """
 import datetime
 
+from .routing_style import ACCESS_STYLES
+
 try:
     from qgis.core import (
         Qgis, QgsLayoutMeasurement, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
@@ -68,7 +70,10 @@ ACCESS_PARTS = (            # (name fragment, rank, plain-language reading-guide
     # visible the guide never explained the shaded area. Same sentence, so it is listed once when both are present.
     ("_service_area_", 0, "Shaded area: the reachable area within the chosen travel cost."),
     ("_reachable_by_", 1, "Admin areas: the area reached by the facilities."),
-    ("_access_", 2, "Points: facilities within reach (green) and beyond reach (red)."),
+    # Built from routing_style.ACCESS_STYLES so the guide cannot drift from the map again: it said "green" after the
+    # styling moved to blue (audit F29, #165).
+    ("_access_", 2, "Points: facilities " + ACCESS_STYLES["within"]["label"] + " (" + ACCESS_STYLES["within"]["colour_name"]
+     + ") and " + ACCESS_STYLES["beyond"]["label"] + " (" + ACCESS_STYLES["beyond"]["colour_name"] + ")."),
     ("_roads_by_cost_", 3, "Road colour: travel cost from the origin, near (dark) to far (warm)."),
 )
 

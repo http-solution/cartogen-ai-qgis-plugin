@@ -184,6 +184,13 @@ class TestAccessMapTemplate(unittest.TestCase):
     def test_ranking_is_stable_for_layers_of_equal_rank(self):
         self.assertEqual(ls.order_for_access_map(["c", "x"], {"c": "A", "x": "B"}), ["c", "x"])
 
+    def test_reading_guide_colours_come_from_the_access_styles(self):
+        # audit F29 (#165): the guide said "green" while the map drew within-reach facilities blue.
+        from cartogen_ai.core.agent.tools.routing_style import ACCESS_STYLES
+        guide = ls.access_reading_guide(["Clinics_access_30"])
+        self.assertIn(f"{ACCESS_STYLES['within']['label']} (blue)", guide)
+        self.assertNotIn("green", guide)
+
     def test_reading_guide_describes_only_the_layers_present(self):
         guide = ls.access_reading_guide(["Clinics_access_30", "Districts"])
         self.assertIn("red", guide)

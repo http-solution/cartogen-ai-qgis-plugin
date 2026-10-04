@@ -39,8 +39,8 @@ REACH_GROUP_PREFIX = "Reach figures"
 # Facilities by access class. "within" is blue, not the road teal or a green: blue beside red survives red-green colour weakness
 # (owner palette verdict, rc11 smoke test S10). "beyond" is drawn above "within" (higher rendering pass) and larger.
 ACCESS_STYLES = {
-    "within": {"color": "#1d6fa5", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "within reach"},
-    "beyond": {"color": "#d62828", "outline": "#ffffff", "size": "3.8", "pass": 1, "label": "beyond reach"},
+    "within": {"color": "#1d6fa5", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "within reach", "colour_name": "blue"},
+    "beyond": {"color": "#d62828", "outline": "#ffffff", "size": "3.8", "pass": 1, "label": "beyond reach", "colour_name": "red"},
 }
 ACCESS_OTHER = {"color": "#8d99ae", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "unknown"}
 
@@ -139,7 +139,7 @@ def _single_symbol_renderer(symbol):
 
 
 def style_access_points(layer, field="access_class"):
-    """Categorized renderer: 'beyond' red, larger and drawn above 'within' green; anything else grey. Returns True when applied."""
+    """Categorized renderer: 'beyond' red, larger and drawn above 'within' blue; anything else grey. Returns True when applied."""
     if not QGIS_AVAILABLE or layer is None:
         return False
     categories = []
