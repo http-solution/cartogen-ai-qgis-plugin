@@ -84,6 +84,16 @@ class TestWeightFor(unittest.TestCase):
         self.assertEqual(at.weight_for(0.5, -5)[1], "negative population")
 
 
+class TestMissingPopulationIsNotNoPopulationField(unittest.TestCase):
+    """A NULL from a layer is Python None; with a population field requested it must exclude the area, not be ignored."""
+
+    def test_none_with_a_population_field_excludes_the_area(self):
+        self.assertEqual(at.weight_for(0.6, None, use_population=True), (None, "missing or non-numeric population"))
+
+    def test_none_without_a_population_field_uses_need_alone(self):
+        self.assertEqual(at.weight_for(0.6, None, use_population=False), (0.6, None))
+
+
 class TestToolIsWired(unittest.TestCase):
     def test_registered_classified_and_routed(self):
         from cartogen_ai.core.agent import tool_operations

@@ -118,8 +118,15 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
     return {"amounts": amounts, "unallocated": unallocated, "capped": capped, "notes": notes}
 
 
-def weight_for(need, population, exponent=1.0, exclude_below=None):
-    """(weight or None, reason or None) for one area. Pure. Missing / non-numeric / negative values are excluded with a reason."""
+def weight_for(need, population, exponent=1.0, exclude_below=None, use_population=None):
+    """(weight or None, reason or None) for one area. Pure. Missing / non-numeric / negative values are excluded with a reason.
+
+    `use_population` says whether a population field was asked for. It must be passed explicitly by the tool: a NULL read from a layer is
+    Python None, so "no population field" and "this area's population is missing" cannot be told apart from the value alone (the first
+    version treated a missing population as 'no field' and gave the area a weight from need alone: found by the allocation live test).
+    Left as None it falls back to 'a population was given when it is not None', which is right only for callers with no layer."""
+    if use_population is None:
+        use_population = population is not None
     n = to_number(need)
     if n is None:
         return None, "missing or non-numeric need"
@@ -128,7 +135,7 @@ def weight_for(need, population, exponent=1.0, exclude_below=None):
     if exclude_below is not None and n < float(exclude_below):
         return None, "need below the exclusion threshold"
     w = n ** float(exponent)
-    if population is not None:
+    if use_population:
         p = to_number(population)
         if p is None:
             return None, "missing or non-numeric population"
@@ -211,7 +218,8 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
     rows, weights, excluded = [], [], []
     for feat in layer.getFeatures():
         label = str(feat[unit_name_field]) if unit_name_field else str(feat.id())
-        w, reason = weight_for(feat[need_field], feat[population_field] if population_field else None, need_exponent, exclude_need_below)
+        w, reason = weight_for(feat[need_field], feat[population_field] if population_field else None, need_exponent, exclude_need_below,
+                                  use_population=bool(population_field))
         if w is None:
             excluded.append({"unit": label, "reason": reason})
         else:
