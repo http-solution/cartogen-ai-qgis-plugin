@@ -106,6 +106,26 @@ _TOOL_ALIASES = {
         "watershed", "catchment", "rational method", "return period",
         "rainfall intensity", "time of concentration", "peak flow", "kirpich",
     ],
+    # Road barriers (see tools/barrier_tools.py). No bare "bridge" or "closed": they would boost this tool on unrelated queries.
+    "apply_network_barriers": [
+        "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road",
+        "checkpoint", "barrier", "impassable", "avoid the", "cut off road",
+    ],
+    # Anticipatory action (see tools/trigger_tools.py). No bare "forecast" or "trigger": forecast_trend and unrelated queries use them.
+    "evaluate_forecast_trigger": [
+        "anticipatory action", "forecast-based financing", "forecast based financing", "trigger threshold", "trigger model",
+        "trigger protocol", "activation threshold", "lead time", "early action", "pre-arranged financing",
+    ],
+    # Remote mapping tasks (see tools/task_grid_tools.py). No bare "grid" or "tasks": they appear in unrelated requests.
+    "generate_mapping_task_grid": [
+        "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
+        "split the area into", "divide the area into",
+    ],
+    # Survey sampling (see tools/sampling_tools.py). No bare "sample" or "survey": they appear in unrelated requests.
+    "design_sampling_frame": [
+        "sampling frame", "sample size", "stratified sample", "sampling design", "household survey", "needs assessment",
+        "msna", "enumerator", "margin of error", "cluster sampling", "random sample of households",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

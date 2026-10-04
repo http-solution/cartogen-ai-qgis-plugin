@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (184 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (188 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1556,6 +1556,22 @@ Zoom canvas to extent of layer.
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 
+## barrier_tools
+
+### `apply_network_barriers`
+
+Put blocked or degraded places into a road network for routing: destroyed bridges, checkpoints, flooded stretches or any other barrier layer (points, lines or polygons such as a flood extent). Every road segment within buffer_m metres of a barrier is blocked (mode='block') or has its speed multiplied by penalty_factor (mode='penalise'); all other segments keep their speed. Writes the result to a new numeric speed field (km/h) on the road layer; pass that field as speed_field to calculate_service_area / travel_time_matrix / optimize_delivery_route with strategy='fastest'. IMPORTANT: with strategy='shortest' the speed field is ignored and barriers have no effect, and 'block' is a near-zero speed rather than a true closure. Pass speed_field (e.g. from build_composite_impedance_field) to keep realistic base speeds; without it unaffected segments are 30 km/h.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `road_network_layer` | string | yes | Line layer representing the road network. |
+| `barrier_layer` | string | yes | Layer of barriers: points (bridge, checkpoint), lines or polygons (flood extent). |
+| `buffer_m` | number | no | Distance in metres around each barrier within which roads are affected. 0 = only roads that touch/cross the barrier. Default 50. |
+| `mode` | string | no | 'block' (default) or 'penalise'. |
+| `penalty_factor` | number | no | For mode='penalise': speed multiplier between 0 and 1 (e.g. 0.25). Ignored for 'block'. |
+| `speed_field` | string | no | Optional existing numeric speed field (km/h) to start from, e.g. from build_composite_impedance_field. |
+| `output_field` | string | no | Name of the new speed field. Default 'barrier_speed'. |
+
 ## cartographic_advisory_tools
 
 ### `recommend_visualization_method`
@@ -1845,6 +1861,27 @@ Evaluate candidate map representations for a layer based on spatial density, geo
 | `user_intent` | string | no | The analytical question or intent, e.g. 'show density', 'compare size', 'show status category'. |
 | `target_field` | string | no | Optional attribute field to style or symbolize by. |
 
+## sampling_tools
+
+### `design_sampling_frame`
+
+Design a household/community survey sample (e.g. for a multi-sector needs assessment): works out how many units to survey in each stratum (admin unit, camp, host community...) for a chosen confidence level and margin of error, and draws the sample as a point layer with a recorded random seed. Draws from a layer of candidate units (households, buildings, settlements) when units_layer is given, otherwise as random points inside each stratum polygon (area-based, ignores where people live). The statistical assumptions are arguments and are echoed back: expected_proportion defaults to 0.5 (most conservative) and design_effect to 1.0, which is correct ONLY for simple random sampling -- for a cluster design the survey designer must supply the design effect, so ask rather than guess. It does not choose the survey design, and the result is only as good as the frame it is drawn from.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `strata_layer` | string | yes | Polygon layer of strata (admin units, camp / host-community areas). |
+| `stratum_field` | string | no | Field naming each stratum. Omit to treat each polygon as its own stratum, named by feature id. |
+| `units_layer` | string | no | Optional layer of candidate units to sample from (points, or polygons such as buildings -- their centroids are used). |
+| `population_attribute` | string | no | Optional numeric field on the strata layer with the number of units (e.g. households) in the stratum. If omitted and units_layer is given, the stratum size is the number of candidate units inside it; otherwise no finite-population correction is applied. |
+| `confidence` | number | no | Confidence level, e.g. 0.95 (default). |
+| `margin_of_error` | number | no | Margin of error as a proportion, e.g. 0.05 (default) = +/-5 percentage points. |
+| `expected_proportion` | number | no | Expected proportion of the indicator, default 0.5 (most conservative). |
+| `design_effect` | number | no | Design effect, default 1.0 (simple random sampling only). Must be supplied by the survey designer for cluster designs. |
+| `nonresponse_rate` | number | no | Expected non-response as a proportion, default 0. |
+| `seed` | integer | no | Random seed. Omit to generate one; it is returned either way so the draw can be repeated. |
+| `output_layer_name` | string | no | Name of the sample point layer. Default 'survey_sample'. |
+| `plan_only` | boolean | no | true: only compute sample sizes per stratum, do not draw or create a layer. |
+
 ## schema_contract_tools
 
 ### `list_schema_contracts`
@@ -1882,6 +1919,21 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
 
+## task_grid_tools
+
+### `generate_mapping_task_grid`
+
+Split an area of interest into a grid of square mapping tasks for remote or crowd mapping (Tasking Manager style), so volunteers can digitise roads and buildings without overlapping. Cells are cell_size_m wide (measured in a local metric projection) and clipped to the area. Optionally ranks tasks High / Medium / Low by how many points of priority_points_layer fall in each (e.g. damage reports, existing buildings) or by the population in population_raster_layer, so the most important cells are mapped first. Creates a polygon layer and can write the tasks as GeoJSON (EPSG:4326, properties task_id, area_km2, value, priority) for import into a tasking tool; it has NOT been checked against a specific Tasking Manager instance's import rules.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `aoi_layer` | string | yes | Polygon layer with the area of interest. |
+| `cell_size_m` | number | no | Task width in metres (minimum 100). Default 2000. |
+| `priority_points_layer` | string | no | Optional point (or other vector) layer; the priority value is the number of its features in each cell. |
+| `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
+| `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
+| `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
+
 ## tool_operations_tools
 
 ### `get_tool_operation_type`
@@ -1915,3 +1967,23 @@ Reverse the most recent undoable tool call made THIS turn (see get_turn_transact
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `confirmed` | boolean | no | Set true only after the user has confirmed the undo. |
+
+## trigger_tools
+
+### `evaluate_forecast_trigger`
+
+Evaluate an anticipatory-action trigger rule against forecast values already in a layer's attribute table: for each area, does the forecast reach the threshold within the lead window (optionally with a minimum probability)? Returns which areas are activated, with the maximum forecast value, the number of exceeding forecast rows and the first exceedance date, plus the rule restated in words. The threshold, lead window and probability cut-off MUST come from the user's own trigger protocol -- this tool has no defaults and never invents one; if the user has not given a threshold, ask for it. It evaluates a rule; it does not fetch or generate forecasts and its answer is only as good as the forecast data in the layer. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Layer (or table) holding forecast rows: one or more per area. |
+| `value_field` | string | yes | Numeric field with the forecast value (e.g. river discharge, rainfall, wind speed). |
+| `threshold` | number | yes | Trigger threshold, from the user's protocol. Required. |
+| `comparison` | string | no | Default '>='. |
+| `unit_field` | string | no | Field identifying the area (admin name/code, station). Omit to evaluate the whole layer as one unit. |
+| `date_field` | string | no | Field with the date the forecast is valid for. Required with lead_days. |
+| `lead_days` | number | no | Only count forecast rows dated from as_of to as_of + lead_days. |
+| `as_of` | string | no | ISO date the lead window starts from. Default today. |
+| `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
+| `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
+| `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
