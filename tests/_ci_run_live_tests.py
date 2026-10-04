@@ -43,6 +43,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_sampling_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_mcda_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_survey_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_humanitarian_style_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_processing_registry_diagnostic_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_script_isolation_reconcile_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
