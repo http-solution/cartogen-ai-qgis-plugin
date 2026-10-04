@@ -135,6 +135,10 @@ _TOOL_ALIASES = {
         "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget", "budget across districts",
         "budget by severity", "funding envelope", "share the funding", "allocate funding",
     ],
+    "import_humanitarian_table": [
+        "import ipc", "ipc table", "ipc phase file", "ipc classification file", "import inform", "inform risk table", "inform risk file",
+        "unosat damage", "unosat points", "import the damage points", "load the ipc", "load the inform",
+    ],
     "apply_humanitarian_look": [
         "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
         "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",

@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (192 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (193 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1993,6 +1993,23 @@ Summarise survey records into one figure per area (admin unit, camp, ...): the w
 | `confidence` | number | no | Confidence level of the intervals, default 0.95. |
 | `design_effect` | number | no | Design effect from the survey design (>= 1); divides the effective sample size. Default 1 (no clustering adjustment). |
 | `output_table_name` | string | no | Optional name for a results table layer. |
+
+## table_importers
+
+### `import_humanitarian_table`
+
+Read a published humanitarian table from a CSV/Excel file the user supplies (typically downloaded from HDX) and validate it: kind 'ipc' (IPC area phase 1-5, population, phase 3+ population), 'inform' (INFORM Risk 0-10 scores) or 'unosat' (damage points with coordinates and damage class). Columns are matched by common names, but the layouts are UNVERIFIED against real files: the result shows the mapping used, and anything not matched or ambiguous is listed, so check it and pass an explicit `mapping` ({role: column}) if needed. Nothing is repaired or imputed: an invalid or missing value is reported and left empty (a missing IPC phase is not phase 1). For ipc and inform, giving `layer_name` and `layer_key_field` (P-code preferred) reports how the rows join to the admin layer and, with `write_fields`, writes the values to it as new numeric fields (needs confirmation); unmatched and duplicate keys are never guessed. For unosat, load the points with load_tabular_data_as_layer using the detected latitude/longitude columns. Official-source values: quote the file and its date, not this tool, as the source.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes | Absolute path to the .csv/.xlsx/.xls file. |
+| `kind` | string | yes | 'ipc', 'inform' or 'unosat'. |
+| `mapping` | object | no | Optional explicit {role: column}. Roles -- ipc: area_code, area_name, phase, population, phase3plus_population, period; inform: area_code, area_name, risk, hazard_exposure, vulnerability, lack_of_coping_capacity; unosat: latitude, longitude, damage_class, site_id. |
+| `sheet_name` | string | no | Sheet for Excel files. Defaults to the first. |
+| `delimiter` | string | no | CSV delimiter. Defaults to ','. |
+| `layer_name` | string | no | Optional admin polygon layer to join to (ipc/inform). |
+| `layer_key_field` | string | no | Field on that layer holding the P-code (or name when the file has no code). |
+| `write_fields` | boolean | no | With layer_name: write the values to the layer as new numeric fields (ipc_phase, ipc_pop, ipc_p3plus / inf_risk, inf_haz, inf_vuln, inf_coping). Needs confirmation. |
 
 ## task_grid_tools
 

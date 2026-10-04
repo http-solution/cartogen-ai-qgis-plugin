@@ -49,6 +49,7 @@ from . import mcda_tools
 from . import survey_tools
 from . import humanitarian_look_tools
 from . import allocation_tools
+from . import table_importers
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -78,6 +79,7 @@ __all__ = [
     "survey_tools",
     "humanitarian_look_tools",
     "allocation_tools",
+    "table_importers",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",
