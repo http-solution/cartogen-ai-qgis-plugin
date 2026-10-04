@@ -570,12 +570,6 @@ class CartogenAi:
         preview_task["egress_override"] = bool(res.get("egress_override"))
 
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
-        from .lineage import tag_layer_lineage
-        try:
-            from qgis.core import QgsProject
-        except ImportError:
-            QgsProject = None
-
         func = TOOL_REGISTRY.get(name)
         if func is None:
             return {"error": f"Unknown tool: {name}"}
@@ -656,12 +650,7 @@ class CartogenAi:
                     learning.record_tool_usage(self.memory_manager, name)
                     learning.maybe_infer_preferences(self.memory_manager)
                     self._last_tool_call = (name, args)
-                    created_layer_name = res.get("layer_name")
-                    if created_layer_name and QgsProject is not None:
-                        layers = QgsProject.instance().mapLayersByName(created_layer_name)
-                        if layers:
-                            source_layers = [v for k, v in args.items() if isinstance(v, str) and "layer" in k]
-                            tag_layer_lineage(layers[0], name, args, source_layers)
+                    self._tag_created_layers(name, args, res)
                     if name not in TASK_MANAGEMENT_TOOLS:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
             return res
@@ -727,15 +716,60 @@ class CartogenAi:
         (isinstance guard first, so re-parsing an already-dict value later is a no-op), fixes
         the actual reported bug -- the isinstance guard added to _compact_old_tool_results
         earlier this session was a real, separate gap, not this one."""
-        layer_ids_before = self._live_layer_ids()
+        if self._turn_is_stale():
+            return {"error": "The project changed while this request was running, so the tool was not run. "
+                             "Ask again in the project you now have open.", "project_changed": True}
         try:
             parsed_arguments = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
             if not isinstance(parsed_arguments, dict):
                 parsed_arguments = {}
         except (TypeError, ValueError):
             parsed_arguments = {}
+        operation_type = tool_operations.get_tool_operation_type(name)
+
+        # #138 (audit F02): the before-state (project layer ids + undo snapshot) and the after-state used to be read here, on
+        # the calling context, which for a turn is the AgentQgsTask worker thread -- only the tool body itself was marshalled
+        # to the main thread. QgsProject / layer access from the worker is not safe. Now the whole command (before-state,
+        # tool, after-state, transaction record) is ONE unit on the main thread for ordinary tools. Network-only and two-phase
+        # tools must keep their slow part on the worker, so only their project-state reads/writes are marshalled.
+        if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
+            before = self._run_on_main_thread(lambda _a: self._capture_before(name, parsed_arguments), None)
+            if not (isinstance(before, tuple) and len(before) == 2):
+                before = (set(), None)
+            result = self._guarded_dispatch(name, arguments)
+            self._run_on_main_thread(
+                lambda _a: self._record_after(name, operation_type, result, before[0], before[1]), None)
+            return result
+
+        def command(_unused):
+            ids_before, snap = self._capture_before(name, parsed_arguments)
+            res = self._guarded_dispatch(name, arguments)
+            self._record_after(name, operation_type, res, ids_before, snap)
+            return res
+
+        result = self._run_on_main_thread(command, None)
+        return result if isinstance(result, dict) else {"error": "Execution failed unexpectedly."}
+
+    def _capture_before(self, name, parsed_arguments):
+        """(layer ids, undo snapshot) before a tool runs. MAIN THREAD ONLY. A snapshot function that raises is reported, not
+        swallowed silently: the call then has no snapshot, which transactions.py already treats as 'fall back to the new-layer
+        diff', i.e. undo of that call is limited -- visible in the log instead of a crash of the whole turn."""
+        ids = self._live_layer_ids()
         snapshot_fn = get_snapshot_fn(name)
-        snapshot = snapshot_fn(parsed_arguments) if snapshot_fn else None
+        snapshot = None
+        if snapshot_fn:
+            try:
+                snapshot = snapshot_fn(parsed_arguments)
+            except Exception as e:
+                log_event("snapshot", tag="Agent", tool=name, status="failed", error_class=type(e).__name__, error=True)
+        return ids, snapshot
+
+    def _record_after(self, name, operation_type, result, ids_before, snapshot):
+        """Records the call in the turn's transaction log. MAIN THREAD ONLY (reads the live project)."""
+        ids_after = self._live_layer_ids()
+        self._transaction_log.record(name, operation_type, result, ids_before, ids_after, snapshot=snapshot)
+
+    def _guarded_dispatch(self, name, arguments):
         # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading
         # "Error: 'str' object has no attribute 'get'" -- an uncaught AttributeError
         # that escaped run()'s tool-call loop entirely (task_runner.py's outer
@@ -759,13 +793,9 @@ class CartogenAi:
         # any dispatch path, becomes a normal {"error": ...} result instead of
         # silently ending the whole turn.
         try:
-            result = self._execute_tool_dispatch(name, arguments)
+            return self._execute_tool_dispatch(name, arguments)
         except Exception as e:
-            result = {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
-        layer_ids_after = self._live_layer_ids()
-        operation_type = tool_operations.get_tool_operation_type(name)
-        self._transaction_log.record(name, operation_type, result, layer_ids_before, layer_ids_after, snapshot=snapshot)
-        return result
+            return {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
 
     def _execute_tool_dispatch(self, name, arguments):
         if name in NETWORK_ONLY_TOOLS:
@@ -791,7 +821,8 @@ class CartogenAi:
         return {}
 
     def _run_on_main_thread(self, func, arg):
-        if self._on_dispatcher_thread():
+        # No dispatcher (no QGIS/Qt, e.g. the offline tests): there is no other thread to marshal to, run inline.
+        if getattr(self, "dispatcher", None) is None or self._on_dispatcher_thread():
             try:
                 return func(arg)
             except Exception as e:
@@ -811,18 +842,8 @@ class CartogenAi:
         security-critical, well-tested code path."""
         if not (isinstance(res, dict) and res.get("success")):
             return
-        from .lineage import tag_layer_lineage
-        try:
-            from qgis.core import QgsProject
-        except ImportError:
-            QgsProject = None
         self.memory_manager.log_spatial_action(name, str(args))
-        created_layer_name = res.get("layer_name")
-        if created_layer_name and QgsProject is not None:
-            layers = QgsProject.instance().mapLayersByName(created_layer_name)
-            if layers:
-                source_layers = [v for k, v in args.items() if isinstance(v, str) and "layer" in k]
-                tag_layer_lineage(layers[0], name, args, source_layers)
+        self._tag_created_layers(name, args, res)
         learning.record_tool_usage(self.memory_manager, name)
         learning.maybe_infer_preferences(self.memory_manager)
         self._last_tool_call = (name, args)
@@ -1069,6 +1090,13 @@ class CartogenAi:
     def _trim_history(self):
         self._get_history_manager().trim(MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
+    _turn_project_session = None
+
+    def _turn_is_stale(self):
+        """True when the running turn was started in a project that has since been cleared or replaced (project_session.py)."""
+        from . import project_session
+        return project_session.is_stale(self._turn_project_session)
+
     def _append_history(self, *messages):
         """Appends one or more messages to conversation_history and trims it, all under
         one lock acquisition -- see history_manager.HistoryManager.append for the real
@@ -1076,6 +1104,8 @@ class CartogenAi:
         thread) goes through instead of touching conversation_history.append() directly,
         so a turn finishing concurrently on the background QgsTask thread can't
         interleave with it mid-mutation."""
+        if self._turn_is_stale():
+            return  # #147: a turn from the previous project must not write into the one open now
         self._get_history_manager().append(messages, MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
     def _read_history_snapshot(self):
@@ -1192,6 +1222,25 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
+    def _tag_created_layers(self, name, args, res):
+        """Records which layers a successful call read and tags every layer its result says it created (GitHub #150): sources are
+        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`."""
+        from .lineage import created_layer_names, derive_sources, tag_layer_lineage
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return
+        try:
+            project = QgsProject.instance()
+            known = [lyr.name() for lyr in project.mapLayers().values()]
+            sources = derive_sources(name, args, known)
+            for created in created_layer_names(res, sources, known):
+                for layer in project.mapLayersByName(created)[:1]:
+                    tag_layer_lineage(layer, name, args, sources)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
+                      error_class=type(e).__name__, error=True)
+
     _GROUNDING_PER_ITEM_CHARS = 60000
     _GROUNDING_TOTAL_CHARS = 400000
 
@@ -1269,12 +1318,22 @@ class CartogenAi:
         national road network takes minutes -- can notice Stop and say what it is doing
         (cancel_signal.py). Before this, should_stop was only checked between tool calls, so a
         running tool could not be stopped and QGIS froze until it finished."""
-        from . import cancel_signal
-        token = cancel_signal.begin(should_stop, getattr(self.client, "_emit_status", None))
+        from . import cancel_signal, project_session
+        # #147 (audit F11): bind this turn to the project that is open now. A project clear/read bumps the generation, which
+        # both stops the turn at its next checkpoint (via the combined should_stop, also polled by long tools) and makes
+        # _execute_tool / _append_history refuse to touch whatever project is open by then.
+        captured = project_session.current()
+        self._turn_project_session = captured
+
+        def stop_or_stale():
+            return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
+
+        token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
         try:
-            return self._run_impl(user_query, map_context, should_stop, tool_step_callback)
+            return self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
         finally:
             cancel_signal.end(token)
+            self._turn_project_session = None
 
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the

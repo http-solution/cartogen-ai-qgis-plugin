@@ -92,16 +92,14 @@ def _check_hub_siting_pair_count(candidate_count, demand_count, tool_name):
 
 
 def _make_distance_area(layer):
-    """QGIS-006 follow-up (2026-09-19): returns a configured QgsDistanceArea for real-world
-    (ellipsoidal/geodesic, WGS84) distance measurement when layer's CRS is geographic, or
-    None when it's already projected -- QgsGeometry.distance() is already correct there (a
-    projected CRS's own linear unit, typically meters), so ellipsoidal measurement would add
-    cost without changing the answer. Returns None on any setup failure too (caller falls
-    back to the previous planar-degrees behavior plus its existing warning in that case --
-    see optimal_hub_siting/location_allocation)."""
+    """A QgsDistanceArea configured for real-world (ellipsoidal, in metres) distance in the layer's CRS, or None when it
+    cannot be set up (the caller then reports it; see optimal_hub_siting / location_allocation).
+
+    GitHub #142 (audit F06): this used to return None for every PROJECTED CRS on the claim that QgsGeometry.distance() is
+    "already correct" there. It is only correct for a CRS whose unit is the metre and whose scale is true: Web Mercator metres
+    are inflated by 1/cos(latitude), and a US-survey-foot CRS is not metres at all. measureLine() on an ellipsoid-configured
+    QgsDistanceArea returns ellipsoidal metres for ANY source CRS, so it is used for all of them."""
     try:
-        if not layer.crs().isGeographic():
-            return None
         da = QgsDistanceArea()
         da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
         # Live-caught 2026-09-19 (python-qgis.bat, real QGIS 4.2.2): a fresh/default
@@ -116,6 +114,33 @@ def _make_distance_area(layer):
         return da
     except Exception:
         return None
+
+
+def _geoms_in_crs(geoms, from_crs, to_crs):
+    """Copies of `geoms` transformed from `from_crs` into `to_crs` (the geometries themselves are not modified). Raises
+    ValueError if a transform cannot be built or applied, instead of letting a caller measure coordinates in the wrong CRS.
+
+    GitHub #142 (audit F06): hub siting and location allocation paired demand points with candidates without transforming
+    either, so a demand layer in another CRS was read as if its numbers were in the candidates' CRS (EPSG:3857 metres read
+    as degrees gave ~18 million m for a 557 m gap) and the tool still said it had measured geodesic metres."""
+    if from_crs == to_crs or not from_crs.isValid() or not to_crs.isValid():
+        return list(geoms)
+    try:
+        transform = QgsCoordinateTransform(from_crs, to_crs, QgsProject.instance().transformContext())
+        out = []
+        for geom in geoms:
+            moved = QgsGeometry(geom)
+            # QGIS 4 returns a Qgis.GeometryOperationResult enum (Success == 0), QGIS 3 an int: accept either spelling.
+            outcome = moved.transform(transform)
+            success = getattr(getattr(globals().get("Qgis"), "GeometryOperationResult", None), "Success", 0)
+            if outcome != 0 and outcome != success:
+                raise ValueError("a geometry could not be transformed")
+            out.append(moved)
+        return out
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"could not transform from {from_crs.authid()} to {to_crs.authid()}: {e}")
 
 
 def _network_context(invalid_geometry_check=None):
@@ -340,19 +365,15 @@ def _clip_network_to_reach(network, centre_xy, reach_m):
 
 
 def _measure_distance(distance_area, geom_a, geom_b):
-    """geom_a/geom_b are point geometries -- both callers (optimal_hub_siting,
-    location_allocation) require point layers, per their own tool descriptions. Returns
-    real-world meters via ellipsoidal QgsDistanceArea.measureLine() when distance_area is
-    given (a geographic-CRS layer, see _make_distance_area), or the previous raw
-    QgsGeometry.distance() (already meters on a projected CRS, or degrees as a last-resort
-    fallback if ellipsoidal measurement itself failed) otherwise. Never raises -- a slightly
-    wrong distance from a fallback is far better than a crashed hub-siting call."""
+    """geom_a/geom_b are point geometries -- both callers (optimal_hub_siting, location_allocation) require point layers,
+    per their own tool descriptions, and pass them in the SAME CRS (see _geoms_in_crs). Returns real-world metres via
+    ellipsoidal QgsDistanceArea.measureLine() when distance_area is given.
+
+    With no distance_area (its setup failed) the raw QgsGeometry.distance() is returned, in the CRS's own units; the callers
+    say so in their warning. A measurement that raises is NOT papered over with that planar number any more (GitHub #142): it
+    used to be, and the result then claimed geodesic metres. The error propagates and the tool reports it."""
     if distance_area is not None:
-        try:
-            return distance_area.measureLine(geom_a.asPoint(), geom_b.asPoint())
-        except Exception as e:
-            log_event("swallowed_exception", tag="Tools", tool="logistics_ellipsoidal_distance",
-                      error_class=type(e).__name__, error=True)
+        return distance_area.measureLine(geom_a.asPoint(), geom_b.asPoint())
     return geom_a.distance(geom_b)
 
 
@@ -604,6 +625,7 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         demand_geoms = [f.geometry() for f in demand.getFeatures() if not f.geometry().isEmpty()]
         if not demand_geoms:
             return {"error": f"'{demand_layer}' has no usable point features."}
+        demand_geoms = _geoms_in_crs(demand_geoms, demand.crs(), candidates.crs())
 
         pair_count_error = _check_hub_siting_pair_count(
             candidates.featureCount(), len(demand_geoms), "optimal_hub_siting"
@@ -745,7 +767,7 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         demand_feats = [f for f in demand.getFeatures() if not f.geometry().isEmpty()]
         if not demand_feats:
             return {"error": f"'{demand_layer}' has no usable point features."}
-        demand_geoms = [f.geometry() for f in demand_feats]
+        demand_geoms = _geoms_in_crs([f.geometry() for f in demand_feats], demand.crs(), candidates.crs())
 
         if weight_field:
             demand_weights = []
@@ -2115,6 +2137,22 @@ DEFAULT_SNAP_DISTANCE_M = 500.0
 MATRIX_LARGE_DESTINATIONS = 200
 
 
+def _exact_spatial_index():
+    """A QgsSpatialIndex that stores the feature geometries, so nearestNeighbor() ranks by the geometry itself.
+
+    GitHub #148 (audit F12): the index was built with no flags, so nearestNeighbor() ranked by BOUNDING BOX. For a road whose
+    envelope encloses the query point (a U- or L-shaped road), the box distance is zero while the road itself can be hundreds of
+    metres away, so the true nearest road was missed when more than three envelopes ranked ahead of it (three U-shaped roads and
+    a straight road 1 m away gave 100 m) and facilities near a threshold were classified wrongly. QGIS documents this limit of an
+    index without stored geometries."""
+    flag_type = getattr(QgsSpatialIndex, "Flag", QgsSpatialIndex)
+    flag = getattr(flag_type, "FlagStoreFeatureGeometries")
+    try:
+        return QgsSpatialIndex(flags=flag)
+    except TypeError:
+        return QgsSpatialIndex(flag)
+
+
 def _classify_by_distance(distances_m, snap_distance_m):
     """'within' / 'beyond' per facility from its distance (metres) to the nearest reached road.
     None (no reached road at all) is beyond. Pure, so it is unit tested without QGIS."""
@@ -2146,7 +2184,7 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
         feats = {f.id(): f for f in lyr.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()}
         if not feats:
             continue
-        index = QgsSpatialIndex()
+        index = _exact_spatial_index()
         for f in feats.values():
             index.addFeature(f)
         xf = QgsCoordinateTransform(facilities_crs, lyr.crs(), QgsProject.instance())

@@ -125,6 +125,9 @@ def _snapshot_field_write(field_name_fn):
 
 
 def _restore_field_write(snapshot):
+    """Undo of a field write. Goes through the same owned, checked edit command as the write itself (#143 / #144): it no longer
+    commits a layer the user has open for editing, and a failed delete / write / commit returns False (undo failed) instead of
+    True."""
     layer = _layer_by_id(snapshot["layer_id"])
     if layer is None:
         return False
@@ -132,26 +135,19 @@ def _restore_field_write(snapshot):
         idx = layer.fields().indexOf(snapshot["field_name"])
         if idx == -1:
             return True  # already gone some other way -- nothing left to undo
-        layer.startEditing()
-        if not snapshot["field_existed"]:
-            layer.dataProvider().deleteAttributes([idx])
-            layer.updateFields()
-        else:
-            for fid, old_value in snapshot["values"].items():
-                layer.changeAttributeValue(fid, idx, old_value)
-        layer.commitChanges()
+        from ._edit_session import EditError, edit_command, set_value
+        with edit_command(layer, "Cartogen AI: undo field write"):
+            if not snapshot["field_existed"]:
+                if not layer.deleteAttribute(idx):
+                    raise EditError("the field could not be removed")
+                layer.updateFields()
+            else:
+                for fid, old_value in snapshot["values"].items():
+                    set_value(layer, fid, idx, old_value)
         return True
     except Exception as e:
         log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_field",
                   error_class=type(e).__name__, error=True)
-        try:
-            if layer.isEditable():
-                layer.rollBack()
-        except Exception as rollback_err:
-            # A failed rollback after a failed restore can leave a layer stuck in
-            # edit mode with partial changes -- worth a visible trace, not silence.
-            log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_rollback",
-                      error_class=type(rollback_err).__name__, error=True)
         return False
 
 

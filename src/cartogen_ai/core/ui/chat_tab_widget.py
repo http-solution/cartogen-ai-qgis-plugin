@@ -563,6 +563,8 @@ class ChatTabWidget(QWidget):
         self._awaiting_preview_reply = False
         self._awaiting_local_data_reply = False
         self._local_data_pending = None
+        # #147: tool steps collected for a turn of the previous project must not be summarised into the next turn's reply.
+        self._current_turn_steps = []
         self._populate_initial_chat()
 
     def _add_message(self, role, text, _raw_html=None):
@@ -1675,9 +1677,16 @@ class ChatTabWidget(QWidget):
         self._pending_analysis = None
         self._pending_analysis_text = None
 
+        from ..agent import project_session
+        turn_session = project_session.current()
+
         def on_complete(response, err):
             self._active_task = None
             self.stop_btn.setEnabled(False)
+            if project_session.is_stale(turn_session):
+                # #147: the project was cleared or replaced while this request ran; its reply belongs to the old project and
+                # the chat has already been reloaded for the new one.
+                return
             # Runs on the main GUI thread already (this function directly calls
             # receiveMessageSignal.emit below with no extra thread-marshalling), so touching
             # chat_browser here directly is safe. Flushed before the turn's own response bubble

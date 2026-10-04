@@ -203,6 +203,13 @@ class CartogenAi:
             print(f"[CartogenAi] auto-open of the panel failed: {e}")
 
     def _on_project_changed(self, *_args):
+        # #147 (audit F11): first thing, before any reload -- a turn still running for the previous project must stop and must
+        # not write into this one (core/agent/project_session.py).
+        try:
+            from cartogen_ai.core.agent import project_session
+            project_session.invalidate()
+        except Exception as e:
+            print(f"[CartogenAi] project session invalidate failed: {e}")
         # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).
         try:
             from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
@@ -224,6 +231,11 @@ class CartogenAi:
 
     def unload(self):
         print("[CartogenAi] unload()")
+        try:
+            from cartogen_ai.core.agent import project_session
+            project_session.invalidate()
+        except Exception:
+            pass
         if self._first_use_timer is not None:
             try:
                 self._first_use_timer.stop()

@@ -18,6 +18,39 @@ from ...infrastructure.settings_keys import PROJECT_PROPERTY_LINEAGE
 LINEAGE_PROPERTY_KEY = PROJECT_PROPERTY_LINEAGE
 
 
+# --- which layers a call read, and which it made (GitHub #150, audit F14) ---------------------------------------------------------
+# Sources used to be "top-level string arguments whose KEY contains 'layer'", so list inputs (raster_layers, layer_names_list),
+# nested Processing params and the layers named inside SQL were never recorded, and only a result's "layer_name" was ever tagged;
+# an output with no ancestry looks open to the egress gate. Both now use the same value-based rule as the gate.
+_CREATED_KEY_HINTS = ("layer", "layers_created", "output", "route")
+
+
+def derive_sources(tool_name, arguments, known_names):
+    """Sorted names of the loaded layers a tool call read: every string equal to a loaded layer name, anywhere in the arguments
+    (lists and nested objects included), plus the layers named in a SQL query. Pure."""
+    from ..models.egress_gate import argument_layer_names
+    names, _unresolved = argument_layer_names(tool_name, arguments, list(known_names))
+    return sorted(names)
+
+
+def created_layer_names(result, sources, known_names):
+    """Names of the loaded layers a tool result says it created: any top-level result value under a key that mentions a layer or
+    output, as a string or a list of strings, that is a loaded layer and is NOT one of the call's own sources (a result that
+    echoes its input layer must not be tagged as derived from itself). Order kept, duplicates dropped. Pure."""
+    if not isinstance(result, dict):
+        return []
+    known, skip = set(known_names), set(sources or [])
+    out = []
+    for key, value in result.items():
+        if not any(h in str(key).lower() for h in _CREATED_KEY_HINTS):
+            continue
+        values = value if isinstance(value, (list, tuple)) else [value]
+        for v in values:
+            if isinstance(v, str) and v in known and v not in skip and v not in out:
+                out.append(v)
+    return out
+
+
 def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None) -> bool:
     """Attaches tool execution lineage metadata to a layer's custom properties."""
     if not QGIS_AVAILABLE or layer is None:

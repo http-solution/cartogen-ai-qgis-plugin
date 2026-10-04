@@ -19,7 +19,7 @@ preference, not a replacement.
 """
 
 from .registry import register_tool
-from ._processing_allowlist import ALLOWED_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS
+from ._processing_allowlist import ALLOWED_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer
@@ -88,9 +88,10 @@ def _resolve_params(params, raster_output=False):
     "run_allowlisted_processing_algorithm",
     "Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over "
     "execute_pyqgis_script when the task is achievable via a single Processing algorithm that "
-    "isn't already covered by a dedicated tool. Safer than execute_pyqgis_script: this never runs "
-    "Python code at all, only calls the named algorithm with the given parameters, so there is no "
-    "code-execution surface to sandbox. Only algorithms already used elsewhere in this codebase "
+    "isn't already covered by a dedicated tool. It calls only the named, pre-approved algorithm with "
+    "the given parameters and never accepts a FORMULA or EXTRA (raw backend arguments) parameter; "
+    "algorithms that evaluate free-form expressions as code (such as the GDAL raster calculator) are "
+    "not on the list. Only algorithms already used elsewhere in this codebase "
     "are allowed -- an unlisted algorithm id is rejected outright, not run. Output is always kept "
     "in-memory as a new project layer (auto-named), never written to a file path -- use a "
     "dedicated export tool (export_layer, export_to_csv) afterward if a file is actually needed. "
@@ -126,6 +127,9 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         }
     if not isinstance(params, dict):
         return {"error": "params must be an object/dict of algorithm parameters."}
+    violation = parameter_violation(alg_id, params)
+    if violation:
+        return {"error": violation}
 
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS)

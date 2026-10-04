@@ -86,6 +86,7 @@ class TestValidation(unittest.TestCase):
         self.assertIn("ghost_damage", result["error"])
 
 
+@patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", new=lambda layer, name: 0)
 class TestBaseSpeedAndSurfaceBlending(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
@@ -134,6 +135,7 @@ class TestBaseSpeedAndSurfaceBlending(unittest.TestCase):
         self.assertAlmostEqual(called_value, _DEFAULT_BASE_SPEED_KMH)
 
 
+@patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", new=lambda layer, name: 0)
 class TestDamageField(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
@@ -197,30 +199,69 @@ class TestDamageField(unittest.TestCase):
 
 
 class TestFieldCreation(unittest.TestCase):
+    """The field is added through the edit buffer by _edit_session.add_numeric_field (#143); these check the delegation."""
+
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
-    @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsField", create=True)
-    @patch("cartogen_ai.core.agent.tools.impedance_tools.QVariant", create=True)
-    def test_creates_output_field_when_missing(self, mock_variant, mock_field, mock_project):
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", return_value=0)
+    def test_asks_for_the_output_field_inside_the_edit_command(self, mock_add, mock_project):
         network = _mock_network([], [])
         mock_project.instance.return_value.mapLayersByName.return_value = [network]
 
-        build_composite_impedance_field("roads", output_field="impedance_cost")
+        result = build_composite_impedance_field("roads", output_field="impedance_cost")
 
-        network.dataProvider.return_value.addAttributes.assert_called_once()
-        network.updateFields.assert_called_once()
+        self.assertTrue(result.get("success"), result)
+        mock_add.assert_called_once_with(network, "impedance_cost")
+        network.beginEditCommand.assert_called_once()
+        network.endEditCommand.assert_called_once()
+        network.dataProvider.return_value.addAttributes.assert_not_called()    # never straight to the provider
 
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
-    @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsField", create=True)
-    @patch("cartogen_ai.core.agent.tools.impedance_tools.QVariant", create=True)
-    def test_reuses_existing_output_field(self, mock_variant, mock_field, mock_project):
-        network = _mock_network(["impedance_cost"], [])
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", return_value=0)
+    def test_a_layer_already_in_edit_mode_is_not_started_or_committed(self, mock_add, mock_project):
+        feat = _mock_feature({"highway": "primary"})
+        network = _mock_network(["highway"], [feat])
+        network.isEditable.return_value = True
         mock_project.instance.return_value.mapLayersByName.return_value = [network]
 
-        build_composite_impedance_field("roads", output_field="impedance_cost")
+        result = build_composite_impedance_field("roads")
 
-        network.dataProvider.return_value.addAttributes.assert_not_called()
+        self.assertTrue(result.get("success"), result)
+        self.assertIn("NOT saved", result["note"])
+        network.startEditing.assert_not_called()
+        network.commitChanges.assert_not_called()
+        network.rollBack.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", return_value=0)
+    def test_a_read_only_layer_is_an_error_not_a_success(self, mock_add, mock_project):
+        network = _mock_network(["highway"], [_mock_feature({"highway": "primary"})])
+        network.isEditable.return_value = False
+        network.startEditing.return_value = False
+        mock_project.instance.return_value.mapLayersByName.return_value = [network]
+
+        result = build_composite_impedance_field("roads")
+
+        self.assertIn("error", result)
+        self.assertIn("nothing was changed", result["error"])
+
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.impedance_tools.add_numeric_field", return_value=0)
+    def test_a_rejected_commit_is_an_error_and_rolls_back(self, mock_add, mock_project):
+        network = _mock_network(["highway"], [_mock_feature({"highway": "primary"})])
+        network.isEditable.side_effect = [False, True]
+        network.startEditing.return_value = True
+        network.commitChanges.return_value = False
+        network.commitErrors.return_value = ["constraint failed"]
+        mock_project.instance.return_value.mapLayersByName.return_value = [network]
+
+        result = build_composite_impedance_field("roads")
+
+        self.assertIn("constraint failed", result["error"])
+        network.rollBack.assert_called_once()
 
 
 class TestSlopePenaltyFunction(unittest.TestCase):

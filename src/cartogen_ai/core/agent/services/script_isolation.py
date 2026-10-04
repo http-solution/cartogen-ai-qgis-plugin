@@ -292,34 +292,191 @@ def _build_scratch_project(tempdir):
     return scratch_path, memory_layer_ids
 
 
-def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids):
-    """Loads the worker's resulting project and applies two, and only two, kinds
-    of change back to the LIVE project -- everything else a script could
-    theoretically do (remove/reorder layers, edit styles) is not reconciled; see
-    this module's docstring for why that's the deliberate Phase 1 scope, not an
-    oversight.
+# --- result adoption ---------------------------------------------------------------------------------------------------------
+# GitHub #145 / #146 (audit F09, F10). The first reconcile (a) cloned each new layer, which kept the OGR source URI inside the
+# worker's temporary directory that run_isolated_script deletes in its `finally`, so the live layer's data could vanish or leak a
+# locked file; and (b) treated an equal feature COUNT as "no change", so a script that updated an attribute or a geometry
+# reported success and the live layer kept its old value. Now new vector layers are copied into live-owned memory layers before
+# the directory goes, new rasters are copied to a kept location, and a pre-existing memory layer is compared by schema and
+# content and replaced atomically, with the original restored if any step fails.
 
-    1. Any layer id present in the result but not in the pre-call live project is
-       a genuinely new layer the script created -- cloned and added to the live
-       project (a clone carries no reference back to the scratch QgsProject it
-       came from, so it's safe to move into a different QgsProject instance).
-    2. Any pre-existing MEMORY layer whose exported-GPKG feature count changed
-       has its live in-memory features replaced with the GPKG's current content
-       -- the one case a script plausibly mutates data on a layer that already
-       existed before the call (e.g. adding features to a layer produced earlier
-       in the same turn).
-    """
+KEPT_OUTPUT_DIR_NAME = "cartogen_script_outputs"
+
+
+def source_is_under(source, directory):
+    """True when a layer source string ("path" or "path|layername=x") points inside `directory`. Pure."""
+    if not source or not directory:
+        return False
+    path = os.path.normcase(os.path.abspath(str(source).split("|", 1)[0]))
+    root = os.path.normcase(os.path.abspath(directory))
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:                    # different drives on Windows
+        return False
+
+
+def _normalize_value(value):
+    """Comparable text for an attribute value; every NULL spelling is the same. Pure."""
+    if value is None:
+        return ""
+    text = str(value)
+    if text in ("NULL", "None"):
+        return ""
+    if isinstance(value, float):
+        return repr(round(value, 9))
+    return text
+
+
+def content_signature(field_names, rows):
+    """(field names, sorted rows) for comparing two copies of a layer; `rows` is an iterable of (attributes, wkb_hex).
+    Feature ids are ignored (a GeoPackage round trip renumbers them). Pure."""
+    normalized = sorted((tuple(_normalize_value(v) for v in attrs), wkb or "") for attrs, wkb in rows)
+    return (tuple(field_names), normalized)
+
+
+def _layer_signature(layer, skip_fields=()):
+    skip = {n.lower() for n in skip_fields}
+    keep = [i for i, fld in enumerate(layer.fields()) if fld.name().lower() not in skip]
+    rows = []
+    for f in layer.getFeatures():
+        geom = f.geometry()
+        wkb = bytes(geom.asWkb()).hex() if geom is not None and not geom.isEmpty() else ""
+        attrs = f.attributes()
+        rows.append(([attrs[i] for i in keep], wkb))
+    return content_signature([layer.fields().at(i).name() for i in keep], rows)
+
+
+def _same_content(live_layer, result_layer):
+    """True when the two layers hold the same fields and features. The result copy has been through a GeoPackage, which adds its
+    own `fid` primary-key column; that column is ignored when only one side has it (CI run 37163181576 showed an untouched memory
+    layer reported as 'updated' because of it)."""
+    live_names = {f.name().lower() for f in live_layer.fields()}
+    result_names = {f.name().lower() for f in result_layer.fields()}
+    skip = ("fid",) if ("fid" in live_names) != ("fid" in result_names) else ()
+    return _layer_signature(live_layer, skip) == _layer_signature(result_layer, skip)
+
+
+def _detach_vector_layer(layer):
+    """A live-owned memory copy of a vector layer (fields, features, CRS, name, renderer), independent of the layer's source."""
+    from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
+    geometry = QgsWkbTypes.displayString(layer.wkbType()) if layer.isSpatial() else "none"
+    copy = QgsVectorLayer(geometry, layer.name(), "memory")
+    if layer.isSpatial():
+        copy.setCrs(layer.crs())
+    provider = copy.dataProvider()
+    if not provider.addAttributes(layer.fields().toList()):
+        raise RuntimeError("could not copy the field definitions")
+    copy.updateFields()
+    features = []
+    for src in layer.getFeatures():
+        dst = QgsFeature(copy.fields())
+        dst.setGeometry(src.geometry())
+        dst.setAttributes(src.attributes())
+        features.append(dst)
+    ok, _added = provider.addFeatures(features)
+    if not ok:
+        raise RuntimeError("could not copy the features")
+    copy.updateExtents()
+    try:
+        if layer.renderer() is not None:
+            copy.setRenderer(layer.renderer().clone())
+    except Exception:
+        pass            # the data matters more than the symbology
+    return copy
+
+
+def _keep_raster(layer):
+    """A raster layer whose file has been copied out of the scratch directory, or raises."""
+    from qgis.core import QgsRasterLayer
+    source = str(layer.source()).split("|", 1)[0]
+    kept_dir = os.path.join(tempfile.gettempdir(), KEPT_OUTPUT_DIR_NAME, uuid.uuid4().hex)
+    os.makedirs(kept_dir, exist_ok=True)
+    target = os.path.join(kept_dir, os.path.basename(source))
+    shutil.copy2(source, target)
+    kept = QgsRasterLayer(target, layer.name())
+    if not kept.isValid():
+        raise RuntimeError("the copied raster is not valid")
+    return kept
+
+
+def _replace_memory_layer(live_layer, result_layer):
+    """Replaces a live memory layer's schema and features with `result_layer`'s, restoring the original if any step fails.
+    Raises RuntimeError if even the restore fails."""
+    from qgis.core import QgsFeature
+    provider = live_layer.dataProvider()
+    original_fields = live_layer.fields().toList()
+    original_features = list(live_layer.getFeatures())
+    new_names = [f.name() for f in result_layer.fields()]
+    schema_changed = new_names != [f.name() for f in original_fields]
+
+    def load(fields, features):
+        if not provider.truncate():
+            raise RuntimeError("could not clear the layer")
+        if schema_changed or fields is original_fields:
+            current = list(range(live_layer.fields().count()))
+            if current and not provider.deleteAttributes(current):
+                raise RuntimeError("could not remove the old fields")
+            if not provider.addAttributes(fields):
+                raise RuntimeError("could not write the field definitions")
+            live_layer.updateFields()
+        rebuilt = []
+        for src in features:
+            dst = QgsFeature(live_layer.fields())
+            dst.setGeometry(src.geometry())
+            dst.setAttributes(src.attributes())
+            rebuilt.append(dst)
+        ok, _added = provider.addFeatures(rebuilt)
+        if not ok:
+            raise RuntimeError("could not write the features")
+
+    new_features = list(result_layer.getFeatures())
+    try:
+        load(result_layer.fields().toList(), new_features)
+    except Exception as first:
+        try:
+            load(original_fields, original_features)
+        except Exception as second:
+            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})")
+        raise RuntimeError(f"update failed and the original was restored: {first}")
+    live_layer.updateExtents()
+    live_layer.triggerRepaint()
+
+
+def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids):
+    """Loads the worker's resulting project and applies two, and only two, kinds of change back to the LIVE project --
+    everything else a script could theoretically do (remove/reorder layers, edit styles) is not reconciled; see this
+    module's docstring for why that is the deliberate Phase 1 scope, not an oversight.
+
+    1. A layer id present in the result but not in the pre-call live project is a new layer the script created. A vector layer
+       whose data sits in the scratch directory becomes a memory copy owned by the live project; a raster is copied to a kept
+       folder; a layer that points at a file outside the scratch directory (the script opened an existing file) is cloned as is.
+    2. A pre-existing MEMORY layer whose schema or content differs from the exported copy (compared by values and geometry,
+       not by feature count) has its live features replaced atomically.
+
+    Returns (new_layer_names, updated_memory_layer_names, problems); `problems` lists anything that could not be applied, so
+    the caller can say so instead of reporting a clean success."""
     live = QgsProject.instance()
     result_scratch = QgsProject()
     result_scratch.read(result_project_path)
+    scratch_dir = os.path.dirname(result_project_path)
 
-    new_layers_added = []
+    new_layers_added, problems = [], []
     for layer_id, layer in result_scratch.mapLayers().items():
         if layer_id in pre_call_layer_ids:
             continue
-        clone = layer.clone()
-        live.addMapLayer(clone)
-        new_layers_added.append(clone.name())
+        try:
+            if source_is_under(layer.source(), scratch_dir):
+                if hasattr(layer, "bandCount"):
+                    adopted = _keep_raster(layer)
+                else:
+                    adopted = _detach_vector_layer(layer)
+            else:
+                adopted = layer.clone()
+        except Exception as e:
+            problems.append(f"new layer '{layer.name()}' could not be kept: {e}")
+            continue
+        live.addMapLayer(adopted)
+        new_layers_added.append(adopted.name())
 
     memory_layers_updated = []
     for layer_id in memory_layer_ids:
@@ -329,18 +486,16 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
         result_layer = result_scratch.mapLayer(layer_id)
         if live_layer is None or result_layer is None:
             continue
-        if result_layer.featureCount() == live_layer.featureCount():
+        try:
+            if _same_content(live_layer, result_layer):
+                continue
+            _replace_memory_layer(live_layer, result_layer)
+        except Exception as e:
+            problems.append(f"changes to layer '{live_layer.name()}' were not applied: {e}")
             continue
-        provider = live_layer.dataProvider()
-        provider.truncate()
-        new_features = list(result_layer.getFeatures())
-        if new_features:
-            provider.addFeatures(new_features)
-        live_layer.updateExtents()
-        live_layer.triggerRepaint()
         memory_layers_updated.append(live_layer.name())
 
-    return new_layers_added, memory_layers_updated
+    return new_layers_added, memory_layers_updated, problems
 
 
 # Widened 20 -> 60, 2026-09-28: the 20s figure was sized off Docker's own cold-start
@@ -568,15 +723,20 @@ def run_isolated_script(script: str) -> dict:
         if not os.path.exists(result_path):
             return {"error": "Isolation worker reported success but wrote no result project -- treat as a failure."}
 
-        new_layers, updated_memory_layers = _reconcile_results(result_path, pre_call_layer_ids, memory_layer_ids)
-        if new_layers or updated_memory_layers:
+        new_layers, updated_memory_layers, problems = _reconcile_results(result_path, pre_call_layer_ids, memory_layer_ids)
+        if new_layers or updated_memory_layers or problems:
             log_event(
                 "isolated_script_reconciled",
                 tag="ScriptIsolation",
                 new_layers=len(new_layers),
                 updated_memory_layers=len(updated_memory_layers),
+                problems=len(problems),
             )
-        return {"success": True, "result": response.get("result")}
+        reply = {"success": True, "result": response.get("result")}
+        if problems:
+            # Never a clean success when part of the script's work could not be brought back (#145 / #146).
+            reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
+        return reply
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 

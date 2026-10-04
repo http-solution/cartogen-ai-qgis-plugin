@@ -1684,34 +1684,78 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
     return res
 
 
-def _add_calculated_field(layer, field_name, expression_text):
+def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None):
+    """Writes a numeric field on `layer`, from a QGIS expression or from `value_fn(feature)`.
+
+    GitHub #143 / #144 (audit F07, F08): the first version started and committed its own edit session even on a layer the user
+    was already editing (committing their unrelated edits, or rolling them back on an error), added the field straight to the
+    provider, and ignored the result of every write, so a malformed expression wrote NULLs and a read-only layer "succeeded".
+    Now: the expression is parsed and prepared BEFORE anything changes; an evaluation error aborts the whole write; every call
+    is checked; the changes are one edit command (see _edit_session.py); a layer the user already has in edit mode keeps its
+    session and the result says the values are unsaved."""
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if layer is None:
         return {"error": "Layer is None"}
+    from ._edit_session import EditError, add_numeric_field, edit_command, set_value
     try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-        provider = layer.dataProvider()
-        if field_name not in [f.name() for f in layer.fields()]:
-            provider.addAttributes([QgsField(field_name, QVariant.Double)])
-            layer.updateFields()
+        expression = None
+        context = None
+        if value_fn is None:
+            expression = QgsExpression(expression_text)
+            if expression.hasParserError():
+                return {"error": f"Invalid expression: {expression.parserErrorString()}"}
+            context = layer.createExpressionContext()
+            if not expression.prepare(context) or expression.hasEvalError():
+                return {"error": f"Expression cannot be used on this layer: {expression.evalErrorString()}"}
 
-        field_idx = layer.fields().indexOf(field_name)
-        expression = QgsExpression(expression_text)
-        context = layer.createExpressionContext()
-
-        layer.startEditing()
-        for feature in layer.getFeatures():
-            context.setFeature(feature)
-            value = expression.evaluate(context)
-            layer.changeAttributeValue(feature.id(), field_idx, value)
-        layer.commitChanges()
-        return {"success": True, "layer_name": layer.name(), "field": field_name}
+        written = 0
+        with edit_command(layer, "Cartogen AI: write field " + field_name) as owned:
+            field_idx = add_numeric_field(layer, field_name)
+            for feature in layer.getFeatures():
+                if value_fn is not None:
+                    value = value_fn(feature)
+                else:
+                    context.setFeature(feature)
+                    value = expression.evaluate(context)
+                    if expression.hasEvalError():
+                        raise EditError(f"the expression failed on feature {feature.id()}: {expression.evalErrorString()}")
+                set_value(layer, feature.id(), field_idx, value)
+                written += 1
+        result = {"success": True, "layer_name": layer.name(), "field": field_name, "features_updated": written}
+        if not owned:
+            result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT "
+                              "saved: save or discard the layer edits yourself.")
+        return result
+    except EditError as e:
+        return {"error": f"Field calculation failed, nothing was changed: {e}"}
     except Exception as e:
-        if layer.isEditable():
-            layer.rollBack()
         return {"error": f"Field calculation failed: {e}"}
+
+
+def _si_measure_fn(layer, kind):
+    """value_fn(feature) -> the feature's area in square metres ('area') or length in metres ('length'), measured on the
+    project ellipsoid and converted explicitly. The old `$area` / `$length` expressions follow the PROJECT's measurement unit
+    settings, so a project set to km2 wrote 1.23 into a field named area_sqm for a 1,230,907 m2 polygon (audit F05, #141)."""
+    from qgis.core import Qgis, QgsDistanceArea
+    da = QgsDistanceArea()
+    da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+    ellipsoid = QgsProject.instance().ellipsoid()
+    da.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
+
+    def area(feature):
+        geom = feature.geometry()
+        if geom is None or geom.isEmpty():
+            return None
+        return da.convertAreaMeasurement(da.measureArea(geom), Qgis.AreaUnit.SquareMeters)
+
+    def length(feature):
+        geom = feature.geometry()
+        if geom is None or geom.isEmpty():
+            return None
+        return da.convertLengthMeasurement(da.measureLength(geom), Qgis.DistanceUnit.Meters)
+
+    return area if kind == "area" else length
 
 
 @register_tool("calculate_area", "Calculate polygon area in square meters and write it into a new "
@@ -1732,14 +1776,14 @@ def calculate_area(layer_name, confirmed: bool = False):
             "is_destructive": True,
             "tool_name": "calculate_area",
             "arguments": {"layer_name": layer_name, "confirmed": True},
-            "code_snippet": "layer.startEditing()\n# Add/update field 'area_sqm' = $area across features\nlayer.commitChanges()",
+            "code_snippet": "layer.startEditing()\n# Add/update field 'area_sqm' = ellipsoidal area in square metres across features\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field 'area_sqm' on layer '{layer_name}' with each feature's area.",
             "message": f"Confirmation required before mutating attribute field 'area_sqm' on '{layer_name}'.",
         }
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    return _add_calculated_field(layer, "area_sqm", "$area")
+    return _add_calculated_field(layer, "area_sqm", value_fn=_si_measure_fn(layer, "area"))
 
 
 @register_tool("calculate_length", "Calculate line length in meters and write it into a new "
@@ -1754,14 +1798,14 @@ def calculate_length(layer_name, confirmed: bool = False):
             "is_destructive": True,
             "tool_name": "calculate_length",
             "arguments": {"layer_name": layer_name, "confirmed": True},
-            "code_snippet": "layer.startEditing()\n# Add/update field 'length_m' = $length across features\nlayer.commitChanges()",
+            "code_snippet": "layer.startEditing()\n# Add/update field 'length_m' = ellipsoidal length in metres across features\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field 'length_m' on layer '{layer_name}' with each feature's length.",
             "message": f"Confirmation required before mutating attribute field 'length_m' on '{layer_name}'.",
         }
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    return _add_calculated_field(layer, "length_m", "$length")
+    return _add_calculated_field(layer, "length_m", value_fn=_si_measure_fn(layer, "length"))
 
 
 @register_tool("centroid", "Generate centroid points for polygon layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})

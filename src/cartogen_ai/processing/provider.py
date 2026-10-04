@@ -11,7 +11,6 @@ try:
         QgsProcessingAlgorithm,
         QgsProcessingParameterFeatureSource,
         QgsProcessingParameterFeatureSink,
-        QgsProcessingParameterDistance,
         QgsProcessingParameterNumber,
         QgsProcessingParameterField,
         QgsProcessingParameterEnum,
@@ -21,7 +20,10 @@ try:
         QgsFeature,
         QgsWkbTypes,
         QgsDistanceArea,
-        QgsProcessingFeatureSourceDefinition,
+        QgsFeatureRequest,
+        QgsPointXY,
+        QgsCoordinateTransform,
+        QgsProcessingException,
     )
     from qgis.PyQt.QtCore import QCoreApplication, QVariant
     from qgis.PyQt.QtGui import QIcon
@@ -96,9 +98,13 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             )
         )
         self.addParameter(
-            QgsProcessingParameterDistance(
+            # A plain number of METRES, not QgsProcessingParameterDistance: that type is in the layer's CRS units (degrees for
+            # EPSG:4326), but the distances it is compared with below are ellipsoidal metres, so a threshold typed as 5000 on a
+            # geographic layer meant 5000 degrees.
+            QgsProcessingParameterNumber(
                 self.MAX_DISTANCE,
-                self.tr("Maximum Service Distance Threshold (Optional)"),
+                self.tr("Maximum Service Distance Threshold (meters, optional)"),
+                type=QgsProcessingParameterNumber.Double,
                 defaultValue=0.0,
                 optional=True,
                 minValue=0.0,
@@ -139,29 +145,64 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             candidates_source.sourceCrs(),
         )
 
-        demand_geoms = [f.geometry() for f in demand_source.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
-        if not demand_geoms:
-            raise RuntimeError("Demand source contains no valid features")
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
+
+        # #139 / #142 (audit F03, F06): demand points are read as plain points IN THE CANDIDATES' CRS. A demand layer in another
+        # CRS used to be measured as if its numbers were in the candidates' CRS (EPSG:3857 metres read as degrees gave ~18
+        # million metres for a 557 m gap), and a candidate geometry was asked for hasGeometry(), which a QgsGeometry does not have.
+        # Multipart points have no single location, so they are skipped with a warning, never guessed at.
+        cand_crs = candidates_source.sourceCrs()
+        demand_crs = demand_source.sourceCrs()
+        to_cand_crs = None
+        if demand_crs.isValid() and cand_crs.isValid() and demand_crs != cand_crs:
+            to_cand_crs = QgsCoordinateTransform(demand_crs, cand_crs, context.transformContext())
+
+        demand_points = []
+        skipped_demand = 0
+        for f in demand_source.getFeatures():
+            if not f.hasGeometry() or f.geometry().isEmpty():
+                continue
+            geom = f.geometry()
+            if geom.isMultipart():
+                skipped_demand += 1
+                continue
+            pt = QgsPointXY(geom.asPoint())
+            if to_cand_crs is not None:
+                try:
+                    pt = to_cand_crs.transform(pt)
+                except Exception as e:
+                    raise QgsProcessingException(
+                        f"Could not transform a demand point from {demand_crs.authid()} to {cand_crs.authid()}: {e}")
+            demand_points.append(pt)
+        if skipped_demand:
+            feedback.pushWarning(f"{skipped_demand} multipart demand feature(s) skipped: only single-point features are supported.")
+        if not demand_points:
+            raise QgsProcessingException("Demand source contains no valid single-point features")
 
         # Geodesic distance calculation setup
         da = QgsDistanceArea()
-        da.setSourceCrs(candidates_source.sourceCrs(), context.transformContext())
+        da.setSourceCrs(cand_crs, context.transformContext())
         project_ellipsoid = context.project().ellipsoid() if context.project() else "WGS84"
         da.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
 
         scored_candidates = []
         cand_features = list(candidates_source.getFeatures())
         total_cands = len(cand_features)
+        skipped_candidates = 0
 
         for idx, cand_feat in enumerate(cand_features):
             if feedback.isCanceled():
                 break
             cand_geom = cand_feat.geometry()
-            if not cand_geom.hasGeometry() or cand_geom.isEmpty():
+            if not cand_feat.hasGeometry() or cand_geom.isEmpty():
+                continue
+            if cand_geom.isMultipart():
+                skipped_candidates += 1
                 continue
 
-            pt = cand_geom.asPoint()
-            distances = [da.measureLine(pt, dg.asPoint()) for dg in demand_geoms]
+            pt = QgsPointXY(cand_geom.asPoint())
+            distances = [da.measureLine(pt, dp) for dp in demand_points]
             avg_dist = sum(distances) / len(distances) if distances else 0.0
             max_d = max(distances) if distances else 0.0
 
@@ -196,6 +237,9 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             new_feat.setAttributes(new_attrs)
             sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
 
+        if skipped_candidates:
+            feedback.pushWarning(
+                f"{skipped_candidates} multipart candidate feature(s) skipped: only single-point features are supported.")
         feedback.setProgress(100)
         return {self.OUTPUT: dest_id}
 
@@ -323,16 +367,26 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsWkbTypes.MultiLineString,
             network_source.sourceCrs(),
         )
+        if sink is None:
+            raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT_LINES))
 
         facility_features = [f for f in facilities_source.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
         total = len(facility_features)
+
+        # #140 (audit F04): materialize() takes a QgsFeatureRequest; the old code handed it a
+        # QgsProcessingFeatureSourceDefinition and raised TypeError before the per-facility try block. Done once, outside the loop,
+        # so selected-feature / filter semantics of the Processing source apply and the road graph input is built a single
+        # time. The returned temporary layer stays referenced for the whole run.
+        network_layer = network_source.materialize(QgsFeatureRequest())
+        if network_layer is None:
+            raise QgsProcessingException("Could not read the road network source")
 
         for idx, feat in enumerate(facility_features):
             if feedback.isCanceled():
                 break
             pt = feat.geometry().asPoint()
             params = {
-                "INPUT": network_source.materialize(QgsProcessingFeatureSourceDefinition(parameters[self.INPUT_NETWORK])),
+                "INPUT": network_layer,
                 "STRATEGY": strategy_idx,
                 "DEFAULT_SPEED": default_speed,
                 "TOLERANCE": 0,

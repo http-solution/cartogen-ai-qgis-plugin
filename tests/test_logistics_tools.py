@@ -37,10 +37,16 @@ class TestMakeDistanceArea(unittest.TestCase):
     in raw planar degrees -- _make_distance_area sets up real ellipsoidal (WGS84 geodesic)
     measurement instead, when the layer's CRS is geographic."""
 
-    def test_projected_crs_returns_none(self):
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_projected_crs_is_measured_ellipsoidally_too(self, mock_project, mock_da_cls):
+        # #142: it used to return None here and fall back to QgsGeometry.distance(), which is wrong for Web Mercator
+        # (inflated by 1/cos(lat)) and for any CRS whose unit is not the metre.
         layer = MagicMock()
         layer.crs.return_value.isGeographic.return_value = False
-        self.assertIsNone(_make_distance_area(layer))
+        mock_project.instance.return_value.ellipsoid.return_value = "WGS84"
+        self.assertIs(_make_distance_area(layer), mock_da_cls.return_value)
+        mock_da_cls.return_value.setEllipsoid.assert_called_once_with("WGS84")
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsDistanceArea", create=True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
@@ -115,15 +121,53 @@ class TestMeasureDistance(unittest.TestCase):
         distance_area.measureLine.assert_called_once_with(geom_a.asPoint(), geom_b.asPoint())
         geom_a.distance.assert_not_called()
 
-    def test_ellipsoidal_failure_falls_back_to_planar_distance(self):
+    def test_an_ellipsoidal_failure_is_raised_not_replaced_by_a_planar_number(self):
+        # #142: the planar fallback used to be returned silently and the tool then reported geodesic metres.
         distance_area = MagicMock()
         distance_area.measureLine.side_effect = RuntimeError("boom")
         geom_a, geom_b = MagicMock(), MagicMock()
         geom_a.distance.return_value = 7.0
 
-        result = _measure_distance(distance_area, geom_a, geom_b)
+        with self.assertRaises(RuntimeError):
+            _measure_distance(distance_area, geom_a, geom_b)
+        geom_a.distance.assert_not_called()
 
-        self.assertEqual(result, 7.0)
+
+class TestGeomsInCrs(unittest.TestCase):
+    """#142: demand points must be in the candidates' CRS before any distance is measured."""
+
+    def test_same_crs_returns_the_geometries_untouched(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _geoms_in_crs
+        crs = MagicMock()
+        crs.isValid.return_value = True
+        geoms = [MagicMock(), MagicMock()]
+        self.assertEqual(_geoms_in_crs(geoms, crs, crs), geoms)
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsCoordinateTransform", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_a_different_crs_is_transformed_on_copies(self, _project, mock_geom_cls, _transform):
+        from cartogen_ai.core.agent.tools.logistics_tools import _geoms_in_crs
+        a, b = MagicMock(), MagicMock()
+        a.isValid.return_value = b.isValid.return_value = True
+        original = MagicMock()
+        copy = mock_geom_cls.return_value
+        copy.transform.return_value = 0
+        out = _geoms_in_crs([original], a, b)
+        self.assertEqual(out, [copy])
+        mock_geom_cls.assert_called_once_with(original)
+        original.transform.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsCoordinateTransform", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsGeometry", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True)
+    def test_a_failed_transform_raises_instead_of_measuring_the_wrong_numbers(self, _project, mock_geom_cls, _transform):
+        from cartogen_ai.core.agent.tools.logistics_tools import _geoms_in_crs
+        a, b = MagicMock(), MagicMock()
+        a.isValid.return_value = b.isValid.return_value = True
+        mock_geom_cls.return_value.transform.return_value = 1
+        with self.assertRaises(ValueError):
+            _geoms_in_crs([MagicMock()], a, b)
 
 
 class TestRankHubCandidates(unittest.TestCase):
@@ -1266,6 +1310,7 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             self.assertIn("error", population_access_gap("f", "r", "p", "a", 1, reach_buffer_m="far"))
 
 
+@patch("cartogen_ai.core.agent.tools.logistics_tools._geoms_in_crs", new=lambda geoms, a, b: list(geoms))
 class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
     """Exercises the QGIS-touching wrapper around _rank_hub_candidates with
     fake feature/geometry objects, confirming the glue code (distance calls,
@@ -1470,6 +1515,7 @@ class TestLocationAllocationDegradesOutsideQgis(unittest.TestCase):
         self.assertIn("QGIS not available", res["error"])
 
 
+@patch("cartogen_ai.core.agent.tools.logistics_tools._geoms_in_crs", new=lambda geoms, a, b: list(geoms))
 class TestLocationAllocationValidation(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     def test_rejects_non_positive_num_facilities(self):

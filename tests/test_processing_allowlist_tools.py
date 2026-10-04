@@ -241,3 +241,52 @@ class TestParamResolution(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNoFreeFormCodeSurface(unittest.TestCase):
+    """GitHub #137 (audit F01): gdal:rastercalculator's FORMULA is evaluated with Python eval() by gdal_calc."""
+
+    def test_the_gdal_raster_calculator_is_not_offered_by_the_generic_tool(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import RASTER_OUTPUT_ALGORITHM_IDS
+        self.assertNotIn("gdal:rastercalculator", ALLOWED_ALGORITHM_IDS)
+        self.assertNotIn("gdal:rastercalculator", RASTER_OUTPUT_ALGORITHM_IDS)
+
+    def test_no_allowlisted_id_is_a_raster_calculator_of_any_provider_that_takes_a_formula_string(self):
+        for alg_id in ALLOWED_ALGORITHM_IDS:
+            self.assertNotIn("rastercalc", alg_id.lower(), alg_id)
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_the_calculator_is_rejected_before_processing_runs(self, mock_processing):
+        result = run_allowlisted_processing_algorithm("gdal:rastercalculator", {"FORMULA": "__import__('os').getcwd()"})
+        self.assertIn("not on the allowed algorithm list", result["error"])
+        mock_processing.run.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_formula_and_extra_parameters_are_rejected_for_every_algorithm_in_any_case(self, mock_processing):
+        for key in ("FORMULA", "formula", "EXTRA", "Extra"):
+            result = run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "x", key: "anything"})
+            self.assertIn("error", result, key)
+            self.assertIn("not accepted", result["error"], key)
+        mock_processing.run.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_nested_objects_are_rejected(self, mock_processing):
+        result = run_allowlisted_processing_algorithm("native:buffer", {"INPUT": {"nested": "x"}})
+        self.assertIn("plain value", result["error"])
+        mock_processing.run.assert_not_called()
+
+    def test_ordinary_parameters_pass_the_check(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import parameter_violation
+        self.assertIsNone(parameter_violation("native:buffer", {"INPUT": "roads", "DISTANCE": 500, "LAYERS": ["a", "b"]}))
+        self.assertIsNone(parameter_violation("native:buffer", None))
+
+    def test_the_tool_description_no_longer_claims_there_is_no_code_execution_surface(self):
+        from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY, TOOLS_SCHEMA
+        self.assertIn("run_allowlisted_processing_algorithm", TOOL_REGISTRY)
+        text = next(t["function"]["description"] for t in TOOLS_SCHEMA
+                    if t["function"]["name"] == "run_allowlisted_processing_algorithm")
+        self.assertNotIn("no code-execution surface", text)
+        self.assertIn("FORMULA", text)

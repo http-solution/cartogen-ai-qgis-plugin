@@ -16,36 +16,36 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 
-def _enforce_db_read_only(connection_uri_str: str, sql_query: str):
-    """Second, database-level layer of read-only enforcement on top of the keyword blocklist
-    below. The blocklist is a cheap first filter but not a real guarantee -- a sufficiently
-    unusual SQL construct could theoretically slip past it. This uses QGIS's own connection
-    API (not a new dependency) to open a real Postgres connection, best-effort SET the
-    session itself to read-only, then actually execute the query on that same connection --
-    if it's secretly destructive despite passing the blocklist, Postgres rejects it here,
-    before any QgsVectorLayer/canvas step ever runs.
+def _is_on(value):
+    return str(value).strip().lower() in ("on", "true", "t", "1")
 
-    Returns None on success (safe to proceed), or an error dict if the DB itself rejected it.
-    Never raises -- if this defense-in-depth layer can't be set up at all (older QGIS/driver
-    combo, no createConnection support), it degrades to a no-op and the caller proceeds with
-    just the keyword-blocklist guarantee, same as before this was added."""
+
+def _enforce_db_read_only(connection_uri_str: str, sql_query: str, provider_registry=None):
+    """Database-level layer of read-only enforcement on top of the keyword blocklist in execute_read_only_sql (which is a cheap
+    first filter, not a guarantee). Opens a connection through QGIS's own API, puts that session in read-only mode, CHECKS that the
+    server now reports `transaction_read_only = on`, and only then runs the query on the same connection.
+
+    GitHub #151 (audit F15): this used to return None (= proceed) whenever the connection could not be created, so the layer that
+    claims to be a guarantee silently turned itself off. It now fails CLOSED at every step. What it still cannot do: the result
+    layer is created afterwards through a separate provider connection, so the real guarantee is a read-only database role;
+    this check proves the validation run was read-only, nothing more. Never raises. Returns None when safe to proceed, else an
+    error dict. Not exercised against a real PostGIS server."""
     try:
-        md = QgsProviderRegistry.instance().providerMetadata("postgres")
-        if md is None:
-            return None
-        conn = md.createConnection(connection_uri_str, {})
-        if conn is None:
-            return None
-    except Exception:
-        return None
+        registry = provider_registry or QgsProviderRegistry.instance()
+        md = registry.providerMetadata("postgres")
+        conn = md.createConnection(connection_uri_str, {}) if md is not None else None
+    except Exception as e:
+        return {"error": f"Could not open the database connection to enforce read-only mode, refusing to execute: {e}"}
+    if conn is None:
+        return {"error": "Could not open the database connection to enforce read-only mode, refusing to execute."}
 
     try:
         conn.executeSql("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+        rows = conn.executeSql("SHOW transaction_read_only")
+        if not (rows and rows[0] and _is_on(rows[0][0] if isinstance(rows[0], (list, tuple)) else rows[0])):
+            return {"error": "The database did not confirm a read-only session, refusing to execute."}
     except Exception as e:
-        # Fail CLOSED, not open -- if we can't confirm the session is actually
-        # read-only, refuse the query rather than silently running it with no
-        # DB-level guarantee at all (the keyword blocklist alone is not a
-        # substitute for this layer; that's the whole point of having it).
+        # Fail CLOSED: if we can't confirm the session is read-only, refuse rather than run with no DB-level guarantee.
         return {"error": f"Could not enforce database-level read-only mode, refusing to execute: {e}"}
 
     try:
@@ -55,8 +55,16 @@ def _enforce_db_read_only(connection_uri_str: str, sql_query: str):
     return None
 
 
-@register_tool("execute_read_only_sql", "Execute a read-only SQL query against a named PostGIS connection or active project layers.", {"type": "object", "properties": {"connection_name": {"type": "string"}, "sql_query": {"type": "string"}}, "required": ["sql_query"]})
-def execute_read_only_sql(sql_query: str, connection_name: str = ""):
+def build_query_table(sql_query: str, key_column: str = "_cg_id") -> str:
+    """The `table` part of a PostGIS data source that turns a SELECT into a layer: a parenthesised subquery with a generated
+    unique key (a query layer needs one). Pure. #151: the old code used `uri.setSql("(...)")`, which is a feature FILTER on a
+    table that was never named, not a query-layer definition."""
+    inner = sql_query.strip().rstrip(";").strip()
+    return f"(SELECT row_number() OVER () AS {key_column}, * FROM ({inner}) AS _cg_q)"
+
+
+@register_tool("execute_read_only_sql", "Execute a read-only SQL query against a named PostGIS connection or active project layers.", {"type": "object", "properties": {"connection_name": {"type": "string"}, "sql_query": {"type": "string"}, "geometry_column": {"type": "string", "description": "Name of the geometry column in the query result; omit for a non-spatial result table."}}, "required": ["sql_query"]})
+def execute_read_only_sql(sql_query: str, connection_name: str = "", geometry_column: str = ""):
     """Executes SQL query enforcing strict read-only statement checks and PostGIS connection lookups."""
     query_upper = sql_query.strip().upper()
 
@@ -99,31 +107,43 @@ def execute_read_only_sql(sql_query: str, connection_name: str = ""):
         # 1. PostGIS Connection Lookup by connection_name
         if connection_name:
             settings = QgsSettings()
-            host = settings.value(f"QGIS/connections-postgres/{connection_name}/host", "")
-            database = settings.value(f"QGIS/connections-postgres/{connection_name}/database", "")
-            port = settings.value(f"QGIS/connections-postgres/{connection_name}/port", "5432")
-            username = settings.value(f"QGIS/connections-postgres/{connection_name}/username", "")
-            password = settings.value(f"QGIS/connections-postgres/{connection_name}/password", "")
+            base = f"QGIS/connections-postgres/{connection_name}"
+            host = settings.value(f"{base}/host", "")
+            database = settings.value(f"{base}/database", "")
+            port = settings.value(f"{base}/port", "5432")
+            username = settings.value(f"{base}/username", "")
+            password = settings.value(f"{base}/password", "")
+            authcfg = settings.value(f"{base}/authcfg", "")
 
-            if host and database:
-                uri = QgsDataSourceUri()
+            # #151: a named connection that cannot be resolved is an ERROR. It used to fall through to the project-layer
+            # virtual provider and run the SQL there, i.e. answer a different question from the one asked.
+            if not (host and database):
+                return {"error": f"PostGIS connection '{connection_name}' was not found in QGIS (host/database missing)."}
+
+            uri = QgsDataSourceUri()
+            if authcfg:
+                uri.setConnection(host, str(port), database, "", "", authConfigId=str(authcfg))
+            else:
                 uri.setConnection(host, str(port), database, username, password)
-                uri.setSql(f"({sql_query})")
 
-                db_error = _enforce_db_read_only(uri.uri(False), sql_query)
-                if db_error is not None:
-                    return db_error
+            db_error = _enforce_db_read_only(uri.connectionInfo(True), sql_query)
+            if db_error is not None:
+                return db_error
 
-                layer = QgsVectorLayer(uri.uri(False), f"pg_{connection_name}_result", "postgres")
-                if layer.isValid():
-                    QgsProject.instance().addMapLayer(layer)
-                    return {
-                        "success": True,
-                        "layer_name": f"pg_{connection_name}_result",
-                        "connection": connection_name,
-                        "provider": "postgres",
-                        "feature_count": layer.featureCount()
-                    }
+            uri.setDataSource("", build_query_table(sql_query), geometry_column or "", "", "_cg_id")
+            layer_name = f"pg_{connection_name}_result"
+            layer = QgsVectorLayer(uri.uri(False), layer_name, "postgres")
+            if not layer.isValid():
+                return {"error": f"The query ran on PostGIS connection '{connection_name}' but QGIS could not load its result as a layer"
+                                 + (f" (is '{geometry_column}' a geometry column?)." if geometry_column else ".")}
+            QgsProject.instance().addMapLayer(layer)
+            return {
+                "success": True,
+                "layer_name": layer_name,
+                "connection": connection_name,
+                "provider": "postgres",
+                "feature_count": layer.featureCount()
+            }
 
         # 2. Local Virtual Layer Fallback against project layers
         v_uri = f"query=({sql_query})"
