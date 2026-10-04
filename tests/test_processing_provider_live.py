@@ -110,7 +110,9 @@ class TestNativeProcessingAlgorithmsRun(unittest.TestCase):
 class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
     """#156 / #157 (audit F20, F21)."""
 
-    ROAD = "LINESTRING(0 0, 0.045 0)"        # about 5 km along the equator
+    # About 5 km along the equator, as 45 short pieces (a vertex every ~111 m). The network algorithm returns WHOLE edges between
+    # vertices, so a single 5 km edge would be returned entirely as soon as its start is reached whatever the cost.
+    ROAD = "LINESTRING(" + ", ".join(f"{i * 0.001:.3f} 0" for i in range(46)) + ")"
 
     def setUp(self):
         from tests.test_network_units_live import _boot
@@ -133,7 +135,9 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
         da = QgsDistanceArea()
         da.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
         da.setEllipsoid("WGS84")
-        return sum(da.measureLength(f.geometry()) for f in layer.getFeatures())
+        from qgis.core import QgsGeometry
+        merged = QgsGeometry.unaryUnion([f.geometry() for f in layer.getFeatures()])      # overlapping duplicates counted once
+        return da.measureLength(merged)
 
     def test_fastest_cost_is_in_seconds_at_36_kmh_100_s_reaches_about_one_km(self):
         fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")

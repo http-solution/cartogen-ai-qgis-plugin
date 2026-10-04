@@ -55,8 +55,10 @@ MAX_DISTANCE_PAIRS = 25_000_000
 _CANCEL_CHECK_EVERY = 2000
 
 
-def pair_limit_error(candidates, demand, limit=MAX_DISTANCE_PAIRS):
-    """Error text when candidates x demand exceeds the limit, else None. Pure."""
+def pair_limit_error(candidates, demand, limit=None):
+    """Error text when candidates x demand exceeds the limit (default: MAX_DISTANCE_PAIRS, read at call time), else None. Pure."""
+    if limit is None:
+        limit = MAX_DISTANCE_PAIRS
     pairs = int(candidates) * int(demand)
     if pairs > limit:
         return (f"{candidates:,} candidates x {demand:,} demand points is {pairs:,} distance measurements, above the limit of "
