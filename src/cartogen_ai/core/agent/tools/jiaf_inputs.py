@@ -50,6 +50,15 @@ VALIDATION_BLOCKERS = {
                          "totals are checked against the source.")},
     ],
 }
+# One adapter per supported layout, with what each has actually been checked against. Only the Yemen layouts are validated; Annex 4 is NOT.
+ADAPTERS = {
+    "ocha_worksheet": {"status": "validated on the supplied Yemen 2026 worksheet",
+                       "evidence": "333 admin-2 units read; preliminary severity recomputed from the sector columns matches the stored column in 333/333 units"},
+    "hxl": {"status": "validated on the supplied published Yemen HNO 2025 and 2026 datasets",
+            "evidence": "333 admin-2 units read in both; the 2026 total PiN reconciles with the worksheet's final PiN (22,325,197.74)"},
+    "sector_template": {"status": "UNVERIFIED -- implemented from the manual's Annex 4 screenshots",
+                        "evidence": "no real filled Annex 4 file has been read; the Yemen worksheet has a different layout and cannot validate it"},
+}
 SETUP_SCOPE = "cartogen_ai_jiaf"
 SETUP_KEY = "setup"
 
@@ -490,7 +499,7 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
             if k != "evidence" and not _blank(v):
                 stored[k] = stored.get(k, 0) + 1
     result = {
-        "success": True, "statement": STATEMENT, "format": fmt, "units": len(units), "notes": notes,
+        "success": True, "statement": STATEMENT, "format": fmt, "adapter": dict(ADAPTERS[fmt], name=fmt), "units": len(units), "notes": notes,
         "sectors_found": sorted(summary["sectors"]),
         "main_sectors_missing": [s for s in MAIN_SECTORS if s not in summary["sectors"]],
         "per_sector": summary["sectors"], "severity_zero_values": summary["severity_zero_values"],

@@ -248,6 +248,74 @@ class TestMissingVersusZero(unittest.TestCase):
         self.assertEqual(je._row_for_csv(a["rows"][0])["pin_zero_sectors"], "health")
 
 
+class TestSectorsAndPublishedValues(unittest.TestCase):
+    """The counted sectors are explicit; AoRs stay separate evidence; calculated, recorded and published results stay apart; blank outcome checks are
+    not assessable; source discrepancies are preserved and flagged."""
+
+    def test_aors_are_kept_as_separate_evidence_and_never_counted(self):
+        base = unit("U1", pin={"wash": 100, "health": 90, "shelter": 80, "nutrition": 70}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 2})
+        with_aor = unit("U1", pin={"wash": 100, "health": 90, "shelter": 80, "nutrition": 70, "gbv": 5000, "child_protection": 4000},
+                        sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 2, "gbv": 4, "child_protection": 4, "hlp": 4, "mine_action": 4})
+        scope = {"sectors_in_scope": ["wash", "health", "shelter", "nutrition"]}
+        r0 = je.analyze([base], overrides=scope)["rows"][0]
+        res = je.analyze([with_aor], overrides=scope)
+        r1 = res["rows"][0]
+        self.assertEqual((r1["preliminary_pin"], r1["preliminary_severity"]), (r0["preliminary_pin"], r0["preliminary_severity"]))  # AoRs change nothing
+        self.assertEqual(r1["preliminary_pin"], 100)
+        self.assertEqual(r1["aor_evidence"]["gbv"], {"pin": 5000, "severity": 4})
+        self.assertEqual(res["sectors_shown_as_separate_evidence"], ["child_protection", "gbv", "hlp", "mine_action"])
+        self.assertEqual(res["expected_sectors"], ["nutrition", "health", "shelter", "wash"])
+
+    def test_flag_1_sensitivity_by_threshold_and_by_missing_versus_zero(self):
+        units = [unit("A", pin={"wash": 5, "health": 5, "shelter": 5, "nutrition": 5}), unit("B", pin={"wash": 5, "health": 0, "shelter": 5, "nutrition": 5}),
+                 unit("C", pin={"wash": 5, "health": 0, "shelter": 0, "nutrition": 5}), unit("D", pin={"wash": 5})]
+        sens = je.analyze(units, overrides={"sectors_in_scope": ["wash", "health", "shelter", "nutrition"]})["flag_1_sensitivity"]
+        self.assertEqual((sens["missing_and_zero"][1], sens["missing_and_zero"][2], sens["missing_and_zero"][3]), (3, 2, 1))
+        self.assertEqual(sens["zero_only"][1], 2)
+        self.assertEqual(sens["missing_only"][1], 1)
+
+    def test_blank_outcome_evidence_is_not_assessable(self):
+        f = je.severity_flags(unit("U1", outcomes={"mortality": "", "malnutrition": None}), [3, 3, 3, 3], 3, je.merge_settings())
+        self.assertIsNone(f[2]["fired"])
+        self.assertEqual(f[2]["status"], "not_assessable")
+        self.assertIn("not assessable", f[2]["note"])
+        res = je.analyze([unit("U1", pin={"wash": 1}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}, outcomes={"mortality": 4})],
+                         overrides={"sectors_in_scope": ["wash", "health", "shelter", "nutrition"]})
+        self.assertEqual(res["outcome_checks"], {"assessable_units": 1, "not_assessable_units": 0})
+
+    def test_published_final_values_sit_beside_the_calculated_ones(self):
+        u = unit("U1", pin={"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, sev=FLAGGED["sev"])
+        u["stored"] = {"preliminary_pin": 300, "final_pin": 100, "final_severity": 3}
+        a = je.analyze([u], overrides={"sectors_in_scope": scope_of([u])})
+        rows, s = jr.finalize([u], a, {"pin": {}, "severity": {}})
+        r = rows[0]
+        self.assertEqual((r["published_final_pin"], r["published_final_pin_rank"], r["published_final_severity"]), (100, 2, 3))
+        self.assertEqual(r["final_pin"], 300)  # the calculated provisional figure is NOT overwritten by the published one
+        self.assertTrue(r["published_differs_without_recorded_decision"])
+        self.assertEqual(s["published_final"]["units_differing_with_no_recorded_decision"], 1)
+        self.assertEqual(s["published_final"]["total"], 100)
+        dec = {"pin": {"U1": {"sector": "health", "rationale": "r"}}, "severity": {}}
+        rows, s = jr.finalize([u], a, dec)
+        self.assertFalse(rows[0]["published_differs_without_recorded_decision"])  # a recorded decision documents it
+        self.assertEqual(s["published_final"]["units_differing_with_no_recorded_decision"], 0)
+
+    def test_a_stored_preliminary_that_disagrees_is_preserved_and_flagged(self):
+        u = unit("U1", pin={"wash": 7908, "health": 100})
+        u["stored"] = {"preliminary_pin": 0.0, "final_pin": 3437}
+        res = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health"]})
+        self.assertEqual(res["stored_comparison"]["pin_mismatch"], [{"unit": "U1", "stored": 0.0, "computed": 7908.0}])
+        rows, _ = jr.finalize([u], res, {"pin": {}, "severity": {}})
+        self.assertEqual(rows[0]["stored_preliminary_pin"], 0.0)  # the source value is kept as found
+        self.assertEqual(rows[0]["preliminary_pin"], 7908)
+
+    def test_the_adapters_say_what_they_were_checked_against(self):
+        self.assertIn("validated", ji.ADAPTERS["ocha_worksheet"]["status"])
+        self.assertIn("validated", ji.ADAPTERS["hxl"]["status"])
+        self.assertIn("UNVERIFIED", ji.ADAPTERS["sector_template"]["status"])
+        self.assertIn("screenshots", ji.ADAPTERS["sector_template"]["status"])
+        self.assertIn("cannot validate", ji.ADAPTERS["sector_template"]["evidence"])
+
+
 class TestBulkClosureAndBlockers(unittest.TestCase):
     def test_bulk_closure_is_recorded_against_every_unit_it_closes(self):
         u = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 0}, sev=CALM["sev"])
@@ -434,6 +502,36 @@ class TestYemenLocal(unittest.TestCase):
         self.assertEqual(summary["chosen_sector_rank_counts"], {"2": 11, "3": 17})
         self.assertFalse(summary["provisional"])
         self.assertEqual(sum(summary["final_severity_distribution"].values()) + summary["pending_severity_units"], 333)
+
+    def test_the_traced_numbers_for_the_worksheet(self):
+        d = os.environ["JIAF_YEMEN_DIR"]
+        path = os.path.join(d, next(f for f in os.listdir(d) if f.endswith("jiaf_yemen_2026.xlsx")))
+        out = je.compute_jiaf_preliminary(path)
+        self.assertEqual(out["sectors_counted"], list(je.MAIN_SECTORS))  # the eight main sectors; AoRs are not counted
+        self.assertEqual(out["sectors_shown_as_separate_evidence"], ["child_protection", "gbv", "hlp", "mine_action"])
+        sens = out["flag_1_sensitivity"]["missing_and_zero"]
+        self.assertEqual((sens[1], sens[2]), (192, 96))
+        self.assertEqual(out["pin_flag_counts"][1]["fired"], 192)
+        self.assertEqual(out["outcome_checks"]["assessable_units"], 0)  # all five outcome fields are blank
+        self.assertEqual(out["outcome_checks"]["not_assessable_units"], 333)
+        self.assertEqual(sorted((d["unit"], d["stored"]) for d in out["source_discrepancies"]), [("YE1920", 0.0), ("YE1928", 0.0)])
+        self.assertEqual(out["adapter"]["name"], "ocha_worksheet")
+
+    def test_where_the_249_comes_from_and_the_published_values(self):
+        d = os.environ["JIAF_YEMEN_DIR"]
+        path = os.path.join(d, next(f for f in os.listdir(d) if f.endswith("jiaf_yemen_2026.xlsx")))
+        run_ = je.run_analysis(path)
+        fired = [[n for n, f in r["pin_flags"].items() if f["fired"]] for r in run_["analysis"]["rows"]]
+        self.assertEqual(sum(1 for x in fired if x), 249)  # units with ANY fired PiN flag, not a flag-1 count
+        self.assertEqual(sum(1 for x in fired if x == [1]), 141)
+        self.assertEqual(sum(1 for x in fired if 1 in x), 192)
+        self.assertEqual(sum(1 for x in fired if x and 1 not in x), 57)
+        _rows, summary = jr.finalize(run_["units"], run_["analysis"], {"pin": {}, "severity": {}})
+        self.assertEqual(summary["pending_pin_units"], 249)
+        pub = summary["published_final"]
+        self.assertAlmostEqual(pub["total"], 22325197.74, delta=0.01)
+        self.assertEqual(pub["units_differing_from_the_calculated_preliminary_pin"], 28)
+        self.assertEqual(pub["units_differing_with_no_recorded_decision"], 28)  # published, but nothing here documents how it was reached
 
 
 if __name__ == "__main__":

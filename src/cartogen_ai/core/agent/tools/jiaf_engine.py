@@ -43,7 +43,7 @@ import os
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
-from .jiaf_inputs import MAIN_SECTORS, STATEMENT, VALIDATION_BLOCKERS, load_units, validate_units
+from .jiaf_inputs import ADAPTERS, MAIN_SECTORS, SECTORS, STATEMENT, VALIDATION_BLOCKERS, load_units, validate_units
 from .table_importers import key_of, plan_join
 
 try:
@@ -231,7 +231,8 @@ def severity_flags(unit, phases, prelim, settings):
     outcomes = {k: clean_outcome(v) for k, v in (unit.get("outcomes") or {}).items()}
     outcomes = {k: v for k, v in outcomes.items() if v is not None}
     if prelim is None or not outcomes:
-        flags[2] = flags[3] = {"fired": None, "value": None, "note": "no outcome-indicator phases assigned"}
+        flags[2] = flags[3] = {"fired": None, "value": None, "status": "not_assessable",
+                               "note": "not assessable: no outcome-indicator phases assigned (blank evidence is not a passed check)"}
     else:
         diffs = {k: v - prelim for k, v in outcomes.items()}
         flags[2] = {"fired": any(abs(d) >= 2 for d in diffs.values()), "value": diffs, "note": None}
@@ -274,6 +275,8 @@ def analyze(units, previous_units=None, overrides=None):
         sc = severity_with_coverage(phases, len(miss_sev))
         psev = sc["value"]
         sf = severity_flags(u, phases, psev, settings)
+        aor = {s: {"pin": u["pin"].get(s), "severity": u["severity"].get(s)} for s, (_c, is_aor) in SECTORS.items()
+               if is_aor and (s in u["pin"] or s in u["severity"])}
         miss_pin = [s for s in expected if u["pin"].get(s) is None]
         zero_pin = [s for s in expected if u["pin"].get(s) == 0]
         if miss_pin and pre is not None:
@@ -316,11 +319,23 @@ def analyze(units, previous_units=None, overrides=None):
             stored["final_pin_rank"][str(r)] = stored["final_pin_rank"].get(str(r), 0) + 1
         rows.append({"admin2_code": u["admin2_code"], "admin2": u["admin2"], "population_group": u["population_group"], "population": u["population"],
                      "preliminary_pin": pre, "drivers": drivers, "pin_flags": pf, "preliminary_severity": psev, "severity_flags": sf,
+                     "aor_evidence": aor,
                      "pin_coverage": {"missing_sectors": miss_pin, "zero_sectors": zero_pin, "preliminary_pin_is_lower_bound": bool(miss_pin and pre is not None)},
                      "severity_coverage": {"status": sc["status"], "lower": sc["lower"], "upper": sc["upper"], "missing_sectors": miss_sev,
                                            "not_applicable_sectors": na_sev, "reporting_sectors": len(phases)},
                      "stored": {k: v for k, v in st.items() if k != "evidence"}})
-    return {"settings": settings, "expected_sectors": expected, "sectors_absent_from_file": absent_from_file, "rows": rows, "totals": totals, "pin_flag_counts": pin_counts,
+    # How many units flag 1 would flag at each threshold, and counting only missing or only zero PiN, for the team to look at (the threshold is theirs).
+    miss_n = [len(r["pin_coverage"]["missing_sectors"]) for r in rows]
+    zero_n = [len(r["pin_coverage"]["zero_sectors"]) for r in rows]
+    top = max([a + b for a, b in zip(miss_n, zero_n)] + [3])
+    sensitivity = {"missing_and_zero": {t: sum(1 for a, b in zip(miss_n, zero_n) if a + b >= t) for t in range(1, top + 1)},
+                   "missing_only": {t: sum(1 for a in miss_n if a >= t) for t in range(1, top + 1)},
+                   "zero_only": {t: sum(1 for b in zero_n if b >= t) for t in range(1, top + 1)}}
+    assessable = sum(1 for r in rows if r["severity_flags"][2]["fired"] is not None)
+    aors_present = sorted({s for r in rows for s in r["aor_evidence"]})
+    return {"settings": settings, "expected_sectors": expected, "sectors_absent_from_file": absent_from_file, "rows": rows,
+            "sectors_shown_as_separate_evidence": aors_present, "flag_1_sensitivity": sensitivity,
+            "outcome_checks": {"assessable_units": assessable, "not_assessable_units": len(rows) - assessable}, "totals": totals, "pin_flag_counts": pin_counts,
             "severity_flag_counts": sev_counts, "preliminary_severity_distribution": dict(sorted(sev_dist.items())),
             "phase5_units": phase5, "stored_comparison": stored}
 
@@ -434,6 +449,17 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
         "national_preliminary_pin": round(res["totals"]["preliminary_pin"], 2), "units_without_any_pin": res["totals"]["units_without_pin"],
         "national_note": "Sum over units of the highest sectoral PiN. It is a preliminary figure, not the Final Joint Overall PiN.",
         "sectors_absent_from_file": res["sectors_absent_from_file"],
+        "sectors_counted": res["expected_sectors"], "sectors_shown_as_separate_evidence": res["sectors_shown_as_separate_evidence"],
+        "sector_note": ("Only the sectors counted take part in the joint PiN, the flags and the severity. The AoRs (Child Protection, GBV, Mine Action, HLP) are kept "
+                        "as separate evidence in each unit's aor_evidence and are never counted as additional independent sectors (doing so does not reproduce the "
+                        "Yemen worksheet's severity)."),
+        "flag_1_sensitivity": res["flag_1_sensitivity"],
+        "flag_1_sensitivity_note": "Units flagged at each threshold, counting missing and zero together or each alone. The threshold is the team's choice.",
+        "outcome_checks": dict(res["outcome_checks"], note=("Severity flags 2 and 3 need analyst-assigned outcome-indicator phases. Where they are blank the check is NOT ASSESSABLE; "
+                                                           "it is not a passed comparison.")),
+        "source_discrepancies": [dict(d, note="Stored value preserved; the computed value is shown beside it; nothing was corrected.")
+                                 for d in res["stored_comparison"]["pin_mismatch"][:_CAP]],
+        "adapter": dict(ADAPTERS[fmt], name=fmt),
         "coverage": {
             "units_with_a_missing_sector_pin": res["totals"]["units_with_missing_pin_sector"],
             "units_with_incomplete_severity": res["totals"]["units_with_incomplete_severity"],

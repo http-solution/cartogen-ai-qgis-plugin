@@ -161,3 +161,15 @@ The module is built (stages 2-4), but two items keep it from being called a fait
 2. **The Annex 4 reader was implemented from screenshots; compatibility is unverified.** The Yemen worksheet has a different layout and cannot validate Annex 4 support.
    *Closes when:* a real filled Annex 4 sector-input file is read and sheet detection, headers, geographic codes, sector values, missing cells and imported totals are checked against the source.
 
+### 11.1 What the Yemen files closed, and what they did not (2026-10-04, after the second review)
+
+**Closed now (Yemen only):** the Yemen worksheet layout is identified by a dedicated adapter and its compatibility is validated (333 units; each result carries `adapter` with what it was checked against); preliminary severity is reproduced from the eight main sectors (333/333 -- counting the four Protection AoRs as extra sectors gives 13 mismatches, so they are kept as separate evidence in `aor_evidence` and are never counted); the published HNO 2026 total (22,325,197.74) matches the worksheet's final PiN.
+
+**Traced, not a finding about the rules:** the 249 "pending" Yemen units are the units with ANY fired PiN flag and no recorded decision (flag 1: 192 units, of which 141 fire flag 1 alone; plus 57 units that fire only flag 2, 3 or 5). It is not a flag-1 count. With the eight main sectors, flag 1 fires on 192 units at a threshold of 1 and 96 at 2 (`flag_1_sensitivity` shows both, and missing and zero separately); counting all four AoR columns it fires on all 333 because HLP is blank throughout, which is why the AoRs are not counted. These counts follow from the interpretation and do not by themselves show that review is required under the official rules.
+
+**Kept separate:** the calculated preliminary result, the recorded decision (with rationale, who, when) and the published final value are three different things. Published final PiN and severity are imported beside the calculated figures and never overwrite them; 28 Yemen districts have a published final PiN that differs from the preliminary one and **none of them has a recorded decision here**, because a published value alone does not document how a flag was resolved (`published_differs_without_recorded_decision`). YE1920 and YE1928 store a preliminary PiN of 0 although their highest main-sector PiN is 7,908 and 17,534: the stored values are preserved and listed in `source_discrepancies`, not corrected.
+
+**Outcome evidence:** all five outcome-indicator fields are blank for every Yemen unit, so severity flags 2 and 3 are reported as NOT ASSESSABLE (`outcome_checks`), never as passed comparisons.
+
+**Still open (unchanged):** the exact OCHA flag comparisons and documented flag resolutions (blocker 1), and genuine Annex 4 compatibility (blocker 2). The manual (printed p.34) confirms that flag 1 counts sectors with missing or zero PiN, recommends "1 or 2" and allows country adaptation; it does not settle every denominator or boundary operator.
+

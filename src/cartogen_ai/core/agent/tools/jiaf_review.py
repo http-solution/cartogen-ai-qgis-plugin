@@ -29,7 +29,7 @@ import os
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import ranked_pins, rank_of_value, run_analysis
-from .jiaf_inputs import MAIN_SECTORS, STATEMENT, VALIDATION_BLOCKERS
+from .jiaf_inputs import ADAPTERS, MAIN_SECTORS, STATEMENT, VALIDATION_BLOCKERS
 from .table_importers import key_of, plan_join
 
 try:
@@ -132,7 +132,8 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     by_unit = {unit_id(u["admin2_code"], u["population_group"]): u for u in units}
     bulk = set(int(x) for x in bulk_accepted_flags or ())
     issues, rows = [], []
-    final_total = provisional_total = 0.0
+    final_total = provisional_total = published_total = 0.0
+    published_differs = published_undocumented = 0
     counts = {"pin_status": {}, "severity_status": {}, "rank": {}}
     sev_dist = {}
     for r in analysis["rows"]:
@@ -180,7 +181,21 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
         counts["severity_status"][sstatus] = counts["severity_status"].get(sstatus, 0) + 1
         if fin_sev is not None:
             sev_dist[fin_sev] = sev_dist.get(fin_sev, 0) + 1
+        st = u["stored"]
+        pub_pin = _to_float(st.get("final_pin", st.get("total_pin")))
+        pub_sev = _to_float(st.get("final_severity"))
+        pub_sev = int(pub_sev) if pub_sev is not None and pub_sev == int(pub_sev) else None
+        differs = pub_pin is not None and r["preliminary_pin"] is not None and abs(pub_pin - r["preliminary_pin"]) >= 1
+        undocumented = bool(differs and status in ("pending_flagged", "no_flag", "flags_closed_in_bulk"))
+        if pub_pin is not None:
+            published_total += pub_pin
+        published_differs += bool(differs)
+        published_undocumented += undocumented
         rows.append({"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
+                     "published_final_pin": pub_pin, "published_final_pin_rank": rank_of_value(ranked, pub_pin) if pub_pin is not None else None,
+                     "published_final_severity": pub_sev, "published_differs_from_preliminary": differs,
+                     "published_differs_without_recorded_decision": undocumented,
+                     "stored_preliminary_pin": _to_float(st.get("preliminary_pin")),
                      "preliminary_pin": r["preliminary_pin"], "pin_drivers": r["drivers"], "pin_flags_fired": pin_fired,
                      "final_pin": fin_pin, "final_pin_status": status, "final_pin_sector": sector, "final_pin_rank": rank, "pin_decision_note": note,
                      "pin_decided_by": pd.get("decided_by") if pd else (bulk_info or {}).get("decided_by") if status == "flags_closed_in_bulk" else None,
@@ -204,6 +219,13 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
         "pin_status_counts": counts["pin_status"], "severity_status_counts": counts["severity_status"],
         "chosen_sector_rank_counts": counts["rank"], "final_severity_distribution": dict(sorted(sev_dist.items())),
         "decision_issues": issues,
+        "published_final": {
+            "total": round(published_total, 2), "units_differing_from_the_calculated_preliminary_pin": published_differs,
+            "units_differing_with_no_recorded_decision": published_undocumented,
+            "note": ("Published final values (when the file carries them) are shown beside the calculated and the recorded results and never overwrite them. A "
+                     "published final value alone does not document how a flag was resolved: a unit where it differs from the preliminary figure and no decision is "
+                     "recorded here is listed as undocumented."),
+        },
         "bulk_accepted_flags": sorted(bulk),
         "bulk_closure": ({"flags": sorted(bulk), "rationale": (bulk_info or {}).get("rationale"), "decided_by": (bulk_info or {}).get("decided_by"),
                           "date": (bulk_info or {}).get("date"), "units_closed": counts["pin_status"].get("flags_closed_in_bulk", 0)} if bulk else None),
@@ -212,10 +234,22 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     return rows, summary
 
 
+def _to_float(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f else None
+
+
 def _csv_row(r):
     """One row with the four things kept apart: preliminary result, review status, final result, justification (+ who and when)."""
     return {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
-            "preliminary_pin": r["preliminary_pin"], "pin_missing_sectors": "|".join(r["pin_missing_sectors"]),
+            "preliminary_pin": r["preliminary_pin"], "stored_preliminary_pin": r["stored_preliminary_pin"],
+            "published_final_pin": r["published_final_pin"], "published_final_pin_rank": r["published_final_pin_rank"],
+            "published_final_severity": r["published_final_severity"],
+            "published_differs_without_recorded_decision": r["published_differs_without_recorded_decision"],
+            "pin_missing_sectors": "|".join(r["pin_missing_sectors"]),
             "pin_zero_sectors": "|".join(r["pin_zero_sectors"]), "pin_flags_fired": "|".join(str(n) for n in r["pin_flags_fired"]),
             "pin_review_status": r["final_pin_status"], "final_pin": r["final_pin"], "final_pin_sector": r["final_pin_sector"],
             "final_pin_rank": r["final_pin_rank"], "pin_justification": r["pin_decision_note"], "pin_decided_by": r["pin_decided_by"],
@@ -344,6 +378,9 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
         "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in run["analysis"]["settings"].items()},
         "decisions_stored": {"pin": len(decisions["pin"]), "severity": len(decisions["severity"])},
         "validation_blockers": VALIDATION_BLOCKERS,
+        "adapter": dict(ADAPTERS[run["format"]], name=run["format"]),
+        "source_discrepancies": [dict(d, note="Stored value preserved; nothing was corrected.")
+                                 for d in run["analysis"]["stored_comparison"]["pin_mismatch"][:_CAP]],
         **summary,
         "total_note": ("PROVISIONAL: %d flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN." % summary["pending_pin_units"]
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
