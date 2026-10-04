@@ -149,6 +149,9 @@ Is incident density rising or falling per zone; linear projection of a numeric f
 **Outputs.** Ranked priorities, coverage tables, funding snapshots.
 **Supporting data sources.** FTS, INFORM (as files).
 
+### `calculate_allocation_envelope` -- new (H8)
+Splits a budget **you give** across areas in proportion to need (optionally times population), with an optional ceiling per area, a floor, rounding and a need threshold below which an area gets nothing. **Map output:** an optional amount field; `apply_humanitarian_look` (look `allocation`, green quantile classes) draws it. **Better results:** it is an advisory calculation of an envelope, not a recommendation of who should receive what: state the budget, the need field, the exponent and the ceiling with the result. Areas with a missing or negative value are listed, never imputed; if ceilings stop the whole budget being spent the rest is reported as unallocated. It never supplies a cost per person or any coefficient.
+
 ### `calculate_mcda_ranking` -- new (H5)
 Weighted multi-criteria ranking of areas, each criterion with a weight and a priority direction, plus a test of how much the ranking depends on the weights. **Map output:** optional `<prefix>_score`, `_rank`, `_rank_min`, `_rank_max` fields; `apply_humanitarian_look` (look `rank`, with `top_k`) emphasises the top-ranked units. **Better results:** give the weights yourself; say for each criterion whether a high or low value gets priority; use `top_k` to see which areas stay in the top group; treat areas whose best and worst rank differ widely as weight-dependent, not firm.
 

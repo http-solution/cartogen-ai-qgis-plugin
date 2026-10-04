@@ -86,7 +86,8 @@ GAP_COLORS = {"gap": "#b2182b", "covered": "#2166ac", "unmatched": "#969696"}
 GAP_LABELS = {"gap": "Gap: high need, low presence", "covered": "Covered", "unmatched": "Unmatched (no presence data)"}
 NOT_ASSESSED_COLOR = "#f0f0f0"
 RANK_COLORS = ["#7f0000", "#fc8d59", "#fee8c8"]
-LOOKS = ("severity", "people_in_need", "exposure", "presence_gap", "rank")
+ALLOCATION_COLORS = ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"]       # green: an amount of money, not a level of need
+LOOKS = ("severity", "people_in_need", "exposure", "allocation", "presence_gap", "rank")
 
 
 def look_hint(layer_name, look, field, **extra):
@@ -398,8 +399,9 @@ def style_result_field(layer, look, field, top_k=None):
                 notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
                              "score, so those units fall outside the five classes and are not drawn.")
             ranges = severity_ranges()
-        elif look in ("people_in_need", "exposure"):
-            ranges = count_ranges(values, PIN_COLORS if look == "people_in_need" else EXPOSURE_COLORS)
+        elif look in ("people_in_need", "exposure", "allocation"):
+            palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS}[look]
+            ranges = count_ranges(values, palette)
             if not ranges:
                 return {"error": f"'{field}' holds no numeric values."}
         else:  # rank

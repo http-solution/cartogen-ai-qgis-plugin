@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (191 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (192 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1561,6 +1561,27 @@ Zoom canvas to extent of layer.
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 
+## allocation_tools
+
+### `calculate_allocation_envelope`
+
+Split a budget the user gives across areas in proportion to need (optionally times population), with optional ceiling and floor per area, optional rounding, and areas below a need threshold left out. This is an ADVISORY CALCULATION of an envelope, not a recommendation of who should receive what: the budget, the need field, the exponent, the ceiling/floor and the exclusion threshold are the user's decisions, so ask for them and state them with the result. Need can be a severity score, a people-in-need count or any non-negative field; population is optional. Areas with a missing or negative value are excluded and listed, never imputed. If ceilings stop the whole budget being spent the rest is reported as unallocated. Optionally writes each area's amount to the layer (needs confirmation). Never invent a budget, a cost per person or a coefficient.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Vector layer with the areas (e.g. admin polygons). |
+| `budget` | number | yes | The total to split, in the user's own unit. Must be given by the user. |
+| `need_field` | string | yes | Non-negative numeric field that drives the split (e.g. a 0-1 severity score or people in need). |
+| `population_field` | string | no | Optional numeric field; when given the weight is need x population. |
+| `unit_name_field` | string | no | Optional field used to label areas in the results. |
+| `need_exponent` | number | no | Weight = need ** exponent. Default 1 (proportional). Above 1 favours the neediest areas more, below 1 spreads more evenly. |
+| `max_share_per_unit` | number | no | Optional ceiling per area as a share of the budget, above 0 and at most 1 (e.g. 0.15). |
+| `min_amount_per_unit` | number | no | Optional floor guaranteed to every area with a positive weight. |
+| `exclude_need_below` | number | no | Optional: areas with need below this get nothing. |
+| `rounding` | number | no | Optional: round amounts to multiples of this (e.g. 100); the total is preserved. |
+| `unit_label` | string | no | Optional label for the budget's unit (e.g. 'USD'); echoed in the result. |
+| `output_field` | string | no | Optional: write each area's amount to the layer under this field name. |
+
 ## barrier_tools
 
 ### `apply_network_barriers`
@@ -1743,12 +1764,12 @@ Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disa
 
 ### `apply_humanitarian_look`
 
-Style a layer's analysis-result field the way humanitarian maps expect, after calculate_severity_index, calculate_population_in_need, calculate_presence_gap, calculate_damage_exposure_severity or calculate_mcda_ranking wrote it (their results carry a `map_look` hint with the exact arguments). look='severity': a 0-1 score in five equal classes yellow to dark red that match the tool's own 1-5 classes; 'people_in_need' or 'exposure': a count in quantile classes; 'presence_gap': gap / covered / unmatched; 'rank': the top_k ranked units dark. Changes only the layer's renderer (nothing is written to the data); units with no value in the field are not drawn. Only call it when the user wants the result shown on the map or accepts the offer.
+Style a layer's analysis-result field the way humanitarian maps expect, after calculate_severity_index, calculate_population_in_need, calculate_presence_gap, calculate_damage_exposure_severity, calculate_mcda_ranking or calculate_allocation_envelope wrote it (their results carry a `map_look` hint with the exact arguments). look='severity': a 0-1 score in five equal classes yellow to dark red that match the tool's own 1-5 classes; 'people_in_need', 'exposure' or 'allocation': a count or amount in quantile classes; 'presence_gap': gap / covered / unmatched; 'rank': the top_k ranked units dark. Changes only the layer's renderer (nothing is written to the data); units with no value in the field are not drawn. Only call it when the user wants the result shown on the map or accepts the offer.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes | The layer that holds the result field. |
-| `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
+| `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; allocation: an allocation amount (calculate_allocation_envelope): quantile classes in green; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
 | `field` | string | yes | The result field to style. |
 | `top_k` | integer | no | For look='rank': how many top-ranked units to emphasise. Defaults to 10. |
 

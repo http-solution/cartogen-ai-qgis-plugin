@@ -279,6 +279,7 @@ TOOL_OPERATION_TYPES = {
     "calculate_mcda_ranking": MODIFY,
     "aggregate_survey_indicator": READ,
     "apply_humanitarian_look": MODIFY,
+    "calculate_allocation_envelope": MODIFY,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,

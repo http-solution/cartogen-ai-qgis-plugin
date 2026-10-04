@@ -131,6 +131,10 @@ _TOOL_ALIASES = {
         "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts", "prioritise areas",
         "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
     ],
+    "calculate_allocation_envelope": [
+        "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget", "budget across districts",
+        "budget by severity", "funding envelope", "share the funding", "allocate funding",
+    ],
     "apply_humanitarian_look": [
         "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
         "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
