@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (193 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (194 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1629,6 +1629,32 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `layer_name` | string | yes |  |
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
+
+## critical_link_tools
+
+### `analyze_critical_links`
+
+Screen a road network for bottlenecks: how much origin-to-destination demand has its shortest path through each road segment. A segment with a high load is one many routes depend on -- closing it would push all of them onto other roads. This is a SCREENING measure of dependence, not a closure simulation and not a traffic forecast: one shortest path per pair (cost = distance, or time from the speed field), no congestion, convoy size or security, and the load counts OD pairs unless weight fields are given. Origins are capped (default 50, max 200) and a time budget stops the run between origins and labels the result partial; for national road data clip the network to the area first. Closed roads (negative speed) are left out. Draws the roads graded by load in a new layer and returns the heaviest segments.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `road_network_layer` | string | yes | Line layer with the road network. |
+| `origins_layer` | string | yes | Point layer of origins (e.g. warehouses, hubs). |
+| `destinations_layer` | string | no | Point layer of destinations (e.g. facilities, settlements). Default: the origins layer. |
+| `strategy` | string | no | 'shortest' (distance, default) or 'fastest' (time). |
+| `default_speed` | number | no | km/h for segments without a speed, used only for 'fastest'. Default 50. |
+| `speed_field` | string | no | Optional per-segment speed (km/h). A negative value marks a closed road, which is removed. |
+| `direction_field` | string | no | Optional one-way field. |
+| `value_forward` | string | no | direction_field value for forward-only. Default 'yes'. |
+| `value_backward` | string | no | direction_field value for backward-only. Default '-1'. |
+| `value_both` | string | no | direction_field value for both ways. Default 'no'. |
+| `origin_weight_field` | string | no | Optional non-negative numeric field weighting each origin. |
+| `destination_weight_field` | string | no | Optional non-negative numeric field weighting each destination (e.g. population). |
+| `max_origins` | integer | no | Origins to use, at most 200. Default 50; more origins are left out and counted. |
+| `max_snap_m` | number | no | A destination further than this from the road graph is left out. Default 2000 m. |
+| `time_budget_s` | number | no | Stop between origins after this many seconds. Default 120. |
+| `top_n` | integer | no | Heaviest segments to return. Default 10. |
+| `output_layer_name` | string | no | Name of the output line layer. Default 'critical_links'. |
 
 ## data_export_tools
 

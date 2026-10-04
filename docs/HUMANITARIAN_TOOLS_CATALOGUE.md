@@ -229,3 +229,7 @@ What each tool's map output looked like before this review, and now. "Default" m
 - `evaluate_forecast_trigger` and `aggregate_survey_indicator` produce tables, not map layers; join their results to admin polygons to map them.
 
 **Verification.** The pure parts (palettes, ordering) are unit tested offline. The QGIS styling code has live tests (`tests/test_humanitarian_style_live.py`) that were written without a local QGIS; their first execution is CI, and none of the looks has been seen on a real canvas.
+
+### `analyze_critical_links` -- new (HX3c)
+Screens a road network for bottlenecks: how much origin-to-destination demand has its shortest path through each road segment. **Map output:** a new line layer `critical_links` drawn in five load classes, light to heavy orange-red with increasing width; segments no route uses are not drawn. **Better results:** give origins (hubs) and destinations (sites) and, if you have them, weight fields (population, caseload) -- without weights the load counts OD pairs. It is a screening of dependence, **not a closure simulation and not a traffic forecast**: one shortest path per pair, no congestion, convoy size or security. Origins are capped (default 50, max 200) and a time budget labels a partial run; for national road data clip the network to the area first. Closed roads (negative speed) are removed; destinations beyond `max_snap_m` of the road are left out and counted.
+

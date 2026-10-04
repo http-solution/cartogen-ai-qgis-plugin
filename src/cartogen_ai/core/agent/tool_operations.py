@@ -281,6 +281,7 @@ TOOL_OPERATION_TYPES = {
     "apply_humanitarian_look": MODIFY,
     "calculate_allocation_envelope": MODIFY,
     "import_humanitarian_table": MODIFY,
+    "analyze_critical_links": CREATE,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,

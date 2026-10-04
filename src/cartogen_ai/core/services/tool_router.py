@@ -135,6 +135,10 @@ _TOOL_ALIASES = {
         "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget", "budget across districts",
         "budget by severity", "funding envelope", "share the funding", "allocate funding",
     ],
+    "analyze_critical_links": [
+        "critical link", "critical links", "bottleneck", "bottlenecks", "single point of failure", "which roads matter most",
+        "which road is most important", "roads the routes depend on", "route dependence",
+    ],
     "import_humanitarian_table": [
         "import ipc", "ipc table", "ipc phase file", "ipc classification file", "import inform", "inform risk table", "inform risk file",
         "unosat damage", "unosat points", "import the damage points", "load the ipc", "load the inform",
