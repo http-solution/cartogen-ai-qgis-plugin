@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (188 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (190 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1749,6 +1749,23 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 
+## mcda_tools
+
+### `calculate_mcda_ranking`
+
+Rank areas (or any features) on several weighted criteria and test how much the ranking depends on the weights. For each criterion give the field, a weight and which end gets priority: direction 'higher' (a high value means higher priority, e.g. people in need) or 'lower' (a low value means higher priority, e.g. water coverage). Values are min-max scaled to 0-1, scores are the weighted sum, ranks are 1 = top priority. It then re-ranks many times with the weights randomly perturbed (default +/-20%) and returns each unit's best and worst rank and, with top_k, the share of trials it stayed in the top k -- so say which priorities are robust and which only come from the chosen weights. Units missing any criterion are excluded and listed, never imputed. The weights are the user's judgement: ask for them rather than inventing them, and report them with the ranking. Optionally writes score and rank to the layer (needs confirmation). The sensitivity check covers the weights only, not data errors or the choice of criteria.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Vector layer with the units to rank (e.g. admin polygons). |
+| `criteria` | array[object] | yes | At least two criteria. |
+| `unit_name_field` | string | no | Optional field used to label units in the results. |
+| `top_k` | integer | no | Report, per unit, the share of weight-perturbation trials in which it stays in the top k. |
+| `perturbation` | number | no | Relative weight change tested, 0 to 0.9. Default 0.2 (+/-20%). |
+| `trials` | integer | no | Number of perturbation trials, default 500, maximum 5000. |
+| `seed` | integer | no | Random seed for the perturbation. Omit for a generated one (returned). |
+| `output_prefix` | string | no | Optional: write <prefix>_score, <prefix>_rank, <prefix>_rank_min, <prefix>_rank_max to the layer. |
+
 ## pcode_validation_tools
 
 ### `check_pcode_hierarchy`
@@ -1918,6 +1935,25 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `layer_name` | string | yes |  |
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
+
+## survey_tools
+
+### `aggregate_survey_indicator`
+
+Summarise survey records into one figure per area (admin unit, camp, ...): the weighted share of respondents answering yes (kind='proportion') or the weighted mean of a numeric answer (kind='mean'), each with a confidence interval. Groups with fewer than min_n respondents (default 30) are SUPPRESSED -- no estimate is returned -- because a figure from a handful of households is unreliable and can identify people in a small community; the real threshold is the organisation's data-protection policy, so ask for it if it matters. Uses the survey's own weights as given (weight_field); intervals use Kish's effective sample size and IGNORE clustering and stratification, so for a cluster survey supply design_effect or treat the intervals as too narrow. Records with a missing answer or an invalid weight are excluded and counted, never imputed. Optionally creates a table layer of the results that can be joined to admin polygons.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Layer or table of survey records (one row per respondent/household). |
+| `group_field` | string | yes | Field naming the area/stratum each record belongs to. |
+| `indicator_field` | string | yes | Field with the answer: yes/no-style for a proportion, numeric for a mean. |
+| `kind` | string | no | 'proportion' (default) or 'mean'. |
+| `positive_values` | array[string] | no | For a proportion: the answers that count as 'yes' (e.g. ['No access'] to measure lack of access). Default: the usual 1/yes/true spellings. |
+| `weight_field` | string | no | Optional numeric survey-weight field; omit for unweighted. |
+| `min_n` | integer | no | Minimum respondents per group, default 30. Smaller groups are suppressed. |
+| `confidence` | number | no | Confidence level of the intervals, default 0.95. |
+| `design_effect` | number | no | Design effect from the survey design (>= 1); divides the effective sample size. Default 1 (no clustering adjustment). |
+| `output_table_name` | string | no | Optional name for a results table layer. |
 
 ## task_grid_tools
 

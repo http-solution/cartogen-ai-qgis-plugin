@@ -276,6 +276,8 @@ TOOL_OPERATION_TYPES = {
     "evaluate_forecast_trigger": READ,
     "generate_mapping_task_grid": CREATE,
     "design_sampling_frame": CREATE,
+    "calculate_mcda_ranking": MODIFY,
+    "aggregate_survey_indicator": READ,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
