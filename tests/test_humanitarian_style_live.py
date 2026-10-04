@@ -105,11 +105,15 @@ class TestHumanitarianStyles(unittest.TestCase):
         import os
         import tempfile
         from osgeo import gdal
+        try:
+            import numpy
+        except ImportError:
+            self.skipTest("numpy not available to write the test raster")
         from cartogen_ai.core.agent.tools.humanitarian_style import style_diverging_raster
         path = os.path.join(tempfile.mkdtemp(prefix="cartogen_div_"), "diff.tif")
         ds = gdal.GetDriverByName("GTiff").Create(path, 2, 2, 1, gdal.GDT_Float32)
         ds.SetGeoTransform((0, 1, 0, 2, 0, -1))
-        ds.GetRasterBand(1).WriteArray([[-5.0, 0.0], [2.0, 8.0]])
+        ds.GetRasterBand(1).WriteArray(numpy.array([[-5.0, 0.0], [2.0, 8.0]], dtype="float32"))
         ds.FlushCache()
         ds = None
         layer = QgsRasterLayer(path, "diff")
