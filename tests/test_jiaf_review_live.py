@@ -23,7 +23,7 @@ GRID = [
     ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
      "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
     ["YE1101", "A", 300, 3, 100, 3, 300, 3, 200, 3, 50, 3],
-    ["YE1102", "B", 120, 2, 120, 2, 90, 2, 110, 2, 80, 2],
+    ["YE1102", "B", 120, 3, 120, 3, 90, 3, 110, 3, 80, 3],  # severity 3, not 2: the worksheet's Preliminary PiN is 0 where the severity is 2 or lower
 ]
 
 

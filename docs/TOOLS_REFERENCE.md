@@ -1827,18 +1827,21 @@ Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 
 | `sheet_name` | string | no |  |
 | `previous_file_path` | string | no | Optional previous-year file of the same kind, for flag 6. |
 | `previous_sheet_name` | string | no |  |
+| `rules_profile` | string | no | 'ocha_worksheet_2026' (default: the flag formulas read from OCHA's official Worksheet 3A/3B) or 'manual_reading' (this tool's older interpretation of the manual, for comparison only). |
+| `sectors_sev_5` | integer | no | Worksheet profile: severity flag 1 fires at this many sectors in phase 5 (and flag 4 uses it too). Default: the workbook's Thresholds cell, else 2. |
+| `sectors_sev_4` | integer | no | Worksheet profile: the header-text reading of severity flag 4 (reported only, not used by the formula). Default 5. |
 | `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1. |
 | `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing': what a severity of 0 means. |
-| `f1_min_sectors` | integer | no | Flag 1 fires at this many counted sectors or more. Default 1 (the table says 1 or 2). UNVERIFIED reading. |
-| `f1_count_missing` | boolean | no | Flag 1 counts sectors with NO PiN. Default true. |
-| `f1_count_zero` | boolean | no | Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts. |
-| `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30. |
-| `f3_pct` | number | no | Flag 3 threshold as a fraction. Default 0.50. |
-| `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given. |
-| `f5_share` | number | no | Flag 5 threshold as a share of population. Default 0.90. |
-| `f6_pct` | number | no | Flag 6 threshold, increase on last year as a fraction. Default 1.0. |
-| `f6_min_previous_pin` | number | no | Flag 6 is only evaluated when last year's PiN is at least this. Default 1000. |
-| `s4_sector_count` | integer | no | Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4. |
+| `f1_min_sectors` | integer | no | Flag 1 fires at this many sectors that are missing or zero. Worksheet profile: the workbook's zero_pin_thresh, else 2 (manual_reading: 1). |
+| `f1_count_missing` | boolean | no | manual_reading profile only. Flag 1 counts sectors with NO PiN. Default true. |
+| `f1_count_zero` | boolean | no | manual_reading profile only. Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts. |
+| `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default: the workbook's perc_1st_2nd, else 0.30. |
+| `f3_pct` | number | no | Flag 3 threshold as a fraction. Default: the workbook's perc_1st_3rd, else 0.50. |
+| `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population. Worksheet profile: the workbook's own list, else the template's (education). manual_reading: flag 4 is evaluated only if given. |
+| `f5_share` | number | no | Flag 5 threshold as a share of population (fires at >=). Default: the workbook's flag_pin_perc, else 0.90. |
+| `f6_pct` | number | no | Flag 6 threshold on the (rounded to 0.1) change from last year, up or down, as a fraction. Default: the workbook's flag_pin_historical, else 1.0. |
+| `f6_min_previous_pin` | number | no | manual_reading profile only. Flag 6 is only evaluated when last year's PiN is at least this. Default 1000. |
+| `s4_sector_count` | integer | no | manual_reading profile only. Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4. |
 | `export_csv_path` | string | no | Optional new .csv file for the per-unit table (refuses to overwrite). |
 | `layer_name` | string | no |  |
 | `layer_key_field` | string | no | Admin 2 P-code field on that layer. |
@@ -1927,6 +1930,9 @@ Apply the recorded JIAF 2 group decisions to the preliminary figures and report 
 | `bulk_accepted_flags` | array[integer] | no | PiN flag numbers the team agreed to close in bulk, e.g. [1]. Needs bulk_rationale. |
 | `bulk_rationale` | string | no | Why the team closed these flags in bulk (required with bulk_accepted_flags). |
 | `bulk_decided_by` | string | no | Who decided, e.g. 'JIAF analysis group, 12 Oct'. |
+| `rules_profile` | string | no | 'ocha_worksheet_2026' (default) or 'manual_reading' (older interpretation, comparison only). |
+| `sectors_sev_5` | integer | no |  |
+| `sectors_sev_4` | integer | no |  |
 | `f1_min_sectors` | integer | no |  |
 | `f1_count_missing` | boolean | no |  |
 | `f1_count_zero` | boolean | no |  |

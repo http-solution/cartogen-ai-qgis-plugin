@@ -46,8 +46,15 @@ EVIDENCE_BASES = ("outcome_indicators", "proxy_indicators", "expert_judgement", 
 _CAP = 50
 
 
-def unit_id(code, group=None):
-    return f"{code}|{group}" if group else str(code)
+def unit_id(code, group=None, pocket=None):
+    """Key of a recorded decision: the unit's finest P-code, plus population group and pocket of need when it has them (a pocket of need in the same Admin 2 is a
+    separate unit of analysis)."""
+    base = f"{code}|{group}" if group else str(code)
+    return f"{base}#{pocket}" if pocket else base
+
+
+def _row_key(r):
+    return unit_id(r.get("admin3_code") or r["admin2_code"], r["population_group"], r.get("pocket_of_need"))
 
 
 # ------------------------------------------------------------------ store --
@@ -88,7 +95,8 @@ def validate_pin_decisions(items):
         elif not why:
             errors.append(f"PiN decision {i} ({code}): a rationale is required (manual Box 24).")
         else:
-            clean[unit_id(code, d.get("population_group"))] = {"unit": code, "population_group": d.get("population_group"), "sector": sector,
+            clean[unit_id(code, d.get("population_group"), d.get("pocket_of_need"))] = {"unit": code, "population_group": d.get("population_group"),
+                                                              "pocket_of_need": d.get("pocket_of_need"), "sector": sector,
                                                               "rationale": why, "decided_by": str(d.get("decided_by") or "").strip() or None, "date": today}
     return clean, errors
 
@@ -115,8 +123,8 @@ def validate_severity_decisions(items):
         elif not evidence:
             errors.append(f"Severity decision {i} ({code}): the evidence behind the agreed phase is required.")
         else:
-            clean[unit_id(code, d.get("population_group"))] = {
-                "unit": code, "population_group": d.get("population_group"), "phase": phase, "evidence_basis": basis, "evidence": evidence,
+            clean[unit_id(code, d.get("population_group"), d.get("pocket_of_need"))] = {
+                "unit": code, "population_group": d.get("population_group"), "pocket_of_need": d.get("pocket_of_need"), "phase": phase, "evidence_basis": basis, "evidence": evidence,
                 "decided_by": str(d.get("decided_by") or "").strip() or None, "date": today}
     return clean, errors
 
@@ -129,7 +137,7 @@ def _fired(flags):
 def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None):
     """Apply the recorded decisions to an `analyze` result. Returns (rows, summary). Pure."""
     expected = analysis["expected_sectors"]
-    by_unit = {unit_id(u["admin2_code"], u["population_group"]): u for u in units}
+    by_unit = {_row_key(u): u for u in units}
     bulk = set(int(x) for x in bulk_accepted_flags or ())
     issues, rows = [], []
     final_total = provisional_total = published_total = 0.0
@@ -137,12 +145,15 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     counts = {"pin_status": {}, "severity_status": {}, "rank": {}}
     sev_dist = {}
     for r in analysis["rows"]:
-        uid = unit_id(r["admin2_code"], r["population_group"])
+        uid = _row_key(r)
         u = by_unit[uid]
         ranked = ranked_pins(u, expected)
         pin_fired, sev_fired = _fired(r["pin_flags"]), _fired(r["severity_flags"])
         pd, sd = decisions["pin"].get(uid), decisions["severity"].get(uid)
-        fin_pin, status, rank, sector, note = r["preliminary_pin"], None, None, None, None
+        # Final PiN defaults to the worksheet's Preliminary PiN (the highest PiN where the severity is above 2, else 0) when the OCHA profile computed one.
+        base_pin = (r.get("worksheet") or {}).get("preliminary_pin")
+        base_pin = r["preliminary_pin"] if base_pin is None else base_pin
+        fin_pin, status, rank, sector, note = base_pin, None, None, None, None
         if pd is not None:
             chosen = u["pin"].get(pd["sector"])
             if chosen is None:
@@ -185,13 +196,14 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
         pub_pin = _to_float(st.get("final_pin", st.get("total_pin")))
         pub_sev = _to_float(st.get("final_severity"))
         pub_sev = int(pub_sev) if pub_sev is not None and pub_sev == int(pub_sev) else None
-        differs = pub_pin is not None and r["preliminary_pin"] is not None and abs(pub_pin - r["preliminary_pin"]) >= 1
+        differs = pub_pin is not None and base_pin is not None and abs(pub_pin - base_pin) >= 1
         undocumented = bool(differs and status in ("pending_flagged", "no_flag", "flags_closed_in_bulk"))
         if pub_pin is not None:
             published_total += pub_pin
         published_differs += bool(differs)
         published_undocumented += undocumented
-        rows.append({"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
+        rows.append({"unit_id": uid, "admin2_code": r["admin2_code"], "admin2": r["admin2"], "admin3_code": r.get("admin3_code"), "pocket_of_need": r.get("pocket_of_need"),
+                     "population_group": r["population_group"], "population": r["population"], "highest_pin": r["preliminary_pin"], "worksheet_gate_applied": base_pin != r["preliminary_pin"],
                      "published_final_pin": pub_pin, "published_final_pin_rank": rank_of_value(ranked, pub_pin) if pub_pin is not None else None,
                      "published_final_severity": pub_sev, "published_differs_from_preliminary": differs,
                      "published_differs_without_recorded_decision": undocumented,
@@ -244,7 +256,8 @@ def _to_float(v):
 
 def _csv_row(r):
     """One row with the four things kept apart: preliminary result, review status, final result, justification (+ who and when)."""
-    return {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
+    return {"unit_id": r["unit_id"], "admin2_code": r["admin2_code"], "admin2": r["admin2"], "admin3_code": r["admin3_code"], "pocket_of_need": r["pocket_of_need"],
+            "population_group": r["population_group"], "population": r["population"], "highest_pin": r["highest_pin"], "worksheet_gate_applied": r["worksheet_gate_applied"],
             "preliminary_pin": r["preliminary_pin"], "stored_preliminary_pin": r["stored_preliminary_pin"],
             "published_final_pin": r["published_final_pin"], "published_final_pin_rank": r["published_final_pin_rank"],
             "published_final_severity": r["published_final_severity"],
@@ -277,11 +290,12 @@ def _csv_row(r):
         "type": "object",
         "properties": {
             "pin_decisions": {"type": "array", "items": {"type": "object", "properties": {
-                "unit": {"type": "string", "description": "Admin 2 P-code."}, "population_group": {"type": "string"},
+                "unit": {"type": "string", "description": "The unit's finest P-code (Admin 3 if the file has Admin 3, else Admin 2)."}, "population_group": {"type": "string"},
+                "pocket_of_need": {"type": "string", "description": "Only for a pocket-of-need row; it is a separate unit from the rest of its Admin 2."},
                 "sector": {"type": "string", "description": "Main sector whose PiN becomes the Final PiN."},
                 "rationale": {"type": "string"}, "decided_by": {"type": "string", "description": "e.g. 'HCT working session, 12 Oct'."}}}},
             "severity_decisions": {"type": "array", "items": {"type": "object", "properties": {
-                "unit": {"type": "string"}, "population_group": {"type": "string"}, "phase": {"type": "integer"},
+                "unit": {"type": "string"}, "population_group": {"type": "string"}, "pocket_of_need": {"type": "string"}, "phase": {"type": "integer"},
                 "evidence_basis": {"type": "string"}, "evidence": {"type": "string"}, "decided_by": {"type": "string"}}}},
             "replace": {"type": "boolean", "description": "Replace all stored decisions instead of merging."},
         },
@@ -335,6 +349,8 @@ def get_jiaf_decisions():
             "bulk_accepted_flags": {"type": "array", "items": {"type": "integer"}, "description": "PiN flag numbers the team agreed to close in bulk, e.g. [1]. Needs bulk_rationale."},
             "bulk_rationale": {"type": "string", "description": "Why the team closed these flags in bulk (required with bulk_accepted_flags)."},
             "bulk_decided_by": {"type": "string", "description": "Who decided, e.g. 'JIAF analysis group, 12 Oct'."},
+            "rules_profile": {"type": "string", "description": "'ocha_worksheet_2026' (default) or 'manual_reading' (older interpretation, comparison only)."},
+            "sectors_sev_5": {"type": "integer"}, "sectors_sev_4": {"type": "integer"},
             "f1_min_sectors": {"type": "integer"}, "f1_count_missing": {"type": "boolean"}, "f1_count_zero": {"type": "boolean"},
             "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight; a sector with no value is missing, never phase 1."},
             "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing'."},
@@ -349,11 +365,11 @@ def get_jiaf_decisions():
     },
 )
 def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                          bulk_accepted_flags=None, bulk_rationale=None, bulk_decided_by=None, sectors_in_scope=None, zero_severity_as=None,
+                          bulk_accepted_flags=None, bulk_rationale=None, bulk_decided_by=None, rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None,
                           f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None,
                           f6_pct=None, f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                           write_fields=False, confirmed: bool = False):
-    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
+    overrides = {k: v for k, v in {"rules_profile": rules_profile, "sectors_sev_5": sectors_sev_5, "sectors_sev_4": sectors_sev_4, "sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
                                    "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}

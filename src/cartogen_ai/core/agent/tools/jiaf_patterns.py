@@ -15,6 +15,7 @@ import math
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import run_analysis
+from .jiaf_inputs import uid
 from .jiaf_inputs import STATEMENT, VALIDATION_BLOCKERS
 from .jiaf_review import finalize, load_decisions
 from .table_importers import key_of, plan_join
@@ -76,11 +77,11 @@ def patterns(units, analysis, final_rows, previous_analysis=None, thresholds=Non
     """The ten Workspace 3C outputs as plain data. Pure."""
     t = merge_thresholds(thresholds)
     expected = analysis["expected_sectors"]
-    by = {(r["admin2_code"], r["population_group"]): r for r in final_rows}
+    by = {r["unit_id"]: r for r in final_rows}
     out = {"thresholds": {k: (list(v) if isinstance(v, tuple) else v) for k, v in t.items()}}
     unit_info = []
     for u in units:
-        fr = by[(u["admin2_code"], u["population_group"])]
+        fr = by[uid(u)]
         sev = fr["final_severity"] if fr["final_severity"] is not None else fr["preliminary_severity"]
         unit_info.append({"u": u, "fr": fr, "sev": sev, "provisional_sev": fr["final_severity"] is None and fr["preliminary_severity"] is not None})
     has_pop = sum(1 for i in unit_info if i["u"]["population"]) > 0
@@ -122,8 +123,8 @@ def patterns(units, analysis, final_rows, previous_analysis=None, thresholds=Non
     if previous_analysis is None:
         out["q4_trend"] = {"note": "No previous-year file given, so the trend was not computed."}
     else:
-        prev = {(r["admin2_code"], r["population_group"]): r["preliminary_pin"] for r in previous_analysis["rows"]}
-        cur = {(r["admin2_code"], r["population_group"]): r["preliminary_pin"] for r in analysis["rows"]}
+        prev = {r["unit_id"]: r["preliminary_pin"] for r in previous_analysis["rows"]}
+        cur = {r["unit_id"]: r["preliminary_pin"] for r in analysis["rows"]}
         both = [k for k in cur if cur[k] is not None and prev.get(k) is not None]
         changes = sorted(((cur[k] - prev[k], k, prev[k], cur[k]) for k in both), key=lambda x: x[0])
         row = lambda c: {"unit": c[1][0], "previous": c[2], "current": c[3], "change": c[0]}  # noqa: E731

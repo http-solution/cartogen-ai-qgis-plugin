@@ -31,7 +31,9 @@ def run(units, decisions=None, bulk=(), overrides=None, previous=None):
 
 
 FLAGGED = dict(pin={"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
-CALM = dict(pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, sev={"wash": 2, "health": 2, "shelter": 2, "nutrition": 2})
+# Severity 3, not 2: the worksheet's Preliminary PiN is 0 for a unit whose severity is 2 or lower (jiaf_rules.preliminary_pin), so a calm severity-2 unit would
+# have no PiN to carry.
+CALM = dict(pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
 
 
 class TestDecisionValidation(unittest.TestCase):
@@ -70,7 +72,7 @@ class TestFinalize(unittest.TestCase):
         r = rows[0]
         self.assertEqual((r["final_pin"], r["final_pin_status"]), (100, "no_flag"))
         self.assertEqual(r["final_severity_status"], "preliminary_accepted")
-        self.assertEqual(r["final_severity"], 2)
+        self.assertEqual(r["final_severity"], 3)
         self.assertFalse(s["provisional"])
 
     def test_flagged_without_a_decision_is_pending_and_provisional(self):
@@ -104,15 +106,15 @@ class TestFinalize(unittest.TestCase):
         self.assertEqual(len(s["decision_issues"]), 2)
 
     def test_bulk_accepting_flags_closes_only_units_with_nothing_else_fired(self):
-        u1 = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 0}, sev=CALM["sev"])  # only flag 1 (zero sector)
-        u2 = unit("U2", **FLAGGED)  # flag 2 etc.
+        u1 = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85, "cccm": 0, "education": 0}, sev=dict(CALM["sev"], cccm=3, education=3))  # only flag 1 (two zero sectors)
+        u2 = unit("U2", pin=dict(FLAGGED["pin"], cccm=1, education=1), sev=dict(FLAGGED["sev"], cccm=3, education=3))  # flag 2 etc.
         _a, rows, s = run([u1, u2], bulk=[1])
         self.assertEqual(rows[0]["final_pin_status"], "flags_closed_in_bulk")
         self.assertEqual(rows[1]["final_pin_status"], "pending_flagged")
         self.assertEqual(s["bulk_accepted_flags"], [1])
 
     def test_severity_decision_and_pending_and_no_national_severity(self):
-        flagged_sev = dict(pin=CALM["pin"], sev={"wash": 5, "health": 3, "shelter": 3, "nutrition": 3})  # severity flag 1: any sector in phase 5
+        flagged_sev = dict(pin=CALM["pin"], sev={"wash": 5, "health": 5, "shelter": 3, "nutrition": 3})  # severity flag 1: sectors_sev_5 (2) sectors in phase 5
         units = [unit("U1", **flagged_sev), unit("U2", **flagged_sev)]
         dec = {"pin": {}, "severity": {"U1": {"phase": 4, "evidence_basis": "outcome_indicators", "evidence": "CDR 1.2"}}}
         _a, rows, s = run(units, dec)
@@ -134,8 +136,10 @@ class TestCoverage(unittest.TestCase):
     def test_the_four_published_examples(self):
         for phases, want in [([3, 3, 3, 3, 2, 1], 3), ([4, 4, 4, 4, 2, 1], 4), ([5, 5, 4, 4, 2, 1], 5), ([5, 4, 3, 2, 2, 1], 2)]:
             self.assertEqual(je.preliminary_severity(phases), want, phases)
+        f = je.severity_flags(unit("U1"), [5, 4, 3, 2, 2, 1], 2, je.merge_settings({"rules_profile": "manual_reading"}))
+        self.assertTrue(f[1]["fired"])  # manual_reading: a phase 5 sector in a unit classified 2 is flagged for review
         f = je.severity_flags(unit("U1"), [5, 4, 3, 2, 2, 1], 2, je.merge_settings())
-        self.assertTrue(f[1]["fired"])  # a phase 5 sector in a unit classified 2 is flagged for review
+        self.assertFalse(f[1]["fired"])  # the worksheet needs sectors_sev_5 (2) sectors in phase 5; one is not enough
 
     def test_too_few_reporting_sectors_is_not_phase_1(self):
         out = je.severity_with_coverage([4, 4, 4], 5)  # three sectors report phase 4, five report nothing
@@ -208,6 +212,12 @@ class TestMissingVersusZero(unittest.TestCase):
         row = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health", "shelter", "nutrition"], **settings})["rows"][0]
         return row, row["pin_flags"][1]
 
+    def test_the_worksheet_profile_has_no_count_only_one_switch(self):
+        # In OCHA's worksheet flag 1 always counts blank AND zero cells; the switches belong to the older manual_reading profile only.
+        for k in ("f1_count_missing", "f1_count_zero"):
+            with self.assertRaises(ValueError):
+                je.merge_settings({k: False})
+
     def test_missing_and_zero_are_listed_apart(self):
         row, f = self._flag1({"wash": 100, "health": 0, "shelter": 50})  # nutrition absent, health explicitly zero
         self.assertEqual(f["detail"], {"missing_sectors": ["nutrition"], "zero_sectors": ["health"]})
@@ -215,15 +225,16 @@ class TestMissingVersusZero(unittest.TestCase):
         self.assertEqual(row["pin_coverage"]["zero_sectors"], ["health"])
         self.assertEqual(f["value"], 2)
 
-    def test_the_team_can_count_only_one_of_them(self):
+    def test_the_manual_reading_profile_can_count_only_one_of_them(self):
         pin = {"wash": 100, "health": 0, "shelter": 50}
-        self.assertEqual(self._flag1(pin, f1_count_zero=False)[1]["value"], 1)  # only the missing nutrition
-        self.assertEqual(self._flag1(pin, f1_count_missing=False)[1]["value"], 1)  # only the explicit zero
-        self.assertFalse(self._flag1(pin, f1_count_zero=False, f1_min_sectors=2)[1]["fired"])
+        m = {"rules_profile": "manual_reading"}
+        self.assertEqual(self._flag1(pin, f1_count_zero=False, **m)[1]["value"], 1)  # only the missing nutrition
+        self.assertEqual(self._flag1(pin, f1_count_missing=False, **m)[1]["value"], 1)  # only the explicit zero
+        self.assertFalse(self._flag1(pin, f1_count_zero=False, f1_min_sectors=2, **m)[1]["fired"])
         with self.assertRaises(ValueError):
-            je.merge_settings({"f1_count_missing": False, "f1_count_zero": False})
+            je.merge_settings({"f1_count_missing": False, "f1_count_zero": False, **m})
         with self.assertRaises(ValueError):
-            je.merge_settings({"f1_count_zero": "yes"})
+            je.merge_settings({"f1_count_zero": "yes", **m})
 
     def test_partially_populated_inputs(self):
         _row, f = self._flag1({"wash": 100})  # three of four sectors have no figure
@@ -303,7 +314,7 @@ class TestSectorsAndPublishedValues(unittest.TestCase):
         u = unit("U1", pin={"wash": 7908, "health": 100})
         u["stored"] = {"preliminary_pin": 0.0, "final_pin": 3437}
         res = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health"]})
-        self.assertEqual(res["stored_comparison"]["pin_mismatch"], [{"unit": "U1", "stored": 0.0, "computed": 7908.0}])
+        self.assertEqual(res["stored_comparison"]["pin_mismatch"], [{"unit": "U1", "stored": 0.0, "computed": 7908.0, "highest_pin": 7908.0}])
         rows, _ = jr.finalize([u], res, {"pin": {}, "severity": {}})
         self.assertEqual(rows[0]["stored_preliminary_pin"], 0.0)  # the source value is kept as found
         self.assertEqual(rows[0]["preliminary_pin"], 7908)
@@ -311,14 +322,16 @@ class TestSectorsAndPublishedValues(unittest.TestCase):
     def test_the_adapters_say_what_they_were_checked_against(self):
         self.assertIn("validated", ji.ADAPTERS["ocha_worksheet"]["status"])
         self.assertIn("validated", ji.ADAPTERS["hxl"]["status"])
-        self.assertIn("UNVERIFIED", ji.ADAPTERS["sector_template"]["status"])
+        self.assertIn("UNSUPPORTED optional", ji.ADAPTERS["sector_template"]["status"])
         self.assertIn("screenshots", ji.ADAPTERS["sector_template"]["status"])
         self.assertIn("cannot validate", ji.ADAPTERS["sector_template"]["evidence"])
+        self.assertTrue(ji.ADAPTERS["sector_template"]["optional"])
+        self.assertIn("official example", ji.ADAPTERS["ocha_worksheet"]["status"])
 
 
 class TestBulkClosureAndBlockers(unittest.TestCase):
     def test_bulk_closure_is_recorded_against_every_unit_it_closes(self):
-        u = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 0}, sev=CALM["sev"])
+        u = unit("U1", pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85, "cccm": 0, "education": 0}, sev=dict(CALM["sev"], cccm=3, education=3))
         a = je.analyze([u], overrides={"sectors_in_scope": scope_of([u])})
         info = {"rationale": "no camps in these districts", "decided_by": "analysis group", "date": "2026-10-12"}
         rows, s = jr.finalize([u], a, {"pin": {}, "severity": {}}, (1,), info)
@@ -331,12 +344,16 @@ class TestBulkClosureAndBlockers(unittest.TestCase):
     def test_every_jiaf_result_carries_both_open_blockers(self):
         b = ji.VALIDATION_BLOCKERS
         self.assertEqual([x["id"] for x in b["blockers"]], ["flag_formulas", "annex4_reader"])
-        self.assertTrue(all(x["status"] == "open" and x["closes_when"] for x in b["blockers"]))
+        self.assertEqual([x["status"] for x in b["blockers"]], ["compared_awaiting_owner_closure", "open"])  # neither is marked complete
+        self.assertTrue(all(x["closes_when"] for x in b["blockers"]))
         self.assertIn("faithful or complete", b["claim"])
+        self.assertIn("neither item is marked complete", b["claim"])
         self.assertIn("screenshots", b["blockers"][1]["text"])
         self.assertIn("unverified", b["blockers"][1]["text"])
         self.assertIn("different layout", b["blockers"][1]["text"])
+        self.assertIn("UNSUPPORTED OPTIONAL", b["blockers"][1]["text"])
         self.assertIn("does not by itself show", b["blockers"][0]["text"])
+        self.assertIn("records", b["blockers"][0]["text"])
         grid = TestTools.GRID
         import tempfile as _t
         fd, path = _t.mkstemp(suffix=".csv")
@@ -368,15 +385,17 @@ class TestPatterns(unittest.TestCase):
         self.assertEqual(jp.merge_thresholds({"severe_phases": [5]})["severe_phases"], (5,))
 
     def test_q1_to_q3_and_the_manual_defaults(self):
-        units = [unit("A", pin={"wash": 600, "health": 100}, pop=1000, sev={"wash": 4, "health": 2}),
-                 unit("B", pin={"wash": 50, "health": 450}, pop=500, sev={"wash": 1, "health": 4})]
+        # Four sectors with severity 3: the worksheet's Preliminary PiN is the highest PiN only where the overlap severity is above 2 (needs 4 reporting sectors).
+        sev = {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}
+        units = [unit("A", pin={"wash": 600, "health": 100, "shelter": 1, "nutrition": 1}, pop=1000, sev=sev),
+                 unit("B", pin={"wash": 50, "health": 450, "shelter": 1, "nutrition": 1}, pop=500, sev=sev)]
         out = self._pat(units)
         top = out["q1_highest_pin"]["top_units"]
         self.assertEqual([t["unit"] for t in top], ["A", "B"])
         self.assertTrue(top[0]["high_absolute_and_high_share"])
-        self.assertEqual(out["q3_sector_pin"]["national_pin_by_sector"], {"health": 550, "wash": 650})
+        self.assertEqual(out["q3_sector_pin"]["national_pin_by_sector"], {"health": 550, "wash": 650, "shelter": 2, "nutrition": 2})
         self.assertIn("NOT added", out["q3_sector_pin"]["note_on_sums"])
-        self.assertEqual(out["q3_sector_pin"]["units_where_sector_is_highest"], {"health": 1, "wash": 1})
+        self.assertEqual(out["q3_sector_pin"]["units_where_sector_is_highest"], {"health": 1, "wash": 1, "shelter": 0, "nutrition": 0})
         self.assertEqual(out["thresholds"]["correlation_threshold"], 0.7)
         self.assertEqual(out["thresholds"]["sector_population_share"], 0.4)
 
@@ -511,23 +530,27 @@ class TestYemenLocal(unittest.TestCase):
         self.assertEqual(out["sectors_shown_as_separate_evidence"], ["child_protection", "gbv", "hlp", "mine_action"])
         sens = out["flag_1_sensitivity"]["missing_and_zero"]
         self.assertEqual((sens[1], sens[2]), (192, 96))
-        self.assertEqual(out["pin_flag_counts"][1]["fired"], 192)
+        self.assertEqual(out["pin_flag_counts"][1]["fired"], 96)  # worksheet flag 1: at least zero_pin_thresh (2) sectors missing or zero
         self.assertEqual(out["outcome_checks"]["assessable_units"], 0)  # all five outcome fields are blank
         self.assertEqual(out["outcome_checks"]["not_assessable_units"], 333)
-        self.assertEqual(sorted((d["unit"], d["stored"]) for d in out["source_discrepancies"]), [("YE1920", 0.0), ("YE1928", 0.0)])
+        # The two severity-2 units' stored preliminary PiN of 0 is OCHA's own gate (Preliminary PiN = highest PiN only if severity > 2), not a data error.
+        self.assertEqual(out["source_discrepancies"], [])
+        self.assertEqual(out["stored_comparison"]["pin_match"], 333)
         self.assertEqual(out["adapter"]["name"], "ocha_worksheet")
 
-    def test_where_the_249_comes_from_and_the_published_values(self):
+    def test_flag_counts_under_the_worksheet_rules_and_the_published_values(self):
+        """Regression pins of THIS code's output on the supplied Yemen worksheet (template-default thresholds, because that workbook has no Thresholds sheet). They are NOT a
+        verification against the Yemen analysis team's flag decisions, which no supplied file contains. (Under the older interpreted rules the same file gave 249 units.)"""
         d = os.environ["JIAF_YEMEN_DIR"]
         path = os.path.join(d, next(f for f in os.listdir(d) if f.endswith("jiaf_yemen_2026.xlsx")))
         run_ = je.run_analysis(path)
         fired = [[n for n, f in r["pin_flags"].items() if f["fired"]] for r in run_["analysis"]["rows"]]
-        self.assertEqual(sum(1 for x in fired if x), 249)  # units with ANY fired PiN flag, not a flag-1 count
-        self.assertEqual(sum(1 for x in fired if x == [1]), 141)
-        self.assertEqual(sum(1 for x in fired if 1 in x), 192)
-        self.assertEqual(sum(1 for x in fired if x and 1 not in x), 57)
+        self.assertEqual(sum(1 for x in fired if x), 194)  # units with ANY fired PiN flag
+        self.assertEqual(sum(1 for x in fired if x == [1]), 66)
+        self.assertEqual(sum(1 for x in fired if 1 in x), 96)
+        self.assertEqual(sum(1 for x in fired if x and 1 not in x), 98)
         _rows, summary = jr.finalize(run_["units"], run_["analysis"], {"pin": {}, "severity": {}})
-        self.assertEqual(summary["pending_pin_units"], 249)
+        self.assertEqual(summary["pending_pin_units"], 194)
         pub = summary["published_final"]
         self.assertAlmostEqual(pub["total"], 22325197.74, delta=0.01)
         self.assertEqual(pub["units_differing_from_the_calculated_preliminary_pin"], 28)

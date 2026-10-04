@@ -105,7 +105,7 @@ In the manual's own step order.
 
 ## 6. Open ambiguities (to be settled against the OCHA worksheet formulas)
 
-The saved Yemen copy has no flag formulas, so these stay open; the module will not guess and will make each a documented setting:
+**Superseded by section 11.2 (2026-10-04): the formulas were later read from OCHA's own worksheet.** What follows is the original list, kept as written. The saved Yemen copy has no flag formulas, so these stayed open; the module did not guess and made each a documented setting:
 
 1. Flag 1: fires when the count of missing/zero-PiN sectors is exactly 1 or 2, or at least 1?
 2. Flags 2-3: "% difference" -- relative to which value, and `>=` or `>`?
@@ -173,3 +173,26 @@ The module is built (stages 2-4), but two items keep it from being called a fait
 
 **Still open (unchanged):** the exact OCHA flag comparisons and documented flag resolutions (blocker 1), and genuine Annex 4 compatibility (blocker 2). The manual (printed p.34) confirms that flag 1 counts sectors with missing or zero PiN, recommends "1 or 2" and allows country adaptation; it does not settle every denominator or boundary operator.
 
+### 11.2 The flag formulas, read from OCHA's own worksheet (2026-10-04, after the owner supplied the official example and template)
+
+This supersedes the readings in section 6 for the default rule set. Source: the cell formulas of `Worksheet_3A_3B_PiNSev_Example.xlsx` / `_Template.xlsx` (sheets 'WS - 3.1 Overall PiN', 'WS - 3.2 Intersectoral Severity', 'PiN Historical Trend', 'Thresholds'). Implemented in `tools/jiaf_rules.py` (profile `ocha_worksheet_2026`); the earlier reading survives only as profile `manual_reading`.
+
+| Item | Worksheet rule |
+|---|---|
+| Unit ID | population group + pocket of need + (Admin 3, else Admin 2, else Admin 1 P-code) |
+| 2nd / 3rd highest | largest value strictly below the highest / 2nd (distinct values; zeros count, blanks do not) |
+| PiN flag 1 | (cells equal to 0) + (blank cells) >= `zero_pin_thresh` (template 2); blank when the eight sectors sum to 0 |
+| PiN flag 2 / 3 | (H1 - H2) / H2 and (H1 - H3) / H3 >= `perc_1st_2nd` (0.30) / `perc_1st_3rd` (0.50); blank when the comparison PiN is blank (flag 2 also when 0); switched off when more than one sector is tied for H1 |
+| PiN flag 4 | the single highest sector is in the sub-population sector list (template: Education); blank when H1 = 0; ties never match |
+| PiN flag 5 | H1 / population >= `flag_pin_perc` (0.90), unrounded; blank when population is 0 or missing |
+| PiN flag 6 | per sector ROUND((new - old) / old, 1); ABS >= `flag_pin_historical` (1.0) for any highest sector(s) (part a) and separately for any 2nd-highest sector(s) (part b); a blank change in any involved sector blanks that part; each part counts in '# Flags' |
+| Preliminary PiN | H1 if the unit's severity > 2, else 0 (a worksheet rule, not in the manual's text) |
+| Severity (preliminary) | the Box 22 overlap rule on the sectors that have a value (blanks ignored) |
+| Severity flag 1 | sectors in phase 5 >= `sectors_sev_5` (2) |
+| Severity flag 2 | any outcome phase 2+ above or below the preliminary severity |
+| Severity flag 3 | at least two outcomes 1+ below, or at least two 1+ above |
+| Severity flag 4 | preliminary 5 AND sectors in phases 1-4 >= `sectors_sev_5` (the header says "more than 4 sectors in 4 or worse while preliminary is 4 or lower" and `sectors_sev_4` = 5 is defined but unused: formula and header disagree; the formula is implemented and the header's reading is returned beside it) |
+
+Checked: all 11 flag columns, the preliminary severity and the Preliminary PiN cached in the example workbook's 6 units are reproduced (the sixth unit, with blank sectors, gets no preliminary severity here by design; the worksheet gives it 2 and that value is reported as `worksheet_rule_severity`). On the Yemen worksheet all 333 stored preliminary PiNs and severities are reproduced; YE1920/YE1928 (stored preliminary PiN 0) follow the severity-above-2 rule and are not data errors.
+
+Not closed: flag 6 has no cached example row (the example's historical table is empty); flag 3 with a 3rd highest of exactly 0 follows from the formula text and Excel's text-versus-number rule, not from a cached row; the Reference Table Indicators sheet is not implemented; a real country's `Thresholds` values and the Yemen team's flag decisions are not in any supplied file. The Annex 4 reader is an unsupported optional format. Both blockers stay with the owner to close.

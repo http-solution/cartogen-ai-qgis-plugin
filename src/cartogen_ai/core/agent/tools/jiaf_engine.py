@@ -17,19 +17,18 @@ CHECKED against the real Yemen 2026 worksheet and the published HNO 2026 file (3
 severity in 333/333 units; the national total of the stored Final PiN is 22,325,198 and the chosen sector is the highest in 305 units, the second
 highest in 11 and the third highest in 17 (so a Final PiN is "the PiN of a chosen sector", not only first or second).
 
-READINGS THE MANUAL LEAVES OPEN (plan section 6) -- each is a setting, echoed in every result, and none is verified against the OCHA worksheet formulas
-(the supplied copy has values only, no flags):
+RULES PROFILES (setting `rules_profile`). The default, `ocha_worksheet_2026` (jiaf_rules.py), reproduces the flag formulas read from OCHA's official
+Worksheet 3A/3B example and template workbooks: distinct-value ranks, tie suppression, the worksheet's thresholds and its 'severity above 2' gate on the
+preliminary PiN. Thresholds come from the workbook's own `Thresholds` named cells when it has them (an explicit tool argument wins), else the template
+defaults, and every result says which. The older `manual_reading` profile keeps this module's earlier INTERPRETATION of the manual's wording for comparison
+only: it is not OCHA's rule set and is never the default.
+manual_reading, for the record:
 - Flag 1 fires when the number of sectors with a missing or zero PiN is at least `f1_min_sectors` (default 1; the table says "1 or 2").
-- Flags 2 and 3 measure the difference of the highest PiN to the 2nd / 3rd highest RELATIVE TO THE 2nd / 3rd (so it can exceed 100%): Annex 5 speaks of a
-  ">200 percent difference between 1st and second PiN", which is impossible if measured against the highest. They fire at >= the threshold; if the
-  2nd/3rd highest is 0 and the highest is above 0 the difference is undefined and the flag fires.
-- Flag 4 is only evaluated when the sectors that count a sub-population are named (`f4_subpopulation_sectors`); it then fires when the highest PiN
-  belongs to one of them. The manual's 50% threshold is not applied (unknown meaning).
-- Flag 5 fires when the highest PiN is above `f5_share` (default 90%) of the unit's population. A highest PiN above 100% is also marked as a likely data
-  error (Annex 5) -- but a sector that counts a subset of the population may legitimately be compared with that subset, which is not known here.
-- Flag 6 compares the highest sector's PiN with the SAME sector's previous-year PiN and fires on an increase of at least `f6_pct` (default 100%), only
-  when the previous PiN is at least `f6_min_previous_pin` (default 1,000: Annex 5 says "preferably only for PiN figures above one thousand").
-- Severity flag 4 fires when MORE THAN `s4_sector_count` (default 4) sectors are in phase 4 and the preliminary phase is 4.
+- Flags 2 and 3 measure the difference of the highest PiN to the 2nd / 3rd highest RELATIVE TO THE 2nd / 3rd and fire at >= the threshold.
+- Flag 4 is only evaluated when the sectors that count a sub-population are named; the manual's 50% is not applied.
+- Flag 5 fires when the highest PiN is above `f5_share` of the unit's population.
+- Flag 6 compares the highest sector's PiN with the same sector's previous-year PiN (increase >= `f6_pct`, previous PiN >= `f6_min_previous_pin`).
+- Severity flag 4 fires when MORE THAN `s4_sector_count` sectors are in phase 4 and the preliminary phase is 4.
 
 INCOMPLETE COVERAGE is never turned into a phase 1. The sectors in scope (`sectors_in_scope`, default all eight main sectors; narrow it only to the
 sectors the HCT activated) that have no phase are MISSING: the overlap rule is applied with them contributing nothing and with all of them at phase 5,
@@ -43,7 +42,8 @@ import os
 
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
-from .jiaf_inputs import ADAPTERS, MAIN_SECTORS, SECTORS, STATEMENT, VALIDATION_BLOCKERS, load_units, validate_units
+from . import jiaf_rules as rules
+from .jiaf_inputs import ADAPTERS, MAIN_SECTORS, SECTORS, STATEMENT, VALIDATION_BLOCKERS, load_units, uid, validate_units
 from .table_importers import key_of, plan_join
 
 try:
@@ -54,8 +54,24 @@ except ImportError:
 
 _CAP = 50
 _TOL = 1e-9
-DEFAULTS = {"sectors_in_scope": tuple(MAIN_SECTORS), "zero_severity_as": "not_applicable", "f1_min_sectors": 1, "f1_count_missing": True, "f1_count_zero": True, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90, "f6_pct": 1.00,
-            "f6_min_previous_pin": 1000.0, "s4_sector_count": 4}
+MANUAL = "manual_reading"
+_COMMON = {"rules_profile": rules.PROFILE_ID, "sectors_in_scope": tuple(MAIN_SECTORS), "zero_severity_as": "not_applicable"}
+PROFILE_DEFAULTS = {
+    rules.PROFILE_ID: dict(rules.TEMPLATE_DEFAULTS),
+    MANUAL: {"f1_min_sectors": 1, "f1_count_missing": True, "f1_count_zero": True, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90,
+             "f6_pct": 1.00, "f6_min_previous_pin": 1000.0, "s4_sector_count": 4},
+}
+DEFAULTS = dict(_COMMON, **PROFILE_DEFAULTS[rules.PROFILE_ID])  # the default profile's settings
+ALL_SETTINGS = sorted(set(_COMMON) | set(PROFILE_DEFAULTS[rules.PROFILE_ID]) | set(PROFILE_DEFAULTS[MANUAL]))
+READINGS_OCHA = [
+    "Flag 3 with a 3rd highest PiN of exactly 0: the worksheet formula tests the difference column for blank, so Excel's text-versus-number comparison flags it. Reproduced from the formula text; no cached example row contains this case, so it is unconfirmed on real output.",
+    "Flag 6 (change from last year): reproduced from the formulas; the supplied example's historical table is empty, so it is checked on synthetic cases only. Each of its two parts (highest sector(s), 2nd highest sector(s)) counts separately in the worksheet's '# Flags'.",
+    "Severity flag 4: the worksheet FORMULA (preliminary 5 and at least sectors_sev_5 sectors in phases 1-4) disagrees with its HEADER ('more than 4 sectors in 4 or worse while preliminary is 4 or lower'). The formula is implemented; the header's reading is returned beside it as header_text_reading.",
+    "Flag 4 uses the sub-population sector list: the template ships with only 'Education'. A workbook's own list is used when it has one; otherwise the team must set it.",
+    "Outcome-indicator phases (severity flags 2 and 3) are read as assigned by analysts; the worksheet's 'Reference Table Indicators' sheet that can derive them from raw indicators is not implemented.",
+    "Coverage: the worksheet applies its severity rule to the sectors that have a value and silently gives phase 1 when too few report; this tool is stricter by design (incomplete coverage gives no preliminary severity, with bounds). The worksheet's own rule value is returned beside it as worksheet_rule_severity.",
+    "Narrowing sectors_in_scope departs from the worksheet, whose ranges always cover all eight main sectors.",
+]
 READINGS = [
     "Flag 1: fires when the number of sectors with a missing PiN and/or an explicit zero PiN (f1_count_missing, f1_count_zero; both by default) is at least f1_min_sectors (the table says 'missing or zero' and '1 or 2'). UNVERIFIED interpretation.",
     "Flags 2/3: the difference is measured relative to the 2nd/3rd highest PiN and fires at >= the threshold (Annex 5 implies this).",
@@ -67,24 +83,37 @@ READINGS = [
 ]
 
 
+def readings_for(settings):
+    return READINGS_OCHA if settings["rules_profile"] == rules.PROFILE_ID else ["manual_reading profile (this module's INTERPRETATION of the manual, not OCHA's rules; for comparison only):"] + READINGS
+
+
 # ------------------------------------------------------------------ pure --
 def merge_settings(overrides=None):
-    s = dict(DEFAULTS)
+    profile = (overrides or {}).get("rules_profile") or rules.PROFILE_ID
+    if profile not in PROFILE_DEFAULTS:
+        raise ValueError(f"Unknown rules_profile '{profile}'. Profiles: {sorted(PROFILE_DEFAULTS)}.")
+    s = dict(_COMMON, **PROFILE_DEFAULTS[profile])
+    s["rules_profile"] = profile
     for k, v in (overrides or {}).items():
-        if k not in DEFAULTS:
-            raise ValueError(f"Unknown setting '{k}'. Settings: {sorted(DEFAULTS)}.")
+        if k not in ALL_SETTINGS:
+            raise ValueError(f"Unknown setting '{k}'. Settings: {ALL_SETTINGS}.")
+        if k not in s:
+            if v is not None:
+                raise ValueError(f"'{k}' is not a setting of the {profile} profile (settings: {sorted(s)}).")
+            continue
         if v is not None:
             s[k] = v
     if int(s["f1_min_sectors"]) < 1:
         raise ValueError("f1_min_sectors must be at least 1.")
     for k in ("f2_pct", "f3_pct", "f5_share", "f6_pct", "f6_min_previous_pin"):
-        s[k] = float(s[k])
-        if s[k] < 0:
-            raise ValueError(f"{k} must not be negative.")
+        if k in s:
+            s[k] = float(s[k])
+            if s[k] < 0:
+                raise ValueError(f"{k} must not be negative.")
     for k in ("f1_count_missing", "f1_count_zero"):
-        if not isinstance(s[k], bool):
+        if k in s and not isinstance(s[k], bool):
             raise ValueError(f"{k} must be true or false.")
-    if not (s["f1_count_missing"] or s["f1_count_zero"]):
+    if "f1_count_missing" in s and not (s["f1_count_missing"] or s["f1_count_zero"]):
         raise ValueError("flag 1 must count missing sectors, zero sectors or both.")
     s["sectors_in_scope"] = tuple(s["sectors_in_scope"] or ())
     if not s["sectors_in_scope"] or any(x not in MAIN_SECTORS for x in s["sectors_in_scope"]):
@@ -96,7 +125,11 @@ def merge_settings(overrides=None):
     if bad:
         raise ValueError(f"f4_subpopulation_sectors must be main sectors {MAIN_SECTORS}; got {bad}.")
     s["f1_min_sectors"] = int(s["f1_min_sectors"])
-    s["s4_sector_count"] = int(s["s4_sector_count"])
+    for k in ("s4_sector_count", "sectors_sev_5", "sectors_sev_4"):
+        if k in s:
+            s[k] = int(s[k])
+            if s[k] < 1:
+                raise ValueError(f"{k} must be at least 1.")
     return s
 
 
@@ -125,8 +158,22 @@ def _rel_diff(top, other):
     return (top - other) / other, False
 
 
+def old_pins_of(unit, previous_unit=None):
+    """Last year's {sector: PiN} for a unit: the worksheet's own historical table if the file had one, else the matching unit of a previous-year file, else None."""
+    if unit.get("previous_pin") is not None:
+        return unit["previous_pin"]
+    return previous_unit["pin"] if previous_unit is not None else None
+
+
+def pin_flags_worksheet(unit, expected, settings, previous_unit=None):
+    """(flags, extra) under the ocha_worksheet_2026 profile (see jiaf_rules)."""
+    return rules.pin_flags({sec: unit["pin"].get(sec) for sec in expected}, unit.get("population"), settings, old_pins_of(unit, previous_unit))
+
+
 def pin_flags(unit, ranked, settings, expected, previous_unit=None):
-    """{flag number: {"fired": bool or None (not evaluable), "value": ..., "note": ...}} for flags 1-6."""
+    """{flag number: {"fired": bool or None (not evaluable), "value": ..., "note": ...}} for flags 1-6, under the profile in `settings`."""
+    if settings["rules_profile"] == rules.PROFILE_ID:
+        return pin_flags_worksheet(unit, expected, settings, previous_unit)[0]
     flags = {}
     # An absent PiN and an explicit zero are different facts and stay different: they are listed apart, and the team chooses whether flag 1 counts
     # either or both (default both: the table says "missing or zero"). This trigger is an UNVERIFIED interpretation (see VALIDATION_BLOCKERS).
@@ -226,10 +273,12 @@ def clean_outcome(v):
 
 def severity_flags(unit, phases, prelim, settings):
     """{flag number: {...}} for severity flags 1-4 (5 is manual). Flags 2 and 3 are None (not evaluable) without outcome phases."""
-    flags = {}
-    flags[1] = {"fired": any(p == 5 for p in phases), "value": sum(1 for p in phases if p == 5), "note": None}
     outcomes = {k: clean_outcome(v) for k, v in (unit.get("outcomes") or {}).items()}
     outcomes = {k: v for k, v in outcomes.items() if v is not None}
+    if settings["rules_profile"] == rules.PROFILE_ID:
+        return rules.severity_flags(phases, prelim, outcomes, settings)
+    flags = {}
+    flags[1] = {"fired": any(p == 5 for p in phases), "value": sum(1 for p in phases if p == 5), "note": None}
     if prelim is None or not outcomes:
         flags[2] = flags[3] = {"fired": None, "value": None, "status": "not_assessable",
                                "note": "not assessable: no outcome-indicator phases assigned (blank evidence is not a passed check)"}
@@ -259,9 +308,12 @@ def analyze(units, previous_units=None, overrides=None):
     absent_from_file = [s for s in expected if not any(s in u["pin"] or s in u["severity"] for u in units)]
     prev = {}
     for u in previous_units or []:
-        prev[(u["admin2_code"], u["population_group"])] = u
+        prev[uid(u)] = u
+    ocha = settings["rules_profile"] == rules.PROFILE_ID
     rows = []
-    totals = {"preliminary_pin": 0.0, "units_without_pin": 0, "units_with_missing_pin_sector": 0, "units_with_incomplete_severity": 0}
+    totals = {"preliminary_pin": 0.0, "units_without_pin": 0, "units_with_missing_pin_sector": 0, "units_with_incomplete_severity": 0,
+              "worksheet_preliminary_pin": 0.0, "units_without_worksheet_preliminary_pin": 0}
+    flag_check = {"pin": {}, "severity": {}}  # worksheet's own cached flag columns (when the file has them) against the recomputed flags
     pin_counts = {n: {"fired": 0, "not_evaluable": 0} for n in range(1, 7)}
     sev_counts = {n: {"fired": 0, "not_evaluable": 0} for n in range(1, 5)}
     sev_dist, phase5 = {}, []
@@ -270,11 +322,18 @@ def analyze(units, previous_units=None, overrides=None):
     for u in units:
         ranked = ranked_pins(u, expected)
         pre, drivers = preliminary_pin(ranked)
-        pf = pin_flags(u, ranked, settings, expected, prev.get((u["admin2_code"], u["population_group"])))
+        wx = None
+        if ocha:
+            pf, wx = pin_flags_worksheet(u, expected, settings, prev.get(uid(u)))
+        else:
+            pf = pin_flags(u, ranked, settings, expected, prev.get(uid(u)))
         phases, miss_sev, na_sev = severity_inputs(u, expected, settings["zero_severity_as"])
         sc = severity_with_coverage(phases, len(miss_sev))
         psev = sc["value"]
-        sf = severity_flags(u, phases, psev, settings)
+        # The worksheet evaluates its severity flags against ITS rule value even when coverage is incomplete. The preliminary severity itself stays empty in
+        # that case (never a silent phase 1), but the flags are still computed on the worksheet's value and labelled, so the team sees what the worksheet shows.
+        flag_basis = psev if (psev is not None or not ocha) else preliminary_severity(phases)
+        sf = severity_flags(u, phases, flag_basis, settings)
         aor = {s: {"pin": u["pin"].get(s), "severity": u["severity"].get(s)} for s, (_c, is_aor) in SECTORS.items()
                if is_aor and (s in u["pin"] or s in u["severity"])}
         miss_pin = [s for s in expected if u["pin"].get(s) is None]
@@ -293,18 +352,49 @@ def analyze(units, previous_units=None, overrides=None):
                     counts[n]["fired"] += 1
                 elif f["fired"] is None:
                     counts[n]["not_evaluable"] += 1
+        worksheet = None
+        if ocha:
+            gated = rules.preliminary_pin(pre, psev)
+            worksheet = {"preliminary_pin": gated, "highest_pin": wx["highest"], "second_highest_pin": wx["second"], "third_highest_pin": wx["third"],
+                         "highest_sectors": wx["highest_sectors"], "second_highest_sectors": wx["second_sectors"], "flag_count": wx["worksheet_flag_count"],
+                         "severity_rule_value": preliminary_severity(phases),
+                         "severity_flags_basis": "preliminary severity" if psev is not None else ("the worksheet's rule value (coverage incomplete: the preliminary severity is empty)"
+                                                                                                 if flag_basis is not None else "none"),
+                         "rule_preliminary_pin": rules.preliminary_pin(pre, preliminary_severity(phases))}
+            if gated is None:
+                totals["units_without_worksheet_preliminary_pin"] += 1
+            else:
+                totals["worksheet_preliminary_pin"] += gated
+        for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
+            for n, was in (got or {}).items():
+                key = str(n)
+                mine = flags.get(n) if isinstance(n, int) else flags.get(6)
+                if mine is None:
+                    continue
+                if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
+                    part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
+                    fired = bool(part and part["fired"])
+                else:
+                    fired = bool(mine["fired"])
+                c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
+                c["compared"] += 1
+                if fired == was:
+                    c["agree"] += 1
+                else:
+                    c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
         if psev is not None:
             sev_dist[psev] = sev_dist.get(psev, 0) + 1
         if psev == 5 or sf[1]["fired"]:
             phase5.append(u["admin2_code"])
         st = u["stored"]
         spre, ssev, sfin = _num(st.get("preliminary_pin")), _num(st.get("preliminary_severity", st.get("final_severity"))), _num(st.get("final_pin", st.get("total_pin")))
-        if spre is not None and pre is not None:
+        cmp_pre = pre if not worksheet else worksheet["rule_preliminary_pin"] if worksheet["rule_preliminary_pin"] is not None else pre
+        if spre is not None and cmp_pre is not None:
             stored["pin_compared"] += 1
-            if abs(spre - pre) < 1:
+            if abs(spre - cmp_pre) < 1:
                 stored["pin_match"] += 1
             else:
-                stored["pin_mismatch"].append({"unit": u["admin2_code"], "stored": spre, "computed": pre})
+                stored["pin_mismatch"].append({"unit": u["admin2_code"], "stored": spre, "computed": cmp_pre, "highest_pin": pre})
         if ssev is not None and psev is None and sc["status"] == "incomplete_coverage":
             stored.setdefault("severity_indeterminate", []).append({"unit": u["admin2_code"], "stored": ssev, "lower": sc["lower"], "upper": sc["upper"]})
         if ssev is not None and psev is not None:
@@ -317,8 +407,9 @@ def analyze(units, previous_units=None, overrides=None):
             stored["final_pin_total"] += sfin
             r = rank_of_value(ranked, sfin)
             stored["final_pin_rank"][str(r)] = stored["final_pin_rank"].get(str(r), 0) + 1
-        rows.append({"admin2_code": u["admin2_code"], "admin2": u["admin2"], "population_group": u["population_group"], "population": u["population"],
-                     "preliminary_pin": pre, "drivers": drivers, "pin_flags": pf, "preliminary_severity": psev, "severity_flags": sf,
+        rows.append({"unit_id": uid(u), "admin2_code": u["admin2_code"], "admin2": u["admin2"], "admin3_code": u.get("admin3_code"),
+                     "pocket_of_need": u.get("pocket_of_need"), "population_group": u["population_group"], "population": u["population"],
+                     "preliminary_pin": pre, "drivers": drivers, "pin_flags": pf, "preliminary_severity": psev, "severity_flags": sf, "worksheet": worksheet,
                      "aor_evidence": aor,
                      "pin_coverage": {"missing_sectors": miss_pin, "zero_sectors": zero_pin, "preliminary_pin_is_lower_bound": bool(miss_pin and pre is not None)},
                      "severity_coverage": {"status": sc["status"], "lower": sc["lower"], "upper": sc["upper"], "missing_sectors": miss_sev,
@@ -335,7 +426,7 @@ def analyze(units, previous_units=None, overrides=None):
     aors_present = sorted({s for r in rows for s in r["aor_evidence"]})
     return {"settings": settings, "expected_sectors": expected, "sectors_absent_from_file": absent_from_file, "rows": rows,
             "sectors_shown_as_separate_evidence": aors_present, "flag_1_sensitivity": sensitivity,
-            "outcome_checks": {"assessable_units": assessable, "not_assessable_units": len(rows) - assessable}, "totals": totals, "pin_flag_counts": pin_counts,
+            "outcome_checks": {"assessable_units": assessable, "not_assessable_units": len(rows) - assessable}, "totals": totals, "flag_check_against_file": flag_check, "pin_flag_counts": pin_counts,
             "severity_flag_counts": sev_counts, "preliminary_severity_distribution": dict(sorted(sev_dist.items())),
             "phase5_units": phase5, "stored_comparison": stored}
 
@@ -350,7 +441,8 @@ def _num(v):
 
 def run_analysis(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None, overrides=None):
     """Load, validate and analyse: {"error"} or {"units", "format", "notes", "issues", "previous", "analysis"}. Shared by the JIAF tools."""
-    loaded = load_units(file_path, input_format, sheet_name)
+    extras = {}
+    loaded = load_units(file_path, input_format, sheet_name, extras=extras)
     if isinstance(loaded, dict):
         return loaded
     units, fmt, notes = loaded
@@ -362,14 +454,23 @@ def run_analysis(file_path, input_format="auto", sheet_name=None, previous_file_
             return {"error": "Previous-year file: " + prev_loaded["error"]}
         previous = prev_loaded[0]
         validate_units(previous)
-    return {"units": units, "format": fmt, "notes": notes, "issues": issues, "previous": previous,
-            "analysis": analyze(units, previous, overrides)}
+    # Thresholds: an explicit argument wins, then the workbook's own Thresholds cells (OCHA profile only), then the template default.
+    explicit = {k: v for k, v in (overrides or {}).items() if v is not None}
+    from_workbook = extras.get("thresholds") or {}
+    use_wb = (explicit.get("rules_profile") or rules.PROFILE_ID) == rules.PROFILE_ID
+    merged = dict(from_workbook if use_wb else {}, **explicit)
+    analysis = analyze(units, previous, merged)
+    analysis["threshold_sources"] = {k: ("explicit argument" if k in explicit else "workbook Thresholds sheet" if use_wb and k in from_workbook else "template default"
+                                         if analysis["settings"]["rules_profile"] == rules.PROFILE_ID else "manual_reading default")
+                                     for k in analysis["settings"] if k not in ("rules_profile", "sectors_in_scope", "zero_severity_as")}
+    return {"units": units, "format": fmt, "notes": notes, "issues": issues, "previous": previous, "analysis": analysis}
 
 
 # ------------------------------------------------------------------ tool --
 def _row_for_csv(r):
-    out = {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
-           "preliminary_pin": r["preliminary_pin"], "pin_drivers": "|".join(r["drivers"]),
+    out = {"unit_id": r.get("unit_id"), "admin2_code": r["admin2_code"], "admin2": r["admin2"], "admin3_code": r.get("admin3_code"), "pocket_of_need": r.get("pocket_of_need"),
+           "population_group": r["population_group"], "population": r["population"], "preliminary_pin": r["preliminary_pin"],
+           "worksheet_preliminary_pin": (r.get("worksheet") or {}).get("preliminary_pin"), "pin_drivers": "|".join(r["drivers"]),
            "pin_missing_sectors": "|".join(r["pin_coverage"]["missing_sectors"]), "pin_zero_sectors": "|".join(r["pin_coverage"]["zero_sectors"]),
            "preliminary_severity": r["preliminary_severity"]}
     for n, f in r["pin_flags"].items():
@@ -400,18 +501,21 @@ def _row_for_csv(r):
             "sheet_name": {"type": "string"},
             "previous_file_path": {"type": "string", "description": "Optional previous-year file of the same kind, for flag 6."},
             "previous_sheet_name": {"type": "string"},
+            "rules_profile": {"type": "string", "description": "'ocha_worksheet_2026' (default: the flag formulas read from OCHA's official Worksheet 3A/3B) or 'manual_reading' (this tool's older interpretation of the manual, for comparison only)."},
+            "sectors_sev_5": {"type": "integer", "description": "Worksheet profile: severity flag 1 fires at this many sectors in phase 5 (and flag 4 uses it too). Default: the workbook's Thresholds cell, else 2."},
+            "sectors_sev_4": {"type": "integer", "description": "Worksheet profile: the header-text reading of severity flag 4 (reported only, not used by the formula). Default 5."},
             "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1."},
             "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing': what a severity of 0 means."},
-            "f1_min_sectors": {"type": "integer", "description": "Flag 1 fires at this many counted sectors or more. Default 1 (the table says 1 or 2). UNVERIFIED reading."},
-            "f1_count_missing": {"type": "boolean", "description": "Flag 1 counts sectors with NO PiN. Default true."},
-            "f1_count_zero": {"type": "boolean", "description": "Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts."},
-            "f2_pct": {"type": "number", "description": "Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30."},
-            "f3_pct": {"type": "number", "description": "Flag 3 threshold as a fraction. Default 0.50."},
-            "f4_subpopulation_sectors": {"type": "array", "items": {"type": "string"}, "description": "Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given."},
-            "f5_share": {"type": "number", "description": "Flag 5 threshold as a share of population. Default 0.90."},
-            "f6_pct": {"type": "number", "description": "Flag 6 threshold, increase on last year as a fraction. Default 1.0."},
-            "f6_min_previous_pin": {"type": "number", "description": "Flag 6 is only evaluated when last year's PiN is at least this. Default 1000."},
-            "s4_sector_count": {"type": "integer", "description": "Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4."},
+            "f1_min_sectors": {"type": "integer", "description": "Flag 1 fires at this many sectors that are missing or zero. Worksheet profile: the workbook's zero_pin_thresh, else 2 (manual_reading: 1)."},
+            "f1_count_missing": {"type": "boolean", "description": "manual_reading profile only. Flag 1 counts sectors with NO PiN. Default true."},
+            "f1_count_zero": {"type": "boolean", "description": "manual_reading profile only. Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts."},
+            "f2_pct": {"type": "number", "description": "Flag 2 threshold as a fraction (0.30 = 30%). Default: the workbook's perc_1st_2nd, else 0.30."},
+            "f3_pct": {"type": "number", "description": "Flag 3 threshold as a fraction. Default: the workbook's perc_1st_3rd, else 0.50."},
+            "f4_subpopulation_sectors": {"type": "array", "items": {"type": "string"}, "description": "Sectors that count a sub-population. Worksheet profile: the workbook's own list, else the template's (education). manual_reading: flag 4 is evaluated only if given."},
+            "f5_share": {"type": "number", "description": "Flag 5 threshold as a share of population (fires at >=). Default: the workbook's flag_pin_perc, else 0.90."},
+            "f6_pct": {"type": "number", "description": "Flag 6 threshold on the (rounded to 0.1) change from last year, up or down, as a fraction. Default: the workbook's flag_pin_historical, else 1.0."},
+            "f6_min_previous_pin": {"type": "number", "description": "manual_reading profile only. Flag 6 is only evaluated when last year's PiN is at least this. Default 1000."},
+            "s4_sector_count": {"type": "integer", "description": "manual_reading profile only. Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4."},
             "export_csv_path": {"type": "string", "description": "Optional new .csv file for the per-unit table (refuses to overwrite)."},
             "layer_name": {"type": "string"}, "layer_key_field": {"type": "string", "description": "Admin 2 P-code field on that layer."},
             "write_fields": {"type": "boolean", "description": "With layer_name: write jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl. Needs confirmation."},
@@ -420,15 +524,15 @@ def _row_for_csv(r):
     },
 )
 def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                             sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
+                             rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
                              f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                              write_fields=False, confirmed: bool = False):
     try:
-        merge_settings({"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+        merge_settings({"rules_profile": rules_profile, "sectors_sev_5": sectors_sev_5, "sectors_sev_4": sectors_sev_4, "sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                         "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin, "s4_sector_count": s4_sector_count})
     except (ValueError, TypeError) as e:
         return {"error": str(e)}
-    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
+    overrides = {k: v for k, v in {"rules_profile": rules_profile, "sectors_sev_5": sectors_sev_5, "sectors_sev_4": sectors_sev_4, "sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors,
                                    "f1_count_missing": f1_count_missing, "f1_count_zero": f1_count_zero, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
@@ -444,10 +548,17 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
     result = {
         "success": True, "statement": STATEMENT, "stage": "preliminary only -- not the Final PiN, not the final severity",
         "format": fmt, "units": len(rows), "notes": notes, "input_issue_count": len(issues), "expected_sectors": res["expected_sectors"],
-        "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in res["settings"].items()}, "readings_to_confirm": READINGS,
+        "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in res["settings"].items()}, "rules_profile": {"id": res["settings"]["rules_profile"], "label": rules.PROFILE_LABEL if res["settings"]["rules_profile"] == rules.PROFILE_ID else "manual_reading: INTERPRETATION of the manual's wording, not OCHA's rules; comparison only"},
+        "threshold_sources": res.get("threshold_sources"), "readings_to_confirm": readings_for(res["settings"]),
         "validation_blockers": VALIDATION_BLOCKERS,
         "national_preliminary_pin": round(res["totals"]["preliminary_pin"], 2), "units_without_any_pin": res["totals"]["units_without_pin"],
         "national_note": "Sum over units of the highest sectoral PiN. It is a preliminary figure, not the Final Joint Overall PiN.",
+        "worksheet_preliminary_pin": ({"national": round(res["totals"]["worksheet_preliminary_pin"], 2), "units_without": res["totals"]["units_without_worksheet_preliminary_pin"],
+                                       "note": ("The worksheet's own 'Preliminary PiN' column: the highest PiN where the unit's severity is above 2, else 0. This gate is in OCHA's worksheet, not in "
+                                                "the manual's text; it is why a severity-2 unit stores a preliminary PiN of 0. A unit with no preliminary severity (incomplete coverage) has none.")}
+                                      if res["settings"]["rules_profile"] == rules.PROFILE_ID else None),
+        "flag_check_against_file": ({k: {n: {"compared": c["compared"], "agree": c["agree"], "disagree": c["disagree"][:10]} for n, c in v.items()} for k, v in res["flag_check_against_file"].items()}
+                                    if any(res["flag_check_against_file"].values()) else None),
         "sectors_absent_from_file": res["sectors_absent_from_file"],
         "sectors_counted": res["expected_sectors"], "sectors_shown_as_separate_evidence": res["sectors_shown_as_separate_evidence"],
         "sector_note": ("Only the sectors counted take part in the joint PiN, the flags and the severity. The AoRs (Child Protection, GBV, Mine Action, HLP) are kept "
