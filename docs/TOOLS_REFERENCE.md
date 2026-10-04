@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (187 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (188 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1860,6 +1860,27 @@ Evaluate candidate map representations for a layer based on spatial density, geo
 | `layer_name` | string | yes | Name of the layer to evaluate. |
 | `user_intent` | string | no | The analytical question or intent, e.g. 'show density', 'compare size', 'show status category'. |
 | `target_field` | string | no | Optional attribute field to style or symbolize by. |
+
+## sampling_tools
+
+### `design_sampling_frame`
+
+Design a household/community survey sample (e.g. for a multi-sector needs assessment): works out how many units to survey in each stratum (admin unit, camp, host community...) for a chosen confidence level and margin of error, and draws the sample as a point layer with a recorded random seed. Draws from a layer of candidate units (households, buildings, settlements) when units_layer is given, otherwise as random points inside each stratum polygon (area-based, ignores where people live). The statistical assumptions are arguments and are echoed back: expected_proportion defaults to 0.5 (most conservative) and design_effect to 1.0, which is correct ONLY for simple random sampling -- for a cluster design the survey designer must supply the design effect, so ask rather than guess. It does not choose the survey design, and the result is only as good as the frame it is drawn from.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `strata_layer` | string | yes | Polygon layer of strata (admin units, camp / host-community areas). |
+| `stratum_field` | string | no | Field naming each stratum. Omit to treat each polygon as its own stratum, named by feature id. |
+| `units_layer` | string | no | Optional layer of candidate units to sample from (points, or polygons such as buildings -- their centroids are used). |
+| `population_attribute` | string | no | Optional numeric field on the strata layer with the number of units (e.g. households) in the stratum. If omitted and units_layer is given, the stratum size is the number of candidate units inside it; otherwise no finite-population correction is applied. |
+| `confidence` | number | no | Confidence level, e.g. 0.95 (default). |
+| `margin_of_error` | number | no | Margin of error as a proportion, e.g. 0.05 (default) = +/-5 percentage points. |
+| `expected_proportion` | number | no | Expected proportion of the indicator, default 0.5 (most conservative). |
+| `design_effect` | number | no | Design effect, default 1.0 (simple random sampling only). Must be supplied by the survey designer for cluster designs. |
+| `nonresponse_rate` | number | no | Expected non-response as a proportion, default 0. |
+| `seed` | integer | no | Random seed. Omit to generate one; it is returned either way so the draw can be repeated. |
+| `output_layer_name` | string | no | Name of the sample point layer. Default 'survey_sample'. |
+| `plan_only` | boolean | no | true: only compute sample sizes per stratum, do not draw or create a layer. |
 
 ## schema_contract_tools
 

@@ -39,6 +39,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_edit_session_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_barrier_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_trigger_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_task_grid_tools_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_sampling_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_script_isolation_reconcile_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)

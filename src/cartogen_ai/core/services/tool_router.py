@@ -121,6 +121,11 @@ _TOOL_ALIASES = {
         "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
         "split the area into", "divide the area into",
     ],
+    # Survey sampling (see tools/sampling_tools.py). No bare "sample" or "survey": they appear in unrelated requests.
+    "design_sampling_frame": [
+        "sampling frame", "sample size", "stratified sample", "sampling design", "household survey", "needs assessment",
+        "msna", "enumerator", "margin of error", "cluster sampling", "random sample of households",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

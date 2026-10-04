@@ -44,6 +44,7 @@ from . import engineering_tools
 from . import barrier_tools
 from . import trigger_tools
 from . import task_grid_tools
+from . import sampling_tools
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -68,6 +69,7 @@ __all__ = [
     "barrier_tools",
     "trigger_tools",
     "task_grid_tools",
+    "sampling_tools",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",

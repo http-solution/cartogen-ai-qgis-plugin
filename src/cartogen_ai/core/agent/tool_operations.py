@@ -275,6 +275,7 @@ TOOL_OPERATION_TYPES = {
     "apply_network_barriers": MODIFY,
     "evaluate_forecast_trigger": READ,
     "generate_mapping_task_grid": CREATE,
+    "design_sampling_frame": CREATE,
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
