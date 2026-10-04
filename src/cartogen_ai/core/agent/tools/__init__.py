@@ -51,6 +51,7 @@ from . import humanitarian_look_tools
 from . import allocation_tools
 from . import table_importers
 from . import critical_link_tools
+from . import jiaf_inputs
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -82,6 +83,7 @@ __all__ = [
     "allocation_tools",
     "table_importers",
     "critical_link_tools",
+    "jiaf_inputs",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",
