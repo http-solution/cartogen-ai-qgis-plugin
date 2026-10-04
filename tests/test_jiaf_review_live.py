@@ -18,6 +18,7 @@ def _boot_qgis():
     return _shared_boot()
 
 
+SCOPE = ["nutrition", "health", "shelter", "wash"]  # the toy file has four sectors; the default scope is all eight
 GRID = [
     ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
      "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
@@ -65,14 +66,14 @@ class TestJiafReviewLive(unittest.TestCase):
         from cartogen_ai.core.agent.tools.jiaf_review import finalize_jiaf_results, record_jiaf_decisions
         record_jiaf_decisions([{"unit": "YE1101", "sector": "health", "rationale": "shelter counts all affected"}],
                               [{"unit": "YE1101", "phase": 4, "evidence_basis": "expert_judgement", "evidence": "partner reports"}])
-        report = finalize_jiaf_results(self.path, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode")
+        report = finalize_jiaf_results(self.path, sectors_in_scope=SCOPE, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode")
         self.assertTrue(report["success"], report)
         self.assertEqual(report["chosen_sector_rank_counts"], {"2": 1})
         self.assertEqual(report["final_pin_total"], 200 + 120)
         self.assertEqual(self.layer.fields().indexOf("jf_fin_pin"), -1)
-        first = finalize_jiaf_results(self.path, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode", write_fields=True)
+        first = finalize_jiaf_results(self.path, sectors_in_scope=SCOPE, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode", write_fields=True)
         self.assertEqual(first.get("status"), "PREVIEW_REQUIRED", first)
-        out = finalize_jiaf_results(self.path, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode",
+        out = finalize_jiaf_results(self.path, sectors_in_scope=SCOPE, bulk_accepted_flags=[1, 2, 3, 4, 5, 6], layer_name="districts", layer_key_field="pcode",
                                     write_fields=True, confirmed=True)
         self.assertNotIn("write_warning", out, out)
         by = {str(f["pcode"]).upper(): f for f in self.layer.getFeatures()}
@@ -84,7 +85,7 @@ class TestJiafReviewLive(unittest.TestCase):
 
     def test_patterns_write_the_two_count_fields(self):
         from cartogen_ai.core.agent.tools.jiaf_patterns import compute_jiaf_patterns
-        out = compute_jiaf_patterns(self.path, layer_name="districts", layer_key_field="pcode", write_fields=True, confirmed=True)
+        out = compute_jiaf_patterns(self.path, sectors_in_scope=SCOPE, layer_name="districts", layer_key_field="pcode", write_fields=True, confirmed=True)
         self.assertTrue(out["success"], out)
         self.assertNotIn("write_warning", out, out)
         self.assertGreaterEqual(self.layer.fields().indexOf("jf_nsev45"), 0)

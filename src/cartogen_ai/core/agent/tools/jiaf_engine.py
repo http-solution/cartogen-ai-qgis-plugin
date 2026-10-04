@@ -30,6 +30,13 @@ READINGS THE MANUAL LEAVES OPEN (plan section 6) -- each is a setting, echoed in
 - Flag 6 compares the highest sector's PiN with the SAME sector's previous-year PiN and fires on an increase of at least `f6_pct` (default 100%), only
   when the previous PiN is at least `f6_min_previous_pin` (default 1,000: Annex 5 says "preferably only for PiN figures above one thousand").
 - Severity flag 4 fires when MORE THAN `s4_sector_count` (default 4) sectors are in phase 4 and the preliminary phase is 4.
+
+INCOMPLETE COVERAGE is never turned into a phase 1. The sectors in scope (`sectors_in_scope`, default all eight main sectors; narrow it only to the
+sectors the HCT activated) that have no phase are MISSING: the overlap rule is applied with them contributing nothing and with all of them at phase 5,
+and if the two disagree the preliminary severity is empty, with both bounds, and the unit is reported as 'incomplete_coverage'. A severity of 0 is
+'not applicable' by default (`zero_severity_as`; the real Yemen worksheet uses 0 for CCCM where there are no camps) or MISSING if the team says so.
+A unit with a missing sector PiN keeps its highest-of-the-reporting-sectors figure, marked as a lower bound. The preliminary result, the review status,
+the final result and the justification are separate fields throughout (see jiaf_review).
 """
 import csv
 import os
@@ -47,7 +54,7 @@ except ImportError:
 
 _CAP = 50
 _TOL = 1e-9
-DEFAULTS = {"f1_min_sectors": 1, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90, "f6_pct": 1.00,
+DEFAULTS = {"sectors_in_scope": tuple(MAIN_SECTORS), "zero_severity_as": "not_applicable", "f1_min_sectors": 1, "f2_pct": 0.30, "f3_pct": 0.50, "f4_subpopulation_sectors": (), "f5_share": 0.90, "f6_pct": 1.00,
             "f6_min_previous_pin": 1000.0, "s4_sector_count": 4}
 READINGS = [
     "Flag 1: fires when the number of sectors with missing or zero PiN is at least f1_min_sectors (the table says '1 or 2').",
@@ -56,6 +63,7 @@ READINGS = [
     "Flag 5: highest PiN above f5_share of the unit's population; above 100% is also marked as a likely data error.",
     "Flag 6: the highest sector's PiN against the same sector's previous-year PiN; increase >= f6_pct; only when the previous PiN >= f6_min_previous_pin.",
     "Severity flag 4: more than s4_sector_count sectors in phase 4 and a preliminary phase 4.",
+    "Coverage: sectors_in_scope defaults to all eight main sectors; a sector with no phase is missing, never phase 1; 0 is 'not applicable' unless zero_severity_as='missing'.",
 ]
 
 
@@ -73,6 +81,11 @@ def merge_settings(overrides=None):
         s[k] = float(s[k])
         if s[k] < 0:
             raise ValueError(f"{k} must not be negative.")
+    s["sectors_in_scope"] = tuple(s["sectors_in_scope"] or ())
+    if not s["sectors_in_scope"] or any(x not in MAIN_SECTORS for x in s["sectors_in_scope"]):
+        raise ValueError(f"sectors_in_scope must be a non-empty list of main sectors {MAIN_SECTORS}.")
+    if s["zero_severity_as"] not in ("not_applicable", "missing"):
+        raise ValueError("zero_severity_as must be 'not_applicable' or 'missing'.")
     s["f4_subpopulation_sectors"] = tuple(s["f4_subpopulation_sectors"] or ())
     bad = [x for x in s["f4_subpopulation_sectors"] if x not in MAIN_SECTORS]
     if bad:
@@ -163,6 +176,36 @@ def preliminary_severity(phases):
     return 1
 
 
+def severity_inputs(unit, expected, zero_as="not_applicable"):
+    """(reporting phases, missing sectors, not-applicable sectors) for the sectors in scope. A phase 1-5 is reporting; None (and an invalid value) is
+    MISSING -- unknown, never read as phase 1; 0 is NOT APPLICABLE by default (the real Yemen worksheet uses 0 for CCCM where there are no camps) or
+    MISSING when zero_as='missing'."""
+    reporting, missing, na = [], [], []
+    for sector in expected:
+        v = unit["severity"].get(sector)
+        if v in (1, 2, 3, 4, 5):
+            reporting.append(v)
+        elif v == 0 and zero_as == "not_applicable":
+            na.append(sector)
+        else:
+            missing.append(sector)
+    return reporting, missing, na
+
+
+def severity_with_coverage(reporting, n_missing):
+    """Preliminary severity that does not hide incomplete coverage. The missing sectors are unknown, so the rule is applied twice: once with them
+    contributing nothing (lower) and once with every one of them at phase 5 (upper). If the two agree the result is determinate; if not, the value is
+    None with status 'incomplete_coverage' and both bounds, never a silent phase 1. With nothing reporting the status is 'no_data'.
+    Returns {"value", "lower", "upper", "status"}."""
+    if not reporting and n_missing == 0:
+        return {"value": None, "lower": None, "upper": None, "status": "no_data"}
+    lower = preliminary_severity(reporting)
+    upper = preliminary_severity(list(reporting) + [5] * n_missing)
+    if lower == upper and lower is not None:
+        return {"value": lower, "lower": lower, "upper": upper, "status": "determinate"}
+    return {"value": None, "lower": lower if lower is not None else 1, "upper": upper, "status": "incomplete_coverage"}
+
+
 def clean_outcome(v):
     """An analyst-assigned indicator phase: an integer 1-5, else None."""
     try:
@@ -202,12 +245,13 @@ def rank_of_value(ranked, value):
 def analyze(units, previous_units=None, overrides=None):
     """The full preliminary analysis of validated units (see validate_units). Returns a dict with per-unit rows and totals."""
     settings = merge_settings(overrides)
-    expected = [s for s in MAIN_SECTORS if any(s in u["pin"] or s in u["severity"] for u in units)]
+    expected = [s for s in MAIN_SECTORS if s in settings["sectors_in_scope"]]
+    absent_from_file = [s for s in expected if not any(s in u["pin"] or s in u["severity"] for u in units)]
     prev = {}
     for u in previous_units or []:
         prev[(u["admin2_code"], u["population_group"])] = u
     rows = []
-    totals = {"preliminary_pin": 0.0, "units_without_pin": 0}
+    totals = {"preliminary_pin": 0.0, "units_without_pin": 0, "units_with_missing_pin_sector": 0, "units_with_incomplete_severity": 0}
     pin_counts = {n: {"fired": 0, "not_evaluable": 0} for n in range(1, 7)}
     sev_counts = {n: {"fired": 0, "not_evaluable": 0} for n in range(1, 5)}
     sev_dist, phase5 = {}, []
@@ -217,9 +261,15 @@ def analyze(units, previous_units=None, overrides=None):
         ranked = ranked_pins(u, expected)
         pre, drivers = preliminary_pin(ranked)
         pf = pin_flags(u, ranked, settings, expected, prev.get((u["admin2_code"], u["population_group"])))
-        phases = [u["severity"].get(s) for s in expected]
-        psev = preliminary_severity(phases)
+        phases, miss_sev, na_sev = severity_inputs(u, expected, settings["zero_severity_as"])
+        sc = severity_with_coverage(phases, len(miss_sev))
+        psev = sc["value"]
         sf = severity_flags(u, phases, psev, settings)
+        miss_pin = [s for s in expected if u["pin"].get(s) is None]
+        if miss_pin and pre is not None:
+            totals["units_with_missing_pin_sector"] += 1
+        if sc["status"] == "incomplete_coverage":
+            totals["units_with_incomplete_severity"] += 1
         if pre is None:
             totals["units_without_pin"] += 1
         else:
@@ -242,6 +292,8 @@ def analyze(units, previous_units=None, overrides=None):
                 stored["pin_match"] += 1
             else:
                 stored["pin_mismatch"].append({"unit": u["admin2_code"], "stored": spre, "computed": pre})
+        if ssev is not None and psev is None and sc["status"] == "incomplete_coverage":
+            stored.setdefault("severity_indeterminate", []).append({"unit": u["admin2_code"], "stored": ssev, "lower": sc["lower"], "upper": sc["upper"]})
         if ssev is not None and psev is not None:
             stored["severity_compared"] += 1
             if int(ssev) == psev:
@@ -254,8 +306,11 @@ def analyze(units, previous_units=None, overrides=None):
             stored["final_pin_rank"][str(r)] = stored["final_pin_rank"].get(str(r), 0) + 1
         rows.append({"admin2_code": u["admin2_code"], "admin2": u["admin2"], "population_group": u["population_group"], "population": u["population"],
                      "preliminary_pin": pre, "drivers": drivers, "pin_flags": pf, "preliminary_severity": psev, "severity_flags": sf,
+                     "pin_coverage": {"missing_sectors": miss_pin, "preliminary_pin_is_lower_bound": bool(miss_pin and pre is not None)},
+                     "severity_coverage": {"status": sc["status"], "lower": sc["lower"], "upper": sc["upper"], "missing_sectors": miss_sev,
+                                           "not_applicable_sectors": na_sev, "reporting_sectors": len(phases)},
                      "stored": {k: v for k, v in st.items() if k != "evidence"}})
-    return {"settings": settings, "expected_sectors": expected, "rows": rows, "totals": totals, "pin_flag_counts": pin_counts,
+    return {"settings": settings, "expected_sectors": expected, "sectors_absent_from_file": absent_from_file, "rows": rows, "totals": totals, "pin_flag_counts": pin_counts,
             "severity_flag_counts": sev_counts, "preliminary_severity_distribution": dict(sorted(sev_dist.items())),
             "phase5_units": phase5, "stored_comparison": stored}
 
@@ -304,7 +359,9 @@ def _row_for_csv(r):
     "Method; never an average, never a sum across sectors; AoRs excluded), the PiN flags 1-6 of Reference Table 3A, the preliminary intersectoral "
     "severity from the overlap of sectoral severities, and the severity flags 1-4 of Table 3B1. The national figure is the sum over units. This is not "
     "the Final PiN or the final severity: those are group decisions for flagged units, recorded later, and nothing here decides them. Intersectoral "
-    "severity is per unit; there is no national severity and no PiN per severity phase. Several flag thresholds are readings of the manual that are not "
+    "severity is per unit; there is no national severity and no PiN per severity phase. Incomplete sector coverage is never turned into phase 1: the "
+    "sectors in scope (default all eight main sectors) that have no phase are missing, and if they could change the result the unit has NO preliminary "
+    "severity (status incomplete_coverage, with lower and upper bounds); a severity of 0 means not-applicable unless zero_severity_as='missing'. Several flag thresholds are readings of the manual that are not "
     "verified against OCHA's worksheet formulas: they are settings, echoed in the result, to be confirmed by the analysis team. Reads the same files as "
     "import_jiaf_inputs; give previous_file_path for flag 6. Optionally writes jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl to an admin layer "
     "(needs confirmation) and a per-unit CSV.",
@@ -316,6 +373,8 @@ def _row_for_csv(r):
             "sheet_name": {"type": "string"},
             "previous_file_path": {"type": "string", "description": "Optional previous-year file of the same kind, for flag 6."},
             "previous_sheet_name": {"type": "string"},
+            "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1."},
+            "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing': what a severity of 0 means."},
             "f1_min_sectors": {"type": "integer", "description": "Flag 1 fires at this many sectors with missing/zero PiN or more. Default 1 (the table says 1 or 2)."},
             "f2_pct": {"type": "number", "description": "Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30."},
             "f3_pct": {"type": "number", "description": "Flag 3 threshold as a fraction. Default 0.50."},
@@ -332,15 +391,15 @@ def _row_for_csv(r):
     },
 )
 def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                             f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
+                             sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
                              f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                              write_fields=False, confirmed: bool = False):
     try:
-        merge_settings({"f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+        merge_settings({"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                         "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin, "s4_sector_count": s4_sector_count})
     except (ValueError, TypeError) as e:
         return {"error": str(e)}
-    overrides = {k: v for k, v in {"f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
     if export_csv_path and os.path.exists(export_csv_path):
@@ -358,6 +417,14 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
         "settings": {k: (list(v) if isinstance(v, tuple) else v) for k, v in res["settings"].items()}, "readings_to_confirm": READINGS,
         "national_preliminary_pin": round(res["totals"]["preliminary_pin"], 2), "units_without_any_pin": res["totals"]["units_without_pin"],
         "national_note": "Sum over units of the highest sectoral PiN. It is a preliminary figure, not the Final Joint Overall PiN.",
+        "sectors_absent_from_file": res["sectors_absent_from_file"],
+        "coverage": {
+            "units_with_a_missing_sector_pin": res["totals"]["units_with_missing_pin_sector"],
+            "units_with_incomplete_severity": res["totals"]["units_with_incomplete_severity"],
+            "note": ("A unit with a missing sector PiN keeps the highest of the reporting sectors, which can only understate it (a lower bound). A unit whose "
+                     "preliminary severity depends on a missing sector has NO preliminary severity (status incomplete_coverage, with lower and upper bounds) -- "
+                     "it is never reported as phase 1. Narrow sectors_in_scope only to the sectors the HCT activated."),
+        },
         "pin_flag_counts": res["pin_flag_counts"], "severity_flag_counts": res["severity_flag_counts"],
         "preliminary_severity_distribution": res["preliminary_severity_distribution"],
         "phase_5_notice": ({"units": res["phase5_units"][:_CAP], "count": len(res["phase5_units"]),

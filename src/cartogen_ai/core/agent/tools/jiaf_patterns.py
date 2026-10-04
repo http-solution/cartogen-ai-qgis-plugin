@@ -108,13 +108,13 @@ def patterns(units, analysis, final_rows, previous_analysis=None, thresholds=Non
                                      "distribution": _dist(q2_counts.values()), "note": pop_note}
 
     # Q3 -- which sectors drive the PiN
-    sums = {s: sum(i["u"]["pin"].get(s) or 0 for i in unit_info) for s in expected}
+    sums = {s: (sum(i["u"]["pin"].get(s) or 0 for i in unit_info) if any(i["u"]["pin"].get(s) is not None for i in unit_info) else None) for s in expected}
     highest = {s: sum(1 for i in unit_info if s in i["fr"]["pin_drivers"]) for s in expected}
     out["q3_sector_pin"] = {
-        "national_pin_by_sector": {s: round(v, 2) for s, v in sums.items()},
+        "national_pin_by_sector": {s: (round(v, 2) if v is not None else None) for s, v in sums.items()},
         "note_on_sums": "Each figure is one sector's PiN summed over units; the sectors' figures are NOT added together.",
         "units_where_sector_is_highest": highest,
-        "top_sectors_by_pin": sorted(sums, key=lambda s: -sums[s])[:t["top_sectors"]],
+        "top_sectors_by_pin": sorted((s for s in sums if sums[s] is not None), key=lambda s: -sums[s])[:t["top_sectors"]],
         "top_sectors_by_units_highest": sorted(highest, key=lambda s: -highest[s])[:t["top_sectors"]],
     }
 
@@ -211,6 +211,8 @@ def _dist(values):
         "properties": {
             "file_path": {"type": "string"}, "input_format": {"type": "string"}, "sheet_name": {"type": "string"},
             "previous_file_path": {"type": "string"}, "previous_sheet_name": {"type": "string"},
+            "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight."},
+            "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing'."},
             "sector_population_share": {"type": "number", "description": "Share of a unit's population that makes a sector's PiN 'large'. Manual: 0.40."},
             "many_sectors_with_large_pin": {"type": "integer"}, "top_units": {"type": "integer"}, "high_pin_share": {"type": "number"},
             "severe_phases": {"type": "array", "items": {"type": "integer"}, "description": "Default [4, 5]."},
@@ -224,7 +226,7 @@ def _dist(values):
     },
 )
 def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                          sector_population_share=None, many_sectors_with_large_pin=None, top_units=None, high_pin_share=None, severe_phases=None,
+                          sectors_in_scope=None, zero_severity_as=None, sector_population_share=None, many_sectors_with_large_pin=None, top_units=None, high_pin_share=None, severe_phases=None,
                           many_severe_sectors=None, top_sectors=None, correlation_threshold=None, group_shares=None, layer_name=None,
                           layer_key_field=None, write_fields=False, confirmed: bool = False):
     th = {k: v for k, v in {"sector_population_share": sector_population_share, "many_sectors_with_large_pin": many_sectors_with_large_pin,
@@ -237,13 +239,17 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
         return {"error": str(e)}
     if group_shares is not None and not (isinstance(group_shares, dict) and all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in group_shares.values())):
         return {"error": "group_shares must be an object of shares between 0 and 1."}
-    run = run_analysis(file_path, input_format, sheet_name, previous_file_path, previous_sheet_name)
+    scope = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as}.items() if v is not None}
+    try:
+        run = run_analysis(file_path, input_format, sheet_name, previous_file_path, previous_sheet_name, scope)
+    except (ValueError, TypeError) as e:
+        return {"error": str(e)}
     if "error" in run:
         return run
     prev_analysis = None
     if run["previous"] is not None:
         from .jiaf_engine import analyze
-        prev_analysis = analyze(run["previous"])
+        prev_analysis = analyze(run["previous"], overrides=scope)
     decisions = load_decisions()
     rows, summary = finalize(run["units"], run["analysis"], decisions)
     res = patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares)

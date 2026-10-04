@@ -173,7 +173,7 @@ class TestAnalyzeAndTool(unittest.TestCase):
         return path
 
     def test_tool_end_to_end(self):
-        out = je.compute_jiaf_preliminary(self._csv(self.GRID))
+        out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"])
         self.assertTrue(out["success"], out)
         self.assertEqual(out["units"], 2)
         self.assertEqual(out["national_preliminary_pin"], 420.0)  # 300 + 120, not 300 + 120 + others
@@ -186,14 +186,15 @@ class TestAnalyzeAndTool(unittest.TestCase):
 
     def test_previous_year_enables_flag_6(self):
         prev = [self.GRID[0], ["YE1", "A", 100, 3, 100, 3, 100, 3, 100, 3, 50, 3], self.GRID[2]]
-        out = je.compute_jiaf_preliminary(self._csv(self.GRID), previous_file_path=self._csv([prev[0]] + prev[1:2]))
+        out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"],
+                                          previous_file_path=self._csv([prev[0]] + prev[1:2]))
         self.assertNotIn("flag_6_note", out)
 
     def test_csv_export_never_overwrites(self):
         path = self._csv(self.GRID)
         target = path + ".out.csv"
         self.addCleanup(lambda: os.path.exists(target) and os.remove(target))
-        out = je.compute_jiaf_preliminary(path, export_csv_path=target)
+        out = je.compute_jiaf_preliminary(path, sectors_in_scope=["nutrition", "health", "shelter", "wash"], export_csv_path=target)
         self.assertEqual(out["csv_written"], target)
         with open(target, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))

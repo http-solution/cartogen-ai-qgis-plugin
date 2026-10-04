@@ -18,8 +18,14 @@ def unit(code, pin=None, sev=None, pop=None, outcomes=None):
     return u
 
 
+def scope_of(units):
+    """The sectors a toy file actually has: the tests state their scope explicitly (the default is all eight main sectors, so that a sector with no data is
+    missing, never silently phase 1)."""
+    return [s for s in je.MAIN_SECTORS if any(s in u["pin"] or s in u["severity"] for u in units)]
+
+
 def run(units, decisions=None, bulk=(), overrides=None, previous=None):
-    a = je.analyze(units, previous, overrides)
+    a = je.analyze(units, previous, {"sectors_in_scope": scope_of(units), **(overrides or {})})
     rows, summary = jr.finalize(units, a, decisions or {"pin": {}, "severity": {}}, bulk)
     return a, rows, summary
 
@@ -122,6 +128,77 @@ class TestFinalize(unittest.TestCase):
         self.assertEqual(s["final_pin_total"], 200)
 
 
+class TestCoverage(unittest.TestCase):
+    """Incomplete sector coverage is never silently phase 1; 0 is not-applicable, not missing; missing inputs stay missing."""
+
+    def test_the_four_published_examples(self):
+        for phases, want in [([3, 3, 3, 3, 2, 1], 3), ([4, 4, 4, 4, 2, 1], 4), ([5, 5, 4, 4, 2, 1], 5), ([5, 4, 3, 2, 2, 1], 2)]:
+            self.assertEqual(je.preliminary_severity(phases), want, phases)
+        f = je.severity_flags(unit("U1"), [5, 4, 3, 2, 2, 1], 2, je.merge_settings())
+        self.assertTrue(f[1]["fired"])  # a phase 5 sector in a unit classified 2 is flagged for review
+
+    def test_too_few_reporting_sectors_is_not_phase_1(self):
+        out = je.severity_with_coverage([4, 4, 4], 5)  # three sectors report phase 4, five report nothing
+        self.assertIsNone(out["value"])
+        self.assertEqual(out["status"], "incomplete_coverage")
+        self.assertEqual((out["lower"], out["upper"]), (1, 5))
+
+    def test_a_result_the_missing_sectors_cannot_change_is_determinate(self):
+        out = je.severity_with_coverage([3, 3, 3, 3], 4)  # four more at 5 would make it phase 5? n5=4, n4=4 -> yes, so this is NOT determinate
+        self.assertEqual(out["status"], "incomplete_coverage")
+        out = je.severity_with_coverage([4, 4, 4, 4, 4, 4, 4], 1)  # one missing sector cannot turn phase 4 into 5 (needs two at 5)
+        self.assertEqual((out["value"], out["status"]), (4, "determinate"))
+
+    def test_nothing_reporting_is_no_data_and_zero_is_not_applicable_by_default(self):
+        self.assertEqual(je.severity_with_coverage([], 0)["status"], "no_data")
+        u = unit("U1", sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3, "cccm": 0, "education": 0, "protection": 0, "food_security": 0})
+        reporting, missing, na = je.severity_inputs(u, je.MAIN_SECTORS, "not_applicable")
+        self.assertEqual((len(reporting), missing, len(na)), (4, [], 4))
+        self.assertEqual(je.severity_with_coverage(reporting, len(missing))["value"], 3)
+        reporting, missing, na = je.severity_inputs(u, je.MAIN_SECTORS, "missing")
+        self.assertEqual((len(missing), na), (4, []))
+        self.assertEqual(je.severity_with_coverage(reporting, len(missing))["status"], "incomplete_coverage")
+
+    def test_default_scope_is_all_eight_sectors_so_a_four_sector_file_is_incomplete(self):
+        u = unit("U1", sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}, pin={"wash": 10})
+        row = je.analyze([u])["rows"][0]
+        self.assertIsNone(row["preliminary_severity"])
+        self.assertEqual(row["severity_coverage"]["status"], "incomplete_coverage")
+        self.assertEqual(len(row["severity_coverage"]["missing_sectors"]), 4)
+        narrowed = je.analyze([u], overrides={"sectors_in_scope": ["wash", "health", "shelter", "nutrition"]})["rows"][0]
+        self.assertEqual(narrowed["preliminary_severity"], 3)
+
+    def test_scope_and_zero_setting_are_validated(self):
+        for bad in ({"sectors_in_scope": []}, {"sectors_in_scope": ["gbv"]}, {"zero_severity_as": "one"}):
+            with self.assertRaises(ValueError):
+                je.merge_settings(bad)
+
+    def test_a_missing_sector_pin_marks_the_figure_as_a_lower_bound_and_is_counted(self):
+        res = je.analyze([unit("U1", pin={"wash": 100})])
+        row = res["rows"][0]
+        self.assertEqual(row["preliminary_pin"], 100)
+        self.assertTrue(row["pin_coverage"]["preliminary_pin_is_lower_bound"])
+        self.assertEqual(res["totals"]["units_with_missing_pin_sector"], 1)
+        full = je.analyze([unit("U1", pin={s: 5 for s in je.MAIN_SECTORS})])["rows"][0]
+        self.assertFalse(full["pin_coverage"]["preliminary_pin_is_lower_bound"])
+
+    def test_incomplete_coverage_needs_a_decision_and_is_kept_apart_from_the_other_fields(self):
+        u = unit("U1", pin={"wash": 100}, sev={"wash": 4, "health": 4, "shelter": 4})
+        a = je.analyze([u])
+        rows, s = jr.finalize([u], a, {"pin": {}, "severity": {}})
+        r = rows[0]
+        self.assertEqual((r["preliminary_severity"], r["final_severity"], r["final_severity_status"]), (None, None, "incomplete_coverage"))
+        self.assertEqual(s["incomplete_coverage_severity_units"], 1)
+        dec = {"pin": {}, "severity": {"U1": {"phase": 4, "evidence_basis": "expert_judgement", "evidence": "partners confirm", "decided_by": "session", "date": "2026-10-04"}}}
+        rows, _ = jr.finalize([u], a, dec)
+        r = rows[0]
+        self.assertEqual((r["preliminary_severity"], r["final_severity"], r["final_severity_status"]), (None, 4, "decided"))
+        self.assertEqual((r["severity_evidence_basis"], r["severity_evidence"], r["severity_decided_by"], r["severity_decision_date"]),
+                         ("expert_judgement", "partners confirm", "session", "2026-10-04"))
+        csv_row = jr._csv_row(r)
+        self.assertEqual((csv_row["preliminary_severity"], csv_row["severity_review_status"], csv_row["final_severity"]), (None, "decided", 4))
+
+
 class TestPatterns(unittest.TestCase):
     def _pat(self, units, **kw):
         a, rows, _ = run(units)
@@ -220,7 +297,8 @@ class TestTools(unittest.TestCase):
         path = self._csv()
         target = path + ".final.csv"
         self.addCleanup(lambda: os.path.exists(target) and os.remove(target))
-        out = jr.finalize_jiaf_results(path, export_csv_path=target)
+        scope = ["nutrition", "health", "shelter", "wash"]
+        out = jr.finalize_jiaf_results(path, sectors_in_scope=scope, export_csv_path=target)
         self.assertTrue(out["success"], out)
         self.assertIn("not endorsed", out["statement"])
         self.assertTrue(out["provisional"])
@@ -228,19 +306,22 @@ class TestTools(unittest.TestCase):
         self.assertIn("no national severity", out["severity_note"])
         with open(target, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        self.assertEqual(rows[0]["final_pin_status"], "pending_flagged")
-        self.assertIn("evidence_and_comments", rows[0])
+        self.assertEqual(rows[0]["pin_review_status"], "pending_flagged")
+        for col in ("preliminary_pin", "pin_review_status", "final_pin", "pin_justification", "pin_decided_by", "preliminary_severity",
+                    "severity_coverage_status", "severity_review_status", "final_severity", "severity_justification", "evidence_and_comments"):
+            self.assertIn(col, rows[0])  # preliminary result, review status, final result and justification are separate columns
         self.assertIn("error", jr.finalize_jiaf_results(path, export_csv_path=target))
         self.assertIn("error", jr.finalize_jiaf_results(path, bulk_accepted_flags=[9]))
-        closed = jr.finalize_jiaf_results(path, bulk_accepted_flags=[1, 2, 3, 4, 5, 6])
+        closed = jr.finalize_jiaf_results(path, sectors_in_scope=scope, bulk_accepted_flags=[1, 2, 3, 4, 5, 6])
         self.assertFalse(closed["provisional"])
 
     def test_patterns_tool(self):
-        out = jp.compute_jiaf_patterns(self._csv(), high_pin_share=0.5)
+        out = jp.compute_jiaf_patterns(self._csv(), sectors_in_scope=["nutrition", "health", "shelter", "wash"], high_pin_share=0.5)
         self.assertTrue(out["success"], out)
         self.assertEqual(out["thresholds"]["high_pin_share"], 0.5)
         self.assertIn("q10_pin_correlation", out)
         self.assertIn("error", jp.compute_jiaf_patterns(self._csv(), correlation_threshold="x"))
+        self.assertIn("error", jp.compute_jiaf_patterns(self._csv(), sectors_in_scope=["gbv"]))
         self.assertIn("error", jp.compute_jiaf_patterns(self._csv(), group_shares={"girls": 1.5}))
 
 

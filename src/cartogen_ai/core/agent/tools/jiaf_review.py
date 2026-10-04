@@ -13,7 +13,13 @@ the multi-partner session decided and applies it.
   PENDING: its Final PiN is shown at the highest sectoral PiN as a PROVISIONAL figure and counted separately, and its final severity is left empty.
 - `bulk_accepted_flags` closes units whose only fired PiN flags are the listed ones (Annex 6 describes bringing a common pattern, such as the zero PiN of a
   sector with no camps, "in a package, discussed and closed"); it is the team's choice, recorded in the result, and applies to PiN flags only.
+- A unit whose preliminary severity cannot be given because sectors in scope have no phase (status `incomplete_coverage`, with lower and upper bounds) is
+  never shown as phase 1: it needs a recorded severity decision like a flagged unit.
 There is no national severity and no PiN per severity phase (Box 25). Decisions are stored in the QGIS project.
+
+Four things are kept apart, in the result rows, the CSV and the layer fields: the PRELIMINARY result (recomputed, never trusted from the file), the REVIEW
+STATUS (no_flag / flags_closed_in_bulk / decided / pending_flagged, and for severity preliminary_accepted / decided / pending_flagged /
+incomplete_coverage / no_severity_data), the FINAL result, and the JUSTIFICATION with who decided and when.
 """
 import csv
 import datetime
@@ -34,6 +40,8 @@ except ImportError:
 
 SCOPE = "cartogen_ai_jiaf"
 KEY = "decisions"
+PIN_STATUS_CODE = {"no_flag": 0, "flags_closed_in_bulk": 1, "decided": 2, "pending_flagged": 3}
+SEV_STATUS_CODE = {"no_severity_data": 0, "preliminary_accepted": 1, "decided": 2, "pending_flagged": 3, "incomplete_coverage": 4}
 EVIDENCE_BASES = ("outcome_indicators", "proxy_indicators", "expert_judgement", "sector_overlap_accepted")
 _CAP = 50
 
@@ -140,7 +148,7 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
                 issues.append({"unit": uid, "problem": f"decision names {pd['sector']}, which has no PiN in this unit; the decision is ignored"})
                 pd = None
         if pd is not None:
-            fin_pin, status, sector, note = u["pin"][pd["sector"]], "decided", pd["sector"], pd["rationale"]
+            fin_pin, status, sector, note = u["pin"][pd["sector"]], "decided", pd["sector"], pd.get("rationale")
             rank = rank_of_value(ranked, fin_pin)
         elif not pin_fired:
             status = "no_flag"
@@ -156,9 +164,12 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
         if rank is not None:
             counts["rank"][str(rank)] = counts["rank"].get(str(rank), 0) + 1
         psev = r["preliminary_severity"]
+        cov = r["severity_coverage"]
         fin_sev, sstatus, sev_evidence = None, None, None
         if sd is not None:
-            fin_sev, sstatus, sev_evidence = sd["phase"], "decided", f"{sd['evidence_basis']}: {sd['evidence']}"
+            fin_sev, sstatus, sev_evidence = sd["phase"], "decided", sd.get("evidence")
+        elif cov["status"] == "incomplete_coverage":
+            sstatus = "incomplete_coverage"
         elif psev is None:
             sstatus = "no_severity_data"
         elif not sev_fired:
@@ -171,17 +182,22 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
         rows.append({"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
                      "preliminary_pin": r["preliminary_pin"], "pin_drivers": r["drivers"], "pin_flags_fired": pin_fired,
                      "final_pin": fin_pin, "final_pin_status": status, "final_pin_sector": sector, "final_pin_rank": rank, "pin_decision_note": note,
-                     "preliminary_severity": psev, "severity_flags_fired": sev_fired, "final_severity": fin_sev, "final_severity_status": sstatus,
-                     "severity_evidence": sev_evidence})
+                     "pin_decided_by": pd.get("decided_by") if pd else None, "pin_decision_date": pd.get("date") if pd else None,
+                     "preliminary_severity": psev, "severity_coverage_status": cov["status"], "severity_lower": cov["lower"], "severity_upper": cov["upper"],
+                     "severity_missing_sectors": cov["missing_sectors"], "severity_flags_fired": sev_fired,
+                     "final_severity": fin_sev, "final_severity_status": sstatus,
+                     "severity_evidence_basis": sd.get("evidence_basis") if sd else None, "severity_evidence": sev_evidence,
+                     "severity_decided_by": sd.get("decided_by") if sd else None, "severity_decision_date": sd.get("date") if sd else None})
     for kind in ("pin", "severity"):
         for uid in decisions[kind]:
             if uid not in by_unit:
                 issues.append({"unit": uid, "problem": f"a {kind} decision is recorded for a unit that is not in this file; it is ignored"})
     pending_pin = counts["pin_status"].get("pending_flagged", 0)
     pending_sev = counts["severity_status"].get("pending_flagged", 0)
+    incomplete_sev = counts["severity_status"].get("incomplete_coverage", 0)
     summary = {
         "final_pin_total": round(final_total, 2), "provisional_part_of_total": round(provisional_total, 2),
-        "provisional": bool(pending_pin), "pending_pin_units": pending_pin, "pending_severity_units": pending_sev,
+        "provisional": bool(pending_pin), "pending_pin_units": pending_pin, "pending_severity_units": pending_sev, "incomplete_coverage_severity_units": incomplete_sev,
         "pin_status_counts": counts["pin_status"], "severity_status_counts": counts["severity_status"],
         "chosen_sector_rank_counts": counts["rank"], "final_severity_distribution": dict(sorted(sev_dist.items())),
         "decision_issues": issues,
@@ -192,12 +208,20 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=()):
 
 
 def _csv_row(r):
+    """One row with the four things kept apart: preliminary result, review status, final result, justification (+ who and when)."""
     return {"admin2_code": r["admin2_code"], "admin2": r["admin2"], "population_group": r["population_group"], "population": r["population"],
             "preliminary_pin": r["preliminary_pin"], "pin_flags_fired": "|".join(str(n) for n in r["pin_flags_fired"]),
-            "final_pin": r["final_pin"], "final_pin_status": r["final_pin_status"], "final_pin_sector": r["final_pin_sector"],
-            "final_pin_rank": r["final_pin_rank"], "preliminary_severity": r["preliminary_severity"],
-            "severity_flags_fired": "|".join(str(n) for n in r["severity_flags_fired"]), "final_severity": r["final_severity"],
-            "final_severity_status": r["final_severity_status"], "evidence_and_comments": "; ".join(x for x in (r["pin_decision_note"], r["severity_evidence"]) if x)}
+            "pin_review_status": r["final_pin_status"], "final_pin": r["final_pin"], "final_pin_sector": r["final_pin_sector"],
+            "final_pin_rank": r["final_pin_rank"], "pin_justification": r["pin_decision_note"], "pin_decided_by": r["pin_decided_by"],
+            "pin_decision_date": r["pin_decision_date"],
+            "preliminary_severity": r["preliminary_severity"], "severity_coverage_status": r["severity_coverage_status"],
+            "severity_lower_bound": r["severity_lower"], "severity_upper_bound": r["severity_upper"],
+            "severity_missing_sectors": "|".join(r["severity_missing_sectors"]),
+            "severity_flags_fired": "|".join(str(n) for n in r["severity_flags_fired"]),
+            "severity_review_status": r["final_severity_status"], "final_severity": r["final_severity"],
+            "severity_evidence_basis": r["severity_evidence_basis"], "severity_justification": r["severity_evidence"],
+            "severity_decided_by": r["severity_decided_by"], "severity_decision_date": r["severity_decision_date"],
+            "evidence_and_comments": "; ".join(x for x in (r["pin_decision_note"], r["severity_evidence"]) if x)}
 
 
 # ------------------------------------------------------------------ tools --
@@ -268,6 +292,8 @@ def get_jiaf_decisions():
             "file_path": {"type": "string"}, "input_format": {"type": "string"}, "sheet_name": {"type": "string"},
             "previous_file_path": {"type": "string"}, "previous_sheet_name": {"type": "string"},
             "bulk_accepted_flags": {"type": "array", "items": {"type": "integer"}, "description": "PiN flag numbers the team agreed to close in bulk, e.g. [1]."},
+            "sectors_in_scope": {"type": "array", "items": {"type": "string"}, "description": "Main sectors the HCT activated. Default: all eight; a sector with no value is missing, never phase 1."},
+            "zero_severity_as": {"type": "string", "description": "'not_applicable' (default) or 'missing'."},
             "f1_min_sectors": {"type": "integer"}, "f2_pct": {"type": "number"}, "f3_pct": {"type": "number"},
             "f4_subpopulation_sectors": {"type": "array", "items": {"type": "string"}}, "f5_share": {"type": "number"},
             "f6_pct": {"type": "number"}, "f6_min_previous_pin": {"type": "number"}, "s4_sector_count": {"type": "integer"},
@@ -279,10 +305,10 @@ def get_jiaf_decisions():
     },
 )
 def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
-                          bulk_accepted_flags=None, f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None,
+                          bulk_accepted_flags=None, sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None,
                           f6_pct=None, f6_min_previous_pin=None, s4_sector_count=None, export_csv_path=None, layer_name=None, layer_key_field=None,
                           write_fields=False, confirmed: bool = False):
-    overrides = {k: v for k, v in {"f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
+    overrides = {k: v for k, v in {"sectors_in_scope": sectors_in_scope, "zero_severity_as": zero_severity_as, "f1_min_sectors": f1_min_sectors, "f2_pct": f2_pct, "f3_pct": f3_pct, "f4_subpopulation_sectors": f4_subpopulation_sectors,
                                    "f5_share": f5_share, "f6_pct": f6_pct, "f6_min_previous_pin": f6_min_previous_pin,
                                    "s4_sector_count": s4_sector_count}.items() if v is not None}
     if bulk_accepted_flags and any(n not in (1, 2, 3, 4, 5, 6) for n in bulk_accepted_flags):
@@ -306,7 +332,8 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
         "severity_note": "Intersectoral severity is per unit only; there is no national severity and no PiN per severity phase.",
         "pending_units_shown": [{"unit": r["admin2_code"], "pin_flags": r["pin_flags_fired"], "severity_flags": r["severity_flags_fired"]}
-                                for r in rows if "pending_flagged" in (r["final_pin_status"], r["final_severity_status"])][:_CAP],
+                                for r in rows if "pending_flagged" in (r["final_pin_status"], r["final_severity_status"])
+                                or r["final_severity_status"] == "incomplete_coverage"][:_CAP],
     }
     if summary["phase_5_units"]:
         result["phase_5_notice"] = "Phase 5 appears in the preliminary or final results: the manual says this must be flagged immediately to the HCT."
@@ -335,7 +362,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
     result["join"] = report
     if not write_fields or not pairs:
         return result
-    names = ["jf_fin_pin", "jf_fin_sev", "jf_pin_rk"]
+    names = ["jf_fin_pin", "jf_fin_sev", "jf_pin_rk", "jf_pin_st", "jf_sev_st"]
     if not confirmed:
         return {
             "status": "PREVIEW_REQUIRED", "requires_confirmation": True, "is_destructive": True, "tool_name": "finalize_jiaf_results",
@@ -353,12 +380,15 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
             for fid, rec in pairs:
                 r = rec["row"]
                 rank = r["final_pin_rank"]
-                vals = [r["final_pin"], r["final_severity"], (rank if isinstance(rank, int) else (4 if rank == "other" else None))]
+                vals = [r["final_pin"], r["final_severity"], (rank if isinstance(rank, int) else (4 if rank == "other" else None)),
+                        PIN_STATUS_CODE.get(r["final_pin_status"]), SEV_STATUS_CODE.get(r["final_severity_status"])]
                 for i, v in zip(idx, vals):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names
-        result["field_note"] = "jf_pin_rk: 1/2/3 = the chosen sector was the 1st/2nd/3rd highest, 4 = another rank; empty when no decision was recorded."
+        result["field_note"] = ("jf_pin_rk: 1/2/3 = the chosen sector was the 1st/2nd/3rd highest, 4 = another rank; empty when no decision was recorded. "
+                                "jf_pin_st (PiN review status): 0 no flag, 1 flags closed in bulk, 2 decided, 3 pending. "
+                                "jf_sev_st (severity review status): 0 no data, 1 preliminary accepted, 2 decided, 3 pending flagged, 4 incomplete coverage.")
         if not owned:
             result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
     except EditError as e:
