@@ -320,7 +320,7 @@ Fetch a country's gridded population raster from WorldPop (open, free population
 | `year` | string | no | Population year, e.g. '2020'. Omit to use the most recent available. |
 | `extent_layer` | string | no | Name of a project layer whose extent is the area to fetch (preferred -- handles any CRS). |
 | `bbox` | array[number] | no | Alternative to extent_layer: [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
-| `allow_whole_country` | boolean | no | Set true ONLY after the user agreed to download the whole country (100 MB to over 1 GB). Without extent_layer/bbox and without this, the tool refuses. |
+| `allow_whole_country` | boolean | no | Set true ONLY after the user agreed to download the whole country file (worldpop.org cannot send just a window; the real size is shown first). Without extent_layer/bbox and without this, the tool refuses. |
 
 ### `ingest_osm_features` _(two-phase)_
 

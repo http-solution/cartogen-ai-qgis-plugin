@@ -343,6 +343,27 @@ class TestZoomToLayerParam(unittest.TestCase):
         map_item_instance.setExtent.assert_called_once_with(transformed_extent)
 
 
+class TestAtlasFileNamesAndLayoutNames(unittest.TestCase):
+    """#164: duplicate atlas values used to overwrite earlier pages; the replacement layout is built under a temporary name."""
+
+    def test_repeated_values_get_distinct_file_stems(self):
+        from cartogen_ai.core.agent.tools.layout_tools import unique_atlas_file_name
+        used = set()
+        stems = [unique_atlas_file_name(v, used, "page") for v in ("Sanaa", "Sanaa", "sanaa", "Aden/1", "Aden_1")]
+        self.assertEqual(len(set(s.lower() for s in stems)), 5)
+        self.assertEqual(stems[0], "Sanaa")
+        self.assertEqual(stems[1], "Sanaa_2")
+
+    def test_empty_values_use_the_fallback(self):
+        from cartogen_ai.core.agent.tools.layout_tools import unique_atlas_file_name
+        self.assertEqual(unique_atlas_file_name("", set(), "page_3"), "page_3")
+
+    def test_temporary_name_differs_from_the_final_one(self):
+        from cartogen_ai.core.agent.tools.layout_tools import temporary_layout_name
+        self.assertNotEqual(temporary_layout_name("Layout_X"), "Layout_X")
+        self.assertTrue(temporary_layout_name("Layout_X").startswith("Layout_X"))
+
+
 class TestExportLayoutAtlas(unittest.TestCase):
     """The full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md
     -- one output file per coverage-layer feature via QgsLayoutAtlas, live-verified against real
@@ -527,9 +548,12 @@ class TestExportLayoutAtlas(unittest.TestCase):
         # "/" sanitized to "_", not left as a path separator mid-filename.
         self.assertIn("Beta_Bravo.pdf", res["output_files"][1])
         self.assertNotIn("Beta/Bravo", res["output_files"][1])
-        atlas.setCoverageLayer.assert_called_once_with(layer)
-        atlas.setEnabled.assert_called_once_with(True)
-        map_item.setAtlasDriven.assert_called_once_with(True)
+        # configured for the export, then put back as it was (#164): the second call of each is the restore
+        self.assertEqual(atlas.setCoverageLayer.call_args_list[0][0][0], layer)
+        self.assertEqual(atlas.setEnabled.call_args_list[0][0][0], True)
+        self.assertEqual(map_item.setAtlasDriven.call_args_list[0][0][0], True)
+        self.assertEqual(atlas.setCoverageLayer.call_count, 2)
+        self.assertTrue(res["atlas_settings_restored"])
         atlas.beginRender.assert_called_once()
         atlas.endRender.assert_called_once()
         self.assertEqual(mock_exporter_instance.exportToPdf.call_count, 2)

@@ -34,13 +34,14 @@ from ..agent.tools.sensitivity_tools import (
 )
 from ..models.sensitivity import SENSITIVITY_LEVELS
 from ..models import egress_gate as _egress
+from ..models.model_view import SCHEMA_DISCLOSURE
 
 
 class LayerSensitivityDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Layer Data Sensitivity")
-        self.resize(400, 260)
+        self.resize(420, 340)
         self.init_ui()
         self.refresh_layers()
 
@@ -56,6 +57,11 @@ class LayerSensitivityDialog(QDialog):
         intro.setWordWrap(True)
         intro.setObjectName("secondaryLabel")
         layout.addWidget(intro)
+
+        disclosure = QLabel(SCHEMA_DISCLOSURE)      # #93: said where the user sets protection, not only in SECURITY.md
+        disclosure.setWordWrap(True)
+        disclosure.setObjectName("secondaryLabel")
+        layout.addWidget(disclosure)
 
         layout.addWidget(QLabel("Layer:"))
         self.layer_combo = QComboBox()

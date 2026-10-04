@@ -95,5 +95,27 @@ class TestPromptShowsWithheldFields(unittest.TestCase):
         self.assertIn("osm_id", prompts._format_map_context(ctx))
 
 
+class TestSchemaDisclosure(unittest.TestCase):
+    """#93: the always-visible schema is declared where the user sets protection, and in SECURITY.md."""
+
+    def test_the_text_names_what_is_still_visible(self):
+        text = mv.SCHEMA_DISCLOSURE.lower()
+        for word in ("name", "geometry type", "crs", "feature count", "field names", "attribute values"):
+            self.assertIn(word, text)
+
+    def test_security_md_records_the_decision(self):
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "SECURITY.md"), encoding="utf-8") as fh:
+            self.assertIn("SCHEMA_DISCLOSURE", fh.read())
+
+    def test_settings_and_the_sensitivity_dialog_show_it(self):
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for name in ("settings_dialog.py", "layer_sensitivity_dialog.py"):
+            with open(os.path.join(root, "src", "cartogen_ai", "core", "ui", name), encoding="utf-8") as fh:
+                self.assertIn("SCHEMA_DISCLOSURE", fh.read(), name)
+
+
 if __name__ == "__main__":
     unittest.main()

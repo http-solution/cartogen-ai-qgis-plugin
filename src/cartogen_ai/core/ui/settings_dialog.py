@@ -13,6 +13,7 @@ from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
 from ..agent.model_selector import AUTO_SENTINEL
+from ..models.model_view import SCHEMA_DISCLOSURE
 from ..services.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
     PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
@@ -617,6 +618,12 @@ class CartogenAiSettingsDialog(QDialog):
         egress_recommendation.setWordWrap(True)
         egress_recommendation.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(egress_recommendation)
+
+        # #93: what the setting does NOT hide, stated where the setting is.
+        schema_disclosure = QLabel(SCHEMA_DISCLOSURE)
+        schema_disclosure.setWordWrap(True)
+        schema_disclosure.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(schema_disclosure)
 
         self.egress_gate_strict_checkbox = QCheckBox(
             "Treat layers with no sensitivity tag as protected"

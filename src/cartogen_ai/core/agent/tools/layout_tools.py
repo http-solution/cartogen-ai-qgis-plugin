@@ -195,6 +195,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
+    layout_manager = pending_layout = None
+    committed = False
+
     try:
         template = "access_map" if str(template or "").lower() == "access_map" else "standard"
         if template == "access_map":
@@ -213,15 +216,15 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         project = QgsProject.instance()
         layout_name = f"Layout_{title.replace(' ', '_')}"
 
-        # Remove existing layout if present
+        # Audit F28 (#164): the same-name layout used to be removed FIRST, so any later error (a bad output_path, a failed
+        # export, an exception while building) lost the user's previous layout. The replacement is now built under a
+        # temporary name and only swapped in once it has been built and exported; on any failure it is removed and the old
+        # layout is left exactly as it was.
         layout_manager = project.layoutManager()
-        for existing in layout_manager.printLayouts():
-            if existing.name() == layout_name:
-                layout_manager.removeLayout(existing)
-
         layout = QgsPrintLayout(project)
         layout.initializeDefaults()
-        layout.setName(layout_name)
+        layout.setName(temporary_layout_name(layout_name))
+        pending_layout = layout
 
         # Handle page orientation
         page = layout.pageCollection().pages()[0]
@@ -518,6 +521,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         if inset_warning:
             res_msg["inset_warning"] = inset_warning
 
+        def commit():
+            """Swap the finished layout in for any same-name one."""
+            for existing in list(layout_manager.printLayouts()):
+                if existing is not layout and existing.name() == layout_name:
+                    layout_manager.removeLayout(existing)
+            layout.setName(layout_name)
+
         if output_path:
             ext = os.path.splitext(output_path)[1].lower()
             exporter = QgsLayoutExporter(layout)
@@ -537,9 +547,17 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             res_msg["output_path"] = output_path
             res_msg["dpi"] = dpi
 
+        commit()
+        committed = True
         return res_msg
     except Exception as e:
         return {"error": f"create_print_layout failed: {e}"}
+    finally:
+        if pending_layout is not None and not committed and layout_manager is not None:
+            try:
+                layout_manager.removeLayout(pending_layout)
+            except Exception:
+                pass
 
 
 @register_tool(
@@ -557,6 +575,30 @@ def list_layouts():
         return {"error": "QGIS not available"}
     layout_manager = QgsProject.instance().layoutManager()
     return {"layouts": [layout.name() for layout in layout_manager.printLayouts()]}
+
+
+LAYOUT_BUILD_SUFFIX = "__building"
+
+
+def temporary_layout_name(layout_name):
+    """Name a replacement layout is built under until it is swapped in (see create_print_layout). Pure."""
+    return f"{layout_name}{LAYOUT_BUILD_SUFFIX}"
+
+
+def unique_atlas_file_name(raw_name, used, fallback):
+    """A file stem for an atlas page that no earlier page in this run has used. Pure.
+
+    The stem is `raw_name` with anything but letters, digits, '-', '_' and space replaced by '_'. Audit F28 (#164): two
+    features with the same (or, after cleaning, the same) value used to write the same file, so a later page silently
+    replaced an earlier one. `used` is the set of lower-cased stems already taken (names collide on case-insensitive
+    file systems); the chosen stem is added to it. A repeat gets '_2', '_3', ... appended."""
+    stem = "".join(c if c.isalnum() or c in "-_ " else "_" for c in str(raw_name or "")).strip() or fallback
+    candidate, n = stem, 1
+    while candidate.lower() in used:
+        n += 1
+        candidate = f"{stem}_{n}"
+    used.add(candidate.lower())
+    return candidate
 
 
 def _find_layout_by_name(name):
@@ -630,6 +672,10 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
 
     try:
         atlas = layout.atlas()
+        # The export reconfigures the layout's atlas; remember what it was and put it back afterwards (audit F28, #164).
+        previous_atlas = (atlas.enabled(), atlas.coverageLayer(), atlas.filenameExpression(),
+                          map_item.atlasDriven() if hasattr(map_item, "atlasDriven") else False)
+        used_names, overwritten, renamed_pages = set(), [], 0
         atlas.setCoverageLayer(coverage_layer)
         atlas.setEnabled(True)
         # QgsExpression field-reference syntax -- a bare field name in
@@ -663,8 +709,12 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
                 return {"error": f"Coverage layer '{coverage_layer_name}' has no features -- nothing to export."}
             while has_feature:
                 raw_name = atlas.currentFilename() or f"page_{len(output_files) + 1}"
-                safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in raw_name).strip() or f"page_{len(output_files) + 1}"
+                safe_name = unique_atlas_file_name(raw_name, used_names, f"page_{len(output_files) + 1}")
+                if safe_name.lower() != "".join(c if c.isalnum() or c in "-_ " else "_" for c in raw_name).strip().lower():
+                    renamed_pages += 1
                 out_path = os.path.join(output_directory, f"{safe_name}.{output_format}")
+                if os.path.exists(out_path):
+                    overwritten.append(out_path)
                 exporter = QgsLayoutExporter(layout)
                 if output_format == "pdf":
                     result = exporter.exportToPdf(out_path, settings)
@@ -676,17 +726,40 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
                 has_feature = atlas.next()
         finally:
             atlas.endRender()
+            _restore_atlas(atlas, map_item, previous_atlas)
 
-        return {
+        result = {
             "success": True,
             "layout_name": layout_name,
             "coverage_layer_name": coverage_layer_name,
             "feature_count": len(output_files),
             "output_directory": output_directory,
             "output_files": output_files,
+            "atlas_settings_restored": True,
         }
+        if renamed_pages:
+            result["renamed_pages_note"] = (f"{renamed_pages} page(s) had a file name already used by an earlier page in this "
+                                            "export and got a numeric suffix, so no page overwrote another.")
+        if overwritten:
+            result["overwritten_files"] = overwritten
+            result["overwritten_note"] = (f"{len(overwritten)} file(s) from an earlier export with the same name were replaced.")
+        return result
     except Exception as e:
         return {"error": f"export_layout_atlas failed: {e}"}
+
+
+def _restore_atlas(atlas, map_item, previous):
+    """Put the layout's atlas settings back as they were before an export. Best effort: a failure leaves the export's
+    settings in place rather than failing an export that already succeeded."""
+    enabled, layer, expression, driven = previous
+    try:
+        atlas.setCoverageLayer(layer)
+        if expression:
+            atlas.setFilenameExpression(expression)
+        map_item.setAtlasDriven(driven)
+        atlas.setEnabled(enabled)
+    except Exception:
+        pass
 
 
 @register_tool(

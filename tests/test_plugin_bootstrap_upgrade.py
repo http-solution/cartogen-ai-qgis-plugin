@@ -46,6 +46,8 @@ class TestInPlaceUpgradeEvictsStaleModules(unittest.TestCase):
         shutil.rmtree(self._pkg, ignore_errors=True)
         os.makedirs(self._pkg)
         shutil.copy(self._pkg + "_init.py", os.path.join(self._pkg, "__init__.py"))
+        # the root __init__ imports its scoped-eviction helper from the same folder (#167)
+        shutil.copy(os.path.join(_REPO_ROOT, "_module_ownership.py"), os.path.join(self._pkg, "_module_ownership.py"))
         src = os.path.join(self._pkg, "src", "cartogen_ai")
         _write(os.path.join(src, "core", "__init__.py"), "")
         _write(os.path.join(src, "infrastructure", "__init__.py"), "")

@@ -695,6 +695,11 @@ class _IsolationWorker:
 _worker = _IsolationWorker()
 
 
+def shutdown_worker():
+    """Stop the isolation worker process, if one is running. Called when the plugin unloads (audit F31, #167)."""
+    _worker.shutdown()
+
+
 def run_isolated_script(script: str) -> dict:
     """The public entry point `execute_pyqgis_script` calls when running inside
     real QGIS. Serializes the live project (with memory layers made real), hands
