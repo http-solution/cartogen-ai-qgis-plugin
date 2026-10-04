@@ -239,3 +239,62 @@ class TestRc12AuditFixes(unittest.TestCase):
         self.assertEqual(guide.count("Shaded area"), 1)
         both = ls.access_reading_guide(["Origin_service_area_0", "F_reachable_area"])
         self.assertEqual(both.count("Shaded area"), 1)
+
+
+class TestSitrepBody(unittest.TestCase):
+    """HX1c: the text of the `sitrep` print template, built only from what the caller supplies."""
+
+    TODAY = datetime.date(2026, 10, 4)
+
+    def test_sections_appear_in_order_and_empty_ones_are_left_out(self):
+        text = ls.sitrep_body("Floods in the south.", [{"label": "People in need", "value": "412,000", "source": "calculate_population_in_need"}],
+                              ["OCHA COD-AB", "WorldPop 2020"], "Shaded area: reach.", today=self.TODAY)
+        order = [text.index(h) for h in ("SITUATION", "KEY FIGURES", "HOW TO READ THIS MAP", "SOURCES", "HANDLING")]
+        self.assertEqual(order, sorted(order))
+        self.assertIn("- People in need: 412,000 (calculate_population_in_need)", text)
+        self.assertIn("OCHA COD-AB; WorldPop 2020", text)
+        self.assertIn("Prepared 2026-10-04.", text)
+        bare = ls.sitrep_body(today=self.TODAY)
+        self.assertEqual(bare.count("\n\n"), 0)
+        self.assertTrue(bare.startswith("HANDLING"))
+        self.assertNotIn("SITUATION", bare)
+
+    def test_the_handling_note_says_estimates_and_no_exact_locations(self):
+        text = ls.sitrep_body(today=self.TODAY)
+        self.assertIn("estimates", text)
+        self.assertIn("exact locations", text)
+
+    def test_figures_without_a_label_or_value_are_dropped_and_the_list_is_capped(self):
+        figs = [{"label": "a", "value": "1"}, {"label": "", "value": "2"}, {"label": "b"}, "x", None, {"label": "c", "value": 0}]
+        self.assertEqual([f[0] for f in ls.normalise_key_figures(figs)], ["a", "c"])
+        many = [{"label": str(i), "value": str(i)} for i in range(20)]
+        self.assertEqual(len(ls.normalise_key_figures(many)), ls.SITREP_MAX_FIGURES)
+
+    def test_content_check(self):
+        self.assertFalse(ls.sitrep_has_content("", [], []))
+        self.assertFalse(ls.sitrep_has_content("  ", [{"label": "x"}], [""]))
+        self.assertTrue(ls.sitrep_has_content("summary"))
+        self.assertTrue(ls.sitrep_has_content("", [{"label": "x", "value": "1"}]))
+        self.assertTrue(ls.sitrep_has_content("", None, ["WorldPop"]))
+
+    def test_a_small_box_shortens_the_summary_and_never_the_sources_or_the_handling_note(self):
+        summary = "Heavy flooding has displaced many families across the southern districts. " * 10
+        figures = [{"label": "People in need", "value": "412,000", "source": "tool"}]
+        full = ls.sitrep_body(summary, figures, ["OCHA COD-AB", "WorldPop 2020"], "Guide line.", today=self.TODAY)
+        for budget in (len(full) - 1, 700, 500, 420):
+            text = ls.sitrep_body(summary, figures, ["OCHA COD-AB", "WorldPop 2020"], "Guide line.", today=self.TODAY, max_chars=budget)
+            self.assertLessEqual(len(text), budget, budget)
+            self.assertIn("OCHA COD-AB; WorldPop 2020", text)
+            self.assertIn("Prepared 2026-10-04.", text)
+            self.assertIn("exact locations", text)
+
+    def test_a_generous_box_changes_nothing(self):
+        args = ("Short summary.", [{"label": "a", "value": "1"}], ["src"], "Guide.")
+        self.assertEqual(ls.sitrep_body(*args, today=self.TODAY), ls.sitrep_body(*args, today=self.TODAY, max_chars=10000))
+
+    def test_the_guide_goes_first_then_the_summary_tail_then_the_last_figures(self):
+        figs = [{"label": f"f{i}", "value": str(i)} for i in range(6)]
+        text = ls.sitrep_body("S " * 100, figs, ["src"], "A guide line to drop.", today=self.TODAY, max_chars=330)
+        self.assertNotIn("HOW TO READ", text)
+        self.assertIn("f0", text)
+        self.assertLessEqual(len(text), 330)

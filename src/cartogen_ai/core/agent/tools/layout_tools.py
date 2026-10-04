@@ -58,6 +58,12 @@ _LABEL_LINE_HEIGHT_MM = 6.0
 _LABEL_CHARS_PER_MM_WIDTH = 110 / 180.0
 
 
+def _text_budget(box_w_mm, box_h_mm):
+    """How many characters a label box of this size can hold (the same budget _fit_text_to_box truncates to). Pure."""
+    max_lines = max(1, int(box_h_mm // _LABEL_LINE_HEIGHT_MM))
+    return max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
+
+
 def _fit_text_to_box(text, box_w_mm, box_h_mm):
     """Truncates text to what a QgsLayoutItemLabel-sized box can actually
     hold, by whole words, appending an ellipsis if truncated. Exists because
@@ -68,8 +74,7 @@ def _fit_text_to_box(text, box_w_mm, box_h_mm):
     doesn't fix this for an unbounded caller-supplied string; bounding the
     actual text content does, regardless of exactly how generous the box
     turns out to be in either orientation."""
-    max_lines = max(1, int(box_h_mm // _LABEL_LINE_HEIGHT_MM))
-    max_chars = max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
+    max_chars = _text_budget(box_w_mm, box_h_mm)
     if len(text) <= max_chars:
         return text
     truncated = text[:max_chars].rsplit(" ", 1)[0]
@@ -185,13 +190,15 @@ def _format_scale_denominator(n):
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
-            "template": {"type": "string", "description": "'standard' (default) or 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present."},
+            "template": {"type": "string", "description": "'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added."},
+            "key_figures": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "source": {"type": "string"}}, "required": ["label", "value"]}, "description": "For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
             "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard"):
+def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -199,7 +206,24 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
     committed = False
 
     try:
-        template = "access_map" if str(template or "").lower() == "access_map" else "standard"
+        requested = str(template or "").lower()
+        template = requested if requested in ("access_map", "sitrep") else "standard"
+        sitrep_warning = None
+        sitrep_args = None
+        if template == "sitrep":
+            # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
+            # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
+            from . import layout_style
+            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+            if not zoom_to_layer:
+                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+            if not layout_style.sitrep_has_content(body_text, key_figures, sources):
+                sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing handling note. "
+                                  "Do not fill it with unverified content: pass the figures from the analysis results.")
+            # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
+            # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
+            sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible))
+            body_text = "sitrep"
         if template == "access_map":
             from . import layout_style
             visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
@@ -478,7 +502,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # than introducing an unverified enum reference.
         if body_text:
             body_label = QgsLayoutItemLabel(layout)
-            body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
+            if sitrep_args is not None:
+                from . import layout_style
+                body_label.setText(layout_style.sitrep_body(*sitrep_args, max_chars=_text_budget(col_w, body_h)))
+            else:
+                body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)
             body_label.setId("BODY_TEXT")
             body_label.attemptMove(QgsLayoutPoint(col_x, body_y, LAYOUT_MM))
@@ -503,7 +531,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         style_report = {}
         try:
             from . import layout_style
-            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template=template)
+            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template="access_map" if template == "access_map" else "standard")
         except Exception as style_error:
             style_report = {"warnings": [f"layout styling failed: {style_error}"]}
 
@@ -514,6 +542,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             res_msg["classification"] = style_report["classification"]
         if style_report.get("warnings"):
             res_msg["style_warnings"] = style_report["warnings"]
+        if sitrep_warning:
+            res_msg["sitrep_warning"] = sitrep_warning
         if info_warning:
             res_msg["info_label_warning"] = info_warning
         if grid_warning:
