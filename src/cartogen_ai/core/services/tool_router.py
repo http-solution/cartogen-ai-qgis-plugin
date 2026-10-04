@@ -111,6 +111,11 @@ _TOOL_ALIASES = {
         "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road",
         "checkpoint", "barrier", "impassable", "avoid the", "cut off road",
     ],
+    # Anticipatory action (see tools/trigger_tools.py). No bare "forecast" or "trigger": forecast_trend and unrelated queries use them.
+    "evaluate_forecast_trigger": [
+        "anticipatory action", "forecast-based financing", "forecast based financing", "trigger threshold", "trigger model",
+        "trigger protocol", "activation threshold", "lead time", "early action", "pre-arranged financing",
+    ],
     "population_access_gap": [
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",

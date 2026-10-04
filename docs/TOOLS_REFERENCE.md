@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (185 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (186 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1931,3 +1931,23 @@ Reverse the most recent undoable tool call made THIS turn (see get_turn_transact
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `confirmed` | boolean | no | Set true only after the user has confirmed the undo. |
+
+## trigger_tools
+
+### `evaluate_forecast_trigger`
+
+Evaluate an anticipatory-action trigger rule against forecast values already in a layer's attribute table: for each area, does the forecast reach the threshold within the lead window (optionally with a minimum probability)? Returns which areas are activated, with the maximum forecast value, the number of exceeding forecast rows and the first exceedance date, plus the rule restated in words. The threshold, lead window and probability cut-off MUST come from the user's own trigger protocol -- this tool has no defaults and never invents one; if the user has not given a threshold, ask for it. It evaluates a rule; it does not fetch or generate forecasts and its answer is only as good as the forecast data in the layer. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | Layer (or table) holding forecast rows: one or more per area. |
+| `value_field` | string | yes | Numeric field with the forecast value (e.g. river discharge, rainfall, wind speed). |
+| `threshold` | number | yes | Trigger threshold, from the user's protocol. Required. |
+| `comparison` | string | no | Default '>='. |
+| `unit_field` | string | no | Field identifying the area (admin name/code, station). Omit to evaluate the whole layer as one unit. |
+| `date_field` | string | no | Field with the date the forecast is valid for. Required with lead_days. |
+| `lead_days` | number | no | Only count forecast rows dated from as_of to as_of + lead_days. |
+| `as_of` | string | no | ISO date the lead window starts from. Default today. |
+| `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
+| `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
+| `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
