@@ -23,6 +23,16 @@ SCHEMA_HIDDEN_NOTE = (
     "switch to a local provider, if the field names are needed."
 )
 
+# What a cloud model still sees of ANY layer, protected or not, however the gate is set (owner decision 2026-10-04, #93:
+# acceptable if declared and the user is told, with no sensitive values exposed). One text, shown in Settings, in the
+# layer-sensitivity dialog and recorded in SECURITY.md, so the declaration cannot drift between places.
+SCHEMA_DISCLOSURE = (
+    "A cloud AI provider is always told each layer's NAME, geometry type, CRS and feature count, so it can address layers "
+    "and plan. For layers protected by the data-protection setting it is not told the field names, and it never receives "
+    "attribute values unless a tool call returns them (which the protection setting can block). Do not put sensitive "
+    "information in a layer's name."
+)
+
 _policy_provider = None
 
 

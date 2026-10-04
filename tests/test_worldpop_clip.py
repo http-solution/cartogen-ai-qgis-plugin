@@ -211,7 +211,8 @@ class TestWholeCountryIsRefusedByDefault(unittest.TestCase):
         with patch.object(ht.urllib.request, "urlopen") as urlopen:
             res = ht.fetch_worldpop_population_network_phase("YEM", "2020")
             urlopen.assert_not_called()
-        self.assertIn("WHOLE country", res["error"])
+        self.assertIn("needs to know the area", res["error"])
+        self.assertIn("allow_whole_country", res["error"])
         self.assertIn("extent_layer", res["error"])
         self.assertIn("allow_whole_country=true", res["error"])
         self.assertEqual(res["suggested_args"], ["extent_layer", "bbox"])

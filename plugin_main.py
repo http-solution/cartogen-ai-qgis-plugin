@@ -66,6 +66,7 @@ class CartogenAi:
     def __init__(self, iface):
         self.iface = iface
         self.plugin_dir = os.path.dirname(__file__)
+        self.translator = None
 
         try:
             locale = QgsSettings().value("locale/userLocale", QLocale().name())[0:2]
@@ -236,6 +237,20 @@ class CartogenAi:
             project_session.invalidate()
         except Exception:
             pass
+        # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
+        # old one outlived the plugin.
+        if self.translator is not None:
+            try:
+                QCoreApplication.removeTranslator(self.translator)
+            except Exception as e:
+                print(f"[CartogenAi] removeTranslator failed: {e}")
+            self.translator = None
+        # ...and the script-isolation worker is a child process that otherwise outlives an unload.
+        try:
+            from cartogen_ai.core.agent.services import script_isolation
+            script_isolation.shutdown_worker()
+        except Exception as e:
+            print(f"[CartogenAi] isolation worker shutdown failed: {e}")
         if self._first_use_timer is not None:
             try:
                 self._first_use_timer.stop()
