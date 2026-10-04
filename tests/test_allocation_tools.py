@@ -107,17 +107,29 @@ if __name__ == "__main__":
 
 
 class TestNullsFromQgis(unittest.TestCase):
-    """A NULL read from a layer is a QVariant, not None; it must never count as a real zero."""
+    """A NULL read from a layer is a QVariant-like object, not None, and float() of it may not raise (QGIS 4.2.2 gave 1 for a NULL
+    population in the allocation live test). It must never count as a number."""
 
-    class _NullVariant:
+    class _FakeNull:
         def isNull(self):
             return True
 
-        def __float__(self):          # some bindings return 0.0 here instead of raising
-            return 0.0
+        def __float__(self):
+            return 1.0
 
-    def test_a_null_variant_is_missing_not_zero(self):
+    def test_a_null_like_object_is_missing_whatever_float_would_say(self):
         from cartogen_ai.core.agent.tools.mcda_tools import to_number
-        self.assertIsNone(to_number(self._NullVariant()))
-        self.assertEqual(at.weight_for(0.5, self._NullVariant())[1], "missing or non-numeric population")
-        self.assertEqual(at.weight_for(self._NullVariant(), 10)[1], "missing or non-numeric need")
+        self.assertIsNone(to_number(self._FakeNull()))
+        self.assertEqual(at.weight_for(0.5, self._FakeNull())[1], "missing or non-numeric population")
+        self.assertEqual(at.weight_for(self._FakeNull(), 10)[1], "missing or non-numeric need")
+
+    def test_real_numbers_and_numeric_text_still_work(self):
+        from decimal import Decimal
+        from cartogen_ai.core.agent.tools.mcda_tools import to_number
+        self.assertEqual(to_number(3), 3.0)
+        self.assertEqual(to_number("2.5"), 2.5)
+        self.assertEqual(to_number(Decimal("4")), 4.0)
+        self.assertIsNone(to_number(float("nan")))
+        self.assertIsNone(to_number(True))
+        self.assertIsNone(to_number("n/a"))
+        self.assertIsNone(to_number([1]))
