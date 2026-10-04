@@ -98,8 +98,8 @@ flow, but live account creation requires a deployed/configured Cartogen service.
 
 ## What happens to your message before it is sent
 
-Cartogen AI carries the **Humanitarian Mapping Task Register** — 791 mapping
-tasks grouped into 35 sections, each one describing what it needs, what tools
+Cartogen AI carries the **Humanitarian Mapping Task Register** — 792 mapping
+tasks grouped into 36 sections, each one describing what it needs, what tools
 it should use, and what you should end up with. When you type a request, it is
 matched against that register locally, on your machine. No API call is made to
 do the matching, and the register itself is never sent to the model.
@@ -382,6 +382,15 @@ before it can answer anything. On the full Jordan OpenStreetMap network (161,041
   vehicle can't use them (about 4% of Jordan's roads).
 - **If something misbehaves**, set `cartogen_ai/network_analysis_in_background` to `false` in QGIS's
   advanced settings (Settings > Options > System > Advanced) to go back to running on the main thread.
+
+## Humanitarian analysis tools
+
+Ask in plain language; the assistant picks the tool and asks you for any number that is a judgement call (a threshold, weights, a budget) instead of choosing one. The full list by workflow is in the plugin's Help dialog ("Humanitarian tools") and in [HUMANITARIAN_TOOLS_CATALOGUE.md](HUMANITARIAN_TOOLS_CATALOGUE.md), which also says what each tool draws on the map. Added in 1.16.0-rc13 (tested in CI, not by hand):
+
+- **Map looks.** `apply_humanitarian_look` colours a result field (severity, people in need, exposure, allocation, presence gap, rank); the analysis tools tell the assistant the exact call.
+- **Allocation envelope.** "Split a budget of N across the districts by severity" -- `calculate_allocation_envelope`. You give the budget and any ceiling or floor; it shows the arithmetic and lists excluded areas. It is a calculation, not a recommendation of who should receive what.
+- **Importing IPC, INFORM and UNOSAT tables.** `import_humanitarian_table` reads a CSV/Excel file you downloaded (for example from HDX), checks it, and can add the values to your admin layer by P-code after you confirm. Check the "mapping used" in the result against your file; invalid values are listed and left empty.
+- **Critical links.** "Which roads do the routes to these sites depend on?" -- `analyze_critical_links` draws the road network graded by how many shortest routes use each segment. A screening, not a closure simulation; clip national road data to your area first.
 
 ## Live hazard monitoring
 

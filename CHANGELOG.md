@@ -65,6 +65,7 @@ No breaking changes; QGIS 4.2+. Everything merged after the rc12 build (PRs #183
 - New: calculate_allocation_envelope (HX3a) -- splits a budget you supply over areas by need (optionally x population) with ceiling, floor, need threshold and rounding; areas with missing values are excluded and listed, never imputed; an advisory calculation, not a recommendation of who should receive what.
 - New: import_humanitarian_table (HX3b) -- file-based import and validation of IPC phase, INFORM Risk and UNOSAT damage tables with a P-code join to an admin layer. UNVERIFIED: the recognised column names were not checked against real HDX files; the result shows the mapping used and an explicit mapping overrides it.
 - New: analyze_critical_links (HX3c) -- screens a road network for bottlenecks (how much origin-to-destination demand has its shortest path through each segment). A screening of dependence, not a closure simulation or traffic forecast. Performance on a national network has not been measured.
+- Change: the in-plugin Help now shows what's new in this version and lists the humanitarian tools by workflow, with tool and task counts read from the live registries; the README, user guide and Help are kept in step with each version by a test.
 - Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2 (live tests written without a local QGIS). Nothing in rc13 has been hand-tested in a desktop session, and no audit issue is closed by this build.
 
 <a id="v1-16-0-rc12"></a>
