@@ -27,16 +27,16 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-04):** active Community edition, currently at the **1.16.0-rc13 pre-release** (the published release is still rc12 until rc13 is uploaded).
+> **Project status (2026-10-04):** active Community edition, currently at the **1.16.0-rc13 pre-release** (published as a GitHub pre-release).
 > - **Tests:** 3,069 automated tests, 0 failures; 247 of them are live-QGIS tests that are skipped outside QGIS and run in CI
 >   (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
 >   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists; the remaining 17 are still
 >   open. None of the fixes has been re-checked by hand yet.
-> - **Not yet verified:** a hands-on smoke test of rc12 in a desktop QGIS session. A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc12 zip has passed CI packaging and a load/unload/reload check only.
+> - **Not yet verified:** a hands-on smoke test of rc12 or rc13 in a desktop QGIS session. A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc13 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc13)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -148,8 +148,8 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc12 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc12); the release
-also carries a `SHA256-1.16.0-rc12.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+[1.16.0-rc13 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc13); the release
+also carries a `SHA256-1.16.0-rc13.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
@@ -159,7 +159,7 @@ them as issues.
 
 > **Don't install GitHub's "Source code (zip)".** QGIS uses the zip's top-level folder name as
 > the plugin's Python module name. GitHub names that folder `<repo>-<tag>`, for example
-> `cartogen-ai-qgis-plugin-cartogen-ai-v1.16.0-rc12`. The dots in the version make it an
+> `cartogen-ai-qgis-plugin-cartogen-ai-v1.16.0-rc13`. The dots in the version make it an
 > invalid module name, so QGIS fails with
 > `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-cartogen-ai-v1'`
 > (seen live on QGIS 4.2.2 with an earlier release candidate). The release asset built by
