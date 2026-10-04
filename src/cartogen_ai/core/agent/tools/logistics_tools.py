@@ -1831,30 +1831,77 @@ def _build_cost_tree(network, origin_xy, strategy, default_speed, speed_field, d
     return graph, costs, to_output, start
 
 
+def project_on_segment(px, py, ax, ay, bx, by):
+    """(t, distance): where the point (px, py) projects onto the segment A->B, as a fraction t in [0, 1] of the way from A to B,
+    and how far the point is from that projected spot (in the coordinates' own units). Pure. A zero-length segment gives t = 0."""
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
+    qx, qy = ax + t * dx, ay + t * dy
+    return t, ((px - qx) ** 2 + (py - qy) ** 2) ** 0.5
+
+
+def partial_edge_cost(cost_a, cost_b, edge_ab, edge_ba, t, unreachable=UNREACHABLE_COST):
+    """Cost from the origin to a point a fraction `t` of the way along the edge A->B, or None when it cannot be reached.
+
+    `cost_a` / `cost_b` are the tree costs to the two ends, `edge_ab` / `edge_ba` the full-edge costs in each direction (None
+    when that direction does not exist, e.g. a one-way road). Enter at A and run forward, or enter at B and run back; the
+    cheaper allowed way wins. Cost is proportional to distance along an edge for both strategies (one speed per feature).
+    Audit F16 (#152): the single-tree matrix used the cost of the nearest VERTEX, so on a 1,000 m road points at 490 m and 510 m
+    came back as 0 and 1,000 m instead of about 490 and 510. Pure."""
+    options = []
+    if edge_ab is not None and cost_a is not None and cost_a < unreachable:
+        options.append(cost_a + t * edge_ab)
+    if edge_ba is not None and cost_b is not None and cost_b < unreachable:
+        options.append(cost_b + (1.0 - t) * edge_ba)
+    return min(options) if options else None
+
+
 def _single_tree_costs(network, origin_xy, dest_xys, strategy, default_speed, speed_field, direction_field,
                        value_forward, value_backward, value_both, ellipsoid):
     """Cost from origin_xy to each point in dest_xys, in the network's CRS, from one Dijkstra tree.
 
-    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination's nearest
-    graph vertex is not reachable. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
+    Each destination is projected onto its nearest road edge and charged the cost to that spot (partial edge, direction
+    aware: see partial_edge_cost), which is what QGIS's own point-to-layer tool does; before, it took the cost of the nearest
+    graph vertex, wrong by up to a whole edge. The short leg from the destination to the road is still not added.
+
+    Returns a list aligned with dest_xys: a cost (metres, or hours for strategy='fastest') or None when the destination cannot
+    be reached. Raises RuntimeError with a reason when the origin cannot be tied into the graph."""
     graph, costs, to_output, _start = _build_cost_tree(
         network, origin_xy, strategy, default_speed, speed_field, direction_field,
         value_forward, value_backward, value_both, ellipsoid)
-    index = QgsSpatialIndex()
-    for i in range(graph.vertexCount()):
-        feat = QgsFeature(i)
-        feat.setGeometry(QgsGeometry.fromPointXY(graph.vertex(i).point()))
+    # One entry per undirected vertex pair; the two directed edge costs are kept apart so one-way roads stay one-way.
+    directed = {}
+    for i in range(graph.edgeCount()):
+        edge = graph.edge(i)
+        key = (edge.fromVertex(), edge.toVertex())
+        cost = edge.cost(0)
+        if key not in directed or cost < directed[key]:
+            directed[key] = cost
+    pairs, index = [], QgsSpatialIndex()
+    for a, b in {(min(k), max(k)) for k in directed if k[0] != k[1]}:
+        pa, pb = graph.vertex(a).point(), graph.vertex(b).point()
+        feat = QgsFeature(len(pairs))
+        feat.setGeometry(QgsGeometry.fromPolylineXY([pa, pb]))
         index.addFeature(feat)
+        pairs.append((a, b, pa, pb))
     out = []
     for xy in dest_xys:
-        nearest = index.nearestNeighbor(QgsPointXY(xy), 1)
-        if not nearest:
+        point = QgsPointXY(xy)
+        best = None
+        # The index ranks by bounding box, which can put a nearer edge behind a few nearer boxes: take several, measure exactly.
+        for pid in index.nearestNeighbor(point, 8):
+            a, b, pa, pb = pairs[pid]
+            t, dist = project_on_segment(point.x(), point.y(), pa.x(), pa.y(), pb.x(), pb.y())
+            if best is None or dist < best[0]:
+                best = (dist, a, b, t)
+        if best is None:
             out.append(None)
             continue
-        cost = costs[nearest[0]]
-        out.append(None if cost >= UNREACHABLE_COST else cost * to_output)
+        _dist, a, b, t = best
+        cost = partial_edge_cost(costs[a], costs[b], directed.get((a, b)), directed.get((b, a)), t)
+        out.append(None if cost is None else cost * to_output)
     return out
-
 
 
 def _cost_graded_roads(network, origin_xy, strategy, default_speed, speed_field, direction_field,
@@ -1898,6 +1945,27 @@ def _cost_graded_roads(network, origin_xy, strategy, default_speed, speed_field,
     return layer, None
 
 
+def parse_xy(text):
+    """(x, y) from the first two numbers in text such as 'POINT(1.5 2)' or '1.5,2', else None. Pure."""
+    import re
+    numbers = re.findall(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", str(text))
+    if len(numbers) < 2:
+        return None
+    return float(numbers[0]), float(numbers[1])
+
+
+def match_destination_key(x, y, candidates, tolerance):
+    """The id of the candidate [(id, x, y), ...] nearest to (x, y) and within `tolerance`, else None. Pure. Used to give the
+    native point-to-layer output the same destination keys (feature ids) as the single-tree path (audit F16, #152): QGIS
+    reports the end point as coordinates, not as a feature id."""
+    best = None
+    for ident, cx, cy in candidates:
+        dist = ((cx - x) ** 2 + (cy - y) ** 2) ** 0.5
+        if dist <= tolerance and (best is None or dist < best[0]):
+            best = (dist, ident)
+    return None if best is None else best[1]
+
+
 def _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed, speed_field,
                         direction_field, value_forward, value_backward, value_both):
     """{'matrix': {origin: {destination feature id: cost or None}}, 'unreachable_count': n} or {'error': ...}."""
@@ -1936,7 +2004,7 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
     "traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
-    "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; costs placed at the nearest road vertex) when the QGIS network classes are available.",
+    "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; each destination is charged the cost to its projected point on the nearest road segment) when the QGIS network classes are available.",
     {
         "type": "object",
         "properties": {
@@ -2016,9 +2084,9 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                 "strategy": strategy, "cost_unit": "hours" if strategy == "fastest" else "meters",
                 "matrix": fast["matrix"], "method": "single_shortest_path_tree",
                 "unreachable_count": fast["unreachable_count"],
-                "note": ("Costs come from one shortest-path tree per origin; each destination takes the cost of its nearest road "
-                         "vertex (at most half a road segment from where QGIS's own point-to-layer tool would tie it). The "
-                         "leg from the destination to the road is not added. Destination keys are feature ids."),
+                "note": ("Costs come from one shortest-path tree per origin; each destination is projected onto its nearest road "
+                         "segment and charged the cost to that spot, direction-aware, as QGIS's own point-to-layer tool does. "
+                         "The short leg from the destination to the road is not added. Destination keys are feature ids."),
             }
             if speed_field:
                 result["speed_field"] = speed_field
@@ -2027,6 +2095,14 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                 result["direction_field"] = direction_field
             return result
         origin_ids = unique_labels([f.attribute(0) if f.fields().count() else None for f in origin_features], "origin")
+        destination_points = []
+        for dest in destinations.getFeatures():
+            if dest.hasGeometry() and not dest.geometry().isEmpty():
+                xy = _point_xy_in_network_crs(dest.geometry().asPoint(), destinations.crs(), network)
+                destination_points.append((dest.id(), xy.x(), xy.y()))
+        # The end point is printed with limited precision: match to the nearest destination within a tiny distance.
+        key_tolerance = 1e-4 if network.crs().isGeographic() else 0.1
+        unmatched_keys = 0
         for origin_feat, origin_id in zip(origin_features, origin_ids):
             point = origin_feat.geometry().asPoint()
             params = {
@@ -2053,7 +2129,15 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             for feat in result_layer.getFeatures():
                 dest_key = feat.attribute(dest_field) if dest_field else feat.id()
                 cost = feat.attribute(cost_field) if cost_field else None
-                distances[str(dest_key)] = cost
+                # Same keys as the single-tree path: the destination's feature id, found from the end point QGIS reports.
+                parsed = parse_xy(dest_key) if dest_field else None
+                matched = match_destination_key(parsed[0], parsed[1], destination_points, key_tolerance) if parsed else None
+                if matched is None:
+                    unmatched_keys += 1
+                    key = str(dest_key)
+                else:
+                    key = str(matched)
+                distances[key] = cost
             matrix[str(origin_id)] = distances
 
         if not matrix:
@@ -2065,7 +2149,11 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             "strategy": strategy,
             "cost_unit": "hours" if strategy == "fastest" else "meters",
             "matrix": matrix,
+            "destination_keys": "feature id",
         }
+        if unmatched_keys:
+            result["destination_keys_note"] = (f"{unmatched_keys} destination(s) could not be matched back to a feature id and "
+                                               "keep the end-point text QGIS reported as their key.")
         if speed_field:
             result["speed_field"] = speed_field
         result.update(_closed_note(closed_segments))
