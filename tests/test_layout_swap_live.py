@@ -92,5 +92,42 @@ class TestLayoutSwapAndAtlas(unittest.TestCase):
         self.assertFalse(atlas.enabled())                                     # put back as it was
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestSitrepTemplate(unittest.TestCase):
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp(prefix="cg_sitrep_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        QgsProject.instance().addMapLayer(_districts(["Sanaa", "Aden"]))
+
+    def test_sitrep_text_panel_holds_the_supplied_sections_and_exports(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        out = os.path.join(self.tmp, "sitrep.png")
+        res = create_print_layout(
+            "Situation report", template="sitrep", body_text="Flooding along the southern coast.", output_path=out, dpi=60,
+            key_figures=[{"label": "People in need", "value": "412,000 (estimate)", "source": "calculate_population_in_need"}],
+            sources=["OCHA COD-AB", "WorldPop 2020"])
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["template"], "sitrep")
+        self.assertNotIn("sitrep_warning", res)
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        text = layout.itemById("BODY_TEXT").text()
+        for part in ("SITUATION", "KEY FIGURES", "412,000 (estimate)", "SOURCES", "WorldPop 2020", "HANDLING"):
+            self.assertIn(part, text)
+        self.assertGreater(os.path.getsize(out), 1000)
+
+    def test_an_empty_sitrep_warns_instead_of_inventing_content(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        res = create_print_layout("Empty report", template="sitrep")
+        self.assertTrue(res.get("success"), res)
+        self.assertIn("sitrep_warning", res)
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        text = layout.itemById("BODY_TEXT").text()
+        self.assertTrue(text.startswith("HANDLING"))
+        self.assertNotIn("KEY FIGURES", text)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -181,6 +181,9 @@ Fetches the three hazard feeds for a box and writes one HTML dashboard. **Map ou
 ### `run_monitoring_workflow` / `schedule_recurring_workflow` / `stop_recurring_workflow` / `list_scheduled_workflows`
 Re-run a saved set of read-only analyses and report what changed; schedule it while QGIS is open. **Map output:** change summaries in chat. **Better results:** save the preset first; remember schedules stop when QGIS closes.
 
+### `create_print_layout` with `template='sitrep'` -- new (HX1c)
+A one-page situation report: map, legend, scale bar and a structured text panel with SITUATION (your `body_text`), KEY FIGURES, HOW TO READ THIS MAP (when access layers are visible), SOURCES and HANDLING. **Map output:** a print layout, exportable to PDF or PNG. **Better results:** pass the headline figures as `key_figures` copied from tool results (label, value, source; at most 8) and the data sources as `sources`; the handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. With nothing supplied the report holds only the handling note and the reply says so. A long summary is shortened to fit the panel; the sources and the handling note never are.
+
 ---
 
 ## Cross-cutting tools

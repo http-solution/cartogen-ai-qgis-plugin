@@ -78,6 +78,93 @@ ACCESS_PARTS = (            # (name fragment, rank, plain-language reading-guide
 )
 
 
+SITREP_MAX_FIGURES = 8
+SITREP_HANDLING = ("Figures are estimates from the sources listed, not verified counts. Results are shown at area level; do not publish "
+                   "exact locations of people or sensitive sites from this map.")
+
+
+def normalise_key_figures(key_figures):
+    """[(label, value, source-or-'')] from a list of {label, value, source?} dicts, in order, dropping anything without both a label and a
+    value and keeping at most SITREP_MAX_FIGURES. Pure. The values are whatever the caller supplies: this layer never computes or
+    invents a figure, so a figure on a sitrep is only as good as the tool result it was copied from."""
+    out = []
+    for item in key_figures or []:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        value = item.get("value")
+        value = "" if value is None else str(value).strip()
+        if label and value:
+            out.append((label, value, str(item.get("source") or "").strip()))
+        if len(out) >= SITREP_MAX_FIGURES:
+            break
+    return out
+
+
+def _shorten(text, limit):
+    """text cut to at most `limit` characters on a word boundary with an ellipsis; '' when limit is too small to be useful. Pure."""
+    if len(text) <= limit:
+        return text
+    if limit < 12:
+        return ""
+    return text[:limit - 1].rsplit(" ", 1)[0].rstrip(",;: ") + "\u2026"
+
+
+def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None):
+    """The text panel of the `sitrep` template: SITUATION, KEY FIGURES, HOW TO READ THIS MAP, SOURCES, HANDLING, in that order, leaving out
+    any section that has no content. Pure. HANDLING and the preparation date are always present; nothing else is added on the caller's
+    behalf.
+
+    With `max_chars` (the label box's budget) the text is made to fit by giving up, in this order: the reading guide, the tail of the
+    situation summary, then the last key figures. The sources and the handling note are never cut, because plain truncation would
+    remove exactly them (they come last)."""
+    summary = str(summary or "").strip()
+    figures = list(normalise_key_figures(key_figures))
+    guide = str(reading_guide or "").strip()
+    src = [str(x).strip() for x in (sources or []) if str(x).strip()]
+    handling = "HANDLING\n" + SITREP_HANDLING + " " + prepared_stamp(today) + "."
+    sources_part = "SOURCES\n" + "; ".join(src) if src else ""
+
+    def build(summary_text, figs, guide_text):
+        parts = []
+        if summary_text:
+            parts.append("SITUATION\n" + summary_text)
+        if figs:
+            lines = [f"- {label}: {value}" + (f" ({source})" if source else "") for label, value, source in figs]
+            parts.append("KEY FIGURES\n" + "\n".join(lines))
+        if guide_text:
+            parts.append("HOW TO READ THIS MAP\n" + guide_text)
+        if sources_part:
+            parts.append(sources_part)
+        parts.append(handling)
+        return "\n\n".join(parts)
+
+    text = build(summary, figures, guide)
+    if max_chars is None or len(text) <= max_chars:
+        return text
+    text = build(summary, figures, "")
+    if len(text) <= max_chars:
+        return text
+    fixed = len(build("", figures, "")) + len("SITUATION\n") + 2
+    room = max_chars - fixed
+    if summary and room > 0:
+        shortened = _shorten(summary, room)
+        text = build(shortened, figures, "")
+        if len(text) <= max_chars:
+            return text
+    while figures:
+        figures.pop()
+        text = build("", figures, "")
+        if len(text) <= max_chars:
+            return build(_shorten(summary, max_chars - len(text) - 12), figures, "") if summary and max_chars - len(text) > 24 else text
+    return build("", [], "")
+
+
+def sitrep_has_content(summary="", key_figures=None, sources=None):
+    """True when the caller supplied anything beyond the standing handling note. Pure."""
+    return bool(str(summary or "").strip() or normalise_key_figures(key_figures) or any(str(x).strip() for x in (sources or [])))
+
+
 def resolve_masthead(hex_value):
     """(background, text) colours for the masthead. Pure. An invalid/empty value gives the default palette; a light
     background gets dark text (relative luminance, WCAG weights) so the title stays readable."""

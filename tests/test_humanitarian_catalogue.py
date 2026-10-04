@@ -23,7 +23,7 @@ class TestCatalogue(unittest.TestCase):
         arguments = {"speed_field", "output_field", "buffer_m", "extent_layer", "pcode_field", "weight_field", "positive_values",
                      "plan_only", "source_layers", "invert_indicators", "top_k", "min_n", "rows_skipped", "unit_field",
                      "event_type", "date_field", "lead_days", "design_effect", "cell_size", "invert", "task_id", "area_km2", "pop_sum",
-                     "pop_sum_", "alert_level", "access_class", "map_look", "people_in_need", "presence_gap", "output_layer_name", "pop_estimate", "min_lon", "min_lat", "max_lon", "max_lat", "output_prefix"}
+                     "pop_sum_", "alert_level", "access_class", "map_look", "people_in_need", "presence_gap", "output_layer_name", "pop_estimate", "key_figures", "body_text", "min_lon", "min_lat", "max_lon", "max_lat", "output_prefix"}
         unknown = sorted(n for n in names if n not in TOOL_REGISTRY and n not in arguments
                          and not n.startswith(("tests_", "test_", "src_", "docs_")) and "." not in n)
         # allow field/argument-like names that carry a placeholder or suffix
