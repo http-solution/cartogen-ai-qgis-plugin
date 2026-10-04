@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """HX1 humanitarian looks on result fields, in real QGIS. Written without a local QGIS: CI's first run is its first execution."""
+import os
+import tempfile
 import unittest
 
 try:
@@ -8,6 +10,13 @@ try:
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
+
+try:
+    import numpy as np
+    from osgeo import gdal, osr
+    GDAL_AVAILABLE = True
+except ImportError:
+    GDAL_AVAILABLE = False
 
 
 def _boot_qgis():
@@ -99,6 +108,103 @@ class TestApplyHumanitarianLook(unittest.TestCase):
     def test_the_data_is_never_written(self):
         self._look("severity", "sev")
         self.assertEqual([f["sev"] for f in sorted(self.layer.getFeatures(), key=lambda f: f.id())], [r["sev"] for r in ROWS])
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestLooksForCreatedLayers(unittest.TestCase):
+    """HX1b: layers the tools create themselves arrive styled."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+
+    def _lines(self, values):
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326&field=highway:string", "osm_roads", "memory")
+        feats = []
+        for i, v in enumerate(values):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromWkt(f"LINESTRING({44 + i * 0.01} 15, {44 + i * 0.01} 15.01)"))
+            f.setAttributes([v])
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        QgsProject.instance().addMapLayer(layer)
+        return layer
+
+    def test_osm_roads_are_graded_by_class_with_a_catch_all(self):
+        from cartogen_ai.core.agent.tools.humanitarian_style import style_osm_layer
+        layer = self._lines(["primary", "residential", "track", "weird_value"])
+        self.assertTrue(style_osm_layer(layer))
+        renderer = layer.renderer()
+        self.assertEqual(renderer.type(), "RuleRenderer")
+        labels = [r.label() for r in renderer.rootRule().children()]
+        self.assertEqual(labels, ["Major roads", "Secondary roads", "Local roads", "Tracks and paths", "Other"])
+
+    def test_osm_areas_and_other_lines_get_a_quiet_look(self):
+        from cartogen_ai.core.agent.tools.humanitarian_style import style_osm_layer
+        poly = _districts(ROWS)
+        self.assertTrue(style_osm_layer(poly))
+        self.assertEqual(poly.renderer().type(), "singleSymbol")
+
+    def test_footprints_are_a_translucent_reference_layer(self):
+        from cartogen_ai.core.agent.tools.humanitarian_style import style_footprints
+        layer = _districts(ROWS)
+        self.assertTrue(style_footprints(layer))
+        self.assertEqual(layer.renderer().type(), "singleSymbol")
+        self.assertLess(layer.opacity(), 1.0)
+
+    def test_detected_features_are_banded_by_confidence(self):
+        from cartogen_ai.core.agent.tools.humanitarian_style import style_detected_features
+        layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=confidence:double", "det", "memory")
+        QgsProject.instance().addMapLayer(layer)
+        self.assertTrue(style_detected_features(layer))
+        self.assertEqual(len(layer.renderer().ranges()), 3)
+        self.assertFalse(style_detected_features(_districts(ROWS)))           # no confidence field: left alone
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE and GDAL_AVAILABLE, "requires real QGIS and GDAL")
+class TestExposureOutputLayer(unittest.TestCase):
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp()
+        path = os.path.join(self.tmp, "pop.tif")
+        arr = np.full((10, 40), 10.0, dtype="float32")
+        ds = gdal.GetDriverByName("GTiff").Create(path, 40, 10, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((44.0, 0.01, 0, 15.1, 0, -0.01))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        ds.SetProjection(srs.ExportToWkt())
+        ds.GetRasterBand(1).WriteArray(arr)
+        ds.FlushCache()
+        ds = None
+        from qgis.core import QgsRasterLayer
+        QgsProject.instance().addMapLayer(QgsRasterLayer(path, "pop"))
+        self.zones = _districts([{"name": "A"}, {"name": "B"}])
+
+    def test_a_styled_result_layer_is_added_and_the_area_layer_is_untouched(self):
+        from cartogen_ai.core.agent.tools.raster_tools import estimate_population_exposure
+        fields_before = [f.name() for f in self.zones.fields()]
+        res = estimate_population_exposure("pop", "districts", output_layer_name="Exposure by district")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["output_layer"], "Exposure by district")
+        layer = QgsProject.instance().mapLayersByName("Exposure by district")[0]
+        self.assertEqual([f.name() for f in layer.fields()], ["zone", "feature_id", "pop_estimate"])
+        self.assertEqual(layer.featureCount(), 2)
+        self.assertIsInstance(layer.renderer(), QgsGraduatedSymbolRenderer)
+        self.assertEqual([f.name() for f in self.zones.fields()], fields_before)
+
+    def test_a_rerun_replaces_its_own_layer_but_never_a_users_layer(self):
+        from cartogen_ai.core.agent.tools.raster_tools import estimate_population_exposure
+        estimate_population_exposure("pop", "districts", output_layer_name="Exposure")
+        estimate_population_exposure("pop", "districts", output_layer_name="Exposure")
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("Exposure")), 1)
+        user = QgsVectorLayer("Point?crs=EPSG:4326", "Mine", "memory")
+        QgsProject.instance().addMapLayer(user)
+        res = estimate_population_exposure("pop", "districts", output_layer_name="Mine")
+        self.assertEqual(res["output_layer"], "Mine (2)")
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("Mine")), 1)
 
 
 if __name__ == "__main__":

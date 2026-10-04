@@ -705,6 +705,7 @@ Sum population within each polygon of a vector layer, using an already-loaded po
 |---|---|---|---|
 | `population_raster_layer` | string | yes | A population-per-pixel raster layer (e.g. from fetch_worldpop_population). |
 | `area_layer` | string | yes | Polygon layer to sum population within, one total per feature. |
+| `output_layer_name` | string | no | Optional: also add a NEW polygon layer with this name holding each zone's estimated population (field pop_estimate), styled in exposure classes. The area layer itself is never changed. |
 
 ### `georeference_image`
 

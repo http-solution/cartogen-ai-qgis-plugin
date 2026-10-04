@@ -298,6 +298,14 @@ def weighted_overlay_analysis(raster_layers, weights):
     res = _run_raster_and_add("gdal:rastercalculator", params, "weighted_overlay")
     if isinstance(res, dict) and res.get("success"):
         res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized]))
+        # HX1b: an ordered, opaque low-to-high surface under the vectors instead of QGIS's grey stretch (best effort)
+        try:
+            from .output_style import style_continuous_raster
+            made = QgsProject.instance().mapLayersByName("weighted_overlay")
+            if made:
+                res["styled"] = style_continuous_raster(made[-1], "surface")
+        except Exception:
+            pass
     return res
 
 
@@ -1157,11 +1165,12 @@ def _describe_population_raster(layer_name):
         "properties": {
             "population_raster_layer": {"type": "string", "description": "A population-per-pixel raster layer (e.g. from fetch_worldpop_population)."},
             "area_layer": {"type": "string", "description": "Polygon layer to sum population within, one total per feature."},
+            "output_layer_name": {"type": "string", "description": "Optional: also add a NEW polygon layer with this name holding each zone's estimated population (field pop_estimate), styled in exposure classes. The area layer itself is never changed."},
         },
         "required": ["population_raster_layer", "area_layer"],
     },
 )
-def estimate_population_exposure(population_raster_layer, area_layer):
+def estimate_population_exposure(population_raster_layer, area_layer, output_layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     raster = _find_layer_by_name(population_raster_layer)
@@ -1196,8 +1205,10 @@ def estimate_population_exposure(population_raster_layer, area_layer):
         total_population = sum(v for v in totals.values() if v is not None)
         overlap_pairs = _overlapping_zone_count(vector)
         pop_source, pop_reference_year = _describe_population_raster(population_raster_layer)
+        output_layer_info = _add_exposure_layer(vector, zones, keys, output_layer_name) if output_layer_name else {}
 
         return {
+            **output_layer_info,
             "success": True,
             "area_layer": area_layer,
             "population_raster_layer": population_raster_layer,
@@ -1228,6 +1239,55 @@ def estimate_population_exposure(population_raster_layer, area_layer):
         }
     except Exception as e:
         return {"error": f"estimate_population_exposure failed: {e}"}
+
+
+EXPOSURE_LAYER_MARK = "estimate_population_exposure"
+
+
+def _add_exposure_layer(vector, zones, keys, layer_name):
+    """A NEW polygon layer (geometry copy + label + pop_estimate) styled in exposure classes, so the result can be seen on the map without
+    touching the caller's layer (HX1b). A layer of the same name that this tool made earlier is replaced; one the user made is not: the
+    new layer gets a numeric suffix instead. Returns result entries, or a warning entry when the layer could not be made."""
+    try:
+        from qgis.core import QgsFeature, QgsVectorLayer, QgsField
+        from qgis.PyQt.QtCore import QVariant
+        from .humanitarian_style import style_result_field
+        project = QgsProject.instance()
+        name = str(layer_name)
+        for existing in project.mapLayersByName(name):
+            if existing.customProperty("cartogen_created_by") == EXPOSURE_LAYER_MARK:
+                project.removeMapLayer(existing.id())
+        if project.mapLayersByName(name):
+            n = 2
+            while project.mapLayersByName(f"{name} ({n})"):
+                n += 1
+            name = f"{name} ({n})"
+        layer = QgsVectorLayer(f"Polygon?crs={vector.crs().authid()}", name, "memory")
+        provider = layer.dataProvider()
+        provider.addAttributes([QgsField("zone", QVariant.String), QgsField("feature_id", QVariant.LongLong),
+                                QgsField("pop_estimate", QVariant.Double)])
+        layer.updateFields()
+        by_id = {z["feature_id"]: z for z in zones}
+        feats = []
+        for src in vector.getFeatures():
+            z = by_id.get(src.id())
+            if z is None:
+                continue
+            f = QgsFeature(layer.fields())
+            f.setGeometry(src.geometry())
+            f.setAttributes([keys[src.id()], src.id(), z["population"]])
+            feats.append(f)
+        provider.addFeatures(feats)
+        layer.updateExtents()
+        layer.setCustomProperty("cartogen_created_by", EXPOSURE_LAYER_MARK)
+        project.addMapLayer(layer)
+        style = style_result_field(layer, "exposure", "pop_estimate")
+        out = {"output_layer": name, "output_layer_note": "A new layer; the area layer was not changed. Units with no population value are not drawn."}
+        if "error" in style:
+            out["output_layer_style_warning"] = style["error"]
+        return out
+    except Exception as e:
+        return {"output_layer_warning": f"The result layer could not be added: {e}"}
 
 
 def unique_zone_keys(zones):
