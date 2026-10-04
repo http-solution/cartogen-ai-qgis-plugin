@@ -259,6 +259,7 @@ the folder directly on GitHub.
 | [docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md) | What to test by hand in rc12, in what order |
 | [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md) | Humanitarian workflow document compared with the tools: what is covered, partial, missing, and the build plan |
 | [docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md](docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md) | Output styling and analysis gaps found on the rc10 smoke test |
+| [docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md](docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md) | What the JIAF 2.0 Technical Manual specifies, what a JIAF 2 analysis-support module would compute versus record, the build stages, and what is still needed (plan and specification only, nothing built) |
 | [docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md](docs/HYDROLOGY_ENGINEERING_TOOLS_2026-10-04.md) | The hydrology engineering tools and their limits |
 
 ### Roadmap, specs & dated reviews (archive)
