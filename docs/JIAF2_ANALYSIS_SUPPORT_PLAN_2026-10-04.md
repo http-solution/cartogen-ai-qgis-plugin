@@ -2,7 +2,7 @@
 
 **Status: plan and specification only. Nothing is built.** Source: the *JIAF 2.0 Technical Manual* PDF the owner supplied (cover: "Humanitarian Programme Cycle Steering Group, July 2023, Endorsed by IASC OPAG"; 62 pages; read in full except the long sector-by-sector Annex 2). Page numbers below are the manual's printed page numbers. Wording in quotation marks is the manual's.
 
-What is **not** in the PDF: the Excel files. Annex 4 ("Example files to be used for sectoral reporting of PiN and Severity") is an empty page in the PDF, and Workspaces 3A/3B are "a single Microsoft Excel spreadsheet" the manual only links to (p.40, p.50). The calculation rules below come from the manual's text; the exact worksheet formulas, column layouts and rounding do not, so the worksheets are still needed as the test reference (section 8).
+What is **not** in the PDF: the Excel files themselves. Annex 4 ("Example files to be used for sectoral reporting of PiN and Severity", p.59) has no text, but holds two **screenshots** of the standard sector-reporting template (section 2, "The sector-input template"); Workspaces 3A/3B are "a single Microsoft Excel spreadsheet" the manual only links to (p.40, p.50), so their formulas are still unseen. The calculation rules below come from the manual's text; the exact worksheet formulas, column layouts and rounding do not, so the worksheets are still needed as the test reference (section 8).
 
 Note: the owner's earlier message mentioned a July **2024** Technical Manual; this PDF says July 2023. Which edition is current should be confirmed (section 8).
 
@@ -31,6 +31,15 @@ Rules that follow from the manual and that the module keeps:
 
 ### Structure (pp.9-18)
 Three modules and 11 steps: Module 1 Contributing factors and scope (steps 1.1-1.5, workspaces 1A-1C); Module 2 Interoperable sectoral needs (2.1-2.3, workspaces 2A-2B); Module 3 Intersectoral needs (3.1-3.6, workspaces 3A, 3B, 3C); then return to step 1 and finalize Module 1. Module 1 results are "initial" until the end ("initial/final" toggle, Box 7, p.21).
+
+### The sector-input template (Annex 4, p.59 -- read from two screenshots, not from the files)
+One Excel workbook with two sheets, **"WS - 3.1 Overall PiN"** and **"WS - 3.2 Intersectoral Severity"**, one row per admin-2 unit, with these columns (identical in both sheets except the last):
+
+| A | B | C | D | E | F |
+|---|---|---|---|---|---|
+| Admin 1 (name) | Admin 1 P-Code | Admin 2 (name) | Admin 2 P-Code | Population | **Cluster's PiN (Number)** on sheet 3.1; **Cluster's Severity (Number)** on sheet 3.2 |
+
+The example is Iraq (P-codes such as `IQG01`, `IQG01Q01`); numbers are shown with thousands separators and unit rows are sorted by admin 1. The sector fills column F and uploads the file back (Step 2.3, p.32). So: **P-codes are present** (the join key), **population is supplied per unit**, PiN and severity are **single numbers per unit**, and the sector is **not named inside the sheet** (it is identified by the file). Not visible in the screenshots: any population-group columns, a sector-name field, or notes columns; the importer will therefore ask for the sector name and take any extra columns only by explicit mapping.
 
 ### Sector inputs (Module 2, pp.26-32)
 - Sectors: CCCM, Education, Food Security, Health, Nutrition, Shelter/NFI, WASH, Protection (plus the AoRs Child Protection, GBV, HLP, Mine Action). "For the purpose of joint overall PiN and Intersectoral severity estimations, the overarching protection severity and PiN will be used"; AoR figures travel alongside for display only (p.26, p.32).
@@ -94,7 +103,7 @@ Written in the manual's own step order so an analyst can follow the manual with 
 |---|---|---|---|
 | 1.5 Scope | Records the unit of analysis (admin level), areas covered, population groups, and the manual edition. | Stores a project "analysis set-up" (country, cycle, unit, edition); every result repeats it. | 2 |
 | 2.1 Alignment (2A, 2B) | Notes for each sector: PiN aligned Yes/No, severity Aligned/Adapted, with the explanation. | Stores these self-assessments; a No/Adapted shows beside that sector's figures. | 2 |
-| 2.3 Sector inputs | Loads each sector's file (PiN + severity phase per unit). | Reads CSV/Excel with explicit column mapping, joins to the admin layer by P-code, validates (phase integer 1-5; PiN a non-negative number and not above the unit's population/affected population; unit keys match the scope; duplicates and missing values listed, not filled). | 2 |
+| 2.3 Sector inputs | Loads each sector's file (the Annex 4 template: P-codes, population, PiN on sheet 3.1, severity on sheet 3.2). | Reads the template's two sheets or a CSV/Excel with explicit column mapping, joins to the admin layer by P-code, validates (phase integer 1-5; PiN a non-negative number and not above the unit's population/affected population; unit keys match the scope; duplicates and missing values listed, not filled). | 2 |
 | 3.1 Prepare | Reviews the computed workspace. | Computes mosaic joint PiN, the six PiN flags, preliminary severity and the three severity flags per unit; shows which sector set each unit's PiN. | 3 |
 | 3.2-3.3 Review flags | Reads flagged units; sectors justify or correct their figures. | Lists flags with their reason; revised sector figures are stored as a new version beside the original (the manual leaves the revision method to the country, p.42). | 4 |
 | 3.4 Joint overall PiN | Group decides highest vs second highest for flagged units. | Records the decision, who agreed, date and note; writes "Final Joint Overall PiN"; national total = sum. | 4 |
@@ -113,7 +122,7 @@ Module 1 (context, shocks) is free text in the manual; the module offers only a 
 5. Flag 5: the "total affected population" field per unit.
 6. Flag 4 of severity ("More than 4 sectors in phase 4") versus the preliminary rule "at least 4": strictly more than 4 as written -- confirm.
 7. Whether a unit with fewer than the usual 8 reporting sectors changes the overlap counts (the manual says nothing).
-8. The standard sector-input file's columns and any identifiers (P-codes?).
+8. (Resolved from the Annex 4 screenshots, see section 2: P-codes are Admin 1 / Admin 2 P-Code columns.) Still open: how the template represents population groups, and whether sectors submit one file each or one combined file.
 
 The module will implement the manual's wording exactly where it is clear, and for the above points will not guess: it will ask the owner/worksheet (section 8) and record the chosen reading as a documented setting.
 
@@ -140,7 +149,7 @@ Each stage ends with a live test in CI and an honest "not hand-tested" until the
 
 ## 8. What is needed from the owner to start stage 2
 
-1. The official **Excel files**: the standard sector-input template (Annex 4) and the "Overall PiN and Joint Intersectoral Severity worksheet" (Workspaces 3A and 3B), ideally with a filled example. These answer section 4 and become the test reference.
+1. The official **Excel files**: the "Overall PiN and Joint Intersectoral Severity worksheet" (Workspaces 3A and 3B), ideally filled in with an example, and the real template file from Annex 4 (its layout is known from the screenshots; the file would confirm hidden columns and any formulas). The 3A/3B worksheet answers section 4 and becomes the test reference.
 2. Confirmation of the **edition**: is this July 2023 manual the one to follow, or is there a July 2024 manual to use instead (and, if so, the PDF)?
 3. A real example of **sector inputs** from a country (even anonymised) to test the importer on.
 4. First country/unit of analysis and planning cycle, if there is one.
