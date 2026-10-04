@@ -290,3 +290,94 @@ class TestNoFreeFormCodeSurface(unittest.TestCase):
                     if t["function"]["name"] == "run_allowlisted_processing_algorithm")
         self.assertNotIn("no code-execution surface", text)
         self.assertIn("FORMULA", text)
+
+
+class TestParameterValidationAndOutputs(unittest.TestCase):
+    """#163 (audit F27): unknown parameters are rejected before running; every layer output of an algorithm is returned; an algorithm
+    that changes an existing layer is not described as creating a new one."""
+
+    def test_unknown_parameters_are_listed(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import unknown_parameters
+        self.assertEqual(unknown_parameters({"INPUT", "DISTANC", "OUTPUT"}, {"INPUT", "DISTANCE", "OUTPUT"}), ["DISTANC"])
+        self.assertEqual(unknown_parameters(set(), {"A"}), [])
+        self.assertEqual(unknown_parameters({"input"}, {"INPUT"}), ["input"])      # case-sensitive, like Processing
+
+    def _definition(self, outputs=(("OUTPUT", "outputVector"),)):
+        def out(name, kind):
+            m = MagicMock()
+            m.name.return_value = name
+            m.type.return_value = kind
+            return m
+        return ({"INPUT", "DISTANCE", "OUTPUT"}, {"OUTPUT"}, set(), [out(n, k) for n, k in outputs])
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools._algorithm_definition")
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_a_misspelled_parameter_is_rejected_before_the_algorithm_runs(self, mock_processing, mock_def):
+        mock_def.return_value = self._definition()
+        result = run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "roads", "DISTANC": 5})
+        self.assertIn("DISTANC", result["error"])
+        self.assertIn("DISTANCE", result["error"])
+        mock_processing.run.assert_not_called()
+
+    def test_resolve_params_uses_the_defined_destinations_not_name_suffixes(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import _resolve_params
+        with patch("cartogen_ai.core.agent.tools.processing_allowlist_tools._find_layer_by_name", return_value=None):
+            out = _resolve_params({"INPUT": "x", "FOO": "/etc/passwd"}, destination_keys={"FOO", "BAR"}, raster_keys=set())
+        self.assertEqual(out["FOO"], "memory:")                 # a destination named FOO is forced to memory
+        self.assertEqual(out["BAR"], "memory:")                 # a destination the caller omitted is filled in
+        self.assertEqual(out["INPUT"], "x")
+
+    def test_resolve_params_keeps_the_old_default_when_the_registry_cannot_be_asked(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import _resolve_params
+        with patch("cartogen_ai.core.agent.tools.processing_allowlist_tools._find_layer_by_name", return_value=None):
+            self.assertEqual(_resolve_params({"INPUT": "x"})["OUTPUT"], "memory:")
+
+    def test_harvest_returns_every_layer_output_in_declared_order(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import harvest_outputs
+        lines, points = MagicMock(), MagicMock()
+        out = harvest_outputs({"OUTPUT": points, "OUTPUT_LINES": lines, "COUNT": 3, "NOTE": "text"},
+                              self._definition((("OUTPUT_LINES", "outputVector"), ("OUTPUT", "outputVector"))))
+        self.assertEqual([k for k, _ in out], ["OUTPUT_LINES", "OUTPUT"])
+
+    def test_harvest_reads_a_raster_path_only_for_a_declared_raster_output(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import harvest_outputs
+        definition = self._definition((("OUTPUT", "outputRaster"), ("LOG", "outputString")))
+        self.assertEqual(harvest_outputs({"OUTPUT": "/tmp/a.tif", "LOG": "/tmp/log.txt"}, definition), [("OUTPUT", "/tmp/a.tif")])
+        self.assertEqual(harvest_outputs("not a dict"), [])
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools._algorithm_definition", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_select_by_location_reports_a_changed_selection_and_never_renames_the_input(self, mock_processing, mock_project, _def):
+        users_layer = MagicMock()
+        users_layer.name.return_value = "districts"
+        users_layer.selectedFeatureCount.return_value = 4
+        mock_project.instance.return_value.mapLayersByName.return_value = [users_layer]
+        mock_processing.run.return_value = {"OUTPUT": users_layer}
+        result = run_allowlisted_processing_algorithm("native:selectbylocation", {"INPUT": "districts", "PREDICATE": [0], "INTERSECT": "x"})
+        self.assertTrue(result["changed_existing_layer"])
+        self.assertEqual(result["selected_feature_count"], 4)
+        self.assertEqual(result["layer_name"], "districts")
+        users_layer.setName.assert_not_called()
+
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools._algorithm_definition")
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QgsProject", create=True)
+    @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
+    def test_a_second_output_becomes_its_own_layer(self, mock_processing, mock_project, mock_def):
+        mock_def.return_value = self._definition((("OUTPUT_LINES", "outputVector"), ("OUTPUT", "outputVector")))
+        mock_project.instance.return_value.mapLayersByName.return_value = []
+        lines, points = MagicMock(), MagicMock()
+        lines.featureCount.return_value = 5
+        points.featureCount.return_value = 2
+        mock_processing.run.return_value = {"OUTPUT_LINES": lines, "OUTPUT": points}
+        result = run_allowlisted_processing_algorithm("native:serviceareafrompoint", {"INPUT": "roads", "DISTANCE": 1}, new_layer_name="reach")
+        self.assertEqual(result["layer_name"], "reach")
+        lines.setName.assert_called_once_with("reach")
+        points.setName.assert_called_once_with("reach_output")
+        self.assertEqual(result["additional_outputs"], [{"output": "OUTPUT", "layer_name": "reach_output", "feature_count": 2}])
+
+    def test_zonal_statistics_that_writes_into_its_input_is_no_longer_offered(self):
+        self.assertNotIn("qgis:zonalstatistics", ALLOWED_ALGORITHM_IDS)

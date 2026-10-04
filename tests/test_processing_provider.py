@@ -47,3 +47,21 @@ class TestProcessingProvider(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProviderPureHelpers(unittest.TestCase):
+    """#156 / #157 (audit F20, F21): the parts of the native algorithms that do not need QGIS to check."""
+
+    def test_pair_limit(self):
+        from cartogen_ai.processing.provider import MAX_DISTANCE_PAIRS, pair_limit_error
+        self.assertIsNone(pair_limit_error(1000, 1000))
+        self.assertIsNone(pair_limit_error(1, MAX_DISTANCE_PAIRS))
+        message = pair_limit_error(5000, 6000)
+        self.assertIn("30,000,000", message)
+        self.assertIn("Filter", message)
+
+    def test_the_fastest_cost_is_converted_from_seconds_to_hours(self):
+        from cartogen_ai.processing.provider import child_travel_cost
+        self.assertEqual(child_travel_cost(0, 1000), 1000.0)          # shortest: metres, unchanged
+        self.assertEqual(child_travel_cost(1, 3600), 1.0)             # fastest: 3,600 s is one hour for the child algorithm
+        self.assertAlmostEqual(child_travel_cost(1, 900), 0.25)
