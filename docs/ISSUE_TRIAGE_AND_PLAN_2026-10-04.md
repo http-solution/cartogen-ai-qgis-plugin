@@ -78,3 +78,78 @@ Order within each batch is the proposed build order. "Blind" means the QGIS-side
 5. After Batches 1-4, rebuild rc12 once, so you test one build that has everything.
 
 What does not get done by code, however long I work: hand verification (sections 1 and 3).
+
+
+---
+
+## 5. Decisions received (2026-10-04) and the complete fix plan
+
+### 5.1 Decisions
+
+| # | Issue | Decision | What changes in the plan |
+|---|---|---|---|
+| 1 | #168 | Python floor **3.10** (follows QGIS's requirement) | `requires-python >=3.10`, ruff `py310`, mypy 3.10, and the CI `test` job gains a Python 3.10 entry so the floor is proven, not declared. Anything that needs 3.11+ is rewritten |
+| 2 | #161 | Boundary point / overlap: **`intersects`, lowest feature id wins, ambiguous counts reported** | Implemented as proposed; result gains `boundary_points`, `ambiguous_points`, `unmatched_points` |
+| 3 | #160 | Overlapping zones: **per zone** | Each zone reports its own total; the result states that zone totals can add up to more than the union; no silent de-duplication |
+| 4 | #155 | A blocked road is **removed from the network entirely** | A shared "routable network" step drops blocked segments before every routing tool; a fully blocked network is an explicit error. Behaviour change, goes in the release notes |
+| 5 | #166 | The wheel does **not** declare `requests` | JSON resources are packaged; the missing dependency stays a documented design choice |
+| 6 | #152 | **Full fix**: direction-aware partial-edge costs | Moved from "hard / maybe disclose" into the plan as work package 5 |
+| 7 | #91 | WorldPop: download the **full file, use only what is needed** | Already how the tool behaves when a range read is refused (download once, keep in `data/00_raw/worldpop`, clip locally, load only the clipped area). Plan: say so up front in the confirmation text, test the cache path, then leave to your hand check |
+| 8 | #93 | Schema exposure is acceptable **if declared and the user is told**, with no sensitive values exposed | The rc8 "model view" already withholds values for a protected layer. Plan: audit exactly what it sends, write it into `SECURITY.md`, the Settings help and the chat (a notice when a protected layer is present and a cloud model is active). Layer names remain visible by design and the notice says so |
+
+### 5.2 Work packages
+
+Each package is its own branch and pull request, cut from `main`, so one CI failure cannot block the others. Every package: offline tests, a live test where QGIS code is touched (written blind, first run in CI), an honest status comment on each issue it touches. **No audit issue is closed by me; closing follows your hand check.**
+
+**WP1 -- quick corrections** (#165, #158, #166, #168, #120, #129)
+- #165: build the reading-guide colour wording from `routing_style.ACCESS_STYLES`; a test fails if they diverge. Then the north arrow follows map rotation, attribution is derived from layer source metadata, the legend filter works by role instead of provider type, and manual class breaks are validated (these four are the live-test-heavy part of F29).
+- #158: sequence suffix on `new_table_name`; two persists in one second keep both.
+- #166: package the task register and schema contracts as package data; a test builds a wheel and lists its contents.
+- #168: floor 3.10 as above, plus the CI 3.10 job.
+- #120 part 2: wording that scratch layers are temporary, pointing to `tidy_project_layers`.
+- #129: plain service-area polygon in the access-map legend.
+
+**WP2 -- data correctness** (#159, #160, #161, #153, #154)
+- #159: key every dictionary by feature id and keep the label separate (hub candidates, matrix origins, route stops, population totals); duplicate-name and NULL-name fixtures.
+- #160: zonal statistics on a detached copy of the zones; the real output field is resolved, not assumed; per-zone reporting; the input layer is not modified.
+- #161: the rule in 5.1.
+- #153: compare full CRS equivalence and the geotransform in the raster tools; a mismatch is rejected with the reason (alignment with a stated resampling rule is a follow-up only if you ask for it). Zero-denominator and NoData behaviour tested.
+- #154: sample points are transformed into the DEM CRS; slope and lengths are metric; the imagery `min_area_m2` filter uses an ellipsoidal or projected area; missing elevations are reported.
+
+**WP3 -- blocked roads** (#155, also my H1 and `build_composite_impedance_field`)
+- Convention: a speed of 0 (or an explicit blocked flag) means closed. `build_composite_impedance_field` writes 0 for `damage_field = 0`; `apply_network_barriers` "block" writes 0.
+- A shared helper returns the network with blocked segments removed; used by `calculate_service_area`, `travel_time_matrix`, `classify_facilities_by_access`, `optimize_delivery_route`, `population_access_gap`.
+- The result reports how many segments were removed; if nothing is left, an explicit error. Tests: a service area and a route never cross a blocked segment.
+- Affects three tools' behaviour: stated in the release notes and in the tool descriptions.
+
+**WP4 -- Processing provider and registry** (#162, #163, #156, #157)
+- Step 1 (first, no behaviour change): a live test that resolves every algorithm id the allowlist and tools reference against the real 4.2.2 registry and prints the missing ones. Its CI output decides the size of the rest.
+- #162: replace or remove ids the registry does not contain (SAGA ids are host-dependent: such tools are registered only when the id resolves).
+- #163: inspect each approved algorithm's parameter and output definitions; return all approved outputs; reject unknown parameters before running; classify mutating algorithms.
+- #156: facility points transformed to the network CRS, the real child output schema, the time unit stated and converted (hours vs seconds).
+- #157: `QgsProcessingException` on failed sinks and `addFeature`, cancellation checks in the O(C x D) loops, a stated size limit.
+
+**WP5 -- `travel_time_matrix` partial-edge costs** (#152, after WP3)
+- Design: for each destination, find the nearest road segment (spatial index, true geometry distance), compute its fractional position along the segment, and take the minimum over the segment's two endpoints of (cost to that endpoint from the origin) + (the partial-segment cost), respecting one-way direction and the speed field. Keys stay consistent with the small-set path.
+- Acceptance fixture from the issue: a 1,000 m road, points at 490 m and 510 m, cost must equal the native routing cost on both sides of the 200-destination threshold.
+- Risk: it touches the core matrix path. Mitigation: the existing equivalence live test (`classify_facilities_by_access` vs `travel_time_matrix`) is extended to cover partial edges, and the old approximation note is removed only when that passes.
+
+**WP6 -- deliverables, lifecycle, disclosure** (#164, #167, #93, #91)
+- #164: build and export a replacement layout privately and swap only on success; unique atlas file names; `feature_count` counts exported pages.
+- #167: remove the translator on unload, stop the isolation worker, scope module eviction to modules this plugin owns. Needs a hand reload test: it is the riskiest edit to startup.
+- #93: audit and document what a protected layer exposes to a cloud model (layer name, field names, counts; not values or geometry), write it into `SECURITY.md` and the Settings help, and show a chat notice when a protected layer is present with a cloud model active.
+- #91: confirmation text states "full file download, kept in the project, only the clipped area is loaded"; cache-hit path tested.
+
+**WP7 -- hand over for verification**
+- Extend `docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md` with a section per package (what to run, what a pass looks like).
+- Update the implementation tracker and `CHANGELOG.md` / the rc12 block, including the four behaviour changes (blocked roads, boundary rule, per-zone totals, Python 3.10 floor).
+- Rebuild rc12 once, after WP1-WP6 are merged, so you test one build.
+- After your hand checks, I post results on the issues; you decide which to close. #169 closes when the 32 audit issues do.
+
+### 5.3 Order and dependencies
+
+WP4 step 1 first (diagnostic only), then WP1 and WP2 in parallel, WP3, WP4 remainder, WP5 (needs WP3), WP6, WP7. The rc12 rebuild waits for all of them.
+
+### 5.4 What stays outside code
+
+The hand verification of everything in section 1, a real PostGIS server for #151, and a real canvas for every map look. Those need you.
