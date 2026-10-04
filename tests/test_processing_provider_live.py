@@ -110,9 +110,10 @@ class TestNativeProcessingAlgorithmsRun(unittest.TestCase):
 class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
     """#156 / #157 (audit F20, F21)."""
 
-    # About 5 km along the equator, as 45 short pieces (a vertex every ~111 m). The network algorithm returns WHOLE edges between
-    # vertices, so a single 5 km edge would be returned entirely as soon as its start is reached whatever the cost.
-    ROAD = "LINESTRING(" + ", ".join(f"{i * 0.001:.3f} 0" for i in range(46)) + ")"
+    # About 5 km along the equator as 45 separate ~111 m road features. CI showed the network algorithm returns WHOLE road features
+    # (a single 5 km feature, or one polyline with many vertices, came back entirely for a 1,000 m cost), so the reach can only be
+    # told apart from the whole road when the road is made of many features.
+    ROADS = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
 
     def setUp(self):
         from tests.test_network_units_live import _boot
@@ -124,7 +125,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
 
     def _run_service_area(self, facility, strategy, cost, speed=36.0):
         from cartogen_ai.processing.provider import CalculateServiceAreaAlgorithm
-        roads = _layer("LineString", "EPSG:4326", [self.ROAD], "roads")
+        roads = _layer("LineString", "EPSG:4326", self.ROADS, "roads")
         params = {"INPUT_FACILITIES": facility, "INPUT_NETWORK": roads, "TRAVEL_COST": cost, "STRATEGY": strategy,
                   "DEFAULT_SPEED": speed, "OUTPUT_LINES": "memory:"}
         results, ok, context, _fb = _run(CalculateServiceAreaAlgorithm(), params)
