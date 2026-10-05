@@ -6,29 +6,23 @@ main-thread wrapper kept only dict results. The offline test (test_project_sessi
 real tool against a real QgsProject. Needs real qgis.core bindings and skips itself without them. Not in the sandbox: it runs in
 the `qgis-live-tests` CI job (tests/_ci_run_live_tests.py)."""
 import os
-import sys
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from qgis.core import QgsApplication, QgsProject, QgsVectorLayer
+    from qgis.core import QgsProject, QgsVectorLayer
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
-
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([], True)
-        _APP.initQgis()
-        plugins_dir = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
-        if os.path.isdir(plugins_dir) and plugins_dir not in sys.path:
-            sys.path.insert(0, plugins_dir)
-    return _APP
+    # The ONE QgsApplication the whole live job shares (tests/test_chat_widget_live.py). A second QgsApplication created here
+    # let every test pass and then crashed the interpreter at exit (CI, 2026-10-06: "Ran 287 tests ... OK", then
+    # "Segmentation fault (core dumped)" with no crash in the control process).
+    from tests.test_chat_widget_live import _boot_qgis as _shared_boot
+    return _shared_boot()
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core bindings")
