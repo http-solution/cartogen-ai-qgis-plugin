@@ -173,8 +173,21 @@ class TestDetectAndTool(unittest.TestCase):
     def test_detection(self):
         self.assertEqual(ji.detect_format({"WS - 3.1 Overall PiN": [], "WS - 3.2 Intersectoral Severity": []}), "ocha_worksheet")
         self.assertEqual(ji.detect_format({"x": TestHxl.GRID}), "hxl")
-        self.assertEqual(ji.detect_format({"x": [TestSectorTemplate.HDR]}), "sector_template")
+        # The Annex 4 template is an unsupported optional format: never detected automatically, read only when input_format="sector_template" is given.
+        self.assertIsNone(ji.detect_format({"x": [TestSectorTemplate.HDR]}))
         self.assertIsNone(ji.detect_format({"x": [["a", "b"]]}))
+
+    def test_annex4_template_needs_an_explicit_opt_in_and_says_it_is_unsupported(self):
+        import csv
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(os.remove, path)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows([TestSectorTemplate.HDR])
+        out = ji.import_jiaf_inputs(path)
+        self.assertIn("error", out)
+        self.assertIn("unsupported optional format", out["error"])
+        self.assertIn("input_format='sector_template'", out["error"])
 
     def test_tool_on_a_csv_hxl_file(self):
         import csv

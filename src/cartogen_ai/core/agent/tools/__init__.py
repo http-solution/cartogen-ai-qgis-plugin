@@ -53,6 +53,8 @@ from . import table_importers
 from . import critical_link_tools
 from . import jiaf_inputs
 from . import jiaf_engine
+from . import jiaf_review
+from . import jiaf_patterns
 
 __all__ = [
     "TOOL_REGISTRY",
@@ -86,6 +88,8 @@ __all__ = [
     "critical_link_tools",
     "jiaf_inputs",
     "jiaf_engine",
+    "jiaf_review",
+    "jiaf_patterns",
     "reporting_tools",
     "logistics_tools",
     "monitoring_tools",

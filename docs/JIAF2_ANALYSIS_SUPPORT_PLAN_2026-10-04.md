@@ -105,7 +105,7 @@ In the manual's own step order.
 
 ## 6. Open ambiguities (to be settled against the OCHA worksheet formulas)
 
-The saved Yemen copy has no flag formulas, so these stay open; the module will not guess and will make each a documented setting:
+**Superseded by section 11.2 (2026-10-04): the formulas were later read from OCHA's own worksheet.** What follows is the original list, kept as written. The saved Yemen copy has no flag formulas, so these stayed open; the module did not guess and made each a documented setting:
 
 1. Flag 1: fires when the count of missing/zero-PiN sectors is exactly 1 or 2, or at least 1?
 2. Flags 2-3: "% difference" -- relative to which value, and `>=` or `>`?
@@ -151,3 +151,48 @@ Each stage ends with a CI live test and an honest "not hand-tested" until the ow
 2. If available: the **OCHA analysis worksheet with live formulas** (or the JIAF Flags dashboard export) -- it settles section 6. The Yemen copy supplied has values only.
 3. Confirmation that the July 2024 manual is the current edition.
 4. Whether the supplied PDFs and Yemen workbooks may be stored in the repository (the PDFs show no licence terms, so until told otherwise they are only referenced; the Yemen files are published datasets but are not committed either).
+
+## 11. Validation blockers (OPEN) -- added 2026-10-04 after the stage 4 review
+
+The module is built (stages 2-4), but two items keep it from being called a faithful JIAF implementation. **Neither is closed, neither is closed by anything supplied so far, and neither should be marked complete.** A preview may be released with these limits visible; every JIAF tool result carries them (`validation_blockers`).
+
+1. **Flag conditions are an interpretation, not confirmed OCHA rules.** The supplied Yemen worksheet has values only, no flag formulas. The "missing or zero PiN" trigger of PiN flag 1 in particular is unverified. Missing PiN and an explicit zero PiN are kept distinct in the data, in the results and in the CSV (`pin_missing_sectors`, `pin_zero_sectors`), and the team chooses whether flag 1 counts either or both (`f1_count_missing`, `f1_count_zero`). The 249 of 333 Yemen units that come out pending under the defaults reflect that interpretation; they do not by themselves prove that review is required under the official rules.
+   *Closes when:* each implemented condition is compared with OCHA's worksheet formulas or a Flags dashboard export, including missing, zero and partially populated inputs. *Bulk closure* of flags is an analysis-team decision and cannot be recorded without its rationale (`bulk_rationale`, recorded against every unit it closes).
+2. **The Annex 4 reader was implemented from screenshots; compatibility is unverified.** The Yemen worksheet has a different layout and cannot validate Annex 4 support.
+   *Closes when:* a real filled Annex 4 sector-input file is read and sheet detection, headers, geographic codes, sector values, missing cells and imported totals are checked against the source.
+
+### 11.1 What the Yemen files closed, and what they did not (2026-10-04, after the second review)
+
+**Closed now (Yemen only):** the Yemen worksheet layout is identified by a dedicated adapter and its compatibility is validated (333 units; each result carries `adapter` with what it was checked against); preliminary severity is reproduced from the eight main sectors (333/333 -- counting the four Protection AoRs as extra sectors gives 13 mismatches, so they are kept as separate evidence in `aor_evidence` and are never counted); the published HNO 2026 total (22,325,197.74) matches the worksheet's final PiN.
+
+**Traced, not a finding about the rules:** the 249 "pending" Yemen units are the units with ANY fired PiN flag and no recorded decision (flag 1: 192 units, of which 141 fire flag 1 alone; plus 57 units that fire only flag 2, 3 or 5). It is not a flag-1 count. With the eight main sectors, flag 1 fires on 192 units at a threshold of 1 and 96 at 2 (`flag_1_sensitivity` shows both, and missing and zero separately); counting all four AoR columns it fires on all 333 because HLP is blank throughout, which is why the AoRs are not counted. These counts follow from the interpretation and do not by themselves show that review is required under the official rules.
+
+**Kept separate:** the calculated preliminary result, the recorded decision (with rationale, who, when) and the published final value are three different things. Published final PiN and severity are imported beside the calculated figures and never overwrite them; 28 Yemen districts have a published final PiN that differs from the preliminary one and **none of them has a recorded decision here**, because a published value alone does not document how a flag was resolved (`published_differs_without_recorded_decision`). YE1920 and YE1928 store a preliminary PiN of 0 although their highest main-sector PiN is 7,908 and 17,534: the stored values are preserved and listed in `source_discrepancies`, not corrected.
+
+**Outcome evidence:** all five outcome-indicator fields are blank for every Yemen unit, so severity flags 2 and 3 are reported as NOT ASSESSABLE (`outcome_checks`), never as passed comparisons.
+
+**Still open (unchanged):** the exact OCHA flag comparisons and documented flag resolutions (blocker 1), and genuine Annex 4 compatibility (blocker 2). The manual (printed p.34) confirms that flag 1 counts sectors with missing or zero PiN, recommends "1 or 2" and allows country adaptation; it does not settle every denominator or boundary operator.
+
+### 11.2 The flag formulas, read from OCHA's own worksheet (2026-10-04, after the owner supplied the official example and template)
+
+This supersedes the readings in section 6 for the default rule set. Source: the cell formulas of `Worksheet_3A_3B_PiNSev_Example.xlsx` / `_Template.xlsx` (sheets 'WS - 3.1 Overall PiN', 'WS - 3.2 Intersectoral Severity', 'PiN Historical Trend', 'Thresholds'). Implemented in `tools/jiaf_rules.py` (profile `ocha_worksheet_2026`); the earlier reading survives only as profile `manual_reading`.
+
+| Item | Worksheet rule |
+|---|---|
+| Unit ID | population group + pocket of need + (Admin 3, else Admin 2, else Admin 1 P-code) |
+| 2nd / 3rd highest | largest value strictly below the highest / 2nd (distinct values; zeros count, blanks do not) |
+| PiN flag 1 | (cells equal to 0) + (blank cells) >= `zero_pin_thresh` (template 2); blank when the eight sectors sum to 0 |
+| PiN flag 2 / 3 | (H1 - H2) / H2 and (H1 - H3) / H3 >= `perc_1st_2nd` (0.30) / `perc_1st_3rd` (0.50); blank when the comparison PiN is blank (flag 2 also when 0); switched off when more than one sector is tied for H1 |
+| PiN flag 4 | the single highest sector is in the sub-population sector list (template: Education); blank when H1 = 0; ties never match |
+| PiN flag 5 | H1 / population >= `flag_pin_perc` (0.90), unrounded; blank when population is 0 or missing |
+| PiN flag 6 | per sector ROUND((new - old) / old, 1); ABS >= `flag_pin_historical` (1.0) for any highest sector(s) (part a) and separately for any 2nd-highest sector(s) (part b); a blank change in any involved sector blanks that part; each part counts in '# Flags' |
+| Preliminary PiN | H1 if the unit's severity > 2, else 0 (a worksheet rule, not in the manual's text) |
+| Severity (preliminary) | the Box 22 overlap rule on the sectors that have a value (blanks ignored) |
+| Severity flag 1 | sectors in phase 5 >= `sectors_sev_5` (2) |
+| Severity flag 2 | any outcome phase 2+ above or below the preliminary severity |
+| Severity flag 3 | at least two outcomes 1+ below, or at least two 1+ above |
+| Severity flag 4 | preliminary 5 AND sectors in phases 1-4 >= `sectors_sev_5` (the header says "more than 4 sectors in 4 or worse while preliminary is 4 or lower" and `sectors_sev_4` = 5 is defined but unused: formula and header disagree; the formula is implemented and the header's reading is returned beside it) |
+
+Checked: all 11 flag columns, the preliminary severity and the Preliminary PiN cached in the example workbook's 6 units are reproduced (the sixth unit, with blank sectors, gets no preliminary severity here by design; the worksheet gives it 2 and that value is reported as `worksheet_rule_severity`). On the Yemen worksheet all 333 stored preliminary PiNs and severities are reproduced; YE1920/YE1928 (stored preliminary PiN 0) follow the severity-above-2 rule and are not data errors.
+
+Not closed: flag 6 has no cached example row (the example's historical table is empty); flag 3 with a 3rd highest of exactly 0 follows from the formula text and Excel's text-versus-number rule, not from a cached row; the Reference Table Indicators sheet is not implemented; a real country's `Thresholds` values and the Yemen team's flag decisions are not in any supplied file. The Annex 4 reader is an unsupported optional format. Both blockers stay with the owner to close.

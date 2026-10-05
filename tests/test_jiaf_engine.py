@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""JIAF 2 stage 3 engine, offline. The flag readings are settings, not verified against OCHA's worksheet formulas (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md
-section 6); these tests pin the readings the module makes, plus the manual's own rules (Box 21, Box 22, Tables 3A and 3B1)."""
+"""JIAF 2 stage 3 engine, offline. The default flag rules are OCHA's worksheet formulas (tests/test_jiaf_rules.py pins them, tests/test_jiaf_worksheet_adapter.py
+checks them against the official example workbook). The classes here that call the `manual_reading` profile pin that OLDER interpretation of the manual's wording,
+which is kept for comparison only and is not OCHA's rule set; the rest pin the manual's own rules (Box 21, Box 22)."""
 import csv
 import os
 import tempfile
@@ -10,6 +11,7 @@ from cartogen_ai.core.agent.tools import jiaf_engine as je
 from cartogen_ai.core.agent.tools import jiaf_inputs as ji
 
 S = je.DEFAULTS
+MANUAL = {"rules_profile": "manual_reading"}
 
 
 def unit(pin=None, sev=None, pop=None, outcomes=None, code="U1", stored=None):
@@ -25,7 +27,7 @@ def unit(pin=None, sev=None, pop=None, outcomes=None, code="U1", stored=None):
 def flags(u, settings=None, previous=None):
     expected = list(je.MAIN_SECTORS)
     ranked = je.ranked_pins(u, expected)
-    return je.pin_flags(u, ranked, je.merge_settings(settings), expected, previous), ranked
+    return je.pin_flags(u, ranked, je.merge_settings(dict(MANUAL, **(settings or {}))), expected, previous), ranked
 
 
 class TestMosaic(unittest.TestCase):
@@ -48,6 +50,8 @@ class TestMosaic(unittest.TestCase):
 
 
 class TestPinFlags(unittest.TestCase):
+    """The manual_reading profile (older interpretation, comparison only)."""
+
     def test_flag_1_counts_missing_and_zero_sectors_against_the_setting(self):
         u = unit(pin={s: 10 for s in je.MAIN_SECTORS[:6]} | {"wash": 0})
         f, _ = flags(u)
@@ -104,6 +108,8 @@ class TestPinFlags(unittest.TestCase):
 
 
 class TestSeverity(unittest.TestCase):
+    """Box 22 (profile-independent) and the manual_reading severity flags."""
+
     def test_the_overlap_rule_of_box_22(self):
         cases = [
             ([1, 1, 1, 1, 1, 1, 1, 1], 1), ([2, 2, 2, 1, 1, 1, 1, 1], 1), ([2, 2, 2, 2, 1, 1, 1, 1], 2),
@@ -118,21 +124,21 @@ class TestSeverity(unittest.TestCase):
         self.assertIsNone(je.preliminary_severity([0, None, None]))
 
     def test_severity_flag_1_and_4(self):
-        f = je.severity_flags(unit(), [5, 3, 3, 3, 1, 1, 1, 1], 3, je.merge_settings())
+        f = je.severity_flags(unit(), [5, 3, 3, 3, 1, 1, 1, 1], 3, je.merge_settings(MANUAL))
         self.assertTrue(f[1]["fired"])
         self.assertFalse(f[4]["fired"])
-        f = je.severity_flags(unit(), [4, 4, 4, 4, 4, 1, 1, 1], 4, je.merge_settings())
+        f = je.severity_flags(unit(), [4, 4, 4, 4, 4, 1, 1, 1], 4, je.merge_settings(MANUAL))
         self.assertTrue(f[4]["fired"])  # more than 4 sectors in phase 4
-        f = je.severity_flags(unit(), [4, 4, 4, 4, 1, 1, 1, 1], 4, je.merge_settings())
+        f = je.severity_flags(unit(), [4, 4, 4, 4, 1, 1, 1, 1], 4, je.merge_settings(MANUAL))
         self.assertFalse(f[4]["fired"])  # exactly 4
 
     def test_outcome_flags_are_not_evaluable_without_analyst_phases(self):
-        f = je.severity_flags(unit(), [3, 3, 3, 3], 3, je.merge_settings())
+        f = je.severity_flags(unit(), [3, 3, 3, 3], 3, je.merge_settings(MANUAL))
         self.assertIsNone(f[2]["fired"])
         self.assertIsNone(f[3]["fired"])
 
     def test_outcome_flags_2_and_3(self):
-        s = je.merge_settings()
+        s = je.merge_settings(MANUAL)
         f = je.severity_flags(unit(outcomes={"mortality": 5}), [3, 3, 3, 3], 3, s)
         self.assertTrue(f[2]["fired"])
         self.assertFalse(f[3]["fired"])
@@ -173,7 +179,7 @@ class TestAnalyzeAndTool(unittest.TestCase):
         return path
 
     def test_tool_end_to_end(self):
-        out = je.compute_jiaf_preliminary(self._csv(self.GRID))
+        out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"])
         self.assertTrue(out["success"], out)
         self.assertEqual(out["units"], 2)
         self.assertEqual(out["national_preliminary_pin"], 420.0)  # 300 + 120, not 300 + 120 + others
@@ -186,14 +192,15 @@ class TestAnalyzeAndTool(unittest.TestCase):
 
     def test_previous_year_enables_flag_6(self):
         prev = [self.GRID[0], ["YE1", "A", 100, 3, 100, 3, 100, 3, 100, 3, 50, 3], self.GRID[2]]
-        out = je.compute_jiaf_preliminary(self._csv(self.GRID), previous_file_path=self._csv([prev[0]] + prev[1:2]))
+        out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"],
+                                          previous_file_path=self._csv([prev[0]] + prev[1:2]))
         self.assertNotIn("flag_6_note", out)
 
     def test_csv_export_never_overwrites(self):
         path = self._csv(self.GRID)
         target = path + ".out.csv"
         self.addCleanup(lambda: os.path.exists(target) and os.remove(target))
-        out = je.compute_jiaf_preliminary(path, export_csv_path=target)
+        out = je.compute_jiaf_preliminary(path, sectors_in_scope=["nutrition", "health", "shelter", "wash"], export_csv_path=target)
         self.assertEqual(out["csv_written"], target)
         with open(target, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
@@ -221,8 +228,13 @@ class TestYemenLocal(unittest.TestCase):
         self.assertEqual((sc["severity_compared"], sc["severity_match"]), (333, 333))
         self.assertEqual(sc["final_pin_rank"], {"1": 305, "2": 11, "3": 17})
         self.assertAlmostEqual(sc["final_pin_total"], 22325198, delta=1)
-        self.assertEqual(sorted(m["unit"] for m in sc["pin_mismatch"]), ["YE1920", "YE1928"])
+        # The two severity-2 units store a preliminary PiN of 0. That is OCHA's own worksheet rule (Preliminary PiN = the highest PiN if severity > 2, else 0), not a
+        # data error: with the worksheet profile all 333 stored preliminary PiNs are reproduced. (Earlier versions reported these two as discrepancies; that was wrong.)
+        self.assertEqual((sc["pin_compared"], sc["pin_match"], sc["pin_mismatch"]), (333, 333, []))
         self.assertGreater(out["national_preliminary_pin"], sc["final_pin_total"])
+        self.assertAlmostEqual(out["worksheet_preliminary_pin"]["national"], out["national_preliminary_pin"] - 25442.0, delta=1)
+        legacy = je.compute_jiaf_preliminary(self._p("jiaf_yemen_2026.xlsx"), rules_profile="manual_reading")
+        self.assertEqual(sorted(m["unit"] for m in legacy["stored_comparison"]["pin_mismatch"]), ["YE1920", "YE1928"])
 
     def test_published_hno_gives_the_same_severity_and_ranks(self):
         out = je.compute_jiaf_preliminary(self._p("yemen_jiaf_hnrp_2026.xlsx"), sheet_name="HNO 2026")

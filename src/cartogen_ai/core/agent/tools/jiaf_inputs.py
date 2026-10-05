@@ -14,7 +14,13 @@ Three input shapes are read, all as plain grids so the parsing is testable witho
 Nothing is repaired or imputed. A severity of 0 (used in the real Yemen worksheet for "not applicable", e.g. CCCM where there are no camps) is not a
 phase 1-5 value; it is reported and kept out of the overlap counts later, never turned into a phase. A dash placeholder is a missing value.
 Stored columns the files carry (Preliminary PiN, Final PiN, Final Severity ...) are returned as stored and flagged: the engine recomputes the
-preliminary figures and does not trust them (two Yemen units store a Preliminary PiN of 0 although their sectors have figures).
+preliminary figures and does not trust them (two Yemen units store a Preliminary PiN of 0 although their sectors have figures: that is OCHA's own
+'severity above 2' gate in the worksheet's Preliminary PiN column, see jiaf_rules).
+
+The OCHA worksheet is read TABLE-AWARE when the workbook has its Excel tables (`tblPiNAnalysis`, `tblSeverityAnalysis`, `tblPiNHistorical`) and the
+`Thresholds` named cells: columns are found by the table's header text, never by position, and a unit's identity is the worksheet's own (population group +
+pocket of need + Admin 3 / Admin 2 / Admin 1 P-code), so a pocket of need in the same Admin 2 is a separate unit. Without the tables (a CSV, a copy that lost
+them) the header-row search is used instead.
 """
 import json
 import os
@@ -33,6 +39,43 @@ except ImportError:
 STATEMENT = ("Support for the JIAF 2 process. This is not the JIAF method, is not endorsed by OCHA or the IASC, and does not decide any figure. "
              "Results are not for ranking crises.")
 _CAP = 50
+# Shown in every JIAF result: these are open, and neither is closed by anything the owner has supplied so far.
+VALIDATION_BLOCKERS = {
+    "claim": ("Do not describe this as a faithful or complete JIAF implementation until the owner has closed the items below. A preview with these limits visible is fine; "
+              "neither item is marked complete by this tool."),
+    "blockers": [
+        {"id": "flag_formulas", "status": "compared_awaiting_owner_closure",
+         "text": ("The PiN and severity flags are now OCHA's worksheet formulas (rules profile ocha_worksheet_2026, read from the cells of OCHA's official Worksheet 3A/3B "
+                  "example and template workbooks), and they reproduce every cached flag, preliminary severity and preliminary PiN of the example workbook's 6 units and "
+                  "the stored preliminary PiN and severity of Yemen's 333 units. NOT yet verified: (1) flag 6 on real output (the example's historical table is empty); "
+                  "(2) flag 3 when the 3rd highest PiN is exactly 0 (reproduced from the formula text and Excel's text-versus-number rule, no cached example row); "
+                  "(3) severity flag 4, where the worksheet's formula and its header disagree (the formula is implemented); (4) the flag decisions Yemen's analysis team "
+                  "actually took: its workbook holds values only, so how many units were really flagged or pending needs the team's records, and a pending count here "
+                  "does not by itself show that review was required; (5) the threshold values of a real country workbook (the template defaults are used when it has no "
+                  "Thresholds sheet)."),
+         "closes_when": ("The owner confirms the comparison with OCHA's worksheet formulas and: a Flags dashboard export or the analysis team's records for a real country show the "
+                         "same flags, including missing, zero and partially populated inputs; flag 6 is checked on a populated historical table; the flag-3 zero case is "
+                         "confirmed on real worksheet output. Bulk closure of flags needs an analysis-team decision recorded with its rationale.")},
+        {"id": "annex4_reader", "status": "open",
+         "text": ("The Annex 4 sector-input reader is an UNSUPPORTED OPTIONAL format: it was implemented from the manual's screenshots and its compatibility with real files is "
+                  "unverified. It is never detected automatically; it is read only when input_format='sector_template' is given. The Yemen worksheet and OCHA's Worksheet "
+                  "3A/3B have a different layout and cannot validate Annex 4 support."),
+         "closes_when": ("A real filled Annex 4 sector-input file is read, and sheet detection, headers, geographic codes, sector values, missing cells and imported "
+                         "totals are checked against the source.")},
+    ],
+}
+# One adapter per supported layout, with what each has actually been checked against. Only the Yemen layouts are validated; Annex 4 is NOT.
+ADAPTERS = {
+    "ocha_worksheet": {"status": "validated on OCHA's official example workbook (6 units, flags and severity compared with its cached values) and on the supplied Yemen 2026 worksheet",
+                       "evidence": ("example: every cached PiN flag, severity flag, preliminary severity and preliminary PiN reproduced (tests/test_jiaf_worksheet_adapter.py, "
+                                    "local-only: the workbook is not committed); Yemen: 333 admin-2 units read, preliminary severity matches the stored column in 333/333")},
+    "hxl": {"status": "validated on the supplied published Yemen HNO 2025 and 2026 datasets",
+            "evidence": "333 admin-2 units read in both; the 2026 total PiN reconciles with the worksheet's final PiN (22,325,197.74)"},
+    "sector_template": {"status": "UNSUPPORTED optional format -- implemented from the manual's Annex 4 screenshots; compatibility unverified",
+                        "evidence": ("no real filled Annex 4 file has been read; the Yemen worksheet and OCHA's Worksheet 3A/3B have different layouts and cannot validate it. "
+                                     "It is never chosen automatically: it is read only when input_format='sector_template' is given."),
+                        "optional": True},
+}
 SETUP_SCOPE = "cartogen_ai_jiaf"
 SETUP_KEY = "setup"
 
@@ -97,9 +140,12 @@ def read_grid(path, sheet=None):
     if ext in (".xlsx", ".xlsm"):
         import openpyxl
         wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-        names = list(wb.sheetnames)
-        ws = wb[sheet] if sheet else wb[names[0]]
-        return [list(r) for r in ws.iter_rows(values_only=True)], names
+        try:
+            names = list(wb.sheetnames)
+            ws = wb[sheet] if sheet else wb[names[0]]
+            return [list(r) for r in ws.iter_rows(values_only=True)], names
+        finally:
+            wb.close()
     raise ValueError(f"Unsupported file type '{ext}' -- use .xlsx or .csv.")
 
 
@@ -107,7 +153,10 @@ def read_sheets(path):
     """{sheet name: grid} for every sheet of an Excel file."""
     import openpyxl
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+    try:
+        return {ws.title: [list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+    finally:
+        wb.close()
 
 
 def _find_header_row(grid, must):
@@ -118,19 +167,49 @@ def _find_header_row(grid, must):
     return None
 
 
-def _empty_unit(code, name, a1c, a1n, group):
-    return {"admin1_code": a1c, "admin1": a1n, "admin2_code": code, "admin2": name, "population_group": group, "population": None,
-            "pin": {}, "severity": {}, "stored": {}, "outcomes": {}}
+def _empty_unit(code, name, a1c, a1n, group, a3c=None, a3n=None, pocket=None):
+    return {"admin1_code": a1c, "admin1": a1n, "admin2_code": code, "admin2": name, "admin3_code": a3c, "admin3": a3n, "pocket_of_need": pocket,
+            "population_group": group, "population": None, "pin": {}, "severity": {}, "stored": {}, "outcomes": {}, "previous_pin": None}
+
+
+def worksheet_id(group, pocket, a3c, a2c, a1c):
+    """The worksheet's own unit ID: population group + pocket of need + the finest P-code present (Admin 3, else Admin 2, else Admin 1)."""
+    return (group or "") + (pocket or "") + (a3c or a2c or a1c or "")
+
+
+def uid(u):
+    return worksheet_id(u.get("population_group"), u.get("pocket_of_need"), u.get("admin3_code"), u.get("admin2_code"), u.get("admin1_code"))
 
 
 def _unit_key(u):
-    return (u["admin2_code"] or u["admin2"], u["population_group"])
+    return (u.get("pocket_of_need"), u.get("admin3_code") or u["admin2_code"] or u["admin2"], u["population_group"])
 
 
 # ------------------------------------------------------ OCHA 3A/3B worksheet --
+# Worksheet flag columns, found by their header TEXT (never by position): normalised header prefix -> flag number.
+_PIN_FLAG_HEADERS = (("number of missing / zero pins", 1), ("highest pin greater than", 5), ("highest sector targets sub-population", 4),
+                     ("% difference is over a specified threshold between highest and 2nd", 2),
+                     ("% difference is over a specified threshold between highest and 3rd", 3),
+                     ("change from last year for the highest sector(s) has significantly", "6a"),
+                     ("change from last year for the 2nd highest sector(s) has significantly", "6b"))
+_SEV_FLAG_HEADERS = (("1 sectors in severity phase 5", 1), ("2+ phase variation", 2), ("1+ phase variation", 3), ("more than 4 sectors in 4 or worse", 4))
+_MANUAL_FLAG_HEADERS = ("manual flag",)
+
+
+def _flag_cell(v):
+    return isinstance(v, str) and v.strip().lower() == "flagged"
+
+
+def _identity(idx, row):
+    """(admin1_code, admin1, admin2_code, admin2, admin3_code, admin3, pocket, group) of a worksheet row; each None when blank."""
+    g = lambda h: _text(row[idx[h]]) if h in idx else None  # noqa: E731
+    return (g("admin 1 p-code"), g("admin 1"), g("admin 2 p-code"), g("admin 2"), g("admin 3 p-code"), g("admin 3"), g("pocket of need"), g("population group"))
+
+
 def parse_ocha_worksheet(pin_grid, sev_grid):
-    """Units from the OCHA worksheet's two sheets. Returns (units, notes). Sector columns are matched by header text; stored columns are kept
-    under `stored`, outcome-indicator columns under `outcomes`."""
+    """Units from the OCHA worksheet's two tables/sheets. Returns (units, notes). Sector columns are matched by header text; the worksheet's own flag
+    columns and stored figures are kept under `stored` (never trusted, only compared); outcome-indicator columns under `outcomes`. The unit identity includes
+    the population group, the pocket of need and Admin 3 (see worksheet_id)."""
     notes = []
     units = {}
 
@@ -146,22 +225,32 @@ def parse_ocha_worksheet(pin_grid, sev_grid):
             notes.append(f"The {kind} sheet lacks one of the location columns {list(need)}.")
             return
         sector_cols = {SECTOR_LABELS[h]: i for h, i in idx.items() if h in SECTOR_LABELS}
+        flag_cols = {}
+        for i, h in enumerate(header):
+            for prefix, n in (_PIN_FLAG_HEADERS if kind == "pin" else _SEV_FLAG_HEADERS):
+                if h.startswith(prefix):
+                    flag_cols[n] = i
         for row in grid[hdr + 1:]:
             row = list(row) + [None] * (len(header) - len(row))
-            code = _text(row[idx["admin 2 p-code"]])
+            a1c, a1n, code, name, a3c, a3n, pocket, group = _identity(idx, row)
             if code is None:
                 continue
-            group = _text(row[idx["population group"]]) if "population group" in idx else None
-            u = units.setdefault((code, group), _empty_unit(code, _text(row[idx["admin 2"]]), _text(row[idx["admin 1 p-code"]]),
-                                                            _text(row[idx["admin 1"]]), group))
+            key = (pocket, a3c or code, group)
+            u = units.setdefault(key, _empty_unit(code, name, a1c, a1n, group, a3c, a3n, pocket))
             if "population" in idx and u["population"] is None:
                 u["population"] = row[idx["population"]]
             for sector, i in sector_cols.items():
                 (u["pin"] if kind == "pin" else u["severity"])[sector] = row[i]
+            if flag_cols:
+                u["stored"][kind + "_flags"] = {n: _flag_cell(row[i]) for n, i in flag_cols.items()}
+            if "# flags" in idx:
+                u["stored"][kind + "_flag_count"] = row[idx["# flags"]]
             if kind == "pin":
                 for label in _STORED_PIN:
                     if label in idx:
                         u["stored"][label.replace(" ", "_")] = row[idx[label]]
+                if "severity" in idx:
+                    u["stored"]["severity_used"] = row[idx["severity"]]
                 if "evidence & comments" in idx:
                     u["stored"]["evidence"] = _text(row[idx["evidence & comments"]])
             else:
@@ -176,6 +265,76 @@ def parse_ocha_worksheet(pin_grid, sev_grid):
     load(pin_grid, "pin")
     load(sev_grid, "severity")
     return list(units.values()), notes
+
+
+def parse_ocha_history(units, hist_grid):
+    """Attach last year's PiN (the 'X - old' columns of the worksheet's historical table) to each unit as `previous_pin`, matched on the worksheet unit ID
+    computed from the row's own location columns. A unit with no row keeps previous_pin None (the worksheet then leaves flag 6 blank). Returns notes."""
+    hdr = _find_header_row(hist_grid, ("admin 2 p-code",))
+    if hdr is None:
+        return ["No 'Admin 2 P-Code' header row in the historical table."]
+    header = [_norm(c) for c in hist_grid[hdr]]
+    idx = {h: i for i, h in enumerate(header) if h}
+    old_cols = {SECTOR_LABELS[h[:-6]]: i for h, i in idx.items() if h.endswith(" - old") and h[:-6] in SECTOR_LABELS}
+    by_id = {uid(u): u for u in units}
+    matched = rows = 0
+    for row in hist_grid[hdr + 1:]:
+        row = list(row) + [None] * (len(header) - len(row))
+        a1c, _a1n, code, _name, a3c, _a3n, pocket, group = _identity(idx, row)
+        if code is None:
+            continue
+        rows += 1
+        u = by_id.get(worksheet_id(group, pocket, a3c, code, a1c))
+        if u is not None:
+            u["previous_pin"] = {sec: row[i] for sec, i in old_cols.items()}
+            matched += 1
+    return [f"Historical table: {rows} rows, {matched} matched to a unit by the worksheet ID, {len(units) - matched} units without a previous-year row."]
+
+
+def read_workbook_tables(path):
+    """Excel tables and named-cell values of a workbook: {"tables": {name: {"sheet", "ref", "grid"}}, "names": {defined name: value}}. Needs a full (not
+    read-only) load because the tables are not visible otherwise. Named cells whose target is broken (#REF!) are left out."""
+    import openpyxl
+    wb = openpyxl.load_workbook(path, data_only=True)
+    try:
+        tables = {}
+        for ws in wb.worksheets:
+            for t in ws.tables.values():
+                tables[t.name] = {"sheet": ws.title, "ref": t.ref, "grid": [[c.value for c in r] for r in ws[t.ref]]}
+        names = {}
+        for name, d in wb.defined_names.items():
+            try:
+                for sheet, coord in d.destinations:
+                    names[name] = wb[sheet][coord.replace("$", "")].value
+            except Exception:
+                continue
+        return {"tables": tables, "names": names}
+    finally:
+        wb.close()  # Windows keeps the file locked otherwise (CI: PermissionError WinError 32 when the caller deletes it)
+
+
+def worksheet_thresholds(wb_tables):
+    """({setting: value}, notes) from the worksheet's named threshold cells and its sub-population sector list. Absent names are simply not returned (the
+    caller falls back to the template defaults and says so)."""
+    from .jiaf_rules import THRESHOLD_NAMES
+    names, notes, out = wb_tables["names"], [], {}
+    for ws_name, setting in THRESHOLD_NAMES.items():
+        v = to_num(names.get(ws_name))
+        if v is not None:
+            out[setting] = int(v) if setting in ("f1_min_sectors", "sectors_sev_5", "sectors_sev_4") else v
+    sub = wb_tables["tables"].get("tblSubSectorPopulation")
+    if sub is not None and sub["grid"]:
+        head = [_norm(c) for c in sub["grid"][0]]
+        if "sector" in head:
+            labels = [_text(r[head.index("sector")]) for r in sub["grid"][1:] if len(r) > head.index("sector")]
+            sectors = [SECTOR_LABELS.get(_norm(x)) for x in labels if x]
+            unknown = [x for x, sec in zip([x for x in labels if x], sectors) if sec is None]
+            if unknown:
+                notes.append(f"Sub-population sectors not recognised as JIAF sectors and ignored: {unknown}.")
+            out["f4_subpopulation_sectors"] = tuple(dict.fromkeys(sec for sec in sectors if sec))
+    if not out:
+        notes.append("No Thresholds sheet/named cells in this workbook: the template defaults are used. Confirm the country thresholds.")
+    return out, notes
 
 
 # ----------------------------------------------------------------- HXL --
@@ -313,7 +472,7 @@ def validate_units(units):
     for u in units:
         key = _unit_key(u)
         if key in seen:
-            add(u, None, "unit", "duplicate unit (same Admin 2 P-Code and population group): both rows are kept, the join will not match them")
+            add(u, None, "unit", "duplicate unit (same Admin 3/Admin 2 P-Code, population group and pocket of need): both rows are kept, the join will not match them")
         seen[key] = True
         if not u["admin2_code"]:
             add(u, None, "admin2_code", "missing Admin 2 P-Code")
@@ -324,6 +483,8 @@ def validate_units(units):
         elif u["population"] is not None and u["population"] < 0:
             add(u, None, "population", "negative")
             u["population"] = None
+        if u.get("previous_pin") is not None:
+            u["previous_pin"] = {sec: to_num(v) for sec, v in u["previous_pin"].items()}
         for sector in list(u["pin"]):
             raw = u["pin"][sector]
             v = to_num(raw)
@@ -377,8 +538,7 @@ def detect_format(sheets):
     first = next(iter(sheets.values()), [])
     if find_hxl_row(first) is not None:
         return "hxl"
-    if _find_header_row(first, ("admin 2 p-code",)) is not None:
-        return "sector_template"
+    # The Annex 4 sector template is never chosen automatically: it is an unsupported optional format (compatibility unverified), read only when asked for.
     return None
 
 
@@ -388,8 +548,9 @@ def _layer(name):
     return layers[0] if layers else None
 
 
-def load_units(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None):
-    """Read `file_path` into (units, fmt, notes) or return {"error": ...}. Shared by the import tool and the calculation tool."""
+def load_units(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None, extras=None):
+    """Read `file_path` into (units, fmt, notes) or return {"error": ...}. Shared by the import tool and the calculation tool. If `extras` is a dict it is filled
+    with what the OCHA worksheet carries beyond the units: "thresholds" ({setting: value} from its named cells and sub-population list) and "tables"."""
     if not os.path.exists(file_path):
         return {"error": f"File not found: {file_path}"}
     fmt = str(input_format or "auto").lower()
@@ -410,7 +571,8 @@ def load_units(file_path, input_format="auto", sheet_name=None, sector=None, tem
     if fmt == "auto":
         fmt = detect_format(sheets)
         if fmt is None:
-            return {"error": "Could not recognise the file (no OCHA 3.1/3.2 sheets, no HXL tag row, no 'Admin 2 P-Code' header). Pass input_format.",
+            return {"error": ("Could not recognise the file (no OCHA 3.1/3.2 sheets, no HXL tag row). The Annex 4 sector template is an unsupported optional format "
+                              "and is never detected automatically: pass input_format='sector_template' (with sector and template_kind) to read it anyway."),
                     "sheets": list(sheets)}
     notes = []
     if fmt == "ocha_worksheet":
@@ -419,15 +581,40 @@ def load_units(file_path, input_format="auto", sheet_name=None, sector=None, tem
         sev = next((n for n, k in names.items() if "3.2" in k and "sever" in k), None)
         if not (pin and sev):
             return {"error": "The OCHA worksheet needs sheets named like 'WS - 3.1 Overall PiN' and 'WS - 3.2 Intersectoral Severity'.", "sheets": list(sheets)}
-        units, notes = parse_ocha_worksheet(sheets[pin], sheets[sev])
+        pin_grid, sev_grid, hist_grid = sheets[pin], sheets[sev], None
+        if ext in (".xlsx", ".xlsm"):
+            try:
+                wbt = read_workbook_tables(file_path)
+            except Exception as e:
+                wbt = None
+                notes.append(f"Could not read the workbook's Excel tables ({e}); the header-row search was used instead.")
+            if wbt is not None:
+                tp, ts, th = (wbt["tables"].get(n) for n in ("tblPiNAnalysis", "tblSeverityAnalysis", "tblPiNHistorical"))
+                if tp and ts:
+                    pin_grid, sev_grid = tp["grid"], ts["grid"]
+                    notes.append(f"Read from the Excel tables tblPiNAnalysis ({tp['ref']} on '{tp['sheet']}') and tblSeverityAnalysis ({ts['ref']} on '{ts['sheet']}'); "
+                                 "columns are matched by header text.")
+                else:
+                    notes.append("The workbook has no tblPiNAnalysis/tblSeverityAnalysis tables; the header-row search was used.")
+                hist_grid = th["grid"] if th else None
+                found, tnotes = worksheet_thresholds(wbt)
+                notes.extend(tnotes)
+                if extras is not None:
+                    extras["thresholds"] = found
+        units, pnotes = parse_ocha_worksheet(pin_grid, sev_grid)
+        notes.extend(pnotes)
+        if hist_grid is not None:
+            notes.extend(parse_ocha_history(units, hist_grid))
     else:
         grid = sheets[sheet_name] if sheet_name and sheet_name in sheets else next(iter(sheets.values()))
         if fmt == "hxl":
             units, notes = parse_hxl_table(grid)
         else:
+            notes.append("UNSUPPORTED optional format: the Annex 4 sector template was implemented from the manual's screenshots and its compatibility with real files is unverified.")
             if not sector or not template_kind:
                 return {"error": "sector_template needs `sector` and `template_kind` ('pin' or 'severity')."}
-            units, notes = parse_sector_template(grid, str(sector).lower(), str(template_kind).lower())
+            units, tnotes = parse_sector_template(grid, str(sector).lower(), str(template_kind).lower())
+            notes.extend(tnotes)
     if not units:
         return {"error": "No units could be read. " + " ".join(notes), "format": fmt}
 
@@ -473,13 +660,14 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
             if k != "evidence" and not _blank(v):
                 stored[k] = stored.get(k, 0) + 1
     result = {
-        "success": True, "statement": STATEMENT, "format": fmt, "units": len(units), "notes": notes,
+        "success": True, "statement": STATEMENT, "format": fmt, "adapter": dict(ADAPTERS[fmt], name=fmt), "units": len(units), "notes": notes,
         "sectors_found": sorted(summary["sectors"]),
         "main_sectors_missing": [s for s in MAIN_SECTORS if s not in summary["sectors"]],
         "per_sector": summary["sectors"], "severity_zero_values": summary["severity_zero_values"],
         "issue_count": len(issues), "issues_shown": issues[:_CAP],
         "stored_columns_present": stored,
         "stored_columns_note": "Stored Preliminary/Final figures are returned only as stored; the analysis recomputes them and does not trust them.",
+        "validation_blockers": VALIDATION_BLOCKERS,
         "population_note": ("Population is missing for every unit." if all(u["population"] is None for u in units) else None),
     }
     if not layer_name:

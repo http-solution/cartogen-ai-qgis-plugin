@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (198 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (202 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1818,7 +1818,7 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 
 ### `compute_jiaf_preliminary`
 
-Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). Per unit: the preliminary joint PiN (the highest of the eight main sectors' PiN -- the Mosaic Method; never an average, never a sum across sectors; AoRs excluded), the PiN flags 1-6 of Reference Table 3A, the preliminary intersectoral severity from the overlap of sectoral severities, and the severity flags 1-4 of Table 3B1. The national figure is the sum over units. This is not the Final PiN or the final severity: those are group decisions for flagged units, recorded later, and nothing here decides them. Intersectoral severity is per unit; there is no national severity and no PiN per severity phase. Several flag thresholds are readings of the manual that are not verified against OCHA's worksheet formulas: they are settings, echoed in the result, to be confirmed by the analysis team. Reads the same files as import_jiaf_inputs; give previous_file_path for flag 6. Optionally writes jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl to an admin layer (needs confirmation) and a per-unit CSV.
+Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). Per unit: the preliminary joint PiN (the highest of the eight main sectors' PiN -- the Mosaic Method; never an average, never a sum across sectors; AoRs excluded), the PiN flags 1-6 of Reference Table 3A, the preliminary intersectoral severity from the overlap of sectoral severities, and the severity flags 1-4 of Table 3B1. The national figure is the sum over units. This is not the Final PiN or the final severity: those are group decisions for flagged units, recorded later, and nothing here decides them. Intersectoral severity is per unit; there is no national severity and no PiN per severity phase. Incomplete sector coverage is never turned into phase 1: the sectors in scope (default all eight main sectors) that have no phase are missing, and if they could change the result the unit has NO preliminary severity (status incomplete_coverage, with lower and upper bounds); a severity of 0 means not-applicable unless zero_severity_as='missing'. Several flag thresholds are readings of the manual that are not verified against OCHA's worksheet formulas: they are settings, echoed in the result, to be confirmed by the analysis team. Reads the same files as import_jiaf_inputs; give previous_file_path for flag 6. Optionally writes jf_pre_pin, jf_pre_sev, jf_npinfl, jf_nsevfl to an admin layer (needs confirmation) and a per-unit CSV.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1827,14 +1827,21 @@ Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 
 | `sheet_name` | string | no |  |
 | `previous_file_path` | string | no | Optional previous-year file of the same kind, for flag 6. |
 | `previous_sheet_name` | string | no |  |
-| `f1_min_sectors` | integer | no | Flag 1 fires at this many sectors with missing/zero PiN or more. Default 1 (the table says 1 or 2). |
-| `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default 0.30. |
-| `f3_pct` | number | no | Flag 3 threshold as a fraction. Default 0.50. |
-| `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population (e.g. nutrition). Flag 4 is evaluated only if given. |
-| `f5_share` | number | no | Flag 5 threshold as a share of population. Default 0.90. |
-| `f6_pct` | number | no | Flag 6 threshold, increase on last year as a fraction. Default 1.0. |
-| `f6_min_previous_pin` | number | no | Flag 6 is only evaluated when last year's PiN is at least this. Default 1000. |
-| `s4_sector_count` | integer | no | Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4. |
+| `rules_profile` | string | no | 'ocha_worksheet_2026' (default: the flag formulas read from OCHA's official Worksheet 3A/3B) or 'manual_reading' (this tool's older interpretation of the manual, for comparison only). |
+| `sectors_sev_5` | integer | no | Worksheet profile: severity flag 1 fires at this many sectors in phase 5 (and flag 4 uses it too). Default: the workbook's Thresholds cell, else 2. |
+| `sectors_sev_4` | integer | no | Worksheet profile: the header-text reading of severity flag 4 (reported only, not used by the formula). Default 5. |
+| `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight. A sector in scope with no value is MISSING, never phase 1. |
+| `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing': what a severity of 0 means. |
+| `f1_min_sectors` | integer | no | Flag 1 fires at this many sectors that are missing or zero. Worksheet profile: the workbook's zero_pin_thresh, else 2 (manual_reading: 1). |
+| `f1_count_missing` | boolean | no | manual_reading profile only. Flag 1 counts sectors with NO PiN. Default true. |
+| `f1_count_zero` | boolean | no | manual_reading profile only. Flag 1 counts sectors with an explicit PiN of 0. Default true. Missing and zero are different facts. |
+| `f2_pct` | number | no | Flag 2 threshold as a fraction (0.30 = 30%). Default: the workbook's perc_1st_2nd, else 0.30. |
+| `f3_pct` | number | no | Flag 3 threshold as a fraction. Default: the workbook's perc_1st_3rd, else 0.50. |
+| `f4_subpopulation_sectors` | array[string] | no | Sectors that count a sub-population. Worksheet profile: the workbook's own list, else the template's (education). manual_reading: flag 4 is evaluated only if given. |
+| `f5_share` | number | no | Flag 5 threshold as a share of population (fires at >=). Default: the workbook's flag_pin_perc, else 0.90. |
+| `f6_pct` | number | no | Flag 6 threshold on the (rounded to 0.1) change from last year, up or down, as a fraction. Default: the workbook's flag_pin_historical, else 1.0. |
+| `f6_min_previous_pin` | number | no | manual_reading profile only. Flag 6 is only evaluated when last year's PiN is at least this. Default 1000. |
+| `s4_sector_count` | integer | no | manual_reading profile only. Severity flag 4 fires when MORE THAN this many sectors are in phase 4 (and the preliminary phase is 4). Default 4. |
 | `export_csv_path` | string | no | Optional new .csv file for the per-unit table (refuses to overwrite). |
 | `layer_name` | string | no |  |
 | `layer_key_field` | string | no | Admin 2 P-code field on that layer. |
@@ -1878,6 +1885,86 @@ Record the JIAF 2 analysis set-up in the project (support for the JIAF 2 process
 | `scope_note` | string | no |  |
 | `hct_endorsed_scope` | boolean | no | Whether the HCT endorsed the scope; omit if unknown. |
 | `sector_alignment` | array[object] | no |  |
+
+## jiaf_patterns
+
+### `compute_jiaf_patterns`
+
+Produce the JIAF 2 intersectoral pattern outputs of Workspace 3C (support for the JIAF 2 process; not the JIAF method, not endorsed by OCHA or the IASC): where the PiN is concentrated, which units have many sectors with more than 40% of the population in need, which sectors drive the PiN, the change against last year, units in severity phases 4-5 and with five or more sectors in phase 4-5, sector severity distributions, units with both high PiN and high severity, and the sector pairs whose PiN correlates above 0.7. These are lists and counts for the analysts' discussion, not conclusions. Thresholds are country-level settings (the manual's defaults where it gives one; the others are the module's and are echoed). Uses the recorded group decisions where they exist and the preliminary severity otherwise (reported). No national severity; not for ranking crises. Optionally writes jf_nsec40 and jf_nsev45 (counts per unit, for mapping) to an admin layer after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `input_format` | string | no |  |
+| `sheet_name` | string | no |  |
+| `previous_file_path` | string | no |  |
+| `previous_sheet_name` | string | no |  |
+| `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight. |
+| `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing'. |
+| `sector_population_share` | number | no | Share of a unit's population that makes a sector's PiN 'large'. Manual: 0.40. |
+| `many_sectors_with_large_pin` | integer | no |  |
+| `top_units` | integer | no |  |
+| `high_pin_share` | number | no |  |
+| `severe_phases` | array[integer] | no | Default [4, 5]. |
+| `many_severe_sectors` | integer | no | Manual: 5. |
+| `top_sectors` | integer | no | Manual: 3. |
+| `correlation_threshold` | number | no | Manual: 0.7. |
+| `group_shares` | object | no | Optional population shares per group, e.g. {'girls': 0.25}, for the extrapolated estimates. |
+| `layer_name` | string | no |  |
+| `layer_key_field` | string | no |  |
+| `write_fields` | boolean | no | With layer_name: write jf_nsec40 and jf_nsev45. Needs confirmation. |
+
+## jiaf_review
+
+### `finalize_jiaf_results`
+
+Apply the recorded JIAF 2 group decisions to the preliminary figures and report the FINAL results (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; never call the result JIAF-compliant or official). A unit with no flag keeps the preliminary figures; a flagged unit uses its recorded decision; a flagged unit with no decision is PENDING: its Final PiN is shown at the highest sectoral PiN as a provisional figure (counted and totalled separately) and its final severity is left empty. The Final PiN total is the sum over units; there is no national severity and no PiN per severity phase. bulk_accepted_flags (e.g. [1]) closes units whose only fired PiN flags are those; this is an analysis-team decision and REQUIRES bulk_rationale (why) and ideally bulk_decided_by, which are recorded in the result and against every unit closed. The flag conditions are unverified interpretations of the manual (see validation_blockers in the result): the number of pending units depends on them. Reads the same files and uses the same flag settings as compute_jiaf_preliminary. Optionally writes jf_fin_pin, jf_fin_sev, jf_pin_rk to an admin layer (needs confirmation) and a per-unit CSV with the Evidence & Comments (never overwrites).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `input_format` | string | no |  |
+| `sheet_name` | string | no |  |
+| `previous_file_path` | string | no |  |
+| `previous_sheet_name` | string | no |  |
+| `bulk_accepted_flags` | array[integer] | no | PiN flag numbers the team agreed to close in bulk, e.g. [1]. Needs bulk_rationale. |
+| `bulk_rationale` | string | no | Why the team closed these flags in bulk (required with bulk_accepted_flags). |
+| `bulk_decided_by` | string | no | Who decided, e.g. 'JIAF analysis group, 12 Oct'. |
+| `rules_profile` | string | no | 'ocha_worksheet_2026' (default) or 'manual_reading' (older interpretation, comparison only). |
+| `sectors_sev_5` | integer | no |  |
+| `sectors_sev_4` | integer | no |  |
+| `f1_min_sectors` | integer | no |  |
+| `f1_count_missing` | boolean | no |  |
+| `f1_count_zero` | boolean | no |  |
+| `sectors_in_scope` | array[string] | no | Main sectors the HCT activated. Default: all eight; a sector with no value is missing, never phase 1. |
+| `zero_severity_as` | string | no | 'not_applicable' (default) or 'missing'. |
+| `f2_pct` | number | no |  |
+| `f3_pct` | number | no |  |
+| `f4_subpopulation_sectors` | array[string] | no |  |
+| `f5_share` | number | no |  |
+| `f6_pct` | number | no |  |
+| `f6_min_previous_pin` | number | no |  |
+| `s4_sector_count` | integer | no |  |
+| `export_csv_path` | string | no | Optional new .csv file (refuses to overwrite). |
+| `layer_name` | string | no |  |
+| `layer_key_field` | string | no |  |
+| `write_fields` | boolean | no | With layer_name: write jf_fin_pin, jf_fin_sev, jf_pin_rk. Needs confirmation. |
+
+### `get_jiaf_decisions`
+
+Read the JIAF 2 group decisions stored in the project by record_jiaf_decisions (support for the JIAF 2 process; not endorsed by OCHA or the IASC).
+
+_No parameters._
+
+### `record_jiaf_decisions`
+
+Record the multi-partner group's JIAF 2 decisions for flagged units (support for the JIAF 2 process; not endorsed by OCHA or the IASC; this tool decides nothing, it only records what the group decided). pin_decisions: for a flagged unit, which main sector's PiN is used as the Final PiN (the manual offers the highest or second highest; any main sector is accepted and the rank of the chosen one is reported) with the rationale (required). severity_decisions: the agreed intersectoral severity phase 1-5 for a flagged unit with the evidence basis (outcome_indicators, proxy_indicators, expert_judgement or sector_overlap_accepted) and the evidence (required). Stored in the QGIS project, merged with earlier records unless replace=true. Never invent a decision; ask the team.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `pin_decisions` | array[object] | no |  |
+| `severity_decisions` | array[object] | no |  |
+| `replace` | boolean | no | Replace all stored decisions instead of merging. |
 
 ## mcda_tools
 

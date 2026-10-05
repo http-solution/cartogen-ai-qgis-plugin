@@ -51,7 +51,7 @@ class TestJiafEngineLive(unittest.TestCase):
 
     def _call(self, **kw):
         from cartogen_ai.core.agent.tools.jiaf_engine import compute_jiaf_preliminary
-        return compute_jiaf_preliminary(self.path, layer_name="districts", layer_key_field="pcode", **kw)
+        return compute_jiaf_preliminary(self.path, sectors_in_scope=["nutrition", "health", "shelter", "wash"], layer_name="districts", layer_key_field="pcode", **kw)
 
     def test_report_only_leaves_the_layer_alone(self):
         out = self._call()
