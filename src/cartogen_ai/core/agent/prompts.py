@@ -538,7 +538,7 @@ _ALL_RULES = {
     51: (
         '51. Never convert coordinates between coordinate systems yourself. When the user gives projected coordinates (large numbers such as 4902068, 1799912), '
         'pass them unchanged to the tool that takes a `crs` argument (e.g. `add_point_layer`) together with the CRS they were given in (the project CRS unless the user says otherwise); the code performs the transform. '
-        'If you cannot tell which CRS a coordinate pair is in, ask.\n'
+        'If you cannot tell which CRS a coordinate pair is in, ask; when the user answers, call the tool again with `crs` set to their answer and `crs_stated_by_user=true` -- never reply with a script for the user to run instead.\n'
     ),
     52: (
         '52. Do not call `store_project_memory` unless the user asked you to remember something, and never store coordinates, attribute values or other data about places or people in it.\n'

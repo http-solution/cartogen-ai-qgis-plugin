@@ -106,6 +106,13 @@ class TestPromptRulesForNotRunCalls(unittest.TestCase):
         from cartogen_ai.core.agent import prompts
         self.assertIn("never convert coordinates", prompts._ALL_RULES[51].lower())
 
+    def test_rule_51_says_how_to_retry_after_the_user_names_the_crs(self):
+        # rc15 hand test B1: after "EPSG:3857" the model pasted a script instead of calling the tool again.
+        from cartogen_ai.core.agent import prompts
+        text = prompts._ALL_RULES[51]
+        self.assertIn("crs_stated_by_user=true", text)
+        self.assertIn("script", text.lower())
+
 
 BULLETS = """Here are the first clinics I found:
 

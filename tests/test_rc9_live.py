@@ -481,6 +481,7 @@ class TestAddPointLayerReuseAndCrsAsk(unittest.TestCase):
         QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
         res = add_point_layer("Origin", [{"x": 4902068.0, "y": 1799912.0, "name": "o"}], crs="EPSG:3857")
         self.assertTrue(res.get("needs_user_input"), res)
+        self.assertIn("crs_stated_by_user=true", res.get("next_step", ""), res)
         self.assertEqual(len(QgsProject.instance().mapLayersByName("Origin")), 0)
 
     def test_a_crs_the_user_named_is_used(self):
