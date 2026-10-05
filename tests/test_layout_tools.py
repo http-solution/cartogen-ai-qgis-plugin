@@ -595,3 +595,31 @@ class TestExportLayoutAtlas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PaddedExtentTests(unittest.TestCase):
+    """rc15 hand test step 12: a one-point layer's zero-size extent gave "Invalid scale!" in the layout."""
+
+    def test_a_normal_extent_is_unchanged(self):
+        from cartogen_ai.core.agent.tools.layout_tools import padded_extent_bounds
+        self.assertEqual(padded_extent_bounds(1, 2, 3, 5, True), (1, 2, 3, 5))
+
+    def test_a_single_point_gets_a_usable_extent_centred_on_it(self):
+        from cartogen_ai.core.agent.tools.layout_tools import padded_extent_bounds
+        x0, y0, x1, y1 = padded_extent_bounds(44.036, 15.958, 44.036, 15.958, True)
+        self.assertGreater(x1 - x0, 0)
+        self.assertGreater(y1 - y0, 0)
+        self.assertAlmostEqual((x0 + x1) / 2, 44.036)
+        self.assertAlmostEqual((y0 + y1) / 2, 15.958)
+
+    def test_projected_pad_is_larger_than_geographic(self):
+        from cartogen_ai.core.agent.tools.layout_tools import padded_extent_bounds
+        g = padded_extent_bounds(0, 0, 0, 0, True)
+        p = padded_extent_bounds(0, 0, 0, 0, False)
+        self.assertGreater(p[2] - p[0], g[2] - g[0])
+
+    def test_a_horizontal_line_is_not_left_a_sliver(self):
+        from cartogen_ai.core.agent.tools.layout_tools import padded_extent_bounds
+        x0, y0, x1, y1 = padded_extent_bounds(0, 10, 5000, 10, False)
+        self.assertGreater(y1 - y0, 0)
+        self.assertEqual(x1 - x0, y1 - y0)
