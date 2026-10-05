@@ -31,8 +31,11 @@ black-box answer.
 > - **Tests:** 3,423 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
->   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists; the remaining 17 are still
->   open. None of the fixes has been re-checked by hand yet.
+>   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
+>   database and is untouched. The other 17 (#152-#168) were addressed in work packages 1-6 (merged, CI-verified); some have parts still
+>   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
+>   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
+>   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
 > - **Not yet verified:** a hands-on smoke test of rc12, rc13 or rc14 in a desktop QGIS session. A clean-profile install and an in-place upgrade
 >   were verified on an earlier release candidate (rc6); the rc14 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
