@@ -58,6 +58,7 @@ suite.addTests(loader.loadTestsFromName("tests.test_processing_registry_diagnost
 suite.addTests(loader.loadTestsFromName("tests.test_raster_numpy_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_processing_allowlist_tools_live"))
 suite.addTests(loader.loadTestsFromName("tests.test_script_isolation_reconcile_live"))
+suite.addTests(loader.loadTestsFromName("tests.test_tool_dispatch_live"))
 
 runner = unittest.TextTestRunner(verbosity=2)
 result = runner.run(suite)
