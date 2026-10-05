@@ -180,10 +180,28 @@ def style_continuous_raster(layer, kind="surface", band=1, alg_id=None):
     _set_unit_legend(shader, legend_spec_for(kind, alg_id))
     raster_shader = QgsRasterShader()
     raster_shader.setRasterShaderFunction(shader)
-    layer.setRenderer(QgsSingleBandPseudoColorRenderer(provider, band, raster_shader))
+    renderer = QgsSingleBandPseudoColorRenderer(provider, band, raster_shader)
+    set_renderer_range(renderer, stops[0][0], stops[-1][0])
+    layer.setRenderer(renderer)
     layer.triggerRepaint()
     send_under_vectors(layer)
     return True
+
+
+def set_renderer_range(renderer, low, high):
+    """Records the stretch range on a single-band pseudo-colour renderer, not only on its shader.
+
+    rc15 hand test D08 (2026-10-06): after apply_raster_stretch and a project save, the saved XML had classificationMin="nan" and
+    classificationMax="nan" on the renderer and the reopened legend read nan/nan, although the colour items kept 35-214. The
+    renderer's own range defaults to NaN and is what gets serialised and drawn in the legend; only the shader had been given the
+    range. Best-effort and never raises: a QGIS build without these setters keeps the previous behaviour. Not re-run in a real
+    QGIS session from the sandbox."""
+    try:
+        renderer.setClassificationMin(float(low))
+        renderer.setClassificationMax(float(high))
+        return True
+    except Exception:
+        return False
 
 
 def send_under_vectors(layer):

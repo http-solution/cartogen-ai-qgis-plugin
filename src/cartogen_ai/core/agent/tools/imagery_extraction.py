@@ -23,6 +23,7 @@ just the LLM's text.
 """
 
 import os
+import re
 import tempfile
 from .registry import register_tool
 
@@ -43,6 +44,26 @@ def _find_layer_by_name(name):
     if not layers:
         return None
     return layers[0]
+
+
+_URL = re.compile(r"https?://\S+")
+_DOWNLOAD_HINTS = ("download", "http error", "416", "range not satisfiable", "urlopen", "connection", "timed out", "ssl")
+
+
+def describe_model_failure(exc):
+    """The error text for a failed FastSAM load or inference, with no URLs in it.
+
+    rc15 hand test D06 (2026-10-06): the first run downloaded the FastSAM-s checkpoint, got HTTP 416 (Range Not Satisfiable,
+    which is what a download resuming from a PARTIAL file earns), QGIS showed Not Responding for about a minute, and the chat
+    printed the whole signed download URL. The exception text is kept for the log-free summary but every URL is removed from
+    it, and a download failure says what to do. The download still happens on QGIS's main thread; that is not fixed here. Pure."""
+    text = _URL.sub("<url removed>", str(exc) or type(exc).__name__)
+    if any(h in text.lower() for h in _DOWNLOAD_HINTS):
+        return ("The FastSAM model checkpoint (FastSAM-s.pt) could not be downloaded, so nothing was detected: "
+                f"{text[:200]}. QGIS can stop responding while this download runs. An HTTP 416 usually means an earlier "
+                "download left a partial FastSAM-s.pt behind: delete that file from the ultralytics weights folder (or from "
+                "QGIS's working folder) and try again on a stable connection, or place a complete copy there yourself.")
+    return f"FastSAM inference failed: {text[:300]}"
 
 
 def _temp_path(suffix):
@@ -203,7 +224,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         model = FastSAM("FastSAM-s.pt")
         results = model(png_path, device="cpu", retina_masks=True, conf=confidence_threshold, verbose=False)
     except Exception as e:
-        return {"error": f"FastSAM inference failed: {e}"}
+        return {"error": describe_model_failure(e)}
     finally:
         try:
             os.remove(png_path)
