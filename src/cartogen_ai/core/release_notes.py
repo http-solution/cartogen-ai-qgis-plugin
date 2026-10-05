@@ -9,18 +9,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc15"
-NEW_MARK_VERSIONS = ("1.16.0-rc14", "1.16.0-rc15")
+WHATS_NEW_VERSION = "1.16.0-rc16"
+NEW_MARK_VERSIONS = ("1.16.0-rc15", "1.16.0-rc16")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Replaced results are reported", "When a service-area run replaces a same-named result layer that was built with different parameters (for example a one-hour "
-     "result replaced by a 5 km one), the reply now says what changed. An identical re-run stays silent. It reports after the replacement; it does "
-     "not ask first, and only the service-area layers record their parameters so far."),
-    ("Issue checklist", "A per-issue hand-verification checklist (docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md) lists, for each open issue, what to run and "
-     "the expected result; the README's audit-status line was corrected."),
-    ("Carried over from rc14", "The JIAF 2 analysis-support tools are unchanged. The flag-formula comparison is still awaiting the owner's closure and the "
-     "Annex 4 reader is still an unsupported optional format; do not call the result a faithful or complete JIAF implementation."),
+    ("Tools returning lists work again", "get_layers and get_attributes were reported as \"Execution failed unexpectedly\" from rc12 on. They return their results again."),
+    ("CRS question and print layout", "After you name the CRS for a coordinate pair the model is told to place the point (not to paste a script), and a print layout "
+     "zoomed to a one-point layer gets a usable scale. Both depend on live behaviour and have not been hand-tested."),
+    ("Under the hood", "One shared tool-result contract, and the CI live-QGIS job now discovers its test modules by name."),
     ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session."),
 ]
 

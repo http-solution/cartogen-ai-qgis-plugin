@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc16](#v1-16-0-rc16) | 2026-10-06 | **Release candidate 16 for 1.16.0.** No breaking changes. Fixes from the rc15 hand test: list-returning tools no longer reported as failed (regression since rc12), CRS-question retry, one-point print layout extent; live-test discovery; not hand-tested. |
 | [1.16.0-rc15](#v1-16-0-rc15) | 2026-10-05 | **Release candidate 15 for 1.16.0.** No breaking changes. Replace-by-name warning for service-area results (#130 point 3), issue verification checklist; JIAF validation items still open; not hand-tested. |
 | [1.16.0-rc14](#v1-16-0-rc14) | 2026-10-05 | **Release candidate 14 for 1.16.0.** No breaking changes. JIAF 2 analysis-support tools (OCHA worksheet flag rules, decisions, finals, patterns); an Annex 4 reader that is an unsupported optional format; two validation items still open; not hand-tested. |
 | [1.16.0-rc13](#v1-16-0-rc13) | 2026-10-04 | **Release candidate 13 for 1.16.0.** No breaking changes. Humanitarian map looks, task-register corrections, allocation envelope, IPC/INFORM/UNOSAT importers and critical-link screening; not hand-tested. |
@@ -56,6 +57,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc16"></a>
+## [1.16.0-rc16] — 2026-10-06 — Release candidate 16 for 1.16.0: fixes from the rc15 hand test
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc15 build (PR #202):
+
+- Fix: list-returning tools (get_layers, get_attributes) were reported as "Execution failed unexpectedly." since rc12 (a dict-only check in the main-thread wrapper added with audit item #138). Found in the rc15 hand test; they return their results again, confirmed by a new live test in CI on QGIS 4.2.2.
+- Fix: when the CRS question for point coordinates (#119) was answered, the model made no tool call and pasted a script instead. The "ask" result now says how to retry and the prompt rule spells it out. Depends on the model; needs a hand re-run.
+- Fix: a print layout zoomed to a one-point layer had a zero-size extent ("Scale unavailable", "Invalid scale!", a map stuck on "Rendering map"). The extent is padded around the point (about 2 km, a guess, not a measured value); an empty layer keeps the old fallback. Needs a hand re-run.
+- Internal: one tool-result contract (core/agent/tool_result.py) replaces scattered dict checks, and the CI live-test job discovers tests/test_*_live.py by name (a module that does not run must be listed with a reason). test_agent_live is excluded with its reason stated.
+- Docs: a blank run sheet for the live smoke test (docs/SMOKE_RUN_SHEET_rc15_2026-10-05.md).
+- Verification: offline suite and ruff pass; the live-QGIS tests passed in CI on QGIS 4.2.2 (PR #202). The B1 retry and the layout fix have NOT been hand-tested; no audit issue is closed by this build.
 
 <a id="v1-16-0-rc15"></a>
 ## [1.16.0-rc15] — 2026-10-05 — Release candidate 15 for 1.16.0: replace-by-name warning
