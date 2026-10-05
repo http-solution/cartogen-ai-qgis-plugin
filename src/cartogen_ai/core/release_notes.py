@@ -9,24 +9,24 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc13"
-NEW_MARK_VERSIONS = ("1.16.0-rc12", "1.16.0-rc13")
+WHATS_NEW_VERSION = "1.16.0-rc14"
+NEW_MARK_VERSIONS = ("1.16.0-rc13", "1.16.0-rc14")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Humanitarian map looks", "apply_humanitarian_look draws severity, people-in-need, exposure, presence-gap and rank results in "
-     "humanitarian styles; the analysis tools return a hint with the exact call. Footprints, OSM layers, roads and detected features "
-     "also get humanitarian styles."),
-    ("Allocation envelope", "calculate_allocation_envelope splits a budget you supply over areas by need, with ceiling, floor, "
-     "threshold and rounding. An advisory calculation; areas with missing values are excluded and listed, never imputed."),
-    ("Table importers", "import_humanitarian_table reads IPC, INFORM Risk and UNOSAT damage tables from a file and validates them, "
-     "with a P-code join to an admin layer. The recognised column names are not yet checked against real HDX files; an explicit "
-     "mapping overrides them."),
-    ("Critical links", "analyze_critical_links screens a road network for bottlenecks: how much origin-to-destination demand has "
-     "its shortest path through each segment. A screening, not a closure simulation; speed on national networks is not measured."),
-    ("Task register", "The humanitarian task register was corrected: new tools are attached to the tasks they serve."),
-    ("Help and docs", "This Help now shows what's new and lists the humanitarian tools by workflow; counts are read from the live registries."),
-    ("Not hand-tested", "Everything above ran in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session."),
+    ("JIAF 2 analysis support", "Eight new tools help people who run the JIAF 2 process: import_jiaf_inputs, record_jiaf_setup, get_jiaf_setup, "
+     "compute_jiaf_preliminary, record_jiaf_decisions, get_jiaf_decisions, finalize_jiaf_results and compute_jiaf_patterns. They read sector "
+     "inputs, compute the PRELIMINARY joint PiN, severity and flags, record the team's decisions and keep the preliminary result, review status, "
+     "final result and justification apart. Support for the process: not the JIAF method, not endorsed by OCHA or the IASC, and nothing here "
+     "is a final figure."),
+    ("OCHA worksheet rules", "The flags follow the formulas read from OCHA's official Worksheet 3A/3B example and template workbooks (distinct-value "
+     "ranks, ties switch flags 2 and 3 off, flag 1 at two missing-or-zero sectors, the worksheet's severity-above-2 rule for the preliminary PiN). "
+     "Thresholds are read from the workbook when it has them. Incomplete sector coverage is never turned into phase 1."),
+    ("Still open", "Flag 6 on real output, a zero third-highest PiN in flag 3, one header/formula mismatch in a severity flag, and the Yemen team's own "
+     "flag decisions are unconfirmed. The Annex 4 template reader is an unsupported optional format (never auto-detected). Neither validation "
+     "item is closed; do not call the result a faithful or complete JIAF implementation."),
+    ("Not hand-tested", "Everything above ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session. The official-worksheet "
+     "check ran locally only (that workbook is not committed)."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
@@ -73,7 +73,15 @@ HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
    'calculate_population_in_need',
    'hotspot_analysis',
    'analyze_incident_trend',
-   'forecast_trend']),
+   'forecast_trend',
+   'import_jiaf_inputs',
+   'record_jiaf_setup',
+   'get_jiaf_setup',
+   'compute_jiaf_preliminary',
+   'record_jiaf_decisions',
+   'get_jiaf_decisions',
+   'finalize_jiaf_results',
+   'compute_jiaf_patterns']),
  ('5. Allocation and prioritisation',
   ['calculate_mcda_ranking',
    'fetch_fts_funding_data',
@@ -125,7 +133,15 @@ TOOL_NEW_IN = {'aggregate_survey_indicator': '1.16.0-rc12',
  'evaluate_forecast_trigger': '1.16.0-rc12',
  'generate_mapping_task_grid': '1.16.0-rc12',
  'import_humanitarian_table': '1.16.0-rc13',
- 'parse_dms_location': '1.16.0-rc12'}
+ 'parse_dms_location': '1.16.0-rc12',
+ 'import_jiaf_inputs': '1.16.0-rc14',
+ 'record_jiaf_setup': '1.16.0-rc14',
+ 'get_jiaf_setup': '1.16.0-rc14',
+ 'compute_jiaf_preliminary': '1.16.0-rc14',
+ 'record_jiaf_decisions': '1.16.0-rc14',
+ 'get_jiaf_decisions': '1.16.0-rc14',
+ 'finalize_jiaf_results': '1.16.0-rc14',
+ 'compute_jiaf_patterns': '1.16.0-rc14'}
 
 
 def tool_is_new(name):
