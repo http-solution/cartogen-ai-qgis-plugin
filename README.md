@@ -27,7 +27,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-05):** active Community edition, currently at the **1.16.0-rc15 pre-release** (published as a GitHub pre-release).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc16 pre-release** (published as a GitHub pre-release).
 > - **Tests:** 3,449 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -182,8 +182,8 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc15 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc15); the release
-also carries a `SHA256-1.16.0-rc15.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+[1.16.0-rc16 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc16); the release
+also carries a `SHA256-1.16.0-rc16.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
