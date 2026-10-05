@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc15](#v1-16-0-rc15) | 2026-10-05 | **Release candidate 15 for 1.16.0.** No breaking changes. Replace-by-name warning for service-area results (#130 point 3), issue verification checklist; JIAF validation items still open; not hand-tested. |
 | [1.16.0-rc14](#v1-16-0-rc14) | 2026-10-05 | **Release candidate 14 for 1.16.0.** No breaking changes. JIAF 2 analysis-support tools (OCHA worksheet flag rules, decisions, finals, patterns); an Annex 4 reader that is an unsupported optional format; two validation items still open; not hand-tested. |
 | [1.16.0-rc13](#v1-16-0-rc13) | 2026-10-04 | **Release candidate 13 for 1.16.0.** No breaking changes. Humanitarian map looks, task-register corrections, allocation envelope, IPC/INFORM/UNOSAT importers and critical-link screening; not hand-tested. |
 | [1.16.0-rc12](#v1-16-0-rc12) | 2026-10-02 | **Release candidate 12 for 1.16.0.** No breaking changes. Fixes from the first full hands-on smoke test of rc11: CRS asked when unstated, origin layers reused, chat scrolling and timestamps, no-basemap dashboard markers, admin boundary labels, population ramp name match, soft graticule, faster two-stop route with one-way and honest "shortest" wording, blue within-reach facilities. CI-verified on QGIS 4.2.2; not yet re-run by hand |
@@ -55,6 +56,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc15"></a>
+## [1.16.0-rc15] — 2026-10-05 — Release candidate 15 for 1.16.0: replace-by-name warning
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc14 build (PRs #198-#199):
+
+- New: when a service-area run replaces a same-named result layer that was built with different parameters (strategy, travel cost, speed or direction field, default speed, road layer), the tool result lists what changed and the reply must say so (issue #130, point 3). An identical re-run and layers made before this change stay silent. It reports after the replacement and does not ask first; only the service-area layers record their parameters so far (optimize_delivery_route and the access reach polygons are unchanged).
+- Docs: a per-issue hand-verification checklist (docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md) and a corrected README audit-status line (#151 needs a database; #152-#168 addressed in work packages 1-6, some with parts still open; all 32 audit issues stay open until hand-verified).
+- Unchanged from rc14: the JIAF 2 analysis-support tools. Flag-formula comparison still awaits the owner's closure and the Annex 4 reader is still an unsupported optional format; do not describe the result as a faithful or complete JIAF implementation.
+- Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2, including the new live test for the replacement warning. Nothing in rc15 has been hand-tested in a desktop session, and no audit issue is closed by this build.
 
 <a id="v1-16-0-rc14"></a>
 ## [1.16.0-rc14] — 2026-10-05 — Release candidate 14 for 1.16.0: JIAF 2 analysis support

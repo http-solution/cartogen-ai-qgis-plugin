@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc14
+version=1.16.0-rc15
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,14 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc14 (2026-10-05):
+changelog=v1.16.0-rc15 (2026-10-05):
+    Release candidate 15 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds the replace-by-name warning (PR #199) on top of rc14.
+    - New: when a service-area run replaces a same-named result layer that was built with different parameters (strategy, travel cost, speed or direction field, default speed, road layer), the tool result lists what changed and the reply must say so (issue #130, point 3). An identical re-run and layers made before this change stay silent. It reports after the replacement and does not ask first; only the service-area layers record their parameters so far (optimize_delivery_route and the access reach polygons are unchanged).
+    - Docs: a per-issue hand-verification checklist (docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md) and a corrected README audit-status line (#151 needs a database; #152-#168 addressed in work packages 1-6, some with parts still open; all 32 audit issues stay open until hand-verified).
+    - Unchanged from rc14: the JIAF 2 analysis-support tools. Flag-formula comparison still awaits the owner's closure and the Annex 4 reader is still an unsupported optional format; do not describe the result as a faithful or complete JIAF implementation.
+    - Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2, including the new live test for the replacement warning. Nothing in rc15 has been hand-tested in a desktop session, and no audit issue is closed by this build.
+
+v1.16.0-rc14 (2026-10-05):
     Release candidate 14 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds the JIAF 2 analysis-support tools (PRs #192-#195).
     - New: JIAF 2 analysis support (HX5), eight tools -- import_jiaf_inputs, record_jiaf_setup, get_jiaf_setup, compute_jiaf_preliminary, record_jiaf_decisions, get_jiaf_decisions, finalize_jiaf_results, compute_jiaf_patterns. Support for people running the JIAF 2 process: NOT the JIAF method, not endorsed by OCHA or the IASC, and nothing is a final figure. They read sector inputs (OCHA Worksheet 3A/3B read through its Excel tables, HXL tables), compute the preliminary joint PiN (highest sector, never summed or averaged), preliminary severity and the PiN and severity flags, record the multi-partner group's decisions in the project, and keep the preliminary result, review status, final result and justification apart. Intersectoral severity is per unit; there is no national severity.
     - New: the flag rules are OCHA's own worksheet formulas (profile ocha_worksheet_2026, read from the official example and template workbooks): ranks of distinct values, a tie for the highest switches flags 2 and 3 off, flag 1 at two missing-or-zero sectors, flag 6 in two parts, and the worksheet's rule that the preliminary PiN is the highest PiN only where severity is above 2. Thresholds come from the workbook's Thresholds cells, else the template defaults, and every result says which. The older reading of the manual is kept as profile manual_reading, comparison only.
