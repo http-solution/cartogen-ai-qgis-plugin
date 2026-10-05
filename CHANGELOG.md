@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc17](#v1-16-0-rc17) | 2026-10-06 | **Release candidate 17 for 1.16.0.** No breaking changes. Fixes from the rc15 smoke report: tool-naming requests no longer matched to unrelated tasks, result labels from a name field, save warns about memory layers, raster range saved, imagery download message; not hand-tested. |
 | [1.16.0-rc16](#v1-16-0-rc16) | 2026-10-06 | **Release candidate 16 for 1.16.0.** No breaking changes. Fixes from the rc15 hand test: list-returning tools no longer reported as failed (regression since rc12), CRS-question retry, one-point print layout extent; live-test discovery; not hand-tested. |
 | [1.16.0-rc15](#v1-16-0-rc15) | 2026-10-05 | **Release candidate 15 for 1.16.0.** No breaking changes. Replace-by-name warning for service-area results (#130 point 3), issue verification checklist; JIAF validation items still open; not hand-tested. |
 | [1.16.0-rc14](#v1-16-0-rc14) | 2026-10-05 | **Release candidate 14 for 1.16.0.** No breaking changes. JIAF 2 analysis-support tools (OCHA worksheet flag rules, decisions, finals, patterns); an Annex 4 reader that is an unsupported optional format; two validation items still open; not hand-tested. |
@@ -57,6 +58,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc17"></a>
+## [1.16.0-rc17] — 2026-10-06 — Release candidate 17 for 1.16.0: fixes from the rc15 smoke report
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc16 build (PR #204):
+
+- Fix: a request that names a tool ("Use optimal_hub_siting ...", "Run extract_features_from_imagery ...") is only matched to a registered task that uses that tool; otherwise it is sent as typed. In rc15 such requests were matched to unrelated OpenStreetMap export or download tasks and the injected tool list steered the model away (smoke report D01).
+- Fix: hub siting, location allocation, route stops and travel-time origins label their results with a name-like field (name, label, title, *_name) instead of the first attribute. On a GeoPackage the first attribute is the primary key, so hubs came back as "1", "2", "3" and the model had to guess which was which (D03). The distances themselves were already correct.
+- Fix: save_project lists temporary (memory) layers and warns that they come back empty when the project is reopened (D07).
+- Fix: pseudo-colour rasters record their stretch range on the renderer; saved projects had classificationMin/Max = nan and the reopened legend read nan (D08).
+- Fix: a failed FastSAM model download no longer prints the signed download URL and says what to do about a partial checkpoint (HTTP 416) (D06). The download still blocks QGIS while it runs; that is not fixed.
+- Docs: the rc15 installed-profile smoke report as received and a per-defect triage (docs/RC15_LIVE_SMOKE_REPORT_2026-10-06.md, docs/RC15_SMOKE_TRIAGE_2026-10-06.md). Still open there: no follow-up model turn after Apply edit (D05, needs a decision), the main-thread model download, requests in a cross-section tie that name no tool, D09 and D10.
+- Verification: offline suite and ruff pass; the live-QGIS tests passed in CI on QGIS 4.2.2 (PR #204), including new live tests for the raster range and the hub-siting labels and distances. Model-dependent behaviour (task matching in a real chat, the CRS retry from rc16) and the print layout have NOT been hand-tested; no audit issue is closed by this build.
 
 <a id="v1-16-0-rc16"></a>
 ## [1.16.0-rc16] — 2026-10-06 — Release candidate 16 for 1.16.0: fixes from the rc15 hand test
