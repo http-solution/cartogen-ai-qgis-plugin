@@ -560,7 +560,33 @@ def _hide_layers(names):
         log_event("swallowed_exception", tag="Tools", tool="hide_layers", error_class=type(e).__name__, error=True)
 
 
-def _replace_named_layer(name, new_layer, to_tree=True):
+# #130 point 3: the parameters a result layer was built with, stored on the layer so a later run that replaces it by name can say what changed.
+_RESULT_PARAMS_KEY = "cartogen_ai/result_params"
+
+
+def describe_param_changes(old, new):
+    """[(key, old value, new value)] for the parameters that differ between two results' parameter dicts, in a stable order. Pure.
+
+    A key present in only one dict counts as a change (None on the other side). Lists are compared as sorted lists so a band list is not
+    'different' for being written in another order."""
+    def norm(v):
+        return sorted(v) if isinstance(v, (list, tuple)) else v
+    out = []
+    for k in sorted(set(old) | set(new)):
+        a, b = norm(old.get(k)), norm(new.get(k))
+        if a != b:
+            out.append((k, a, b))
+    return out
+
+
+def replacement_note(name, changes):
+    """The sentence the reply must relay when a result layer was replaced by one built with different parameters. Pure."""
+    detail = "; ".join(f"{k}: {a if a is not None else 'not set'} -> {b if b is not None else 'not set'}" for k, a, b in changes)
+    return (f"Replaced the existing layer '{name}' with a new one built with different parameters ({detail}). The earlier result is no longer in "
+            "the project; to keep both, ask for the new result under a different origin name or export the earlier one first.")
+
+
+def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     """Adds `new_layer` under `name`, first removing every existing layer already using that
     exact name -- calculate_service_area's output names are deterministic (derived from the
     facility layer's name and its feature index, not a per-call id), so re-running the same
@@ -575,8 +601,29 @@ def _replace_named_layer(name, new_layer, to_tree=True):
     fix, not just prevents new ones."""
     new_layer.setName(name)
     project = QgsProject.instance()
+    replaced = None
     for stale in project.mapLayersByName(name):
+        # #130 point 3: when the layer being replaced was built with different parameters, say so (the caller relays it); a re-run with the same
+        # parameters stays silent, and a layer with no recorded parameters (made before this was added) is not reported.
+        if params is not None and replaced is None:
+            try:
+                import json as _json
+                raw = stale.customProperty(_RESULT_PARAMS_KEY)
+                old = _json.loads(raw) if raw else None
+            except Exception:
+                old = None
+            if old is not None:
+                changes = describe_param_changes(old, params)
+                if changes:
+                    replaced = {"layer": name, "changes": [{"parameter": k, "was": a, "now": b} for k, a, b in changes],
+                                "note": replacement_note(name, changes)}
         project.removeMapLayer(stale.id())
+    if params is not None:
+        try:
+            import json as _json
+            new_layer.setCustomProperty(_RESULT_PARAMS_KEY, _json.dumps(params, sort_keys=True, default=str))
+        except Exception:
+            pass
     if to_tree:
         project.addMapLayer(new_layer)
     else:
@@ -587,6 +634,7 @@ def _replace_named_layer(name, new_layer, to_tree=True):
         persist_layer(new_layer, tool="analysis")
     except Exception:
         pass
+    return replaced
 
 
 def _style_risk_buffer_layer(layer):
@@ -1474,6 +1522,15 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         styled_layers = []
         served_count = 0
         skipped = []
+        # #130 point 3: what these result layers are built with; a later run that replaces one by name compares against it.
+        run_params = {"tool": "calculate_service_area", "road_network_layer": road_network_layer, "strategy": strategy, "travel_cost": travel_costs,
+                      "speed_field": speed_field, "direction_field": direction_field, "default_speed": default_speed}
+        replaced_results = []
+
+        def _put(name, layer, **kw):
+            r = _replace_named_layer(name, layer, params=run_params, **kw)
+            if r:
+                replaced_results.append(r)
         # BUG-2026-09-05-2 fix (2026-09-08): both processing.run() calls below used to
         # sit inside one try/except that spans the whole facility loop, so a single
         # facility hitting the known small/degenerate-network edge case (a collinear
@@ -1578,7 +1635,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                     f"{facility_layer}_service_area_lines_{i}" if not is_multi_band
                     else f"{facility_layer}_service_area_lines_{i}_band_{band:g}"
                 )
-                _replace_named_layer(lines_name, lines_layer)
+                _put(lines_name, lines_layer)
                 layers_created.append(lines_name)
                 try:
                     from ..map_intelligence import process_map_output
@@ -1617,7 +1674,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                         band_hulls.append((band, hull_layer))
                     else:
                         hull_name = f"{facility_layer}_service_area_{i}"
-                        _replace_named_layer(hull_name, hull_layer)
+                        _put(hull_name, hull_layer)
                         layers_created.append(hull_name)
                         # Live-reported, 2026-09-28: this single-band hull polygon (the
                         # common case -- one travel_cost value, not a list) was left at
@@ -1649,7 +1706,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                     if graded is None:
                         notes.append(f"Roads were not graded by travel cost for facility {i}: {graded_reason}.")
                     else:
-                        _replace_named_layer(graded_name, graded)
+                        _put(graded_name, graded)
                         unit = "hours" if strategy == "fastest" else "meters"
                         routing_style.style_lines_by_cost(
                             graded, "travel_cost", routing_style.cost_band_edges(max_cost), unit)
@@ -1667,7 +1724,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 merged_name = f"{facility_layer}_service_area_bands_{i}"
                 merged_layer = _merge_band_hulls(band_hulls, merged_name)
                 if merged_layer is not None:
-                    _replace_named_layer(merged_name, merged_layer)
+                    _put(merged_name, merged_layer)
                     layers_created.append(merged_name)
                     from .styling_tools import apply_graduated_style
                     apply_graduated_style(merged_name, "travel_cost_band")
@@ -1705,6 +1762,11 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 "note": "Only roads that can be reached within the requested cost were routed; the result "
                         "is identical to routing over the whole network, just faster.",
             }
+        if replaced_results:
+            result["replaced_results"] = replaced_results
+            extra = len(replaced_results) - 1
+            result["replace_note"] = ("Tell the user: " + replaced_results[0]["note"]
+                                      + (f" {extra} related result layer(s) of the same run were replaced the same way." if extra else ""))
         if speed_field:
             result["speed_field"] = speed_field
         result.update(_closed_note(closed_segments))
