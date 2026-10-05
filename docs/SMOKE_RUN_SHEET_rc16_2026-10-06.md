@@ -6,8 +6,10 @@ A blank sheet, not a result. Nothing here has been run. It covers only what the 
 ## Install (about 10 minutes)
 1. Download the **attached asset** `cartogen_ai_v1.16.0-rc16.zip` from the `cartogen-ai-v1.16.0-rc16` pre-release, not "Source code (zip)".
 2. Check its SHA-256 against `SHA256-1.16.0-rc16.txt` on the same page.
-3. Close QGIS. In `...\profiles\default\python\plugins\` delete every folder with `cartogen` in its name, then unzip the asset there
-   (one folder, `cartogen_ai`, with underscores). Start QGIS; Settings must show `1.16.0-rc16`.
+3. Close QGIS. In `...\profiles\default\python\plugins\` delete every folder with `cartogen` in its name, then unzip the asset there.
+   It creates one folder named `cartogen-ai` (with a hyphen; that is the correct name). A folder named after the repository, such as
+   `cartogen-ai-qgis-plugin-cartogen-ai-v1.16.0-rc15`, comes from GitHub's "Source code (zip)" and will not load. Start QGIS; Settings must
+   show `1.16.0-rc16`.
 
 ## Re-test rows
 | # | Action | Expected | Found in rc15 | Result |
