@@ -45,7 +45,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import tool_operations
+from . import tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -752,7 +752,7 @@ class CartogenAi:
         # other read tools legitimately return a list: every one of them came back as "Execution failed unexpectedly." in the rc15
         # hand test (2026-10-06, 0 ms, tool body never reported as run). _run_on_main_thread already turns an exception into an
         # {"error": ...} dict, so None is the only value that means nothing came back.
-        return result if result is not None else {"error": "Execution failed unexpectedly."}
+        return tool_results.ensure_result(result)
 
     def _capture_before(self, name, parsed_arguments):
         """(layer ids, undo snapshot) before a tool runs. MAIN THREAD ONLY. A snapshot function that raises is reported, not
@@ -815,7 +815,7 @@ class CartogenAi:
         self.dispatcher.request_execution.emit(name, arguments, result)
         if result:
             return result[0]
-        return {"error": "Execution failed unexpectedly."}
+        return tool_results.ensure_result(None)
 
     def _get_schema_props(self, name):
         for item in TOOLS_SCHEMA:
@@ -836,7 +836,7 @@ class CartogenAi:
         self.dispatcher.request_callable.emit(func, arg, result)
         if result:
             return result[0]
-        return {"error": "Execution failed unexpectedly."}
+        return tool_results.ensure_result(None)
 
     def _log_tool_success(self, name, args, res):
         """Mirrors _real_execute_tool's success-path side effects (spatial memory
@@ -1521,15 +1521,15 @@ class CartogenAi:
                 # Put "this call did not run" into the data the model reasons over, not only
                 # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
                 tool_result = response_guard.annotate_not_run(tool_result)
-                is_error = isinstance(tool_result, dict) and "error" in tool_result
-                turn_tool_log.append((name, is_error, tool_result.get("error") if is_error else None))
-                _status = tool_result.get("status") if isinstance(tool_result, dict) else None
+                is_error = tool_results.is_error(tool_result)
+                turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
                     turn_pending.append(name)
                 elif not is_error and name in turn_pending:
                     turn_pending = [n for n in turn_pending if n != name]
                 if is_error:
-                    error_class = tool_result.get("error_class", "ToolError") if isinstance(tool_result, dict) else "ToolError"
+                    error_class = tool_results.error_class_of(tool_result)
                     log_event("tool_call", tag="Agent", tool=name, status="failed",
                                duration_ms=_duration_ms, correlation_id=correlation_id,
                                provider=provider_name, error_class=error_class, error=True)
@@ -1539,7 +1539,7 @@ class CartogenAi:
                                provider=provider_name)
                 if tool_step_callback is not None:
                     try:
-                        tool_step_callback(name, "failed" if is_error else "done", tool_result.get("error") if is_error else None)
+                        tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
                     except Exception:
                         pass
                 try:
