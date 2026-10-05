@@ -24,11 +24,39 @@ def _new_layer_tree_model(project):
     return QgsLayerTreeModel(project.layerTreeRoot())
 
 
+def memory_layer_warning(names):
+    """The sentence that must accompany a successful save when some layers are temporary, or None when there are none.
+
+    rc15 hand test D07 (2026-10-06): a save reported that all layers were persisted; after the project was reloaded the five
+    500 m buffer polygons were gone, because a temporary (memory) layer is saved as a reference to a provider that no longer
+    exists, not as data. The save itself is correct; the claim around it was not. Pure."""
+    names = [n for n in (names or []) if n]
+    if not names:
+        return None
+    listed = ", ".join(f"'{n}'" for n in names[:10]) + (f" and {len(names) - 10} more" if len(names) > 10 else "")
+    return (f"The project file was written, but {len(names)} temporary layer(s) hold their data in memory only and will come back "
+            f"EMPTY when the project is reopened: {listed}. Export each to a file (GeoPackage) if the data must survive.")
+
+
+def _temporary_layer_names(project):
+    """Names of the project's layers that live only in memory. Best-effort; an unreadable layer is skipped."""
+    names = []
+    for layer in project.mapLayers().values():
+        try:
+            is_memory = layer.providerType() == "memory" or (hasattr(layer, "isTemporary") and layer.isTemporary())
+        except Exception:
+            continue
+        if is_memory:
+            names.append(layer.name())
+    return sorted(names)
+
+
 @register_tool(
     "save_project",
     "Save the current QGIS project (all layers, styles, and layout) to a .qgz/.qgs file. Use "
     "this as a checkpoint before a risky multi-step operation, or at the end of a task so the "
-    "user's work is persisted.",
+    "user's work is persisted. Temporary (memory) layers are NOT saved with their data -- the result "
+    "lists them and they must be exported to a file separately.",
     {
         "type": "object",
         "properties": {
@@ -52,7 +80,12 @@ def save_project(output_path=None):
     try:
         if not project.write():
             return {"error": f"QGIS reported the project write failed for '{project.fileName()}'."}
-        return {"success": True, "file_path": project.fileName()}
+        result = {"success": True, "file_path": project.fileName()}
+        temporary = _temporary_layer_names(project)
+        if temporary:
+            result["temporary_layers"] = temporary
+            result["warning"] = memory_layer_warning(temporary)
+        return result
     except Exception as e:
         return {"error": f"save_project failed: {e}"}
 

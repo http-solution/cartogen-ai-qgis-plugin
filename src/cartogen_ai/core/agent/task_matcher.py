@@ -128,6 +128,34 @@ def _is_non_request_fragment(query):
     return not _ACTION_WORDS.search(text)
 
 
+# A request that names a tool ("Use optimal_hub_siting to ...") has already said what to run. rc15 hand test (2026-10-06): that request
+# matched an OpenStreetMap export task at 0.50, and "Run extract_features_from_imagery on ..." matched an OSM download task at 0.50; the
+# injected "prefer these tools" list then steered the model away from the tool the user named, into unrelated calls and a spent call
+# budget. A matched task is trusted only if it uses a tool the request names.
+_TOOL_NAME = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
+# A candidate that does use the named tool must still clear this share of the confidence floor to replace the best match.
+_NAMED_TOOL_FLOOR = 0.75
+
+
+def _known_tool_names():
+    """Every tool name the register mentions, plus the live registry when the tools package is loaded. Never raises."""
+    names = set()
+    for e in reg.load():
+        names.update(e.get("tools") or [])
+    try:
+        from .tools.registry import TOOL_REGISTRY
+        names.update(TOOL_REGISTRY)
+    except Exception:
+        pass
+    return names
+
+
+def named_tools(query):
+    """Tool names the query spells out, e.g. {"optimal_hub_siting"}."""
+    candidates = set(_TOOL_NAME.findall((query or "").lower()))
+    return candidates & _known_tool_names() if candidates else set()
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -147,6 +175,13 @@ def classify(query):
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "no match"}
+    named = named_tools(query)
+    if named:
+        usable = [(e, sc) for e, sc in ms if named & set(e.get("tools") or [])]
+        if not usable or usable[0][1] < CONFIDENT_SCORE * _NAMED_TOOL_FLOOR:
+            return {"matches": ms, "best": None, "score": 0.0, "ambiguous": False,
+                    "reason": "names a tool the matched task does not use"}
+        ms = usable
     best, top = ms[0]
     if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and \
             "calculate_service_area" not in best.get("tools", []):

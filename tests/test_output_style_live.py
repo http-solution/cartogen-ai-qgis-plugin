@@ -103,6 +103,20 @@ class TestRasterStyles(unittest.TestCase):
         self.assertEqual(items[-1].color.alpha(), 255)
         self.assertAlmostEqual(items[-1].value, 900.0, places=1)
 
+    def test_the_renderer_records_its_range_so_a_saved_project_does_not_read_nan(self):
+        # rc15 hand test D08: classificationMin/Max were NaN on the renderer, so the saved XML and the reopened legend read nan.
+        import math
+        from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
+        arr = np.zeros((20, 20), dtype="float32")
+        arr[5:8, 5:8] = 400.0
+        arr[10, 10] = 900.0
+        layer = self._raster("pop_range", arr)
+        self.assertTrue(style_continuous_raster(layer, "population"))
+        renderer = layer.renderer()
+        self.assertFalse(math.isnan(renderer.classificationMin()))
+        self.assertFalse(math.isnan(renderer.classificationMax()))
+        self.assertAlmostEqual(renderer.classificationMax(), 900.0, places=1)
+
     def test_the_legend_numbers_carry_the_unit(self):
         from cartogen_ai.core.agent.tools.output_style import style_continuous_raster
         arr = np.zeros((20, 20), dtype="float32")

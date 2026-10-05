@@ -1607,6 +1607,8 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
             raster_shader = QgsRasterShader()
             raster_shader.setRasterShaderFunction(shader)
             renderer = QgsSingleBandPseudoColorRenderer(provider, band, raster_shader)
+            from .output_style import set_renderer_range
+            set_renderer_range(renderer, resolved_min, resolved_max)
             layer.setRenderer(renderer)
             result["color_ramp"] = ramp_name
 

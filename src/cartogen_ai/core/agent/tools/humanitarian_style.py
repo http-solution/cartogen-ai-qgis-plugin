@@ -341,7 +341,10 @@ def style_diverging_raster(layer, band=1):
         _set_unit_legend(shader, {"min": "decrease", "max": "increase"})
         raster_shader = QgsRasterShader()
         raster_shader.setRasterShaderFunction(shader)
-        layer.setRenderer(QgsSingleBandPseudoColorRenderer(provider, band, raster_shader))
+        renderer = QgsSingleBandPseudoColorRenderer(provider, band, raster_shader)
+        from .output_style import set_renderer_range
+        set_renderer_range(renderer, stops[0][0], stops[-1][0])
+        layer.setRenderer(renderer)
         layer.triggerRepaint()
         from .output_style import send_under_vectors
         send_under_vectors(layer)
