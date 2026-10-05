@@ -9,24 +9,19 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc14"
-NEW_MARK_VERSIONS = ("1.16.0-rc13", "1.16.0-rc14")
+WHATS_NEW_VERSION = "1.16.0-rc15"
+NEW_MARK_VERSIONS = ("1.16.0-rc14", "1.16.0-rc15")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("JIAF 2 analysis support", "Eight new tools help people who run the JIAF 2 process: import_jiaf_inputs, record_jiaf_setup, get_jiaf_setup, "
-     "compute_jiaf_preliminary, record_jiaf_decisions, get_jiaf_decisions, finalize_jiaf_results and compute_jiaf_patterns. They read sector "
-     "inputs, compute the PRELIMINARY joint PiN, severity and flags, record the team's decisions and keep the preliminary result, review status, "
-     "final result and justification apart. Support for the process: not the JIAF method, not endorsed by OCHA or the IASC, and nothing here "
-     "is a final figure."),
-    ("OCHA worksheet rules", "The flags follow the formulas read from OCHA's official Worksheet 3A/3B example and template workbooks (distinct-value "
-     "ranks, ties switch flags 2 and 3 off, flag 1 at two missing-or-zero sectors, the worksheet's severity-above-2 rule for the preliminary PiN). "
-     "Thresholds are read from the workbook when it has them. Incomplete sector coverage is never turned into phase 1."),
-    ("Still open", "Flag 6 on real output, a zero third-highest PiN in flag 3, one header/formula mismatch in a severity flag, and the Yemen team's own "
-     "flag decisions are unconfirmed. The Annex 4 template reader is an unsupported optional format (never auto-detected). Neither validation "
-     "item is closed; do not call the result a faithful or complete JIAF implementation."),
-    ("Not hand-tested", "Everything above ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session. The official-worksheet "
-     "check ran locally only (that workbook is not committed)."),
+    ("Replaced results are reported", "When a service-area run replaces a same-named result layer that was built with different parameters (for example a one-hour "
+     "result replaced by a 5 km one), the reply now says what changed. An identical re-run stays silent. It reports after the replacement; it does "
+     "not ask first, and only the service-area layers record their parameters so far."),
+    ("Issue checklist", "A per-issue hand-verification checklist (docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md) lists, for each open issue, what to run and "
+     "the expected result; the README's audit-status line was corrected."),
+    ("Carried over from rc14", "The JIAF 2 analysis-support tools are unchanged. The flag-formula comparison is still awaiting the owner's closure and the "
+     "Annex 4 reader is still an unsupported optional format; do not call the result a faithful or complete JIAF implementation."),
+    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
