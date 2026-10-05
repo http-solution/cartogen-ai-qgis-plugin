@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc14](#v1-16-0-rc14) | 2026-10-05 | **Release candidate 14 for 1.16.0.** No breaking changes. JIAF 2 analysis-support tools (OCHA worksheet flag rules, decisions, finals, patterns); an Annex 4 reader that is an unsupported optional format; two validation items still open; not hand-tested. |
 | [1.16.0-rc13](#v1-16-0-rc13) | 2026-10-04 | **Release candidate 13 for 1.16.0.** No breaking changes. Humanitarian map looks, task-register corrections, allocation envelope, IPC/INFORM/UNOSAT importers and critical-link screening; not hand-tested. |
 | [1.16.0-rc12](#v1-16-0-rc12) | 2026-10-02 | **Release candidate 12 for 1.16.0.** No breaking changes. Fixes from the first full hands-on smoke test of rc11: CRS asked when unstated, origin layers reused, chat scrolling and timestamps, no-basemap dashboard markers, admin boundary labels, population ramp name match, soft graticule, faster two-stop route with one-way and honest "shortest" wording, blue within-reach facilities. CI-verified on QGIS 4.2.2; not yet re-run by hand |
 | [1.16.0-rc11](#v1-16-0-rc11) | 2026-10-01 | **Release candidate 11 for 1.16.0.** No breaking changes. Fixes from the first hands-on smoke test of rc10: re-saved API keys, panel at startup, CSV X/Y columns, layer order and visibility, whole-country WorldPop kept in the project folder, clarification loop, router mismatches, hull population labelled an upper bound, results GeoPackage cleanup. CI-verified on QGIS 4.2.2 |
@@ -54,6 +55,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc14"></a>
+## [1.16.0-rc14] — 2026-10-05 — Release candidate 14 for 1.16.0: JIAF 2 analysis support
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc13 build (PRs #192-#195):
+
+- New: JIAF 2 analysis support (HX5), eight tools -- import_jiaf_inputs, record_jiaf_setup, get_jiaf_setup, compute_jiaf_preliminary, record_jiaf_decisions, get_jiaf_decisions, finalize_jiaf_results, compute_jiaf_patterns. Support for people running the JIAF 2 process: NOT the JIAF method, not endorsed by OCHA or the IASC, and nothing is a final figure. They read sector inputs (OCHA Worksheet 3A/3B read through its Excel tables, HXL tables), compute the preliminary joint PiN (highest sector, never summed or averaged), preliminary severity and the PiN and severity flags, record the multi-partner group's decisions in the project, and keep the preliminary result, review status, final result and justification apart. Intersectoral severity is per unit; there is no national severity.
+- New: the flag rules are OCHA's own worksheet formulas (profile ocha_worksheet_2026, read from the official example and template workbooks): ranks of distinct values, a tie for the highest switches flags 2 and 3 off, flag 1 at two missing-or-zero sectors, flag 6 in two parts, and the worksheet's rule that the preliminary PiN is the highest PiN only where severity is above 2. Thresholds come from the workbook's Thresholds cells, else the template defaults, and every result says which. The older reading of the manual is kept as profile manual_reading, comparison only.
+- New: incomplete sector coverage is never turned into phase 1 (the unit has no preliminary severity, with lower and upper bounds); missing and zero PiN stay distinct; bulk closure of flags needs a recorded rationale; published final values are shown beside, never over, the calculated ones; blank outcome evidence is not assessable, not passed.
+- Change: the Annex 4 sector-template reader is an explicit UNSUPPORTED optional format (implemented from the manual's screenshots, never auto-detected, compatibility unverified).
+- Not closed: flag 6 on real output, a zero third-highest PiN in flag 3 (from the formula text, no cached example row), the header/formula mismatch of severity flag 4, a real country's thresholds, and the Yemen analysis team's own flag decisions. Do not describe the result as a faithful or complete JIAF implementation.
+- Verification: offline suite and ruff pass; the QGIS-side code ran in CI on QGIS 4.2.2 (live tests written without a local QGIS). The check against OCHA's example workbook (all flag columns, severity and preliminary PiN of its 6 units) and against the Yemen worksheet was run locally; those workbooks are not committed. Nothing in rc14 has been hand-tested in a desktop session, and no audit issue is closed by this build.
 
 <a id="v1-16-0-rc13"></a>
 ## [1.16.0-rc13] — 2026-10-04 — Release candidate 13 for 1.16.0: humanitarian map looks and new analysis tools
