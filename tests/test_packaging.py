@@ -67,6 +67,17 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
                 "%s would ship" % name)
 
 
+class TestBuilderMachineLeftoversAreNotPackaged(unittest.TestCase):
+    """The rc17 zip rebuilt by hand from a working checkout (2026-10-06) carried .ruff_cache/, an egg-info directory and, from a git
+    worktree, a .git pointer file. A clean CI checkout has none of them, so this guards the by-hand build."""
+
+    def test_caches_and_worktree_pointer_are_excluded(self):
+        pu = _load()
+        self.assertIn(".ruff_cache", pu.EXCLUDE_DIRS)
+        self.assertIn(".git", pu.EXCLUDE_FILES)
+        self.assertNotIn(".ruff_cache", {x for _r, ds, _f in os.walk(os.path.join(ROOT, "src")) for x in ds})
+
+
 if __name__ == "__main__":
     unittest.main()
 
