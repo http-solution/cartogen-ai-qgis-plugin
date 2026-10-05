@@ -9,16 +9,18 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc16"
-NEW_MARK_VERSIONS = ("1.16.0-rc15", "1.16.0-rc16")
+WHATS_NEW_VERSION = "1.16.0-rc17"
+NEW_MARK_VERSIONS = ("1.16.0-rc16", "1.16.0-rc17")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Tools returning lists work again", "get_layers and get_attributes were reported as \"Execution failed unexpectedly\" from rc12 on. They return their results again."),
-    ("CRS question and print layout", "After you name the CRS for a coordinate pair the model is told to place the point (not to paste a script), and a print layout "
-     "zoomed to a one-point layer gets a usable scale. Both depend on live behaviour and have not been hand-tested."),
-    ("Under the hood", "One shared tool-result contract, and the CI live-QGIS job now discovers its test modules by name."),
-    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session."),
+    ("Named tools are respected", "A request that names a tool (for example optimal_hub_siting) is no longer matched to an unrelated task whose tool list steered "
+     "the model elsewhere; it is sent as typed."),
+    ("Readable results", "Hub siting, allocation, route stops and travel-time origins now label results with the layer's name field instead of the "
+     "first attribute (on a GeoPackage that was the id), so hubs show as Hub_A, not 1."),
+    ("Honest saves and saved ramps", "Saving a project lists temporary layers that will come back empty, and saved raster ramps keep their range instead of nan."),
+    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session. Still open: no follow-up "
+     "step after Apply edit, and the imagery model download still blocks QGIS while it runs."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
