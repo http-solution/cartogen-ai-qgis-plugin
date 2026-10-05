@@ -2086,6 +2086,11 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
                          f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
                          f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
             "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
+            # rc15 hand test (B1, 2026-10-06): after the user answered "EPSG:3857" the model made no further tool call and
+            # pasted a PyQGIS script for the user to run, so nothing was placed. The refusal said what to ask but not what
+            # to do with the answer; without crs_stated_by_user=True this tool refuses again, so the retry must be spelled out.
+            "next_step": ("When the user replies with a CRS, call add_point_layer again with the same layer_name and points, "
+                          "crs set to their answer and crs_stated_by_user=true. Do not give the user a script to run."),
         }
     crs_assumed = decision[1] if decision and decision[0] == "assumed" else None
 

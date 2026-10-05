@@ -53,6 +53,11 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def a_registry():
+    from cartogen_ai.core.agent import agent_orchestrator
+    return agent_orchestrator.TOOL_REGISTRY
+
+
 class TestToolCommandBoundary(unittest.TestCase):
     """GitHub #138 (audit F02): before-state, tool and after-state are one main-thread unit for ordinary tools; for network-only
     tools only the project-state reads are marshalled. A fake `_run_on_main_thread` records what would cross the thread boundary."""
@@ -70,6 +75,30 @@ class TestToolCommandBoundary(unittest.TestCase):
             return func(arg)
         a._run_on_main_thread = fake_run
         return a
+
+    def test_a_tool_that_returns_a_list_is_not_reported_as_a_failure(self):
+        # rc15 hand test: get_layers returns a list; the #138 dict-only check turned it into "Execution failed unexpectedly."
+        a = self._agent()
+        a._execute_tool_dispatch = MagicMock(return_value=[{"name": "Points"}])
+        res = a._execute_tool("get_layers", "{}")
+        self.assertEqual(res, [{"name": "Points"}])
+
+    def test_a_tool_that_returns_nothing_is_a_failure_on_every_path(self):
+        from unittest.mock import patch
+        a = self._agent()
+        with patch.dict(a_registry(), {"noop": lambda: None}, clear=False):
+            a.memory_manager = MagicMock()
+            a.task_manager = MagicMock()
+            a._plan_gate = MagicMock()
+            a._plan_gate.check.return_value = None
+            res = a._real_execute_tool("noop", "{}")
+        self.assertEqual(res, {"error": "Execution failed unexpectedly."})
+
+    def test_a_missing_result_is_still_a_failure(self):
+        a = self._agent()
+        a._run_on_main_thread = lambda func, arg: None
+        res = a._execute_tool("get_layers", "{}")
+        self.assertEqual(res, {"error": "Execution failed unexpectedly."})
 
     def test_ordinary_tool_is_a_single_main_thread_command(self):
         a = self._agent()

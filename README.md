@@ -20,7 +20,7 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc15 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc16 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
@@ -28,7 +28,7 @@ The agent exposes its plan, tool calls, progress, and errors instead of returnin
 black-box answer.
 
 > **Project status (2026-10-05):** active Community edition, currently at the **1.16.0-rc15 pre-release** (published as a GitHub pre-release).
-> - **Tests:** 3,429 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
+> - **Tests:** 3,449 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
 >   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a hands-on smoke test of rc12 to rc15 in a desktop QGIS session. A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc15 zip has passed CI packaging and the release workflow's zip checks only.
+> - **Not yet verified:** a hands-on smoke test of rc12 to rc16 in a desktop QGIS session. A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc16 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc15)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc16)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc16
+
+Built on rc15; tested offline and in CI on QGIS 4.2.2, **not by hand**. Full list: the `v1.16.0-rc16` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: list-returning tools (get_layers, get_attributes) were reported as "Execution failed unexpectedly." since rc12 (a dict-only check in the main-thread wrapper added with audit item #138). Found in the rc15 hand test; they return their results again, confirmed by a new live test in CI on QGIS 4.2.2.
+- Fix: when the CRS question for point coordinates (#119) was answered, the model made no tool call and pasted a script instead. The "ask" result now says how to retry and the prompt rule spells it out. Depends on the model; needs a hand re-run.
+- Fix: a print layout zoomed to a one-point layer had a zero-size extent ("Scale unavailable", "Invalid scale!", a map stuck on "Rendering map"). The extent is padded around the point (about 2 km, a guess, not a measured value); an empty layer keeps the old fallback. Needs a hand re-run.
+- Internal: one tool-result contract (core/agent/tool_result.py) replaces scattered dict checks, and the CI live-test job discovers tests/test_*_live.py by name (a module that does not run must be listed with a reason). test_agent_live is excluded with its reason stated.
+- Docs: a blank run sheet for the live smoke test (docs/SMOKE_RUN_SHEET_rc15_2026-10-05.md).
+- Verification: offline suite and ruff pass; the live-QGIS tests passed in CI on QGIS 4.2.2 (PR #202). The B1 retry and the layout fix have NOT been hand-tested; no audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc15
 
@@ -144,14 +155,14 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc14 or 1.16.0-rc15 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc15 or 1.16.0-rc16 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
 | **1. Rapid crisis and base mapping** | `search_hdx_datasets`, `fetch_hdx_admin_boundaries`, `fetch_geoboundaries`, `fetch_osm_features`, `ingest_osm_features`, `fetch_building_footprints`, `search_stac_satellite_imagery`, `calculate_raster_change_detection`, `calculate_damage_exposure_severity`, `extract_features_from_imagery`, `add_incident_point`, `add_point_layer`, `generate_mapping_task_grid`, `import_humanitarian_table` |
 | **2. MSNA and field data** | `design_sampling_frame`, `fetch_worldpop_population`, `estimate_population_exposure`, `load_tabular_data_as_layer`, `extract_pdf_tables`, `extract_word_tables`, `aggregate_data`, `aggregate_survey_indicator` |
 | **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers`, `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk`, `analyze_critical_links` |
-| **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend`, `import_jiaf_inputs` (**new**), `record_jiaf_setup` (**new**), `get_jiaf_setup` (**new**), `compute_jiaf_preliminary` (**new**), `record_jiaf_decisions` (**new**), `get_jiaf_decisions` (**new**), `finalize_jiaf_results` (**new**), `compute_jiaf_patterns` (**new**) |
+| **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend`, `import_jiaf_inputs`, `record_jiaf_setup`, `get_jiaf_setup`, `compute_jiaf_preliminary`, `record_jiaf_decisions`, `get_jiaf_decisions`, `finalize_jiaf_results`, `compute_jiaf_patterns` |
 | **5. Allocation and prioritisation** | `calculate_mcda_ranking`, `fetch_fts_funding_data`, `generate_sector_coverage_report`, `weighted_overlay_analysis`, `calculate_allocation_envelope` |
 | **6. Anticipatory action** | `evaluate_forecast_trigger`, `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
 | **Data quality and governance** | `check_pcode_uniqueness`, `check_pcode_hierarchy`, `validate_schema`, `list_schema_contracts`, `get_dataset_status`, `set_dataset_status`, `advance_dataset_status`, `get_provenance_record`, `write_provenance_sidecar`, `set_layer_sensitivity`, `get_layer_sensitivity`, `generate_map_product_qa_checklist` |

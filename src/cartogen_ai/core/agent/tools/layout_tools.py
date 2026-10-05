@@ -97,6 +97,29 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         return extent
 
 
+def padded_extent_bounds(xmin, ymin, xmax, ymax, geographic):
+    """Grow a zero-width or zero-height extent so a layout map item has a usable scale.
+
+    rc15 hand test (2026-10-06, step 12): an access-map layout zoomed to a Points layer holding a single point came out with
+    "Scale unavailable", a red "Invalid scale!" box and a map stuck on "Rendering map". A one-point layer's extent is a
+    zero-size rectangle, and setExtent() on it gives QGIS no scale to compute. Returns (xmin, ymin, xmax, ymax); a normal
+    extent comes back unchanged. The pad is a guess at a readable neighbourhood (about 2 km), not a measured value.
+    Not re-run in a real QGIS session from the sandbox."""
+    if not all(math.isfinite(v) for v in (xmin, ymin, xmax, ymax)):
+        return xmin, ymin, xmax, ymax
+    width = xmax - xmin
+    height = ymax - ymin
+    if width > 0 and height > 0:
+        return xmin, ymin, xmax, ymax
+    pad = 0.02 if geographic else 2000.0
+    # One zero dimension: pad both sides to the size of the other so the extent is not a thin sliver.
+    half_w = max(width, height, pad * 2) / 2.0
+    half_h = max(width, height, pad * 2) / 2.0
+    cx = (xmin + xmax) / 2.0
+    cy = (ymin + ymax) / 2.0
+    return cx - half_w, cy - half_h, cx + half_w, cy + half_h
+
+
 def _soften_graticule(grid):
     """Thin pale grid lines and small whole-number annotations.
 
@@ -264,6 +287,15 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         map_extent = None
         if target_layer is not None and canvas:
             map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
+            try:
+                _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
+                _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
+                # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
+                # fallback instead. A single point is not null, only zero-size, and is the case padded here.
+                if _padded != _b and not map_extent.isNull():
+                    map_extent = QgsRectangle(*_padded)
+            except Exception:
+                pass  # best-effort: keep the layer's own extent rather than fail the layout
             canvas.setExtent(map_extent)
             canvas.refresh()
         map_item = QgsLayoutItemMap(layout)
