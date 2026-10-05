@@ -105,6 +105,8 @@ def padded_extent_bounds(xmin, ymin, xmax, ymax, geographic):
     zero-size rectangle, and setExtent() on it gives QGIS no scale to compute. Returns (xmin, ymin, xmax, ymax); a normal
     extent comes back unchanged. The pad is a guess at a readable neighbourhood (about 2 km), not a measured value.
     Not re-run in a real QGIS session from the sandbox."""
+    if not all(math.isfinite(v) for v in (xmin, ymin, xmax, ymax)):
+        return xmin, ymin, xmax, ymax
     width = xmax - xmin
     height = ymax - ymin
     if width > 0 and height > 0:
@@ -288,7 +290,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             try:
                 _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
                 _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
-                if _padded != _b:
+                # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
+                # fallback instead. A single point is not null, only zero-size, and is the case padded here.
+                if _padded != _b and not map_extent.isNull():
                     map_extent = QgsRectangle(*_padded)
             except Exception:
                 pass  # best-effort: keep the layer's own extent rather than fail the layout

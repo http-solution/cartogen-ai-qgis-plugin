@@ -623,3 +623,10 @@ class PaddedExtentTests(unittest.TestCase):
         x0, y0, x1, y1 = padded_extent_bounds(0, 10, 5000, 10, False)
         self.assertGreater(y1 - y0, 0)
         self.assertEqual(x1 - x0, y1 - y0)
+
+    def test_a_non_finite_extent_is_left_alone(self):
+        from cartogen_ai.core.agent.tools.layout_tools import padded_extent_bounds
+        nan = float("nan")
+        self.assertEqual(padded_extent_bounds(nan, 0, nan, 0, True)[1], 0)
+        inf = float("inf")
+        self.assertEqual(padded_extent_bounds(-inf, -inf, inf, inf, False), (-inf, -inf, inf, inf))

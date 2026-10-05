@@ -653,7 +653,9 @@ class CartogenAi:
                     self._tag_created_layers(name, args, res)
                     if name not in TASK_MANAGEMENT_TOOLS:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
-            return res
+            # One exit for every dispatch path: a tool that returns nothing is reported as a failure here, so the inline and the
+            # dispatcher-thread paths no longer disagree (the model used to see a bare null on one of them).
+            return tool_results.ensure_result(res)
         except TypeError as e:
             return {"error": f"Invalid arguments for {name}: {e}", "error_class": type(e).__name__}
         except Exception as e:
