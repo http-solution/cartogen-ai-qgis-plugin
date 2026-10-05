@@ -71,6 +71,19 @@ class TestToolCommandBoundary(unittest.TestCase):
         a._run_on_main_thread = fake_run
         return a
 
+    def test_a_tool_that_returns_a_list_is_not_reported_as_a_failure(self):
+        # rc15 hand test: get_layers returns a list; the #138 dict-only check turned it into "Execution failed unexpectedly."
+        a = self._agent()
+        a._execute_tool_dispatch = MagicMock(return_value=[{"name": "Points"}])
+        res = a._execute_tool("get_layers", "{}")
+        self.assertEqual(res, [{"name": "Points"}])
+
+    def test_a_missing_result_is_still_a_failure(self):
+        a = self._agent()
+        a._run_on_main_thread = lambda func, arg: None
+        res = a._execute_tool("get_layers", "{}")
+        self.assertEqual(res, {"error": "Execution failed unexpectedly."})
+
     def test_ordinary_tool_is_a_single_main_thread_command(self):
         a = self._agent()
         res = a._execute_tool("buffer", "{}")

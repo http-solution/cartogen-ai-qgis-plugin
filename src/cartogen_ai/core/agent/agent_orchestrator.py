@@ -748,7 +748,11 @@ class CartogenAi:
             return res
 
         result = self._run_on_main_thread(command, None)
-        return result if isinstance(result, dict) else {"error": "Execution failed unexpectedly."}
+        # Only a MISSING result is a failure. #138 (rc12) tested isinstance(result, dict) here, but get_layers, get_attributes and
+        # other read tools legitimately return a list: every one of them came back as "Execution failed unexpectedly." in the rc15
+        # hand test (2026-10-06, 0 ms, tool body never reported as run). _run_on_main_thread already turns an exception into an
+        # {"error": ...} dict, so None is the only value that means nothing came back.
+        return result if result is not None else {"error": "Execution failed unexpectedly."}
 
     def _capture_before(self, name, parsed_arguments):
         """(layer ids, undo snapshot) before a tool runs. MAIN THREAD ONLY. A snapshot function that raises is reported, not
