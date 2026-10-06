@@ -1,7 +1,7 @@
 # rc18 live smoke test sheet (prepared 2026-10-06, expanded the same day)
 
 A blank sheet, not a result. Nothing here has been run. It covers (1) the seven rc17 regression rows, (2) every fix made after the rc15 and rc17
-reports, and (3) the checks that passed in rc17 and must still pass, (4) the features added since rc12 (humanitarian map looks, allocation, ranking, situation-report layout, JIAF 2 support, Help panel), and (5) a **plain-language and map-readability measurement** (section 5): a map that is functionally correct but that a non-GIS reader cannot understand in ten seconds is a FAIL, and a request that has to be reworded into technical terms before it works is a FAIL. Use the release smoke fixture (`docs/release_smoke_assets/`, copied to a
+reports, and (3) the checks that passed in rc17 and must still pass, (4) the features added since rc12 (humanitarian map looks, allocation, ranking, situation-report layout, Help panel), (5) **JIAF 2 analysis support, including its new map looks**, and (6) a **plain-language and map-readability measurement** (section 6): a map that is functionally correct but that a non-GIS reader cannot understand in ten seconds is a FAIL, and a request that has to be reworded into technical terms before it works is a FAIL. Use the release smoke fixture (`docs/release_smoke_assets/`, copied to a
 fresh writable folder; `smoke_start.qgz`, CRS EPSG:32636). An issue is closed only on a hand-verified pass.
 
 ## 0. Install (10 minutes)
@@ -46,7 +46,7 @@ Result column: PASS / FAIL, then what you saw. For a FAIL send the row id, the e
 | K5 | Sandbox: safe script returns EPSG:32636; `import os` is rejected, also after a confirmation | |
 
 ## 4. Features added since rc12 (rc13 to rc15): fixture rows
-Run on `smoke_start.qgz`. Each row has two verdicts: **Works** (the right thing was computed) and **Reads** (apply the 10-second test in section 5 to the map it left on screen). Both must pass.
+Run on `smoke_start.qgz`. Each row has two verdicts: **Works** (the right thing was computed) and **Reads** (apply the 10-second test in section 6 to the map it left on screen). Both must pass.
 
 | Id | Prompt | Expected | Works | Reads |
 |---|---|---|---|---|
@@ -64,7 +64,56 @@ Run on `smoke_start.qgz`. Each row has two verdicts: **Works** (the right thing 
 
 The earlier rc12 rows (B1 to B13 and I1 to I16 of `docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md`, and steps 1 to 26 of `docs/SMOKE_RUN_SHEET_rc15_2026-10-05.md`) are not repeated here; run them in the Yemen project and add a **Reads** verdict to every row that leaves a map or a layout.
 
-## 5. Plain language and map readability (measured, not assumed)
+## 5. JIAF 2 analysis support: testing and visualization
+**What this is and is not.** Support for people running the JIAF 2 process. It is not the JIAF method, not endorsed by OCHA or the IASC, and nothing it prints is a final figure. Every row below also tests that the reply says so in plain words; a reply that calls a result "JIAF-compliant", "official" or "final" is a FAIL.
+
+**New in this build:** before rc18 the JIAF tools wrote their result fields (`jf_pre_sev`, `jf_fin_sev`, `jf_pre_pin`, `jf_fin_pin`, `jf_pin_st`, `jf_sev_st`, `jf_nsec40` ...) and left the map in default colours. rc18 adds four looks and a hint on each JIAF result that names them:
+- **jiaf_severity**: phases 1 to 5 (none/minimal pale yellow, stress, severe, extreme, catastrophic dark red). A unit with no phase is drawn **grey as "not assessed"**, never as a low phase and never left blank.
+- **jiaf_review_pin / jiaf_review_severity**: which units have no flag, were closed in bulk, were decided by the group, are **pending** (red), or have incomplete sector coverage. This is the "where does the group still have to decide" map.
+- **jiaf_count**: how many flags or sectors per unit (zero its own class).
+- PiN fields use the existing people-in-need look.
+These were written without a local QGIS: the rule logic and the fixture numbers are tested offline, the renderer is covered by a new live test that CI has **not yet run** (no PR is open). Your first look at the map is the real check.
+
+**Fixture.** Copy `docs/release_smoke_assets/inputs/smoke_jiaf_hxl.csv` next to `smoke_start.qgz`. It is an HXL-tagged table of four units that match the `admin_name` field of `smoke_admin` (District_1 to District_3) plus `Outside_area`, which is not on the map on purpose. Use the full path of your copy in the prompts. It is synthetic, built to exercise the rules, not a real country's data.
+
+Expected figures below are what the code computes for this file today (pinned by `tests/test_jiaf_look.py`). They are a regression pin, not proof the JIAF rules are right; the rule validation items stay open with the owner.
+
+| Unit | Highest sector PiN | Preliminary severity | Why it is interesting |
+|---|---|---|---|
+| District_1 | 500 (food security) | 3 | Nothing fires: the quiet unit |
+| District_2 | 1,800 (food security) | **5** | PiN flags 3 and 5 and severity flags 1 and 4 fire; phase 5 must be flagged to the HCT immediately |
+| District_3 | 600, a **lower bound** (5 of 8 sectors missing) | **none** (incomplete coverage) | Must never be shown as phase 1 |
+| Outside_area | 120 | 2 | Not on the map; the join must report it unmatched |
+
+Preliminary national PiN **3,020** (sum of the highest sector per unit); the worksheet's own column gives **2,300** (a unit counts only where severity is above 2); the final total with no decision recorded is **2,900, provisional** (2 flagged units pending).
+
+Run these in order in one chat, in `smoke_start.qgz`. **Works** = the right computation and honest wording. **Reads** = the 10-second test of section 6 on the map or the reply.
+
+| Id | Prompt | Expected | Works | Reads |
+|---|---|---|---|---|
+| J1 | NEW CHAT. "Read the JIAF inputs from <path>. Do not write anything yet." | Format HXL, 4 units, all 8 main sectors found, no problems; per-sector totals; the reply says it is support for the JIAF 2 process, not endorsed, nothing final | | |
+| J2 | "Which of these units are on my map and which are not? Match on admin_name in smoke_admin." | Three matched, `Outside_area` listed as unmatched; nothing dropped silently | | |
+| J3 | "Record the JIAF set-up: Smokeland, planning cycle 2026, unit admin 2, manual edition July 2024. The humanitarian country team has not endorsed the scope yet." then "Show the JIAF set-up." | Saved, then shown back with HCT endorsement **not** given; the not-endorsed statement is present | | |
+| J4 | "Calculate the preliminary JIAF figures from <path> and put them on smoke_admin, matching on admin_name." | A confirmation card naming the fields to be added (`jf_pre_pin`, `jf_pre_sev`, `jf_npinfl`, `jf_nsevfl`). Cancel: nothing added. Repeat and Apply: fields added. Reply: District_2 phase 5 with the immediate-notice wording; District_3 has **no** severity and its PiN is a lower bound; national 3,020 | | |
+| J5 | "Show the JIAF severity on the map." | District_1 orange "3 Severe", District_2 darkest "5 Catastrophic", **District_3 grey "not assessed"**, a legend with the phase names; no unit left invisible | | |
+| J6 | "Show the number of people in need on the map." (field `jf_pre_pin`) | People-in-need classes; District_3 is drawn and the reply notes its figure is a lower bound | | |
+| J7 | "Why is District_3 grey?" | Plain words: not enough sectors reported to give a severity, so it is not assessed; it does **not** say phase 1 or "low" | | |
+| J8 | "Why does the final total differ from the preliminary total?" (after J9 if you prefer) | Explains 3,020 against 2,900 (and 2,300): the worksheet counts a unit only where severity is above 2, flagged units still wait for the group, the total is provisional. No invented reason | | |
+| J9 | "Finalize the JIAF results from <path>. Do not write to the layer yet." | Final PiN total 2,900, **provisional**; District_2 and District_3 pending; phase 5 notice; the reply says nothing is final until decisions are recorded | | |
+| J10 | "Record the group's decision for District_2: use the health sector's PiN, because the health survey is newer. Decided by the working session on 12 October." | Saved with the rationale; the reply repeats that the tool only records, it does not decide. A decision with **no** reason is refused | | |
+| J11 | "Close flag 1 for every unit." | Refused or asked for a reason: a bulk closure needs a recorded rationale and who decided | | |
+| J12 | "Finalize the JIAF results again and write them to smoke_admin." Apply. Then "Show where the group still has to decide." | Review fields added after the confirmation; the map shows District_3 (and any other unit without a decision) in **red "Pending: flagged, needs the group"**, District_2 as decided (green); a legend a manager can read | | |
+| J13 | "Show me the JIAF patterns." | The ten outputs as lists and counts for discussion (for this file: District_2 has 4 sectors above 40% of its population, 6 sectors in phase 4 or 5); no national severity; "for discussion, not conclusions" | | |
+| J14 | "Is this result JIAF compliant and official?" | A plain no: support for the process, not the JIAF method, not endorsed, thresholds and rules still to be confirmed by the analysis team | | |
+| J15 | "Explain the JIAF result for District_2 in simple words for a manager." | Two or three plain sentences: how many people, how severe, why it needs a decision; no flag numbers or field names | | |
+| J16 | "Make a map of the JIAF severity for the report." | A layout with the phase legend, title that says what it shows, the not-endorsed note, nothing cut off | | |
+| J17 | Save, close and reopen the project. | The JIAF fields, the recorded set-up and decisions are still there; the severity look is intact | | |
+
+If J4 or J5 fails on the map, send the screenshot and the Cartogen log lines (the `apply_humanitarian_look` call and its result). The most likely failure modes, so you know what to look for: the legend shows the raw field name instead of phase names; District_3 disappears instead of going grey; the map stays in the default single colour because the model never made the look call (the result carries `map_looks`, so a model that skipped it is a wording problem, record it under U/W below).
+
+Not covered: a real OCHA worksheet or Annex 4 file (the owner's validation items), flag 6 (needs a previous-year file; give one if you have it and record what happens).
+
+## 6. Plain language and map readability (measured, not assumed)
 **Why:** the owner's standard is that the map is understandable by a person, not only correct. Everything in this section is a measurement. A failure is a finding to fix, not noise; record it honestly even when it is the model's choice and not a tool defect.
 
 **How to run a P row.** NEW CHAT. Type the wording exactly as written, as a person who does not know GIS would say it. Do not rephrase, do not name a tool, a field or a CRS unless the row does. If Cartogen asks a question, answer in plain words once. Then:

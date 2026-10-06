@@ -57,6 +57,8 @@ class PlainLanguageRoutingTest(unittest.TestCase):
         ("Make the clinics stand out on the map", "change_layer_color"),
         ("Highlight the worst affected areas", "apply_humanitarian_look"),
         ("Make the map easier to read for a briefing", "auto_arrange_layer_order"),
+        ("Show the JIAF severity on the map", "apply_humanitarian_look"),
+        ("Which districts still need a decision from the group?", "apply_humanitarian_look"),
     ]
 
     @classmethod

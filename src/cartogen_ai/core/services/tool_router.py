@@ -162,6 +162,8 @@ _TOOL_ALIASES = {
         "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
         "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
         "style the ranking", "show the rank on the map",
+        "show the jiaf severity", "map the jiaf", "jiaf on the map", "map the severity phases", "which districts still need a decision",
+        "which units are pending", "where the group still has to decide", "map the pending", "colour the phases", "color the phases",
         "highlight the worst", "show the worst", "areas that need help most", "where help is needed most", "most in need on the map",
     ],
     "aggregate_survey_indicator": [

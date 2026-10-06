@@ -23,6 +23,10 @@ LOOK_DESCRIPTIONS = {
     "exposure": "an exposed-population count: quantile classes in orange-brown",
     "allocation": "an allocation amount (calculate_allocation_envelope): quantile classes in green",
     "presence_gap": "the gap / covered / unmatched status from calculate_presence_gap",
+    "jiaf_severity": "a JIAF 2 severity PHASE 1-5 (jf_pre_sev, jf_fin_sev): phase colours 1 none/minimal to 5 catastrophic; a unit with no phase is drawn grey as not assessed",
+    "jiaf_review_pin": "JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group",
+    "jiaf_review_severity": "JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage",
+    "jiaf_count": "a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class",
     "rank": "a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale",
 }
 

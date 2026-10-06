@@ -87,7 +87,58 @@ GAP_LABELS = {"gap": "Gap: high need, low presence", "covered": "Covered", "unma
 NOT_ASSESSED_COLOR = "#f0f0f0"
 RANK_COLORS = ["#7f0000", "#fc8d59", "#fee8c8"]
 ALLOCATION_COLORS = ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"]       # green: an amount of money, not a level of need
-LOOKS = ("severity", "people_in_need", "exposure", "allocation", "presence_gap", "rank")
+LOOKS = ("severity", "people_in_need", "exposure", "allocation", "presence_gap", "rank",
+         "jiaf_severity", "jiaf_review_pin", "jiaf_review_severity", "jiaf_count")
+
+# JIAF 2 looks. Severity is a PHASE 1-5 (not the 0-1 score of the severity look), and a unit with no phase must stay visible as
+# "not assessed" -- a gap in the map would read as "fine". Review status says which units still wait for the group's decision.
+JIAF_PHASES = [(1, "#ffffb2", "1 None / minimal"), (2, "#fecc5c", "2 Stress"), (3, "#fd8d3c", "3 Severe"), (4, "#e31a1c", "4 Extreme"),
+               (5, "#800026", "5 Catastrophic")]
+JIAF_NOT_ASSESSED = ("#d9d9d9", "No severity (not assessed or incomplete sector coverage)")
+JIAF_REVIEW = {
+    "jiaf_review_pin": [(0, "#9ecae1", "No flag"), (1, "#c7e9c0", "Flags closed in bulk"), (2, "#31a354", "Decided by the group"),
+                        (3, "#d7191c", "Pending: flagged, needs the group")],
+    "jiaf_review_severity": [(0, "#d9d9d9", "No severity data"), (1, "#9ecae1", "Preliminary accepted"), (2, "#31a354", "Decided by the group"),
+                             (3, "#d7191c", "Pending: flagged, needs the group"), (4, "#969696", "Incomplete sector coverage")],
+}
+# The result field each JIAF tool writes -> the look that draws it.
+JIAF_FIELD_LOOKS = {
+    "jf_pre_pin": "people_in_need", "jf_fin_pin": "people_in_need", "jf_pre_sev": "jiaf_severity", "jf_fin_sev": "jiaf_severity",
+    "jf_npinfl": "jiaf_count", "jf_nsevfl": "jiaf_count", "jf_nsec40": "jiaf_count", "jf_nsev45": "jiaf_count",
+    "jf_pin_st": "jiaf_review_pin", "jf_sev_st": "jiaf_review_severity",
+}
+
+
+def _quoted(field):
+    return '"' + str(field).replace('"', '""') + '"'
+
+
+def jiaf_phase_rules(field):
+    """[(label, filter expression, colour)] for severity phases 1-5 of a numeric field, then the not-assessed catch-all (expression 'ELSE'). Pure.
+    Phases are integers stored as doubles, so each rule covers phase +-0.5."""
+    q = _quoted(field)
+    rules = [(label, f"{q} >= {n - 0.5} AND {q} < {n + 0.5}", colour) for n, colour, label in JIAF_PHASES]
+    rules.append((JIAF_NOT_ASSESSED[1], "ELSE", JIAF_NOT_ASSESSED[0]))
+    return rules
+
+
+def jiaf_review_rules(look, field):
+    """[(label, filter expression, colour)] for a review-status field, then an 'ELSE' for a unit with no status. Pure."""
+    q = _quoted(field)
+    rules = [(label, f"{q} >= {n - 0.5} AND {q} < {n + 0.5}", colour) for n, colour, label in JIAF_REVIEW[look]]
+    rules.append(("Not assessed", "ELSE", "#f0f0f0"))
+    return rules
+
+
+def jiaf_look_hints(layer_name, fields_written):
+    """The apply_humanitarian_look calls that draw the JIAF fields a tool just wrote (one per field with a look). Pure."""
+    out = []
+    for f in fields_written or []:
+        look = JIAF_FIELD_LOOKS.get(f)
+        hint = look_hint(layer_name, look, f) if look else None
+        if hint:
+            out.append(hint)
+    return out
 
 
 def look_hint(layer_name, look, field, **extra):
@@ -372,6 +423,27 @@ def _graduated(layer, field, ranges):
     return [label for _l, _h, _c, label in ranges]
 
 
+def _rule_based(layer, rules):
+    """Rule-based renderer from [(label, expression, colour)]; an 'ELSE' expression becomes the catch-all so units with no value stay drawn."""
+    first = rules[0]
+    renderer = QgsRuleBasedRenderer(_symbol(layer, first[2]))
+    root = renderer.rootRule()
+    first_rule = root.children()[0]
+    first_rule.setFilterExpression(first[1])
+    first_rule.setLabel(first[0])
+    for label, expression, colour in rules[1:]:
+        rule = first_rule.clone()
+        rule.setSymbol(_symbol(layer, colour))
+        rule.setFilterExpression(expression)
+        rule.setLabel(label)
+        if expression == "ELSE":
+            rule.setIsElse(True)
+        root.appendChild(rule)
+    layer.setRenderer(renderer)
+    layer.triggerRepaint()
+    return [label for label, _e, _c in rules]
+
+
 def style_result_field(layer, look, field, top_k=None):
     """Apply one of LOOKS to `field` of `layer`. Returns {"classes": [labels], "notes": [..]} on success or {"error": text}. Only the
     renderer changes; nothing is written to the layer. Called by apply_humanitarian_look when the user asks for it."""
@@ -394,6 +466,17 @@ def style_result_field(layer, look, field, top_k=None):
             _categorized(layer, field, cats, symbol)
             layer.setCustomProperty("cartogen_look", look)
             return {"classes": [label for _v, _c, label in cats], "notes": notes}
+        if look in ("jiaf_severity", "jiaf_review_pin", "jiaf_review_severity"):
+            nums = [float(v) for v in values if isinstance(v, (int, float))]
+            if not nums:
+                return {"error": f"'{field}' holds no numeric values."}
+            rules = jiaf_phase_rules(field) if look == "jiaf_severity" else jiaf_review_rules(look, field)
+            if look == "jiaf_severity" and (max(nums) > 5.5 or min(nums) < 0.5):
+                notes.append(f"'{field}' has values outside phases 1-5 ({min(nums):g} to {max(nums):g}); those units are drawn as not assessed.")
+            classes = _rule_based(layer, rules)
+            layer.setCustomProperty("cartogen_look", look)
+            notes.append("Units with no value are drawn grey as not assessed, never as a low phase.")
+            return {"classes": classes, "notes": notes}
         if look == "severity":
             nums = [float(v) for v in values if isinstance(v, (int, float))]
             if not nums:
@@ -402,8 +485,9 @@ def style_result_field(layer, look, field, top_k=None):
                 notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
                              "score, so those units fall outside the five classes and are not drawn.")
             ranges = severity_ranges()
-        elif look in ("people_in_need", "exposure", "allocation"):
-            palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS}[look]
+        elif look in ("people_in_need", "exposure", "allocation", "jiaf_count"):
+            palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS,
+                       "jiaf_count": EXPOSURE_COLORS}[look]
             ranges = count_ranges(values, palette)
             if not ranges:
                 return {"error": f"'{field}' holds no numeric values."}

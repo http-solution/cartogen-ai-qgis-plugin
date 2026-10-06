@@ -294,6 +294,8 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names
+        from .humanitarian_style import jiaf_look_hints
+        result["map_looks"] = jiaf_look_hints(layer_name, names)
         result["field_note"] = "jf_nsec40: sectors whose PiN exceeds the share of the unit's population (empty without population); jf_nsev45: sectors in phase 4 or 5."
         if not owned:
             result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
