@@ -66,6 +66,9 @@ def describe_model_failure(exc):
     return f"FastSAM inference failed: {text[:300]}"
 
 
+_CHECKPOINT_MIN_BYTES = 5 * 1024 * 1024
+
+
 def ensure_checkpoint(name="FastSAM-s.pt"):
     """NETWORK PHASE (runs on the agent's background thread, never on QGIS's main thread): makes sure the model checkpoint is on disk.
 
@@ -79,6 +82,8 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
     except ImportError:
         return {"success": True, "path": None, "note": "ultralytics not importable here; the main phase reports it"}
     last_error = None
+    weights_dir = str(SETTINGS.get("weights_dir") or "")
+    target = os.path.join(weights_dir, name) if weights_dir else None
     for attempt in (1, 2):
         try:
             path = attempt_download_asset(name)
@@ -87,10 +92,14 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
             last_error = RuntimeError("download finished but the file is missing")
         except Exception as e:
             last_error = e
-        partial = os.path.join(str(SETTINGS.get("weights_dir", "")), name) if SETTINGS.get("weights_dir") else name
+        # Only a PARTIAL file is deleted: an HTTP 416 / range error, or a file far smaller than the real checkpoint (~24 MB). A good
+        # cached checkpoint is never removed because of an unrelated failure such as a dropped connection (code review).
+        looks_partial = any(k in str(last_error).lower() for k in ("416", "range not satisfiable", "partial"))
         try:
-            if os.path.exists(partial):
-                os.remove(partial)
+            if target and os.path.isfile(target) and (looks_partial or os.path.getsize(target) < _CHECKPOINT_MIN_BYTES):
+                os.remove(target)
+            elif not looks_partial:
+                break                    # not a partial-file problem, so a second identical attempt will not help
         except OSError:
             break
     return {"error": describe_model_failure(last_error or RuntimeError("download failed"))}

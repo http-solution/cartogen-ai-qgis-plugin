@@ -82,6 +82,15 @@ class TestSlotsAnsweredByOwnData(unittest.TestCase):
         self.assertFalse(tm.has_explicit_data_reference("use optimal_hub_siting on it"))
         self.assertFalse(tm.has_explicit_data_reference("health facilities beyond one hour"))
 
+    def test_with_the_project_layers_only_a_loaded_layer_counts(self):
+        layers = ["smoke_hubs", "smoke_points"]
+        self.assertTrue(tm.has_explicit_data_reference("rank smoke_hubs by distance to smoke_points", layers))
+        # A column or algorithm name is not a data reference (code review of the first version).
+        self.assertFalse(tm.has_explicit_data_reference("estimate population affected by flood_risk", layers))
+        self.assertFalse(tm.has_explicit_data_reference("run native_buffer on it", layers))
+        self.assertFalse(tm.has_explicit_data_reference("export to outputs/points.csv", layers))
+        self.assertFalse(tm.has_explicit_data_reference("rank hubs", []))
+
     def test_supply_hubs_now_answer_the_facility_question(self):
         entry = next(e for e in __import__("cartogen_ai.core.agent.task_register", fromlist=["x"]).load()
                      if "facility_type" in e.get("slots", []))
@@ -116,6 +125,30 @@ class TestSingleSharedWord(unittest.TestCase):
     def test_a_short_request_may_match_on_one_word(self):
         verdict = self._classify("raster for flooding")
         self.assertNotEqual(verdict["reason"], "below confidence floor")
+
+
+class TestRegisterCorpusIsNotWorse(unittest.TestCase):
+    """The rc15/rc17 matcher guards (named tool, tie coverage, single hit) must not cost matches the register itself expects.
+
+    Each task's own description is run through classify(); before these guards 453 of 748 matched their own task and 466 got a
+    directive. The guards may only ever stay at or above those numbers."""
+
+    def test_task_descriptions_still_match_their_own_task(self):
+        from cartogen_ai.core.agent import task_register as reg
+        own = directive = total = 0
+        for e in reg.load():
+            q = e.get("text") or ""
+            if len(q.split()) < 3:
+                continue
+            total += 1
+            v = tm.classify(q)
+            if v["best"] and v["best"]["id"] == e["id"]:
+                own += 1
+            if v["best"] and not (v["ambiguous"] and v["reason"] == "below confidence floor"):
+                directive += 1
+        self.assertGreaterEqual(total, 700)
+        self.assertGreaterEqual(own, 453)
+        self.assertGreaterEqual(directive, 466)
 
 
 if __name__ == "__main__":

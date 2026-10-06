@@ -22,6 +22,10 @@ class TestFollowupDetection(unittest.TestCase):
     def test_questions_do_not_count_as_two_steps(self):
         self.assertFalse(rv.has_followup_steps("how many points are there and what is the area"))
 
+    def test_ordinary_requests_with_show_map_list_or_find_do_not_trigger_a_followup(self):
+        for request in ("Show me a map of schools", "list the districts and find the biggest one", "map the health facilities"):
+            self.assertFalse(rv.has_followup_steps(request), request)
+
 
 class TestContinuationPrompt(unittest.TestCase):
     def test_it_is_marked_names_the_step_and_carries_the_original_request(self):

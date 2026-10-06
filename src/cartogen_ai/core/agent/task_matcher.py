@@ -303,17 +303,22 @@ _DATA_REFERENCE_SLOTS = frozenset({"facility_type", "aoi", "admin_level", "popul
 _SNAKE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
 
 
-def has_explicit_data_reference(query):
-    """True when the query names a layer-like identifier (snake_case that is not a tool name) or a data file."""
-    text = (query or "")
-    low = text.lower()
+def has_explicit_data_reference(query, layer_names=None):
+    """True when the query names data the user already has.
+
+    With `layer_names` (the project's loaded layers) it is true only if one of them is named in the query: a snake_case word that is
+    a column or an algorithm name is not a data reference (code review of the first version). Without it (no project information,
+    e.g. offline tests) a snake_case word that is not a tool name, or a data file name, counts."""
+    low = (query or "").lower()
+    if layer_names is not None:
+        return any(n and re.search(r"(?<![\w])" + re.escape(str(n).lower()) + r"(?![\w])", low) for n in layer_names)
     tools = _known_tool_names()
     if any(t not in tools for t in _SNAKE.findall(low)):
         return True
     return bool(re.search(r"\b[\w\-]+\.(?:gpkg|shp|geojson|csv|tif|tiff|kml)\b", low))
 
 
-def missing_slots(entry, query, context=None):
+def missing_slots(entry, query, context=None, layer_names=None):
     """Slots the task needs that neither the query nor QGIS context supplies.
 
     `context` is an optional dict of things the host already knows, e.g.
@@ -325,7 +330,7 @@ def missing_slots(entry, query, context=None):
     ctx = context or {}
     q = (query or "").lower()
     out = []
-    own_data = has_explicit_data_reference(query)
+    own_data = has_explicit_data_reference(query, layer_names)
     for slot in entry.get("slots", []):
         if ctx.get(slot):
             continue

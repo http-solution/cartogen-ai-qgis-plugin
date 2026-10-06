@@ -318,7 +318,8 @@ class ToolRouter:
             "generate_spatial_report"
         } | explicit_tool_names
         known_names = {t.get("function", {}).get("name", "") for t in self.full_schema_list}
-        always_include |= {n for n in (carry_over_tools or ()) if n in known_names and n != "execute_pyqgis_script"}
+        # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
+        always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
         _FALLBACK_TOOL = "execute_pyqgis_script"
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-

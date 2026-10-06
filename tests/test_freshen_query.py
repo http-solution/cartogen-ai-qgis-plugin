@@ -18,6 +18,13 @@ class TestFreshenQuery(unittest.TestCase):
     def test_a_query_without_a_recency_word_is_unchanged(self):
         self.assertEqual(freshen_query("history of the Sanaa airport", self.DAY), "history of the Sanaa airport")
 
+    def test_common_words_that_do_not_ask_for_fresh_data_do_not_trigger_it(self):
+        # Code review of the first version: "current administrative boundary" is a definition, not a request for news.
+        for query in ("population of the current administrative boundary of Sanaa", "recent history of the airport",
+                      "what is now part of Taiz governorate"):
+            self.assertEqual(freshen_query(query, self.DAY), query)
+        self.assertIn("2026-10-06", freshen_query("most recent UN report on Yemen", self.DAY))
+
     def test_none_and_empty_are_safe(self):
         self.assertEqual(freshen_query(None, self.DAY), "")
         self.assertEqual(freshen_query("", self.DAY), "")

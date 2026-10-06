@@ -30,6 +30,12 @@ class TestIsNewRequest(unittest.TestCase):
         self.assertFalse(is_new_request(""))
         self.assertFalse(is_new_request(None))
 
+    def test_answers_that_start_with_use_or_contain_question_words_are_answers(self):
+        # Code review of the first version: these were all treated as new requests and discarded the open question.
+        for reply in ("Use the health clinics near the camps", "the clinics which are within 5 km of the camps",
+                      "Select the nearest ones please", "List only the primary schools", "what I need is hospitals in the north"):
+            self.assertFalse(is_new_request(reply), reply)
+
 
 if __name__ == "__main__":
     unittest.main()

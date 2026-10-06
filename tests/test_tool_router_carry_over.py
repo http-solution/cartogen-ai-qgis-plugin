@@ -30,6 +30,13 @@ class TestCarryOver(unittest.TestCase):
         base = self.router.filter_relevant_tools("EPSG:3857", top_k=40)
         self.assertEqual("execute_pyqgis_script" in _names(tools), "execute_pyqgis_script" in _names(base))
 
+    def test_at_most_six_tools_are_carried_so_the_list_stays_within_top_k(self):
+        many = [t["function"]["name"] for t in TOOLS_SCHEMA][:30]
+        tools = self.router.filter_relevant_tools("EPSG:3857", top_k=40, carry_over_tools=many)
+        self.assertLessEqual(len(tools), 40)
+        base = _names(self.router.filter_relevant_tools("EPSG:3857", top_k=40))
+        self.assertLessEqual(len(_names(tools) - base), 6)
+
     def test_carry_over_does_not_change_a_normal_query(self):
         query = "buffer the point layer by 500 meters"
         self.assertEqual(_names(self.router.filter_relevant_tools(query, top_k=40)),

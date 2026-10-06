@@ -72,12 +72,14 @@ def preview_is_fresh(updated_at_iso, now=None):
     return (current - updated).total_seconds() <= PREVIEW_MAX_AGE_SECONDS
 
 
-_NEW_REQUEST_MIN_WORDS = 7
+_NEW_REQUEST_MIN_WORDS = 4
+# Verbs that open a request but rarely open an ANSWER. "use", "select", "set", "add", "list", "show", "find" and "map" are left out on
+# purpose: "Use the health clinics near the camps" answers "Which facility type?"; a request that begins "Use optimal_hub_siting" is
+# caught by the named-tool rule instead.
 _IMPERATIVE_STARTS = frozenset({
-    "calculate", "compute", "create", "make", "build", "show", "map", "find", "list", "download", "fetch", "load", "add", "remove",
-    "delete", "export", "estimate", "generate", "run", "classify", "compare", "analyze", "analyse", "draw", "plot", "clip", "buffer",
-    "merge", "join", "style", "label", "zoom", "select", "count", "summarize", "summarise", "identify", "extract", "convert",
-    "apply", "save", "use", "search", "transform", "rank", "write", "set",
+    "calculate", "compute", "create", "build", "export", "generate", "download", "fetch", "load", "remove", "delete", "estimate",
+    "classify", "compare", "analyze", "analyse", "draw", "plot", "clip", "buffer", "merge", "extract", "convert", "apply", "save",
+    "transform", "rank", "write", "run", "style", "label", "zoom", "summarize", "summarise", "identify",
 })
 
 
@@ -87,42 +89,38 @@ def is_new_request(text):
     The chat folded whatever came next into the pending request as "Details: <reply>", so a user who answered a question by typing
     a fresh full request got the OLD request run with the new one pasted underneath it. rc15 and rc17 hand tests: a severity request
     was answered with an OpenStreetMap download offer, a layout request with a historical title and path, and a footprint request ran
-    an unrelated 14-call sequence, each after an earlier question was left open. An answer to "Which facility type?" is a few words
-    ("health clinics"); a request names a tool, or is a sentence with an action word. Pure and deliberately conservative: when in
-    doubt it is an answer, which is the old behaviour."""
+    an unrelated 14-call sequence, each after an earlier question was left open. An answer is a few words ("health clinics", "Use the
+    clinics near the camps", "the ones which are within 5 km"); a new request names a registered tool or OPENS with a request verb.
+    Pure and deliberately conservative: when in doubt it is an answer, which is the old behaviour."""
     from ..agent import task_matcher
     body = (text or "").strip()
-    if not body or body.endswith("?") and len(body.split()) < _NEW_REQUEST_MIN_WORDS:
+    if not body or body.endswith("?"):
         return False
     if task_matcher.named_tools(body):
         return True
     words = body.split()
-    if len(words) >= _NEW_REQUEST_MIN_WORDS and task_matcher._ACTION_WORDS.search(body.lower()):
-        return True
-    # A short imperative ("Export smoke_points to CSV at outputs/x.csv") starts with its verb; an answer rarely does.
     first = words[0].lower().strip(",.:;")
-    return len(words) >= 4 and first in _IMPERATIVE_STARTS
+    return len(words) >= _NEW_REQUEST_MIN_WORDS and first in _IMPERATIVE_STARTS
 
 
 CONTINUATION_MARKER = "[Continuing my earlier request]"
 MAX_CONTINUATIONS = 3
-_SEQUENCE = ("then", "afterwards", "after that", "and also", "next", "finally", "followed by")
+_SEQUENCE = (" and then ", " then ", " afterwards", " after that", ", and also ", " followed by ", " finally ")
 
 
 def has_followup_steps(request):
-    """True when the original request asks for more than one thing, so a confirmed step may not be the last one. Pure.
+    """True when the original request asks for more than one DISTINCT operation, so a confirmed step may not be the last. Pure.
 
     rc15 and rc17 hand tests (D05): "calculate the severity, write it to a field, and then style the layer" stopped after the
-    confirmed write, because the Apply button runs the tool directly with no model turn and nothing resumed the request. A
-    request with two or more distinct action words, or an explicit sequence word, gets one follow-up turn."""
-    from ..agent import task_matcher
-    text = (request or "").lower()
+    confirmed write, because the Apply button runs the tool directly with no model turn. Only an explicit sequence word ("then",
+    "afterwards") or two or more distinct operation verbs count; ordinary words such as "show", "map", "list" or "find" do not, so
+    "Show me a map of schools" never triggers a follow-up turn."""
+    text = f" {(request or '').lower()} "
     if not text.strip():
         return False
-    if any(f" {w} " in f" {text} " for w in _SEQUENCE):
+    if any(w in text for w in _SEQUENCE):
         return True
-    verbs = {m.group(0) for m in task_matcher._ACTION_WORDS.finditer(text)} - {
-        "how", "what", "which", "where", "who", "when", "why", "can", "could", "please"}
+    verbs = {w.strip(",.;:") for w in text.split()} & _IMPERATIVE_STARTS
     return len(verbs) >= 2
 
 

@@ -87,7 +87,7 @@ NO_DATA_TOOLS = frozenset({
     "create_plan", "set_task_preview", "update_task", "store_project_memory", "store_global_memory",
 })
 
-_SOFT_MARKER = "other calls succeeded"
+_SOFT_MARKER = "cannot be tied to a single call"
 _NOTICE_TABLE_REMOVED = "_(Table removed: no tool produced it in this turn.)_"
 
 
@@ -173,7 +173,32 @@ def strip_confirmation_prose(text):
     return cleaned or CONFIRM_CARD_NOTICE
 
 
-def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False):
+def rows_backed_fraction(final_text, evidence):
+    """Share of the answer's table data rows that have a distinctive cell (a name or id of 4+ characters, or a number of 3+ digits) that
+    appears in the evidence (the user's words, the project summary and the tool results). 1.0 when there are no rows. Pure."""
+    low = (evidence or "").lower()
+    rows = [line for line in str(final_text or "").splitlines() if _is_table_row(line)]
+    rows = rows[1:] if len(rows) > 1 else rows          # the header row is words the model wrote, not data
+    if not rows:
+        return 1.0
+    backed = 0
+    for line in rows:
+        for cell in (c.strip() for c in line.strip().strip("|").split("|")):
+            plain = cell.strip("*` ").lower()
+            if len(plain) >= 4 and plain in low:
+                backed += 1
+                break
+            nums = re.findall(r"\d[\d,]*(?:\.\d+)?", plain)
+            if any(len(n.replace(",", "").split(".")[0]) >= 3 and n.replace(",", "") in low.replace(",", "") for n in nums):
+                backed += 1
+                break
+    return backed / len(rows)
+
+
+_BACKED_ROW_SHARE = 0.5
+
+
+def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False, evidence=None):
     """A warning string, or None.
 
     Flags a final answer that contains data (a table, or record-like bullets) while a tool call this
@@ -191,11 +216,12 @@ def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_too
         if failed:
             names = ", ".join(f"`{n}`" for n in failed)
             parts.append(f"{names} failed")
-        if failed and not pending and backed_by_success:
+        if failed and not pending and backed_by_success and (
+                evidence is None or rows_backed_fraction(final_text, evidence) >= _BACKED_ROW_SHARE):
             # A data tool DID succeed this turn, so the table may well be its output. rc17 hand test B3: a STAC search succeeded and
             # three unrelated SQL calls failed, and the real scene table was replaced by "no tool produced it".
-            return (f"⚠️ **Note:** {'; '.join(parts)} in this turn; {_SOFT_MARKER}. Check the data above against "
-                    "the tool results, since it cannot be tied to a single call.")
+            return (f"⚠️ **Note:** {'; '.join(parts)} in this turn, but other calls succeeded. Check the data above against "
+                    f"the tool results; it {_SOFT_MARKER}.")
     elif not data_tool_ran and looks_like_retrieved_data(final_text):
         parts.append("no data tool ran in this turn, so the figures come from the model's memory or from earlier "
                      "in the conversation")
@@ -207,16 +233,18 @@ def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_too
     )
 
 
-def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False):
+def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False, evidence=None):
     """`final_text` with ungrounded tables replaced by a notice and the warning appended (once), or unchanged.
 
-    `backed_by_success`: a data tool succeeded this turn and nothing is pending. Failed calls then only add a note; the tables stay."""
+    `backed_by_success`: a data tool succeeded this turn and nothing is pending. Failed calls then only add a note and the tables stay,
+    provided that, when `evidence` is given, at least half of the table rows can be found in it; a table nothing in the conversation
+    supports is still replaced (code review: one cheap successful call must not excuse an invented table)."""
     if final_text and (_WARNING_MARKER in final_text or _SOFT_MARKER in final_text):
         return final_text
-    warning = unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran, backed_by_success)
+    warning = unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran, backed_by_success, evidence)
     if not warning:
         return final_text
-    if backed_by_success and not _unique(pending_tools):
+    if _SOFT_MARKER in warning:
         return f"{str(final_text).rstrip()}\n\n{warning}"
     return f"{strip_ungrounded_tables(final_text).rstrip()}\n\n{warning}"
 
@@ -233,7 +261,8 @@ _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 # A lowercase "m" is metres ("886.49 m") and "b" is rarely a billion, so the one-letter suffixes count only as capitals ("29.8M").
 # rc17 hand test R2 (2026-10-06): every metre distance in a hub-ranking answer was read as "886.49 million", matched no number
 # in the evidence, and the whole table was footnoted as coming from the model's general knowledge.
-_SCALED = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*((?i:million|billion|bn)|[MB])\b(?![\w-])")
+_SCALED = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*((?i:million|billion|bn)|[MB]|(?:m|b)(?=\s+(?:people|persons|residents|"
+                     r"inhabitants|households|individuals|children|women|men|refugees|idps)\b))\b(?![\w-])")
 _SIZE = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*(kb|mb|gb)\b", re.IGNORECASE)
 # Only comma-grouped numbers (29,812,345): a bare 9-digit run is an identifier (an osm_id), not a total.
 _BIG_PLAIN = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3}){2,})(?![\w.])")

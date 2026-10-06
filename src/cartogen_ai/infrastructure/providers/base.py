@@ -259,7 +259,7 @@ class BaseAiProvider(ABC):
         self._status_callback = callback
 
 
-_RECENCY = re.compile(r"\b(latest|newest|current|currently|recent|recently|today|now|up[- ]to[- ]date|this (?:week|month|year))\b", re.I)
+_RECENCY = re.compile(r"\b(latest|newest|most recent|up[- ]to[- ]date|currently|today|right now|this (?:week|month|year))\b", re.I)
 
 
 def freshen_query(query, today=None):

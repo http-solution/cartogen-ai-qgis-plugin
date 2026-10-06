@@ -401,6 +401,7 @@ class CartogenAi:
         with self._get_history_lock():
             self.conversation_history = []
         self._grounding_texts = []
+        self._recent_tools = ((), 0)       # a new conversation does not inherit the last one's tools
         self.task_manager.clear_plan()
 
     def _accumulate_usage(self, usage):
@@ -1292,7 +1293,8 @@ class CartogenAi:
         data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
                             for name, is_error, _msg in turn_tool_log)
         final_text = response_guard.apply_unbacked_data_warning(
-            final_text, pending, failed, data_tool_ran, backed_by_success=data_tool_ran and not pending)
+            final_text, pending, failed, data_tool_ran, backed_by_success=data_tool_ran and not pending,
+            evidence="\n".join(getattr(self, "_grounding_texts", [])))
         # #75: claims around real numbers that no tool returned (place names, national totals, terrain, file sizes).
         final_text = response_guard.apply_ungrounded_claims_note(
             final_text, "\n".join(getattr(self, "_grounding_texts", [])),
