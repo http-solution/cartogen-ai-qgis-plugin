@@ -58,6 +58,31 @@ def edit_command(layer, label):
             raise EditError("the provider rejected the changes" + (f": {errors}" if errors else "."))
 
 
+def begin_feature_edits(layer):
+    """For tools that add or remove FEATURES in a loop (re-indenting that loop into `edit_command` would bury the logic). Starts
+    editing unless the layer is already being edited; returns True when this call owns the session. Raises EditError."""
+    if layer.isEditable():
+        return False
+    if not layer.startEditing():
+        raise EditError("the layer could not be switched to edit mode (is the source read-only?)")
+    return True
+
+
+def finish_feature_edits(layer, owned):
+    """Commits when `owned`, checking the result (rolling back and raising EditError with the provider's text on failure). A
+    layer the user is editing is left alone: the added features sit in the user's buffer for them to save or discard."""
+    if not owned:
+        return
+    if not layer.commitChanges():
+        try:
+            errors = "; ".join(str(e) for e in layer.commitErrors())
+        except Exception:
+            errors = ""
+        if layer.isEditable():
+            layer.rollBack()
+        raise EditError("the provider rejected the changes" + (f": {errors}" if errors else "."))
+
+
 def add_numeric_field(layer, field_name):
     """Index of `field_name` on `layer`, adding it as a Double field THROUGH THE EDIT BUFFER if it does not exist. Call inside
     edit_command. Raises EditError if the field exists but is not numeric, or cannot be added."""

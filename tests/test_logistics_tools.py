@@ -2342,7 +2342,41 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
         layer = MagicMock()
         layer.fields.return_value = _Fields()
         layer.getFeatures.return_value = features
+        layer.isEditable.return_value = False       # not the user's edit session: the tool starts and owns its own
         return layer
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_refused_commit_is_an_error_not_a_success(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        # GitHub #144: the commit result was never read, so a provider that refused the write still reported success.
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "motorway" if k == "fclass" else None
+        layer = self._make_road_layer([feat])
+        layer.commitChanges.return_value = False
+        layer.isEditable.side_effect = lambda: layer.startEditing.called      # editable once the tool has started editing
+        mock_find.return_value = layer
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+        self.assertIn("error", res)
+        self.assertNotIn("success", res)
+        layer.rollBack.assert_called()
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QVariant", create=True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._network_geometry_error", return_value=None)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_refused_attribute_write_is_an_error(self, mock_find, mock_geom_err, mock_qvariant, mock_qfield):
+        feat = MagicMock()
+        feat.attribute.side_effect = lambda k: "motorway" if k == "fclass" else None
+        layer = self._make_road_layer([feat])
+        layer.changeAttributeValue.return_value = False
+        mock_find.return_value = layer
+        res = lt.estimate_road_speeds("Roads", confirmed=True)
+        self.assertIn("error", res)
+        layer.commitChanges.assert_not_called()
 
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.logistics_tools.QgsField", create=True)

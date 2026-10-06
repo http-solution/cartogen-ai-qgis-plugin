@@ -3119,23 +3119,29 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
                 "fields (read-only, or opened with a filter). Export a copy of the layer (export_layer) and run this on the "
                 "copy." + hint)}
 
-        network.startEditing()
+        # GitHub #144: the commit's result was never read, so a provider that refused the write still ended in "success" with a
+        # count of features that were never saved. edit_command checks every step, rolls back on failure and leaves a layer the
+        # user is already editing in the user's own session.
+        from ._edit_session import EditError, edit_command, set_value
         updated = 0
         skipped_existing = 0
         unknown_classes = set()
-        for feature in network.getFeatures():
-            existing = feature.attribute(field_idx)
-            if existing not in (None, "") and not overwrite:
-                skipped_existing += 1
-                continue
-            road_class = str(feature.attribute(class_field) or "").strip().lower()
-            speed = speed_table.get(road_class)
-            if speed is None:
-                unknown_classes.add(road_class or "(empty)")
-                speed = default_speed_kmh
-            network.changeAttributeValue(feature.id(), field_idx, float(speed))
-            updated += 1
-        network.commitChanges()
+        try:
+            with edit_command(network, "Cartogen AI: estimate road speeds") as owns_session:
+                for feature in network.getFeatures():
+                    existing = feature.attribute(field_idx)
+                    if existing not in (None, "") and not overwrite:
+                        skipped_existing += 1
+                        continue
+                    road_class = str(feature.attribute(class_field) or "").strip().lower()
+                    speed = speed_table.get(road_class)
+                    if speed is None:
+                        unknown_classes.add(road_class or "(empty)")
+                        speed = default_speed_kmh
+                    set_value(network, feature.id(), field_idx, float(speed))
+                    updated += 1
+        except EditError as e:
+            return {"error": f"Could not write the road speeds to '{road_network_layer}': {e} Nothing was changed."}
 
         result = {
             "success": True,
@@ -3149,6 +3155,9 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
                     "travel_time_matrix/optimize_delivery_route to use it, and tell the user travel "
                     "times are estimates.",
         }
+        if not owns_session:
+            result["note"] += (" The layer is in your edit session, so the speeds are NOT saved yet: save the layer edits "
+                               "(or undo them) yourself.")
         if country_overrides:
             result["country_used"] = country_code
             result["note"] += f" Scaled to {country_code}'s real legal urban/rural/motorway defaults."
