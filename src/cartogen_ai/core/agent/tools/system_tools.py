@@ -547,6 +547,21 @@ def geocode_batch(location_names: list):
     return {"success": True, "results": results}
 
 
+def add_sandbox_hint(result):
+    """Adds a `hint` to a failed script result when the failure is the sandbox lacking Processing algorithms. Pure.
+
+    rc15 hand test D09: a scripted buffer failed with "Algorithm native:buffer not found" (the isolated worker has no Processing
+    providers) and the model kept trying variants of it; the error never said that a ready-made tool does the job."""
+    if not isinstance(result, dict) or "error" not in result or result.get("hint"):
+        return result
+    text = str(result.get("error", ""))
+    if "Algorithm" in text and "not found" in text:
+        return {**result, "hint": (
+            "Processing algorithms (native:*, gdal:*, qgis:*) are not available inside the script sandbox. Do not retry this in "
+            "a script: call the matching Cartogen tool (for example buffer_analysis, clip_layer or run_allowlisted_processing_algorithm).")}
+    return result
+
+
 @register_tool(
     "execute_pyqgis_script",
     "LAST RESORT ONLY -- run this only when no other registered tool covers the task; check "
@@ -592,7 +607,7 @@ def execute_pyqgis_script(script: str):
                     "edits -- commit or discard them first, then retry."
                 )
             }
-        return run_isolated_script(script)
+        return add_sandbox_hint(run_isolated_script(script))
 
     # No live QGIS in this process (unit-test / validator-only context, e.g. this
     # repo's plain `test` CI job) -- the isolation boundary above needs a real

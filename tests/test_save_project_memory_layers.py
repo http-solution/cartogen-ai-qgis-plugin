@@ -24,5 +24,21 @@ class TestMemoryLayerWarning(unittest.TestCase):
         self.assertNotIn("L13", text)
 
 
+
+class TestSandboxHint(unittest.TestCase):
+    """rc15 hand test D09: 'Algorithm native:buffer not found' in the script sandbox should point at a real tool."""
+
+    def test_a_missing_algorithm_error_gets_a_hint(self):
+        from cartogen_ai.core.agent.tools.system_tools import add_sandbox_hint
+        out = add_sandbox_hint({"error": "Algorithm native:buffer not found"})
+        self.assertIn("hint", out)
+        self.assertIn("buffer_analysis", out["hint"])
+
+    def test_other_results_are_unchanged(self):
+        from cartogen_ai.core.agent.tools.system_tools import add_sandbox_hint
+        for r in ({"success": True, "result": 1}, {"error": "NameError: x"}, "text", None):
+            self.assertEqual(add_sandbox_hint(r), r)
+
+
 if __name__ == "__main__":
     unittest.main()

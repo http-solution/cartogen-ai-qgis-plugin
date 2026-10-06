@@ -156,6 +156,16 @@ def named_tools(query):
     return candidates & _known_tool_names() if candidates else set()
 
 
+_TIE_MIN_COVERAGE = 0.25
+_SINGLE_HIT_MAX_TOKENS = 8
+
+
+def _coverage(query, entry):
+    """Share of the request's content words that the task's keywords account for (0..1)."""
+    tokens = _tokens(query)
+    return len(tokens & set(entry.get("kw") or ())) / len(tokens) if tokens else 0.0
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -199,9 +209,24 @@ def classify(query):
     if top < CONFIDENT_SCORE:
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
+    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
+    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
+    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
+    if len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2:
+        return {"matches": ms, "best": best, "score": top,
+                "ambiguous": True, "reason": "below confidence floor"}
     if len(ms) > 1:
         second, s2 = ms[1]
         if (top - s2) < AMBIGUITY_MARGIN and second["cat"] != best["cat"]:
+            # A tie is only trusted when the winner's keywords cover a fair share of the request's own content words. rc15 and rc17
+            # hand tests: a 22-word severity request matched "Spatial analysis" and an 18-word buffer-clip-export plan matched a
+            # water and sanitation task, each on two generic words ("calculate", "population"; "distance", "points"), and the
+            # injected task directive sent the model after WorldPop and service-area tools nobody asked for. A short request that
+            # the task really describes ("build me a dashboard of displacement by district") covers about half of its words.
+            # Below the bar the verdict is the same as "below confidence floor": no directive, message sent as typed.
+            if _coverage(query, best) < _TIE_MIN_COVERAGE:
+                return {"matches": ms, "best": best, "score": top,
+                        "ambiguous": True, "reason": "below confidence floor"}
             return {"matches": ms, "best": best, "score": top,
                     "ambiguous": True, "reason": "tie across sections"}
     return {"matches": ms, "best": best, "score": top,
@@ -250,7 +275,8 @@ _SLOT_EVIDENCE = {
     # facility, and asking "which facility type?" of "population within one hour's drive of the point 4902068.0, 1799912.0"
     # was a question with no answer (rc10 smoke test, 2026-10-01).
     "facility_type":  r"health|school|clinic|hospital|water point|borehole|latrine|market|warehouse|"
-                      r"shelter|distribution point|-?\d+\.\d+\s*,\s*-?\d+\.\d+|"
+                      r"shelter|distribution point|\bhubs?\b|\bdepots?\b|\bfacilit(?:y|ies)\b|\bsites?\b|\bcamps?\b|"
+                      r"\bcent(?:re|er)s?\b|\bstations?\b|-?\d+\.\d+\s*,\s*-?\d+\.\d+|"
                       r"\b(?:the|this|that|my|an?)\s+(?:point|origin|location|site|coordinates?)\b",
     # A number (digits or a word) followed by a distance or time unit, plurals included. This was
     # digits-only with singular-only units ("hour\b" can't match "hours"), so "one hour's travel",
@@ -269,7 +295,30 @@ _SLOT_EVIDENCE = {
 }
 
 
-def missing_slots(entry, query, context=None):
+# A request that names its own data ("candidate locations in smoke_hubs ... demand in smoke_points") has said where the facilities,
+# the area and the population are; asking "Which facility or service type?" of it was a question with no answer (rc17 hand test R2,
+# 2026-10-06: asked twice and "Synthetic humanitarian supply hubs" was not accepted). Slots with no safe default that name a
+# real-world choice (hazard, sector, DEM ...) are NOT satisfied this way.
+_DATA_REFERENCE_SLOTS = frozenset({"facility_type", "aoi", "admin_level", "population_src"})
+_SNAKE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
+
+
+def has_explicit_data_reference(query, layer_names=None):
+    """True when the query names data the user already has.
+
+    With `layer_names` (the project's loaded layers) it is true only if one of them is named in the query: a snake_case word that is
+    a column or an algorithm name is not a data reference (code review of the first version). Without it (no project information,
+    e.g. offline tests) a snake_case word that is not a tool name, or a data file name, counts."""
+    low = (query or "").lower()
+    if layer_names is not None:
+        return any(n and re.search(r"(?<![\w])" + re.escape(str(n).lower()) + r"(?![\w])", low) for n in layer_names)
+    tools = _known_tool_names()
+    if any(t not in tools for t in _SNAKE.findall(low)):
+        return True
+    return bool(re.search(r"\b[\w\-]+\.(?:gpkg|shp|geojson|csv|tif|tiff|kml)\b", low))
+
+
+def missing_slots(entry, query, context=None, layer_names=None):
     """Slots the task needs that neither the query nor QGIS context supplies.
 
     `context` is an optional dict of things the host already knows, e.g.
@@ -281,8 +330,11 @@ def missing_slots(entry, query, context=None):
     ctx = context or {}
     q = (query or "").lower()
     out = []
+    own_data = has_explicit_data_reference(query, layer_names)
     for slot in entry.get("slots", []):
         if ctx.get(slot):
+            continue
+        if own_data and slot in _DATA_REFERENCE_SLOTS:
             continue
         pat = _SLOT_EVIDENCE.get(slot)
         if pat and re.search(pat, query or "", re.I):

@@ -255,10 +255,24 @@ class ChatTabWidget(QWidget):
             self._dock.receiveMessageSignal.emit(
                 "ai", f"{'⚠️ **Confirmed, but it failed' if failed else '✅ **Confirmed & executed'}"
                       f" (Task {task_id}, `{pending_tool}`):** {readable}")
+            self._continue_request_after_confirmation(failed, pending_tool, readable, task.get("origin_request"))
         else:
             agent.task_manager.update_task(task_id, "FAILED", "Cancelled by User")
             self._dock.receiveMessageSignal.emit(
                 "ai", f"❌ **Cancelled Task {task_id}:** {task.get('description')}")
+
+    def _continue_request_after_confirmation(self, failed, tool_name, summary, original=None):
+        """After a confirmed step succeeded, resumes the user's original request once if it asked for more than that step.
+
+        The confirm button runs the tool directly, with no model turn (see _resolve_pending_confirmation), so a request such as
+        "write the score to a field, then style the layer" ended at the write (rc15/rc17 hand tests, D05). At most
+        reply_vocab.MAX_CONTINUATIONS follow-up turns per original request, so a chain of confirmations cannot loop."""
+        if failed or not original or not reply_vocab.has_followup_steps(original):
+            return
+        if getattr(self, "_continuation_count", 0) >= reply_vocab.MAX_CONTINUATIONS:
+            return
+        self._dock.receiveMessageSignal.emit("ai", "Continuing with the rest of your request...")
+        self._dispatch_message(reply_vocab.continuation_prompt(original, tool_name, summary), None, already_echoed=True)
 
     def _expire_pending_previews(self, agent):
         """Closes every pending confirmation after an unrelated message was sent (F16 step 3, #125)."""
@@ -284,6 +298,8 @@ class ChatTabWidget(QWidget):
         if task_id in self._posted_safety_gate_task_ids:
             return
         self._posted_safety_gate_task_ids.add(task_id)
+        # The request that produced THIS card, kept on the task so a continuation after Apply never uses a later, unrelated message.
+        task.setdefault("origin_request", getattr(self, "_last_user_request", None))
         from .chat_formatting import render_safety_gate_html
         html = render_safety_gate_html(task, theme_colors())
         self._add_message("ai", "", _raw_html=html)
@@ -1034,6 +1050,12 @@ class ChatTabWidget(QWidget):
         # this feel like an actual chat rather than a black box -- the eventual composed
         # request (original + "Details: ...") still shows too, once dispatch/preview
         # actually happens, exactly like any other task-matched message already does.
+        if self._awaiting_requirement_reply and reply_vocab.is_new_request(text):
+            # A whole new request typed instead of an answer abandons the open question; it is NOT pasted under the old request.
+            self._awaiting_requirement_reply = False
+            self._pending_analysis_text = None
+            self._pending_analysis = None
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
         if self._awaiting_requirement_reply:
             self._dock.receiveMessageSignal.emit("user", text)
             text = f"{self._pending_analysis_text}\n\nDetails: {text}"
@@ -1588,6 +1610,11 @@ class ChatTabWidget(QWidget):
         # re-enables send_btn (it's also used for messages that aren't part of a
         # running task). So the "disable while a task is in flight" state has to
         # be set AFTER this emit, not before, or it gets immediately clobbered.
+        if text.startswith(reply_vocab.CONTINUATION_MARKER):
+            self._continuation_count = getattr(self, "_continuation_count", 0) + 1
+        else:
+            self._last_user_request = text
+            self._continuation_count = 0
         if not already_echoed:
             self._echo_original(text)
         self._turn_sent_iso = now_iso()     # F25: stamped on the stored user message at save time

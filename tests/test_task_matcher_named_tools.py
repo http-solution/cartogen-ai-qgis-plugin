@@ -40,5 +40,116 @@ class TestNamedToolGuard(unittest.TestCase):
         self.assertEqual(verdict["best"]["tools"][0], "calculate_service_area")
 
 
+class TestWeakTiesAreNotTrusted(unittest.TestCase):
+    """rc15/rc17 hand tests: long specific requests tied across sections on two generic words and got a wrong task directive."""
+
+    SEVERITY = ("Calculate a severity index for the three polygons in smoke_admin using its numeric population and need fields, "
+                "with admin_name as the unit name. Use equal weights, write the score to severity_rc17, and then style "
+                "smoke_admin by that field.")
+    PLAN = ("Plan first, then buffer smoke_points by 250 meters, clip the buffers to smoke_boundary, export the result to a "
+            "GeoPackage and store a project memory note that the buffer distance was 250 meters.")
+
+    def test_long_requests_that_tie_on_two_words_get_no_directive(self):
+        from cartogen_ai.core.services.prompt_refiner import analyze_request
+        for query in (self.SEVERITY, self.PLAN):
+            a = analyze_request(query)
+            self.assertIsNone(a["task"], query)
+            self.assertEqual(a["directive"], "")
+            self.assertEqual(a["user_message"], query.strip())
+
+    def test_a_short_request_the_task_describes_still_matches(self):
+        verdict = tm.classify("build me a dashboard of displacement by district")
+        self.assertEqual(verdict["reason"], "tie across sections")
+        self.assertIsNotNone(verdict["best"])
+        self.assertGreaterEqual(tm._coverage("build me a dashboard of displacement by district", verdict["best"]), tm._TIE_MIN_COVERAGE)
+
+
+
+class TestSlotsAnsweredByOwnData(unittest.TestCase):
+    """rc17 hand test R2: 'Which facility or service type?' was asked twice of a request that names its own layers."""
+
+    HUB = ("Use optimal_hub_siting to rank the three candidate locations in smoke_hubs by average straight-line distance to all five "
+           "demand features in smoke_points.")
+
+    def test_a_request_naming_its_own_layers_is_not_asked_for_a_facility_type(self):
+        entry = tm.classify(self.HUB)["best"]
+        self.assertIsNotNone(entry)
+        self.assertNotIn("facility_type", tm.missing_slots(entry, self.HUB))
+
+    def test_layer_like_names_are_detected_but_tool_names_are_not(self):
+        self.assertTrue(tm.has_explicit_data_reference("buffer smoke_points by 500 m"))
+        self.assertTrue(tm.has_explicit_data_reference("export to outputs/points.csv"))
+        self.assertFalse(tm.has_explicit_data_reference("use optimal_hub_siting on it"))
+        self.assertFalse(tm.has_explicit_data_reference("health facilities beyond one hour"))
+
+    def test_with_the_project_layers_only_a_loaded_layer_counts(self):
+        layers = ["smoke_hubs", "smoke_points"]
+        self.assertTrue(tm.has_explicit_data_reference("rank smoke_hubs by distance to smoke_points", layers))
+        # A column or algorithm name is not a data reference (code review of the first version).
+        self.assertFalse(tm.has_explicit_data_reference("estimate population affected by flood_risk", layers))
+        self.assertFalse(tm.has_explicit_data_reference("run native_buffer on it", layers))
+        self.assertFalse(tm.has_explicit_data_reference("export to outputs/points.csv", layers))
+        self.assertFalse(tm.has_explicit_data_reference("rank hubs", []))
+
+    def test_supply_hubs_now_answer_the_facility_question(self):
+        entry = next(e for e in __import__("cartogen_ai.core.agent.task_register", fromlist=["x"]).load()
+                     if "facility_type" in e.get("slots", []))
+        self.assertNotIn("facility_type", tm.missing_slots(entry, "Synthetic humanitarian supply hubs"))
+
+    def test_choices_with_no_safe_default_are_still_asked(self):
+        entry = next((e for e in __import__("cartogen_ai.core.agent.task_register", fromlist=["x"]).load()
+                      if "hazard_type" in e.get("slots", [])), None)
+        if entry:
+            self.assertIn("hazard_type", tm.missing_slots(entry, "analyse smoke_admin and smoke_points"))
+
+
+class TestSingleSharedWord(unittest.TestCase):
+    """rc17 hand test R4: one shared word is a coincidence in a long request, however high it scores."""
+
+    ENTRY = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
+             "slots": []}
+
+    def _classify(self, query):
+        from unittest.mock import patch
+        with patch.object(tm, "match", return_value=[(self.ENTRY, 0.5)]):
+            return tm.classify(query)
+
+    def test_a_long_request_sharing_one_word_gets_no_directive(self):
+        verdict = self._classify("Apply a multicolour colour ramp to the raster layer smoke_dem using band 1 and its real values")
+        self.assertEqual(verdict["reason"], "below confidence floor")
+
+    def test_a_long_request_sharing_two_words_is_kept(self):
+        verdict = self._classify("Check the raster layer smoke_dem against the schema we agreed for band 1 and its real values")
+        self.assertNotEqual(verdict["reason"], "below confidence floor")
+
+    def test_a_short_request_may_match_on_one_word(self):
+        verdict = self._classify("raster for flooding")
+        self.assertNotEqual(verdict["reason"], "below confidence floor")
+
+
+class TestRegisterCorpusIsNotWorse(unittest.TestCase):
+    """The rc15/rc17 matcher guards (named tool, tie coverage, single hit) must not cost matches the register itself expects.
+
+    Each task's own description is run through classify(); before these guards 453 of 748 matched their own task and 466 got a
+    directive. The guards may only ever stay at or above those numbers."""
+
+    def test_task_descriptions_still_match_their_own_task(self):
+        from cartogen_ai.core.agent import task_register as reg
+        own = directive = total = 0
+        for e in reg.load():
+            q = e.get("text") or ""
+            if len(q.split()) < 3:
+                continue
+            total += 1
+            v = tm.classify(q)
+            if v["best"] and v["best"]["id"] == e["id"]:
+                own += 1
+            if v["best"] and not (v["ambiguous"] and v["reason"] == "below confidence floor"):
+                directive += 1
+        self.assertGreaterEqual(total, 700)
+        self.assertGreaterEqual(own, 453)
+        self.assertGreaterEqual(directive, 466)
+
+
 if __name__ == "__main__":
     unittest.main()

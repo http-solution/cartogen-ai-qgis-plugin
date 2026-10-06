@@ -94,7 +94,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
-    "ingest_osm_features",
+    "ingest_osm_features", "extract_features_from_imagery",
 })
 
 
@@ -401,6 +401,7 @@ class CartogenAi:
         with self._get_history_lock():
             self.conversation_history = []
         self._grounding_texts = []
+        self._recent_tools = ((), 0)       # a new conversation does not inherit the last one's tools
         self.task_manager.clear_plan()
 
     def _accumulate_usage(self, usage):
@@ -898,6 +899,18 @@ class CartogenAi:
             self._log_tool_success(name, filtered_args, res)
             return res
 
+        if name == "extract_features_from_imagery":
+            # The model checkpoint is fetched here, on the background thread; only the inference and layer creation run on the
+            # main thread (rc15/rc17 hand tests: the in-tool download froze QGIS for ~43 s).
+            from .tools.imagery_extraction import ensure_checkpoint, extract_features_from_imagery
+            checkpoint = ensure_checkpoint()
+            if "error" in checkpoint:
+                return checkpoint
+            res = self._run_on_main_thread(
+                lambda a: extract_features_from_imagery(**a), {**filtered_args, "model_path": checkpoint.get("path")})
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
         if name == "fetch_geoboundaries":
             from .tools.humanitarian_tools import (
                 fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase,
@@ -1279,7 +1292,9 @@ class CartogenAi:
                 failed.append(name)
         data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
                             for name, is_error, _msg in turn_tool_log)
-        final_text = response_guard.apply_unbacked_data_warning(final_text, pending, failed, data_tool_ran)
+        final_text = response_guard.apply_unbacked_data_warning(
+            final_text, pending, failed, data_tool_ran, backed_by_success=data_tool_ran and not pending,
+            evidence="\n".join(getattr(self, "_grounding_texts", [])))
         # #75: claims around real numbers that no tool returned (place names, national totals, terrain, file sizes).
         final_text = response_guard.apply_ungrounded_claims_note(
             final_text, "\n".join(getattr(self, "_grounding_texts", [])),
@@ -1317,6 +1332,23 @@ class CartogenAi:
             "places, fetch_osm_features/search_hdx_datasets for real-world datasets) instead of "
             "searching for a local file that may not exist."
         )
+
+    @staticmethod
+    def _named_tool_drift_nudge(user_query, turn_tool_log, threshold=4):
+        """A corrective message when the user NAMED a tool and `threshold` other tool calls have passed without it being called, else None.
+
+        rc17 hand test B3: "call search_stac_satellite_imagery ..." took 15 tool calls (SQL, reports, severity, web search) before the
+        named tool ran once, then the answer lost the result. Pure; the caller injects it at most once per turn."""
+        from .task_matcher import named_tools
+        wanted = named_tools(user_query)
+        if not wanted or len(turn_tool_log) < threshold:
+            return None
+        called = {name for name, _err, _msg in turn_tool_log}
+        if wanted & called:
+            return None
+        names = ", ".join(f"`{n}`" for n in sorted(wanted))
+        return (f"The user's request named {names}, and {len(turn_tool_log)} other tool calls have run without it. Stop the unrelated "
+                f"calls and call {names} now with the user's own inputs; if it cannot be called, say why in one sentence.")
 
     def run(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """Runs one request (see _run_impl for the full contract). Publishes should_stop and the
@@ -1388,7 +1420,11 @@ class CartogenAi:
         # even reach, so the router's selection has to exist first. Nothing else depended on the
         # old ordering (confirmed by reading this whole function before reordering it).
         router = ToolRouter(TOOLS_SCHEMA)
-        active_tools = router.filter_relevant_tools(user_query, top_k=40)
+        self._turn_counter = getattr(self, "_turn_counter", 0) + 1
+        recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
+        # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
+        carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
+        active_tools = router.filter_relevant_tools(user_query, top_k=40, carry_over_tools=carry_over)
         active_tool_names = {
             t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
         }
@@ -1432,6 +1468,7 @@ class CartogenAi:
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
         sandbox_flailing_nudged = False
+        drift_nudged = False
 
         token_budget_hit = False
         for iteration_index in range(max_rounds):
@@ -1525,6 +1562,7 @@ class CartogenAi:
                 tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = tool_results.is_error(tool_result)
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
                     turn_pending.append(name)
@@ -1566,6 +1604,11 @@ class CartogenAi:
                 if nudge:
                     messages.append({"role": "user", "content": nudge})
                     sandbox_flailing_nudged = True
+            if not drift_nudged:
+                drift = self._named_tool_drift_nudge(user_query, turn_tool_log)
+                if drift:
+                    messages.append({"role": "user", "content": drift})
+                    drift_nudged = True
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same

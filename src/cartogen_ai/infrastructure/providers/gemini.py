@@ -1,5 +1,6 @@
 import json
 from .base import (
+    freshen_query,
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
@@ -80,7 +81,7 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
-        "contents": [{"parts": [{"text": query}]}],
+        "contents": [{"parts": [{"text": freshen_query(query)}]}],
         "tools": [{"google_search": {}}],
     }
     try:

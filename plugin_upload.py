@@ -42,6 +42,9 @@ if PACKAGE_DIR == "cartogen_ai":
 EXCLUDE_DIRS = {
     ".git", ".github", "__pycache__", ".pytest_cache", "tests", ".idea", ".vscode", ".claude",
     "dist", "brain", "scratch",
+    # Tool caches. A build from a working checkout shipped .ruff_cache/ and src/cartogen_ai_core.egg-info/ (21 junk files) in the
+    # rc17 zip rebuilt by hand on 2026-10-06; a clean CI checkout has neither, so the published zips were not affected.
+    ".ruff_cache", ".mypy_cache",
     # setuptools output: a stale second copy of the plugin (build/lib/cartogen_ai) rode into the 2026-10-03 audited zip.
     "build",
     # Brand assets (guidelines HTML, SVG lockups) have no function inside an
@@ -111,6 +114,9 @@ EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
 # docs/archive/.
 EXCLUDE_FILES = {
     "pytest.ini", "plugin_upload.py",
+    # A git WORKTREE has a .git FILE (a pointer to a path on the builder's machine), not a directory, so the ".git" directory
+    # exclusion above does not catch it; it must never ship.
+    ".git",
     "API open router.txt", "CLAUDE.md",
     # Leftover stub from consolidating this repo out of the old dual-tree
     # setup -- see the file's own docstring. Not git-tracked; safe to delete
@@ -178,7 +184,7 @@ def package_plugin():
 
     with zipfile.ZipFile(versioned_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(script_dir):
-            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS and not d.endswith(".egg-info")]
             if root == script_dir:
                 dirs[:] = [d for d in dirs if d not in EXCLUDE_ROOT_ONLY_DIRS]
 

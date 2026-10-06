@@ -2,7 +2,7 @@ import json
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, format_request_exception, freshen_query,
     HTTPError,
     requests,  # noqa: F401 -- see gemini.py's identical import for why this stays:
     # tests patch cartogen_ai.infrastructure.providers.openai.requests.get/.post.
@@ -60,7 +60,7 @@ def grounded_search(api_key, query, model="gpt-5-search-api"):
     url = "https://api.openai.com/v1/chat/completions"
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": query}],
+        "messages": [{"role": "user", "content": freshen_query(query)}],
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:

@@ -261,3 +261,57 @@ class TestUngroundedClaims(unittest.TestCase):
         from cartogen_ai.core.services.response_guard import apply_ungrounded_claims_note
         text = "Yemen has about 34,000,000 people and mountainous terrain."
         self.assertEqual(apply_ungrounded_claims_note(text, "", data_tool_ran=False), text)
+
+
+# rc17 hand test (2026-10-06): two false positives that cost a user real data or trust.
+class TestRc17GuardFalsePositives(unittest.TestCase):
+    def test_distances_in_metres_are_not_read_as_millions(self):
+        from cartogen_ai.core.services import response_guard as g
+        text = "Hub_A averages 886.49 m, Hub_B 1,035.21 m and the farthest demand point is 2,268.79 m (~1,727 m worst case)."
+        self.assertEqual(g.ungrounded_claims(text, "tool result: avg_distance 886.49"), [])
+
+    def test_a_lowercase_m_before_a_people_noun_is_still_a_million(self):
+        from cartogen_ai.core.services import response_guard as g
+        self.assertTrue(g.ungrounded_claims("About 30m people live there.", "no figures"))
+        self.assertEqual(g.ungrounded_claims("About 2.5m people live there.", "population 2,500,000"), [])
+        self.assertEqual(g.ungrounded_claims("It is 2.5m wide and 30 m long.", "no figures"), [])
+
+    def test_a_capital_m_is_still_a_million_and_is_checked(self):
+        from cartogen_ai.core.services import response_guard as g
+        self.assertTrue(g.ungrounded_claims("About 29.8M people live there.", "no figures here"))
+        self.assertTrue(g.ungrounded_claims("About 29.8 million people live there.", "no figures here"))
+        self.assertEqual(g.ungrounded_claims("About 29.8M people live there.", "population 29,812,345"), [])
+
+    TABLE = "| id | date |\n|---|---|\n| scene_alpha | 2026-08-04 |\n| scene_beta | 2026-08-09 |\n| scene_gamma | 2026-08-14 |\n"
+
+    def test_a_failed_call_does_not_delete_a_table_when_another_data_tool_succeeded(self):
+        from cartogen_ai.core.services import response_guard as g
+        out = g.apply_unbacked_data_warning(self.TABLE, [], ["execute_read_only_sql"], True, backed_by_success=True)
+        self.assertIn("scene_beta", out)
+        self.assertNotIn("Table removed", out)
+        self.assertNotIn("No data was retrieved", out)
+        self.assertIn("execute_read_only_sql", out)
+        self.assertEqual(g.apply_unbacked_data_warning(out, [], ["execute_read_only_sql"], True, backed_by_success=True), out)
+
+    def test_a_table_the_evidence_does_not_support_is_still_removed_after_a_successful_call(self):
+        from cartogen_ai.core.services import response_guard as g
+        evidence = "tool result: layers: smoke_points smoke_hubs"       # nothing about scenes
+        out = g.apply_unbacked_data_warning(self.TABLE, [], ["execute_read_only_sql"], True, backed_by_success=True, evidence=evidence)
+        self.assertIn("No data was retrieved", out)
+        self.assertNotIn("scene_beta", out)
+
+    def test_a_table_the_evidence_supports_stays(self):
+        from cartogen_ai.core.services import response_guard as g
+        evidence = "tool result: scenes scene_alpha scene_beta scene_gamma 2026-08-04 2026-08-09 2026-08-14"
+        out = g.apply_unbacked_data_warning(self.TABLE, [], ["execute_read_only_sql"], True, backed_by_success=True, evidence=evidence)
+        self.assertIn("scene_beta", out)
+        self.assertNotIn("No data was retrieved", out)
+        self.assertEqual(g.rows_backed_fraction(self.TABLE, evidence), 1.0)
+        self.assertEqual(g.rows_backed_fraction("no table here", evidence), 1.0)
+
+    def test_the_old_behaviour_is_unchanged_without_a_successful_tool_or_with_a_pending_call(self):
+        from cartogen_ai.core.services import response_guard as g
+        stripped = g.apply_unbacked_data_warning(self.TABLE, [], ["x"], True)
+        self.assertIn("No data was retrieved", stripped)
+        pending = g.apply_unbacked_data_warning(self.TABLE, ["load_project"], [], True, backed_by_success=True)
+        self.assertIn("No data was retrieved", pending)

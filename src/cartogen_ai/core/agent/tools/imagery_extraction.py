@@ -66,6 +66,45 @@ def describe_model_failure(exc):
     return f"FastSAM inference failed: {text[:300]}"
 
 
+_CHECKPOINT_MIN_BYTES = 5 * 1024 * 1024
+
+
+def ensure_checkpoint(name="FastSAM-s.pt"):
+    """NETWORK PHASE (runs on the agent's background thread, never on QGIS's main thread): makes sure the model checkpoint is on disk.
+
+    rc15 and rc17 hand tests: the first extraction downloaded the ~24 MB FastSAM checkpoint INSIDE the tool, on the main thread, so
+    QGIS showed Not Responding for 43 s and then failed on HTTP 416. An HTTP 416 means a download resumed from a PARTIAL file, so a
+    failed attempt deletes the partial checkpoint and tries once more from scratch. Returns {"success": True, "path": ...} or
+    {"error": ...} with no URLs in the text. Needs `ultralytics`; without it the main phase reports the usual install message."""
+    try:
+        from ultralytics.utils import SETTINGS
+        from ultralytics.utils.downloads import attempt_download_asset
+    except ImportError:
+        return {"success": True, "path": None, "note": "ultralytics not importable here; the main phase reports it"}
+    last_error = None
+    weights_dir = str(SETTINGS.get("weights_dir") or "")
+    target = os.path.join(weights_dir, name) if weights_dir else None
+    for attempt in (1, 2):
+        try:
+            path = attempt_download_asset(name)
+            if path and os.path.exists(str(path)):
+                return {"success": True, "path": str(path)}
+            last_error = RuntimeError("download finished but the file is missing")
+        except Exception as e:
+            last_error = e
+        # Only a PARTIAL file is deleted: an HTTP 416 / range error, or a file far smaller than the real checkpoint (~24 MB). A good
+        # cached checkpoint is never removed because of an unrelated failure such as a dropped connection (code review).
+        looks_partial = any(k in str(last_error).lower() for k in ("416", "range not satisfiable", "partial"))
+        try:
+            if target and os.path.isfile(target) and (looks_partial or os.path.getsize(target) < _CHECKPOINT_MIN_BYTES):
+                os.remove(target)
+            elif not looks_partial:
+                break                    # not a partial-file problem, so a second identical attempt will not help
+        except OSError:
+            break
+    return {"error": describe_model_failure(last_error or RuntimeError("download failed"))}
+
+
 def _temp_path(suffix):
     fd, path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
@@ -154,7 +193,8 @@ def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None
     },
 )
 def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area_m2=None,
-                                   confidence_threshold=0.4, max_pixel_dimension=_DEFAULT_MAX_PIXEL_DIMENSION):
+                                   confidence_threshold=0.4, max_pixel_dimension=_DEFAULT_MAX_PIXEL_DIMENSION,
+                                   model_path=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -221,7 +261,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         return {"error": "Failed to export the raster to an image the model can read."}
 
     try:
-        model = FastSAM("FastSAM-s.pt")
+        model = FastSAM(model_path or "FastSAM-s.pt")
         results = model(png_path, device="cpu", retina_masks=True, conf=confidence_threshold, verbose=False)
     except Exception as e:
         return {"error": describe_model_failure(e)}

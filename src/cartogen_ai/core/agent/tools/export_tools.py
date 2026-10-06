@@ -208,8 +208,68 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 
 
 
+
+# Files this plugin wrote in this QGIS session, with the size and modification time it left them at. Replacing one of THEM, unchanged,
+# is a re-run and needs no question; replacing a file that was already on disk, or one edited or swapped since, does. rc17 hand test A6
+# (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
+# stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
+_WRITTEN_THIS_SESSION = {}
+_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml")
+
+
+def _norm_path(path):
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _stamp(path):
+    try:
+        st = os.stat(path)
+        return (st.st_size, st.st_mtime_ns)
+    except OSError:
+        return None
+
+
+def _candidate_targets(path):
+    """The path itself plus, when it has no extension, the files a driver would create from it ("out/roads" -> "out/roads.shp")."""
+    if not path:
+        return []
+    return [path] if os.path.splitext(path)[1] else [path] + [path + ext for ext in _DRIVER_EXTENSIONS]
+
+
+def remember_written(path):
+    for candidate in _candidate_targets(path):
+        stamp = _stamp(candidate)
+        if stamp is not None:
+            _WRITTEN_THIS_SESSION[_norm_path(candidate)] = stamp
+
+
+def overwrite_preview(tool_name, arguments, path):
+    """A PREVIEW_REQUIRED result when writing `path` would replace a non-empty file this session did not write (or that changed since), else None."""
+    for target in _candidate_targets(path):
+        if not os.path.isfile(target):
+            continue
+        try:
+            if os.path.getsize(target) == 0:
+                continue                 # an empty placeholder file holds nothing to lose
+        except OSError:
+            continue
+        if _WRITTEN_THIS_SESSION.get(_norm_path(target)) == _stamp(target):
+            continue
+        return {
+            "status": "PREVIEW_REQUIRED",
+            "requires_confirmation": True,
+            "is_destructive": True,
+            "tool_name": tool_name,
+            "arguments": {**arguments, "confirmed": True},
+            "code_snippet": f"# {tool_name} would REPLACE the existing file {target}",
+            "rationale": f"Overwrite Preview: '{target}' already exists and was not written by this plugin since it last changed. Applying replaces it with the new export.",
+            "message": f"Confirmation required before replacing the existing file '{target}'.",
+        }
+    return None
+
+
 @register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
-def export_layer(layer_name, format, output_path=None, only_selected=None):
+def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -240,7 +300,15 @@ def export_layer(layer_name, format, output_path=None, only_selected=None):
         base = _default_export_dir("exports/geospatial")
         output_path = os.path.join(base, f"{_sanitize_filename(layer.name())}{ext}")
 
-    return _write_vector(layer, output_path, driver, only_selected=only_selected)
+    if not confirmed:
+        preview = overwrite_preview("export_layer", {"layer_name": layer_name, "format": format, "output_path": output_path,
+                                                     "only_selected": only_selected}, output_path)
+        if preview:
+            return preview
+    result = _write_vector(layer, output_path, driver, only_selected=only_selected)
+    if isinstance(result, dict) and result.get("success"):
+        remember_written(output_path)
+    return result
 
 
 # SEC-002, 2026-09-13 audit: a value beginning with one of these characters is interpreted
@@ -387,11 +455,16 @@ def _derive_csv_path(layer, output_path):
                "Point layers get X and Y columns (in the layer's CRS) instead of a WKT column unless "
                "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
                {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
-def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False):
+def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False, confirmed=False):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     path, used_fallback = _derive_csv_path(layer, output_path)
+    if not confirmed:
+        preview = overwrite_preview("export_to_csv", {"layer_name": layer_name, "output_path": output_path,
+                                                      "only_selected": only_selected, "wkt_geometry": wkt_geometry}, path)
+        if preview:
+            return preview
     try:
         is_point = QGIS_AVAILABLE and layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry
     except Exception:
@@ -411,6 +484,7 @@ def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry
         bom_error = _ensure_utf8_bom(path)
         if bom_error:
             return {"error": bom_error}
+        remember_written(path)       # after the sanitize and BOM passes above, which also modify the file
         if is_point and not wkt_geometry:
             result["geometry_columns"] = f"X and Y in the layer CRS ({layer.crs().authid()})"
         if used_fallback:

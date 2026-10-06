@@ -322,7 +322,9 @@ def analyze_request(query, context=None, attachments=None):
         if isinstance(context, dict):
             slot_ctx.update({k: v for k, v in context.items()
                              if k in reg_module.SLOT_QUESTIONS and v})
-        missing = tmatch.missing_slots(entry, query, slot_ctx)
+        layer_names = ([entry_.get("name") for entry_ in context.get("layers") or [] if isinstance(entry_, dict)]
+                       if isinstance(context, dict) and "layers" in context else None)
+        missing = tmatch.missing_slots(entry, query, slot_ctx, layer_names)
         filled = tmatch.defaults(missing)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)

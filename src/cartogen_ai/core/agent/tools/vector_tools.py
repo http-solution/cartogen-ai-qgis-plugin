@@ -177,11 +177,15 @@ def run_query(layer_name, expression):
                 "type": "boolean",
                 "description": "If true, buffer only the layer's currently-selected features instead of the whole layer. Errors if nothing is selected, rather than silently falling back to the full layer.",
             },
+            "output_name": {
+                "type": "string",
+                "description": "Name for the new buffer layer, used exactly as given when the user asked for a specific name. Omit to get '<layer>_buffer_<distance>'.",
+            },
         },
         "required": ["layer_name", "distance"],
     },
 )
-def buffer_analysis(layer_name, distance, only_selected=False):
+def buffer_analysis(layer_name, distance, only_selected=False, output_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -219,7 +223,9 @@ def buffer_analysis(layer_name, distance, only_selected=False):
         }
         output = processing.run("native:buffer", params)
         new_layer = output["OUTPUT"]
-        new_name = f"{layer_name}_buffer_{distance}"
+        # rc17 hand test D11 (2026-10-06): "name the result smoke_points_buffer_500m" came out as smoke_points_buffer_500 because
+        # the tool had no way to be told a name.
+        new_name = str(output_name).strip() if output_name and str(output_name).strip() else f"{layer_name}_buffer_{distance}"
         new_layer.setName(new_name)
 
         # Map Intelligence Engine: local role-based insertion (below source layer) & component symbology (20% fill, 100% stroke)
