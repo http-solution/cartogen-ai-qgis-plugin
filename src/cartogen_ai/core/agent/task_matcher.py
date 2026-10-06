@@ -156,6 +156,15 @@ def named_tools(query):
     return candidates & _known_tool_names() if candidates else set()
 
 
+_TIE_MIN_COVERAGE = 0.25
+
+
+def _coverage(query, entry):
+    """Share of the request's content words that the task's keywords account for (0..1)."""
+    tokens = _tokens(query)
+    return len(tokens & set(entry.get("kw") or ())) / len(tokens) if tokens else 0.0
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -202,6 +211,15 @@ def classify(query):
     if len(ms) > 1:
         second, s2 = ms[1]
         if (top - s2) < AMBIGUITY_MARGIN and second["cat"] != best["cat"]:
+            # A tie is only trusted when the winner's keywords cover a fair share of the request's own content words. rc15 and rc17
+            # hand tests: a 22-word severity request matched "Spatial analysis" and an 18-word buffer-clip-export plan matched a
+            # water and sanitation task, each on two generic words ("calculate", "population"; "distance", "points"), and the
+            # injected task directive sent the model after WorldPop and service-area tools nobody asked for. A short request that
+            # the task really describes ("build me a dashboard of displacement by district") covers about half of its words.
+            # Below the bar the verdict is the same as "below confidence floor": no directive, message sent as typed.
+            if _coverage(query, best) < _TIE_MIN_COVERAGE:
+                return {"matches": ms, "best": best, "score": top,
+                        "ambiguous": True, "reason": "below confidence floor"}
             return {"matches": ms, "best": best, "score": top,
                     "ambiguous": True, "reason": "tie across sections"}
     return {"matches": ms, "best": best, "score": top,

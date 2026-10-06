@@ -40,5 +40,29 @@ class TestNamedToolGuard(unittest.TestCase):
         self.assertEqual(verdict["best"]["tools"][0], "calculate_service_area")
 
 
+class TestWeakTiesAreNotTrusted(unittest.TestCase):
+    """rc15/rc17 hand tests: long specific requests tied across sections on two generic words and got a wrong task directive."""
+
+    SEVERITY = ("Calculate a severity index for the three polygons in smoke_admin using its numeric population and need fields, "
+                "with admin_name as the unit name. Use equal weights, write the score to severity_rc17, and then style "
+                "smoke_admin by that field.")
+    PLAN = ("Plan first, then buffer smoke_points by 250 meters, clip the buffers to smoke_boundary, export the result to a "
+            "GeoPackage and store a project memory note that the buffer distance was 250 meters.")
+
+    def test_long_requests_that_tie_on_two_words_get_no_directive(self):
+        from cartogen_ai.core.services.prompt_refiner import analyze_request
+        for query in (self.SEVERITY, self.PLAN):
+            a = analyze_request(query)
+            self.assertIsNone(a["task"], query)
+            self.assertEqual(a["directive"], "")
+            self.assertEqual(a["user_message"], query.strip())
+
+    def test_a_short_request_the_task_describes_still_matches(self):
+        verdict = tm.classify("build me a dashboard of displacement by district")
+        self.assertEqual(verdict["reason"], "tie across sections")
+        self.assertIsNotNone(verdict["best"])
+        self.assertGreaterEqual(tm._coverage("build me a dashboard of displacement by district", verdict["best"]), tm._TIE_MIN_COVERAGE)
+
+
 if __name__ == "__main__":
     unittest.main()
