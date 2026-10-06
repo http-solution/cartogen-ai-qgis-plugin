@@ -94,7 +94,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
-    "ingest_osm_features",
+    "ingest_osm_features", "extract_features_from_imagery",
 })
 
 
@@ -895,6 +895,18 @@ class CartogenAi:
                         os.remove(local_path)
                     except OSError:
                         pass
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "extract_features_from_imagery":
+            # The model checkpoint is fetched here, on the background thread; only the inference and layer creation run on the
+            # main thread (rc15/rc17 hand tests: the in-tool download froze QGIS for ~43 s).
+            from .tools.imagery_extraction import ensure_checkpoint, extract_features_from_imagery
+            checkpoint = ensure_checkpoint()
+            if "error" in checkpoint:
+                return checkpoint
+            res = self._run_on_main_thread(
+                lambda a: extract_features_from_imagery(**a), {**filtered_args, "model_path": checkpoint.get("path")})
             self._log_tool_success(name, filtered_args, res)
             return res
 

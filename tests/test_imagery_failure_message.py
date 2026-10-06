@@ -24,5 +24,23 @@ class TestDescribeModelFailure(unittest.TestCase):
         self.assertIn("<url removed>", msg)
 
 
+
+class TestEnsureCheckpoint(unittest.TestCase):
+    """The download runs on the background thread, so it must degrade cleanly when ultralytics is not installed (rc15/rc17 hand tests)."""
+
+    def test_without_ultralytics_it_defers_to_the_main_phase_instead_of_failing(self):
+        from cartogen_ai.core.agent.tools.imagery_extraction import ensure_checkpoint
+        res = ensure_checkpoint()
+        self.assertTrue(res.get("success"), res)
+        self.assertIsNone(res.get("path"))
+
+    def test_the_tool_takes_a_model_path_and_is_a_two_phase_tool(self):
+        import inspect
+        from cartogen_ai.core.agent import agent_orchestrator
+        from cartogen_ai.core.agent.tools.imagery_extraction import extract_features_from_imagery
+        self.assertIn("model_path", inspect.signature(extract_features_from_imagery).parameters)
+        self.assertIn("extract_features_from_imagery", agent_orchestrator.TWO_PHASE_TOOLS)
+
+
 if __name__ == "__main__":
     unittest.main()
