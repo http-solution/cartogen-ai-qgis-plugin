@@ -4,8 +4,8 @@ import os
 import unittest
 
 try:
-    from qgis.core import (QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsLayoutItemMap, QgsPrintLayout, QgsProject,
-                           QgsRasterLayer, QgsRectangle, QgsVectorLayer)
+    from qgis.core import (QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsLayoutItemMap, QgsLayoutSize, QgsPrintLayout,
+                           QgsProject, QgsRasterLayer, QgsRectangle, QgsUnitTypes, QgsVectorLayer)
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
@@ -44,11 +44,15 @@ class TestLegendOnlyListsWhatTheMapShows(unittest.TestCase):
             self.addCleanup(lambda p=p: os.path.exists(p) and os.remove(p))
         self.near = QgsRasterLayer(self.near_path, "near_dem")
         self.far = QgsRasterLayer(self.far_path, "far_dem")
+        self.assertTrue(self.near.isValid() and self.far.isValid())
         QgsProject.instance().addMapLayers([self.points, self.near, self.far])
         layout = QgsPrintLayout(QgsProject.instance())
         layout.initializeDefaults()
         self.map_item = QgsLayoutItemMap(layout)
         layout.addLayoutItem(self.map_item)
+        # a new map item is 0 x 0 mm; setExtent() resizes it to the extent's aspect ratio, so give it a real size first
+        from cartogen_ai.core.agent.tools.layout_tools import LAYOUT_MM
+        self.map_item.attemptResize(QgsLayoutSize(100, 100, LAYOUT_MM))
         self.map_item.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
         self.map_item.setExtent(QgsRectangle(43.9, 14.9, 44.1, 15.1))
         self.layout = layout
@@ -57,7 +61,9 @@ class TestLegendOnlyListsWhatTheMapShows(unittest.TestCase):
         from cartogen_ai.core.agent.tools.layout_style import legend_layers_on_map
         pairs = [(self.points.id(), self.points), (self.near.id(), self.near), (self.far.id(), self.far)]
         kept = [layer.name() for _i, layer in legend_layers_on_map(pairs, self.map_item)]
-        self.assertEqual(kept, ["points", "near_dem"])
+        self.assertEqual(kept, ["points", "near_dem"],
+                         f"map extent {self.map_item.extent().toString()}, near {self.near.extent().toString()}, "
+                         f"map crs {self.map_item.crs().authid()}, near crs {self.near.crs().authid()!r}")
 
     def test_a_layer_with_no_extent_is_kept_not_dropped_on_a_guess(self):
         from cartogen_ai.core.agent.tools.layout_style import legend_layers_on_map
