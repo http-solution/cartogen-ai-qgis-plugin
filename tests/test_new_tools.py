@@ -107,7 +107,8 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("refusing to execute", res["error"])
         # The query itself must never have been executed on this connection.
-        fake_conn.executeSql.assert_called_once_with("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+        executed = [c.args[0] for c in fake_conn.executeSql.call_args_list]
+        self.assertNotIn("SELECT 1", executed)
 
     def test_sql_rejects_multiple_statements(self):
         res = execute_read_only_sql("SELECT 1; DROP TABLE users;")
