@@ -157,6 +157,7 @@ def named_tools(query):
 
 
 _TIE_MIN_COVERAGE = 0.25
+_SINGLE_HIT_MAX_TOKENS = 8
 
 
 def _coverage(query, entry):
@@ -206,6 +207,12 @@ def classify(query):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if top < CONFIDENT_SCORE:
+        return {"matches": ms, "best": best, "score": top,
+                "ambiguous": True, "reason": "below confidence floor"}
+    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
+    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
+    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
+    if len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2:
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if len(ms) > 1:

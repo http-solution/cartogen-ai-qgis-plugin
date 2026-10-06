@@ -94,5 +94,29 @@ class TestSlotsAnsweredByOwnData(unittest.TestCase):
             self.assertIn("hazard_type", tm.missing_slots(entry, "analyse smoke_admin and smoke_points"))
 
 
+class TestSingleSharedWord(unittest.TestCase):
+    """rc17 hand test R4: one shared word is a coincidence in a long request, however high it scores."""
+
+    ENTRY = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
+             "slots": []}
+
+    def _classify(self, query):
+        from unittest.mock import patch
+        with patch.object(tm, "match", return_value=[(self.ENTRY, 0.5)]):
+            return tm.classify(query)
+
+    def test_a_long_request_sharing_one_word_gets_no_directive(self):
+        verdict = self._classify("Apply a multicolour colour ramp to the raster layer smoke_dem using band 1 and its real values")
+        self.assertEqual(verdict["reason"], "below confidence floor")
+
+    def test_a_long_request_sharing_two_words_is_kept(self):
+        verdict = self._classify("Check the raster layer smoke_dem against the schema we agreed for band 1 and its real values")
+        self.assertNotEqual(verdict["reason"], "below confidence floor")
+
+    def test_a_short_request_may_match_on_one_word(self):
+        verdict = self._classify("raster for flooding")
+        self.assertNotEqual(verdict["reason"], "below confidence floor")
+
+
 if __name__ == "__main__":
     unittest.main()
