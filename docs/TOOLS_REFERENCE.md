@@ -1,12 +1,12 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (202 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (203 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
 ## AI Imagery Feature Extraction
 
-### `extract_features_from_imagery`
+### `extract_features_from_imagery` _(two-phase)_
 
 Extract object boundary polygons from a loaded raster using a class-agnostic segmentation model (FastSAM) -- for a specific image the user actually has (a fresh drone/satellite photo, a scanned map), NOT for pre-vetted baseline data (use fetch_building_footprints for that instead, which is faster and free but can lag real conditions by months). Runs entirely locally/offline once the model is downloaded -- no cloud vision API call, matching this plugin's offline-first posture. IMPORTANT: this tool is class-agnostic -- it finds object BOUNDARIES, never object IDENTITIES. Never describe a result polygon as a specific class ('this is a building') unless the user's own request already established that framing for the whole image; state plainly that these are detected boundaries with a confidence score, not classified objects. Requires the raster's pixel dimensions to be at most max_pixel_dimension -- clip to a smaller area of interest first for a large image rather than expecting this tool to silently downsample it for you. Requires the optional `ultralytics` package (installs a real ML runtime plus a ~150MB+ model checkpoint on first use) -- install via qpip if prompted, or manually in the OSGeo4W Shell.
 
@@ -1000,7 +1000,7 @@ _No parameters._
 
 ### `change_layer_color`
 
-Change layer symbol fill/line color using hex string.
+Change layer symbol fill/line color. Pass the colour the user said ("dark red", "pale yellow", "light blue") or a hex code.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1345,6 +1345,14 @@ Get total feature count in a layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+### `get_layer_extent`
+
+Get a layer's extent, in its own CRS and transformed to WGS84 degrees. Use this -- never a remembered or estimated bounding box -- whenever a tool needs a bbox in degrees (fetch_osm_features, fetch_building_footprints, search_stac_satellite_imagery, fetch_worldpop_population). The result gives the box in BOTH orders, named: bbox_south_west_north_east for the OSM and building-footprint tools, bbox_west_south_east_north for the STAC search. Pass layer_name='canvas' for the current map view.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A layer name, or 'canvas' for the current map view. |
 
 ### `get_layers`
 
@@ -1796,7 +1804,7 @@ Style a layer's analysis-result field the way humanitarian maps expect, after ca
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes | The layer that holds the result field. |
-| `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; allocation: an allocation amount (calculate_allocation_envelope): quantile classes in green; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
+| `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; allocation: an allocation amount (calculate_allocation_envelope): quantile classes in green; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; jiaf_severity: a JIAF 2 severity PHASE 1-5 (jf_pre_sev, jf_fin_sev): phase colours 1 none/minimal to 5 catastrophic; a unit with no phase is drawn grey as not assessed; jiaf_review_pin: JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group; jiaf_review_severity: JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage; jiaf_count: a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class; ipc_phase: an IPC acute food insecurity phase 1-5 (ipc_phase from import_humanitarian_table): the IPC phase colours; an area with no phase is grey, not phase 1; inform_risk: an INFORM score on its 0-10 scale (inf_risk, inf_haz, inf_vuln, inf_coping): the five published classes very low to very high; damage_class: UNOSAT damage classes on a point layer (destroyed, severe, moderate, possible, none), matched on the file's own wording such as 'Severe Damage'; measure: any measured number (zonal mean, road speed, impedance cost): five quantile classes light to dark blue, low to high; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
 | `field` | string | yes | The result field to style. |
 | `top_k` | integer | no | For look='rank': how many top-ranked units to emphasise. Defaults to 10. |
 

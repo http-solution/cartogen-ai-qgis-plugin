@@ -62,8 +62,10 @@ _OUTPUT_FILE_EXTENSIONS = (
     "pdf", "png", "jpg", "jpeg", "html", "htm", "csv", "xlsx",
     "geojson", "gpkg", "qml", "docx",
 )
+# The drive letter must not be the tail of a word: in "https://host/x/preview.jpg" the "s:/" of "https://" used to start a "path" that ran
+# to ".jpg", so a STAC thumbnail link became a broken file link (rc18 hand test N4, 2026-10-06).
 _OUTPUT_PATH_RE = re.compile(
-    r'[A-Za-z]:[\\/](?:[^\s<>"\']+[\\/])*[^\s<>"\']+\.(?:' + "|".join(_OUTPUT_FILE_EXTENSIONS) + r')\b'
+    r'(?<![A-Za-z0-9])[A-Za-z]:[\\/](?![\\/])(?:[^\s<>"\']+[\\/])*[^\s<>"\']+\.(?:' + "|".join(_OUTPUT_FILE_EXTENSIONS) + r')\b'
 )
 
 

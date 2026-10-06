@@ -23,6 +23,14 @@ LOOK_DESCRIPTIONS = {
     "exposure": "an exposed-population count: quantile classes in orange-brown",
     "allocation": "an allocation amount (calculate_allocation_envelope): quantile classes in green",
     "presence_gap": "the gap / covered / unmatched status from calculate_presence_gap",
+    "jiaf_severity": "a JIAF 2 severity PHASE 1-5 (jf_pre_sev, jf_fin_sev): phase colours 1 none/minimal to 5 catastrophic; a unit with no phase is drawn grey as not assessed",
+    "jiaf_review_pin": "JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group",
+    "jiaf_review_severity": "JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage",
+    "jiaf_count": "a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class",
+    "ipc_phase": "an IPC acute food insecurity phase 1-5 (ipc_phase from import_humanitarian_table): the IPC phase colours; an area with no phase is grey, not phase 1",
+    "inform_risk": "an INFORM score on its 0-10 scale (inf_risk, inf_haz, inf_vuln, inf_coping): the five published classes very low to very high",
+    "damage_class": "UNOSAT damage classes on a point layer (destroyed, severe, moderate, possible, none), matched on the file's own wording such as 'Severe Damage'",
+    "measure": "any measured number (zonal mean, road speed, impedance cost): five quantile classes light to dark blue, low to high",
     "rank": "a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale",
 }
 
@@ -63,4 +71,11 @@ def apply_humanitarian_look(layer_name, look, field, top_k=None):
     result = style_result_field(layer, look, field, top_k)
     if "error" in result:
         return result
-    return {"success": True, "layer_name": layer_name, "look": look, "field": field, "classes": result["classes"], "notes": result["notes"]}
+    from .humanitarian_style import raise_above_rasters, refresh_legend
+    out = {"success": True, "layer_name": layer_name, "look": look, "field": field, "classes": result["classes"], "notes": list(result["notes"])}
+    lifted = raise_above_rasters(layer)
+    if lifted:
+        out["moved_above_rasters"] = lifted
+        out["notes"].append("Moved above " + ", ".join(lifted) + " so the result is not hidden behind a raster.")
+    refresh_legend(layer)
+    return out

@@ -69,6 +69,45 @@ def describe_model_failure(exc):
 _CHECKPOINT_MIN_BYTES = 5 * 1024 * 1024
 
 
+_CHECKPOINT_URLS = ("https://github.com/ultralytics/assets/releases/download/v8.3.0/{name}",
+                    "https://github.com/ultralytics/assets/releases/download/v8.2.0/{name}")
+
+
+def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_bytes=None):
+    """Plain whole-file GET of the checkpoint into `dest_dir`, written to a temporary name and renamed only when complete. Returns the final
+    path, or raises. rc18 hand test R3 (2026-10-06): ultralytics' own downloader failed with HTTP 416 ("Retry limit reached") after 357 s and
+    deleting a partial file did not help, so the first attempt now bypasses it. No Range header is ever sent, so a 416 cannot happen, and a
+    file smaller than `min_bytes` is never accepted. Written against the real asset (checked 2026-10-06: FastSAM-s.pt is 23,851,578 bytes at
+    the v8.3.0 release; a plain GET returned it complete)."""
+    import urllib.request
+    min_bytes = _CHECKPOINT_MIN_BYTES if min_bytes is None else min_bytes
+    os.makedirs(dest_dir, exist_ok=True)
+    final = os.path.join(dest_dir, name)
+    last = None
+    for template in urls:
+        tmp = final + ".partial"
+        try:
+            req = urllib.request.Request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
+            with (opener or urllib.request.urlopen)(req, timeout=60) as resp, open(tmp, "wb") as fh:
+                while True:
+                    chunk = resp.read(1 << 20)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+            if os.path.getsize(tmp) < min_bytes:
+                raise RuntimeError(f"download incomplete ({os.path.getsize(tmp)} bytes)")
+            os.replace(tmp, final)
+            return final
+        except Exception as e:
+            last = e
+            try:
+                if os.path.isfile(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+    raise last or RuntimeError("download failed")
+
+
 def ensure_checkpoint(name="FastSAM-s.pt"):
     """NETWORK PHASE (runs on the agent's background thread, never on QGIS's main thread): makes sure the model checkpoint is on disk.
 
@@ -84,7 +123,14 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
     last_error = None
     weights_dir = str(SETTINGS.get("weights_dir") or "")
     target = os.path.join(weights_dir, name) if weights_dir else None
-    for attempt in (1, 2):
+    if target and os.path.isfile(target) and os.path.getsize(target) >= _CHECKPOINT_MIN_BYTES:
+        return {"success": True, "path": target}
+    if weights_dir:
+        try:
+            return {"success": True, "path": download_checkpoint(name, weights_dir)}
+        except Exception as e:
+            last_error = e        # fall through to ultralytics' own downloader once, then report whichever error is more useful
+    for attempt in (1,) if last_error is not None else (1, 2):
         try:
             path = attempt_download_asset(name)
             if path and os.path.exists(str(path)):

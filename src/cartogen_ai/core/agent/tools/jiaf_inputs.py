@@ -713,6 +713,8 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
                     if v is not None and not (kind == "sev" and v == 0):
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names
+        from .humanitarian_style import table_look_hints
+        result["map_looks"] = table_look_hints(layer_name, names)
         if not owned:
             result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
     except EditError as e:

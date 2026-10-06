@@ -9,18 +9,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc17"
-NEW_MARK_VERSIONS = ("1.16.0-rc16", "1.16.0-rc17")
+WHATS_NEW_VERSION = "1.16.0-rc19"
+NEW_MARK_VERSIONS = ("1.16.0-rc18", "1.16.0-rc19")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Named tools are respected", "A request that names a tool (for example optimal_hub_siting) is no longer matched to an unrelated task whose tool list steered "
-     "the model elsewhere; it is sent as typed."),
-    ("Readable results", "Hub siting, allocation, route stops and travel-time origins now label results with the layer's name field instead of the "
-     "first attribute (on a GeoPackage that was the id), so hubs show as Hub_A, not 1."),
-    ("Honest saves and saved ramps", "Saving a project lists temporary layers that will come back empty, and saved raster ramps keep their range instead of nan."),
-    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session. Still open: no follow-up "
-     "step after Apply edit, and the imagery model download still blocks QGIS while it runs."),
+    ("Confirmations", "A natural yes such as \"Yes, proceed.\" confirms a task card; a reply with changes is still an edit."),
+    ("Imagery", "The imagery model downloads with a plain request, without the HTTP 416 failure, and stopping a run no longer triggers an unrequested report."),
+    ("Bounding boxes", "get_layer_extent gives a layer's extent in degrees in both box orders, so searches and downloads no longer use a remembered box."),
+    ("Maps", "A result drawn on top of imagery is lifted above the raster that hid it, and a raster legend refreshes after a colour ramp."),
+    ("Not hand-tested", "Everything here ran offline and in CI but has not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

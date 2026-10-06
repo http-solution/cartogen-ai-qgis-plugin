@@ -3154,6 +3154,8 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
             result["note"] += f" Scaled to {country_code}'s real legal urban/rural/motorway defaults."
         elif country_code:
             result["note"] += f" country='{country_code}' isn't in the curated table (see COUNTRY_SPEED_TIERS_KMH); used the generic global defaults instead."
+        from .humanitarian_style import measure_hint
+        result["map_looks"] = [measure_hint(road_network_layer, "assumed_speed_kmh", "The assumed speed per road")]
         if unknown_classes:
             result["unknown_road_classes"] = sorted(unknown_classes)
             result["note"] += f" {len(unknown_classes)} road class value(s) not in the table used default_speed_kmh={default_speed_kmh}."

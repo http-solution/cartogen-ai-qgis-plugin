@@ -170,6 +170,8 @@ class ChatTabWidget(QWidget):
         # Tool names that ran during the turn in flight -- the evidence
         # agent/output_router.py checks the output contract against.
         self._executed_tools = []
+        # True once the user pressed Stop for the turn in flight (see _stop_current_task and on_complete).
+        self._turn_stopped = False
         # Terminal-status (done/failed) step records for the turn in flight, flushed as one
         # compact summary block by _flush_tool_steps_summary() once the turn completes -- see
         # _add_tool_step. "running" status never lands here, it goes straight to status_label.
@@ -1703,6 +1705,8 @@ class ChatTabWidget(QWidget):
         self._attached_paths = []
         self._pending_analysis = None
         self._pending_analysis_text = None
+        self._turn_stopped = False
+        failed_steps = []
 
         from ..agent import project_session
         turn_session = project_session.current()
@@ -1731,7 +1735,15 @@ class ChatTabWidget(QWidget):
             else:
                 self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
                 self._after_successful_response(agent, response)
-                self._enforce_output_contract(sent_text)
+                # rc18 hand test R3 (2026-10-06): after the user pressed Stop on a run whose imagery tool had already failed, the
+                # contract check asked the model for a report nobody wanted ("Do not redo the analysis ... call generate_spatial_report").
+                # A deliverable is only owed for a turn that ran to its end: not one the user stopped, and not one where a tool failed
+                # and the answer says so.
+                if self._turn_stopped or failed_steps or str(response or "").startswith("[Agent stopped]"):
+                    self._pending_contract = None
+                    self._contract_followup_used = False
+                else:
+                    self._enforce_output_contract(sent_text)
                 self._show_safety_gate_in_chat(agent)
 
         def on_status(msg):
@@ -1742,6 +1754,8 @@ class ChatTabWidget(QWidget):
             # Qt queues the connected slot (_add_tool_step) onto this widget's
             # own (main GUI) thread automatically, same as statusSignal/
             # receiveMessageSignal already rely on.
+            if str(status).lower() == "failed":
+                failed_steps.append(name)
             self._dock.toolStepSignal.emit(name, status, error or "")
 
         # Keep a strong reference to the running task on self — QgsApplication.taskManager()
@@ -1834,6 +1848,7 @@ class ChatTabWidget(QWidget):
         really has."""
         if self._active_task is None:
             return
+        self._turn_stopped = True
         self.cancel_active_task()
         self.stop_btn.setEnabled(False)
         self._dock.statusSignal.emit("Stopping...")

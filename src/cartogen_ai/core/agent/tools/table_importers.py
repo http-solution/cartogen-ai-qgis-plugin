@@ -344,7 +344,9 @@ def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, de
     })
     if kind == "unosat":
         result["next_step"] = (f"Load the points with load_tabular_data_as_layer(x_field='{used['longitude']}', y_field='{used['latitude']}') "
-                               "if the file's coordinates are WGS84 (check the file's documentation).")
+                               "if the file's coordinates are WGS84 (check the file's documentation). Then draw them by damage class: "
+                               "apply_humanitarian_look(look='damage_class', field=<the damage column of the loaded layer>) (the file's own "
+                               "wording such as 'Severe Damage' is matched).")
         if layer_name or write_fields:
             result["join_note"] = "Joining is for ipc and inform only; unosat points have no area key."
         return result
@@ -398,6 +400,8 @@ def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, de
                     if rec.get(role) is not None:
                         set_value(layer, fid, i, float(rec[role]))
         result["fields_written"] = sorted(fields.values())
+        from .humanitarian_style import table_look_hints
+        result["map_looks"] = table_look_hints(layer_name, result["fields_written"])
         if not owned:
             result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
     except EditError as e:

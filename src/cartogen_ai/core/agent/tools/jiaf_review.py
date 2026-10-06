@@ -457,6 +457,8 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names
+        from .humanitarian_style import jiaf_look_hints
+        result["map_looks"] = jiaf_look_hints(layer_name, names)
         result["field_note"] = ("jf_pin_rk: 1/2/3 = the chosen sector was the 1st/2nd/3rd highest, 4 = another rank; empty when no decision was recorded. "
                                 "jf_pin_st (PiN review status): 0 no flag, 1 flags closed in bulk, 2 decided, 3 pending. "
                                 "jf_sev_st (severity review status): 0 no data, 1 preliminary accepted, 2 decided, 3 pending flagged, 4 incomplete coverage.")

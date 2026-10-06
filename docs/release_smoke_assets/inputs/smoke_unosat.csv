@@ -1,0 +1,7 @@
+site_id,latitude,longitude,main_damage_site_class
+1,31.9420,35.9160,Destroyed
+2,31.9500,35.9250,Severe Damage
+3,31.9550,35.9330,Moderate Damage
+4,31.9600,35.9400,Possible Damage
+5,31.9650,35.9450,No Visible Damage
+6,31.9560,35.9340,Severe Damage

@@ -554,6 +554,12 @@ _ALL_RULES = {
         'longest hydraulic flow path and total stream-network length, and label Rational/Kirpich results preliminary and '
         'subject to the governing local drainage standard.\n'
     ),
+    54: (
+        '54. Never write a bounding box from memory or by estimating it. When a tool needs a bbox in degrees (`fetch_osm_features`, '
+        '`fetch_building_footprints`, `search_stac_satellite_imagery`, `fetch_worldpop_population`) for a layer or the map view, call `get_layer_extent` '
+        'and copy the matching named field: `bbox_south_west_north_east` for the OSM and building-footprint tools, `bbox_west_south_east_north` for the STAC search. '
+        'Do not change the country or place the user named to match a box, and say so if the box and the place disagree.\n'
+    ),
 }
 
 CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49, 50, 51, 52)
