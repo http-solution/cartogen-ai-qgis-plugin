@@ -5,7 +5,7 @@ import unittest
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsLayoutItemMap, QgsLayoutSize, QgsPrintLayout,
-                           QgsProject, QgsRasterLayer, QgsRectangle, QgsUnitTypes, QgsVectorLayer)
+                           QgsProject, QgsRasterLayer, QgsRectangle, QgsVectorLayer)
     QGIS_LIVE_AVAILABLE = True
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
