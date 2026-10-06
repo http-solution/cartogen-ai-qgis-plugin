@@ -61,6 +61,15 @@ class TestGateBehaviour(unittest.TestCase):
         d = self._eval("run_monitoring_workflow", {})
         self.assertEqual(d["action"], "block")
 
+    def test_scheduling_a_workflow_is_whole_project_too(self):
+        # #149: each scheduled tick posts into the chat the model reads next, so scheduling is the egress decision.
+        d = self._eval("schedule_recurring_workflow", {"preset_name": "weekly", "interval_minutes": 5})
+        self.assertEqual(d["action"], "block")
+
+    def test_stopping_or_listing_schedules_is_not_gated(self):
+        self.assertIsNone(self._eval("stop_recurring_workflow", {"preset_name": "weekly"}))
+        self.assertIsNone(self._eval("list_scheduled_workflows", {}))
+
 
 class TestLineageHelpers(unittest.TestCase):
     def test_derive_sources_reads_lists_and_sql(self):
