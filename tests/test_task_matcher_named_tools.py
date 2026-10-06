@@ -64,5 +64,35 @@ class TestWeakTiesAreNotTrusted(unittest.TestCase):
         self.assertGreaterEqual(tm._coverage("build me a dashboard of displacement by district", verdict["best"]), tm._TIE_MIN_COVERAGE)
 
 
+
+class TestSlotsAnsweredByOwnData(unittest.TestCase):
+    """rc17 hand test R2: 'Which facility or service type?' was asked twice of a request that names its own layers."""
+
+    HUB = ("Use optimal_hub_siting to rank the three candidate locations in smoke_hubs by average straight-line distance to all five "
+           "demand features in smoke_points.")
+
+    def test_a_request_naming_its_own_layers_is_not_asked_for_a_facility_type(self):
+        entry = tm.classify(self.HUB)["best"]
+        self.assertIsNotNone(entry)
+        self.assertNotIn("facility_type", tm.missing_slots(entry, self.HUB))
+
+    def test_layer_like_names_are_detected_but_tool_names_are_not(self):
+        self.assertTrue(tm.has_explicit_data_reference("buffer smoke_points by 500 m"))
+        self.assertTrue(tm.has_explicit_data_reference("export to outputs/points.csv"))
+        self.assertFalse(tm.has_explicit_data_reference("use optimal_hub_siting on it"))
+        self.assertFalse(tm.has_explicit_data_reference("health facilities beyond one hour"))
+
+    def test_supply_hubs_now_answer_the_facility_question(self):
+        entry = next(e for e in __import__("cartogen_ai.core.agent.task_register", fromlist=["x"]).load()
+                     if "facility_type" in e.get("slots", []))
+        self.assertNotIn("facility_type", tm.missing_slots(entry, "Synthetic humanitarian supply hubs"))
+
+    def test_choices_with_no_safe_default_are_still_asked(self):
+        entry = next((e for e in __import__("cartogen_ai.core.agent.task_register", fromlist=["x"]).load()
+                      if "hazard_type" in e.get("slots", [])), None)
+        if entry:
+            self.assertIn("hazard_type", tm.missing_slots(entry, "analyse smoke_admin and smoke_points"))
+
+
 if __name__ == "__main__":
     unittest.main()

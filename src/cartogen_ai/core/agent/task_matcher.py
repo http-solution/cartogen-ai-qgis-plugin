@@ -268,7 +268,8 @@ _SLOT_EVIDENCE = {
     # facility, and asking "which facility type?" of "population within one hour's drive of the point 4902068.0, 1799912.0"
     # was a question with no answer (rc10 smoke test, 2026-10-01).
     "facility_type":  r"health|school|clinic|hospital|water point|borehole|latrine|market|warehouse|"
-                      r"shelter|distribution point|-?\d+\.\d+\s*,\s*-?\d+\.\d+|"
+                      r"shelter|distribution point|\bhubs?\b|\bdepots?\b|\bfacilit(?:y|ies)\b|\bsites?\b|\bcamps?\b|"
+                      r"\bcent(?:re|er)s?\b|\bstations?\b|-?\d+\.\d+\s*,\s*-?\d+\.\d+|"
                       r"\b(?:the|this|that|my|an?)\s+(?:point|origin|location|site|coordinates?)\b",
     # A number (digits or a word) followed by a distance or time unit, plurals included. This was
     # digits-only with singular-only units ("hour\b" can't match "hours"), so "one hour's travel",
@@ -287,6 +288,24 @@ _SLOT_EVIDENCE = {
 }
 
 
+# A request that names its own data ("candidate locations in smoke_hubs ... demand in smoke_points") has said where the facilities,
+# the area and the population are; asking "Which facility or service type?" of it was a question with no answer (rc17 hand test R2,
+# 2026-10-06: asked twice and "Synthetic humanitarian supply hubs" was not accepted). Slots with no safe default that name a
+# real-world choice (hazard, sector, DEM ...) are NOT satisfied this way.
+_DATA_REFERENCE_SLOTS = frozenset({"facility_type", "aoi", "admin_level", "population_src"})
+_SNAKE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
+
+
+def has_explicit_data_reference(query):
+    """True when the query names a layer-like identifier (snake_case that is not a tool name) or a data file."""
+    text = (query or "")
+    low = text.lower()
+    tools = _known_tool_names()
+    if any(t not in tools for t in _SNAKE.findall(low)):
+        return True
+    return bool(re.search(r"\b[\w\-]+\.(?:gpkg|shp|geojson|csv|tif|tiff|kml)\b", low))
+
+
 def missing_slots(entry, query, context=None):
     """Slots the task needs that neither the query nor QGIS context supplies.
 
@@ -299,8 +318,11 @@ def missing_slots(entry, query, context=None):
     ctx = context or {}
     q = (query or "").lower()
     out = []
+    own_data = has_explicit_data_reference(query)
     for slot in entry.get("slots", []):
         if ctx.get(slot):
+            continue
+        if own_data and slot in _DATA_REFERENCE_SLOTS:
             continue
         pat = _SLOT_EVIDENCE.get(slot)
         if pat and re.search(pat, query or "", re.I):
