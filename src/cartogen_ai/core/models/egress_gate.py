@@ -52,7 +52,11 @@ EXEMPT_TOOLS = frozenset({"set_layer_sensitivity", "get_layer_sensitivity"})
 # GitHub #149 (audit F13): run_monitoring_workflow is the same case. It takes only the NAME of a stored preset; the steps (and the
 # layers they read) are looked up inside the tool and called straight from the tool registry, so neither the argument scan nor
 # the per-call gate ever sees them. Until each nested step goes through the gate it is treated as touching the whole project.
-WORKFLOW_TOOLS = frozenset({"run_monitoring_workflow"})
+#
+# schedule_recurring_workflow is the same case one step removed: each tick runs the stored steps and posts a change summary into
+# the chat, and the chat history goes to the model on the next turn, so scheduling a preset over a protected layer is an egress
+# decision at the moment it is scheduled, not only when a tick happens to run.
+WORKFLOW_TOOLS = frozenset({"run_monitoring_workflow", "schedule_recurring_workflow"})
 WHOLE_PROJECT_TOOLS = frozenset({"execute_pyqgis_script"}) | WORKFLOW_TOOLS
 
 # execute_read_only_sql names its layers INSIDE the query text ("SELECT * FROM \"restricted\""), where the exact-string scan
