@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc17 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc18 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc17 pre-release** (published as a GitHub pre-release).
-> - **Tests:** 3,467 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc18 pre-release** (the published release is still rc17 until rc18 is uploaded).
+> - **Tests:** 3,523 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
 >   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a hands-on smoke test of rc12 to rc17 in a desktop QGIS session. A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc17 zip has passed CI packaging and the release workflow's zip checks only.
+> - **Not yet verified:** a hands-on smoke test of rc12 to rc18 in a desktop QGIS session. A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc18 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc17)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc18)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,20 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc18
+
+Built on rc17; tested offline and in CI on QGIS 4.2.2, **not by hand**. Full list: the `v1.16.0-rc18` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: a fresh full request typed while a clarification question is open no longer gets pasted under the old request as "Details: ...", which ran the old request with the new one underneath. This was behind the wrong clarification questions, previews and the unrelated OpenStreetMap offer in the rc15/rc17 smoke runs. Short answers behave as before.
+- Fix: after you click Apply edit on a confirmation card, a request with more than one step ("write the score, then style the layer") resumes once, up to three times per request. Before, it stopped after the confirmed step.
+- Fix: a short follow-up such as "EPSG:3857" keeps the tools the previous turn used (at most six, for two turns), so the CRS question can finally be answered with the point being placed (the rc16 retry could not work because the tool was not in the turn's tool list).
+- Fix: the reply guard no longer reads metres as millions ("886.49 m" was footnoted as general knowledge), and no longer deletes a table whose rows are found in the tool results just because an unrelated call failed.
+- Fix: task matching. A request that names a tool is only matched to a task that uses it; a weak cross-section tie (under 25% keyword coverage) and a single shared word in a long request give no directive; a request that names a loaded layer is not asked "Which facility or service type?"; hub, depot, site and similar words answer that question. The register's own task descriptions match as often as before (453 and 466 of 748, pinned by a test).
+- Fix: exporting over a non-empty file the plugin did not write (or one changed since) now asks for confirmation (export_to_csv, export_layer). Hub siting, allocation, route stops and travel-time origins label results with the layer's name field instead of the GeoPackage id. save_project lists temporary layers that come back empty. Raster colour ramps keep their range after a save. buffer_analysis accepts output_name.
+- Fix: extract_features_from_imagery downloads its model checkpoint on a background thread (QGIS no longer stops responding for the download), removes a partial file after a failure and retries once, and never prints the signed download URL. Web searches for the latest or current thing carry today's date; script-sandbox "Algorithm not found" errors name the real tools; the agent is nudged once when a tool you named is still not called after four other calls.
+- Docs: the rc15 and rc17 live smoke reports as received, their triage, and a re-test sheet for this build (docs/SMOKE_RUN_SHEET_rc18_2026-10-06.md).
+- Verification: offline suite and ruff pass; the live-QGIS tests passed in CI on QGIS 4.2.2 (PRs #204-#206). NOT hand-tested: the chat flow, task matching and the CRS retry in a real conversation, the continuation after Apply edit, and the imagery download with a real model. No audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc17
 
@@ -167,7 +181,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc16 or 1.16.0-rc17 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc17 or 1.16.0-rc18 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|

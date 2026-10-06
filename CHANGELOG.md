@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc18](#v1-16-0-rc18) | 2026-10-06 | **Release candidate 18 for 1.16.0.** No breaking changes. Fixes from the rc15 and rc17 smoke reports: stale-question chat bug, continuation after Apply, router follow-up tools, guard false positives, task matching, overwrite confirmation, imagery download off the main thread; not hand-tested. |
 | [1.16.0-rc17](#v1-16-0-rc17) | 2026-10-06 | **Release candidate 17 for 1.16.0.** No breaking changes. Fixes from the rc15 smoke report: tool-naming requests no longer matched to unrelated tasks, result labels from a name field, save warns about memory layers, raster range saved, imagery download message; not hand-tested. |
 | [1.16.0-rc16](#v1-16-0-rc16) | 2026-10-06 | **Release candidate 16 for 1.16.0.** No breaking changes. Fixes from the rc15 hand test: list-returning tools no longer reported as failed (regression since rc12), CRS-question retry, one-point print layout extent; live-test discovery; not hand-tested. |
 | [1.16.0-rc15](#v1-16-0-rc15) | 2026-10-05 | **Release candidate 15 for 1.16.0.** No breaking changes. Replace-by-name warning for service-area results (#130 point 3), issue verification checklist; JIAF validation items still open; not hand-tested. |
@@ -58,6 +59,21 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc18"></a>
+## [1.16.0-rc18] — 2026-10-06 — Release candidate 18 for 1.16.0: fixes from the rc15 and rc17 smoke reports
+
+No breaking changes; QGIS 4.2+. Everything merged after the rc17 build (PRs #204-#206):
+
+- Fix: a fresh full request typed while a clarification question is open no longer gets pasted under the old request as "Details: ...", which ran the old request with the new one underneath. This was behind the wrong clarification questions, previews and the unrelated OpenStreetMap offer in the rc15/rc17 smoke runs. Short answers behave as before.
+- Fix: after you click Apply edit on a confirmation card, a request with more than one step ("write the score, then style the layer") resumes once, up to three times per request. Before, it stopped after the confirmed step.
+- Fix: a short follow-up such as "EPSG:3857" keeps the tools the previous turn used (at most six, for two turns), so the CRS question can finally be answered with the point being placed (the rc16 retry could not work because the tool was not in the turn's tool list).
+- Fix: the reply guard no longer reads metres as millions ("886.49 m" was footnoted as general knowledge), and no longer deletes a table whose rows are found in the tool results just because an unrelated call failed.
+- Fix: task matching. A request that names a tool is only matched to a task that uses it; a weak cross-section tie (under 25% keyword coverage) and a single shared word in a long request give no directive; a request that names a loaded layer is not asked "Which facility or service type?"; hub, depot, site and similar words answer that question. The register's own task descriptions match as often as before (453 and 466 of 748, pinned by a test).
+- Fix: exporting over a non-empty file the plugin did not write (or one changed since) now asks for confirmation (export_to_csv, export_layer). Hub siting, allocation, route stops and travel-time origins label results with the layer's name field instead of the GeoPackage id. save_project lists temporary layers that come back empty. Raster colour ramps keep their range after a save. buffer_analysis accepts output_name.
+- Fix: extract_features_from_imagery downloads its model checkpoint on a background thread (QGIS no longer stops responding for the download), removes a partial file after a failure and retries once, and never prints the signed download URL. Web searches for the latest or current thing carry today's date; script-sandbox "Algorithm not found" errors name the real tools; the agent is nudged once when a tool you named is still not called after four other calls.
+- Docs: the rc15 and rc17 live smoke reports as received, their triage, and a re-test sheet for this build (docs/SMOKE_RUN_SHEET_rc18_2026-10-06.md).
+- Verification: offline suite and ruff pass; the live-QGIS tests passed in CI on QGIS 4.2.2 (PRs #204-#206). NOT hand-tested: the chat flow, task matching and the CRS retry in a real conversation, the continuation after Apply edit, and the imagery download with a real model. No audit issue is closed by this build.
 
 <a id="v1-16-0-rc17"></a>
 ## [1.16.0-rc17] — 2026-10-06 — Release candidate 17 for 1.16.0: fixes from the rc15 smoke report

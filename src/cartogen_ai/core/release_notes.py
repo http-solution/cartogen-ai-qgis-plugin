@@ -9,18 +9,19 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc17"
-NEW_MARK_VERSIONS = ("1.16.0-rc16", "1.16.0-rc17")
+WHATS_NEW_VERSION = "1.16.0-rc18"
+NEW_MARK_VERSIONS = ("1.16.0-rc17", "1.16.0-rc18")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Named tools are respected", "A request that names a tool (for example optimal_hub_siting) is no longer matched to an unrelated task whose tool list steered "
-     "the model elsewhere; it is sent as typed."),
-    ("Readable results", "Hub siting, allocation, route stops and travel-time origins now label results with the layer's name field instead of the "
-     "first attribute (on a GeoPackage that was the id), so hubs show as Hub_A, not 1."),
-    ("Honest saves and saved ramps", "Saving a project lists temporary layers that will come back empty, and saved raster ramps keep their range instead of nan."),
-    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session. Still open: no follow-up "
-     "step after Apply edit, and the imagery model download still blocks QGIS while it runs."),
+    ("Chat state", "A new full request typed while a question is open is treated as a new request, not pasted under the old one, and a multi-step "
+     "request carries on after you click Apply edit. A short answer such as a CRS code keeps the tool the last turn was using."),
+    ("Honest answers", "Distances in metres are no longer footnoted as general knowledge, and a table backed by tool results is no longer removed "
+     "because an unrelated call failed."),
+    ("Matching and exports", "A request that names a tool or your own layers is no longer matched to an unrelated task or asked for a facility type. "
+     "Exports ask before replacing a file you already had. Results are labelled by name, not by GeoPackage id."),
+    ("Imagery and search", "The imagery model downloads in the background without freezing QGIS, and searches for the latest news carry today's date."),
+    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
