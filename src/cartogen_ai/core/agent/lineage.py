@@ -51,7 +51,28 @@ def created_layer_names(result, sources, known_names):
     return out
 
 
-def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None) -> bool:
+def source_layer_ids(source_names, layers):
+    """Ids of every loaded layer whose name is in `source_names` (all layers sharing a name, not just the first). Pure over
+    (name, id) pairs: `layers` is any iterable of objects with name() and id()."""
+    wanted = set(source_names or [])
+    return sorted(layer.id() for layer in layers if layer.name() in wanted)
+
+
+def effective_source_names(entry, layers):
+    """The loaded-layer names a lineage entry's sources point at NOW (GitHub #150). A source recorded by name goes stale when the
+    layer is renamed, and a derived output of a protected layer would then look open to the egress gate; the recorded ids still
+    resolve to the renamed layer. The recorded names are kept too (a name now held by another layer is judged by the gate's
+    strictest-layer rule), so this only ever adds names. Pure over name()/id() objects."""
+    names = [s for s in (entry.get("sources") or []) if isinstance(s, str)]
+    by_id = {layer.id(): layer.name() for layer in layers}
+    for sid in entry.get("source_ids") or []:
+        current = by_id.get(sid)
+        if current and current not in names:
+            names.append(current)
+    return names
+
+
+def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None, source_ids: list = None) -> bool:
     """Attaches tool execution lineage metadata to a layer's custom properties."""
     if not QGIS_AVAILABLE or layer is None:
         return False
@@ -69,6 +90,7 @@ def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list =
             "tool": tool_name,
             "params": params,
             "sources": source_layers or [],
+            "source_ids": source_ids or [],
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 

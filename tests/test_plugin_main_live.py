@@ -128,6 +128,30 @@ class TestPluginMainLifecycleLive(unittest.TestCase):
         plugin._auto_open_dock()
         self.assertIs(plugin.dock_widget, dock, "a second call must not create another dock")
 
+    def test_a_real_project_clear_and_read_mark_a_running_turn_stale_and_unload_stops_it(self):
+        # #147 acceptance: a turn started before a project switch must see itself as stale. The wiring (project.cleared /
+        # readProject -> _on_project_changed -> project_session.invalidate) had only ever been unit-tested with a fake counter.
+        import os
+        import tempfile
+        from qgis.core import QgsProject
+        from cartogen_ai.core.agent import project_session
+        project = QgsProject.instance()
+        project.clear()
+        plugin = self._make_plugin()
+        self.addCleanup(plugin.unload)
+        captured = project_session.current()
+        project.clear()
+        self.assertTrue(project_session.is_stale(captured), "clearing the project must invalidate the running turn")
+        path = os.path.join(tempfile.mkdtemp(prefix="cartogen_147_"), "p.qgz")
+        self.assertTrue(project.write(path))
+        captured = project_session.current()
+        self.assertTrue(project.read(path))
+        self.assertTrue(project_session.is_stale(captured), "opening a project must invalidate the running turn")
+        plugin.unload()
+        after_unload = project_session.current()
+        project.clear()
+        self.assertEqual(project_session.current(), after_unload, "after unload the plugin no longer reacts to project signals")
+
     def test_unload_disconnects_action_signals(self):
         plugin = self._make_plugin()
         actions = list(plugin.actions)

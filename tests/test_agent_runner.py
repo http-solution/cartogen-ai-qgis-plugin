@@ -1028,6 +1028,9 @@ class TestEgressGateWiring(unittest.TestCase):
             def name(self):
                 return self._n
 
+            def id(self):                      # every real QgsMapLayer has one; the gate now resolves lineage source ids
+                return "id_" + self._n
+
             def customProperty(self, key, default=""):
                 if key == SENSITIVITY_PROPERTY_KEY and self._level:
                     return json.dumps({"level": self._level, "reason": None})
