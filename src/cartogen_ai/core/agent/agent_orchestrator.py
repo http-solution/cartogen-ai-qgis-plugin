@@ -1331,6 +1331,23 @@ class CartogenAi:
             "searching for a local file that may not exist."
         )
 
+    @staticmethod
+    def _named_tool_drift_nudge(user_query, turn_tool_log, threshold=4):
+        """A corrective message when the user NAMED a tool and `threshold` other tool calls have passed without it being called, else None.
+
+        rc17 hand test B3: "call search_stac_satellite_imagery ..." took 15 tool calls (SQL, reports, severity, web search) before the
+        named tool ran once, then the answer lost the result. Pure; the caller injects it at most once per turn."""
+        from .task_matcher import named_tools
+        wanted = named_tools(user_query)
+        if not wanted or len(turn_tool_log) < threshold:
+            return None
+        called = {name for name, _err, _msg in turn_tool_log}
+        if wanted & called:
+            return None
+        names = ", ".join(f"`{n}`" for n in sorted(wanted))
+        return (f"The user's request named {names}, and {len(turn_tool_log)} other tool calls have run without it. Stop the unrelated "
+                f"calls and call {names} now with the user's own inputs; if it cannot be called, say why in one sentence.")
+
     def run(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """Runs one request (see _run_impl for the full contract). Publishes should_stop and the
         status callback for the duration, so a long-running tool -- a network analysis over a
@@ -1449,6 +1466,7 @@ class CartogenAi:
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
         sandbox_flailing_nudged = False
+        drift_nudged = False
 
         token_budget_hit = False
         for iteration_index in range(max_rounds):
@@ -1584,6 +1602,11 @@ class CartogenAi:
                 if nudge:
                     messages.append({"role": "user", "content": nudge})
                     sandbox_flailing_nudged = True
+            if not drift_nudged:
+                drift = self._named_tool_drift_nudge(user_query, turn_tool_log)
+                if drift:
+                    messages.append({"role": "user", "content": drift})
+                    drift_nudged = True
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same
