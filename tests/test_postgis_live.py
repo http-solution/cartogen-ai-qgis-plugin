@@ -81,6 +81,12 @@ class TestExecuteReadOnlySqlOnPostgis(unittest.TestCase):
         self.assertTrue(out.get("success"), out)
         self.assertEqual(out["feature_count"], 2)
 
+    def test_the_tool_leaves_the_users_connection_writable(self):
+        """The first CI run showed the read-only setting staying on a pooled connection that everything else shares."""
+        self._run(f"SELECT id FROM {SCHEMA}.facts")
+        _admin_connection().executeSql(f"INSERT INTO {SCHEMA}.facts VALUES (99, 'after')")
+        self.assertEqual(self._scalar(f"SELECT count(*) FROM {SCHEMA}.facts WHERE id = 99"), 1)
+
     def test_an_unknown_connection_is_an_error_not_a_silent_fallback(self):
         out = self._run("SELECT 1", name="no_such_connection")
         self.assertIn("error", out)

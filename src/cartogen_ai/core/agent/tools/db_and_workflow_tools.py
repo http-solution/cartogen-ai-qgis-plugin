@@ -39,20 +39,40 @@ def _enforce_db_read_only(connection_uri_str: str, sql_query: str, provider_regi
     if conn is None:
         return {"error": "Could not open the database connection to enforce read-only mode, refusing to execute."}
 
+    # CI finding (PR #210, first run against a real PostGIS server): SET SESSION CHARACTERISTICS changes the session of a POOLED connection that
+    # QGIS shares with everything else using the same connection info, and it was never reset, so after one call the user's own
+    # connection refused every write ("cannot execute DROP SCHEMA in a read-only transaction"). The previous setting is read first and put
+    # back in a finally, on every exit path.
+    previous_read_only = False
     try:
-        conn.executeSql("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
-        rows = conn.executeSql("SHOW transaction_read_only")
-        if not (rows and rows[0] and _is_on(rows[0][0] if isinstance(rows[0], (list, tuple)) else rows[0])):
-            return {"error": "The database did not confirm a read-only session, refusing to execute."}
+        before = conn.executeSql("SHOW default_transaction_read_only")
+        previous_read_only = bool(before and before[0] and _is_on(before[0][0] if isinstance(before[0], (list, tuple)) else before[0]))
     except Exception as e:
-        # Fail CLOSED: if we can't confirm the session is read-only, refuse rather than run with no DB-level guarantee.
-        return {"error": f"Could not enforce database-level read-only mode, refusing to execute: {e}"}
+        return {"error": f"Could not read the database session's current mode, refusing to execute: {e}"}
+
+    def _restore():
+        try:
+            conn.executeSql("SET SESSION CHARACTERISTICS AS TRANSACTION READ " + ("ONLY" if previous_read_only else "WRITE"))
+        except Exception:
+            pass          # nothing more can be done; the query below has already been refused or has finished
 
     try:
-        conn.executeSql(sql_query)
-    except Exception as e:
-        return {"error": f"Database rejected query under read-only enforcement: {e}"}
-    return None
+        try:
+            conn.executeSql("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+            rows = conn.executeSql("SHOW transaction_read_only")
+            if not (rows and rows[0] and _is_on(rows[0][0] if isinstance(rows[0], (list, tuple)) else rows[0])):
+                return {"error": "The database did not confirm a read-only session, refusing to execute."}
+        except Exception as e:
+            # Fail CLOSED: if we can't confirm the session is read-only, refuse rather than run with no DB-level guarantee.
+            return {"error": f"Could not enforce database-level read-only mode, refusing to execute: {e}"}
+
+        try:
+            conn.executeSql(sql_query)
+        except Exception as e:
+            return {"error": f"Database rejected query under read-only enforcement: {e}"}
+        return None
+    finally:
+        _restore()
 
 
 def build_query_table(sql_query: str, key_column: str = "_cg_id") -> str:
