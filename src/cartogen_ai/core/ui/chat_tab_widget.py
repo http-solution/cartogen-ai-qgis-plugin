@@ -1034,6 +1034,12 @@ class ChatTabWidget(QWidget):
         # this feel like an actual chat rather than a black box -- the eventual composed
         # request (original + "Details: ...") still shows too, once dispatch/preview
         # actually happens, exactly like any other task-matched message already does.
+        if self._awaiting_requirement_reply and reply_vocab.is_new_request(text):
+            # A whole new request typed instead of an answer abandons the open question; it is NOT pasted under the old request.
+            self._awaiting_requirement_reply = False
+            self._pending_analysis_text = None
+            self._pending_analysis = None
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
         if self._awaiting_requirement_reply:
             self._dock.receiveMessageSignal.emit("user", text)
             text = f"{self._pending_analysis_text}\n\nDetails: {text}"

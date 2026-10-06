@@ -70,3 +70,36 @@ def preview_is_fresh(updated_at_iso, now=None):
         updated = updated.replace(tzinfo=datetime.timezone.utc)
     current = now or datetime.datetime.now(datetime.timezone.utc)
     return (current - updated).total_seconds() <= PREVIEW_MAX_AGE_SECONDS
+
+
+_NEW_REQUEST_MIN_WORDS = 7
+_IMPERATIVE_STARTS = frozenset({
+    "calculate", "compute", "create", "make", "build", "show", "map", "find", "list", "download", "fetch", "load", "add", "remove",
+    "delete", "export", "estimate", "generate", "run", "classify", "compare", "analyze", "analyse", "draw", "plot", "clip", "buffer",
+    "merge", "join", "style", "label", "zoom", "select", "count", "summarize", "summarise", "identify", "extract", "convert",
+    "apply", "save", "use", "search", "transform", "rank", "write", "set",
+})
+
+
+def is_new_request(text):
+    """True when a message typed while a clarification question is open is a whole NEW request, not the answer.
+
+    The chat folded whatever came next into the pending request as "Details: <reply>", so a user who answered a question by typing
+    a fresh full request got the OLD request run with the new one pasted underneath it. rc15 and rc17 hand tests: a severity request
+    was answered with an OpenStreetMap download offer, a layout request with a historical title and path, and a footprint request ran
+    an unrelated 14-call sequence, each after an earlier question was left open. An answer to "Which facility type?" is a few words
+    ("health clinics"); a request names a tool, or is a sentence with an action word. Pure and deliberately conservative: when in
+    doubt it is an answer, which is the old behaviour."""
+    from ..agent import task_matcher
+    body = (text or "").strip()
+    if not body or body.endswith("?") and len(body.split()) < _NEW_REQUEST_MIN_WORDS:
+        return False
+    if task_matcher.named_tools(body):
+        return True
+    words = body.split()
+    if len(words) >= _NEW_REQUEST_MIN_WORDS and task_matcher._ACTION_WORDS.search(body.lower()):
+        return True
+    # A short imperative ("Export smoke_points to CSV at outputs/x.csv") starts with its verb; an answer rarely does.
+    first = words[0].lower().strip(",.:;")
+    return len(words) >= 4 and first in _IMPERATIVE_STARTS
+
