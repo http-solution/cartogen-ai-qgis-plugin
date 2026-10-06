@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc19 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc20 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc19 pre-release** (published; rc18 was hand-tested but never published, rc19 follows its hand test).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc20 pre-release** build (rc19 is the last published pre-release until rc20 is uploaded; rc20 adds the audit fixes and CI coverage made after it).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc19 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc19 zip has passed CI packaging and the release workflow's zip checks only.
+> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc20 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc20 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc19)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc20)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,21 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc20
+
+Built on rc19; tested offline and in CI on QGIS 4.2.2 (including a real PostGIS server), **not by hand**. Full list: the `v1.16.0-rc20` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix (rc19 regression): a PostGIS read-only query left the shared QGIS database connection read-only for everything else that used it, because the guard set the session read-only and never put it back. It now reads the previous mode, runs the guard and restores it on every path. Found by the first CI run against a real PostGIS server (#151).
+- Fix: raster arithmetic on mismatched grids (NDVI, NDWI, NDRE, weighted overlay, change detection) warps the other rasters onto the first raster's grid into temporary files and says so; project layers are not touched (#153). DEM vertical unit is an argument ('m', 'ft', 'us_ft') on elevation_profile, slope_analysis and build_composite_impedance_field (#154). A population raster named like a density raster is refused until raster_unit says people_per_km2 or people_per_cell (#160).
+- Fix: severity, presence-gap, population-in-need and damage-exposure tools label units uniquely and write each score to its own feature instead of collapsing same-named units (#159); incident and footprint points are moved into the admin CRS before assignment (#161).
+- Fix: a task or function that finishes after the plugin was unloaded no longer calls back into the destroyed UI (#167). The standard print-layout legend lists only layers that meet the map, and right and top graticule labels that were clipped by the legend frame are hidden (rc18 hand test R7/N8).
+- Fix: renaming a protected layer, or giving an open layer the same name, no longer lets a layer derived from it look open to the cloud-egress gate. Lineage now also records source layer ids, and a name shared by several layers takes the strictest level (#150).
+- Fix: scheduling a stored workflow (schedule_recurring_workflow) is treated like running one: with a cloud provider it needs the same override, because each tick posts results into the chat the model reads next (#149).
+- Fix: estimate_road_speeds, add_incident_point, add_named_points and the NASA FIRMS, EONET and GDACS layer refresh reported success when the provider refused the save, and committed edits you had pending on the same layer. A refused save is now an error that keeps the previous contents, and a layer you are editing stays in your own edit session (#144, #143).
+- Fix: a roads layer with a few segments that have no direction (NULL or empty) was no longer recognised as the Geofabrik F/T/B encoding, so every one-way street was routed as two-way. Blank directions are ignored when the encoding is detected (#132). Two dashboards with one title in one second no longer overwrite each other (#158).
+- CI: the live job now starts a PostGIS 16 server and runs the read-only SQL tool against it, plus new live tests for edit-session undo, project switching, lineage, admin-boundary styling and the population ramp.
+- Verification: offline suite, ruff and the QGIS 4.2.2 live job (including PostGIS) pass. NOT hand-tested: every fix above. The rc19 sheet's rows V, T, J and P and the rc18 hand-test findings are still unverified in a desktop session. No audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc19
 
@@ -195,7 +210,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc18 or 1.16.0-rc19 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc19 or 1.16.0-rc20 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|

@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc20](#v1-16-0-rc20) | 2026-10-06 | **Release candidate 20 for 1.16.0.** No breaking changes. Audit fixes since rc19: PostGIS read-only guard no longer leaves the connection read-only, raster grid alignment and units, unique unit labels, egress lineage after renames, refused saves reported as errors, one-way streets with blank directions; CI now runs against a real PostGIS server; not hand-tested. |
 | [1.16.0-rc19](#v1-16-0-rc19) | 2026-10-06 | **Release candidate 19 for 1.16.0.** No breaking changes. Fixes from the rc18 hand test: polite confirmations, imagery checkpoint download, no unrequested report after Stop, get_layer_extent so a bounding box is never guessed, results lifted above hiding rasters; not hand-tested. |
 | [1.16.0-rc18](#v1-16-0-rc18) | 2026-10-06 | **Release candidate 18 for 1.16.0.** No breaking changes. Fixes from the rc15 and rc17 smoke reports: stale-question chat bug, continuation after Apply, router follow-up tools, guard false positives, task matching, overwrite confirmation, imagery download off the main thread; not hand-tested. |
 | [1.16.0-rc17](#v1-16-0-rc17) | 2026-10-06 | **Release candidate 17 for 1.16.0.** No breaking changes. Fixes from the rc15 smoke report: tool-naming requests no longer matched to unrelated tasks, result labels from a name field, save warns about memory layers, raster range saved, imagery download message; not hand-tested. |
@@ -60,6 +61,22 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc20"></a>
+## [1.16.0-rc20] — 2026-10-06 — Release candidate 20 for 1.16.0: audit fixes and CI coverage since rc19
+
+No breaking changes; QGIS 4.2+. Everything after the rc19 build:
+
+- Fix (rc19 regression): a PostGIS read-only query left the shared QGIS database connection read-only for everything else that used it, because the guard set the session read-only and never put it back. It now reads the previous mode, runs the guard and restores it on every path. Found by the first CI run against a real PostGIS server (#151).
+- Fix: raster arithmetic on mismatched grids (NDVI, NDWI, NDRE, weighted overlay, change detection) warps the other rasters onto the first raster's grid into temporary files and says so; project layers are not touched (#153). DEM vertical unit is an argument ('m', 'ft', 'us_ft') on elevation_profile, slope_analysis and build_composite_impedance_field (#154). A population raster named like a density raster is refused until raster_unit says people_per_km2 or people_per_cell (#160).
+- Fix: severity, presence-gap, population-in-need and damage-exposure tools label units uniquely and write each score to its own feature instead of collapsing same-named units (#159); incident and footprint points are moved into the admin CRS before assignment (#161).
+- Fix: a task or function that finishes after the plugin was unloaded no longer calls back into the destroyed UI (#167). The standard print-layout legend lists only layers that meet the map, and right and top graticule labels that were clipped by the legend frame are hidden (rc18 hand test R7/N8).
+- Fix: renaming a protected layer, or giving an open layer the same name, no longer lets a layer derived from it look open to the cloud-egress gate. Lineage now also records source layer ids, and a name shared by several layers takes the strictest level (#150).
+- Fix: scheduling a stored workflow (schedule_recurring_workflow) is treated like running one: with a cloud provider it needs the same override, because each tick posts results into the chat the model reads next (#149).
+- Fix: estimate_road_speeds, add_incident_point, add_named_points and the NASA FIRMS, EONET and GDACS layer refresh reported success when the provider refused the save, and committed edits you had pending on the same layer. A refused save is now an error that keeps the previous contents, and a layer you are editing stays in your own edit session (#144, #143).
+- Fix: a roads layer with a few segments that have no direction (NULL or empty) was no longer recognised as the Geofabrik F/T/B encoding, so every one-way street was routed as two-way. Blank directions are ignored when the encoding is detected (#132). Two dashboards with one title in one second no longer overwrite each other (#158).
+- CI: the live job now starts a PostGIS 16 server and runs the read-only SQL tool against it, plus new live tests for edit-session undo, project switching, lineage, admin-boundary styling and the population ramp.
+- Verification: offline suite, ruff and the QGIS 4.2.2 live job (including PostGIS) pass. NOT hand-tested: every fix above. The rc19 sheet's rows V, T, J and P and the rc18 hand-test findings are still unverified in a desktop session. No audit issue is closed by this build.
 
 <a id="v1-16-0-rc19"></a>
 ## [1.16.0-rc19] — 2026-10-06 — Release candidate 19 for 1.16.0: fixes from the rc18 hand test

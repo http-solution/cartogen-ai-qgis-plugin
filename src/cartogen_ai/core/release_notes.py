@@ -9,16 +9,17 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc19"
-NEW_MARK_VERSIONS = ("1.16.0-rc18", "1.16.0-rc19")
+WHATS_NEW_VERSION = "1.16.0-rc20"
+NEW_MARK_VERSIONS = ("1.16.0-rc19", "1.16.0-rc20")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Confirmations", "A natural yes such as \"Yes, proceed.\" confirms a task card; a reply with changes is still an edit."),
-    ("Imagery", "The imagery model downloads with a plain request, without the HTTP 416 failure, and stopping a run no longer triggers an unrequested report."),
-    ("Bounding boxes", "get_layer_extent gives a layer's extent in degrees in both box orders, so searches and downloads no longer use a remembered box."),
-    ("Maps", "A result drawn on top of imagery is lifted above the raster that hid it, and a raster legend refreshes after a colour ramp."),
-    ("Not hand-tested", "Everything here ran offline and in CI but has not been hand-tested in a desktop session or against a real model."),
+    ("Database", "A read-only database query no longer leaves the shared QGIS connection read-only for everything else."),
+    ("Rasters and units", "Rasters on different grids are aligned before arithmetic, and elevation and population units are stated instead of assumed."),
+    ("Privacy", "A layer derived from a protected layer stays protected after a rename, and scheduling a stored workflow needs the same override as running it."),
+    ("Saving", "A refused save is reported as an error instead of success, and edits you had pending on the layer are left alone."),
+    ("Routing", "One-way streets are recognised on road layers where some segments have no direction."),
+    ("Not hand-tested", "Everything here ran offline and in CI (including a real PostGIS server) but has not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
