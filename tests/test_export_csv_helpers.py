@@ -51,6 +51,25 @@ class TestDashboardHelpers(unittest.TestCase):
         self.assertEqual(name, "Health Access_ Sanaa_20260930_120102.html")
         self.assertNotIn("tmp", name)
 
+    def test_two_dashboards_with_one_title_in_one_second_do_not_overwrite_each_other(self):
+        import datetime
+        import tempfile
+        from unittest import mock
+        folder = tempfile.mkdtemp()
+        now = datetime.datetime(2026, 9, 30, 12, 1, 2)
+        with mock.patch.object(et, "_default_export_dir", return_value=folder):
+            first = et._dashboard_output_path("Same", now=now)
+            with open(first, "w") as handle:
+                handle.write("first")
+            second = et._dashboard_output_path("Same", now=now)
+            with open(second, "w") as handle:
+                handle.write("second")
+            third = et._dashboard_output_path("Same", now=now)
+        self.assertEqual(len({first, second, third}), 3)
+        self.assertTrue(second.endswith("_2.html"))
+        with open(first) as handle:
+            self.assertEqual(handle.read(), "first")
+
     def test_notices_are_placed_inside_the_html_and_escaped(self):
         out = et._inject_notices("<html><body>x</body></html>", ["'Roads': showing 2,500 of 139,758 <features>"])
         self.assertIn("showing 2,500 of 139,758 &lt;features&gt;", out)
