@@ -34,3 +34,28 @@ def invalidate():
 def is_stale(captured):
     """True when `captured` (a value from current()) no longer matches the active project session. None means 'not bound'."""
     return captured is not None and captured != current()
+
+
+# The plugin epoch is a second counter that only changes when the plugin is UNLOADED (audit F31, #167). project_session.invalidate()
+# also fires on every project switch, where a task's completion callback still has UI state to reset (re-enable Send, hide the spinner)
+# and must run; after an unload the widgets the callback touches are gone, and it must not run at all.
+_epoch = 0
+
+
+def plugin_epoch():
+    """The current plugin load epoch; a task captures it when it is created."""
+    with _lock:
+        return _epoch
+
+
+def retire_plugin():
+    """The plugin is being unloaded: every task created under an earlier epoch must not call back into the (destroyed) UI."""
+    global _epoch
+    with _lock:
+        _epoch += 1
+        return _epoch
+
+
+def plugin_retired(captured):
+    """True when the plugin was unloaded after `captured` (a plugin_epoch() value) was taken. None means 'not bound'."""
+    return captured is not None and captured != plugin_epoch()

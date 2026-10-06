@@ -300,6 +300,33 @@ def _panel(item, layout_mm):
     item.setBackgroundColor(QColor(PALETTE["panel_bg"]))
 
 
+def legend_layers_on_map(layers, map_item):
+    """The (id, layer) pairs from `layers` whose extent intersects what the map item shows. Needs QGIS.
+
+    Legend "filter by map content" drops vector layers with no visible features but keeps every raster, so a DEM or image that lies
+    outside a zoomed-in map was still listed (rc18 hand test R7/N8, 2026-10-06). Here a layer is kept when its extent, transformed into the
+    map's CRS, intersects the map's extent. Anything that cannot be tested (no extent, no CRS, an error) is kept: a layer is never dropped on
+    a guess."""
+    from qgis.core import QgsCoordinateTransform
+    extent = map_item.extent()
+    map_crs = map_item.crs()
+    context = QgsProject.instance().transformContext()
+    kept = []
+    for layer_id, layer in layers:
+        try:
+            rect = layer.extent()
+            if rect is None or rect.isNull() or rect.isEmpty() or not layer.crs().isValid():
+                kept.append((layer_id, layer))
+                continue
+            if layer.crs() != map_crs:
+                rect = QgsCoordinateTransform(layer.crs(), map_crs, context).transformBoundingBox(rect)
+            if rect.intersects(extent):
+                kept.append((layer_id, layer))
+        except Exception:
+            kept.append((layer_id, layer))
+    return kept
+
+
 def visible_layer_entries(project=None):
     """[{id, name, visible, provider, layer}] in layer-tree order for the whole project."""
     project = project or QgsProject.instance()
@@ -333,6 +360,8 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
                 levels.append(sensitivity.get_layer_sensitivity(e["layer"]).get("level"))
     except Exception as exc:
         warnings.append(f"sensitivity lookup failed: {exc}")
+
+    chosen = {"ids": ids}      # the layers the legend really lists (legend() may drop those that lie off the map)
 
     def step(name, fn):
         try:
@@ -398,7 +427,14 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             leg.setAutoUpdateModel(False)
         root = leg.model().rootGroup()
         root.removeAllChildren()
-        for layer_id in ids:
+        legend_ids = ids
+        map_item = item("MAP_MAIN")
+        if template != "access_map" and map_item is not None:
+            on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
+            if on_map:                      # never an empty legend because every extent test said "elsewhere"
+                legend_ids = on_map
+        chosen["ids"] = legend_ids
+        for layer_id in legend_ids:
             root.addLayer(by_id[layer_id])
         # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
         # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
@@ -424,7 +460,7 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
     for name, fn in (("title", title), ("map frame", map_frame), ("info row", info), ("body panel", body),
                      ("footer", footer), ("legend", legend), ("legend fonts", legend_fonts), ("scale bar", scalebar)):
         step(name, fn)
-    return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in ids],
+    return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
             "classification": classification_prefix(levels).strip(" -")}
 
 

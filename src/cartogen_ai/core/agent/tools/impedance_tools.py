@@ -67,7 +67,7 @@ _DEFAULT_SURFACE_PENALTY = 1.0
 # How strongly slope reduces speed: penalty = max(_MIN_SLOPE_PENALTY, 1 -
 # slope_ratio * _SLOPE_PENALTY_COEFFICIENT), where slope_ratio is
 # abs(elevation_change) / segment_length (elevation change in the DEM's
-# vertical unit, ASSUMED metres, over the segment length in metres -- see build_composite_impedance_field). A gentle, defensible
+# vertical unit -- dem_vertical_unit, default metres, converted to metres -- over the segment length in metres -- see build_composite_impedance_field). A gentle, defensible
 # default -- not calibrated against real GPS data (the strategy doc's own
 # recommended calibration source), which this sandbox has no access to.
 _SLOPE_PENALTY_COEFFICIENT = 5.0
@@ -79,7 +79,7 @@ _MIN_SLOPE_PENALTY = 0.2
 _MIN_EFFECTIVE_SPEED_KMH = 0.1
 
 
-def _slope_penalty(dem_layer, start_point, end_point, segment_length):
+def _slope_penalty(dem_layer, start_point, end_point, segment_length, vertical_factor=1.0):
     """Endpoint-based slope estimate -- samples the DEM at a line
     feature's two endpoints only, not every vertex along it. A real
     simplification (a long, winding segment's actual grade profile isn't
@@ -96,7 +96,7 @@ def _slope_penalty(dem_layer, start_point, end_point, segment_length):
     end_elev, end_ok = provider.sample(QgsPointXY(end_point.x(), end_point.y()), 1)
     if not (start_ok and end_ok):
         return 1.0
-    slope_ratio = abs(end_elev - start_elev) / segment_length
+    slope_ratio = abs(end_elev - start_elev) * vertical_factor / segment_length
     return max(_MIN_SLOPE_PENALTY, 1.0 - slope_ratio * _SLOPE_PENALTY_COEFFICIENT)
 
 
@@ -120,14 +120,19 @@ def _slope_penalty(dem_layer, start_point, end_point, segment_length):
             "damage_field": {"type": "string", "description": "Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable)."},
             "dem_layer": {"type": "string", "description": "Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed."},
             "output_field": {"type": "string", "description": "Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'."},
+            "dem_vertical_unit": {"type": "string", "description": "Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry it."},
         },
         "required": ["road_network_layer"],
     },
 )
 def build_composite_impedance_field(road_network_layer, highway_field="highway", surface_field="surface",
-                                     damage_field=None, dem_layer=None, output_field="impedance_cost"):
+                                     damage_field=None, dem_layer=None, output_field="impedance_cost", dem_vertical_unit="m"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    from .raster_tools import vertical_unit_factor
+    vertical_factor = vertical_unit_factor(dem_vertical_unit)
+    if vertical_factor is None:
+        return {"error": f"dem_vertical_unit must be 'm', 'ft' or 'us_ft', got {dem_vertical_unit!r}."}
     network = _find_layer_by_name(road_network_layer)
     if network is None:
         return {"error": f"Layer '{road_network_layer}' not found"}
@@ -204,7 +209,7 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
                         if to_dem is not None:
                             start_pt, end_pt = to_dem.transform(QgsPointXY(start_pt)), to_dem.transform(QgsPointXY(end_pt))
                         length = length_m.measureLength(geom)
-                        slope_penalty = _slope_penalty(dem, start_pt, end_pt, length)
+                        slope_penalty = _slope_penalty(dem, start_pt, end_pt, length, vertical_factor)
                         if slope_penalty != 1.0:
                             sampled_slope_count += 1
 

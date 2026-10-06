@@ -560,6 +560,11 @@ _ALL_RULES = {
         'and copy the matching named field: `bbox_south_west_north_east` for the OSM and building-footprint tools, `bbox_west_south_east_north` for the STAC search. '
         'Do not change the country or place the user named to match a box, and say so if the box and the place disagree.\n'
     ),
+    55: (
+        '55. Stored memory notes describe EARLIER work, possibly in another place. Never take a place, country or coordinates from a note when the '
+        'user\'s request or the loaded layers say otherwise: the layer\'s own extent (`get_layer_extent`) decides where it is, not a remembered region. '
+        'If a note seems to conflict with the current project, say so instead of acting on the note.\n'
+    ),
 }
 
 CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49, 50, 51, 52)

@@ -113,6 +113,12 @@ def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers")
         return {"error": f"inspect_canvas_visually failed: {e}"}
 
 
+_ALIGN_PARAMS_CHANGE = {
+    "align_to_first": {"type": "boolean", "description": "If the two rasters are not on one pixel grid, warp the 'before' raster onto the 'after' raster's grid instead of refusing; the result says what was done. Default false: refuse."},
+    "resampling": {"type": "string", "description": "With align_to_first: 'bilinear' (default), 'nearest' (classes/counts) or 'cubic'."},
+}
+
+
 @register_tool(
     "calculate_raster_change_detection",
     "Compute pixel-wise differential change between two temporal rasters (after minus before) -- "
@@ -124,24 +130,25 @@ def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers")
     "severity score. Produces a new raster layer named 'change_detection_<after>_vs_<before>' "
     "added to the project with a diverging ramp symmetric about zero (blue = decrease, red = "
     "increase, no change transparent) so the change pattern is visible straight away.",
-    {"type": "object", "properties": {"raster_before": {"type": "string"}, "raster_after": {"type": "string"}}, "required": ["raster_before", "raster_after"]},
+    {"type": "object", "properties": {"raster_before": {"type": "string"}, "raster_after": {"type": "string"}, **_ALIGN_PARAMS_CHANGE}, "required": ["raster_before", "raster_after"]},
 )
-def calculate_raster_change_detection(raster_before: str, raster_after: str):
+def calculate_raster_change_detection(raster_before: str, raster_after: str, align_to_first: bool = False, resampling: str = "bilinear"):
     """Calculates temporal raster difference layer (after - before)."""
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
     try:
-        from .raster_tools import _common_grid_error, _find_layer_by_name, _run_raster_and_add
+        from .raster_tools import _find_layer_by_name, _grid_or_error, _run_raster_and_add
         r1 = _find_layer_by_name(raster_before)
         r2 = _find_layer_by_name(raster_after)
         if r1 is None:
             return {"error": f"Layer '{raster_before}' not found"}
         if r2 is None:
             return {"error": f"Layer '{raster_after}' not found"}
-        grid_error = _common_grid_error([r2, r1])
+        used, grid_error, align_note = _grid_or_error([r2, r1], align_to_first, resampling)
         if grid_error:
             return {"error": grid_error}
+        r2, r1 = used
 
         result = _run_raster_and_add(
             "gdal:rastercalculator",
@@ -156,6 +163,8 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str):
             },
             f"change_detection_{raster_after}_vs_{raster_before}",
         )
+        if isinstance(result, dict) and result.get("success") and align_note:
+            result["alignment"] = align_note
         if isinstance(result, dict) and result.get("success"):
             try:
                 from qgis.core import QgsProject

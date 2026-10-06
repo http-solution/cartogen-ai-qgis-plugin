@@ -658,6 +658,8 @@ Calculate NDRE (Normalized Difference Red Edge index) from Red Edge and Near-Inf
 |---|---|---|---|
 | `red_edge_layer` | string | yes |  |
 | `nir_layer` | string | yes |  |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ### `calculate_ndvi`
 
@@ -667,6 +669,8 @@ Calculate NDVI (Normalized Difference Vegetation Index) from Red and Near-Infrar
 |---|---|---|---|
 | `red_layer` | string | yes |  |
 | `nir_layer` | string | yes |  |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ### `calculate_ndwi`
 
@@ -676,6 +680,8 @@ Calculate NDWI (Normalized Difference Water Index) from Green and Near-Infrared 
 |---|---|---|---|
 | `green_layer` | string | yes |  |
 | `nir_layer` | string | yes |  |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ### `create_shaded_relief`
 
@@ -698,6 +704,7 @@ Sample a DEM raster along a line to produce a distance/elevation profile -- e.g.
 | `line_layer` | string | yes | Line layer to sample along. Uses the first feature if it has more than one. |
 | `dem_layer` | string | yes | Raster (DEM) layer to sample elevation from. |
 | `num_samples` | integer | no | Number of sample points along the line. Defaults to 100. |
+| `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry its vertical unit, so say so if the DEM is in feet. |
 
 ### `estimate_population_exposure`
 
@@ -707,6 +714,7 @@ Sum population within each polygon of a vector layer, using an already-loaded po
 |---|---|---|---|
 | `population_raster_layer` | string | yes | A population-per-pixel raster layer (e.g. from fetch_worldpop_population). |
 | `area_layer` | string | yes | Polygon layer to sum population within, one total per feature. |
+| `raster_unit` | string | no | 'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). A raster does not carry its unit; a layer named like a density raster is refused unless this is set. |
 | `output_layer_name` | string | no | Optional: also add a NEW polygon layer with this name holding each zone's estimated population (field pop_estimate), styled in exposure classes. The area layer itself is never changed. |
 
 ### `georeference_image`
@@ -777,11 +785,12 @@ Clip raster layer by vector mask layer.
 
 ### `slope_analysis`
 
-Calculate slope map from DEM layer.
+Calculate slope map from DEM layer. Elevations are taken as metres unless dem_vertical_unit says 'ft' or 'us_ft'.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `dem_layer` | string | yes |  |
+| `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry its vertical unit, so say so if the DEM is in feet. |
 
 ### `supervised_classification`
 
@@ -810,6 +819,8 @@ Combine multiple rasters into a single weighted suitability/risk surface -- e.g.
 |---|---|---|---|
 | `raster_layers` | array[string] | yes | 2 to 6 raster layer names to combine. |
 | `weights` | array[number] | yes | One weight per raster, same order as raster_layers. Don't need to sum to 1 -- normalized automatically. |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ### `zonal_statistics`
 
@@ -902,6 +913,8 @@ Compute pixel-wise differential change between two temporal rasters (after minus
 |---|---|---|---|
 | `raster_before` | string | yes |  |
 | `raster_after` | string | yes |  |
+| `align_to_first` | boolean | no | If the two rasters are not on one pixel grid, warp the 'before' raster onto the 'after' raster's grid instead of refusing; the result says what was done. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default), 'nearest' (classes/counts) or 'cubic'. |
 
 ### `inspect_canvas_visually`
 
@@ -1822,6 +1835,7 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `damage_field` | string | no | Optional numeric field, 0.0-1.0, giving each segment's passability (1.0=fully passable, 0.0=closed: the segment is removed from the network by the routing tools, e.g. from a road-status assessment). Non-numeric values default to 1.0 (unknown = assumed passable). |
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
+| `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry it. |
 
 ## jiaf_engine
 
