@@ -31,6 +31,7 @@ import urllib.error
 from datetime import datetime, timezone
 
 from .registry import register_tool
+from ._edit_session import EditError
 from ....infrastructure.auth import CredentialManager
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 from ...models.confidence import set_layer_confidence
@@ -137,8 +138,11 @@ def _replace_point_features(layer, rows, geometry_key="__geom__"):
     list of dicts; each must have `geometry_key` (a QgsGeometry) plus any attribute keys matching
     the layer's field names (extra keys are ignored, matching add_point_layer's own
     forward-compatible pattern for layers created before a field existed)."""
+    # GitHub #144: the commit result used to be ignored. Raises _edit_session.EditError when the layer cannot be edited or the
+    # provider rejects the refresh (the old features stay: the edit is rolled back); callers turn that into an error result.
+    from ._edit_session import begin_feature_edits, finish_feature_edits
     existing_ids = [f.id() for f in layer.getFeatures()]
-    layer.startEditing()
+    owns_session = begin_feature_edits(layer)
     if existing_ids:
         layer.deleteFeatures(existing_ids)
     field_names = [f.name() for f in layer.fields()]
@@ -151,7 +155,7 @@ def _replace_point_features(layer, rows, geometry_key="__geom__"):
                 feat.setAttribute(fname, _clip_to_field_width(layer, fname, row[fname]))
         if layer.addFeature(feat):
             added += 1
-    layer.commitChanges()
+    finish_feature_edits(layer, owns_session)
     layer.updateExtents()
     layer.triggerRepaint()
     return added
@@ -285,7 +289,10 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
         "daynight": d.get("daynight", ""),
     } for d in fetch_result.get("detections", [])]
 
-    added = _replace_point_features(layer, rows)
+    try:
+        added = _replace_point_features(layer, rows)
+    except EditError as e:
+        return {"error": f"Could not update layer '{layer_name}': {e} The previous contents were kept."}
     if created:
         # styled AFTER the features are in: the EONET categories come from the values present
         _style_hazard(layer, "fires")
@@ -445,7 +452,10 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
         "link": e.get("link", ""),
     } for e in fetch_result.get("events", [])]
 
-    added = _replace_point_features(layer, rows)
+    try:
+        added = _replace_point_features(layer, rows)
+    except EditError as e:
+        return {"error": f"Could not update layer '{layer_name}': {e} The previous contents were kept."}
     if created:
         # styled AFTER the features are in: the EONET categories come from the values present
         _style_hazard(layer, "eonet")
@@ -613,7 +623,10 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
         "to_date": a.get("to_date", ""),
     } for a in fetch_result.get("alerts", [])]
 
-    added = _replace_point_features(layer, rows)
+    try:
+        added = _replace_point_features(layer, rows)
+    except EditError as e:
+        return {"error": f"Could not update layer '{layer_name}': {e} The previous contents were kept."}
     if created:
         # styled AFTER the features are in: the EONET categories come from the values present
         _style_hazard(layer, "gdacs")

@@ -1925,13 +1925,19 @@ def add_incident_point(
         if value is not None and layer.fields().indexFromName(field_name) >= 0:
             feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(value)))
 
-    layer.startEditing()
-    added = layer.addFeature(feat)
-    layer.commitChanges()
+    # GitHub #144: the commit result used to be ignored, so a refused save still reported "live on the map".
+    from ._edit_session import EditError, begin_feature_edits, finish_feature_edits
+    try:
+        owns_session = begin_feature_edits(layer)
+        added = layer.addFeature(feat)
+        if not added:
+            if owns_session and layer.isEditable():
+                layer.rollBack()
+            return {"error": "Failed to add incident feature to layer."}
+        finish_feature_edits(layer, owns_session)
+    except EditError as e:
+        return {"error": f"Could not save the incident point: {e} Nothing was changed."}
     layer.triggerRepaint()
-
-    if not added:
-        return {"error": "Failed to add incident feature to layer."}
     result = {
         "success": True, "layer_name": INCIDENT_LAYER_NAME, "lat": lat, "lon": lon, "date": date,
         "message": (
@@ -2153,7 +2159,11 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
     # warnings land here -- kept as one per-point aggregate list rather than
     # two, since both are advisory data-quality flags on the same point.
     data_quality_warnings = []
-    layer.startEditing()
+    from ._edit_session import EditError, begin_feature_edits, finish_feature_edits
+    try:
+        owns_session = begin_feature_edits(layer)
+    except EditError as e:
+        return {"error": f"Could not edit layer '{layer_name}': {e}"}
     for i, pt in enumerate(points):
         try:
             lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
@@ -2185,7 +2195,10 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
             placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
         else:
             errors.append(f"Point {i}: failed to add feature")
-    layer.commitChanges()
+    try:
+        finish_feature_edits(layer, owns_session)
+    except EditError as e:
+        return {"error": f"Could not save the points to '{layer_name}': {e} Nothing was changed."}
     layer.triggerRepaint()
 
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
