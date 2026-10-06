@@ -323,6 +323,27 @@ class TestNetworkDirectionSpeedParams(unittest.TestCase):
         self.assertEqual(extra["VALUE_BOTH"], "no")
         self.assertEqual(extra["DEFAULT_DIRECTION"], 2)
 
+    def test_the_geofabrik_encoding_is_recognised_although_some_segments_have_no_direction(self):
+        # GitHub #132: NULL (PyQGIS stringifies it as 'NULL') or '' next to F/B made "only F, T and B" false, so every one-way
+        # street was silently treated as two-way.
+        network = self._network(["oneway"])
+        network.uniqueValues.return_value = {"F", "B", None, "", "NULL", "  "}
+        extra, error = _network_direction_speed_params(network, direction_field="oneway")
+        self.assertIsNone(error)
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("F", "T", "B"))
+
+    def test_a_layer_that_really_holds_osm_values_keeps_the_osm_defaults(self):
+        network = self._network(["oneway"])
+        network.uniqueValues.return_value = {"yes", "no", "", None}
+        extra, _error = _network_direction_speed_params(network, direction_field="oneway")
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("yes", "-1", "no"))
+
+    def test_a_layer_with_no_direction_values_at_all_keeps_the_defaults(self):
+        network = self._network(["oneway"])
+        network.uniqueValues.return_value = {None, ""}
+        extra, _error = _network_direction_speed_params(network, direction_field="oneway")
+        self.assertEqual(extra["VALUE_FORWARD"], "yes")
+
     def test_direction_field_missing_reports_error(self):
         extra, error = _network_direction_speed_params(self._network([]), direction_field="ghost_field")
         self.assertIsNone(extra)
