@@ -97,6 +97,37 @@ class TestTidyProjectLayers(unittest.TestCase):
         self.assertEqual(raster.renderer().type(), "singlebandpseudocolor")
         self.assertEqual(self._tool()["population_rasters_without_ramp"], [])
 
+    @unittest.skipUnless(GDAL_AVAILABLE, "requires GDAL + numpy")
+    def test_apply_raster_stretch_on_a_worldpop_layer_keeps_the_transparent_population_ramp(self):
+        # #128 acceptance: "Warm ramp, empty land transparent, people/cell legend" when a stretch is run on yem_ppp_2020.
+        path = os.path.join(tempfile.mkdtemp(), "yem_ppp_2020.tif")
+        ds = gdal.GetDriverByName("GTiff").Create(path, 5, 5, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((44.0, 0.01, 0, 16.0, 0, -0.01))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        ds.SetProjection(srs.ExportToWkt())
+        band = ds.GetRasterBand(1)
+        data = np.arange(25, dtype="float32").reshape(5, 5)
+        band.WriteArray(data)
+        ds.FlushCache()
+        ds = None
+        raster = QgsRasterLayer(path, "yem_ppp_2020")
+        self.assertTrue(raster.isValid())
+        QgsProject.instance().addMapLayer(raster)
+        from cartogen_ai.core.agent.tools.raster_tools import apply_raster_stretch
+        res = apply_raster_stretch("yem_ppp_2020", mode="stretch", color_ramp="Viridis")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res.get("mode"), "population_ramp")
+        renderer = raster.renderer()
+        self.assertEqual(renderer.type(), "singlebandpseudocolor")
+        items = renderer.shader().rasterShaderFunction().colorRampItemList()
+        self.assertEqual(items[0].color.alpha(), 0, "the lowest value (empty land) must be transparent")
+        self.assertGreater(items[-1].color.alpha(), 200)
+        self.assertGreater(items[-1].color.red(), items[-1].color.blue(), "a warm ramp, not Viridis")
+        # an explicit opt-out still gets the generic stretch
+        res = apply_raster_stretch("yem_ppp_2020", mode="stretch", color_ramp="Viridis", keep_population_ramp=False)
+        self.assertNotEqual(res.get("mode"), "population_ramp", res)
+
     def test_a_clean_project_has_nothing_to_tidy(self):
         QgsProject.instance().addMapLayer(_points("Clinics", ["POINT(44 15.9)", "POINT(44.1 16)"]))   # a memory layer is reported as scratch, not as a duplicate
         report = self._tool()
