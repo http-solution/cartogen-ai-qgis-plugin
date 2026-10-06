@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (202 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (203 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1345,6 +1345,14 @@ Get total feature count in a layer.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
+
+### `get_layer_extent`
+
+Get a layer's extent, in its own CRS and transformed to WGS84 degrees. Use this -- never a remembered or estimated bounding box -- whenever a tool needs a bbox in degrees (fetch_osm_features, fetch_building_footprints, search_stac_satellite_imagery, fetch_worldpop_population). The result gives the box in BOTH orders, named: bbox_south_west_north_east for the OSM and building-footprint tools, bbox_west_south_east_north for the STAC search. Pass layer_name='canvas' for the current map view.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A layer name, or 'canvas' for the current map view. |
 
 ### `get_layers`
 

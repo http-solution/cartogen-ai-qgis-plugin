@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc18
+version=1.16.0-rc19
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,19 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc18 (2026-10-06):
+changelog=v1.16.0-rc19 (2026-10-06):
+    Release candidate 19 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc18 hand test.
+    - Fix: a polite yes now confirms a task card ("Yes, proceed.", "Yes please", "ok go ahead"). In rc18 only a bare "yes" did, so the reply went to the model as a new message and the card was lost (rc18 hand test R2). A reply with extra content ("yes but use the roads layer") is still an edit, and destructive confirmations keep their strict wording.
+    - Fix: the imagery model checkpoint is downloaded with a plain whole-file request into the weights folder (no Range header, so HTTP 416 cannot happen; a short file is never accepted) before the ultralytics downloader is tried (rc18 R3 failed with 416 after 357 s). The real asset was checked: a plain request returns it complete (23,851,578 bytes).
+    - Fix: after you press Stop, or when a tool failed in the turn, no follow-up turn asks the model for a report you did not request. "Report the model used and the count" (report as a verb) no longer makes a report file the deliverable; "write a report" still does (rc18 R3, N5).
+    - Fix: task matching. A request that names a loaded raster no longer gets "imagery = most recent low-cloud scene" assumed, and a tool you name leads the suggested tool chain.
+    - New: get_layer_extent returns a layer's (or the map view's) extent in its own CRS and in WGS84, with the box in both orders named (south-west-north-east for OSM and building footprints, west-south-east-north for the STAC search). A prompt rule tells the model never to write a bounding box from memory. In rc18 the model passed a Damascus box for a fixture in Jordan to the STAC and building-footprint tools (N4, N5).
+    - Fix: a result drawn by apply_humanitarian_look is lifted above raster layers that were hiding it (rc18 N2), and the Layers panel legend is refreshed after a raster colour ramp (rc18 R4). The layer is only moved, never hidden or deleted; a layer inside a group is left alone.
+    - Fix: a web link inside a table cell (a STAC thumbnail) is no longer turned into a broken file link by the output-path matcher (rc18 N4).
+    - Docs: the rc18 live smoke report as received, with its triage (docs/RC18_LIVE_SMOKE_REPORT_2026-10-06.md, docs/RC18_SMOKE_TRIAGE_2026-10-06.md) and a re-test sheet for this build (docs/SMOKE_RUN_SHEET_rc19_2026-10-06.md).
+    - Verification: offline suite and ruff pass. NOT hand-tested: every fix above. NOT run in CI at the time of writing: the new live tests (renderer looks, lift above rasters). Rows V, T, J and P of the rc18 sheet were not executed in the rc18 hand test, so the new JIAF, IPC/INFORM/UNOSAT and plain-language changes are still unverified in a desktop session. No audit issue is closed by this build.
+
+v1.16.0-rc18 (2026-10-06):
     Release candidate 18 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc15 and rc17 installed-profile smoke reports (PRs #204-#206).
     - Fix: a fresh full request typed while a clarification question is open no longer gets pasted under the old request as "Details: ...", which ran the old request with the new one underneath. This was behind the wrong clarification questions, previews and the unrelated OpenStreetMap offer in the rc15/rc17 smoke runs. Short answers behave as before.
     - Fix: after you click Apply edit on a confirmation card, a request with more than one step ("write the score, then style the layer") resumes once, up to three times per request. Before, it stopped after the confirmed step.

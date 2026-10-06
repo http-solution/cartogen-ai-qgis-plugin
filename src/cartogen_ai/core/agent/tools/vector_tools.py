@@ -112,6 +112,58 @@ def get_layers():
     return result
 
 
+def bbox_orders(west, south, east, north):
+    """The same WGS84 box in both orders this plugin's tools want, with names so the order cannot be guessed. Pure.
+
+    fetch_osm_features / fetch_building_footprints take [south, west, north, east]; search_stac_satellite_imagery takes
+    [west, south, east, north]. rc18 hand test N4/N5 (2026-10-06): with no way to ask QGIS for a layer's extent in degrees the model
+    recalled a bounding box from memory (Damascus, for a fixture in Jordan) and passed it to both tools."""
+    w, s_, e, n = (round(float(v), 6) for v in (west, south, east, north))
+    return {"west": w, "south": s_, "east": e, "north": n,
+            "bbox_south_west_north_east": [s_, w, n, e], "bbox_west_south_east_north": [w, s_, e, n]}
+
+
+@register_tool(
+    "get_layer_extent",
+    "Get a layer's extent, in its own CRS and transformed to WGS84 degrees. Use this -- never a remembered or estimated bounding box -- "
+    "whenever a tool needs a bbox in degrees (fetch_osm_features, fetch_building_footprints, search_stac_satellite_imagery, fetch_worldpop_population). "
+    "The result gives the box in BOTH orders, named: bbox_south_west_north_east for the OSM and building-footprint tools, "
+    "bbox_west_south_east_north for the STAC search. Pass layer_name='canvas' for the current map view.",
+    {"type": "object", "properties": {"layer_name": {"type": "string", "description": "A layer name, or 'canvas' for the current map view."}},
+     "required": ["layer_name"]},
+)
+def get_layer_extent(layer_name):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    from qgis.core import QgsCoordinateReferenceSystem as _Crs, QgsCoordinateTransform as _Xf
+    if str(layer_name).strip().lower() == "canvas":
+        try:
+            from qgis.utils import iface
+            canvas = iface.mapCanvas()
+            rect, crs = canvas.extent(), canvas.mapSettings().destinationCrs()
+        except Exception as e:
+            return {"error": f"Could not read the map canvas: {e}"}
+        label = "the current map view"
+    else:
+        layer = _find_layer_by_name(layer_name)
+        if layer is None:
+            return {"error": f"Layer '{layer_name}' not found"}
+        rect, crs, label = layer.extent(), layer.crs(), f"layer '{layer_name}'"
+    if rect is None or rect.isNull() or rect.isEmpty():
+        return {"error": f"{label} has no extent (it may be empty)."}
+    if not crs.isValid():
+        return {"error": f"{label} has no valid CRS, so its extent cannot be expressed in degrees."}
+    try:
+        wgs = _Xf(crs, _Crs("EPSG:4326"), QgsProject.instance()).transformBoundingBox(rect)
+    except Exception as e:
+        return {"error": f"Could not transform the extent of {label} to WGS84: {e}"}
+    result = {"success": True, "source": label, "source_crs": crs.authid(),
+              "native_extent": {"xmin": rect.xMinimum(), "ymin": rect.yMinimum(), "xmax": rect.xMaximum(), "ymax": rect.yMaximum()},
+              "wgs84": bbox_orders(wgs.xMinimum(), wgs.yMinimum(), wgs.xMaximum(), wgs.yMaximum()),
+              "note": "Use the bbox that matches the tool's order. Degrees; the box is the transformed rectangle, slightly larger than a rotated area needs."}
+    return result
+
+
 def _model_view_entry(entry, layer):
     """The layer entry as the model may see it: field names withheld for a protected layer when the cloud gate is
     enforcing (F21). See models/model_view.py."""

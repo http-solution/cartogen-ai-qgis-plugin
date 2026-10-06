@@ -206,6 +206,10 @@ _TOOL_ALIASES = {
     ],
     # Plain-language styling requests share no words with the style tools' names ("make the clinics stand out",
     # "colour the districts by how many people live there"); measured before this entry: several got no style tool at all.
+    "get_layer_extent": [
+        "extent", "bounding box", "bbox", "wgs84", "in degrees", "lat/lon", "search_stac_satellite_imagery", "fetch_building_footprints",
+        "fetch_osm_features", "fetch_worldpop_population", "sentinel", "satellite scenes", "building footprints", "inside it",
+    ],
     "apply_graduated_style": [
         "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
         "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher",

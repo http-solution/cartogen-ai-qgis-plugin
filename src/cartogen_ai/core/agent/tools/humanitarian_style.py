@@ -718,3 +718,44 @@ def style_obfuscated_points(layer):
         return True
     except Exception:
         return False
+
+
+def refresh_legend(layer):
+    """Ask the Layers panel to redraw this layer's legend. rc18 hand test R4 (2026-10-06): a raster ramp applied by apply_raster_stretch showed on
+    the map while the Layers panel stayed on the old grey legend until a later tool refreshed it. Best effort; True when asked."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        from qgis.utils import iface
+        iface.layerTreeView().refreshLayerSymbology(layer.id())
+        return True
+    except Exception:
+        return False
+
+
+def raise_above_rasters(layer):
+    """Move a vector layer above the raster layers that sit over it in the top level of the Layers panel, so an analysis result is not hidden
+    behind an image or a DEM. Returns the names of the rasters it was lifted over ([] when nothing needed moving). rc18 hand test N2: the
+    severity map was drawn correctly but invisible under two rasters until the user switched them off by hand. Only the top level is touched;
+    a layer inside a group is left where the user put it."""
+    if not QGIS_AVAILABLE or layer is None:
+        return []
+    try:
+        from qgis.core import QgsLayerTree, QgsProject, QgsRasterLayer
+        root = QgsProject.instance().layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None or node.parent() != root or isinstance(layer, QgsRasterLayer):
+            return []
+        children = root.children()
+        idx = children.index(node)
+        over = [c for c in children[:idx] if QgsLayerTree.isLayer(c) and isinstance(c.layer(), QgsRasterLayer)]
+        if not over:
+            return []
+        top = children.index(over[0])
+        visible = node.itemVisibilityChecked()
+        new = root.insertLayer(top, layer)
+        new.setItemVisibilityChecked(visible)
+        root.removeChildNode(node)
+        return [c.name() for c in over]
+    except Exception:
+        return []

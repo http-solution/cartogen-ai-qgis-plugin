@@ -9,19 +9,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc18"
-NEW_MARK_VERSIONS = ("1.16.0-rc17", "1.16.0-rc18")
+WHATS_NEW_VERSION = "1.16.0-rc19"
+NEW_MARK_VERSIONS = ("1.16.0-rc18", "1.16.0-rc19")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Chat state", "A new full request typed while a question is open is treated as a new request, not pasted under the old one, and a multi-step "
-     "request carries on after you click Apply edit. A short answer such as a CRS code keeps the tool the last turn was using."),
-    ("Honest answers", "Distances in metres are no longer footnoted as general knowledge, and a table backed by tool results is no longer removed "
-     "because an unrelated call failed."),
-    ("Matching and exports", "A request that names a tool or your own layers is no longer matched to an unrelated task or asked for a facility type. "
-     "Exports ask before replacing a file you already had. Results are labelled by name, not by GeoPackage id."),
-    ("Imagery and search", "The imagery model downloads in the background without freezing QGIS, and searches for the latest news carry today's date."),
-    ("Not hand-tested", "Everything here ran offline and in CI on QGIS 4.2.2 but has not been hand-tested in a desktop session or against a real model."),
+    ("Confirmations", "A natural yes such as \"Yes, proceed.\" confirms a task card; a reply with changes is still an edit."),
+    ("Imagery", "The imagery model downloads with a plain request, without the HTTP 416 failure, and stopping a run no longer triggers an unrequested report."),
+    ("Bounding boxes", "get_layer_extent gives a layer's extent in degrees in both box orders, so searches and downloads no longer use a remembered box."),
+    ("Maps", "A result drawn on top of imagery is lifted above the raster that hid it, and a raster legend refreshes after a colour ramp."),
+    ("Not hand-tested", "Everything here ran offline and in CI but has not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

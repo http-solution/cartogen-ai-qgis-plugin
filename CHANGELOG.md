@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc19](#v1-16-0-rc19) | 2026-10-06 | **Release candidate 19 for 1.16.0.** No breaking changes. Fixes from the rc18 hand test: polite confirmations, imagery checkpoint download, no unrequested report after Stop, get_layer_extent so a bounding box is never guessed, results lifted above hiding rasters; not hand-tested. |
 | [1.16.0-rc18](#v1-16-0-rc18) | 2026-10-06 | **Release candidate 18 for 1.16.0.** No breaking changes. Fixes from the rc15 and rc17 smoke reports: stale-question chat bug, continuation after Apply, router follow-up tools, guard false positives, task matching, overwrite confirmation, imagery download off the main thread; not hand-tested. |
 | [1.16.0-rc17](#v1-16-0-rc17) | 2026-10-06 | **Release candidate 17 for 1.16.0.** No breaking changes. Fixes from the rc15 smoke report: tool-naming requests no longer matched to unrelated tasks, result labels from a name field, save warns about memory layers, raster range saved, imagery download message; not hand-tested. |
 | [1.16.0-rc16](#v1-16-0-rc16) | 2026-10-06 | **Release candidate 16 for 1.16.0.** No breaking changes. Fixes from the rc15 hand test: list-returning tools no longer reported as failed (regression since rc12), CRS-question retry, one-point print layout extent; live-test discovery; not hand-tested. |
@@ -59,6 +60,21 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc19"></a>
+## [1.16.0-rc19] — 2026-10-06 — Release candidate 19 for 1.16.0: fixes from the rc18 hand test
+
+No breaking changes; QGIS 4.2+. Everything after the rc18 build:
+
+- Fix: a polite yes now confirms a task card ("Yes, proceed.", "Yes please", "ok go ahead"). In rc18 only a bare "yes" did, so the reply went to the model as a new message and the card was lost (rc18 hand test R2). A reply with extra content ("yes but use the roads layer") is still an edit, and destructive confirmations keep their strict wording.
+- Fix: the imagery model checkpoint is downloaded with a plain whole-file request into the weights folder (no Range header, so HTTP 416 cannot happen; a short file is never accepted) before the ultralytics downloader is tried (rc18 R3 failed with 416 after 357 s). The real asset was checked: a plain request returns it complete (23,851,578 bytes).
+- Fix: after you press Stop, or when a tool failed in the turn, no follow-up turn asks the model for a report you did not request. "Report the model used and the count" (report as a verb) no longer makes a report file the deliverable; "write a report" still does (rc18 R3, N5).
+- Fix: task matching. A request that names a loaded raster no longer gets "imagery = most recent low-cloud scene" assumed, and a tool you name leads the suggested tool chain.
+- New: get_layer_extent returns a layer's (or the map view's) extent in its own CRS and in WGS84, with the box in both orders named (south-west-north-east for OSM and building footprints, west-south-east-north for the STAC search). A prompt rule tells the model never to write a bounding box from memory. In rc18 the model passed a Damascus box for a fixture in Jordan to the STAC and building-footprint tools (N4, N5).
+- Fix: a result drawn by apply_humanitarian_look is lifted above raster layers that were hiding it (rc18 N2), and the Layers panel legend is refreshed after a raster colour ramp (rc18 R4). The layer is only moved, never hidden or deleted; a layer inside a group is left alone.
+- Fix: a web link inside a table cell (a STAC thumbnail) is no longer turned into a broken file link by the output-path matcher (rc18 N4).
+- Docs: the rc18 live smoke report as received, with its triage (docs/RC18_LIVE_SMOKE_REPORT_2026-10-06.md, docs/RC18_SMOKE_TRIAGE_2026-10-06.md) and a re-test sheet for this build (docs/SMOKE_RUN_SHEET_rc19_2026-10-06.md).
+- Verification: offline suite and ruff pass. NOT hand-tested: every fix above. NOT run in CI at the time of writing: the new live tests (renderer looks, lift above rasters). Rows V, T, J and P of the rc18 sheet were not executed in the rc18 hand test, so the new JIAF, IPC/INFORM/UNOSAT and plain-language changes are still unverified in a desktop session. No audit issue is closed by this build.
 
 <a id="v1-16-0-rc18"></a>
 ## [1.16.0-rc18] — 2026-10-06 — Release candidate 18 for 1.16.0: fixes from the rc15 and rc17 smoke reports

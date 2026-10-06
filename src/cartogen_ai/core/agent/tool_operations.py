@@ -327,6 +327,7 @@ TOOL_OPERATION_TYPES = {
 
     # -- vector_tools.py --
     "get_layers": READ,
+    "get_layer_extent": READ,
     "get_attributes": READ,
     # setSubsetString persists a query filter on the layer.
     "run_query": MODIFY,

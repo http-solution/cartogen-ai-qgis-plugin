@@ -92,6 +92,28 @@ class TestTableLooksLive(unittest.TestCase):
         self.assertIsInstance(ras.renderer(), QgsPalettedRasterRenderer)
         self.assertEqual([c.label for c in ras.renderer().classes()], ["Class 1", "Class 2", "Class 3"])
 
+    def test_a_result_is_lifted_above_a_raster_that_hides_it(self):
+        from cartogen_ai.core.agent.tools import raster_numpy
+        try:
+            import numpy as np
+            from qgis.core import QgsCoordinateReferenceSystem
+            arr = np.array([[1, 2], [2, 3]], dtype="uint8")
+            path = raster_numpy.write_single_band(arr, {"geotransform": (44.0, 0.2, 0.0, 15.1, 0.0, -0.1),
+                                                        "projection": QgsCoordinateReferenceSystem("EPSG:4326").toWkt()}, nodata=0)
+        except Exception as e:
+            self.skipTest(f"could not write the test raster here: {e}")
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        ras = QgsRasterLayer(path, "cover")
+        self.assertTrue(ras.isValid())
+        QgsProject.instance().addMapLayer(ras)            # added last, so it sits on top of "areas"
+        order = [c.layer().name() for c in QgsProject.instance().layerTreeRoot().children()]
+        self.assertLess(order.index("cover"), order.index("areas"))
+        res = self._look("ipc_phase", "ipc")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res.get("moved_above_rasters"), ["cover"])
+        order = [c.layer().name() for c in QgsProject.instance().layerTreeRoot().children()]
+        self.assertLess(order.index("areas"), order.index("cover"))
+
     def test_obfuscated_points_get_a_ring_marker(self):
         from cartogen_ai.core.agent.tools.humanitarian_style import style_obfuscated_points
         pts = QgsVectorLayer("Point?crs=EPSG:4326&field=n:string", "pts", "memory")

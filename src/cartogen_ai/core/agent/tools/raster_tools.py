@@ -1622,6 +1622,8 @@ def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_v
             result["color_ramp"] = ramp_name
 
         layer.triggerRepaint()
+        from .humanitarian_style import refresh_legend
+        refresh_legend(layer)
         return result
     except Exception as e:
         return {"error": f"apply_raster_stretch failed: {e}"}

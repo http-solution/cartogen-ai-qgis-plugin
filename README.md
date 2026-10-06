@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc18 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc19 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc18 pre-release** (the published release is still rc17 until rc18 is uploaded).
-> - **Tests:** 3,555 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc19 pre-release** (the published release is still rc17 until rc18 is uploaded; rc19 follows the rc18 hand test).
+> - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
 >   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a hands-on smoke test of rc12 to rc18 in a desktop QGIS session. A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc18 zip has passed CI packaging and the release workflow's zip checks only.
+> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc19 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc19 zip has passed CI packaging and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc18)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc19)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -50,7 +50,7 @@ black-box answer.
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **202 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **203 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
@@ -86,6 +86,20 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc19
+
+Built on rc18; tested offline, **not by hand**. Full list: the `v1.16.0-rc19` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: a polite yes now confirms a task card ("Yes, proceed.", "Yes please", "ok go ahead"). In rc18 only a bare "yes" did, so the reply went to the model as a new message and the card was lost (rc18 hand test R2). A reply with extra content ("yes but use the roads layer") is still an edit, and destructive confirmations keep their strict wording.
+- Fix: the imagery model checkpoint is downloaded with a plain whole-file request into the weights folder (no Range header, so HTTP 416 cannot happen; a short file is never accepted) before the ultralytics downloader is tried (rc18 R3 failed with 416 after 357 s). The real asset was checked: a plain request returns it complete (23,851,578 bytes).
+- Fix: after you press Stop, or when a tool failed in the turn, no follow-up turn asks the model for a report you did not request. "Report the model used and the count" (report as a verb) no longer makes a report file the deliverable; "write a report" still does (rc18 R3, N5).
+- Fix: task matching. A request that names a loaded raster no longer gets "imagery = most recent low-cloud scene" assumed, and a tool you name leads the suggested tool chain.
+- New: get_layer_extent returns a layer's (or the map view's) extent in its own CRS and in WGS84, with the box in both orders named (south-west-north-east for OSM and building footprints, west-south-east-north for the STAC search). A prompt rule tells the model never to write a bounding box from memory. In rc18 the model passed a Damascus box for a fixture in Jordan to the STAC and building-footprint tools (N4, N5).
+- Fix: a result drawn by apply_humanitarian_look is lifted above raster layers that were hiding it (rc18 N2), and the Layers panel legend is refreshed after a raster colour ramp (rc18 R4). The layer is only moved, never hidden or deleted; a layer inside a group is left alone.
+- Fix: a web link inside a table cell (a STAC thumbnail) is no longer turned into a broken file link by the output-path matcher (rc18 N4).
+- Docs: the rc18 live smoke report as received, with its triage (docs/RC18_LIVE_SMOKE_REPORT_2026-10-06.md, docs/RC18_SMOKE_TRIAGE_2026-10-06.md) and a re-test sheet for this build (docs/SMOKE_RUN_SHEET_rc19_2026-10-06.md).
+- Verification: offline suite and ruff pass. NOT hand-tested: every fix above. NOT run in CI at the time of writing: the new live tests (renderer looks, lift above rasters). Rows V, T, J and P of the rc18 sheet were not executed in the rc18 hand test, so the new JIAF, IPC/INFORM/UNOSAT and plain-language changes are still unverified in a desktop session. No audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc18
 
@@ -181,7 +195,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc17 or 1.16.0-rc18 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc18 or 1.16.0-rc19 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
@@ -281,7 +295,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 202 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 203 tools, auto-generated from the live registry |
 
 ### Security & compliance
 
@@ -377,7 +391,7 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 202 tools across the domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 203 tools across the domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
 - `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.

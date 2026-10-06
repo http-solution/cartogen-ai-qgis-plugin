@@ -238,7 +238,11 @@ def classify(query):
 # is `layer`; the word "dashboard" is a direct instruction and must win.
 _OUTPUT_OVERRIDE = [
     ("dashboard", r"\bdashboard\b"),
-    ("report",    r"\breport\b|\bsitrep\b|\bsituation report\b|\bwrite[- ]?up\b|\bprofile\b"),
+    # "report" as a NOUN names a deliverable ("write a report", "a situation report", "report on ..."); as a VERB it only asks for the answer
+    # ("Report the model used and the detection count", "report each ID"). rc18 hand test R3/N5 (2026-10-06): the verb form forced an
+    # MD-file deliverable, and after a failed run a follow-up turn demanded generate_spatial_report that nobody asked for.
+    ("report",    r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
+                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b"),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
     # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
     # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested
@@ -269,7 +273,8 @@ _SLOT_EVIDENCE = {
                       r"q[1-4]\b|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec",
     "hazard_type":    r"flood|drought|earthquake|cyclone|landslide|wildfire|tsunami|volcan|storm|"
                       r"conflict|heat|avalanche",
-    "imagery":        r"sentinel|landsat|planet|maxar|drone|orthomos|radar|sar\b|ndvi|imagery from",
+    "imagery":        r"sentinel|landsat|planet|maxar|drone|orthomos|radar|sar\b|ndvi|imagery from|\bloaded raster\b|\braster\b|\.tiff?\b|"
+                      r"\bimage layer\b",
     "population_src": r"worldpop|hdx|census|gridded|facebook|meta population|our own|existing layer",
     # A coordinate pair or "the point/origin" also answers it: a service area can start from a point rather than a
     # facility, and asking "which facility type?" of "population within one hour's drive of the point 4902068.0, 1799912.0"
@@ -399,6 +404,11 @@ def task_directive(entry, filled=None, query=None):
                                               entry["out"]),
     ]
     tools = list(entry.get("tools") or [])
+    # A tool the user named leads the chain: "Run extract_features_from_imagery on loaded raster smoke_image" matched a task whose chain starts
+    # with OSM fetches (rc18 R3), and the model was told to try those first.
+    named = [t for t in tools if t in named_tools(query or "")]
+    if named:
+        tools = named + [t for t in tools if t not in named]
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output
     # actually needs, or the model is told to deliver an HTML dashboard while

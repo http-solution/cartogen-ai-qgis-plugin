@@ -20,6 +20,7 @@ away from is not consent for what they type later. The Activity tab's Confirm bu
 """
 
 import datetime
+import re
 
 ROUTER_CONFIRM = frozenset({
     "yes", "y", "yeah", "yep", "ok", "okay", "sure", "go", "go ahead",
@@ -31,6 +32,15 @@ GATE_CONFIRM = frozenset({
 CANCEL = frozenset({
     "no", "n", "nope", "cancel", "stop", "abort", "never mind", "nevermind", "nvm",
 })
+
+# A router card is answered by people, not by a command parser: "Yes, proceed.", "Yes please", "ok go ahead", "sure, run it" all mean yes.
+# rc18 hand test R2 (2026-10-06): "Yes, proceed." was not in ROUTER_CONFIRM, so it went to the model as a new message ("no pending
+# operation") and the preview was lost. A reply confirms when every word is a yes word or a filler and at least one is a yes word, so
+# "yes but use the roads layer" (extra content words) is still an edit. Destructive gates keep their strict vocabulary (F16).
+_YES_WORDS = frozenset({"yes", "y", "yeah", "yep", "yup", "ok", "okay", "sure", "confirm", "confirmed", "proceed", "go", "send", "continue",
+                        "approved", "approve", "correct", "right"})
+_FILLER_WORDS = frozenset({"please", "thanks", "thank", "you", "ahead", "do", "it", "this", "that", "run", "now", "and", "then", "with",
+                           "the", "plan", "go", "on", "sounds", "good", "looks", "fine", "great", "perfect", "all", "is", "as", "stated"})
 
 PREVIEW_MAX_AGE_SECONDS = 600
 
@@ -56,6 +66,9 @@ def router_reply(text):
         return "confirm"
     if key in CANCEL:
         return "cancel"
+    words = re.findall(r"[a-z']+", key)
+    if 0 < len(words) <= 6 and all(w in _YES_WORDS or w in _FILLER_WORDS for w in words) and any(w in _YES_WORDS for w in words):
+        return "confirm"
     return None
 
 
