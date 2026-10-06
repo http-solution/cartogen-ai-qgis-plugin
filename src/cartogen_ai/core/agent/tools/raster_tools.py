@@ -516,7 +516,14 @@ def zonal_statistics(raster_layer, vector_layer):
             "STATISTICS": [2, 3, 4],
         }
         processing.run("qgis:zonalstatistics", params)
-        return {"success": True, "message": f"Zonal statistics added to '{vector_layer}'"}
+        result = {"success": True, "message": f"Zonal statistics added to '{vector_layer}' (fields prefixed zs_)."}
+        try:
+            if vec.fields().indexOf("zs_mean") >= 0:
+                from .humanitarian_style import measure_hint
+                result["map_looks"] = [measure_hint(vector_layer, "zs_mean", "The mean raster value per area")]
+        except Exception:
+            pass  # the hint is a convenience; the statistics are already written
+        return result
     except Exception as e:
         return {"error": f"zonal_statistics failed: {e}"}
 
@@ -582,7 +589,9 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         if not new_layer.isValid():
             return {"error": "The classified raster could not be loaded."}
         QgsProject.instance().addMapLayer(new_layer)
-        return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "bands_used": info["bands_used"],
+        from .humanitarian_style import style_classified_raster
+        styled = style_classified_raster(new_layer, k)
+        return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "styled": styled, "bands_used": info["bands_used"],
                 "valid_cells": int(valid.sum()), "seed": int(seed),
                 "note": "Classes are statistical clusters of the band values, not land-cover categories; name them from knowledge of the area."}
     except ValueError as e:

@@ -60,7 +60,23 @@ Run on `smoke_start.qgz`. Each row has two verdicts: **Works** (the right thing 
 | V8 | "Show the JIAF set-up." in a project with none recorded. | Says none is recorded and what to do; the reply calls it support for the JIAF 2 process, not the JIAF method, and nothing is a final figure | | |
 | V9 | (Yemen project) service-area run, then the same origin at a different travel time. | The second reply says the earlier layer was replaced and lists what changed | | |
 | V10 | (Yemen project) "Which roads matter most for getting from the warehouses to the health facilities?" | `analyze_critical_links`; a bottleneck layer drawn so the worst segments stand out; the reply calls it a screening, not a closure simulation | | |
-| V11 | (any IPC / INFORM / UNOSAT file you have) "Import this IPC file and join it to the admin layer." | The column mapping used is shown; unmatched P-codes are listed, not dropped silently; the result is drawn with a readable look | | |
+| V11 | See T1 to T3 below (IPC, INFORM and UNOSAT files). | | | |
+
+### Imported tables and measured values (added after an audit of every tool that writes fields or layers)
+Before this build these tools wrote or created something and left it in default colours or never drew it at all: the IPC and INFORM imports (fields on the admin layer), the UNOSAT import (points were never loaded or drawn), the JIAF input import (`jp_*`, `js_*`), zonal statistics, assumed road speeds, composite impedance, and the unsupervised classification (a grey ramp of class numbers). All now return a look call, or style their output. Fixtures: `smoke_ipc.csv`, `smoke_inform.csv`, `smoke_unosat.csv` (all synthetic; UNOSAT points sit near the smoke area in WGS84 and use the file's own wording such as "Severe Damage").
+
+| Id | Prompt | Expected | Works | Reads |
+|---|---|---|---|---|
+| T1 | NEW CHAT. "Import the IPC phase file <path to smoke_ipc.csv> and put it on smoke_admin, matching on admin_name." Apply the card. Then "Show it on the map." | Fields `ipc_phase`, `ipc_pop`, `ipc_p3plus` added after confirmation; districts coloured by IPC phase (District_1 stressed yellow, District_3 crisis orange, District_2 emergency red) with the phase names in the legend | | |
+| T2 | "Import the INFORM risk file <path to smoke_inform.csv> onto smoke_admin by admin_name and show the risk." | Districts in five INFORM classes, District_2 the darkest ("Very high" 6.5 to 10 would hold 7.1); legend shows the class names | | |
+| T3 | "Load the damage points from <path to smoke_unosat.csv> and show them by damage class." | Six points on the map, coloured by class (destroyed darkest red to no visible damage pale blue), a legend with plain class names; reply counts 1 destroyed, 2 severe, 1 moderate, 1 possible, 1 none | | |
+| T4 | "Calculate the average of smoke_dem for each district in smoke_admin and show it on the map." | `zs_` fields added; districts coloured light to dark by the mean elevation; the reply says what the number is (metres only if the DEM unit is known) | | |
+| T5 | (Yemen project or any road layer) "Estimate road speeds for the road layer and show the roads by speed." | `assumed_speed_kmh` added after the confirmation; roads coloured by speed class; the reply says the speeds are assumed, not measured | | |
+| T6 | "Cluster smoke_image into four groups." | A new raster with four **distinct colours** labelled Class 1 to Class 4, not grey shades; the reply says they are statistical clusters, not land-cover names | | |
+| T7 | "Hide the exact locations of smoke_points by moving them randomly up to 200 metres." | A new layer drawn as violet rings so it cannot be mistaken for the original; the original is not changed | | |
+| T8 | "Read the JIAF inputs from <smoke_jiaf_hxl.csv> and put the sector figures on smoke_admin, matching on admin_name." Apply, then "Show the health sector's severity." | `jp_*` / `js_*` fields added after confirmation; the health severity drawn in phase colours; a district without a value grey | | |
+
+**Known still not drawn or not mappable (found by the same audit, not fixed in rc18):** `aggregate_survey_indicator` returns a table with no geometry and no join to areas, so a survey result cannot be mapped from it; `calculate_area`, `calculate_length` and `field_calculator` write a field and nothing else; `travel_time_matrix` returns numbers and no layer. These are recorded here so that a test of them is judged against what they actually do, not what you might expect. The audit itself is a static read of the code (it cannot see what QGIS draws), so your Reads verdicts are what finds the rest.
 
 The earlier rc12 rows (B1 to B13 and I1 to I16 of `docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md`, and steps 1 to 26 of `docs/SMOKE_RUN_SHEET_rc15_2026-10-05.md`) are not repeated here; run them in the Yemen project and add a **Reads** verdict to every row that leaves a map or a layout.
 

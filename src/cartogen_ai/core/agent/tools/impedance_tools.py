@@ -230,6 +230,8 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
         "output_field": output_field,
         "feature_count": network.featureCount(),
     }
+    from .humanitarian_style import measure_hint
+    result["map_looks"] = [measure_hint(road_network_layer, output_field, "The composite impedance cost per road segment")]
     if not owned:
         result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT saved: "
                           "save or discard the layer edits yourself.")

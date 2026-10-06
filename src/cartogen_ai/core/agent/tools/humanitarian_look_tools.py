@@ -27,6 +27,10 @@ LOOK_DESCRIPTIONS = {
     "jiaf_review_pin": "JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group",
     "jiaf_review_severity": "JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage",
     "jiaf_count": "a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class",
+    "ipc_phase": "an IPC acute food insecurity phase 1-5 (ipc_phase from import_humanitarian_table): the IPC phase colours; an area with no phase is grey, not phase 1",
+    "inform_risk": "an INFORM score on its 0-10 scale (inf_risk, inf_haz, inf_vuln, inf_coping): the five published classes very low to very high",
+    "damage_class": "UNOSAT damage classes on a point layer (destroyed, severe, moderate, possible, none), matched on the file's own wording such as 'Severe Damage'",
+    "measure": "any measured number (zonal mean, road speed, impedance cost): five quantile classes light to dark blue, low to high",
     "rank": "a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale",
 }
 

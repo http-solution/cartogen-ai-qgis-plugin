@@ -14,7 +14,7 @@ import math
 
 try:
     from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLineSymbol,
-                           QgsMarkerSymbol, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsRuleBasedRenderer,
+                           QgsMarkerSymbol, QgsPalettedRasterRenderer, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsRuleBasedRenderer,
                            QgsSingleBandPseudoColorRenderer, QgsSingleSymbolRenderer, QgsWkbTypes)
     from qgis.PyQt.QtGui import QColor
     QGIS_AVAILABLE = True
@@ -88,7 +88,19 @@ NOT_ASSESSED_COLOR = "#f0f0f0"
 RANK_COLORS = ["#7f0000", "#fc8d59", "#fee8c8"]
 ALLOCATION_COLORS = ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"]       # green: an amount of money, not a level of need
 LOOKS = ("severity", "people_in_need", "exposure", "allocation", "presence_gap", "rank",
-         "jiaf_severity", "jiaf_review_pin", "jiaf_review_severity", "jiaf_count")
+         "jiaf_severity", "jiaf_review_pin", "jiaf_review_severity", "jiaf_count", "ipc_phase", "inform_risk", "damage_class", "measure")
+
+# Looks for imported tables and generic measured values. Until these existed, import_humanitarian_table wrote ipc_phase / inf_risk onto the
+# admin layer and left it in one default colour, the UNOSAT points were never drawn, and zonal statistics / road speeds / impedance
+# were written as bare fields.
+IPC_PHASES = [(1, "#cdfacd", "1 Minimal"), (2, "#fae61e", "2 Stressed"), (3, "#e67800", "3 Crisis"), (4, "#c80000", "4 Emergency"),
+              (5, "#640000", "5 Famine")]
+IPC_NOT_ANALYSED = ("#d9d9d9", "Not analysed")
+INFORM_CLASSES = [(0.0, 2.0, "#ffffcc", "0 to < 2 Very low"), (2.0, 3.5, "#c7e9b4", "2 to < 3.5 Low"), (3.5, 5.0, "#fed976", "3.5 to < 5 Medium"),
+                  (5.0, 6.5, "#fd8d3c", "5 to < 6.5 High"), (6.5, 10.0, "#bd0026", "6.5 to 10 Very high")]
+DAMAGE_COLORS = {"destroyed": ("#67000d", "Destroyed"), "severe": ("#d7301f", "Severe damage"), "moderate": ("#fc8d59", "Moderate damage"),
+                 "possible": ("#fdcc8a", "Possible damage"), "none": ("#9ecae1", "No visible damage")}
+MEASURE_COLORS = ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"]
 
 # JIAF 2 looks. Severity is a PHASE 1-5 (not the 0-1 score of the severity look), and a unit with no phase must stay visible as
 # "not assessed" -- a gap in the map would read as "fine". Review status says which units still wait for the group's decision.
@@ -107,19 +119,54 @@ JIAF_FIELD_LOOKS = {
     "jf_npinfl": "jiaf_count", "jf_nsevfl": "jiaf_count", "jf_nsec40": "jiaf_count", "jf_nsev45": "jiaf_count",
     "jf_pin_st": "jiaf_review_pin", "jf_sev_st": "jiaf_review_severity",
 }
+# Fields the table importers and the generic measuring tools write -> the look that draws them. Prefix match for per-sector JIAF input fields.
+TABLE_FIELD_LOOKS = {"ipc_phase": "ipc_phase", "ipc_p3plus": "people_in_need", "inf_risk": "inform_risk", "inf_haz": "inform_risk",
+                     "inf_vuln": "inform_risk", "inf_coping": "inform_risk"}
+
+
+def table_look_hints(layer_name, fields_written):
+    """apply_humanitarian_look calls for the fields an import wrote: IPC phase / INFORM scores, jp_<sector> PiN, js_<sector> severity. Pure."""
+    out = []
+    for f in fields_written or []:
+        if f in TABLE_FIELD_LOOKS:
+            look = TABLE_FIELD_LOOKS[f]
+        elif str(f).startswith("jp_"):
+            look = "people_in_need"
+        elif str(f).startswith("js_"):
+            look = "jiaf_severity"
+        else:
+            continue
+        hint = look_hint(layer_name, look, f)
+        if hint:
+            out.append(hint)
+    return out
+
+
+def measure_hint(layer_name, field, what):
+    """A look hint for a measured number a tool just wrote (zonal mean, road speed, impedance cost). `what` says what the number is. Pure."""
+    hint = look_hint(layer_name, "measure", field)
+    if hint:
+        hint["note"] = (f"{what} was written to '{field}' but the layer is still in default colours. Offer to colour it by the value "
+                        "(light to dark = low to high) with these arguments, or call it if the user asked to see it on the map.")
+    return hint
 
 
 def _quoted(field):
     return '"' + str(field).replace('"', '""') + '"'
 
 
+def phase_rules(field, phases, not_assessed):
+    """[(label, filter, colour)] for integer phases stored as doubles (each covers phase +-0.5), then the 'ELSE' catch-all. Pure."""
+    q = _quoted(field)
+    rules = [(label, f"{q} >= {n - 0.5} AND {q} < {n + 0.5}", colour) for n, colour, label in phases]
+    rules.append((not_assessed[1], "ELSE", not_assessed[0]))
+    return rules
+
+
 def jiaf_phase_rules(field):
     """[(label, filter expression, colour)] for severity phases 1-5 of a numeric field, then the not-assessed catch-all (expression 'ELSE'). Pure.
     Phases are integers stored as doubles, so each rule covers phase +-0.5."""
-    q = _quoted(field)
-    rules = [(label, f"{q} >= {n - 0.5} AND {q} < {n + 0.5}", colour) for n, colour, label in JIAF_PHASES]
-    rules.append((JIAF_NOT_ASSESSED[1], "ELSE", JIAF_NOT_ASSESSED[0]))
-    return rules
+    return phase_rules(field, JIAF_PHASES, JIAF_NOT_ASSESSED)
 
 
 def jiaf_review_rules(look, field):
@@ -127,6 +174,35 @@ def jiaf_review_rules(look, field):
     q = _quoted(field)
     rules = [(label, f"{q} >= {n - 0.5} AND {q} < {n + 0.5}", colour) for n, colour, label in JIAF_REVIEW[look]]
     rules.append(("Not assessed", "ELSE", "#f0f0f0"))
+    return rules
+
+
+def inform_ranges():
+    """[(low, high, colour, label)] for INFORM's 0-10 scale in its five published classes. Upper ends are just below the next class start. Pure."""
+    out = []
+    for i, (low, high, colour, label) in enumerate(INFORM_CLASSES):
+        last = i == len(INFORM_CLASSES) - 1
+        out.append((low, 10.0000001 if last else math.nextafter(high, 0.0), colour, label))
+    return out
+
+
+def damage_rules(field, values):
+    """[(label, filter expression, colour)] for the damage classes present in `values`, worst first, then an 'ELSE' for anything else. Pure.
+
+    The column a user loads keeps the file's own wording ("Severe Damage", "Destroyed"), while import_humanitarian_table reports the normalised
+    class names; a look that only knew the normalised names would find nothing on the real layer. So every spelling the importer accepts for a
+    class is matched, case-insensitively."""
+    from .table_importers import DAMAGE_CLASSES
+    seen = {DAMAGE_CLASSES.get(" ".join(str(v).split()).casefold()) for v in values if v is not None}
+    q = _quoted(field)
+    rules = []
+    for cls, (colour, label) in DAMAGE_COLORS.items():
+        if cls not in seen:
+            continue
+        spellings = sorted({k.replace("'", "''") for k, v in DAMAGE_CLASSES.items() if v == cls})
+        rules.append((label, "lower(trim(" + q + ")) IN (" + ", ".join(f"'{x}'" for x in spellings) + ")", colour))
+    if rules:
+        rules.append(("Other / not classified", "ELSE", "#d9d9d9"))
     return rules
 
 
@@ -466,6 +542,31 @@ def style_result_field(layer, look, field, top_k=None):
             _categorized(layer, field, cats, symbol)
             layer.setCustomProperty("cartogen_look", look)
             return {"classes": [label for _v, _c, label in cats], "notes": notes}
+        if look == "ipc_phase":
+            nums = [float(v) for v in values if isinstance(v, (int, float))]
+            if not nums:
+                return {"error": f"'{field}' holds no numeric values."}
+            classes = _rule_based(layer, phase_rules(field, IPC_PHASES, IPC_NOT_ANALYSED))
+            layer.setCustomProperty("cartogen_look", look)
+            notes.append("Areas with no phase are drawn grey as not analysed, never as phase 1.")
+            return {"classes": classes, "notes": notes}
+        if look == "inform_risk":
+            nums = [float(v) for v in values if isinstance(v, (int, float))]
+            if not nums:
+                return {"error": f"'{field}' holds no numeric values."}
+            if max(nums) > 10.0 + 1e-9 or min(nums) < -1e-9:
+                notes.append(f"'{field}' has values outside 0-10 ({min(nums):g} to {max(nums):g}); those areas fall outside the five INFORM classes and are not drawn.")
+            classes = _graduated(layer, field, inform_ranges())
+            layer.setCustomProperty("cartogen_look", look)
+            notes.append("Areas with no value are not drawn.")
+            return {"classes": classes, "notes": notes}
+        if look == "damage_class":
+            rules = damage_rules(field, values)
+            if not rules:
+                return {"error": f"'{field}' holds no recognised damage class (destroyed, severe damage, moderate damage, possible damage, no visible damage)."}
+            classes = _rule_based(layer, rules)
+            layer.setCustomProperty("cartogen_look", look)
+            return {"classes": classes, "notes": notes}
         if look in ("jiaf_severity", "jiaf_review_pin", "jiaf_review_severity"):
             nums = [float(v) for v in values if isinstance(v, (int, float))]
             if not nums:
@@ -485,9 +586,9 @@ def style_result_field(layer, look, field, top_k=None):
                 notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
                              "score, so those units fall outside the five classes and are not drawn.")
             ranges = severity_ranges()
-        elif look in ("people_in_need", "exposure", "allocation", "jiaf_count"):
+        elif look in ("people_in_need", "exposure", "allocation", "jiaf_count", "measure"):
             palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS,
-                       "jiaf_count": EXPOSURE_COLORS}[look]
+                       "jiaf_count": EXPOSURE_COLORS, "measure": MEASURE_COLORS}[look]
             ranges = count_ranges(values, palette)
             if not ranges:
                 return {"error": f"'{field}' holds no numeric values."}
@@ -581,6 +682,38 @@ def style_detected_features(layer, field="confidence"):
             return False
         _graduated(layer, field, detection_ranges())
         layer.setOpacity(0.75)
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
+def class_colors(k):
+    """k distinct qualitative colours for k statistical classes (cycled past ten, which is more than a reader can tell apart anyway). Pure."""
+    return [QUALITATIVE[i % len(QUALITATIVE)] for i in range(int(k))]
+
+
+def style_classified_raster(layer, k):
+    """Give a class raster (cell values 1..k, 0 = no data) distinct colours and 'Class n' labels. Before this, unsupervised_classification's
+    output arrived as a grey ramp of the class numbers, which cannot be read as classes. True when applied."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        classes = [QgsPalettedRasterRenderer.Class(i + 1, QColor(c), f"Class {i + 1}") for i, c in enumerate(class_colors(k))]
+        layer.setRenderer(QgsPalettedRasterRenderer(layer.dataProvider(), 1, classes))
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
+def style_obfuscated_points(layer):
+    """The shifted copy made by obfuscate_sensitive_points: a hollow violet ring, so it cannot be mistaken for the original points. True when applied."""
+    if not QGIS_AVAILABLE or layer is None:
+        return False
+    try:
+        layer.setRenderer(QgsSingleSymbolRenderer(QgsMarkerSymbol.createSimple(
+            {"name": "circle", "color": "255,255,255,0", "outline_color": "#6a3d9a", "outline_width": "0.7", "size": "3.6"})))
         layer.triggerRepaint()
         return True
     except Exception:

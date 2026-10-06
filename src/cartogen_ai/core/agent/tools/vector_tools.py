@@ -2276,6 +2276,8 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     provider.addFeatures(new_features)
     new_layer.updateExtents()
     QgsProject.instance().addMapLayer(new_layer)
+    from .humanitarian_style import style_obfuscated_points
+    style_obfuscated_points(new_layer)
 
     result = {
         "success": True,

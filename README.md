@@ -28,7 +28,7 @@ The agent exposes its plan, tool calls, progress, and errors instead of returnin
 black-box answer.
 
 > **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc18 pre-release** (the published release is still rc17 until rc18 is uploaded).
-> - **Tests:** 3,542 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
+> - **Tests:** 3,555 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
 >   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
