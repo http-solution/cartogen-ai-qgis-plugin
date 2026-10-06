@@ -87,5 +87,23 @@ class TestPartialEdgeCosts(_Base):
                 self.assertIsNone(behind)
 
 
+class TestGeofabrikDirectionEncodingWithBlanks(_Base):
+    """#132: F/T/B must be recognised when some segments have a NULL or empty direction (a real layer, real NULL values)."""
+
+    def test_blank_directions_do_not_hide_the_geofabrik_encoding(self):
+        from cartogen_ai.core.agent.tools.logistics_tools import _network_direction_speed_params
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326&field=oneway:string", "roads_blank", "memory")
+        feats = []
+        for i, value in enumerate(["F", "B", None, ""]):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(44.0 + i, 15.0), QgsPointXY(44.5 + i, 15.0)]))
+            f.setAttributes([value])
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        extra, error = _network_direction_speed_params(layer, direction_field="oneway")
+        self.assertIsNone(error)
+        self.assertEqual((extra["VALUE_FORWARD"], extra["VALUE_BACKWARD"], extra["VALUE_BOTH"]), ("F", "T", "B"))
+
+
 if __name__ == "__main__":
     unittest.main()

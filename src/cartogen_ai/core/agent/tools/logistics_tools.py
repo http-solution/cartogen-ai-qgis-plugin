@@ -514,6 +514,21 @@ def _network_geometry_error(network, layer_name):
     return None
 
 
+def _direction_values_present(values):
+    """The real, non-empty direction values in a field's unique values. A roads layer with a few segments that carry no
+    direction at all holds NULL (PyQGIS' NULL stringifies as 'NULL') or '' alongside F/T/B, and counting those as values made
+    the 'only F, T and B' check fail, so the Geofabrik encoding was not recognised and every one-way street was treated as
+    two-way (GitHub #132). Blanks mean 'both directions', which DEFAULT_DIRECTION already gives them."""
+    present = set()
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text and text.upper() != "NULL":
+            present.add(text)
+    return present
+
+
 def _network_direction_speed_params(network, speed_field=None, direction_field=None,
                                      value_forward="yes", value_backward="-1", value_both="no"):
     """Wires speed_field/direction_field through to native:serviceareafrompoint/
@@ -548,7 +563,7 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
             # yes / -1 / no. With the OSM defaults nothing matched, every road counted as two-way and one-way streets were
             # silently ignored (rc11 smoke test: the Yemen roads layer held F and B). Detected from the layer's own values.
             try:
-                seen = {str(v) for v in network.uniqueValues(dir_idx) if v is not None}
+                seen = _direction_values_present(network.uniqueValues(dir_idx))
                 if seen and seen <= {"F", "T", "B"}:
                     value_forward, value_backward, value_both = "F", "T", "B"
             except Exception:
