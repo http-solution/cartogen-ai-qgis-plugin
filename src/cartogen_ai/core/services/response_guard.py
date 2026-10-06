@@ -87,6 +87,7 @@ NO_DATA_TOOLS = frozenset({
     "create_plan", "set_task_preview", "update_task", "store_project_memory", "store_global_memory",
 })
 
+_SOFT_MARKER = "other calls succeeded"
 _NOTICE_TABLE_REMOVED = "_(Table removed: no tool produced it in this turn.)_"
 
 
@@ -172,7 +173,7 @@ def strip_confirmation_prose(text):
     return cleaned or CONFIRM_CARD_NOTICE
 
 
-def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True):
+def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False):
     """A warning string, or None.
 
     Flags a final answer that contains data (a table, or record-like bullets) while a tool call this
@@ -190,6 +191,11 @@ def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_too
         if failed:
             names = ", ".join(f"`{n}`" for n in failed)
             parts.append(f"{names} failed")
+        if failed and not pending and backed_by_success:
+            # A data tool DID succeed this turn, so the table may well be its output. rc17 hand test B3: a STAC search succeeded and
+            # three unrelated SQL calls failed, and the real scene table was replaced by "no tool produced it".
+            return (f"⚠️ **Note:** {'; '.join(parts)} in this turn; {_SOFT_MARKER}. Check the data above against "
+                    "the tool results, since it cannot be tied to a single call.")
     elif not data_tool_ran and looks_like_retrieved_data(final_text):
         parts.append("no data tool ran in this turn, so the figures come from the model's memory or from earlier "
                      "in the conversation")
@@ -201,13 +207,17 @@ def unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_too
     )
 
 
-def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True):
-    """`final_text` with ungrounded tables replaced by a notice and the warning appended (once), or unchanged."""
-    if final_text and _WARNING_MARKER in final_text:
+def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran=True, backed_by_success=False):
+    """`final_text` with ungrounded tables replaced by a notice and the warning appended (once), or unchanged.
+
+    `backed_by_success`: a data tool succeeded this turn and nothing is pending. Failed calls then only add a note; the tables stay."""
+    if final_text and (_WARNING_MARKER in final_text or _SOFT_MARKER in final_text):
         return final_text
-    warning = unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran)
+    warning = unbacked_data_warning(final_text, pending_tools, unresolved_errors, data_tool_ran, backed_by_success)
     if not warning:
         return final_text
+    if backed_by_success and not _unique(pending_tools):
+        return f"{str(final_text).rstrip()}\n\n{warning}"
     return f"{strip_ungrounded_tables(final_text).rstrip()}\n\n{warning}"
 
 
@@ -220,7 +230,10 @@ def apply_unbacked_data_warning(final_text, pending_tools, unresolved_errors, da
 # loose check would flag every rounding and derived figure and train people to ignore the note.
 _UNGROUNDED_MARKER = "Not from a tool result"
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
-_SCALED = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*(million|billion|bn|m|b)\b(?![\w-])", re.IGNORECASE)
+# A lowercase "m" is metres ("886.49 m") and "b" is rarely a billion, so the one-letter suffixes count only as capitals ("29.8M").
+# rc17 hand test R2 (2026-10-06): every metre distance in a hub-ranking answer was read as "886.49 million", matched no number
+# in the evidence, and the whole table was footnoted as coming from the model's general knowledge.
+_SCALED = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*((?i:million|billion|bn)|[MB])\b(?![\w-])")
 _SIZE = re.compile(r"(?<![\w.])~?\s*(\d[\d,]*(?:\.\d+)?)\s*(kb|mb|gb)\b", re.IGNORECASE)
 # Only comma-grouped numbers (29,812,345): a bare 9-digit run is an identifier (an osm_id), not a total.
 _BIG_PLAIN = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3}){2,})(?![\w.])")

@@ -1279,7 +1279,8 @@ class CartogenAi:
                 failed.append(name)
         data_tool_ran = any((not is_error) and name not in response_guard.NO_DATA_TOOLS
                             for name, is_error, _msg in turn_tool_log)
-        final_text = response_guard.apply_unbacked_data_warning(final_text, pending, failed, data_tool_ran)
+        final_text = response_guard.apply_unbacked_data_warning(
+            final_text, pending, failed, data_tool_ran, backed_by_success=data_tool_ran and not pending)
         # #75: claims around real numbers that no tool returned (place names, national totals, terrain, file sizes).
         final_text = response_guard.apply_ungrounded_claims_note(
             final_text, "\n".join(getattr(self, "_grounding_texts", [])),
