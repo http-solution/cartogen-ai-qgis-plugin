@@ -2148,7 +2148,15 @@ def _dashboard_output_path(title, now=None):
     try:
         folder = _default_export_dir("dashboards")
         stamp = (now or datetime.datetime.now()).strftime("%Y%m%d_%H%M%S")
-        return os.path.join(folder, f"{_sanitize_filename(title or 'dashboard')}_{stamp}.html")
+        stem = f"{_sanitize_filename(title or 'dashboard')}_{stamp}"
+        path = os.path.join(folder, f"{stem}.html")
+        # The stamp has one-second precision (the same collision as the result tables, #158): two dashboards with one title in
+        # one second would overwrite each other, so a taken name gets a counter instead of replacing the earlier file.
+        counter = 2
+        while os.path.exists(path):
+            path = os.path.join(folder, f"{stem}_{counter}.html")
+            counter += 1
+        return path
     except Exception:
         return _temp_html_path()
 
