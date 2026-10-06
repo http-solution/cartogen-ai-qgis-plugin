@@ -1,3 +1,4 @@
+import re
 import time
 from abc import ABC, abstractmethod
 
@@ -256,3 +257,22 @@ class BaseAiProvider(ABC):
 
     def set_status_callback(self, callback):
         self._status_callback = callback
+
+
+_RECENCY = re.compile(r"\b(latest|newest|current|currently|recent|recently|today|now|up[- ]to[- ]date|this (?:week|month|year))\b", re.I)
+
+
+def freshen_query(query, today=None):
+    """Adds today's date and a freshness instruction to a web-search query that asks for the latest or current thing. Pure given `today`.
+
+    rc17 hand test B5 (2026-10-06): "the latest stable QGIS release announcement" came back as QGIS 4.0 (March 2026) when 4.2 had been
+    announced in July; the search backend had no idea what "latest" meant relative to today. A query with no recency word is
+    returned unchanged."""
+    text = str(query or "")
+    if not _RECENCY.search(text):
+        return text
+    import datetime
+    day = (today or datetime.date.today()).isoformat()
+    return (f"{text.rstrip()} (Today is {day}. Use the most recent official sources available, check whether anything newer than "
+            "your first result exists, and state each source's publication date.)")
+
