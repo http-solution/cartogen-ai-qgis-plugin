@@ -30,6 +30,30 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+def _unit_labels(layer, unit_name_field):
+    """({feature id: unit label}, number of labels that had to be changed). Two units with the same name (the same district name in
+    two governorates), or a NULL / empty name, used to share one dictionary key, so the later unit's score overwrote the earlier one's
+    and was then written to the wrong feature (audit F23, #159). A unique name is used as it is; a repeated one becomes
+    'name [#<fid>]', an empty one 'feature <fid>' -- the same rule estimate_population_exposure uses."""
+    from .raster_tools import unique_zone_keys
+    pairs = []
+    for feat in layer.getFeatures():
+        value = feat[unit_name_field]
+        label = None if value is None else str(value).strip()
+        pairs.append((feat.id(), label or None))
+    labels = unique_zone_keys(pairs)
+    changed = sum(1 for fid, original in pairs if labels[fid] != original)
+    return labels, changed
+
+
+def _label_note(changed):
+    """The sentence to put in a result when unit labels were changed to keep units apart, else None."""
+    if not changed:
+        return None
+    return (f"{changed} unit(s) had a repeated or empty name; they are shown as 'name [#feature id]' or 'feature <id>' so that no two "
+            "units share a result.")
+
+
 _MAX_RESULT_ENTRIES = 50
 
 
@@ -353,9 +377,10 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
+    labels, labels_changed = _unit_labels(layer, unit_name_field)
     rows = []
     for feat in layer.getFeatures():
-        row = {"unit": str(feat[unit_name_field]), "__fid__": feat.id()}
+        row = {"unit": labels[feat.id()], "__fid__": feat.id()}
         for f in indicator_fields:
             row[f] = feat[f]
         rows.append(row)
@@ -381,6 +406,8 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
             f"Showing the top {len(result['results'])} of {result['scored_units']} units, worst-first. "
             "Ask for a specific unit or severity class to see more."
         )
+    if _label_note(labels_changed):
+        result["unit_label_note"] = _label_note(labels_changed)
     return result
 
 
@@ -539,7 +566,8 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
-    rows = [{"unit": str(feat[unit_name_field]), "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    labels, labels_changed = _unit_labels(layer, unit_name_field)
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -629,6 +657,8 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
             result["output_field"] = output_field
             result["layer_name"] = layer_name
             result["map_look"] = look_hint(layer_name, "presence_gap", output_field)
+    if _label_note(labels_changed):
+        result["unit_label_note"] = _label_note(labels_changed)
     return result
 
 
@@ -744,7 +774,8 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
-    rows = [{"unit": str(feat[unit_name_field]), "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    labels, labels_changed = _unit_labels(layer, unit_name_field)
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -812,6 +843,8 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
             result["output_field"] = output_field
             result["layer_name"] = layer_name
             result["map_look"] = look_hint(layer_name, "people_in_need", output_field)
+    if _label_note(labels_changed):
+        result["unit_label_note"] = _label_note(labels_changed)
     return result
 
 
@@ -861,6 +894,37 @@ def _build_polygon_index(admin_layer):
     index = QgsSpatialIndex(admin_layer.getFeatures())
     admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
     return index, admin_features_by_id
+
+
+def _geometries_in_crs(geometries, source_crs, target_crs):
+    """Yield each geometry in `target_crs`. Building footprints and incident points usually arrive in EPSG:4326 while the admin layer
+    is projected (or the other way round); intersecting raw coordinates from two CRSs finds nothing and every point is silently
+    'unmatched' (audit F25, #161: "require points in the admin CRS"). Unchanged geometries are yielded as they are when the CRSs are
+    the same or either is unknown. None / empty geometries pass through so the caller still counts them as skipped."""
+    try:
+        same = (not source_crs.isValid()) or (not target_crs.isValid()) or source_crs == target_crs
+    except Exception:
+        same = True
+    if same:
+        yield from geometries
+        return
+    try:
+        from qgis.core import QgsCoordinateTransform, QgsProject
+    except ImportError:          # no QGIS (offline tests): nothing to transform with
+        yield from geometries
+        return
+    xform = QgsCoordinateTransform(source_crs, target_crs, QgsProject.instance())
+    for geom in geometries:
+        if geom is None or geom.isEmpty():
+            yield geom
+            continue
+        moved = type(geom)(geom)
+        try:
+            moved.transform(xform)
+        except Exception:
+            yield None            # a point that cannot be transformed is counted as skipped, not placed somewhere wrong
+            continue
+        yield moved
 
 
 def _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries):
@@ -1018,13 +1082,15 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         if layer.fields().indexFromName("hzd_mean") < 0:
             return {"error": "Zonal statistics ran but no 'hzd_mean' field was created -- check hazard_intensity_raster overlaps admin_layer."}
 
-    footprint_centroids = (feat.geometry().centroid() for feat in footprints.getFeatures())
+    footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in footprints.getFeatures()),
+                                             footprints.crs(), layer.crs())
     index, admin_features_by_id = _build_polygon_index(layer)
     building_counts, assignment_stats = _assign_points_to_polygons_indexed(index, admin_features_by_id, footprint_centroids)
 
     rows = []
+    labels, labels_changed = _unit_labels(layer, unit_name_field)
     for feat in layer.getFeatures():
-        row = {"unit": str(feat[unit_name_field]), "__fid__": feat.id(), "change_magnitude": feat["chg_mean"]}
+        row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat["chg_mean"]}
         if intensity_raster is not None:
             row["hazard_intensity"] = feat["hzd_mean"]
         rows.append(row)
@@ -1086,6 +1152,8 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
             result["output_field"] = output_field
             result["layer_name"] = admin_layer
             result["map_look"] = look_hint(admin_layer, "severity", output_field)
+    if _label_note(labels_changed):
+        result["unit_label_note"] = _label_note(labels_changed)
     return result
 
 
@@ -1199,6 +1267,10 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
         if d is None or geom is None or geom.isEmpty():
             continue
         dated_geoms.append((d, geom))
+    # Points and zones may be in different CRSs (#161): move the points into the zones' CRS once, up front.
+    if dated_geoms:
+        moved = list(_geometries_in_crs((g for _d, g in dated_geoms), layer.crs(), zones.crs()))
+        dated_geoms = [(d, g) for (d, _old), g in zip(dated_geoms, moved) if g is not None]
 
     if not dated_geoms:
         return {"error": f"No usable (date, geometry) pairs found in '{point_layer}' via '{date_field}'."}

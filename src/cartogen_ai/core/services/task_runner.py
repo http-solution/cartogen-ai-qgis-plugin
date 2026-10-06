@@ -6,6 +6,7 @@ Executes non-blocking background LLM requests while keeping the QGIS GUI fully r
 
 import time
 import traceback
+from ..agent import project_session
 from ..agent.tools._qgis_enum_compat import resolve_qgis_enum
 from ..logger import log_event
 
@@ -41,6 +42,7 @@ class AgentQgsTask(QgsTask):
         self.map_context = map_context
         self.response = None
         self.error = None
+        self._plugin_epoch = project_session.plugin_epoch()
 
     def run(self):
         """Executes in background worker thread."""
@@ -87,6 +89,10 @@ class AgentQgsTask(QgsTask):
     def finished(self, result):
         """Executes on the main Qt GUI thread when background processing finishes."""
         log_event("agent_task_finished", tag="TaskRunner", status="ok" if result else "failed")
+        if project_session.plugin_retired(self._plugin_epoch):
+            # The plugin was unloaded while this ran (#167): the widgets on_complete touches are already destroyed.
+            log_event("agent_task_finished", tag="TaskRunner", status="skipped_plugin_unloaded")
+            return
         if self.on_complete:
             # QGIS-001, 2026-09-13 audit: run() (background thread) wraps agent.run() in
             # try/except, but this call was not guarded at all -- on_complete is a closure
@@ -147,6 +153,21 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
 
     handle = _FallbackTaskHandle()
 
+    epoch = project_session.plugin_epoch()
+
+    def deliver(*args):
+        """Run on_complete on the Qt main thread when there is one (it touches widgets), and never after an unload."""
+        if on_complete is None or project_session.plugin_retired(epoch):
+            return
+        if QGIS_TASK_AVAILABLE:
+            try:
+                from qgis.PyQt.QtCore import QTimer
+                QTimer.singleShot(0, QgsApplication.instance(), lambda: None if project_session.plugin_retired(epoch) else on_complete(*args))
+                return
+            except Exception:
+                pass
+        on_complete(*args)
+
     def worker():
         try:
             if on_status:
@@ -155,11 +176,9 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
                 user_text, map_context=map_context, should_stop=handle.isCanceled,
                 tool_step_callback=on_tool_step,
             )
-            if on_complete:
-                on_complete(resp, None)
+            deliver(resp, None)
         except Exception as e:
-            if on_complete:
-                on_complete(None, str(e))
+            deliver(None, str(e))
 
     t = threading.Thread(target=worker, daemon=True)
     t.start()
@@ -179,6 +198,7 @@ class FunctionQgsTask(QgsTask):
         self.on_done = on_done
         self.result_value = None
         self.error = None
+        self._plugin_epoch = project_session.plugin_epoch()
 
     def run(self):
         try:
@@ -189,6 +209,8 @@ class FunctionQgsTask(QgsTask):
             return False
 
     def finished(self, result):
+        if project_session.plugin_retired(self._plugin_epoch):
+            return
         try:
             if result:
                 self.on_done(self.result_value, None)

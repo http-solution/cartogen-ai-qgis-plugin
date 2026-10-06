@@ -123,6 +123,75 @@ def _common_grid_error(layers):
             "with the same extent and resolution).")
 
 
+_RESAMPLING = {"nearest": "near", "bilinear": "bilinear", "cubic": "cubic"}
+
+_ALIGN_PARAMS = {
+    "align_to_first": {"type": "boolean", "description": "If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse."},
+    "resampling": {"type": "string", "description": "With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'."},
+}
+
+
+def align_layers_to_first(layers, resampling="bilinear"):
+    """Warp every layer after the first onto the first layer's grid. Returns (aligned_layers, error, note). Needs QGIS and GDAL.
+
+    Audit F17 (#153): mismatched grids were only refused; this is the other half, an explicit, stated alignment. The reference is the first
+    layer in the call. Each other layer is resampled with the stated rule into a temporary GeoTIFF that is NOT added to the project, so the
+    user's own layers are untouched. A layer whose source is not a local file (a web service) cannot be warped and is reported."""
+    rule = _RESAMPLING.get(str(resampling or "bilinear").strip().lower())
+    if rule is None:
+        return None, f"resampling must be one of {sorted(_RESAMPLING)}, got {resampling!r}.", None
+    try:
+        from osgeo import gdal
+    except ImportError:
+        return None, "Aligning rasters needs GDAL's Python bindings, which this QGIS does not provide; warp them onto one grid first.", None
+    ref = layers[0]
+    ext = ref.extent()
+    out = [ref]
+    moved = []
+    for layer in layers[1:]:
+        src = layer.source()
+        if not os.path.isfile(src.split("|")[0]):
+            return None, f"'{layer.name()}' is not a local raster file, so it cannot be aligned automatically.", None
+        path = _temp_raster_path()
+        try:
+            ds = gdal.Warp(path, src.split("|")[0], format="GTiff", dstSRS=ref.crs().toWkt(),
+                           outputBounds=(ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()),
+                           width=ref.width(), height=ref.height(), resampleAlg=rule, dstNodata=None)
+            if ds is None:
+                raise RuntimeError("gdal.Warp returned no dataset")
+            ds = None
+        except Exception as e:
+            return None, f"Could not align '{layer.name()}' to '{ref.name()}': {e}", None
+        aligned = QgsRasterLayer(path, layer.name())
+        if not aligned.isValid():
+            return None, f"The aligned copy of '{layer.name()}' could not be loaded.", None
+        out.append(aligned)
+        moved.append(layer.name())
+    note = (f"Aligned {', '.join(repr(n) for n in moved)} onto the grid of '{ref.name()}' (its CRS, extent and {ref.width()}x{ref.height()} cells) "
+            f"with {str(resampling or 'bilinear').lower()} resampling. Temporary copies were used; no layer in the project was changed. "
+            "Cells outside a layer's own extent are NoData-filled by the warp.")
+    return out, None, note
+
+
+def _grid_or_error(layers, align_to_first=False, resampling="bilinear"):
+    """(layers_to_use, error, alignment_note). On one common grid: the layers unchanged. Otherwise: align when asked, else the refusal."""
+    problem = _common_grid_error(layers)
+    if not problem:
+        return layers, None, None
+    if not align_to_first:
+        return None, problem + " Pass align_to_first=true to warp them onto the first raster's grid.", None
+    aligned, error, note = align_layers_to_first(layers, resampling)
+    if error:
+        return None, error, None
+    return aligned, None, note
+
+
+def _with_alignment_note(result, note):
+    if note and isinstance(result, dict) and "error" not in result:
+        result["alignment"] = note
+    return result
+
+
 def _index_expression():
     """Normalised-difference formula with a stated rule for a zero denominator: those pixels become 0, not inf/NaN."""
     return "numpy.where((A.astype(float)+B)==0, 0, (A.astype(float)-B)/(A.astype(float)+B))"
@@ -156,9 +225,9 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     "'NDVI' added to the project with QGIS's default (unstretched, low-contrast) rendering -- follow "
     "up with apply_raster_stretch(layer_name='NDVI') to apply a readable diverging color ramp "
     "(auto-selected for NDVI-named layers) instead of leaving it flat/unstretched.",
-    {"type": "object", "properties": {"red_layer": {"type": "string"}, "nir_layer": {"type": "string"}}, "required": ["red_layer", "nir_layer"]},
+    {"type": "object", "properties": {"red_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_layer", "nir_layer"]},
 )
-def calculate_ndvi(red_layer, nir_layer):
+def calculate_ndvi(red_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     red = _find_layer_by_name(red_layer)
@@ -167,10 +236,11 @@ def calculate_ndvi(red_layer, nir_layer):
         return {"error": f"Layer '{red_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
-    grid_error = _common_grid_error([nir, red])
+    used, grid_error, align_note = _grid_or_error([nir, red], align_to_first, resampling)
     if grid_error:
         return {"error": grid_error}
-    return _run_raster_and_add(
+    nir, red = used
+    return _with_alignment_note(_run_raster_and_add(
         "gdal:rastercalculator",
         {
             "INPUT_A": nir,
@@ -182,7 +252,7 @@ def calculate_ndvi(red_layer, nir_layer):
             "RTYPE": 5,
         },
         "NDVI",
-    )
+    ), align_note)
 
 
 @register_tool(
@@ -196,9 +266,9 @@ def calculate_ndvi(red_layer, nir_layer):
     "'NDWI' with QGIS's default (unstretched) rendering -- follow up with "
     "apply_raster_stretch(layer_name='NDWI') to apply a readable diverging color ramp (auto-selected "
     "for NDWI-named layers) instead of leaving it flat/unstretched.",
-    {"type": "object", "properties": {"green_layer": {"type": "string"}, "nir_layer": {"type": "string"}}, "required": ["green_layer", "nir_layer"]},
+    {"type": "object", "properties": {"green_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["green_layer", "nir_layer"]},
 )
-def calculate_ndwi(green_layer, nir_layer):
+def calculate_ndwi(green_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     green = _find_layer_by_name(green_layer)
@@ -207,10 +277,11 @@ def calculate_ndwi(green_layer, nir_layer):
         return {"error": f"Layer '{green_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
-    grid_error = _common_grid_error([green, nir])
+    used, grid_error, align_note = _grid_or_error([green, nir], align_to_first, resampling)
     if grid_error:
         return {"error": grid_error}
-    return _run_raster_and_add(
+    green, nir = used
+    return _with_alignment_note(_run_raster_and_add(
         "gdal:rastercalculator",
         {
             "INPUT_A": green,
@@ -222,7 +293,7 @@ def calculate_ndwi(green_layer, nir_layer):
             "RTYPE": 5,
         },
         "NDWI",
-    )
+    ), align_note)
 
 
 _OVERLAY_LETTERS = ["A", "B", "C", "D", "E", "F"]
@@ -258,11 +329,12 @@ def _compute_normalized_weights(weights):
                 "type": "array", "items": {"type": "number"},
                 "description": "One weight per raster, same order as raster_layers. Don't need to sum to 1 -- normalized automatically.",
             },
+            **_ALIGN_PARAMS,
         },
         "required": ["raster_layers", "weights"],
     },
 )
-def weighted_overlay_analysis(raster_layers, weights):
+def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if len(raster_layers) < 2:
@@ -283,7 +355,7 @@ def weighted_overlay_analysis(raster_layers, weights):
             return {"error": f"Layer '{name}' not found"}
         layers.append(layer)
 
-    grid_error = _common_grid_error(layers)
+    layers, grid_error, align_note = _grid_or_error(layers, align_to_first, resampling)
     if grid_error:
         return {"error": grid_error}
 
@@ -295,7 +367,7 @@ def weighted_overlay_analysis(raster_layers, weights):
         formula_terms.append(f"{letter}.astype(float)*{w}")
     params["FORMULA"] = "+".join(formula_terms)
 
-    res = _run_raster_and_add("gdal:rastercalculator", params, "weighted_overlay")
+    res = _with_alignment_note(_run_raster_and_add("gdal:rastercalculator", params, "weighted_overlay"), align_note)
     if isinstance(res, dict) and res.get("success"):
         res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized]))
         # HX1b: an ordered, opaque low-to-high surface under the vectors instead of QGIS's grey stretch (best effort)
@@ -320,9 +392,9 @@ def weighted_overlay_analysis(raster_layers, weights):
     "raster layer named 'NDRE' with QGIS's default (unstretched) rendering -- follow up with "
     "apply_raster_stretch(layer_name='NDRE') to apply a readable diverging color ramp (auto-selected "
     "for NDRE-named layers) instead of leaving it flat/unstretched.",
-    {"type": "object", "properties": {"red_edge_layer": {"type": "string"}, "nir_layer": {"type": "string"}}, "required": ["red_edge_layer", "nir_layer"]},
+    {"type": "object", "properties": {"red_edge_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_edge_layer", "nir_layer"]},
 )
-def calculate_ndre(red_edge_layer, nir_layer):
+def calculate_ndre(red_edge_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     re = _find_layer_by_name(red_edge_layer)
@@ -331,10 +403,11 @@ def calculate_ndre(red_edge_layer, nir_layer):
         return {"error": f"Layer '{red_edge_layer}' not found"}
     if nir is None:
         return {"error": f"Layer '{nir_layer}' not found"}
-    grid_error = _common_grid_error([nir, re])
+    used, grid_error, align_note = _grid_or_error([nir, re], align_to_first, resampling)
     if grid_error:
         return {"error": grid_error}
-    return _run_raster_and_add(
+    nir, re = used
+    return _with_alignment_note(_run_raster_and_add(
         "gdal:rastercalculator",
         {
             "INPUT_A": nir,
@@ -346,7 +419,7 @@ def calculate_ndre(red_edge_layer, nir_layer):
             "RTYPE": 5,
         },
         "NDRE",
-    )
+    ), align_note)
 
 
 def _geographic_z_factor(dem):
@@ -468,18 +541,40 @@ def create_shaded_relief(dem_layer, color_ramp="BrBG", azimuth=315, altitude=45,
 
 
 
-@register_tool("slope_analysis", "Calculate slope map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})
-def slope_analysis(dem_layer):
+_VERTICAL_UNIT_FACTORS = {
+    "m": 1.0, "metre": 1.0, "metres": 1.0, "meter": 1.0, "meters": 1.0,
+    "ft": 0.3048, "foot": 0.3048, "feet": 0.3048,
+    "us_ft": 1200.0 / 3937.0, "us-ft": 1200.0 / 3937.0, "us_survey_foot": 1200.0 / 3937.0, "us survey foot": 1200.0 / 3937.0,
+}
+
+
+def vertical_unit_factor(unit):
+    """Metres per DEM vertical unit, or None for an unrecognised unit. Pure. A QGIS raster layer does not carry a vertical unit, so it
+    cannot be read from the layer: the tools take it as an argument (default metres) and say which they used (audit F18, #154)."""
+    return _VERTICAL_UNIT_FACTORS.get(str(unit if unit is not None else "m").strip().lower())
+
+
+_VERTICAL_UNIT_PARAM = {"type": "string", "description": "Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry its vertical unit, so say so if the DEM is in feet."}
+
+
+@register_tool("slope_analysis", "Calculate slope map from DEM layer. Elevations are taken as metres unless dem_vertical_unit says 'ft' or 'us_ft'.", {"type": "object", "properties": {"dem_layer": {"type": "string"}, "dem_vertical_unit": _VERTICAL_UNIT_PARAM}, "required": ["dem_layer"]})
+def slope_analysis(dem_layer, dem_vertical_unit="m"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     dem = _find_layer_by_name(dem_layer)
     if dem is None:
         return {"error": f"Layer '{dem_layer}' not found"}
-    return _run_raster_and_add(
+    vertical = vertical_unit_factor(dem_vertical_unit)
+    if vertical is None:
+        return {"error": f"dem_vertical_unit must be 'm', 'ft' or 'us_ft', got {dem_vertical_unit!r}."}
+    result = _run_raster_and_add(
         "native:slope",
-        {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem)},
+        {"INPUT": dem, "Z_FACTOR": _geographic_z_factor(dem) * vertical},
         f"{dem_layer}_slope",
     )
+    if isinstance(result, dict) and "error" not in result:
+        result["vertical_unit_used"] = str(dem_vertical_unit or "m")
+    return result
 
 
 @register_tool("aspect_analysis", "Calculate aspect map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})
@@ -802,15 +897,19 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
             "line_layer": {"type": "string", "description": "Line layer to sample along. Uses the first feature if it has more than one."},
             "dem_layer": {"type": "string", "description": "Raster (DEM) layer to sample elevation from."},
             "num_samples": {"type": "integer", "description": "Number of sample points along the line. Defaults to 100."},
+            "dem_vertical_unit": _VERTICAL_UNIT_PARAM,
         },
         "required": ["line_layer", "dem_layer"],
     },
 )
-def elevation_profile(line_layer, dem_layer, num_samples=100):
+def elevation_profile(line_layer, dem_layer, num_samples=100, dem_vertical_unit="m"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if num_samples < 2:
         return {"error": "num_samples must be at least 2."}
+    vertical = vertical_unit_factor(dem_vertical_unit)
+    if vertical is None:
+        return {"error": f"dem_vertical_unit must be 'm', 'ft' or 'us_ft', got {dem_vertical_unit!r}."}
 
     line = _find_layer_by_name(line_layer)
     dem = _find_layer_by_name(dem_layer)
@@ -853,7 +952,7 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
                 point = to_dem.transform(point)
             value, ok = provider.sample(point, 1)
             distances.append(round(fraction * length, 2))
-            elevations.append(value if ok else None)
+            elevations.append(value * vertical if ok else None)
 
         valid_count = sum(1 for e in elevations if e is not None)
         if valid_count == 0:
@@ -865,7 +964,9 @@ def elevation_profile(line_layer, dem_layer, num_samples=100):
             "dem_layer": dem_layer,
             "total_length": round(length, 2),
             "distance_unit": "metres (ellipsoidal)",
-            "elevation_unit_note": "Elevations are the DEM's own values; their vertical unit is not checked and is assumed to be metres.",
+            "elevation_unit": "metres",
+            "elevation_unit_note": (f"Elevations are converted to metres from the DEM's vertical unit ({dem_vertical_unit or 'm'}). The unit is not "
+                                    "stored in the raster, so it is whatever was passed; it defaults to metres."),
             "sample_count": num_samples,
             "valid_sample_count": valid_count,
             "distances": distances,
@@ -1159,6 +1260,38 @@ def _describe_population_raster(layer_name):
     return layer_name, None
 
 
+_POPULATION_UNITS = ("people_per_cell", "people_per_km2")
+_DENSITY_NAME_RE = re.compile(r"(density|[_\s-]pd[_\s-]|per[_\s-]?km|people[_\s-]per[_\s-]sq|popden)", re.I)
+
+
+def population_unit_problem(layer_name, raster_unit):
+    """An error string when the unit is unknown, or when the layer's NAME says it is a density raster but the unit was left at
+    people_per_cell (summing densities as if they were counts overstates the population by the cell area in km2). Pure. Audit F24 (#160):
+    "raster units (people/cell vs density) are not validated". A raster carries no unit, so the name is the only evidence there is; a name
+    that does not look like density passes, and the unit used is always stated in the result."""
+    if raster_unit not in _POPULATION_UNITS:
+        return f"raster_unit must be one of {list(_POPULATION_UNITS)}, got {raster_unit!r}."
+    if raster_unit == "people_per_cell" and _DENSITY_NAME_RE.search(layer_name or ""):
+        return (f"'{layer_name}' looks like a population DENSITY raster (people per km2), but raster_unit is people_per_cell, so its cells "
+                "would be summed as head-counts. Pass raster_unit='people_per_km2' if it is a density, or 'people_per_cell' "
+                "explicitly if the name is misleading and the cells are counts.")
+    return None
+
+
+def _cell_area_km2(raster):
+    """Area of one cell in km2 at the raster's centre (ellipsoidal when the raster is geographic). Needs QGIS."""
+    from qgis.core import QgsDistanceArea, QgsGeometry, QgsRectangle
+    ext = raster.extent()
+    cx, cy = (ext.xMinimum() + ext.xMaximum()) / 2.0, (ext.yMinimum() + ext.yMaximum()) / 2.0
+    dx, dy = raster.rasterUnitsPerPixelX() / 2.0, raster.rasterUnitsPerPixelY() / 2.0
+    cell = QgsGeometry.fromRect(QgsRectangle(cx - dx, cy - dy, cx + dx, cy + dy))
+    area = QgsDistanceArea()
+    area.setSourceCrs(raster.crs(), QgsProject.instance().transformContext())
+    ellipsoid = QgsProject.instance().ellipsoid()
+    area.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
+    return area.measureArea(cell) / 1e6
+
+
 @register_tool(
     "estimate_population_exposure",
     "Sum population within each polygon of a vector layer, using an already-loaded population "
@@ -1174,14 +1307,18 @@ def _describe_population_raster(layer_name):
         "properties": {
             "population_raster_layer": {"type": "string", "description": "A population-per-pixel raster layer (e.g. from fetch_worldpop_population)."},
             "area_layer": {"type": "string", "description": "Polygon layer to sum population within, one total per feature."},
+            "raster_unit": {"type": "string", "description": "'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). A raster does not carry its unit; a layer named like a density raster is refused unless this is set."},
             "output_layer_name": {"type": "string", "description": "Optional: also add a NEW polygon layer with this name holding each zone's estimated population (field pop_estimate), styled in exposure classes. The area layer itself is never changed."},
         },
         "required": ["population_raster_layer", "area_layer"],
     },
 )
-def estimate_population_exposure(population_raster_layer, area_layer, output_layer_name=None):
+def estimate_population_exposure(population_raster_layer, area_layer, output_layer_name=None, raster_unit="people_per_cell"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    unit_problem = population_unit_problem(population_raster_layer, raster_unit)
+    if unit_problem:
+        return {"error": unit_problem}
     raster = _find_layer_by_name(population_raster_layer)
     vector = _find_layer_by_name(area_layer)
     if raster is None:
@@ -1200,6 +1337,12 @@ def estimate_population_exposure(population_raster_layer, area_layer, output_lay
         zone_sums = _zonal_sums_detached(raster, vector)
         if zone_sums is None:
             return {"error": "Zonal statistics produced no population field -- check area_layer overlaps the raster."}
+        unit_note = "Cells are read as people per cell."
+        if raster_unit == "people_per_km2":
+            cell_km2 = _cell_area_km2(raster)
+            zone_sums = {fid: (None if v is None else v * cell_km2) for fid, v in zone_sums.items()}
+            unit_note = (f"Cells are read as people per km2 and multiplied by the cell area ({cell_km2:.6f} km2, measured at the raster's centre; "
+                         "for a geographic raster the true cell area changes with latitude, so a large north-south extent is approximate).")
 
         name_field = vector.fields()[0].name() if vector.fields().count() > 0 else None
         zones = []
@@ -1224,6 +1367,8 @@ def estimate_population_exposure(population_raster_layer, area_layer, output_lay
             "totals": totals,
             "zones": zones,
             "total_population": total_population,
+            "raster_unit": raster_unit,
+            "raster_unit_note": unit_note,
             "zones_without_value": zones_without_value,
             "overlap_rule": ("Each zone is summed on its own. total_population is the plain sum of the zones, so people "
                              "inside two overlapping zones are counted in both."),

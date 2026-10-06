@@ -136,6 +136,16 @@ def _soften_graticule(grid):
         grid.setAnnotationPrecision(0)
     except Exception:
         pass
+    # rc18 hand test N8: the right-hand annotations are drawn outside the map frame, in the gap before the legend panel, and were
+    # clipped by it ("3540" cut to "354"). Left and bottom carry the coordinates; the right (and top) copies are only duplicates.
+    try:
+        from qgis.core import QgsLayoutItemMapGrid as _Grid
+        display = getattr(_Grid, "DisplayMode", _Grid)
+        side = getattr(_Grid, "BorderSide", _Grid)
+        for border in ("Right", "Top"):
+            grid.setAnnotationDisplay(display.HideAll, getattr(side, border))
+    except Exception:
+        pass
     try:
         from qgis.core import QgsTextFormat
         fmt = QgsTextFormat()

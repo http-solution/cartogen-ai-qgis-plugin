@@ -235,6 +235,7 @@ class CartogenAi:
         try:
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
+            project_session.retire_plugin()      # tasks started before this point must not call back into the destroyed UI (#167)
         except Exception:
             pass
         # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
