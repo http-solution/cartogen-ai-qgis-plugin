@@ -162,6 +162,7 @@ _TOOL_ALIASES = {
         "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
         "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
         "style the ranking", "show the rank on the map",
+        "highlight the worst", "show the worst", "areas that need help most", "where help is needed most", "most in need on the map",
     ],
     "aggregate_survey_indicator": [
         "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results", "proportion of households",
@@ -200,6 +201,40 @@ _TOOL_ALIASES = {
     "fetch_nasa_active_fires": [
         "active fire", "live fire", "fire detection", "current wildfire",
         "wildfire location", "fire alert", "wildfire",
+    ],
+    # Plain-language styling requests share no words with the style tools' names ("make the clinics stand out",
+    # "colour the districts by how many people live there"); measured before this entry: several got no style tool at all.
+    "apply_graduated_style": [
+        "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
+        "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher",
+        "show how much", "show how many",
+    ],
+    "apply_graduated_symbol_style": [
+        "bigger dots", "bigger circles", "larger dots", "larger circles", "bigger the more", "size by", "scale the dots",
+        "scale the circles", "dot size", "bigger symbols",
+    ],
+    "apply_heatmap_style": [
+        "crowded", "crowding", "where people are concentrated", "where most", "concentrated", "density map", "hot spots",
+        "hotspots", "busy areas", "clusters of",
+    ],
+    "apply_categorized_style": [
+        "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
+        "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
+    ],
+    "change_layer_color": [
+        "make it red", "make them red", "in red", "in blue", "in green", "in dark", "in light", "in pale", "make it stand out",
+        "make them stand out", "stand out", "change the colour", "change the color", "recolour", "recolor",
+    ],
+    "apply_labels": [
+        "put the names", "show the names", "names on the map", "write the names", "name next to", "label each",
+        "show the name of each",
+    ],
+    "set_layer_transparency": [
+        "see-through", "see through", "less solid", "so i can see underneath", "so i can see what is below",
+        "fade the", "more transparent",
+    ],
+    "auto_arrange_layer_order": [
+        "easier to read", "tidy the map", "clean up the map", "declutter", "map is cluttered", "looks messy", "hide the clutter",
     ],
 }
 # A live user report typo'd BOTH "hazard" -> "haszard" and "incident" -> "incedent" in the

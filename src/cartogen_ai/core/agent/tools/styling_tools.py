@@ -7,6 +7,7 @@ import math
 import os
 
 from .registry import register_tool
+from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 
@@ -717,7 +718,7 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         # caller-configurable (defaults to the original hardcoded blue) so
         # this can be themed per-map instead of always rendering the same
         # fixed color regardless of context.
-        fixed_color = QColor(color)
+        fixed_color = QColor(resolve_colour(color) or color)
         fixed_color.setAlpha(190)
         ranges = renderer.ranges()
         n = len(ranges)
@@ -977,7 +978,7 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
 
 @register_tool(
     "change_layer_color",
-    "Change layer symbol fill/line color using hex string.",
+    "Change layer symbol fill/line color. Pass the colour the user said (\"dark red\", \"pale yellow\", \"light blue\") or a hex code.",
     {
         "type": "object",
         "properties": {
@@ -996,9 +997,10 @@ def change_layer_color(layer_name, color_hex, opacity=None):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    color = QColor(color_hex)
+    # "dark red" / "pale yellow" are what people say; QColor only parses "darkred" and hex.
+    color = QColor(resolve_colour(color_hex) or color_hex)
     if not color.isValid():
-        return {"error": f"Invalid color: {color_hex}"}
+        return {"error": f"Invalid color: {color_hex}. Use a hex code or a plain colour such as 'dark red' or 'light blue'."}
     try:
         renderer = layer.renderer()
         if renderer is None or not hasattr(renderer, "symbol"):

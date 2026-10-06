@@ -6,7 +6,7 @@ Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (p
 
 ## AI Imagery Feature Extraction
 
-### `extract_features_from_imagery`
+### `extract_features_from_imagery` _(two-phase)_
 
 Extract object boundary polygons from a loaded raster using a class-agnostic segmentation model (FastSAM) -- for a specific image the user actually has (a fresh drone/satellite photo, a scanned map), NOT for pre-vetted baseline data (use fetch_building_footprints for that instead, which is faster and free but can lag real conditions by months). Runs entirely locally/offline once the model is downloaded -- no cloud vision API call, matching this plugin's offline-first posture. IMPORTANT: this tool is class-agnostic -- it finds object BOUNDARIES, never object IDENTITIES. Never describe a result polygon as a specific class ('this is a building') unless the user's own request already established that framing for the whole image; state plainly that these are detected boundaries with a confidence score, not classified objects. Requires the raster's pixel dimensions to be at most max_pixel_dimension -- clip to a smaller area of interest first for a large image rather than expecting this tool to silently downsample it for you. Requires the optional `ultralytics` package (installs a real ML runtime plus a ~150MB+ model checkpoint on first use) -- install via qpip if prompted, or manually in the OSGeo4W Shell.
 
@@ -1000,7 +1000,7 @@ _No parameters._
 
 ### `change_layer_color`
 
-Change layer symbol fill/line color using hex string.
+Change layer symbol fill/line color. Pass the colour the user said ("dark red", "pale yellow", "light blue") or a hex code.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
