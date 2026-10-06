@@ -609,7 +609,7 @@ Open a different QGIS project file, replacing everything currently loaded. Destr
 
 ### `save_project`
 
-Save the current QGIS project (all layers, styles, and layout) to a .qgz/.qgs file. Use this as a checkpoint before a risky multi-step operation, or at the end of a task so the user's work is persisted.
+Save the current QGIS project (all layers, styles, and layout) to a .qgz/.qgs file. Use this as a checkpoint before a risky multi-step operation, or at the end of a task so the user's work is persisted. Temporary (memory) layers are NOT saved with their data -- the result lists them and they must be exported to a file separately.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1198,6 +1198,7 @@ Create a buffer polygon layer around features. `distance` is interpreted in the 
 | `layer_name` | string | yes |  |
 | `distance` | number | yes | Buffer distance in the layer's own CRS units (meters for a projected CRS, degrees for a geographic one -- see this tool's own description). |
 | `only_selected` | boolean | no | If true, buffer only the layer's currently-selected features instead of the whole layer. Errors if nothing is selected, rather than silently falling back to the full layer. |
+| `output_name` | string | no | Name for the new buffer layer, used exactly as given when the user asked for a specific name. Omit to get '<layer>_buffer_<distance>'. |
 
 ### `calculate_area`
 
