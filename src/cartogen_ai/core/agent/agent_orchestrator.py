@@ -484,22 +484,24 @@ class CartogenAi:
         except ImportError:
             return None
         try:
-            from .lineage import get_layer_lineage
+            from .lineage import effective_source_names, get_layer_lineage
             from ..models import sensitivity as _sens
             project = QgsProject.instance()
 
-            def _layer(layer_name):
-                found = project.mapLayersByName(layer_name)
-                return found[0] if found else None
+            all_layers = list(project.mapLayers().values())
 
             def get_level(layer_name):
-                return _sens.get_layer_sensitivity(_layer(layer_name)).get("level")
+                # Every layer sharing the name counts, strictest wins (#150): the first match alone could be the open twin.
+                found = project.mapLayersByName(layer_name)
+                return egress_gate.most_protective_level(
+                    _sens.get_layer_sensitivity(lyr).get("level") for lyr in found)
 
             def get_sources(layer_name):
                 out = []
-                for entry in get_layer_lineage(_layer(layer_name)):
-                    if isinstance(entry, dict):
-                        out.extend(s for s in (entry.get("sources") or []) if isinstance(s, str))
+                for lyr in project.mapLayersByName(layer_name):
+                    for entry in get_layer_lineage(lyr):
+                        if isinstance(entry, dict):
+                            out.extend(n for n in effective_source_names(entry, all_layers) if n not in out)
                 return out
 
             # A client with no readable endpoint (OpenRouter's, for one) counts as non-local --
@@ -1244,7 +1246,7 @@ class CartogenAi:
     def _tag_created_layers(self, name, args, res):
         """Records which layers a successful call read and tags every layer its result says it created (GitHub #150): sources are
         found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`."""
-        from .lineage import created_layer_names, derive_sources, tag_layer_lineage
+        from .lineage import created_layer_names, derive_sources, source_layer_ids, tag_layer_lineage
         try:
             from qgis.core import QgsProject
         except ImportError:
@@ -1253,9 +1255,10 @@ class CartogenAi:
             project = QgsProject.instance()
             known = [lyr.name() for lyr in project.mapLayers().values()]
             sources = derive_sources(name, args, known)
+            source_ids = source_layer_ids(sources, project.mapLayers().values())
             for created in created_layer_names(res, sources, known):
                 for layer in project.mapLayersByName(created)[:1]:
-                    tag_layer_lineage(layer, name, args, sources)
+                    tag_layer_lineage(layer, name, args, sources, source_ids)
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
                       error_class=type(e).__name__, error=True)

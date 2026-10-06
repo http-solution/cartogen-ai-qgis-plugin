@@ -238,5 +238,67 @@ class TestReconcileOtherEdits(_Base):
         self._assert_reconciled_or_explicit(outcome, lambda: self.live.featureCount() == 1)
 
 
+class TestEgressLineageSurvivesRenameAndDuplicates(_Base):
+    """#150: renames and duplicate names cannot open a protected output."""
+
+    def _decide(self, output_name):
+        from cartogen_ai.core.agent.lineage import effective_source_names, get_layer_lineage
+        from cartogen_ai.core.models import egress_gate, sensitivity
+        project = QgsProject.instance()
+        layers = list(project.mapLayers().values())
+
+        def get_level(name):
+            return egress_gate.most_protective_level(
+                sensitivity.get_layer_sensitivity(lyr).get("level") for lyr in project.mapLayersByName(name))
+
+        def get_sources(name):
+            out = []
+            for lyr in project.mapLayersByName(name):
+                for entry in get_layer_lineage(lyr):
+                    out.extend(n for n in effective_source_names(entry, layers) if n not in out)
+            return out
+        return egress_gate.find_protected([output_name], get_level, get_sources, strict=False)
+
+    def _derive(self):
+        from cartogen_ai.core.agent.lineage import source_layer_ids, tag_layer_lineage
+        from cartogen_ai.core.models import sensitivity
+        source = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "beneficiaries")
+        output = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "beneficiaries_buffer")
+        QgsProject.instance().addMapLayer(source)
+        QgsProject.instance().addMapLayer(output)
+        self.assertTrue(sensitivity.set_layer_sensitivity(source, "SENSITIVE", "test"))
+        ids = source_layer_ids(["beneficiaries"], QgsProject.instance().mapLayers().values())
+        self.assertTrue(tag_layer_lineage(output, "buffer_analysis", {}, ["beneficiaries"], ids))
+        return source, output
+
+    def test_the_output_is_protected_before_any_rename(self):
+        self._derive()
+        self.assertIn("beneficiaries_buffer", self._decide("beneficiaries_buffer"))
+
+    def test_the_output_stays_protected_after_the_source_is_renamed(self):
+        source, _output = self._derive()
+        source.setName("renamed_by_the_user")
+        self.assertIn("beneficiaries_buffer", self._decide("beneficiaries_buffer"))
+
+    def test_an_open_layer_that_takes_the_old_name_does_not_open_the_output(self):
+        source, _output = self._derive()
+        source.setName("renamed_by_the_user")
+        from cartogen_ai.core.models import sensitivity
+        twin = _layer("Point", "EPSG:4326", ["POINT(5 5)"], "beneficiaries")
+        QgsProject.instance().addMapLayer(twin)
+        self.assertTrue(sensitivity.set_layer_sensitivity(twin, "PUBLIC", "test"))
+        self.assertIn("beneficiaries_buffer", self._decide("beneficiaries_buffer"))
+
+    def test_two_layers_with_one_name_are_judged_by_the_stricter(self):
+        from cartogen_ai.core.models import sensitivity
+        a = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "dup")
+        b = _layer("Point", "EPSG:4326", ["POINT(1 1)"], "dup")
+        QgsProject.instance().addMapLayer(a)
+        QgsProject.instance().addMapLayer(b)
+        sensitivity.set_layer_sensitivity(a, "PUBLIC", "test")
+        sensitivity.set_layer_sensitivity(b, "SENSITIVE", "test")
+        self.assertIn("dup", self._decide("dup"))
+
+
 if __name__ == "__main__":
     unittest.main()

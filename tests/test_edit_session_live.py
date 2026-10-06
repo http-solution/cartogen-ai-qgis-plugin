@@ -92,6 +92,31 @@ class TestOwnedCheckedFieldWrites(unittest.TestCase):
         self.assertEqual(layer.getFeature(fid)["keep"], 7)       # the user's edit survived the failed tool call
         self.assertEqual(layer.fields().indexOf("extra"), -1)
 
+    def test_the_undo_stack_holds_the_users_edit_and_the_tools_edit_as_separate_steps(self):
+        # #143 acceptance: "undo stack stays coherent". The tool's change must be ONE undo step on top of the
+        # user's, so Ctrl+Z removes the tool's field and a second Ctrl+Z removes the user's own edit.
+        layer = _layer("Point", ["POINT(0 0)"], "pts")
+        QgsProject.instance().addMapLayer(layer)
+        layer.startEditing()
+        fid = next(iter(layer.getFeatures())).id()
+        keep = layer.fields().indexOf("keep")
+        layer.beginEditCommand("user edit")
+        layer.changeAttributeValue(fid, keep, 55)
+        layer.endEditCommand()
+        stack = layer.undoStack()
+        before = stack.count()
+        from cartogen_ai.core.agent.tools.vector_tools import field_calculator
+        res = field_calculator("pts", "extra", "1", confirmed=True)
+        self.assertTrue(res.get("success"), res)
+        self.assertGreater(stack.count(), before)
+        self.assertIn(layer.fields().indexOf("extra"), range(layer.fields().count()))
+        layer.undoStack().undo()                                   # the tool's step
+        self.assertEqual(layer.fields().indexOf("extra"), -1)
+        self.assertEqual(layer.getFeature(fid)["keep"], 55)        # the user's edit is untouched by that undo
+        layer.undoStack().undo()                                   # the user's own step
+        self.assertEqual(layer.getFeature(fid)["keep"], 1)
+        self.assertTrue(layer.isEditable())
+
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestSiUnitsIgnoreProjectUnitSettings(unittest.TestCase):

@@ -106,6 +106,19 @@ def is_protected(level, strict: bool) -> bool:
     return False
 
 
+_PROTECTION_ORDER = ("SENSITIVE", "RESTRICTED", None, "INTERNAL", "PUBLIC")
+
+
+def most_protective_level(levels):
+    """The most protective of several levels. Two loaded layers can share a name (GitHub #150: duplicate names must not open a
+    protected output), and the gate looks layers up by name, so it must judge the name by its strictest layer, not the first one
+    QGIS happens to list. Order: SENSITIVE, RESTRICTED, untagged, INTERNAL, PUBLIC. An empty input is untagged."""
+    levels = list(levels)
+    if not levels:
+        return None
+    return min(levels, key=lambda lv: _PROTECTION_ORDER.index(lv) if lv in _PROTECTION_ORDER else 2)
+
+
 def is_loosening(current_level, new_level, strict: bool) -> bool:
     """True when re-tagging a layer from `current_level` to `new_level` would move it from
     protected to open. Such a change must not be something the model can do to itself: if it could,
