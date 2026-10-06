@@ -155,9 +155,27 @@ jobs:
             qgis_digest: "sha256:6ffe6b31646247f2e179cb2cc32bb4df215eedc99f387ad59a6cc88ebfe23e21"
     container:
       image: qgis/qgis@${{ matrix.qgis_digest }}
+    # A throwaway PostGIS server for tests/test_postgis_live.py (audit F15, #151: execute_read_only_sql had never been run against a
+    # database). Reached from the job container by its service name. Test credentials only; the container exists for this job and
+    # nothing else.
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: cartogen_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       QT_QPA_PLATFORM: offscreen
       QGIS_TAG: ${{ matrix.qgis_label }}
+      CARTOGEN_TEST_PG_HOST: postgis
+      CARTOGEN_TEST_PG_PORT: "5432"
+      CARTOGEN_TEST_PG_DATABASE: postgres
+      CARTOGEN_TEST_PG_USER: postgres
+      CARTOGEN_TEST_PG_PASSWORD: cartogen_ci
     steps:
       - uses: actions/checkout@v4
 
