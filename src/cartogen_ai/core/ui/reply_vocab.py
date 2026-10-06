@@ -103,3 +103,32 @@ def is_new_request(text):
     first = words[0].lower().strip(",.:;")
     return len(words) >= 4 and first in _IMPERATIVE_STARTS
 
+
+CONTINUATION_MARKER = "[Continuing my earlier request]"
+MAX_CONTINUATIONS = 3
+_SEQUENCE = ("then", "afterwards", "after that", "and also", "next", "finally", "followed by")
+
+
+def has_followup_steps(request):
+    """True when the original request asks for more than one thing, so a confirmed step may not be the last one. Pure.
+
+    rc15 and rc17 hand tests (D05): "calculate the severity, write it to a field, and then style the layer" stopped after the
+    confirmed write, because the Apply button runs the tool directly with no model turn and nothing resumed the request. A
+    request with two or more distinct action words, or an explicit sequence word, gets one follow-up turn."""
+    from ..agent import task_matcher
+    text = (request or "").lower()
+    if not text.strip():
+        return False
+    if any(f" {w} " in f" {text} " for w in _SEQUENCE):
+        return True
+    verbs = {m.group(0) for m in task_matcher._ACTION_WORDS.finditer(text)} - {
+        "how", "what", "which", "where", "who", "when", "why", "can", "could", "please"}
+    return len(verbs) >= 2
+
+
+def continuation_prompt(original_request, tool_name, summary):
+    """The text of the follow-up turn sent after a confirmed step finished."""
+    return (f"{CONTINUATION_MARKER} The step `{tool_name}` I just confirmed has finished: {summary}. "
+            f"Do not repeat it. Look at my original request below and carry out whatever part of it is still not done; "
+            f"if nothing is left, reply with one short sentence saying so.\n\nOriginal request: {original_request}")
+
