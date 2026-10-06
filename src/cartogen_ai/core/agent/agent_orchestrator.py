@@ -1388,7 +1388,11 @@ class CartogenAi:
         # even reach, so the router's selection has to exist first. Nothing else depended on the
         # old ordering (confirmed by reading this whole function before reordering it).
         router = ToolRouter(TOOLS_SCHEMA)
-        active_tools = router.filter_relevant_tools(user_query, top_k=40)
+        self._turn_counter = getattr(self, "_turn_counter", 0) + 1
+        recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
+        # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
+        carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
+        active_tools = router.filter_relevant_tools(user_query, top_k=40, carry_over_tools=carry_over)
         active_tool_names = {
             t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
         }
@@ -1525,6 +1529,7 @@ class CartogenAi:
                 tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = tool_results.is_error(tool_result)
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
                     turn_pending.append(name)

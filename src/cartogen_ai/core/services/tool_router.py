@@ -269,8 +269,14 @@ class ToolRouter:
     def __init__(self, full_schema_list: List[Dict]):
         self.full_schema_list = full_schema_list
 
-    def filter_relevant_tools(self, user_query: str, top_k: int = 40) -> List[Dict]:
-        """Returns top_k relevant tool schemas matching user query terms."""
+    def filter_relevant_tools(self, user_query: str, top_k: int = 40, carry_over_tools=None) -> List[Dict]:
+        """Returns top_k relevant tool schemas matching user query terms.
+
+        `carry_over_tools`: names of tools the PREVIOUS turn used. A short follow-up ("EPSG:3857", "yes, the second one") shares no
+        vocabulary with any tool, so scoring on the new message alone dropped the tool the conversation was in the middle of: in the
+        rc17 hand test (2026-10-06) the model answered the CRS question with "add_point_layer is unavailable" because it was not in
+        the turn's tool list, and the rc16 hint telling it to call add_point_layer again could not help. Names that are not
+        registered tools are ignored."""
         if len(self.full_schema_list) <= top_k:
             return self.full_schema_list
 
@@ -311,6 +317,8 @@ class ToolRouter:
             "set_task_preview", "store_project_memory", "store_global_memory",
             "generate_spatial_report"
         } | explicit_tool_names
+        known_names = {t.get("function", {}).get("name", "") for t in self.full_schema_list}
+        always_include |= {n for n in (carry_over_tools or ()) if n in known_names and n != "execute_pyqgis_script"}
         _FALLBACK_TOOL = "execute_pyqgis_script"
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
