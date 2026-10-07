@@ -385,8 +385,10 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     Mercator meters lands the canvas near the map's coordinate origin
     instead of the actual layer -- confirmed as the cause of exactly this
     symptom in live use. Returns the extent unchanged if source_crs already
-    matches the canvas CRS, or if the transform itself fails (better to zoom
-    to a possibly-off result than crash the tool call outright)."""
+    matches the canvas CRS. If the transform itself fails it returns None
+    (rc20 audit A13: it used to hand back the untransformed extent, which is
+    exactly the wrong-place zoom described above, reported as success), so
+    callers must report an error instead of zooming."""
     canvas_crs = canvas.mapSettings().destinationCrs()
     if not source_crs.isValid() or source_crs == canvas_crs:
         return extent
@@ -394,7 +396,7 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         transform = QgsCoordinateTransform(source_crs, canvas_crs, QgsProject.instance())
         return transform.transformBoundingBox(extent)
     except Exception:
-        return extent
+        return None
 
 
 @register_tool("zoom_to_layer", "Zoom canvas to extent of layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
@@ -408,6 +410,8 @@ def zoom_to_layer(layer_name):
         return {"error": "QGIS interface not available"}
     canvas = iface.mapCanvas()
     extent = _extent_to_canvas_crs(canvas, layer.extent(), layer.crs())
+    if extent is None:
+        return {"error": f"Could not transform '{layer_name}' from {layer.crs().authid()} into the map CRS, so the view was not changed."}
     canvas.setExtent(extent)
     canvas.refresh()
     return {"success": True, "message": f"Zoomed to '{layer_name}'"}
@@ -2027,6 +2031,8 @@ def zoom_to_feature(layer_name, feature_id=None, expression=None):
         return {"error": "Feature has no geometry"}
     canvas = iface.mapCanvas()
     extent = _extent_to_canvas_crs(canvas, geom.boundingBox(), layer.crs())
+    if extent is None:
+        return {"error": f"Could not transform the feature from {layer.crs().authid()} into the map CRS, so the view was not changed."}
     canvas.setExtent(extent)
     canvas.refresh()
     layer.selectByIds([fid])

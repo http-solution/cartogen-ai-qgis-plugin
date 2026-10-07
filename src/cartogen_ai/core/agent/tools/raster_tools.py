@@ -434,8 +434,18 @@ def _geographic_z_factor(dem):
     hardcoded 1."""
     try:
         crs = dem.crs()
-        if crs is None or not crs.isGeographic():
+        if crs is None:
             return 1
+        if not crs.isGeographic():
+            # Rc20 audit A11: "projected" is not "metres" -- a US-foot State Plane DEM has horizontal units of feet, so a metre
+            # elevation needs 1/0.3048 to match them (returning 1 understated slope by ~3.28x). Convert metres into the CRS's own
+            # map units; an unreadable unit keeps the old 1 rather than failing the tool.
+            try:
+                from qgis.core import Qgis, QgsUnitTypes
+                factor = QgsUnitTypes.fromUnitToUnitFactor(Qgis.DistanceUnit.Meters, crs.mapUnits())
+                return float(factor) if factor and factor > 0 else 1
+            except Exception:
+                return 1
         center_lat = dem.extent().center().y()
         return 1.0 / (111320.0 * math.cos(math.radians(center_lat)))
     except Exception:

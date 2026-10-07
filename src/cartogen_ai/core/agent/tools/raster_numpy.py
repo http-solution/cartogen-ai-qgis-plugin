@@ -29,19 +29,24 @@ def _np():
 # ---------------------------------------------------------------- pure numpy --
 
 def equalize(values, valid, levels=256):
-    """Histogram-equalised copy of `values` (2-D float array) scaled to 0..levels-1 as uint8/uint16; cells where `valid` is False
-    get 0. A band with no variation returns all zeros (nothing to stretch)."""
+    """Histogram-equalised copy of `values` (2-D float array) as uint8/uint16 where 0 is reserved for no-data: valid cells map to
+    1..levels-1 and invalid cells to 0.
+
+    Mapping the lowest valid value to 0 (the old behaviour) collided with the output's nodata=0, so valid low pixels were written as
+    NoData (rc20 audit A09: [10,20,30,40] -> [0,85,170,255] with one pixel invalid). A band with no variation gives every valid
+    cell 1 (nothing to stretch, but still valid)."""
     np = _np()
     out = np.zeros(values.shape, dtype=np.uint8 if levels <= 256 else np.uint16)
     v = values[valid]
-    if v.size == 0 or float(v.max()) == float(v.min()):
+    if v.size == 0:
+        return out
+    if float(v.max()) == float(v.min()):
+        out[valid] = 1
         return out
     hist, edges = np.histogram(v, bins=levels)
     cdf = np.cumsum(hist).astype(np.float64)
     first = cdf[np.nonzero(hist)[0][0]]
-    if cdf[-1] == first:
-        return out
-    lut = np.round((cdf - first) / (cdf[-1] - first) * (levels - 1)).clip(0, levels - 1)
+    lut = 1 + np.round((cdf - first) / (cdf[-1] - first) * (levels - 2)).clip(0, levels - 2)
     idx = np.clip(np.digitize(v, edges[1:-1], right=False), 0, levels - 1)
     out[valid] = lut[idx].astype(out.dtype)
     return out
