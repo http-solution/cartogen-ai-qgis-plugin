@@ -9,17 +9,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc20"
-NEW_MARK_VERSIONS = ("1.16.0-rc19", "1.16.0-rc20")
+WHATS_NEW_VERSION = "1.16.0-rc21"
+NEW_MARK_VERSIONS = ("1.16.0-rc20", "1.16.0-rc21")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Database", "A read-only database query no longer leaves the shared QGIS connection read-only for everything else."),
-    ("Rasters and units", "Rasters on different grids are aligned before arithmetic, and elevation and population units are stated instead of assumed."),
-    ("Privacy", "A layer derived from a protected layer stays protected after a rename, and scheduling a stored workflow needs the same override as running it."),
-    ("Saving", "A refused save is reported as an error instead of success, and edits you had pending on the layer are left alone."),
-    ("Routing", "One-way streets are recognised on road layers where some segments have no direction."),
-    ("Not hand-tested", "Everything here ran offline and in CI (including a real PostGIS server) but has not been hand-tested in a desktop session or against a real model."),
+    ("Map classes", "Manual class boundaries must lie inside the data's range; an out-of-range boundary is now an error instead of an inverted class."),
+    ("Print layouts", "The north arrow follows a rotated map instead of staying at zero degrees."),
+    ("Safety", "A short pasted fragment such as \"template: access_map\" no longer makes the agent create or change anything; it asks what you want."),
+    ("Not hand-tested", "Everything here ran offline and in a local QGIS 4.2.2 run, but has not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

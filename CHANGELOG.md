@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc21](#v1-16-0-rc21) | 2026-10-07 | **Release candidate 21 for 1.16.0.** No breaking changes. Fixes from the rc20 hand test: out-of-range manual class breaks rejected, north arrow follows a rotated map, a stray pasted fragment can no longer make the agent change anything; verified locally in QGIS 4.2.2, not by hand. |
 | [1.16.0-rc20](#v1-16-0-rc20) | 2026-10-06 | **Release candidate 20 for 1.16.0.** No breaking changes. Audit fixes since rc19: PostGIS read-only guard no longer leaves the connection read-only, raster grid alignment and units, unique unit labels, egress lineage after renames, refused saves reported as errors, one-way streets with blank directions; CI now runs against a real PostGIS server; not hand-tested. |
 | [1.16.0-rc19](#v1-16-0-rc19) | 2026-10-06 | **Release candidate 19 for 1.16.0.** No breaking changes. Fixes from the rc18 hand test: polite confirmations, imagery checkpoint download, no unrequested report after Stop, get_layer_extent so a bounding box is never guessed, results lifted above hiding rasters; not hand-tested. |
 | [1.16.0-rc18](#v1-16-0-rc18) | 2026-10-06 | **Release candidate 18 for 1.16.0.** No breaking changes. Fixes from the rc15 and rc17 smoke reports: stale-question chat bug, continuation after Apply, router follow-up tools, guard false positives, task matching, overwrite confirmation, imagery download off the main thread; not hand-tested. |
@@ -61,6 +62,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc21"></a>
+## [1.16.0-rc21] — 2026-10-07 — Release candidate 21 for 1.16.0: fixes from the rc20 hand test
+
+No breaking changes; QGIS 4.2+. Everything after the rc20 build:
+
+- Fix: manual class boundaries passed to apply_graduated_style must be finite, distinct numbers inside the field's own range. A boundary of 100 for values 5-15 used to make an inverted "100 - 15" class and a legend that matched nothing (rc20 hand test, #165); it is now an error that names the data range.
+- Fix: the north arrow on a print layout is linked to the map, so it turns with a rotated map. In rc20 it stayed at 0 degrees on a map rotated 30 degrees (rc20 hand test, #165). Checked in real QGIS 4.2.2: the new test fails on the old code and passes on this one.
+- Fix: a short pasted fragment shaped like key: value (for example "template: access_map") can no longer make the agent create, change, delete or export anything. In the rc20 hand test a real model called get_layers and create_print_layout for that fragment alone and left a layout behind (#130). The agent may still read the project and ask what you want. Natural short replies ("yes", a layer name, "EPSG:3857" after a question) and any turn with a confirmation card pending are not affected.
+- Dev: tools/local_ci.sh runs what the CI workflow runs on a developer machine (offline suite, byte-compile, ruff, release zip check, and the QGIS 4.2.2 live job with PostGIS in Docker). It does not cover the Windows job or the secret scan.
+- Verification: the full local run passed (3,669 offline tests, ruff, zip check, 345 QGIS 4.2.2 live tests against a real PostGIS server). NOT hand-tested: every fix above. The stray-fragment gate was tested with fakes at the tool-dispatch layer, not against a real hosted model. GitHub Actions did not run for this build (account billing), so the Windows job and the gitleaks scan did not run. No audit issue is closed by this build.
 
 <a id="v1-16-0-rc20"></a>
 ## [1.16.0-rc20] — 2026-10-06 — Release candidate 20 for 1.16.0: audit fixes and CI coverage since rc19
