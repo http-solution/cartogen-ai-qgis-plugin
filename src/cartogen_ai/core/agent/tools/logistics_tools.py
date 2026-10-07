@@ -621,6 +621,49 @@ def _hide_layers(names):
 
 # #130 point 3: the parameters a result layer was built with, stored on the layer so a later run that replaces it by name can say what changed.
 _RESULT_PARAMS_KEY = "cartogen_ai/result_params"
+# Audit A02: marks a layer this plugin made as a named, replaceable RESULT. Only such layers may be removed when a re-run
+# reuses their name; a user's own layer with the same name is set aside, never deleted.
+_RESULT_OWNER_KEY = "cartogen_ai/result_owner"
+
+
+def is_plugin_result(layer):
+    """True when the plugin created `layer` as a replaceable result (owner marker, or the parameter record older builds wrote)."""
+    try:
+        return bool(layer.customProperty(_RESULT_OWNER_KEY)) or bool(layer.customProperty(_RESULT_PARAMS_KEY))
+    except Exception:
+        return False
+
+
+def mark_plugin_result(layer):
+    try:
+        layer.setCustomProperty(_RESULT_OWNER_KEY, "1")
+    except Exception:
+        pass
+
+
+def set_aside_user_layers(name, project=None):
+    """Rename every layer called `name` that the plugin did NOT create to '<name> (previous)' (numbered if taken) so a new result
+    can take the name without deleting the user's data. Removing it would lose an unsaved memory layer and break every layout and
+    relation that points at it (audit A02); renaming keeps the same layer id. Returns [(old_name, new_name), ...]."""
+    project = project or QgsProject.instance()
+    renamed = []
+    for layer in list(project.mapLayersByName(name)):
+        if is_plugin_result(layer):
+            continue
+        candidate, n = f"{name} (previous)", 2
+        while project.mapLayersByName(candidate):
+            candidate = f"{name} (previous {n})"
+            n += 1
+        layer.setName(candidate)
+        renamed.append((name, candidate))
+    return renamed
+
+
+def set_aside_note(renamed):
+    """The sentence the reply must relay when user layers were set aside. Pure."""
+    detail = "; ".join(f"'{a}' is now '{b}'" for a, b in renamed)
+    return ("A layer of yours already used the name of this result, so it was kept and renamed instead of being replaced "
+            f"({detail}). Nothing of yours was deleted.")
 
 
 def describe_param_changes(old, new):
@@ -661,7 +704,10 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     new_layer.setName(name)
     project = QgsProject.instance()
     replaced = None
+    set_aside = set_aside_user_layers(name, project)       # a layer the user made is renamed, never removed (audit A02)
     for stale in project.mapLayersByName(name):
+        if not is_plugin_result(stale):
+            continue                    # already set aside above; only the plugin's own earlier result is ever removed
         # #130 point 3: when the layer being replaced was built with different parameters, say so (the caller relays it); a re-run with the same
         # parameters stays silent, and a layer with no recorded parameters (made before this was added) is not reported.
         if params is not None and replaced is None:
@@ -683,6 +729,13 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
             new_layer.setCustomProperty(_RESULT_PARAMS_KEY, _json.dumps(params, sort_keys=True, default=str))
         except Exception:
             pass
+    mark_plugin_result(new_layer)
+    if set_aside:
+        note = set_aside_note(set_aside)
+        if replaced is None:
+            replaced = {"layer": name, "changes": [], "note": note}
+        else:
+            replaced["note"] = replaced["note"] + " " + note
     if to_tree:
         project.addMapLayer(new_layer)
     else:

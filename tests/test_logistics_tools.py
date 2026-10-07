@@ -784,12 +784,68 @@ class TestReplaceNamedLayer(unittest.TestCase):
             mock_qgs_project.instance.return_value = project
             lt._replace_named_layer("Origin Point_service_area_0", new_layer)
 
-        project.mapLayersByName.assert_called_once_with("Origin Point_service_area_0")
+        project.mapLayersByName.assert_any_call("Origin Point_service_area_0")
         project.removeMapLayer.assert_any_call("stale_a_id")
         project.removeMapLayer.assert_any_call("stale_b_id")
         self.assertEqual(project.removeMapLayer.call_count, 2)
         new_layer.setName.assert_called_once_with("Origin Point_service_area_0")
         project.addMapLayer.assert_called_once_with(new_layer)
+
+    def _layer(self, name, owned):
+        layer = MagicMock()
+        layer.name.return_value = name
+        layer.id.return_value = f"id_{name}_{owned}"
+        layer.customProperty.side_effect = lambda key, *a: "1" if owned and key == lt._RESULT_OWNER_KEY else None
+        return layer
+
+    def _replace(self, existing, new_layer=None):
+        project = MagicMock()
+        by_name = {}
+
+        def lookup(n):
+            return [item for item in existing if item.name() == n and item not in project._removed]
+        project._removed = []
+        project.removeMapLayer.side_effect = lambda lid: project._removed.extend([item for item in existing if item.id() == lid])
+        project.mapLayersByName.side_effect = lookup
+        by_name["p"] = project
+        new_layer = new_layer or MagicMock()
+        with patch("cartogen_ai.core.agent.tools.logistics_tools.QgsProject", create=True) as qp:
+            qp.instance.return_value = project
+            replaced = lt._replace_named_layer("Origin_service_area_0", new_layer)
+        return project, new_layer, replaced
+
+    def test_a_layer_the_user_made_is_renamed_not_removed(self):
+        # Audit A02: an unsaved memory layer of the user's with the same name used to be deleted.
+        mine = self._layer("Origin_service_area_0", owned=False)
+        project, new_layer, replaced = self._replace([mine])
+        project.removeMapLayer.assert_not_called()
+        mine.setName.assert_called_once_with("Origin_service_area_0 (previous)")
+        new_layer.setName.assert_called_once_with("Origin_service_area_0")
+        self.assertIn("Nothing of yours was deleted", replaced["note"])
+
+    def test_our_own_earlier_result_is_still_replaced(self):
+        ours = self._layer("Origin_service_area_0", owned=True)
+        project, new_layer, replaced = self._replace([ours])
+        project.removeMapLayer.assert_called_once_with(ours.id())
+        ours.setName.assert_not_called()
+        self.assertIsNone(replaced)
+
+    def test_only_the_users_layer_is_spared_when_both_exist(self):
+        mine = self._layer("Origin_service_area_0", owned=False)
+        ours = self._layer("Origin_service_area_0", owned=True)
+        project, _new, _replaced = self._replace([mine, ours])
+        project.removeMapLayer.assert_called_once_with(ours.id())
+        mine.setName.assert_called_once()
+
+    def test_the_new_result_is_marked_as_ours(self):
+        _project, new_layer, _r = self._replace([])
+        new_layer.setCustomProperty.assert_any_call(lt._RESULT_OWNER_KEY, "1")
+
+    def test_a_taken_aside_name_is_numbered(self):
+        a = self._layer("Origin_service_area_0", owned=False)
+        taken = self._layer("Origin_service_area_0 (previous)", owned=False)
+        project, _n, _r = self._replace([a, taken])
+        a.setName.assert_called_once_with("Origin_service_area_0 (previous 2)")
 
     def test_no_existing_layer_just_adds(self):
         project = MagicMock()

@@ -143,8 +143,12 @@ def _affected_layer(network, hit, mode, speed_field, name):
     the layer name, or None (cosmetic: never fails the tool)."""
     try:
         from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
+        from . import logistics_tools as _lt
+        # Audit A02: replace only an earlier layer of ours; a user's own layer with this name is renamed, not removed.
+        _lt.set_aside_user_layers(name)
         for old in QgsProject.instance().mapLayersByName(name):
-            QgsProject.instance().removeMapLayer(old.id())
+            if _lt.is_plugin_result(old):
+                QgsProject.instance().removeMapLayer(old.id())
         out = QgsVectorLayer(f"{QgsWkbTypes.displayString(network.wkbType())}?crs={network.crs().authid()}"
                              f"&field=source_id:integer&field={speed_field}:double", name, "memory")
         feats = []
@@ -156,6 +160,7 @@ def _affected_layer(network, hit, mode, speed_field, name):
             feats.append(f)
         out.dataProvider().addFeatures(feats)
         out.updateExtents()
+        _lt.mark_plugin_result(out)
         QgsProject.instance().addMapLayer(out)
         from .humanitarian_style import style_barrier_segments
         style_barrier_segments(out, mode)

@@ -184,6 +184,46 @@ def _mask_pixel_count(mask, threshold=0.5):
         return sum(1 for row in mask for v in row if v > threshold)
 
 
+def _scaled_geotransform(gt, scale_x, scale_y):
+    """The geotransform of a mask whose pixels are `scale_x` x `scale_y` source pixels wide and tall. A source pixel (col, row) is
+    (c * scale_x, r * scale_y) of the mask, so BOTH terms of each axis scale: gt1 and gt4 by scale_x, gt2 and gt5 by scale_y. The
+    cross terms gt2/gt4 (rotation/shear) used to be left unscaled, which shifted and sheared the footprints of a rotated raster
+    (audit A10). Pure."""
+    return (gt[0], gt[1] * scale_x, gt[2] * scale_y, gt[3], gt[4] * scale_x, gt[5] * scale_y)
+
+
+def _pixel_size(gt):
+    """Length of one pixel's column vector, the simplification tolerance: abs(gt1) for a north-up grid, correct for a rotated one."""
+    import math
+    return math.hypot(gt[1], gt[4])
+
+
+def _polygonize_mask(mask, geotransform, projection, srs):
+    """Polygonize only the FOREGROUND of a 0/1 mask into an in-memory OGR layer; returns (layer, ogr_ds, mem_ds) (audit A01).
+
+    gdal.Polygonize() with no mask band traces every connected region of equal value, background included: a 4x4 object in a
+    10x10 mask came back as a 16-pixel and an 84-pixel polygon, and the 84-pixel background was reported as a detection. The mask
+    band is therefore the mask itself (only non-zero pixels are eligible), and the pixel value is also written to field 0 so any
+    zero-valued region that still slips through is dropped here."""
+    from osgeo import gdal, ogr
+    h, w = mask.shape
+    mem_ds = gdal.GetDriverByName("MEM").Create("", w, h, 1, gdal.GDT_Byte)
+    mem_ds.SetGeoTransform(geotransform)
+    mem_ds.SetProjection(projection)
+    band = mem_ds.GetRasterBand(1)
+    band.WriteArray((mask > 0.5).astype("uint8"))
+    ogr_ds = ogr.GetDriverByName("Memory").CreateDataSource("")
+    ogr_layer = ogr_ds.CreateLayer("mask", srs=srs)
+    ogr_layer.CreateField(ogr.FieldDefn("DN", ogr.OFTInteger))
+    status = gdal.Polygonize(band, band, ogr_layer, 0)
+    if status != 0:
+        raise RuntimeError(f"gdal.Polygonize failed with status {status}")
+    for feat in list(ogr_layer):
+        if feat.GetField("DN") == 0:
+            ogr_layer.DeleteFeature(feat.GetFID())
+    return ogr_layer, ogr_ds, mem_ds       # the datasets must outlive the layer: the caller keeps all three
+
+
 def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None):
     """Simplifies a raw gdal.Polygonize-traced geometry (smooths the jagged pixel-grid
     "staircase" boundary by roughly one pixel width, Douglas-Peucker via
@@ -276,7 +316,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         }
 
     try:
-        from osgeo import gdal, ogr, osr
+        from osgeo import gdal, osr
     except ImportError:
         return {"error": "GDAL Python bindings (osgeo) not available in this environment."}
 
@@ -336,7 +376,6 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     provider.addAttributes([QgsField("confidence", QVariant.Double)])
     out_layer.updateFields()
 
-    mem_driver = gdal.GetDriverByName("MEM")
     srs = osr.SpatialReference()
     srs.ImportFromWkt(projection)
 
@@ -347,30 +386,13 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
             continue
 
         mask_h, mask_w = mask.shape
-        # FastSAM's mask resolution may differ from the source raster's own
-        # pixel grid (retina_masks=True keeps it close, but not guaranteed
-        # identical) -- scale the mask's own geotransform to match rather
-        # than assuming a 1:1 pixel correspondence with the source.
+        # FastSAM's mask resolution may differ from the source raster's own pixel grid (retina_masks=True keeps it close, but
+        # not guaranteed identical), so the mask gets its own geotransform: the full affine, see _scaled_geotransform (audit A10).
         scale_x = width / mask_w
         scale_y = height / mask_h
-        mask_geotransform = (
-            geotransform[0], geotransform[1] * scale_x, geotransform[2],
-            geotransform[3], geotransform[4], geotransform[5] * scale_y,
-        )
+        mask_geotransform = _scaled_geotransform(geotransform, scale_x, scale_y)
 
-        mem_ds = mem_driver.Create("", mask_w, mask_h, 1, gdal.GDT_Byte)
-        mem_ds.SetGeoTransform(mask_geotransform)
-        mem_ds.SetProjection(projection)
-        band = mem_ds.GetRasterBand(1)
-        band.WriteArray((mask > 0.5).astype("uint8"))
-        band.SetNoDataValue(0)
-
-        ogr_ds = ogr.GetDriverByName("Memory").CreateDataSource("")
-        ogr_layer = ogr_ds.CreateLayer("mask", srs=srs)
-        # maskBand=None (not srcBand) so GDAL uses the band's own nodata
-        # value (0, set above) to skip background pixels automatically --
-        # only the detected (1-valued) region gets polygonized.
-        gdal.Polygonize(band, None, ogr_layer, -1)
+        ogr_layer, _ogr_ds, _mem_ds = _polygonize_mask(mask, mask_geotransform, projection, srs)
 
         # gdal.Polygonize traces the raw pixel grid, so every boundary is a jagged
         # "staircase" of right angles at the mask's own pixel resolution -- not a real
@@ -378,7 +400,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         # QgsGeometry.simplify(), same algorithm/API the OCHA/cartography-guide fixes
         # elsewhere in this project use) smooths that staircase without losing real shape
         # detail beyond what the source imagery's own resolution could show anyway.
-        pixel_size = abs(mask_geotransform[1])
+        pixel_size = _pixel_size(mask_geotransform)
 
         for ogr_feat in ogr_layer:
             geom = ogr_feat.GetGeometryRef()
