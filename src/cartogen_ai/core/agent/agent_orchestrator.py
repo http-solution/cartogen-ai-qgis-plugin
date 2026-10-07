@@ -572,6 +572,22 @@ class CartogenAi:
         preview_task["pending_args"] = res.get("arguments", {**args, "confirmed": True})
         preview_task["egress_override"] = bool(res.get("egress_override"))
 
+    def _is_stray_fragment_turn(self, user_query):
+        """True when this turn's message is a stray fragment (task_matcher.is_stray_fragment) and nothing is waiting for a reply:
+        no pending confirmation card, and the assistant's last message did not ask a question. Never raises."""
+        try:
+            from . import task_matcher
+            if any(t.get("status") == "PREVIEW_READY" for t in self.task_manager.tasks):
+                return False
+            previous = ""
+            for message in reversed(self._read_history_snapshot()):
+                if isinstance(message, dict) and message.get("role") == "assistant" and isinstance(message.get("content"), str):
+                    previous = message["content"]
+                    break
+            return task_matcher.is_stray_fragment(user_query, previous)
+        except Exception:
+            return False
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         func = TOOL_REGISTRY.get(name)
         if func is None:
@@ -603,6 +619,17 @@ class CartogenAi:
         filtered_args = {k: v for k, v in args.items() if k in schema_props}
         if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
+
+        # GitHub #130: a stray pasted fragment ("template: access_map") is not a request, but a real model improvised calls for
+        # it and created a layout. Such a turn may still READ the project (the model can ask what the user wants), but nothing
+        # may be created, changed, deleted or written until the user says what they want. A human-confirmed card still runs.
+        if getattr(self, "_stray_fragment_turn", False) and not user_confirmed:
+            if tool_operations.get_tool_operation_type(name) in (
+                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH):
+                log_event("stray_fragment_blocked", tag="Agent", tool=name)
+                return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
+                                  "Ask the user what they want to do with it before creating, editing or exporting anything."),
+                        "blocked": True}
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
         # blocking here means the DELETE/PUBLISH tool's own side effects never happen at
@@ -1375,6 +1402,7 @@ class CartogenAi:
         finally:
             cancel_signal.end(token)
             self._turn_project_session = None
+            self._stray_fragment_turn = False
 
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
@@ -1405,6 +1433,7 @@ class CartogenAi:
         self._plan_gate.reset()
         self._apply_auto_model_selection(user_query)
         user_message = {"role": "user", "content": user_query}
+        self._stray_fragment_turn = self._is_stray_fragment_turn(user_query)
 
         # Correction detection (self-learning mechanism 2, 2026-09-02): a plain-
         # text heuristic over this new message, checked against the last tool

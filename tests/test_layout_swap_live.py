@@ -129,5 +129,30 @@ class TestSitrepTemplate(unittest.TestCase):
         self.assertNotIn("KEY FIGURES", text)
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestNorthArrowFollowsTheMap(unittest.TestCase):
+    """GitHub #165: the north arrow must follow the map's rotation (the rc20 hand test found it unlinked and at 0 degrees on a map
+    rotated 30 degrees)."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        QgsProject.instance().addMapLayer(_districts(["Sanaa", "Aden"]))
+
+    def test_the_arrow_is_linked_to_the_map_and_turns_with_it(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        res = create_print_layout("Rotated")
+        self.assertTrue(res.get("success"), res)
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        arrow = layout.itemById("NORTH_ARROW")
+        self.assertIsNotNone(arrow, "the layout has no north arrow")
+        map_item = arrow.linkedMap()
+        self.assertIsNotNone(map_item, "the north arrow is not linked to the map")
+        map_item.setMapRotation(30.0)
+        self.assertAlmostEqual(arrow.pictureRotation(), 30.0, places=3,
+                               msg="the arrow did not turn with the rotated map")
+
+
 if __name__ == "__main__":
     unittest.main()

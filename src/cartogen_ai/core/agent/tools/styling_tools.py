@@ -159,6 +159,28 @@ def _derive_style_path(layer, output_path):
     return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.qml"), True
 
 
+def _validate_manual_breaks(breaks, vmin, vmax):
+    """(sorted breaks, None) or (None, error text). Manual class boundaries must be finite numbers, distinct, and strictly inside
+    the field's own range (GitHub #165): the breaks used to be only sorted, so a boundary of 100 for values 5-15 made an inverted
+    "100 - 15" class and a legend that matched nothing. A boundary equal to the minimum or maximum is allowed (a single-value
+    class is legal). Pure."""
+    import math
+    cleaned = []
+    for b in breaks:
+        if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b):
+            return None, f"breaks must be finite numbers; got {b!r}."
+        cleaned.append(float(b))
+    ordered = sorted(cleaned)
+    if len(set(ordered)) != len(ordered):
+        return None, "breaks must be distinct values; a repeated boundary would make an empty class."
+    outside = [b for b in ordered if not (vmin <= b <= vmax)]
+    if outside:
+        shown = ", ".join(f"{b:g}" for b in outside)
+        return None, (f"break(s) {shown} fall outside the data range {vmin:g} to {vmax:g} of this field, which would "
+                      f"make an empty or inverted class. Use boundaries between {vmin:g} and {vmax:g}.")
+    return ordered, None
+
+
 def _logarithmic_breaks(values, num_classes):
     """Computes num_classes-1 interior class-boundary values in log10 space, evenly
     spaced, then transforms back to the data's real units -- QGIS's own
@@ -590,7 +612,9 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # convention for anything not live-verified.
             if not values:
                 return {"error": f"No numeric values found in '{field}' to build breaks against."}
-            sorted_breaks = sorted(breaks)
+            sorted_breaks, breaks_error = _validate_manual_breaks(breaks, min(values), max(values))
+            if breaks_error:
+                return {"error": breaks_error}
             bounds = [min(values)] + sorted_breaks + [max(values)]
             ranges = []
             for lower, upper in zip(bounds[:-1], bounds[1:]):

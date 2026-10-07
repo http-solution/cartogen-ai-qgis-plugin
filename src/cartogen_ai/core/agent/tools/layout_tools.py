@@ -534,6 +534,12 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             north_arrow.setId("NORTH_ARROW")
             north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
             north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
+            # GitHub #165: an unlinked arrow stays at 0 degrees on a rotated map and points the wrong way. Linking it makes the
+            # picture follow the map's rotation (grid north). Best-effort: a QGIS build without the call keeps the old behaviour.
+            try:
+                north_arrow.setLinkedMap(map_item)
+            except Exception as e:
+                print(f"[layout_tools] could not link the north arrow to the map: {e}")
 
         # Optional summary/sitrep panel -- placed below the legend, same
         # column width, so long lines wrap within the page instead of
