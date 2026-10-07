@@ -9,14 +9,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc21"
-NEW_MARK_VERSIONS = ("1.16.0-rc20", "1.16.0-rc21")
+WHATS_NEW_VERSION = "1.16.0-rc22"
+NEW_MARK_VERSIONS = ("1.16.0-rc21", "1.16.0-rc22")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Map classes", "Manual class boundaries must lie inside the data's range; an out-of-range boundary is now an error instead of an inverted class."),
-    ("Print layouts", "The north arrow follows a rotated map instead of staying at zero degrees."),
-    ("Safety", "A short pasted fragment such as \"template: access_map\" no longer makes the agent create or change anything; it asks what you want."),
+    ("Your layers", "A result that replaces a same-named layer no longer overwrites a layer you made; yours is set aside and the reply says so."),
+    ("Data correctness", "Equalised rasters keep their lowest valid pixels, slope on a foot-unit DEM is scaled correctly, GeoJSON exports are WGS84 (RFC 7946), and a failed CRS transform is an error instead of a wrong-place zoom."),
+    ("Scripts", "execute_pyqgis_script works on copies of file-backed layers, so a script cannot change your files (database layers are not protected yet)."),
+    ("Responsiveness", "Zonal statistics and the heavy steps of feature extraction no longer freeze QGIS and can be stopped; other long tools still can."),
     ("Not hand-tested", "Everything here ran offline and in a local QGIS 4.2.2 run, but has not been hand-tested in a desktop session or against a real model."),
 ]
 

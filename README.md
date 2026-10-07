@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc21 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc22 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc21 pre-release** build (rc19 is the last published pre-release until rc21 is uploaded; rc20 and rc21 add the audit fixes made after it).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc22 pre-release** build (rc19 is the last published pre-release until rc22 is uploaded; rc20, rc21 and rc22 add the audit fixes made after it).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc21 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc21 zip has passed local packaging checks and the release workflow's zip checks only.
+> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc22 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc22 zip has passed local packaging checks and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc21)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc22)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,19 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc22
+
+Built on rc21; verified offline and in a local QGIS 4.2.2 run (GitHub Actions did not run), **not by hand**. Full list: the `v1.16.0-rc22` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: a result that replaces a layer of the same name no longer overwrites a layer you made yourself. Plugin results are marked as the plugin's own; a same-named layer of yours is set aside (renamed) and the reply says so (rc20 audit A02).
+- Fix: feature extraction from imagery only outlines the detected object, not the surrounding background (A01), and a rotated or non-square mask keeps its true geometry (A10).
+- Fix: a long-running agent turn that was stopped or superseded can no longer deliver a stale result or act after the project changed (A04); the data-egress gate now follows layer lineage through renames and duplicates, so a derived layer keeps the protection of its source (A05); feature edits report a refused commit or delete instead of claiming success (A03).
+- Fix: histogram equalisation no longer turns the lowest valid pixels into NoData: valid cells are 1-255 and 0 is NoData only (A09). Slope and hillshade on a projected DEM in feet convert metres into the DEM's own units (A11). GeoJSON export is RFC 7946: WGS84 coordinates, no legacy crs member (A12). A failed CRS transform is now an error instead of zooming or building a layout in the wrong place (A13).
+- Safety: the isolated script worker (execute_pyqgis_script) receives COPIES of file-backed layers, so a script cannot modify your files; edits it makes to such a layer are discarded. Database and web-service layers have no file to copy and remain writable by a script (A06, issue 220).
+- Memory: classification refuses rasters over 25 million cells or 60 million cell-band values (A15). Abandoned background-analysis objects are released once their task finishes (A16). The plugin's last-resort import bootstrap removes only its own modules (A18).
+- Responsiveness: zonal_statistics (zones of 200 or more) and the model and outline steps of extract_features_from_imagery run off the GUI thread and honour Stop. Every other expensive tool still blocks QGIS while it runs (A14, issue 221 stays open).
+- Verification: the full local run passed on the audit-fix build (offline suite, ruff, zip check, 360 QGIS 4.2.2 live tests against PostGIS). NOT hand-tested: every fix above. Imagery extraction needs the FastSAM model and was not run live. GitHub Actions did not run (account billing), so the Windows job and the gitleaks scan did not run. No audit issue (220-224) is closed by this build.
 
 ## What's new in 1.16.0-rc21
 
@@ -220,7 +233,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc20 or 1.16.0-rc21 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc21 or 1.16.0-rc22 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
