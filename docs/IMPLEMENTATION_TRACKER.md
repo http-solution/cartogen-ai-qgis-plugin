@@ -2500,3 +2500,22 @@ Live tests for #164 (`tests/test_layout_swap_live.py`) were written without a lo
 
 **Update 2026-10-05 (#130 point 3, replace-by-name disclosure).** `calculate_service_area` now stores the parameters a result layer was built with (`cartogen_ai/result_params` custom property: strategy, travel cost(s), speed/direction field, default speed, road layer). When a later run replaces a same-named layer that was built with different parameters, the result carries `replaced_results` (layer, what changed) and a `replace_note` the reply must relay; an identical re-run and a layer made before this change stay silent. Pure helpers `describe_param_changes` / `replacement_note` are unit-tested; the layer behaviour has a live test (`tests/test_replace_result_warning.py`, added to the CI live runner; written without a local QGIS). **Not built, a design call for the owner:** asking for confirmation BEFORE replacing (the issue's wording was "say so in the preview"); this disclosure happens after the replacement. Only the service-area layers record parameters so far; other tools that replace by name (`optimize_delivery_route`, the access reach polygons) are unchanged. Not hand-tested.
 
+
+### 1.23 rc20 architectural audit -- findings still open (added 2026-10-07)
+
+Source: the external "Cartogen AI rc20 -- architectural and code audit" (18 findings, A01-A18). Fixed on branch
+`claude/eager-goldberg-aruysp` with offline tests (live checks run in the QGIS 4.2.2 Docker image only; **none hand-tested in desktop
+QGIS, none in a PR or release yet**): A01-A05 (the five P1s), A07/A08/A17 (already fixed by #219), A09 (equalised pixels never become
+NoData), A11 (projected-foot DEM z-factor), A12 (RFC 7946 GeoJSON export), A13 (failed CRS transform is an error, not a silent wrong zoom).
+
+Still open:
+
+| ID | Finding | Why not fixed yet | Recommendation |
+|----|---------|-------------------|----------------|
+| A06 | `execute_pyqgis_script` worker shares writable sources with the project | Needs a design choice: copy-on-write snapshots vs read-only mounts; touches the process-isolation work in §1.11 | Hand the worker read-only copies of input layers; decide with owner |
+| A14 | Expensive tools (large raster/vector ops) block the GUI thread | Needs a per-tool decision on which run through the background task runner and how progress/cancel surface | Move the slowest tools onto `QgsTask`; start with polygonize/zonal stats |
+| A15 | Classification holds the whole raster in memory | Needs tiling/chunked k-means; behaviour change for large inputs | Add a pixel-count guard with a clear error now; chunk later |
+| A16 | Abandoned processing bundles are never released in `_background_processing.py` | Lifecycle fix needs a live QGIS session to verify | Release bundles on layer removal and project close; add a live test |
+| A18 | Bootstrap namespace eviction in the root `__init__.py` | Risky on plugin reload; needs a fresh-profile/upgrade test (§1.10) | Scope the eviction to this plugin's own modules; verify on reload |
+
+Release note: the rc21 changelog/notes do not yet mention the audit fixes; update them (or cut a later rc) before publishing.
