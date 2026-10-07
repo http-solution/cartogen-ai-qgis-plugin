@@ -128,6 +128,21 @@ def _is_non_request_fragment(query):
     return not _ACTION_WORDS.search(text)
 
 
+_FRAGMENT_SHAPE = re.compile(r"[:=]")
+
+
+def is_stray_fragment(query, previous_assistant_text=""):
+    """True for a short pasted fragment shaped like a label or key ("template: access_map") that is not a request and does not
+    answer a question the assistant just asked. GitHub #130: the rc20 hand test showed a real model calling get_layers and
+    create_print_layout for that fragment alone and leaving a layout behind. Deliberately narrow so that natural short replies
+    ("yes", "Sanaa", "EPSG:3857" after "which CRS?") are never caught: it needs no action word, at most four words, a colon or equals sign
+    (the shape of a pasted key: value), and a previous assistant message that did not end in a question. Pure."""
+    text = query or ""
+    if not _is_non_request_fragment(text) or not _FRAGMENT_SHAPE.search(text):
+        return False
+    return "?" not in (previous_assistant_text or "")[-400:]
+
+
 # A request that names a tool ("Use optimal_hub_siting to ...") has already said what to run. rc15 hand test (2026-10-06): that request
 # matched an OpenStreetMap export task at 0.50, and "Run extract_features_from_imagery on ..." matched an OSM download task at 0.50; the
 # injected "prefer these tools" list then steered the model away from the tool the user named, into unrelated calls and a spent call
