@@ -17,6 +17,9 @@ import tempfile
 
 MAX_BANDS = 8
 MAX_PIXELS = 25_000_000          # a larger raster is refused rather than exhausting memory
+# Rc20 audit A15: the cell limit alone let 25M cells x 8 bands (200M values; float32 array + the valid-pixel copy + float64 k-means
+# working copies = several GB) through. The budget is on cells x bands.
+MAX_VALUES = 60_000_000
 FIT_SAMPLE = 200_000
 ASSIGN_CHUNK = 500_000
 
@@ -29,19 +32,24 @@ def _np():
 # ---------------------------------------------------------------- pure numpy --
 
 def equalize(values, valid, levels=256):
-    """Histogram-equalised copy of `values` (2-D float array) scaled to 0..levels-1 as uint8/uint16; cells where `valid` is False
-    get 0. A band with no variation returns all zeros (nothing to stretch)."""
+    """Histogram-equalised copy of `values` (2-D float array) as uint8/uint16 where 0 is reserved for no-data: valid cells map to
+    1..levels-1 and invalid cells to 0.
+
+    Mapping the lowest valid value to 0 (the old behaviour) collided with the output's nodata=0, so valid low pixels were written as
+    NoData (rc20 audit A09: [10,20,30,40] -> [0,85,170,255] with one pixel invalid). A band with no variation gives every valid
+    cell 1 (nothing to stretch, but still valid)."""
     np = _np()
     out = np.zeros(values.shape, dtype=np.uint8 if levels <= 256 else np.uint16)
     v = values[valid]
-    if v.size == 0 or float(v.max()) == float(v.min()):
+    if v.size == 0:
+        return out
+    if float(v.max()) == float(v.min()):
+        out[valid] = 1
         return out
     hist, edges = np.histogram(v, bins=levels)
     cdf = np.cumsum(hist).astype(np.float64)
     first = cdf[np.nonzero(hist)[0][0]]
-    if cdf[-1] == first:
-        return out
-    lut = np.round((cdf - first) / (cdf[-1] - first) * (levels - 1)).clip(0, levels - 1)
+    lut = 1 + np.round((cdf - first) / (cdf[-1] - first) * (levels - 2)).clip(0, levels - 2)
     idx = np.clip(np.digitize(v, edges[1:-1], right=False), 0, levels - 1)
     out[valid] = lut[idx].astype(out.dtype)
     return out
@@ -112,6 +120,16 @@ def validate_class_count(num_classes):
 
 # ---------------------------------------------------------------- GDAL I/O --
 
+def check_memory_budget(cols, rows, n_bands, max_pixels=MAX_PIXELS, max_values=MAX_VALUES):
+    """Raises ValueError (plain message) when a raster of cols x rows with n_bands bands is too big to hold in memory. Pure."""
+    cells = cols * rows
+    if cells > max_pixels:
+        raise ValueError(f"the raster has {cells:,} cells, above the {max_pixels:,} limit; clip it first.")
+    if cells * n_bands > max_values:
+        raise ValueError(f"the raster has {cells:,} cells x {n_bands} bands = {cells * n_bands:,} values, above the {max_values:,} "
+                         "limit; clip it or use fewer bands.")
+
+
 def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     """(array (rows, cols, nb) float32, valid mask (rows, cols), template info) from a GDAL-readable raster. Raises ValueError with a
     plain message when the raster cannot be read or is too large."""
@@ -122,10 +140,9 @@ def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     ds = gdal.Open(source)
     if ds is None:
         raise ValueError("the raster could not be opened.")
-    if ds.RasterXSize * ds.RasterYSize > max_pixels:
-        raise ValueError(f"the raster has {ds.RasterXSize * ds.RasterYSize:,} cells, above the {max_pixels:,} limit; clip it first.")
     np = _np()
     wanted = list(bands) if bands else list(range(1, min(ds.RasterCount, MAX_BANDS) + 1))
+    check_memory_budget(ds.RasterXSize, ds.RasterYSize, len(wanted), max_pixels=max_pixels)
     layers, valid = [], np.ones((ds.RasterYSize, ds.RasterXSize), dtype=bool)
     for b in wanted:
         band = ds.GetRasterBand(b)

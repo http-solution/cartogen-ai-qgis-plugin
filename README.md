@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc20 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc21 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc20 pre-release** build (rc19 is the last published pre-release until rc20 is uploaded; rc20 adds the audit fixes and CI coverage made after it).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc21 pre-release** build (rc19 is the last published pre-release until rc21 is uploaded; rc20 and rc21 add the audit fixes made after it).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc20 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc20 zip has passed CI packaging and the release workflow's zip checks only.
+> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc21 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc21 zip has passed local packaging checks and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc20)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc21)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc21
+
+Built on rc20; verified offline and in a local QGIS 4.2.2 run (GitHub Actions did not run), **not by hand**. Full list: the `v1.16.0-rc21` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: manual class boundaries passed to apply_graduated_style must be finite, distinct numbers inside the field's own range. A boundary of 100 for values 5-15 used to make an inverted "100 - 15" class and a legend that matched nothing (rc20 hand test, #165); it is now an error that names the data range.
+- Fix: the north arrow on a print layout is linked to the map, so it turns with a rotated map. In rc20 it stayed at 0 degrees on a map rotated 30 degrees (rc20 hand test, #165). Checked in real QGIS 4.2.2: the new test fails on the old code and passes on this one.
+- Fix: a short pasted fragment shaped like key: value (for example "template: access_map") can no longer make the agent create, change, delete or export anything. In the rc20 hand test a real model called get_layers and create_print_layout for that fragment alone and left a layout behind (#130). The agent may still read the project and ask what you want. Natural short replies ("yes", a layer name, "EPSG:3857" after a question) and any turn with a confirmation card pending are not affected.
+- Dev: tools/local_ci.sh runs what the CI workflow runs on a developer machine (offline suite, byte-compile, ruff, release zip check, and the QGIS 4.2.2 live job with PostGIS in Docker). It does not cover the Windows job or the secret scan.
+- Verification: the full local run passed (3,669 offline tests, ruff, zip check, 345 QGIS 4.2.2 live tests against a real PostGIS server). NOT hand-tested: every fix above. The stray-fragment gate was tested with fakes at the tool-dispatch layer, not against a real hosted model. GitHub Actions did not run for this build (account billing), so the Windows job and the gitleaks scan did not run. No audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc20
 
@@ -210,7 +220,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc19 or 1.16.0-rc20 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc20 or 1.16.0-rc21 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|

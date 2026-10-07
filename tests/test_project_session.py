@@ -49,6 +49,45 @@ class TestAgentGuards(unittest.TestCase):
         a._get_history_manager.return_value.append.assert_called_once()
 
 
+class TestSwitchBetweenTheCheckAndTheMutation(unittest.TestCase):
+    """Audit A04: a project switch can be queued AHEAD of a command that already passed the entry check on the worker. The check must
+    be repeated on the main thread, immediately before the command or layer-creation callback runs."""
+
+    def _agent(self):
+        a = CartogenAi.__new__(CartogenAi)
+        a._turn_project_session = project_session.current()
+        return a
+
+    @staticmethod
+    def _switch_then_run(fn, arg):
+        project_session.invalidate()          # the project switch that was already queued ahead of this command
+        return fn(arg)
+
+    def test_an_ordinary_command_that_was_overtaken_by_a_switch_does_not_dispatch(self):
+        a = self._agent()
+        a._run_on_main_thread = self._switch_then_run
+        a._capture_before = MagicMock(return_value=(set(), None))
+        a._guarded_dispatch = MagicMock(return_value={"success": True})
+        a._record_after = MagicMock()
+        res = a._execute_tool("buffer_analysis", "{}")
+        self.assertTrue(res.get("project_changed"), res)
+        a._guarded_dispatch.assert_not_called()
+        a._record_after.assert_not_called()
+
+    def test_a_layer_creation_callback_after_a_slow_download_does_not_run_in_the_new_project(self):
+        a = self._agent()
+        a._run_on_main_thread = self._switch_then_run
+        created = []
+        res = a._run_current_turn_on_main_thread(lambda arg: created.append(arg) or {"success": True}, {"layer": "x"})
+        self.assertTrue(res.get("project_changed"), res)
+        self.assertEqual(created, [])
+
+    def test_a_current_turn_still_runs_its_callback(self):
+        a = self._agent()
+        a._run_on_main_thread = lambda fn, arg: fn(arg)
+        self.assertEqual(a._run_current_turn_on_main_thread(lambda arg: {"ok": arg}, 5), {"ok": 5})
+
+
 if __name__ == "__main__":
     unittest.main()
 

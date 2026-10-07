@@ -158,3 +158,49 @@ class TestExtractFeaturesFromImageryTool(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMaskGeotransformAndPolygonize(unittest.TestCase):
+    """Audit A10 (rotated resized masks) and A01 (the background polygonized as a detection)."""
+
+    def test_both_terms_of_each_axis_are_scaled(self):
+        from cartogen_ai.core.agent.tools.imagery_extraction import _scaled_geotransform
+        # the audit's numbers: gt1=10, gt2=2, gt4=3, gt5=-10 with scales (x=2, y=4)
+        self.assertEqual(_scaled_geotransform((100.0, 10.0, 2.0, 200.0, 3.0, -10.0), 2, 4),
+                         (100.0, 20.0, 8.0, 200.0, 6.0, -40.0))
+
+    def test_a_north_up_grid_is_unchanged_apart_from_the_pixel_size(self):
+        from cartogen_ai.core.agent.tools.imagery_extraction import _scaled_geotransform
+        self.assertEqual(_scaled_geotransform((0.0, 10.0, 0.0, 0.0, 0.0, -10.0), 2, 2), (0.0, 20.0, 0.0, 0.0, 0.0, -20.0))
+
+    def test_the_pixel_size_follows_a_rotated_grid(self):
+        from cartogen_ai.core.agent.tools.imagery_extraction import _pixel_size
+        self.assertEqual(_pixel_size((0, 10.0, 0, 0, 0, -10.0)), 10.0)
+        self.assertAlmostEqual(_pixel_size((0, 6.0, 0, 0, 8.0, -10.0)), 10.0)
+
+    def test_only_the_object_is_polygonized_not_the_background(self):
+        try:
+            import numpy as np
+            from osgeo import osr
+        except ImportError:
+            self.skipTest("requires GDAL and numpy")
+        from cartogen_ai.core.agent.tools.imagery_extraction import _polygonize_mask
+        mask = np.zeros((10, 10), dtype="uint8")
+        mask[3:7, 3:7] = 1                                   # a 4x4 object in a 10x10 mask
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(32636)
+        layer, _a, _b = _polygonize_mask(mask, (500000.0, 10.0, 0.0, 3000000.0, 0.0, -10.0), srs.ExportToWkt(), srs)
+        areas = sorted(f.GetGeometryRef().GetArea() for f in layer)
+        self.assertEqual(areas, [1600.0], "only the 16-pixel object (1,600 m2) may come back, not the 84-pixel background")
+
+    def test_an_empty_mask_gives_no_polygons(self):
+        try:
+            import numpy as np
+            from osgeo import osr
+        except ImportError:
+            self.skipTest("requires GDAL and numpy")
+        from cartogen_ai.core.agent.tools.imagery_extraction import _polygonize_mask
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(32636)
+        layer, _a, _b = _polygonize_mask(np.zeros((6, 6), dtype="uint8"), (0.0, 1.0, 0.0, 0.0, 0.0, -1.0), srs.ExportToWkt(), srs)
+        self.assertEqual(len(list(layer)), 0)

@@ -23,10 +23,9 @@ explicitly deferred to a later phase in the scoping doc; this module does not sp
 raster layers beyond letting them serialize into the project file unconditionally.
 
 Known, documented limitations (not silently claimed as fixed):
-- A script that mutates an EXISTING file-backed (non-memory) layer writes to the same file the
-  live process still has open -- the isolation boundary does not solve concurrent-access
-  semantics for that case, only credential/process isolation. No different from the same file
-  being edited by an external program while QGIS has it open.
+- Local-file vector and raster layers are handed to the worker as COPIES in the temp directory (audit A06), so a script cannot
+  modify the user's files; edits it makes to such a layer are discarded, not reconciled. Database/web-service layers have no file
+  to copy and stay writable by the script.
 - Layer removal/reordering/style edits made by a script are not reconciled back into the live
   project -- only new layers (added) and existing MEMORY layers' feature data (since that's the
   one case where the pre-serialize export step already builds a mapping to reconcile) are synced
@@ -287,9 +286,56 @@ def _build_scratch_project(tempdir):
             layer.setDataSource(gpkg_path, layer.name(), "ogr")
             memory_layer_ids.append(layer_id)
 
+    _copy_file_backed_layers(scratch, live, tempdir, set(memory_layer_ids))
+
     scratch_path = os.path.join(tempdir, "scratch_project.qgz")
     scratch.write(scratch_path)
     return scratch_path, memory_layer_ids
+
+
+def local_file_path(source):
+    """The on-disk file a layer source string points at ("path" or "path|layername=x"), or None when it is not a local file
+    (database, web service, virtual layer, vsicurl...). Pure apart from the existence check."""
+    if not source:
+        return None
+    text = str(source).split("|", 1)[0]
+    if "://" in text or text.startswith("/vsi") or text.lower().startswith(("dbname=", "pg:", "wfs:", "url=")):
+        return None
+    return text if os.path.isfile(text) else None
+
+
+def _copy_file_backed_layers(scratch, live, tempdir, already_handled):
+    """Rc20 audit A06: the scratch project used to reference the SAME files as the live project, so a script that opened an
+    existing layer for editing wrote straight into the user's data (no undo, concurrent with the live layer's own handle). Every
+    local-file vector layer is now exported to a GeoPackage in `tempdir` and every local-file raster copied there, and the
+    scratch layer repointed at the copy: the worker can read everything and damage nothing. Layers backed by a database or web
+    service are NOT copied (they have no file to copy) and remain writable by the script. Returns the ids repointed."""
+    repointed = []
+    for layer_id, layer in list(scratch.mapLayers().items()):
+        if layer_id in already_handled:
+            continue
+        try:
+            if not hasattr(layer, "providerType"):
+                continue
+            provider = layer.providerType()
+            live_layer = live.mapLayer(layer_id) or layer
+            path = local_file_path(live_layer.source())
+            if path is None:
+                continue
+            if provider == "ogr":
+                copy_path = os.path.join(tempdir, f"ro_{layer_id}.gpkg")
+                _export_layer_to_gpkg(live_layer, copy_path)
+                layer.setDataSource(copy_path, layer.name(), "ogr")
+            elif provider == "gdal":
+                copy_path = os.path.join(tempdir, f"ro_{layer_id}{os.path.splitext(path)[1]}")
+                shutil.copy2(path, copy_path)
+                layer.setDataSource(copy_path, layer.name(), "gdal")
+            else:
+                continue
+            repointed.append(layer_id)
+        except Exception as exc:   # a layer that cannot be copied stays as-is rather than failing the whole script run
+            log_event("script_isolation", tag="Tools", status="copy_skipped", error=True, error_class=type(exc).__name__)
+    return repointed
 
 
 # --- result adoption ---------------------------------------------------------------------------------------------------------

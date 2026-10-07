@@ -48,5 +48,25 @@ class TestOwnedModuleNames(unittest.TestCase):
         self.assertEqual(own.owned_module_names({"cartogen_ai.odd": _module()}, OURS), [])
 
 
+class TestClaimedModuleNames(unittest.TestCase):
+    """Audit A18: the last-resort eviction takes our namespace's modules by name, never another distribution's children."""
+
+    def test_foreign_children_survive_but_stale_copies_of_ours_go(self):
+        import tempfile
+        pkg = tempfile.mkdtemp()
+        os.makedirs(os.path.join(pkg, "core"))
+        os.makedirs(os.path.join(pkg, "infrastructure"))
+        mods = {"cartogen_ai": _module(), "cartogen_ai.core": _module(file="/stale/core/__init__.py"),
+                "cartogen_ai.core.agent": _module(file="/stale/core/agent.py"),
+                "cartogen_ai.infrastructure.auth": _module(file="/stale/auth.py"),
+                "cartogen_ai.pro.licensing": _module(file="/other/pro/licensing.py"), "os": _module()}
+        claimed = set(own.claimed_module_names(mods, pkg))
+        self.assertEqual(claimed, {"cartogen_ai", "cartogen_ai.core", "cartogen_ai.core.agent", "cartogen_ai.infrastructure.auth"})
+
+    def test_unreadable_package_dir_claims_only_the_bare_namespace(self):
+        mods = {"cartogen_ai": _module(), "cartogen_ai.core": _module(file="/x.py")}
+        self.assertEqual(own.claimed_module_names(mods, "/nonexistent/dir"), ["cartogen_ai"])
+
+
 if __name__ == "__main__":
     unittest.main()

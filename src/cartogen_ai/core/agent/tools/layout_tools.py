@@ -86,7 +86,8 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     CRS -- see the identical helper in vector_tools.py (zoom_to_layer/
     zoom_to_feature) for the full rationale. Duplicated locally rather than
     cross-imported, matching this codebase's existing convention of each
-    tools module keeping its own small _find_layer_by_name-style helpers."""
+    tools module keeping its own small _find_layer_by_name-style helpers.
+    Returns None when the transform fails (audit A13) -- never the untransformed extent."""
     canvas_crs = canvas.mapSettings().destinationCrs()
     if not source_crs.isValid() or source_crs == canvas_crs:
         return extent
@@ -94,7 +95,7 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         transform = QgsCoordinateTransform(source_crs, canvas_crs, QgsProject.instance())
         return transform.transformBoundingBox(extent)
     except Exception:
-        return extent
+        return None
 
 
 def padded_extent_bounds(xmin, ymin, xmax, ymax, geographic):
@@ -297,6 +298,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         map_extent = None
         if target_layer is not None and canvas:
             map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
+            if map_extent is None:
+                return {"error": f"Could not transform '{target_layer.name()}' from {target_layer.crs().authid()} into the map CRS, so the layout was not created."}
             try:
                 _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
                 _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())

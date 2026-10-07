@@ -16,7 +16,7 @@ class TestEqualize(unittest.TestCase):
         out = rn.equalize(values, np.ones(values.shape, dtype=bool))
         self.assertEqual(out.dtype, np.uint8)
         self.assertEqual(int(out.max()), 255)
-        self.assertEqual(int(out.min()), 0)
+        self.assertEqual(int(out.min()), 1)               # 0 is reserved for no-data
         self.assertTrue((np.diff(out.flatten()[np.argsort(values.flatten(), kind="stable")]) >= 0).all())   # order preserved
 
     def test_invalid_cells_stay_zero_and_do_not_count(self):
@@ -24,16 +24,39 @@ class TestEqualize(unittest.TestCase):
         valid = np.array([[True, True], [True, False]])
         out = rn.equalize(values, valid)
         self.assertEqual(int(out[1, 1]), 0)
-        self.assertEqual(int(out[0, 0]), 0)               # the lowest valid value maps to 0 (the 9999 outlier is ignored)
+        self.assertEqual(int(out[0, 0]), 1)               # the lowest valid value maps to 1, never the nodata 0
         self.assertEqual(int(out[1, 0]), 255)
 
-    def test_a_flat_band_gives_zeros(self):
+    def test_a_flat_band_stays_valid(self):
         out = rn.equalize(np.full((3, 3), 7.0), np.ones((3, 3), dtype=bool))
-        self.assertEqual(int(out.max()), 0)
+        self.assertTrue((out == 1).all())
+
+    def test_no_valid_pixel_becomes_nodata(self):
+        """Audit A09: [10,20,30,40] with one invalid cell must keep all three valid cells non-zero."""
+        values = np.array([[10.0, 20.0], [30.0, 40.0]])
+        valid = np.array([[True, True], [True, False]])
+        out = rn.equalize(values, valid)
+        self.assertTrue((out[valid] >= 1).all())
+        self.assertEqual(int(out[~valid][0]), 0)
 
     def test_no_valid_cells(self):
         out = rn.equalize(np.ones((2, 2)), np.zeros((2, 2), dtype=bool))
         self.assertEqual(int(out.max()), 0)
+
+
+class TestMemoryBudget(unittest.TestCase):
+    """Audit A15: the guard counts cells x bands, not just cells."""
+
+    def test_small_raster_passes(self):
+        rn.check_memory_budget(1000, 1000, 8)
+
+    def test_many_bands_over_the_value_budget_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "bands"):
+            rn.check_memory_budget(5000, 5000, 8)          # 25M cells (allowed alone) x 8 = 200M values
+
+    def test_too_many_cells_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "cells"):
+            rn.check_memory_budget(10000, 10000, 1)
 
 
 @unittest.skipIf(np is None, "numpy not installed")

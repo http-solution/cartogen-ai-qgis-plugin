@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc20
+version=1.16.0-rc21
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,15 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc20 (2026-10-06):
+changelog=v1.16.0-rc21 (2026-10-07):
+    Release candidate 21 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc20 hand test.
+    - Fix: manual class boundaries passed to apply_graduated_style must be finite, distinct numbers inside the field's own range. A boundary of 100 for values 5-15 used to make an inverted "100 - 15" class and a legend that matched nothing (rc20 hand test, #165); it is now an error that names the data range.
+    - Fix: the north arrow on a print layout is linked to the map, so it turns with a rotated map. In rc20 it stayed at 0 degrees on a map rotated 30 degrees (rc20 hand test, #165). Checked in real QGIS 4.2.2: the new test fails on the old code and passes on this one.
+    - Fix: a short pasted fragment shaped like key: value (for example "template: access_map") can no longer make the agent create, change, delete or export anything. In the rc20 hand test a real model called get_layers and create_print_layout for that fragment alone and left a layout behind (#130). The agent may still read the project and ask what you want. Natural short replies ("yes", a layer name, "EPSG:3857" after a question) and any turn with a confirmation card pending are not affected.
+    - Dev: tools/local_ci.sh runs what the CI workflow runs on a developer machine (offline suite, byte-compile, ruff, release zip check, and the QGIS 4.2.2 live job with PostGIS in Docker). It does not cover the Windows job or the secret scan.
+    - Verification: the full local run passed (3,669 offline tests, ruff, zip check, 345 QGIS 4.2.2 live tests against a real PostGIS server). NOT hand-tested: every fix above. The stray-fragment gate was tested with fakes at the tool-dispatch layer, not against a real hosted model. GitHub Actions did not run for this build (account billing), so the Windows job and the gitleaks scan did not run. No audit issue is closed by this build.
+
+v1.16.0-rc20 (2026-10-06):
     Release candidate 20 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Audit fixes and CI coverage since rc19.
     - Fix (rc19 regression): a PostGIS read-only query left the shared QGIS database connection read-only for everything else that used it, because the guard set the session read-only and never put it back. It now reads the previous mode, runs the guard and restores it on every path. Found by the first CI run against a real PostGIS server (#151).
     - Fix: raster arithmetic on mismatched grids (NDVI, NDWI, NDRE, weighted overlay, change detection) warps the other rasters onto the first raster's grid into temporary files and says so; project layers are not touched (#153). DEM vertical unit is an argument ('m', 'ft', 'us_ft') on elevation_profile, slope_analysis and build_composite_impedance_field (#154). A population raster named like a density raster is refused until raster_unit says people_per_km2 or people_per_cell (#160).

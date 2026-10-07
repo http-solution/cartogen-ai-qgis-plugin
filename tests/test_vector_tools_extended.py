@@ -207,7 +207,7 @@ class TestExtentToCanvasCrs(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateTransform", create=True)
-    def test_transform_failure_falls_back_to_original_extent(self, mock_transform_cls, mock_project):
+    def test_transform_failure_returns_none_not_the_original_extent(self, mock_transform_cls, mock_project):
         source_crs = MagicMock()
         source_crs.isValid.return_value = True
         canvas = self._fake_canvas(MagicMock())
@@ -216,7 +216,7 @@ class TestExtentToCanvasCrs(unittest.TestCase):
 
         result = _extent_to_canvas_crs(canvas, extent, source_crs)
 
-        self.assertIs(result, extent)
+        self.assertIsNone(result)   # audit A13: a failed transform must not masquerade as a good extent
 
 
 class TestZoomToolsDegradeOutsideQgis(unittest.TestCase):

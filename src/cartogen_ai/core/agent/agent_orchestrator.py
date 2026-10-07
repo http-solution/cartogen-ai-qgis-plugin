@@ -749,8 +749,7 @@ class CartogenAi:
         the actual reported bug -- the isinstance guard added to _compact_old_tool_results
         earlier this session was a real, separate gap, not this one."""
         if self._turn_is_stale():
-            return {"error": "The project changed while this request was running, so the tool was not run. "
-                             "Ask again in the project you now have open.", "project_changed": True}
+            return self._stale_turn_result()
         try:
             parsed_arguments = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
             if not isinstance(parsed_arguments, dict):
@@ -774,6 +773,10 @@ class CartogenAi:
             return result
 
         def command(_unused):
+            # Audit A04: the entry check above ran on the worker; a project switch can land between it and this queued command.
+            # This runs on the main thread, where the project signals are handled, so the check and the dispatch cannot interleave.
+            if self._turn_is_stale():
+                return self._stale_turn_result()
             ids_before, snap = self._capture_before(name, parsed_arguments)
             res = self._guarded_dispatch(name, arguments)
             self._record_after(name, operation_type, res, ids_before, snap)
@@ -913,7 +916,7 @@ class CartogenAi:
             except Exception as e:
                 return {"error": f"Download failed: {e}"}
             try:
-                res = self._run_on_main_thread(
+                res = self._run_current_turn_on_main_thread(
                     lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label")),
                     {"file_path": local_path, "layer_name": filtered_args.get("layer_name"),
                      "source_label": file_path if is_temp else None},
@@ -935,7 +938,7 @@ class CartogenAi:
             checkpoint = ensure_checkpoint()
             if "error" in checkpoint:
                 return checkpoint
-            res = self._run_on_main_thread(
+            res = self._run_current_turn_on_main_thread(
                 lambda a: extract_features_from_imagery(**a), {**filtered_args, "model_path": checkpoint.get("path")})
             self._log_tool_success(name, filtered_args, res)
             return res
@@ -949,7 +952,7 @@ class CartogenAi:
                 bool(filtered_args.get("allow_large_download")),
             )
             try:
-                res = self._run_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
+                res = self._run_current_turn_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
             finally:
                 local_path = fetch_result.get("local_path")
                 if local_path:
@@ -970,7 +973,7 @@ class CartogenAi:
                 bool(filtered_args.get("allow_large_download")),
             )
             try:
-                res = self._run_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
+                res = self._run_current_turn_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
             finally:
                 local_path = fetch_result.get("local_path")
                 if local_path:
@@ -991,7 +994,7 @@ class CartogenAi:
                 filtered_args.get("max_features", 5000), bool(filtered_args.get("allow_large_download")),
             )
             try:
-                res = self._run_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
+                res = self._run_current_turn_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
             finally:
                 local_path = fetch_result.get("local_path")
                 if local_path:
@@ -1012,13 +1015,13 @@ class CartogenAi:
             if filtered_args.get("extent_layer") and wp_bbox is None:
                 # Needs QgsProject, so it runs on the main thread before the (background) download.
                 try:
-                    wp_bbox = self._run_on_main_thread(resolve_extent_bbox, filtered_args["extent_layer"])
+                    wp_bbox = self._run_current_turn_on_main_thread(resolve_extent_bbox, filtered_args["extent_layer"])
                 except ValueError as e:
                     return {"error": str(e)}
             # Where a whole-country file is cached (F19 fallback); asks QgsProject, so it runs on the main thread.
             try:
                 from .tools.humanitarian_tools import worldpop_cache_dir
-                wp_cache_dir = self._run_on_main_thread(worldpop_cache_dir, None)
+                wp_cache_dir = self._run_current_turn_on_main_thread(worldpop_cache_dir, None)
             except Exception:
                 wp_cache_dir = None
             fetch_result = fetch_worldpop_population_network_phase(
@@ -1028,7 +1031,7 @@ class CartogenAi:
             # No cleanup here, deliberately -- unlike fetch_geoboundaries above,
             # the downloaded file must stay on disk for as long as the raster
             # layer exists (see add_worldpop_population_layer_main_thread_phase).
-            res = self._run_on_main_thread(add_worldpop_population_layer_main_thread_phase, fetch_result)
+            res = self._run_current_turn_on_main_thread(add_worldpop_population_layer_main_thread_phase, fetch_result)
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1039,7 +1042,7 @@ class CartogenAi:
             fetch_result = fetch_nasa_active_fires_network_phase(
                 filtered_args.get("bbox"), filtered_args.get("days", 1), filtered_args.get("min_confidence", "nominal"),
             )
-            res = self._run_on_main_thread(
+            res = self._run_current_turn_on_main_thread(
                 lambda a: add_nasa_active_fires_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA Active Fires")},
             )
@@ -1054,7 +1057,7 @@ class CartogenAi:
                 filtered_args.get("bbox"), filtered_args.get("category"),
                 filtered_args.get("days", 20), filtered_args.get("status", "open"),
             )
-            res = self._run_on_main_thread(
+            res = self._run_current_turn_on_main_thread(
                 lambda a: add_nasa_eonet_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA EONET Events")},
             )
@@ -1068,7 +1071,7 @@ class CartogenAi:
             fetch_result = fetch_gdacs_disaster_alerts_network_phase(
                 filtered_args.get("bbox"), filtered_args.get("min_alert_level", "Orange"),
             )
-            res = self._run_on_main_thread(
+            res = self._run_current_turn_on_main_thread(
                 lambda a: add_gdacs_disaster_alerts_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "GDACS Disaster Alerts")},
             )
@@ -1082,7 +1085,7 @@ class CartogenAi:
             # to Gemini goes second, on the calling (background) thread.
             from .tools.system_tools import resolve_gemini_search_config
             from ...infrastructure.providers.gemini import grounded_search
-            config = self._run_on_main_thread(lambda _: resolve_gemini_search_config(), None)
+            config = self._run_current_turn_on_main_thread(lambda _: resolve_gemini_search_config(), None)
             if "error" in config:
                 return config
             return grounded_search(config["api_key"], filtered_args.get("query", ""), model=config["model"])
@@ -1091,7 +1094,7 @@ class CartogenAi:
             # Same two-phase split as gemini_grounded_search above.
             from .tools.system_tools import resolve_openai_search_config
             from ...infrastructure.providers.openai import grounded_search
-            config = self._run_on_main_thread(lambda _: resolve_openai_search_config(), None)
+            config = self._run_current_turn_on_main_thread(lambda _: resolve_openai_search_config(), None)
             if "error" in config:
                 return config
             return grounded_search(config["api_key"], filtered_args.get("query", ""))
@@ -1110,7 +1113,7 @@ class CartogenAi:
                 layer_name=filtered_args.get("layer_name"),
             )
             try:
-                res = self._run_on_main_thread(add_osm_layer_main_thread_phase, fetch_result)
+                res = self._run_current_turn_on_main_thread(add_osm_layer_main_thread_phase, fetch_result)
             finally:
                 local_path = fetch_result.get("local_path")
                 if local_path:
@@ -1139,6 +1142,21 @@ class CartogenAi:
         self._get_history_manager().trim(MAX_HISTORY_MESSAGES, _HISTORY_DIGEST_MARKER, _HISTORY_DIGEST_MAX_CHARS)
 
     _turn_project_session = None
+
+    @staticmethod
+    def _stale_turn_result():
+        return {"error": "The project changed while this request was running, so the tool was not run. "
+                         "Ask again in the project you now have open.", "project_changed": True}
+
+    def _run_current_turn_on_main_thread(self, fn, arg):
+        """_run_on_main_thread for a step that creates or changes project state for the running turn. The staleness check is made
+        ON the main thread immediately before fn runs (audit A04): a check made earlier, on the worker, cannot stop a project
+        switch that is queued ahead of this callback, and a slow download makes that window long."""
+        def guarded(a):
+            if self._turn_is_stale():
+                return self._stale_turn_result()
+            return fn(a)
+        return self._run_on_main_thread(guarded, arg)
 
     def _turn_is_stale(self):
         """True when the running turn was started in a project that has since been cleared or replaced (project_session.py)."""

@@ -138,24 +138,25 @@ def _replace_point_features(layer, rows, geometry_key="__geom__"):
     list of dicts; each must have `geometry_key` (a QgsGeometry) plus any attribute keys matching
     the layer's field names (extra keys are ignored, matching add_point_layer's own
     forward-compatible pattern for layers created before a field existed)."""
-    # GitHub #144: the commit result used to be ignored. Raises _edit_session.EditError when the layer cannot be edited or the
-    # provider rejects the refresh (the old features stay: the edit is rolled back); callers turn that into an error result.
-    from ._edit_session import begin_feature_edits, finish_feature_edits
+    # GitHub #144 / audit A05: the refresh is ONE edit command. Every step is checked: a rejected deletion or a rejected row raises
+    # EditError, the command is undone (and a session this call started is rolled back), so the previous observations are never
+    # lost to a half-finished refresh. A layer the user is editing stays in the user's session. Callers turn EditError into an error.
+    from ._edit_session import EditError, edit_command
     existing_ids = [f.id() for f in layer.getFeatures()]
-    owns_session = begin_feature_edits(layer)
-    if existing_ids:
-        layer.deleteFeatures(existing_ids)
     field_names = [f.name() for f in layer.fields()]
     added = 0
-    for row in rows:
-        feat = QgsFeature(layer.fields())
-        feat.setGeometry(row[geometry_key])
-        for fname in field_names:
-            if fname in row:
-                feat.setAttribute(fname, _clip_to_field_width(layer, fname, row[fname]))
-        if layer.addFeature(feat):
+    with edit_command(layer, "Cartogen AI: refresh hazard layer"):
+        if existing_ids and not layer.deleteFeatures(existing_ids):
+            raise EditError("the previous observations could not be removed")
+        for i, row in enumerate(rows, start=1):
+            feat = QgsFeature(layer.fields())
+            feat.setGeometry(row[geometry_key])
+            for fname in field_names:
+                if fname in row:
+                    feat.setAttribute(fname, _clip_to_field_width(layer, fname, row[fname]))
+            if not layer.addFeature(feat):
+                raise EditError(f"the layer rejected observation {i} of {len(rows)}")
             added += 1
-    finish_feature_edits(layer, owns_session)
     layer.updateExtents()
     layer.triggerRepaint()
     return added

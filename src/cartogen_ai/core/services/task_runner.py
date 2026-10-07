@@ -116,6 +116,49 @@ class AgentQgsTask(QgsTask):
                 traceback.print_exc()
 
 
+_main_thread_invoker = None
+
+
+def _get_main_thread_invoker():
+    """A QObject that lives on the Qt main thread and runs the callables emitted to it there (queued signal).
+
+    Audit A03: the thread fallback used to hand the completion callback to QTimer.singleShot(0, receiver, callable), which the Qt6
+    binding does not offer; the broad except then called the widget callback directly on the WORKER thread. A queued signal is the
+    supported way to cross threads. Create it first from the main thread (run_agent_task does); it is also moved there explicitly.
+    Returns None when Qt is not available."""
+    global _main_thread_invoker
+    if _main_thread_invoker is not None:
+        return _main_thread_invoker
+    if not QGIS_TASK_AVAILABLE:
+        return None
+    try:
+        from qgis.PyQt.QtCore import QObject, Qt, pyqtSignal
+        queued = getattr(getattr(Qt, "ConnectionType", Qt), "QueuedConnection")
+
+        class _Invoker(QObject):
+            call = pyqtSignal(object)
+
+            def __init__(self):
+                super().__init__()
+                self.call.connect(self._run, queued)
+
+            def _run(self, fn):
+                try:
+                    fn()
+                except Exception:
+                    traceback.print_exc()
+
+        invoker = _Invoker()
+        app = QgsApplication.instance()
+        if app is not None:
+            invoker.moveToThread(app.thread())
+        _main_thread_invoker = invoker
+        return invoker
+    except Exception as e:
+        print(f"[TaskRunner] could not create the main-thread invoker: {e}")
+        return None
+
+
 def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Processing", on_complete=None, on_status=None, map_context=None, on_tool_step=None):
     """Schedules agent task execution using QgsTask Manager or fallback thread.
     map_context must already have been gathered on the main thread by the
@@ -154,18 +197,21 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
     handle = _FallbackTaskHandle()
 
     epoch = project_session.plugin_epoch()
+    # Made here, on the thread that called run_agent_task (the GUI thread), never lazily from the worker.
+    invoker = _get_main_thread_invoker()
 
     def deliver(*args):
-        """Run on_complete on the Qt main thread when there is one (it touches widgets), and never after an unload."""
+        """Run on_complete on the Qt main thread when there is one (it touches widgets), and never after an unload. With Qt
+        available but no way to reach the main thread, the callback is NOT run on the worker: a widget must not be touched from
+        there (audit A03), so the failure is logged instead."""
         if on_complete is None or project_session.plugin_retired(epoch):
             return
         if QGIS_TASK_AVAILABLE:
-            try:
-                from qgis.PyQt.QtCore import QTimer
-                QTimer.singleShot(0, QgsApplication.instance(), lambda: None if project_session.plugin_retired(epoch) else on_complete(*args))
+            if invoker is None:
+                log_event("task_callback_dropped", tag="TaskRunner", error=True, reason="no main-thread invoker")
                 return
-            except Exception:
-                pass
+            invoker.call.emit(lambda: None if project_session.plugin_retired(epoch) else on_complete(*args))
+            return
         on_complete(*args)
 
     def worker():

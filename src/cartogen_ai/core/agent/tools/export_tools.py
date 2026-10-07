@@ -135,8 +135,14 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         # layer_options was accepted by this function but never applied: the CSV's GEOMETRY=AS_XY (F13) and SEPARATOR never
         # reached OGR, so point exports had no X/Y columns at all. Found on the rc10 smoke test from the exported file's
         # header (fid, osm_id, fclass, name, ... with no X/Y); the offline test only covered the option-choosing helper.
+        layer_options = list(layer_options or [])
+        # Rc20 audit A12: a bare GeoJSON export wrote the layer's own CRS (e.g. projected metres) under a legacy "crs" member, which
+        # most readers (RFC 7946) ignore, so the file landed in the wrong place. RFC7946=YES makes the OGR driver reproject to WGS84
+        # and write standards-compliant output; a caller-supplied RFC7946 option still wins.
+        if driver_name == "GeoJSON" and not any(str(o).upper().startswith("RFC7946=") for o in layer_options):
+            layer_options.append("RFC7946=YES")
         if layer_options:
-            options.layerOptions = list(layer_options)
+            options.layerOptions = layer_options
         has_selection = False
         if hasattr(layer, "selectedFeatureCount"):
             try:

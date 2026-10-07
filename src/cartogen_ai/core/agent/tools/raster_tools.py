@@ -434,8 +434,18 @@ def _geographic_z_factor(dem):
     hardcoded 1."""
     try:
         crs = dem.crs()
-        if crs is None or not crs.isGeographic():
+        if crs is None:
             return 1
+        if not crs.isGeographic():
+            # Rc20 audit A11: "projected" is not "metres" -- a US-foot State Plane DEM has horizontal units of feet, so a metre
+            # elevation needs 1/0.3048 to match them (returning 1 understated slope by ~3.28x). Convert metres into the CRS's own
+            # map units; an unreadable unit keeps the old 1 rather than failing the tool.
+            try:
+                from qgis.core import Qgis, QgsUnitTypes
+                factor = QgsUnitTypes.fromUnitToUnitFactor(Qgis.DistanceUnit.Meters, crs.mapUnits())
+                return float(factor) if factor and factor > 0 else 1
+            except Exception:
+                return 1
         center_lat = dem.extent().center().y()
         return 1.0 / (111320.0 * math.cos(math.radians(center_lat)))
     except Exception:
@@ -591,6 +601,58 @@ def aspect_analysis(dem_layer):
     )
 
 
+_ZONAL_FIELDS = ("zs_mean", "zs_median", "zs_stdev")
+
+
+def _zonal_stats_into_layer(raster, polygon_layer):
+    """Mean/median/stdev of `raster` per polygon, written into `polygon_layer` as zs_mean / zs_median / zs_stdev.
+
+    Rc20 audit A14: the statistics (the slow part) are computed by native:zonalstatisticsfb on a geometry-only memory copy
+    through the background runner, so QGIS stays responsive and Stop works; the old qgis:zonalstatistics edited the live layer
+    in place on the GUI thread and cannot run on a worker. The values are then written into the real layer on the GUI thread as
+    one undoable edit command. An existing zs_ field is overwritten rather than duplicated. Raises on failure."""
+    from qgis.core import QgsFeature, QgsField, QgsProcessingContext, QgsVectorLayer
+    from qgis.PyQt.QtCore import QVariant
+    from . import _background_processing as _bg
+    from ._edit_session import edit_command
+
+    scratch = QgsVectorLayer(f"{QgsWkbTypes.displayString(polygon_layer.wkbType()) or 'Polygon'}?crs={polygon_layer.crs().authid()}"
+                             "&field=src_fid:integer", "zonal_input", "memory")
+    copies = []
+    for feat in polygon_layer.getFeatures():
+        copy = QgsFeature(scratch.fields())
+        copy.setGeometry(feat.geometry())
+        copy.setAttributes([int(feat.id())])
+        copies.append(copy)
+    scratch.dataProvider().addFeatures(copies)
+
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    params = {"INPUT": scratch, "INPUT_RASTER": raster, "RASTER_BAND": 1, "COLUMN_PREFIX": "zs_",
+              "STATISTICS": [2, 3, 4], "OUTPUT": "memory:"}
+    results = _bg.run_algorithm("native:zonalstatisticsfb", params, context,
+                                fallback=lambda alg, prm, context=None: processing.run(alg, prm, context=context),
+                                label="Zonal statistics", use_background=len(copies) >= 200)
+    out_layer = results["OUTPUT"]
+    values = {}
+    for out_feat in out_layer.getFeatures():
+        values[int(out_feat["src_fid"])] = [out_feat[name] if out_layer.fields().indexOf(name) >= 0 else None
+                                            for name in _ZONAL_FIELDS]
+
+    with edit_command(polygon_layer, "Zonal statistics"):
+        for name in _ZONAL_FIELDS:
+            if polygon_layer.fields().indexOf(name) < 0:
+                if not polygon_layer.addAttribute(QgsField(name, QVariant.Double)):
+                    raise RuntimeError(f"could not add the field {name}")
+        polygon_layer.updateFields()
+        indexes = [polygon_layer.fields().indexOf(name) for name in _ZONAL_FIELDS]
+        for fid, stats in values.items():
+            for index, value in zip(indexes, stats):
+                if not polygon_layer.changeAttributeValue(fid, index, None if value is None or value != value else float(value)):
+                    raise RuntimeError("a statistic could not be written to the layer")
+
+
+
 @register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]})
 def zonal_statistics(raster_layer, vector_layer):
     if not QGIS_AVAILABLE:
@@ -603,14 +665,7 @@ def zonal_statistics(raster_layer, vector_layer):
         return {"error": f"Layer '{vector_layer}' not found"}
 
     try:
-        params = {
-            "INPUT_RASTER": ras,
-            "RASTER_BAND": 1,
-            "INPUT_VECTOR": vec,
-            "COLUMN_PREFIX": "zs_",
-            "STATISTICS": [2, 3, 4],
-        }
-        processing.run("qgis:zonalstatistics", params)
+        _zonal_stats_into_layer(ras, vec)
         result = {"success": True, "message": f"Zonal statistics added to '{vector_layer}' (fields prefixed zs_)."}
         try:
             if vec.fields().indexOf("zs_mean") >= 0:
@@ -620,6 +675,9 @@ def zonal_statistics(raster_layer, vector_layer):
             pass  # the hint is a convenience; the statistics are already written
         return result
     except Exception as e:
+        from . import _background_processing as _bg
+        if isinstance(e, _bg.AnalysisCancelled):
+            return {"error": f"Stopped: {e}", "cancelled": True}
         return {"error": f"zonal_statistics failed: {e}"}
 
 
@@ -657,7 +715,7 @@ def raster_clip(raster_layer, mask_layer):
     )
 
 
-@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells (clip first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
+@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells or 60 million cell-band values (clip first or use fewer bands).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
 def unsupervised_classification(layer_name, num_classes, seed=0):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

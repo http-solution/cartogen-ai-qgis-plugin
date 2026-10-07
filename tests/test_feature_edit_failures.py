@@ -62,5 +62,59 @@ class TestHazardRefresh(unittest.TestCase):
             self.assertEqual(hm._replace_point_features(layer, [{"__geom__": object()}, {"__geom__": object()}]), 2)
 
 
+class TestHazardRefreshIsAtomic(unittest.TestCase):
+    """Audit A05: a rejected deletion or insertion must undo the whole refresh, not commit a half-empty layer."""
+
+    def _layer(self, delete_ok=True, add_results=()):
+        layer = _layer()
+        feature = MagicMock()
+        feature.id.return_value = 7
+        layer.getFeatures.return_value = [feature]
+        layer.fields.return_value = []
+        layer.deleteFeatures.return_value = delete_ok
+        layer.addFeature.side_effect = list(add_results) or [True, True]
+        return layer
+
+    def _refresh(self, layer, rows=2):
+        from cartogen_ai.core.agent.tools import hazard_monitoring_tools as hm
+        with patch.object(hm, "QgsFeature", create=True, return_value=MagicMock()):
+            return hm._replace_point_features(layer, [{"__geom__": object()} for _ in range(rows)])
+
+    def test_a_rejected_deletion_undoes_the_command_and_rolls_back(self):
+        layer = self._layer(delete_ok=False)
+        with self.assertRaises(es.EditError):
+            self._refresh(layer)
+        layer.destroyEditCommand.assert_called()
+        layer.rollBack.assert_called()
+        layer.commitChanges.assert_not_called()
+        layer.addFeature.assert_not_called()
+
+    def test_a_rejected_insertion_undoes_everything_and_never_commits(self):
+        layer = self._layer(add_results=[True, False])
+        with self.assertRaises(es.EditError) as ctx:
+            self._refresh(layer)
+        self.assertIn("2 of 2", str(ctx.exception))
+        layer.destroyEditCommand.assert_called()
+        layer.rollBack.assert_called()
+        layer.commitChanges.assert_not_called()
+
+    def test_a_clean_refresh_commits_once_and_counts_every_row(self):
+        layer = self._layer(add_results=[True, True])
+        self.assertEqual(self._refresh(layer), 2)
+        layer.commitChanges.assert_called_once()
+        layer.destroyEditCommand.assert_not_called()
+
+    def test_in_a_users_edit_session_the_tool_undoes_only_its_own_command(self):
+        layer = _layer(editable=True)
+        layer.getFeatures.return_value = []
+        layer.fields.return_value = []
+        layer.addFeature.return_value = False
+        with self.assertRaises(es.EditError):
+            self._refresh(layer, rows=1)
+        layer.destroyEditCommand.assert_called()
+        layer.rollBack.assert_not_called()          # the user's own pending edits are not rolled back
+        layer.commitChanges.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
