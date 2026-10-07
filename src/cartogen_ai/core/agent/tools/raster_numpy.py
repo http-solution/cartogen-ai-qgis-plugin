@@ -17,6 +17,9 @@ import tempfile
 
 MAX_BANDS = 8
 MAX_PIXELS = 25_000_000          # a larger raster is refused rather than exhausting memory
+# Rc20 audit A15: the cell limit alone let 25M cells x 8 bands (200M values; float32 array + the valid-pixel copy + float64 k-means
+# working copies = several GB) through. The budget is on cells x bands.
+MAX_VALUES = 60_000_000
 FIT_SAMPLE = 200_000
 ASSIGN_CHUNK = 500_000
 
@@ -117,6 +120,16 @@ def validate_class_count(num_classes):
 
 # ---------------------------------------------------------------- GDAL I/O --
 
+def check_memory_budget(cols, rows, n_bands, max_pixels=MAX_PIXELS, max_values=MAX_VALUES):
+    """Raises ValueError (plain message) when a raster of cols x rows with n_bands bands is too big to hold in memory. Pure."""
+    cells = cols * rows
+    if cells > max_pixels:
+        raise ValueError(f"the raster has {cells:,} cells, above the {max_pixels:,} limit; clip it first.")
+    if cells * n_bands > max_values:
+        raise ValueError(f"the raster has {cells:,} cells x {n_bands} bands = {cells * n_bands:,} values, above the {max_values:,} "
+                         "limit; clip it or use fewer bands.")
+
+
 def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     """(array (rows, cols, nb) float32, valid mask (rows, cols), template info) from a GDAL-readable raster. Raises ValueError with a
     plain message when the raster cannot be read or is too large."""
@@ -127,10 +140,9 @@ def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     ds = gdal.Open(source)
     if ds is None:
         raise ValueError("the raster could not be opened.")
-    if ds.RasterXSize * ds.RasterYSize > max_pixels:
-        raise ValueError(f"the raster has {ds.RasterXSize * ds.RasterYSize:,} cells, above the {max_pixels:,} limit; clip it first.")
     np = _np()
     wanted = list(bands) if bands else list(range(1, min(ds.RasterCount, MAX_BANDS) + 1))
+    check_memory_budget(ds.RasterXSize, ds.RasterYSize, len(wanted), max_pixels=max_pixels)
     layers, valid = [], np.ones((ds.RasterYSize, ds.RasterXSize), dtype=bool)
     for b in wanted:
         band = ds.GetRasterBand(b)

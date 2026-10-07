@@ -76,9 +76,41 @@ if QGIS_AVAILABLE:
             super().reportError(error, fatalError)
 
 
-# Objects whose worker thread did not stop when asked. Kept referenced for the life of the process:
+# Objects whose worker thread did not stop when asked. Kept referenced while the thread may still run:
 # destroying a context/feedback under a running thread crashes QGIS.
+# Rc20 audit A16: they used to stay referenced for the life of the process, so every abandoned analysis leaked its task, routing
+# context and (large) parameter layers forever. An entry is now released as soon as its task reports a terminal state
+# (see _abandon / release_finished_abandoned).
 _ABANDONED = []
+
+
+def _task_is_done(task):
+    """True when the QgsTask has reached Complete or Terminated, i.e. its worker thread is finished with the objects."""
+    try:
+        from qgis.core import QgsTask
+        return task.status() in (QgsTask.TaskStatus.Complete, QgsTask.TaskStatus.Terminated)
+    except Exception:
+        return False   # unknown -> keep it: leaking is safer than destroying under a live thread
+
+
+def release_finished_abandoned(is_done=None):
+    """Drops abandoned entries whose task has finished; returns how many were released. `is_done(task)` is injectable for tests."""
+    check = is_done or _task_is_done
+    kept = [entry for entry in _ABANDONED if not check(entry[0])]
+    released = len(_ABANDONED) - len(kept)
+    _ABANDONED[:] = kept
+    return released
+
+
+def _abandon(entry):
+    """Keep `entry` alive until its task finishes, then let it go (also swept on every later run)."""
+    _ABANDONED.append(entry)
+    task = entry[0]
+    try:
+        task.taskCompleted.connect(release_finished_abandoned)
+        task.taskTerminated.connect(release_finished_abandoned)
+    except Exception:
+        pass   # the sweep at the start of the next run still releases it
 
 
 def _on_gui_thread():
@@ -113,6 +145,7 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
     if not use_background or not can_run_in_background():
         return fallback(algorithm_id, params, context=context)
 
+    release_finished_abandoned()
     algorithm = QgsApplication.processingRegistry().createAlgorithmById(algorithm_id)
     if algorithm is None:
         return fallback(algorithm_id, params, context=context)   # let processing.run raise its own error
@@ -157,7 +190,7 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
     elapsed = time.monotonic() - started
     if not state["finished"]:
         # abandoned: the worker still owns these -- see _ABANDONED
-        _ABANDONED.append((task, algorithm, feedback, context, params))
+        _abandon((task, algorithm, feedback, context, params))
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="abandoned",
                   duration_ms=int(elapsed * 1000))
         raise AnalysisCancelled("Stopped; the analysis is still winding down in the background.")

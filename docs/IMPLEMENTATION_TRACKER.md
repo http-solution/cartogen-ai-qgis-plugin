@@ -2514,8 +2514,8 @@ Still open:
 |----|---------|-------------------|----------------|
 | A06 | `execute_pyqgis_script` worker shares writable sources with the project | Needs a design choice: copy-on-write snapshots vs read-only mounts; touches the process-isolation work in §1.11 | Hand the worker read-only copies of input layers; decide with owner |
 | A14 | Expensive tools (large raster/vector ops) block the GUI thread | Needs a per-tool decision on which run through the background task runner and how progress/cancel surface | Move the slowest tools onto `QgsTask`; start with polygonize/zonal stats |
-| A15 | Classification holds the whole raster in memory | Needs tiling/chunked k-means; behaviour change for large inputs | Add a pixel-count guard with a clear error now; chunk later |
-| A16 | Abandoned processing bundles are never released in `_background_processing.py` | Lifecycle fix needs a live QGIS session to verify | Release bundles on layer removal and project close; add a live test |
-| A18 | Bootstrap namespace eviction in the root `__init__.py` | Risky on plugin reload; needs a fresh-profile/upgrade test (§1.10) | Scope the eviction to this plugin's own modules; verify on reload |
+| A15 | Classification holds the whole raster in memory | **Guard shipped** (cells x bands budget, 60M values, clear error); chunked k-means still not built | Chunk k-means later if larger rasters are needed |
+| A16 | Abandoned processing bundles are never released in `_background_processing.py` | **Fixed offline**: released when the task reports Complete/Terminated, swept on each run; the real QgsTask signal path is not live-tested | Add a live test that abandons a task |
+| A18 | Bootstrap namespace eviction in the root `__init__.py` | **Last-resort path now scoped** (`claimed_module_names`; the normal path was scoped by #167); reload/upgrade behaviour still needs the §1.10 human test | Run the fresh-profile/upgrade gate |
 
 Release note: the rc21 changelog/notes do not yet mention the audit fixes; update them (or cut a later rc) before publishing.

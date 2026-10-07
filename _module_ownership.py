@@ -42,3 +42,23 @@ def owned_module_names(modules, package_dir):
         if paths and all(_under(p, package_dir) for p in paths):
             owned.append(name)
     return owned
+
+
+def claimed_module_names(modules, package_dir):
+    """Names in `modules` that this package directory claims by NAME, wherever the cached copy came from. Pure.
+
+    Used only by the last-resort bootstrap path (rc20 audit A18), where a stale copy of OUR subpackages was cached from some other
+    location and so is not "under" package_dir. The bare `cartogen_ai` entry plus every `cartogen_ai.<child>[...]` whose first
+    component exists in package_dir (as a package directory or a .py file) is claimed; a child that another distribution
+    contributes to the shared namespace (no such entry here) is left alone, unlike the old evict-everything fallback."""
+    try:
+        children = {os.path.splitext(entry)[0] for entry in os.listdir(package_dir) if not entry.startswith("__")}
+    except OSError:
+        children = set()
+    claimed = []
+    for name in list(modules):
+        if name == "cartogen_ai":
+            claimed.append(name)
+        elif name.startswith("cartogen_ai.") and name.split(".")[1] in children:
+            claimed.append(name)
+    return claimed

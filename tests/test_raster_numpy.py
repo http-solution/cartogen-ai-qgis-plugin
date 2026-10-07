@@ -44,6 +44,21 @@ class TestEqualize(unittest.TestCase):
         self.assertEqual(int(out.max()), 0)
 
 
+class TestMemoryBudget(unittest.TestCase):
+    """Audit A15: the guard counts cells x bands, not just cells."""
+
+    def test_small_raster_passes(self):
+        rn.check_memory_budget(1000, 1000, 8)
+
+    def test_many_bands_over_the_value_budget_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "bands"):
+            rn.check_memory_budget(5000, 5000, 8)          # 25M cells (allowed alone) x 8 = 200M values
+
+    def test_too_many_cells_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "cells"):
+            rn.check_memory_budget(10000, 10000, 1)
+
+
 @unittest.skipIf(np is None, "numpy not installed")
 class TestKmeans(unittest.TestCase):
     def _blobs(self):

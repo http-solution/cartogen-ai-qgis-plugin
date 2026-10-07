@@ -96,9 +96,11 @@ def _bootstrap_namespace():
         return "resolved-normally"
     except ImportError:
         # sys.modules is checked before any finder, so an explicit registration
-        # cannot be beaten by a shadowing package. This is the last resort, so it evicts every cartogen_ai module, as the
-        # whole bootstrap did before #167 scoped the normal path.
-        for name in [n for n in list(sys.modules) if n == "cartogen_ai" or n.startswith("cartogen_ai.")]:
+        # cannot be beaten by a shadowing package. This is the last resort, so it evicts our namespace's modules by name.
+        # Rc20 audit A18: "every cartogen_ai module" also removed children another distribution contributes to the shared
+        # namespace. Evict only what this package directory claims by name (stale copies of ours cached from elsewhere).
+        from ._module_ownership import claimed_module_names
+        for name in claimed_module_names(sys.modules, _PKG_DIR):
             del sys.modules[name]
         ns = types.ModuleType("cartogen_ai")
         ns.__path__ = [_PKG_DIR]
