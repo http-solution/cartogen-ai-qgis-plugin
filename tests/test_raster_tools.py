@@ -903,10 +903,12 @@ class TestZonalStatisticsTool(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("zones", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._zonal_stats_into_layer")
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    def test_success_runs_qgis_zonalstatistics_with_both_layers(self, mock_find, mock_processing):
+    def test_success_computes_statistics_for_both_layers(self, mock_find, mock_compute):
+        """The statistics themselves (background native:zonalstatisticsfb + write-back) are covered live in
+        tests/test_background_work_live.py; here only the tool's wiring."""
         ras, vec = MagicMock(), MagicMock()
         mock_find.side_effect = lambda name: {"dem": ras, "zones": vec}[name]
 
@@ -914,17 +916,13 @@ class TestZonalStatisticsTool(unittest.TestCase):
 
         self.assertTrue(res.get("success"), res)
         self.assertIn("zones", res["message"])
-        alg, params = mock_processing.run.call_args[0]
-        self.assertEqual(alg, "qgis:zonalstatistics")
-        self.assertIs(params["INPUT_RASTER"], ras)
-        self.assertIs(params["INPUT_VECTOR"], vec)
+        mock_compute.assert_called_once_with(ras, vec)
 
-    @patch("cartogen_ai.core.agent.tools.raster_tools.processing", create=True)
+    @patch("cartogen_ai.core.agent.tools.raster_tools._zonal_stats_into_layer", side_effect=RuntimeError("boom"))
     @patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name")
     @patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True)
-    def test_processing_exception_is_reported_not_raised(self, mock_find, mock_processing):
+    def test_processing_exception_is_reported_not_raised(self, mock_find, mock_compute):
         mock_find.side_effect = lambda name: MagicMock()
-        mock_processing.run.side_effect = RuntimeError("boom")
         res = zonal_statistics("dem", "zones")
         self.assertIn("error", res)
         self.assertIn("zonal_statistics failed", res["error"])

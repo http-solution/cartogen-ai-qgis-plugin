@@ -23,6 +23,7 @@ Deliberately conservative:
     running thread) and the call returns anyway after `abandon_after_s`.
   * Failure messages from the algorithm are surfaced, not just "failed".
 """
+import threading
 import time
 
 from ...logger import log_event
@@ -216,3 +217,65 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
     log_event("network_analysis", tag="Tools", tool=algorithm_id, status="done", duration_ms=int(elapsed * 1000),
               count=feedback.no_route_count)
     return results
+
+
+def run_callable(fn, label="Analysis", use_background=True, poll_ms=100, status_every_s=3.0, first_status_after_s=2.0,
+                 abandon_after_s=20.0):
+    """fn() without freezing the GUI, for work that touches NO QGIS objects (GDAL/OGR datasets, numpy arrays, plain data) --
+    rc20 audit A14. fn runs on a plain worker thread while this call spins a nested Qt event loop on the GUI thread, exactly as
+    run_algorithm does for Processing algorithms: the window stays alive and Stop is honoured.
+
+    Do NOT pass a callable that reads or writes QgsMapLayer/QgsProject objects: those are only safe on the GUI thread (use
+    run_algorithm for Processing algorithms, which QGIS itself makes thread-safe). Returns fn's result; re-raises its exception;
+    raises AnalysisCancelled on Stop. Outside a real GUI thread (tests, the kill-switch setting) it simply calls fn()."""
+    if not use_background or not can_run_in_background():
+        return fn()
+
+    state = {"done": False, "result": None, "error": None, "cancelled_at": None}
+
+    def work():
+        try:
+            state["result"] = fn()
+        except BaseException as exc:      # handed back to the caller, not lost on the worker thread
+            state["error"] = exc
+        finally:
+            state["done"] = True
+
+    thread = threading.Thread(target=work, name=f"cartogen-{label}", daemon=True)
+    loop = QEventLoop()
+    started = time.monotonic()
+    last_status = [started - status_every_s + first_status_after_s]
+
+    def tick():
+        now = time.monotonic()
+        if state["done"]:
+            loop.quit()
+        elif state["cancelled_at"] is None and cancel_signal.is_cancelled():
+            state["cancelled_at"] = now
+            cancel_signal.report(f"{label}: stopping...")
+        elif state["cancelled_at"] is not None and now - state["cancelled_at"] > min(abandon_after_s, 2.0):
+            loop.quit()                   # a plain thread cannot be interrupted: give up waiting for it
+        elif state["cancelled_at"] is None and now - last_status[0] >= status_every_s:
+            last_status[0] = now
+            cancel_signal.report(f"{label}: working... {now - started:.0f}s (press Stop to cancel)")
+
+    timer = QTimer()
+    timer.setInterval(poll_ms)
+    timer.timeout.connect(tick)
+    timer.start()
+    thread.start()
+    try:
+        loop.exec()
+    finally:
+        timer.stop()
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    if state["cancelled_at"] is not None and not state["done"]:
+        log_event("background_callable", tag="Tools", tool=label, status="abandoned", duration_ms=elapsed_ms)
+        raise AnalysisCancelled("Stopped; the work is still winding down in the background.")
+    if state["cancelled_at"] is not None:
+        raise AnalysisCancelled("Stopped by the user.")
+    if state["error"] is not None:
+        log_event("background_callable", tag="Tools", tool=label, status="failed", duration_ms=elapsed_ms, error=True)
+        raise state["error"]
+    log_event("background_callable", tag="Tools", tool=label, status="done", duration_ms=elapsed_ms)
+    return state["result"]
