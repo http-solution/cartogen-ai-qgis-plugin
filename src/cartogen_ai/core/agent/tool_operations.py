@@ -95,6 +95,8 @@ TOOL_OPERATION_TYPES = {
     "calculate_damage_exposure_severity": MODIFY,
     "forecast_trend": READ,
     "find_tools": READ,
+    "split_lines_by_zones": CREATE,
+    "generate_contours": CREATE,
     "analyze_incident_trend": READ,
 
     # -- dataset_status_tools.py --

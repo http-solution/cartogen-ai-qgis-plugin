@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (204 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (206 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1653,6 +1653,29 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `layer_name` | string | yes |  |
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
+
+## corridor_tools
+
+### `generate_contours`
+
+Create vector contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a new line layer with an 'ELEV' field. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `raster_layer` | string | yes | Name of the DEM raster layer. |
+| `interval` | number | no | Elevation step between contour lines, default 10. |
+| `band` | integer | no | Band number, default 1. |
+| `output_name` | string | no |  |
+
+### `split_lines_by_zones`
+
+Split a line layer (a road, a highway, a pipeline) by a polygon layer of zones (exclusion zones, flood areas, buffers) into compromised pieces (inside any zone) and clear pieces (outside every zone), style them red and green, and report both the total passable length in km and the longest continuous passable segment in km (they are different numbers). Lengths are ellipsoidal. Connected line features are joined first, so a road stored as many OSM segments counts as one continuous road. Creates a new layer; the inputs are not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `line_layer` | string | yes | Name of the line layer. |
+| `zone_layer` | string | yes | Name of the polygon layer (for example the checkpoint buffers). |
+| `output_name` | string | no | Optional name of the result layer. |
 
 ## critical_link_tools
 

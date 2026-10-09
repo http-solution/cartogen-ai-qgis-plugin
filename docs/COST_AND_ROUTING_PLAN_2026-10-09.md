@@ -38,3 +38,18 @@ Release: its own release candidate after the rc22 fixes (rc22 prepared, rc23 = s
 ## Acceptance (release candidate rc24)
 Run each of the five scenarios separately, then the combined queue. Record the full input, tools selected, outputs, failures and usage; independently check geometry and
 measurements (areas, lengths, contour count, class areas). A budget stop must report partial completion. Nothing here is hand-tested until that run.
+
+## Status of this branch (claude/cost-and-routing, 2026-10-09)
+Offline suite and the new QGIS 4.2.2 Docker tests pass (the 8 offline tests that need DNS fail in the sandbox, as before). Nothing is hand-tested.
+| Step | State |
+|---|---|
+| 1 Measure | Done: `call_metrics`, `model_call` log events, observed footer (fresh vs cached input, output, last call). Not yet run against a live provider: confirm each provider reports `cached_tokens`. |
+| 2 Budget and loop controls | Done: `loop_guard` (duplicate calls, repeated failures, no progress) and a budget check before each request using the observed size of the last call. Defaults unchanged on purpose: no token budget and 20 rounds until single scenarios are measured; the guards are on. |
+| 3 Routing and matching | Done in code: `capabilities` table (data source + action -> tools, checked against the registry), required tools claimed before description scoring, generic verbs no longer score on tool names, capped description scoring, long-request floor, task chains lead with the named data source, a workflow directive for multi-step requests, and `find_tools` so the model can request tools the list missed (offered to the model only when a step has no tool or the request is a workflow). `top_k` stays 40; tool schemas remain ~15-17k tokens: shrinking that needs the live measurement first. |
+| 4 Queue | Done: `job_queue` (numbered or blank-line-separated whole requests only), a confirmation card, one job at a time, pause on failure/stop. Live-tested in the real dock with a fake agent. |
+| 5 Capability gaps | Partly done. `split_lines_by_zones` (total passable length AND longest continuous segment, ellipsoidal, joined segments, red/green) and `generate_contours` (wraps `gdal:contour`, reports DEM pixel size and source, interval is not accuracy) are built and checked against geometry with known answers. **Not done: the elevation DOWNLOAD.** The sandbox has no network, so coverage, resolution, licence, availability and reproducibility of any source (AWS terrain tiles, OpenTopography, Copernicus/SRTM) are unverified; choose and verify one before a `fetch_dem` tool is written. |
+| 6 Fewer round trips | Not started: needs the measurements from step 1 on real runs to decide which workflows are predictable enough to plan once and execute locally. |
+
+## Acceptance still owed
+Each of the five scenarios separately, then the combined queue, on a live provider, with the `model_call` records kept, the geometry and measurements checked
+independently, and every budget or guard stop confirmed to report partial completion.
