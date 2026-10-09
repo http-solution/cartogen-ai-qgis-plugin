@@ -273,8 +273,8 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc19 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc19); the release
-also carries a `SHA256-1.16.0-rc19.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+[1.16.0-rc23 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc23); the release
+also carries a `SHA256-1.16.0-rc23.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
@@ -455,5 +455,8 @@ top of this file.)
 
 ## Support
 
-For issues or questions, use the
-[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues).
+For bugs, use the
+[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues); for questions and
+ideas, use [Discussions](https://github.com/http-solution/cartogen-ai-qgis-plugin/discussions). Security problems go through
+[private vulnerability reporting](https://github.com/http-solution/cartogen-ai-qgis-plugin/security/advisories/new), not a public issue
+(see [SECURITY.md](SECURITY.md)). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

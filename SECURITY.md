@@ -6,6 +6,15 @@ findings — not just a list of intentions), and the limitations that are honest
 still open. It is written to be checked against the code, not trusted on its own —
 file:line references are given throughout so any claim here can be verified directly.
 
+## Reporting a vulnerability
+
+This repository is public. Please do **not** open a public issue for a security problem.
+Use GitHub's private vulnerability reporting:
+[Report a vulnerability](https://github.com/http-solution/cartogen-ai-qgis-plugin/security/advisories/new).
+Include the plugin version, the QGIS version, and the steps to reproduce. Never paste real API keys or
+sensitive project data into a report. This is a volunteer-run project, so there is no guaranteed response
+time; reports are read and triaged as soon as the maintainers can.
+
 <details>
 <summary><strong>Table of contents</strong></summary>
 
