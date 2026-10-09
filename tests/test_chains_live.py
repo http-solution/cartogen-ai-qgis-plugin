@@ -15,7 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     import numpy  # noqa: F401
     from osgeo import gdal  # noqa: F401
-    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer
+    from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsVectorLayer
     LIVE = True
 except ImportError:
     LIVE = False
