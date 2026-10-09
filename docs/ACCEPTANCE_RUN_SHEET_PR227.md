@@ -4,7 +4,7 @@ Purpose: the first real test, with a real model, of what PR #227 added: the cost
 
 ## Before you start
 
-1. Install the zip built from branch `claude/cost-and-routing` (ask for a build of the current head; do not mix with the rc23 zip). Fresh QGIS profile, QGIS 4.2.x.
+1. Install the rc23 zip built from the current `main` (PR #227 is merged, so this is the same build as the hand-verification sheet uses). Fresh QGIS profile, QGIS 4.2.x.
 2. Settings: choose ONE cheap model and keep it for every run (write it in the log). Turn ON **Save an evidence folder for each request**. Leave the token budget at the default (450,000). Leave the tool-call cap at 20.
 3. Save the project first so the evidence folders land next to it (otherwise they go to the QGIS profile `cartogen_ai/exports` folder).
 4. Network: the OSM, HDX and the Copernicus DEM downloads need internet. Note the time of each run; OSM data changes.
