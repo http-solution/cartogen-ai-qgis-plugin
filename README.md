@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc22 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc23 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc22 pre-release** build (rc19 is the last published pre-release until rc22 is uploaded; rc20, rc21 and rc22 add the audit fixes made after it).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc23 pre-release** build (rc19 is the last published pre-release until rc23 is uploaded; rc20 to rc23 add the audit and hand-test fixes made after it).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -36,10 +36,10 @@ black-box answer.
 >   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
 >   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
 >   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc22 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc22 zip has passed local packaging checks and the release workflow's zip checks only.
+> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc23 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
+>   were verified on an earlier release candidate (rc6); the rc23 zip has passed local packaging checks and the release workflow's zip checks only.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc22)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+>   [the rc12 live-test and audit plan (still applies to rc23)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
 
 ## What it does
 
@@ -86,6 +86,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc23
+
+Built on rc22; fixes from its hand test; verified offline and in a local QGIS 4.2.2 run (GitHub Actions did not run), **not by hand**. Full list: the `v1.16.0-rc23` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: a relative output path (for example outputs/report.csv) is anchored to the saved project's folder, or the profile export folder for an unsaved project, instead of the QGIS process folder; the overwrite confirmation now looks in the right place and replies name the absolute path (rc22 hand test N3, N8, N9, H4).
+- Fix: export_layer writes a GeoTIFF for a raster layer, so a slope or other raster result can be exported (H4, D5). A print layout's map takes the canvas rotation and its north arrow follows (F3).
+- Fix: a task that names one specific hazard (drought, extreme heat) is only matched when the request names that hazard, so 'show the severity on the map' no longer asks 'which hazard?' (V1, J5, J16).
+- Fix: after a confirmed Apply edit, a 'show it on the map' part of the same request now runs (T2, V4, J4). A project change drops the previous project's plan, pending previews and carried-over state so a plain 'Yes' cannot resume them (H5, T4, J4, V4).
+- New: apply_graduated_style accepts color_from and color_to (colour words or hex) so an explicit ramp such as 'pale yellow to dark red' is honoured (F2). 'Cluster ... into N groups' reaches unsupervised classification (T6). Help shows the '(new)' explanation only when a mark is shown (V7).
+- Verification: offline suite, ruff and live QGIS 4.2.2 Docker checks of the export, layout and styling fixes. NOT hand-tested: every fix above. Open from the same hand test and not fixed here: invented or wrong facts in replies (model behaviour), reply-wording requirements, legend entries hidden under opaque polygons (issue 165), and rows that were not run. No issue is closed by this build.
 
 ## What's new in 1.16.0-rc22
 
@@ -233,7 +244,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc21 or 1.16.0-rc22 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc22 or 1.16.0-rc23 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
