@@ -1084,14 +1084,17 @@ class ChatTabWidget(QWidget):
             self._pending_analysis_text = None
             self._pending_analysis = None
             self.input_edit.setPlaceholderText(self._default_input_placeholder)
-            reply_key = _normalize_preview_reply(text)
-            if reply_key in _PREVIEW_CONFIRM_REPLIES:
+            # rc22 hand test R2/A1 (issue 230): the exact-keyword sets missed "Yes, proceed." -- the rc18 fix (reply_vocab.router_reply)
+            # reached the other reply branches but not this one, so a natural yes was sent to the model as a new message and the
+            # original request never ran. router_reply accepts a short reply made only of yes words and fillers.
+            decision = reply_vocab.router_reply(text)
+            if decision == "confirm":
                 self._dock.receiveMessageSignal.emit("user", text)
                 # already_echoed=True: original_text was already shown as its own bubble
                 # by _ask_preview_in_chat when the question was first asked -- see that
                 # method's docstring.
                 self._dispatch_message(original_text, pending_analysis, already_echoed=True)
-            elif reply_key in _PREVIEW_CANCEL_REPLIES:
+            elif decision == "cancel":
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
                     "ai", "Okay, cancelled -- send a new message whenever you're ready.")
