@@ -44,9 +44,10 @@ class TestSaveProjectBehavior(unittest.TestCase):
 
         res = save_project("/tmp/out.qgz")
 
-        instance.setFileName.assert_called_once_with("/tmp/out.qgz")
+        # save_project anchors/normalises the path (tools/_paths.py), so on Windows "/tmp/out.qgz" becomes "\\tmp\\out.qgz"
+        instance.setFileName.assert_called_once_with(os.path.normpath("/tmp/out.qgz"))
         self.assertTrue(res["success"])
-        self.assertEqual(res["file_path"], "/tmp/out.qgz")
+        self.assertEqual(res["file_path"], os.path.normpath("/tmp/out.qgz"))
 
     @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.project_tools.QgsProject", create=True)

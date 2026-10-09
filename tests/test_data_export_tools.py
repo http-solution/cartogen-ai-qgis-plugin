@@ -93,7 +93,7 @@ class TestExportStoredData(unittest.TestCase):
         result = export_stored_data("C:/bad/path/export.json")
 
         self.assertIn("error", result)
-        self.assertIn("C:/bad/path/export.json", result["error"])
+        self.assertIn(_os.path.normpath("C:/bad/path/export.json"), result["error"])   # the path is normalised: backslashes on Windows
 
     @patch("cartogen_ai.core.agent.tools.data_export_tools._chat_persistence")
     @patch("cartogen_ai.core.agent.tools.data_export_tools.get_memory_manager")
