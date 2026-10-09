@@ -20,7 +20,7 @@ class TestChains(unittest.TestCase):
     def test_every_slot_is_used_and_every_placeholder_is_a_declared_slot(self):
         for chain in chains.CHAINS:
             text = chains.skeleton_json(chain)
-            used = {w.strip("<>") for w in __import__("re").findall(r"<[a-z_]+>", text)}
+            used = {w.strip("<>") for w in __import__("re").findall(r"<[a-z0-9_]+>", text)}
             self.assertEqual(used, set(chain["slots"]), chain["id"])
 
     def test_chain_needs_are_real_capability_ids(self):
@@ -35,6 +35,8 @@ class TestChains(unittest.TestCase):
                          ["terrain_contours", "terrain_slope"])
         self.assertEqual(chains.chains_for([i for i, _t, _v in cap.needed_capabilities(SCEN["districts"])]), [])
         self.assertEqual(chains.chains_for(["buffer"]), [])
+        self.assertEqual([c["id"] for c in chains.chains_for(["population_data"])], ["population_exposure"])
+        self.assertEqual([c["id"] for c in chains.chains_for(["hdx_boundaries", "pcode_check"])], ["admin_boundary_validation"])
         # the Aden coverage-gap request fits buffer+difference too, but the more specific chain replaces it
         self.assertEqual([c["id"] for c in chains.chains_for([i for i, _t, _v in cap.needed_capabilities(SCEN["aden"])])],
                          ["coverage_gap"])
@@ -59,3 +61,18 @@ class TestChains(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPlainRequests(unittest.TestCase):
+    def test_short_requests_are_recognised_and_carry_the_chain(self):
+        q = "Download the HDX admin2 boundaries for Yemen and check the P-codes are unique and nested correctly"
+        self.assertTrue(cap.is_multi_step(q))
+        self.assertIn("check_pcode_uniqueness", cap.workflow_directive(q))
+        q2 = "How many people live in each district? Use WorldPop for Yemen"
+        self.assertIn("estimate_population_exposure", cap.workflow_directive(q2))
+
+    def test_the_coverage_gap_chain_states_its_limits(self):
+        self.assertIn("straight-line distance gap only", cap.workflow_directive(SCEN["aden"]))
+
+    def test_a_simple_request_is_still_not_a_workflow(self):
+        self.assertFalse(cap.is_multi_step("Show the severity on the map for smoke_admin"))

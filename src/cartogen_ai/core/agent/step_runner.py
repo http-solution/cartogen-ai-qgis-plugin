@@ -119,3 +119,56 @@ def final_result(total, summaries, stopped=None, status=None):
             first = len(summaries) if status else len(summaries) + 1       # a step waiting for Confirm did not run either
             out["not_run"] = f"Steps {first}-{total} were NOT run."
     return out
+
+
+# --- preflight: check the chain against the real project BEFORE the first step runs --------------------------------------------
+VECTOR_PARAMS = frozenset({"layer_name", "input_layer", "mask_layer", "overlay_layer", "zone_layer", "line_layer", "facility_layer",
+                           "road_network_layer", "area_layer", "vector_layer", "extent_layer"})
+RASTER_PARAMS = frozenset({"raster_layer", "dem_layer", "population_raster_layer"})
+# Tools whose `layer_name` names a layer that must already exist as a vector layer; for the rest `layer_name` is an output name or an
+# extent source, so only the unambiguous parameter names above are checked and only against steps that run before anything is created.
+GEOGRAPHIC_SENSITIVE = frozenset({"buffer_analysis"})
+# `layer_name` is the INPUT layer for these tools but a new layer's name for others (add_point_layer) and any layer kind for others
+# still; it is only checked for tools known to take an existing vector layer there.
+INPUT_LAYER_NAME_TOOLS = frozenset({"buffer_analysis", "reproject_layer", "dissolve_layer", "calculate_area", "calculate_length",
+                                    "apply_graduated_style", "apply_categorized_style", "export_layer", "fetch_dem",
+                                    "select_by_attribute", "field_statistics", "check_pcode_uniqueness", "check_pcode_hierarchy"})
+
+
+def _literal_layer_args(step):
+    for key, value in (step.get("arguments") or {}).items():
+        if isinstance(value, str) and not _REF.match(value) and not (value.startswith("<") and value.endswith(">")):
+            if key == "layer_name" and step.get("tool") not in INPUT_LAYER_NAME_TOOLS:
+                continue
+            if key in VECTOR_PARAMS:
+                yield key, value, "vector"
+            elif key in RASTER_PARAMS:
+                yield key, value, "raster"
+
+
+def preflight(steps, facts, operation_of):
+    """Error text or None. `facts` = {layer name: {"kind": "vector"|"raster", "geographic": bool}} from the open project.
+
+    Only what can be known BEFORE running is checked, and only where it is sound: a literal layer name must exist and be the right kind
+    while no earlier step has created anything (afterwards a name may legitimately be one a previous step is about to create);
+    buffer_analysis on a geographic-CRS layer applies the distance in degrees and is refused with the fix. A bad chain is refused with
+    no step run, which costs one model call instead of a half-run chain."""
+    created = False
+    available = sorted(facts)[:15]
+    for i, step in enumerate(steps, 1):
+        tool = step["tool"]
+        for key, name, kind in _literal_layer_args(step):
+            if created:
+                continue
+            info = facts.get(name)
+            if info is None:
+                return (f"Step {i} ({tool}): layer '{name}' ({key}) is not in the project. Layers present: "
+                        f"{', '.join(available) if available else '(none)'}. Use one of these names exactly.")
+            if key != "layer_name" and info.get("kind") != kind:
+                return f"Step {i} ({tool}): '{name}' is a {info.get('kind')} layer but `{key}` needs a {kind} layer."
+            if tool in GEOGRAPHIC_SENSITIVE and key == "layer_name" and info.get("geographic"):
+                return (f"Step {i} ({tool}): '{name}' is in a geographic CRS, so the distance would be applied in degrees. Add a "
+                        "reproject_layer step to a projected CRS first and buffer its result.")
+        if operation_of(tool) in ("CREATE",):
+            created = True
+    return None

@@ -32,6 +32,10 @@ _TABLE = (
      ("apply_categorized_style", "change_layer_color"), ()),
     ("slope", r"\b(slope|steep|terrain)\b", ("slope_analysis",), ()),
     ("elevation_download", r"\b(srtm|opentopography|terrain tiles?|elevation source|digital elevation|dem)\b", ("fetch_dem",), ()),
+    ("population_data", r"\b(worldpop|population (raster|grid|data|exposure)|exposed population|people (living|exposed))\b",
+     ("fetch_worldpop_population", "estimate_population_exposure"), ()),
+    ("pcode_check", r"\bp-?codes?\b.{0,60}\b(valid\w*|check\w*|unique\w*|hierarch\w*|duplicat\w*)|\b(valid\w*|check\w*|verify\w*)\b.{0,40}\bp-?codes?\b",
+     ("check_pcode_uniqueness", "check_pcode_hierarchy"), ()),
     ("contours", r"\bcontour\w*\b", ("generate_contours",), ()),
     ("split_lines", r"\bsplit\b.{0,60}\b(geometry|road|highway|line)s?\b|\bsplit (the )?(highway|road)",
      ("split_lines_by_zones",), ()),
@@ -103,7 +107,7 @@ _PLAIN_NAMES = {
     "reproject": "reproject", "dissolve": "dissolve", "difference": "difference / erase", "clip": "clip", "area": "area",
     "length": "length", "centroids": "centroids", "labels": "labels", "graduated_style": "graduated colour style",
     "categorized_style": "categorised colour style", "slope": "slope", "elevation_download": "elevation (DEM) download",
-    "contours": "contour lines", "split_lines": "split lines by zones", "walking_access": "walking / travel access",
+    "contours": "contour lines", "population_data": "population data / exposure", "pcode_check": "P-code validation", "split_lines": "split lines by zones", "walking_access": "walking / travel access",
     "rank": "rank", "filter_select": "filter / select", "extent": "bounding box", "point_from_coordinates": "point from coordinates",
     "zoom": "zoom", "export": "export", "report_numbers": "report totals",
 }
@@ -121,7 +125,15 @@ def ordered_steps(query):
 
 
 def is_multi_step(query):
-    return len(needed_capabilities(query)) >= MULTI_STEP_MIN_CAPABILITIES
+    """Three or more named steps, or any request a pre-built chain covers (a two-step chain is still a multi-step workflow)."""
+    needed = needed_capabilities(query)
+    if len(needed) >= MULTI_STEP_MIN_CAPABILITIES:
+        return True
+    try:
+        from .chains import chains_for
+        return bool(chains_for([cid for cid, _t, _v in needed]))
+    except Exception:
+        return False
 
 
 def workflow_directive(query):

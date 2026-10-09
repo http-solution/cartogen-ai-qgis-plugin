@@ -45,12 +45,12 @@ class TestChainsLive(unittest.TestCase):
         from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY
         self.tools = TOOL_REGISTRY
 
-    def run_chain(self, chain_id, slots, headless_ok=()):
+    def run_chain(self, chain_id, slots, headless_ok=(), prior=None):
         from cartogen_ai.core.agent import chains, step_runner
         chain = next(c for c in chains.CHAINS if c["id"] == chain_id)
         self.assertEqual(set(slots), set(chain["slots"]))
-        results = []
-        for step in copy.deepcopy(chain["steps"]):
+        results = list(prior or [])       # `prior` stands in for network steps run before (their result fields were read from the code)
+        for step in copy.deepcopy(chain["steps"])[len(results):]:
             args, err = step_runner.resolve_arguments(fill(step["arguments"], slots), results)
             self.assertIsNone(err, err)
             result = self.tools[step["tool"]](**args)
@@ -144,6 +144,30 @@ class TestChainsLive(unittest.TestCase):
         path = os.path.join(tempfile.mkdtemp(prefix="chain_out_"), "hwy.geojson")
         results = self.run_chain("reproject_and_export", {"layer": "hwy", "crs": "EPSG:32638", "format": "geojson", "path": path})
         self.assertTrue(os.path.exists(path), results[1])
+
+    def _admin_layer(self):
+        layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=admin2_pcode:string&field=admin1_pcode:string&field=pop:double", "adm", "memory")
+        feats = []
+        for i in range(3):
+            f = QgsFeature(layer.fields())
+            x = 44 + i * 0.1
+            f.setGeometry(QgsGeometry.fromWkt(f"POLYGON(({x} 15,{x + 0.1} 15,{x + 0.1} 15.1,{x} 15.1,{x} 15))"))
+            f.setAttributes([f"YE12{i:02d}", "YE12", 1.0])
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        QgsProject.instance().addMapLayer(layer)
+
+    def test_admin_boundary_validation_after_the_download_step(self):
+        self._admin_layer()
+        results = self.run_chain("admin_boundary_validation", {"iso3": "YEM", "level": "2"}, prior=[{"layer_name": "adm"}])
+        self.assertTrue(results[1]["passed"] and results[2]["passed"], results)
+
+    def test_population_exposure_after_the_download_step(self):
+        self._admin_layer()
+        self._raster("pop_raster")
+        results = self.run_chain("population_exposure", {"iso3": "YEM", "extent": "adm", "area": "adm"},
+                                 prior=[{"layer_name": "pop_raster"}])
+        self.assertNotIn("error", results[1], results)
 
     def _dem_server(self):
         from tests.test_dem_tools_live import _RangeHandler, _tile

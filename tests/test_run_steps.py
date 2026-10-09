@@ -9,7 +9,7 @@ import cartogen_ai.core.agent.agent_orchestrator as agent_mod
 from cartogen_ai.core.agent import step_runner as sr
 from tests.test_agent_runner import _make_bare_agent
 
-SCHEMAS = {"buffer_layer": {"required": ["layer_name", "distance"]}, "clip_layer": {"required": ["input_layer", "overlay_layer"]},
+SCHEMAS = {"slope_analysis": {"required": ["dem_layer"]}, "add_point_layer": {"required": ["layer_name", "points"]}, "buffer_analysis": {"required": ["layer_name", "distance"]}, "buffer_layer": {"required": ["layer_name", "distance"]}, "clip_layer": {"required": ["input_layer", "overlay_layer"]},
            "delete_layer": {"required": ["layer_name"]}, "get_layers": {}}
 
 
@@ -134,3 +134,50 @@ class TestLoop(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreflight(unittest.TestCase):
+    FACTS = {"roads": {"kind": "vector", "geographic": True}, "dem": {"kind": "raster", "geographic": True},
+             "utm_pts": {"kind": "vector", "geographic": False}}
+
+    def check(self, steps):
+        return sr.preflight(steps, self.FACTS, op)
+
+    def test_a_missing_layer_is_refused_with_the_names_that_exist(self):
+        msg = self.check([{"tool": "clip_layer", "arguments": {"input_layer": "roadz", "mask_layer": "roads"}}])
+        self.assertIn("'roadz'", msg)
+        self.assertIn("roads", msg)
+
+    def test_the_wrong_kind_is_refused(self):
+        self.assertIn("raster layer", self.check([{"tool": "slope_analysis", "arguments": {"dem_layer": "roads"}}]) or "")
+        self.assertIsNone(self.check([{"tool": "slope_analysis", "arguments": {"dem_layer": "dem"}}]))
+
+    def test_buffering_a_geographic_layer_is_refused_with_the_fix(self):
+        msg = self.check([{"tool": "buffer_analysis", "arguments": {"layer_name": "roads", "distance": 5000}}])
+        self.assertIn("reproject_layer", msg)
+        self.assertIsNone(self.check([{"tool": "buffer_analysis", "arguments": {"layer_name": "utm_pts", "distance": 5000}}]))
+
+    def test_names_after_a_creating_step_are_not_checked(self):
+        # op() reports CREATE for everything but delete_layer, so after step 1 a later literal name may be one step 1 produces
+        steps = [{"tool": "buffer_analysis", "arguments": {"layer_name": "utm_pts", "distance": 1, "output_name": "zones"}},
+                 {"tool": "clip_layer", "arguments": {"input_layer": "roads", "mask_layer": "zones"}}]
+        self.assertIsNone(self.check(steps))
+
+    def test_slots_references_and_new_layer_names_are_ignored(self):
+        self.assertIsNone(self.check([{"tool": "add_point_layer", "arguments": {"layer_name": "brand_new", "points": []}}]))
+        self.assertIsNone(self.check([{"tool": "clip_layer", "arguments": {"input_layer": "<x>", "mask_layer": "$prev.layer_name"}}]))
+
+    def test_the_agent_refuses_a_bad_chain_before_running_anything(self):
+        agent = _make_bare_agent(_Scripted([{"role": "assistant", "content": None, "tool_calls": [_call(1, "run_steps", {"steps": [
+            {"tool": "buffer_analysis", "arguments": {"layer_name": "ghost", "distance": 5}}]})]}, {"role": "assistant", "content": "ok"}]))
+        ran = []
+        with patch.object(agent_mod.CartogenAi, "_apply_auto_model_selection", lambda self, q: None), \
+             patch.object(agent_mod.CartogenAi, "_execute_tool", lambda self, n, a: ran.append(n) or {"success": True}), \
+             patch.object(agent_mod.CartogenAi, "_project_layer_facts", staticmethod(lambda _=None: {"roads": {"kind": "vector", "geographic": False}})), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.build_system_prompt", return_value="sys"), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.TOOLS_SCHEMA", _tools("buffer_analysis", "clip_layer", "run_steps")), \
+             patch("cartogen_ai.core.agent.agent_orchestrator.time.sleep"):
+            agent.run("buffer ghost")
+        self.assertEqual(ran, [])
+        payload = json.loads([m for m in agent.client.last_messages if m.get("role") == "tool"][-1]["content"])
+        self.assertIn("not in the project", payload["error"])

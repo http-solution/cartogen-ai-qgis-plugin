@@ -773,6 +773,20 @@ class CartogenAi:
         except Exception:
             return set()
 
+    @staticmethod
+    def _project_layer_facts(_unused=None):
+        """{layer name: {"kind", "geographic"}} for the open project (main thread). None outside QGIS, which skips preflight (an empty dict is a real, empty project)."""
+        try:
+            from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer
+        except ImportError:
+            return None
+        facts = {}
+        for layer in QgsProject.instance().mapLayers().values():
+            kind = "raster" if isinstance(layer, QgsRasterLayer) else "vector" if isinstance(layer, QgsVectorLayer) else None
+            if kind:
+                facts[layer.name()] = {"kind": kind, "geographic": bool(layer.crs().isGeographic())}
+        return facts
+
     def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
                    correlation_id, provider_name):
         """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
@@ -785,6 +799,10 @@ class CartogenAi:
         schemas = {t.get("function", {}).get("name"): t.get("function", {}).get("parameters", {}) for t in active_tools}
         if problem is None:
             problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type)
+        if problem is None:
+            facts = self._run_on_main_thread(self._project_layer_facts, None)
+            if isinstance(facts, dict) and not isinstance(facts.get("error"), str):    # None / error dict = no QGIS: skip preflight
+                problem = step_runner.preflight(steps, facts, tool_operations.get_tool_operation_type)
         if problem:
             return {"error": problem, "completed": 0}
         results, summaries = [], []

@@ -45,7 +45,9 @@ CHAINS = [
          {"tool": "fetch_dem", "arguments": {"layer_name": "<aoi>"}},
          {"tool": "slope_analysis", "arguments": {"dem_layer": "$prev.layer_name"}}]},
     {"id": "coverage_gap", "needs": ("buffer", "dissolve", "difference"),
-     "title": "buffer facilities in metres, merge the buffers, and subtract them from an area to find what is NOT covered",
+     "title": "buffer facilities in metres, merge the buffers, and subtract them from an area to find what lies OUTSIDE that straight-line distance",
+     "caveat": ("This is a straight-line distance gap only: it ignores roads, capacity, opening status and where people live. Say so, "
+                "and do not call the result an operational service gap; for people beyond a travel time use population_access_gap."),
      "slots": {"facilities": "point layer name", "utm": "projected CRS code for the area, e.g. EPSG:32638", "metres": "buffer distance in metres",
                "area": "polygon layer of the area to check (districts, boundary)"},
      "steps": [
@@ -81,6 +83,20 @@ CHAINS = [
      "steps": [
          {"tool": "reproject_layer", "arguments": {"layer_name": "<layer>", "crs_code": "<crs>"}},
          {"tool": "export_layer", "arguments": {"layer_name": "$prev.layer_name", "format": "<format>", "output_path": "<path>"}}]},
+    {"id": "population_exposure", "needs": ("population_data",),
+     "title": "download the WorldPop population raster for an area, then sum the population inside each polygon of an area layer",
+     "slots": {"iso3": "three-letter country code", "extent": "layer covering the area of interest (limits the download)",
+               "area": "polygon layer to sum the population in (districts, or a buffer you made)"},
+     "steps": [
+         {"tool": "fetch_worldpop_population", "arguments": {"iso3": "<iso3>", "extent_layer": "<extent>"}},
+         {"tool": "estimate_population_exposure", "arguments": {"population_raster_layer": "$prev.layer_name", "area_layer": "<area>"}}]},
+    {"id": "admin_boundary_validation", "needs": ("hdx_boundaries", "pcode_check"),
+     "title": "download OCHA COD-AB admin boundaries, then check P-code uniqueness and the parent/child P-code hierarchy",
+     "slots": {"iso3": "three-letter country code", "level": "admin level, e.g. 2"},
+     "steps": [
+         {"tool": "fetch_hdx_admin_boundaries", "arguments": {"iso3": "<iso3>", "admin_level": "<level>"}},
+         {"tool": "check_pcode_uniqueness", "arguments": {"layer_name": "$prev.layer_name"}},
+         {"tool": "check_pcode_hierarchy", "arguments": {"layer_name": "$1.layer_name"}}]},
 ]
 
 
@@ -114,7 +130,7 @@ def _one_directive(chain):
     return (f"Known-good chain for this ({chain['title']}): call `run_steps` with {skeleton_json(chain)} -- replace each <slot> with a "
             f"value from the user's request ({slots}); keep the $prev references and the step order. If a slot is not stated and "
             "cannot be read from the project, ask instead of guessing. If a step reports an error or waits for confirmation the chain "
-            "stops there and tells you which steps ran.")
+            "stops there and tells you which steps ran." + (" " + chain["caveat"] if chain.get("caveat") else ""))
 
 
 def validate_chain(chain, schemas, operation_of):
