@@ -44,6 +44,43 @@ CHAINS = [
      "steps": [
          {"tool": "fetch_dem", "arguments": {"layer_name": "<aoi>"}},
          {"tool": "slope_analysis", "arguments": {"dem_layer": "$prev.layer_name"}}]},
+    {"id": "coverage_gap", "needs": ("buffer", "dissolve", "difference"),
+     "title": "buffer facilities in metres, merge the buffers, and subtract them from an area to find what is NOT covered",
+     "slots": {"facilities": "point layer name", "utm": "projected CRS code for the area, e.g. EPSG:32638", "metres": "buffer distance in metres",
+               "area": "polygon layer of the area to check (districts, boundary)"},
+     "steps": [
+         {"tool": "reproject_layer", "arguments": {"layer_name": "<facilities>", "crs_code": "<utm>"}},
+         {"tool": "buffer_analysis", "arguments": {"layer_name": "$prev.layer_name", "distance": "<metres>"}},
+         {"tool": "dissolve_layer", "arguments": {"layer_name": "$prev.layer_name"}},
+         {"tool": "difference_layers", "arguments": {"input_layer": "<area>", "overlay_layer": "$prev.layer_name"}}]},
+    {"id": "outside_distance", "needs": ("buffer", "difference"),
+     "title": "buffer a layer in metres and subtract it from another layer (what lies farther than that distance)",
+     "slots": {"source": "layer to buffer", "utm": "projected CRS code for the area, e.g. EPSG:32638", "metres": "buffer distance in metres",
+               "target": "layer to subtract the buffer from"},
+     "steps": [
+         {"tool": "reproject_layer", "arguments": {"layer_name": "<source>", "crs_code": "<utm>"}},
+         {"tool": "buffer_analysis", "arguments": {"layer_name": "$prev.layer_name", "distance": "<metres>"}},
+         {"tool": "difference_layers", "arguments": {"input_layer": "<target>", "overlay_layer": "$prev.layer_name"}}]},
+    {"id": "clip_dem_slope", "needs": ("clip", "slope"),
+     "title": "clip a DEM raster to a boundary, then compute slope",
+     "slots": {"dem": "DEM raster layer name", "boundary": "polygon layer to clip to"},
+     "steps": [
+         {"tool": "raster_clip", "arguments": {"raster_layer": "<dem>", "mask_layer": "<boundary>"}},
+         {"tool": "slope_analysis", "arguments": {"dem_layer": "$prev.layer_name"}}]},
+    {"id": "clip_and_style", "needs": ("clip", "graduated_style"),
+     "title": "clip a layer to a boundary, colour the result by a numeric field, and zoom to it",
+     "slots": {"layer": "layer to clip", "boundary": "polygon layer to clip to", "field": "numeric field to colour by"},
+     "steps": [
+         {"tool": "clip_layer", "arguments": {"input_layer": "<layer>", "mask_layer": "<boundary>"}},
+         {"tool": "apply_graduated_style", "arguments": {"layer_name": "$prev.layer_name", "field": "<field>"}},
+         {"tool": "zoom_to_layer", "arguments": {"layer_name": "$1.layer_name"}}]},
+    {"id": "reproject_and_export", "needs": ("reproject", "export"),
+     "title": "reproject a layer, then export it to a file",
+     "slots": {"layer": "layer to reproject", "crs": "target CRS code, e.g. EPSG:32638", "format": "export format the user asked for",
+               "path": "output file path"},
+     "steps": [
+         {"tool": "reproject_layer", "arguments": {"layer_name": "<layer>", "crs_code": "<crs>"}},
+         {"tool": "export_layer", "arguments": {"layer_name": "$prev.layer_name", "format": "<format>", "output_path": "<path>"}}]},
 ]
 
 
@@ -51,7 +88,11 @@ def chains_for(needed_ids, limit=2):
     """Every chain whose required capabilities are all in `needed_ids`, in table order, at most `limit`. A request may fit two (a
     terrain study asking for contours AND slope). Pure."""
     needed = set(needed_ids or ())
-    return [c for c in CHAINS if set(c["needs"]) <= needed][:limit]
+    fits = [c for c in CHAINS if set(c["needs"]) <= needed]
+    # A chain whose steps are all contained in a more specific chain that also fits is redundant (buffer+dissolve+difference
+    # already includes buffer+difference).
+    fits = [c for c in fits if not any(set(c["needs"]) < set(o["needs"]) for o in fits)]
+    return fits[:limit]
 
 
 def skeleton_json(chain):

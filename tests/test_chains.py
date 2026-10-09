@@ -35,6 +35,9 @@ class TestChains(unittest.TestCase):
                          ["terrain_contours", "terrain_slope"])
         self.assertEqual(chains.chains_for([i for i, _t, _v in cap.needed_capabilities(SCEN["districts"])]), [])
         self.assertEqual(chains.chains_for(["buffer"]), [])
+        # the Aden coverage-gap request fits buffer+difference too, but the more specific chain replaces it
+        self.assertEqual([c["id"] for c in chains.chains_for([i for i, _t, _v in cap.needed_capabilities(SCEN["aden"])])],
+                         ["coverage_gap"])
 
     def test_the_directive_carries_a_parseable_skeleton(self):
         text = cap.workflow_directive(SCEN["highway"])
