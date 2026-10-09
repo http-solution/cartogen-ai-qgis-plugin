@@ -27,7 +27,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc23 pre-release** build (rc19 is the last published pre-release until rc23 is uploaded; rc20 to rc23 add the audit fixes, hand-test fixes and the cost and routing work made after it).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc23 pre-release** build (published as the `cartogen-ai-v1.16.0-rc23` pre-release on the Releases page; rc20 to rc23 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
