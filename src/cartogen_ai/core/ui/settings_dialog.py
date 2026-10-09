@@ -27,6 +27,7 @@ from ...infrastructure.providers.claude import list_models as _list_claude
 from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
+    SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
@@ -471,6 +472,16 @@ class CartogenAiSettingsDialog(QDialog):
             "Turning this off does not remove notes already saved from before this was disabled."
         )
         layout.addWidget(self.persist_project_memory_checkbox)
+
+        self.evidence_checkbox = QCheckBox("Save an evidence folder for each request (testing and review)")
+        self.evidence_checkbox.setChecked(bool(self.settings.value(SETTINGS_EVIDENCE_ENABLED, False, type=bool)))
+        self.evidence_checkbox.setToolTip(
+            "When on, every request writes a folder 'cartogen_evidence/<time>_<n>' next to the project (or in the QGIS profile "
+            "folder for an unsaved project) holding the request, every tool call with its REAL arguments and results, timings, the "
+            "layers created, the final reply, a map-canvas screenshot and copies of any files written, with SHA-256 hashes. "
+            "Unlike the logs, this includes raw values such as coordinates and attribute data, so do not share the folder "
+            "without checking it. Nothing is uploaded. Off by default.")
+        layout.addWidget(self.evidence_checkbox)
 
         # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
@@ -938,6 +949,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
+        self.settings.setValue(SETTINGS_EVIDENCE_ENABLED, self.evidence_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())

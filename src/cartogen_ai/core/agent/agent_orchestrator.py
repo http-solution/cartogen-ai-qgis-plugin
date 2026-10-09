@@ -46,7 +46,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import step_runner, tool_operations, tool_result as tool_results
+from . import evidence, step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -61,6 +61,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
     SETTINGS_MAX_TOOL_ITERATIONS,
     SETTINGS_MAX_TURN_TOKENS,
+    SETTINGS_EVIDENCE_ENABLED,
     provider_model_list_key,
 )
 
@@ -780,6 +781,71 @@ class CartogenAi:
         from . import discovery
         return discovery.gather_facts()
 
+    def _evidence_start(self, user_query):
+        """Create this request's evidence recorder when the user switched evidence on in Settings, else None. Never raises."""
+        self._evidence = None
+        try:
+            if not QgsSettings().value(SETTINGS_EVIDENCE_ENABLED, False, type=bool):
+                return
+            from .tools._paths import resolve_output_path
+            self._evidence = evidence.EvidenceRecorder(
+                resolve_output_path(evidence.relative_folder("t%d" % (getattr(self, "_turn_counter", 0) + 1))), user_query)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_start", error_class=type(e).__name__, error=True)
+
+    def _evidence_finish(self, final_text):
+        recorder = getattr(self, "_evidence", None)
+        self._evidence = None
+        if recorder is None:
+            return
+        try:
+            usage = self.get_turn_usage_detail_text() if hasattr(self, "get_turn_usage_detail_text") else ""
+            recorder.finish(final_text, usage_line=usage or "",
+                            screenshot_fn=lambda path: self._run_on_main_thread(self._save_canvas, path) is True)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_finish", error_class=type(e).__name__, error=True)
+
+    @staticmethod
+    def _save_canvas(path):
+        """Main thread: save the map canvas as an image. False when there is no canvas (headless)."""
+        try:
+            from qgis.utils import iface
+        except ImportError:
+            return False
+        if iface is None:
+            return False
+        iface.mapCanvas().saveAsImage(path)
+        return True
+
+    @staticmethod
+    def _layer_names(_unused=None):
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return []
+        return sorted(layer.name() for layer in QgsProject.instance().mapLayers().values())
+
+    def _exec_recorded(self, name, arguments):
+        """_execute_tool, plus an evidence entry (real arguments, result, timing, layers created) when evidence is on."""
+        recorder = getattr(self, "_evidence", None)
+        if recorder is None:
+            return self._execute_tool(name, arguments)
+        before = self._run_on_main_thread(self._layer_names, None)
+        started = time.monotonic()
+        result = self._execute_tool(name, arguments)
+        elapsed = (time.monotonic() - started) * 1000
+        try:
+            after = self._run_on_main_thread(self._layer_names, None)
+            new = [n for n in (after if isinstance(after, list) else []) if n not in (before if isinstance(before, list) else [])]
+            try:
+                args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            except (TypeError, ValueError):
+                args = str(arguments)
+            recorder.record_call(name, args, result, elapsed, new)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_record", error_class=type(e).__name__, error=True)
+        return result
+
     def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
                    correlation_id, provider_name):
         """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
@@ -818,7 +884,7 @@ class CartogenAi:
                 except Exception:
                     pass
             started = time.monotonic()
-            result = response_guard.annotate_not_run(self._execute_tool(tool, json.dumps(resolved, default=str)))
+            result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
             failed = tool_results.is_error(result)
             turn_tool_log.append((tool, failed, tool_results.error_of(result)))
             guard.record_call(tool, resolved, failed, tool_results.error_of(result) or "", tool_operations.get_tool_operation_type(tool))
@@ -1551,9 +1617,13 @@ class CartogenAi:
             return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
 
         token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
+        self._evidence_start(user_query)
         try:
-            return self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            reply = self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            self._evidence_finish(reply)
+            return reply
         finally:
+            self._evidence = None
             cancel_signal.end(token)
             self._turn_project_session = None
             self._stray_fragment_turn = False
@@ -1777,7 +1847,7 @@ class CartogenAi:
                     tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
                                                   should_stop, correlation_id, provider_name)
                 else:
-                    tool_result = self._execute_tool(name, arguments)
+                    tool_result = self._exec_recorded(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
                 # Put "this call did not run" into the data the model reasons over, not only
                 # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
