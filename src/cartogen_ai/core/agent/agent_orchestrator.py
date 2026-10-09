@@ -46,7 +46,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import evidence, step_runner, tool_operations, tool_result as tool_results
+from . import evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -785,7 +785,7 @@ class CartogenAi:
         """Create this request's evidence recorder when the user switched evidence on in Settings, else None. Never raises."""
         self._evidence = None
         try:
-            if not QgsSettings().value(SETTINGS_EVIDENCE_ENABLED, False, type=bool):
+            if str(QgsSettings().value(SETTINGS_EVIDENCE_ENABLED, False)).lower() not in ("true", "1"):     # QSettings may hand back text
                 return
             from .tools._paths import resolve_output_path
             self._evidence = evidence.EvidenceRecorder(
@@ -825,15 +825,28 @@ class CartogenAi:
             return []
         return sorted(layer.name() for layer in QgsProject.instance().mapLayers().values())
 
+    def _note_turn_call(self, name, arguments, result):
+        """Remember (tool, arguments, result) for this turn so look_followup can see which map hints were never acted on."""
+        try:
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError):
+            args = {}
+        calls = getattr(self, "_turn_calls", None)
+        if calls is not None:
+            calls.append((name, args if isinstance(args, dict) else {}, result))
+
     def _exec_recorded(self, name, arguments):
         """_execute_tool, plus an evidence entry (real arguments, result, timing, layers created) when evidence is on."""
         recorder = getattr(self, "_evidence", None)
         if recorder is None:
-            return self._execute_tool(name, arguments)
+            result = self._execute_tool(name, arguments)
+            self._note_turn_call(name, arguments, result)
+            return result
         before = self._run_on_main_thread(self._layer_names, None)
         started = time.monotonic()
         result = self._execute_tool(name, arguments)
         elapsed = (time.monotonic() - started) * 1000
+        self._note_turn_call(name, arguments, result)
         try:
             after = self._run_on_main_thread(self._layer_names, None)
             new = [n for n in (after if isinstance(after, list) else []) if n not in (before if isinstance(before, list) else [])]
@@ -1735,6 +1748,8 @@ class CartogenAi:
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        self._turn_calls = []
+        look_nudged = False
         # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
         # have not since succeeded -- feeds response_guard's unbacked-data warning below.
         turn_pending = []
@@ -1793,6 +1808,13 @@ class CartogenAi:
             messages.append(message)
 
             tool_calls = message.get("tool_calls")
+            if not tool_calls and not look_nudged:
+                nudge = look_followup.nudge_for(user_query, self._turn_calls)
+                if nudge:                                   # one deterministic follow-up; see look_followup's docstring
+                    look_nudged = True
+                    log_event("look_followup", tag="Agent", status="nudged", correlation_id=correlation_id)
+                    messages.append({"role": "user", "content": nudge})
+                    continue
             if not tool_calls:
                 content = message.get("content")
                 if content is None or (isinstance(content, str) and not content.strip()):

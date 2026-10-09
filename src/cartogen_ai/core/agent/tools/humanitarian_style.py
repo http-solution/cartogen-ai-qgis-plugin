@@ -733,6 +733,36 @@ def refresh_legend(layer):
         return False
 
 
+def raise_above_polygons(layer):
+    """Move a point or line layer above the polygon layers that sit over it in the top level of the Layers panel (rc22 hand test T3: six
+    UNOSAT points were drawn correctly but hidden under the admin boundary). Returns the names it was lifted over. Polygon layers are never
+    moved, and a layer inside a group is left where the user put it."""
+    if not QGIS_AVAILABLE or layer is None:
+        return []
+    try:
+        from qgis.core import QgsLayerTree, QgsProject, QgsVectorLayer, QgsWkbTypes
+        if not isinstance(layer, QgsVectorLayer) or QgsWkbTypes.geometryType(layer.wkbType()) == QgsWkbTypes.GeometryType.PolygonGeometry:
+            return []
+        root = QgsProject.instance().layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None or node.parent() != root:
+            return []
+        children = root.children()
+        idx = children.index(node)
+        over = [c for c in children[:idx] if QgsLayerTree.isLayer(c) and isinstance(c.layer(), QgsVectorLayer)
+                and QgsWkbTypes.geometryType(c.layer().wkbType()) == QgsWkbTypes.GeometryType.PolygonGeometry]
+        if not over:
+            return []
+        top = children.index(over[0])
+        visible = node.itemVisibilityChecked()
+        new = root.insertLayer(top, layer)
+        new.setItemVisibilityChecked(visible)
+        root.removeChildNode(node)
+        return [c.name() for c in over]
+    except Exception:
+        return []
+
+
 def raise_above_rasters(layer):
     """Move a vector layer above the raster layers that sit over it in the top level of the Layers panel, so an analysis result is not hidden
     behind an image or a DEM. Returns the names of the rasters it was lifted over ([] when nothing needed moving). rc18 hand test N2: the
