@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc22
+version=1.16.0-rc23
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,16 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc22 (2026-10-07):
+changelog=v1.16.0-rc23 (2026-10-09):
+    Release candidate 23 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the hand test of rc22.
+    - Fix: a relative output path (for example outputs/report.csv) is anchored to the saved project's folder, or the profile export folder for an unsaved project, instead of the QGIS process folder; the overwrite confirmation now looks in the right place and replies name the absolute path (rc22 hand test N3, N8, N9, H4).
+    - Fix: export_layer writes a GeoTIFF for a raster layer, so a slope or other raster result can be exported (H4, D5). A print layout's map takes the canvas rotation and its north arrow follows (F3).
+    - Fix: a task that names one specific hazard (drought, extreme heat) is only matched when the request names that hazard, so 'show the severity on the map' no longer asks 'which hazard?' (V1, J5, J16).
+    - Fix: after a confirmed Apply edit, a 'show it on the map' part of the same request now runs (T2, V4, J4). A project change drops the previous project's plan, pending previews and carried-over state so a plain 'Yes' cannot resume them (H5, T4, J4, V4).
+    - New: apply_graduated_style accepts color_from and color_to (colour words or hex) so an explicit ramp such as 'pale yellow to dark red' is honoured (F2). 'Cluster ... into N groups' reaches unsupervised classification (T6). Help shows the '(new)' explanation only when a mark is shown (V7).
+    - Verification: offline suite, ruff and live QGIS 4.2.2 Docker checks of the export, layout and styling fixes. NOT hand-tested: every fix above. Open from the same hand test and not fixed here: invented or wrong facts in replies (model behaviour), reply-wording requirements, legend entries hidden under opaque polygons (issue 165), and rows that were not run. No issue is closed by this build.
+
+v1.16.0-rc22 (2026-10-07):
     Release candidate 22 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc20 architectural audit.
     - Fix: a result that replaces a layer of the same name no longer overwrites a layer you made yourself. Plugin results are marked as the plugin's own; a same-named layer of yours is set aside (renamed) and the reply says so (rc20 audit A02).
     - Fix: feature extraction from imagery only outlines the detected object, not the surrounding background (A01), and a rotated or non-square mask keeps its true geometry (A10).
