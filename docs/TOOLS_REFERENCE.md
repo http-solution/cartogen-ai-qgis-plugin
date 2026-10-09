@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (207 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (208 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2280,6 +2280,14 @@ Look up which tools can do a step you were not given a tool for (for example 'co
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `need` | string | yes | The step you need to do, in plain words. |
+
+### `run_steps`
+
+Run several tool calls in order in ONE step instead of one model turn each. Use it only when you already know every argument of the whole chain (for example you choose the output layer names yourself). Each step is {tool, arguments}; an argument may be the whole-string reference "$2.layer_name" (field `layer_name` of step 2's result) or "$prev.layer_name". Steps run one at a time through the normal tool path, so confirmations and safety checks still apply; the run STOPS at the first error or the first call waiting for the user's Confirm and reports exactly which steps ran. At most 8 steps; no deleting tools; do not nest run_steps. If a later step depends on something you must look at first, make separate calls instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `steps` | array[object] | yes | Ordered steps. |
 
 ## tool_operations_tools
 

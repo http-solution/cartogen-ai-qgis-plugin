@@ -376,6 +376,8 @@ class ToolRouter:
             from ..agent.capabilities import is_multi_step, uncovered_capabilities
             if (uncovered_capabilities(user_query) or is_multi_step(user_query)) and "find_tools" in known_names:
                 always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
+            if is_multi_step(user_query) and "run_steps" in known_names:
+                always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
         except Exception:
             pass
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.

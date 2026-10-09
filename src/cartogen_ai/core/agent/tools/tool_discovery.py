@@ -57,3 +57,23 @@ def find_tools(need):
     return {"success": True, "tool_names": [name for _s, name, _d in matches],
             "tools": [{"name": name, "does": (desc.split(". ")[0])[:160]} for _s, name, desc in matches],
             "note": "These tools are now available for the rest of this request."}
+
+
+@register_tool(
+    "run_steps",
+    "Run several tool calls in order in ONE step instead of one model turn each. Use it only when you already know every argument "
+    "of the whole chain (for example you choose the output layer names yourself). Each step is {tool, arguments}; an argument "
+    "may be the whole-string reference \"$2.layer_name\" (field `layer_name` of step 2's result) or \"$prev.layer_name\". Steps "
+    "run one at a time through the normal tool path, so confirmations and safety checks still apply; the run STOPS at the first "
+    "error or the first call waiting for the user's Confirm and reports exactly which steps ran. At most 8 steps; no deleting "
+    "tools; do not nest run_steps. If a later step depends on something you must look at first, make separate calls instead.",
+    {"type": "object", "properties": {
+        "steps": {"type": "array", "description": "Ordered steps.", "items": {"type": "object", "properties": {
+            "tool": {"type": "string", "description": "Tool name."},
+            "arguments": {"type": "object", "description": "That tool's arguments."}}, "required": ["tool"]}}},
+     "required": ["steps"]},
+)
+def run_steps(steps=None):
+    # The agent loop runs this itself (it needs the turn's tool path, guard and callbacks); reaching here means it was called
+    # outside a turn, where there is nothing to run the steps against.
+    return {"error": "run_steps can only be used inside an agent turn."}

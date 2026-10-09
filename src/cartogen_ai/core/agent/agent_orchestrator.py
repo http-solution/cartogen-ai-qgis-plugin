@@ -46,7 +46,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import tool_operations, tool_result as tool_results
+from . import step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -772,6 +772,69 @@ class CartogenAi:
             return set(QgsProject.instance().mapLayers().keys())
         except Exception:
             return set()
+
+    def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
+                   correlation_id, provider_name):
+        """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
+
+        Every inner call goes through _execute_tool exactly like a call the model made on its own, so confirmations, the egress gate,
+        undo snapshots and the stale-turn check all still apply; it is also recorded in turn_tool_log / turn_pending / the loop guard
+        so the final-text reconciliation and the guards see what really ran. The chain stops at the first error, the first call
+        waiting for the user's Confirm, a Stop request or a guard stop. Mutates turn_tool_log and turn_pending in place."""
+        steps, problem = step_runner.parse_steps(arguments)
+        schemas = {t.get("function", {}).get("name"): t.get("function", {}).get("parameters", {}) for t in active_tools}
+        if problem is None:
+            problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type)
+        if problem:
+            return {"error": problem, "completed": 0}
+        results, summaries = [], []
+        total = len(steps)
+        for index, step in enumerate(steps, 1):
+            tool = step["tool"]
+            last = index == total
+            if should_stop is not None and should_stop():
+                return step_runner.final_result(total, summaries, stopped="Stopped by the user.")
+            resolved, problem = step_runner.resolve_arguments(step.get("arguments", {}), results)
+            if problem:
+                return step_runner.final_result(total, summaries + [step_runner.step_summary(index, tool, {"error": problem}, False, 300)],
+                                                stopped=f"Step {index} ({tool}): {problem}")
+            log_event("tool_call", tag="Agent", tool=tool, status="running", correlation_id=correlation_id, provider=provider_name)
+            if tool_step_callback is not None:
+                try:
+                    tool_step_callback(tool, "running", None)
+                except Exception:
+                    pass
+            started = time.monotonic()
+            result = response_guard.annotate_not_run(self._execute_tool(tool, json.dumps(resolved, default=str)))
+            failed = tool_results.is_error(result)
+            turn_tool_log.append((tool, failed, tool_results.error_of(result)))
+            guard.record_call(tool, resolved, failed, tool_results.error_of(result) or "", tool_operations.get_tool_operation_type(tool))
+            status = tool_results.status_of(result)
+            if status in response_guard.NOT_RUN_STATUSES:
+                turn_pending.append(tool)
+            elif not failed and tool in turn_pending:
+                turn_pending[:] = [n for n in turn_pending if n != tool]
+            log_event("tool_call", tag="Agent", tool=tool, status="failed" if failed else "done",
+                      duration_ms=int((time.monotonic() - started) * 1000), correlation_id=correlation_id, provider=provider_name,
+                      **({"error_class": tool_results.error_class_of(result), "error": True} if failed else {}))
+            if tool_step_callback is not None:
+                try:
+                    tool_step_callback(tool, "failed" if failed else "done", tool_results.error_of(result))
+                except Exception:
+                    pass
+            self._remember_grounding(json.dumps(result, default=str))
+            results.append(result)
+            not_run = status in response_guard.NOT_RUN_STATUSES
+            summaries.append(step_runner.step_summary(index, tool, result, not (failed or not_run),
+                                                      step_runner.LAST_RESULT_CHARS if last else step_runner.RESULT_CHARS))
+            if failed:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) failed: {tool_results.error_of(result)}")
+            if not_run:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) is waiting for the user's confirmation.",
+                                                status=status)
+            if guard.stop:
+                return step_runner.final_result(total, summaries, stopped="Stopped by the loop guard.")
+        return step_runner.final_result(total, summaries)
 
     def _execute_tool(self, name, arguments):
         """Single entry point for every tool call in run()'s loop, regardless
@@ -1681,7 +1744,11 @@ class CartogenAi:
                     except Exception:
                         pass
                 _tool_start = time.monotonic()
-                tool_result = self._execute_tool(name, arguments)
+                if name == "run_steps":
+                    tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
+                                                  should_stop, correlation_id, provider_name)
+                else:
+                    tool_result = self._execute_tool(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
                 # Put "this call did not run" into the data the model reasons over, not only
                 # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).

@@ -141,6 +141,8 @@ def workflow_directive(query):
     if fallback:
         text += (" Steps marked 'no dedicated tool' can only be done with " + " or ".join(f"`{n}`" for n in fallback)
                  + " (prefer a constrained Processing algorithm; use a script only as a last resort and say so).")
-    text += (" Do each step once, check each result before the next, and if a step cannot be completed say which steps are done and "
+    text += (" Do each step once. When you already know every argument of a chain of steps (you choose the output layer names), "
+             "send that chain as ONE `run_steps` call instead of one turn per step; check results before continuing only where the "
+             "next step genuinely depends on what you see. If a step cannot be completed say which steps are done and "
              "which are not -- never report the whole request as complete.")
     return text
