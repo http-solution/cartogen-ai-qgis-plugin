@@ -1,0 +1,49 @@
+# One-off: publishes the 1.16.0-rc23 pre-release. Lives only on the claude/publish-rc23 branch (NOT main).
+# Runs on a push to that branch because the session that prepared it can neither dispatch workflows nor push tags.
+# Idempotent: skips if the release already exists.
+name: publish-rc23
+
+on:
+  push:
+    branches: [claude/publish-rc23]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and publish rc23
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          VERSION=1.16.0-rc23
+          SHA=945ba2fedd5a866692f54400c18121e57e05cce3
+          TAG="cartogen-ai-v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "release exists, skipping"; exit 0; fi
+          git checkout -q --force "$SHA"
+          git clean -fdq
+          ACTUAL=$(grep '^version=' metadata.txt | cut -d= -f2)
+          if [ "$ACTUAL" != "$VERSION" ]; then echo "::error::$SHA has version $ACTUAL, expected $VERSION"; exit 1; fi
+          rm -rf dist
+          python plugin_upload.py
+          ZIP="dist/cartogen_ai_v${VERSION}.zip"
+          test -f "$ZIP"
+          python - "$ZIP" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          tops = {n.split("/")[0] for n in names}
+          assert tops == {"cartogen-ai"}, tops
+          print(len(names), "files; top-level:", tops)
+          PY
+          sha256sum "$ZIP" | tee "dist/SHA256-${VERSION}.txt"
+          NOTES="Install the attached cartogen_ai_v${VERSION}.zip (unzip into the profile's plugins folder, or Plugins > Manage and Install Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name cannot be loaded by QGIS. Pre-release; built from commit ${SHA} by CI. Nothing in this build is hand-tested. SHA256: $(cut -d' ' -f1 dist/SHA256-${VERSION}.txt)"
+          gh release create "$TAG" "$ZIP" "dist/SHA256-${VERSION}.txt" --target "$SHA" --title "v${VERSION}" --notes "$NOTES" --prerelease
