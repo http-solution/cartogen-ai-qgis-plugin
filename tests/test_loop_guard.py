@@ -135,3 +135,22 @@ class TestAgentStopsAStuckTurn(unittest.TestCase):
         self.assertTrue(text.startswith("[Agent stopped]"), text)
         self.assertIn("token budget", text)
         self.assertEqual(len(agent.get_turn_call_records()), 2)
+
+
+class TestMissingFileNudge(unittest.TestCase):
+    """#231 (rc22 hand test J13): twenty calls on invented file paths."""
+
+    def test_two_missing_file_errors_in_a_row_give_a_nudge(self):
+        log = [("load_csv", True, "File not found: /data/a.csv"), ("load_csv", True, "File not found: /data/b.csv")]
+        self.assertIn("Stop guessing paths", lg.missing_file_nudge(log))
+
+    def test_one_missing_file_error_is_not_enough(self):
+        self.assertIsNone(lg.missing_file_nudge([("load_csv", True, "File not found: /data/a.csv")]))
+
+    def test_a_success_between_resets_it(self):
+        log = [("load_csv", True, "File not found: a"), ("get_layers", False, ""), ("load_csv", True, "File not found: b")]
+        self.assertIsNone(lg.missing_file_nudge(log))
+
+    def test_other_errors_do_not_count(self):
+        log = [("calculate_area", True, "Field x missing"), ("calculate_area", True, "Field y missing")]
+        self.assertIsNone(lg.missing_file_nudge(log))
