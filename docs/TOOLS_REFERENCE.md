@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (203 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (204 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -141,7 +141,7 @@ Save an agent plan as a re-usable JSON workflow preset. To build a recurring mon
 
 ### `export_layer`
 
-Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
+Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -960,6 +960,8 @@ Apply smart graduated choropleth style analyzing field distribution for optimal 
 | `num_classes` | integer | no | Number of classes to split the data into. Defaults to 5. Ignored if breaks is given. |
 | `opacity` | number | no | 0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap underneath stay visible) and 100 for points/lines. |
 | `cluster` | string | no | Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp toward that cluster's color instead of the auto-selected one. |
+| `color_from` | string | no | Optional start colour of an explicit ramp, as plain words ('pale yellow') or #rrggbb. Use with color_to when the user names the colours. |
+| `color_to` | string | no | Optional end colour of an explicit ramp ('dark red' or #rrggbb). Overrides the automatic ramp and cluster tint. |
 | `breaks` | array[number] | no | Optional explicit class-boundary values (e.g. operational response thresholds), sorted ascending -- when given, these define the classes directly instead of an auto-selected classification method, overriding 'mode'. Data's actual min/max become the outer class bounds. |
 
 ### `apply_graduated_symbol_style`
@@ -2226,6 +2228,16 @@ Split an area of interest into a grid of square mapping tasks for remote or crow
 | `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
 | `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
 | `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
+
+## tool_discovery
+
+### `find_tools`
+
+Look up which tools can do a step you were not given a tool for (for example 'contour lines', 'split a line by polygons', 'download elevation'). Returns the best matching tool names with a one-line description each, and makes them available for the rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `need` | string | yes | The step you need to do, in plain words. |
 
 ## tool_operations_tools
 

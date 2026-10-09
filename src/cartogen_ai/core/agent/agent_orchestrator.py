@@ -1682,6 +1682,14 @@ class CartogenAi:
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
                 guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
                                   tool_operations.get_tool_operation_type(name))
+                if name == "find_tools" and not is_error and isinstance(tool_result, dict):
+                    # The model asked for tools its list did not cover: offer them for the rest of this turn (bounded, deduplicated).
+                    offered = {t.get("function", {}).get("name") for t in active_tools}
+                    for wanted in (tool_result.get("tool_names") or [])[:8]:
+                        schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
+                        if schema is not None and wanted not in offered:
+                            active_tools = list(active_tools) + [schema]
+                            offered.add(wanted)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:

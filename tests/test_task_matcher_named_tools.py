@@ -54,7 +54,8 @@ class TestWeakTiesAreNotTrusted(unittest.TestCase):
         for query in (self.SEVERITY, self.PLAN):
             a = analyze_request(query)
             self.assertIsNone(a["task"], query)
-            self.assertEqual(a["directive"], "")
+            # no wrong TASK directive; a request that names three or more steps may carry the capability workflow directive instead
+            self.assertNotIn("Recognised task", a["directive"])
             self.assertEqual(a["user_message"], query.strip())
 
     def test_a_short_request_the_task_describes_still_matches(self):

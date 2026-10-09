@@ -94,6 +94,7 @@ TOOL_OPERATION_TYPES = {
     "calculate_population_in_need": MODIFY,
     "calculate_damage_exposure_severity": MODIFY,
     "forecast_trend": READ,
+    "find_tools": READ,
     "analyze_incident_trend": READ,
 
     # -- dataset_status_tools.py --
