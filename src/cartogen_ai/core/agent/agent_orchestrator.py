@@ -37,6 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
+from . import call_metrics
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -355,6 +356,38 @@ class CartogenAi:
     @property
     def tools_schema(self):
         return TOOLS_SCHEMA
+
+    def _get_call_log(self):
+        """Per-call measurement log (call_metrics.CallLog); lazy for the same reason as _get_usage_tracker."""
+        log = self.__dict__.get("_call_log")
+        if log is None:
+            log = call_metrics.CallLog()
+            self._call_log = log
+        return log
+
+    def get_turn_call_records(self):
+        """The measured/estimated records of the turn that just ran (call_metrics), oldest first."""
+        return self._get_call_log().turn_records(self.__dict__.get("_current_turn_id"))
+
+    def get_turn_usage_detail_text(self):
+        """'This turn: 5 calls, 131,878 input (51,200 cached) + 2,100 output tokens; last call 27,400 input', observed only."""
+        return call_metrics.turn_usage_line(self.get_turn_call_records())
+
+    def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None):
+        """Builds, stores and logs one call record. Never raises: measurement must not break a turn."""
+        try:
+            client = getattr(self, "client", None)
+            record = call_metrics.new_record(
+                turn_id, call_index, model or getattr(client, "model", None), type(client).__name__, tools, messages, started)
+            call_metrics.finish_record(record, usage, call_metrics.monotonic() - started, tool_calls, outcome)
+            self._get_call_log().add(record)
+            log_event("model_call", tag="Agent", error=(outcome != "ok"),
+                      **{k: record[k] for k in ("call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens",
+                                                 "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
+                                                 "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
+                      tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
+        except Exception:
+            pass
 
     def _get_usage_tracker(self):
         """Mirrors _get_history_lock()'s own lazy-init pattern (see its docstring):
@@ -1525,6 +1558,8 @@ class CartogenAi:
         messages.append(user_message)
 
         self._get_usage_tracker().begin_turn()
+        turn_id = self._get_call_log().next_turn_id()
+        self._current_turn_id = turn_id
         max_rounds, max_turn_tokens = self._turn_limits()
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
@@ -1555,18 +1590,25 @@ class CartogenAi:
             # the first place, proportional to how large the task actually is.
             if iteration_index >= PACING_THRESHOLD_ITERATIONS:
                 time.sleep(PACING_DELAY_SECONDS)
+            call_started = call_metrics.monotonic()
             try:
                 result = self.client.complete(
                     messages, tools=active_tools, max_tokens=_max_tokens_for_iteration(iteration_index)
                 )
             except Exception as e:
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception")
                 return f"[API error] {e}"
 
             if not isinstance(result, dict):
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")
                 return "[API error] Unexpected response from model client."
             if "error" in result:
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "provider_error")
                 return f"[API error] {result['error']}"
             self._accumulate_usage(result.get("usage"))
+            _reply = result.get("message") if isinstance(result.get("message"), dict) else {}
+            self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, result.get("usage"), "ok",
+                                    tool_calls=len(_reply.get("tool_calls") or []), model=result.get("model"))
 
             message = result.get("message")
             if not isinstance(message, dict):

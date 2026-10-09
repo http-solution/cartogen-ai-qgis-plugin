@@ -1873,8 +1873,13 @@ class ChatTabWidget(QWidget):
             turn = agent.get_turn_usage_text() if hasattr(agent, "get_turn_usage_text") else None
         except Exception:
             turn = None
-        if text and turn:
-            text = f"{turn} \u00b7 {text}"
+        try:     # observed, provider-reported breakdown (fresh vs cached input, output, last call) when the provider reports it
+            detail = agent.get_turn_usage_detail_text() if hasattr(agent, "get_turn_usage_detail_text") else None
+        except Exception:
+            detail = None
+        lead = detail or turn          # the observed breakdown replaces the older one-number turn text, never duplicates it
+        if text and lead:
+            text = f"{lead} \u00b7 {text}"
         self._dock.usageSignal.emit(text or "")
 
     def _after_successful_response(self, agent, response_text):
