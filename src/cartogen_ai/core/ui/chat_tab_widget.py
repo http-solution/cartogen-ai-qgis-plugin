@@ -269,7 +269,7 @@ class ChatTabWidget(QWidget):
         The confirm button runs the tool directly, with no model turn (see _resolve_pending_confirmation), so a request such as
         "write the score to a field, then style the layer" ended at the write (rc15/rc17 hand tests, D05). At most
         reply_vocab.MAX_CONTINUATIONS follow-up turns per original request, so a chain of confirmations cannot loop."""
-        if failed or not original or not reply_vocab.has_followup_steps(original):
+        if failed or not original or not reply_vocab.has_followup_steps(original, tool_name):
             return
         if getattr(self, "_continuation_count", 0) >= reply_vocab.MAX_CONTINUATIONS:
             return

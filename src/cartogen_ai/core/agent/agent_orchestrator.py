@@ -452,6 +452,25 @@ class CartogenAi:
         new_history = load_chat_history()
         with self._get_history_lock():
             self.conversation_history = new_history
+        self.reset_project_scoped_state()
+
+    def reset_project_scoped_state(self):
+        """Drops what belongs to the PREVIOUS project: the task plan and any pending confirmation preview, the tools carried over
+        from the last turn, the grounding texts, the last tool call and a pending stray-fragment flag.
+
+        rc22 live smoke (H5, T4, J4, V4, A4/A5): the agent instance is cached across projects, and only the chat history was
+        reloaded, so a plan or a pending "Apply" from the earlier project resurfaced in a fresh project's chat and a plain "Yes"
+        resumed the old request (an INFORM styling plan in the JIAF project; a print layout from an earlier fragment instead of the
+        requested export). Called from reload_chat_history, i.e. on every project switch."""
+        try:
+            self.task_manager.clear_plan()
+            self.task_manager.plan_history = []
+        except Exception:
+            pass
+        self._recent_tools = ((), 0)
+        self._grounding_texts = []
+        self._last_tool_call = None
+        self._stray_fragment_turn = False
 
     def _is_project_inspector_enabled(self) -> bool:
         """§1.5 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s

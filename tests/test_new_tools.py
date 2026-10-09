@@ -1613,6 +1613,22 @@ class TestNewTools(unittest.TestCase):
         agent.reload_chat_history()
         self.assertIsInstance(agent.conversation_history, list)
 
+    def test_a_project_change_drops_the_previous_projects_plan_and_pending_preview(self):
+        """rc22 live smoke H5/T4/J4/V4: a plan or pending Apply from the earlier project must not resurface in the next one."""
+        agent = CartogenAi()
+        agent.task_manager.create_plan("old plan", ["step one", "step two"])
+        agent.task_manager.tasks[0]["status"] = "PREVIEW_READY"
+        agent.task_manager.tasks[0]["pending_tool"] = "create_print_layout"
+        agent._recent_tools = (("create_print_layout",), 3)
+        agent._grounding_texts = ["old numbers"]
+        agent._last_tool_call = ("create_print_layout", {})
+        agent.reload_chat_history()
+        self.assertEqual(agent.task_manager.tasks, [])
+        self.assertEqual(agent.task_manager.plan_history, [])
+        self.assertEqual(agent._recent_tools, ((), 0))
+        self.assertEqual(agent._grounding_texts, [])
+        self.assertIsNone(agent._last_tool_call)
+
     def test_on_dispatcher_thread_false_outside_qgis(self):
         # QThread doesn't exist in this environment -- must degrade to False (use the
         # normal cross-thread signal path) rather than raise.

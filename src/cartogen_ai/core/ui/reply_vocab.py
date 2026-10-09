@@ -121,20 +121,44 @@ MAX_CONTINUATIONS = 3
 _SEQUENCE = (" and then ", " then ", " afterwards", " after that", ", and also ", " followed by ", " finally ")
 
 
-def has_followup_steps(request):
+_DISPLAY_INTENT = re.compile(r"\b(show|map|display|visuali[sz]e|style|colou?r|symboli[sz]e|plot|highlight|render)\b")
+_PRESENTATION_TOOL_PARTS = ("style", "look", "palette", "colour", "color", "label", "layout", "zoom", "stretch", "arrange", "symbol")
+
+
+def _writes_data(tool_name):
+    """True when `tool_name` is a CREATE/MODIFY tool that is not itself a presentation step. Pure (taxonomy lookup only)."""
+    if not tool_name:
+        return False
+    name = str(tool_name).lower()
+    if any(part in name for part in _PRESENTATION_TOOL_PARTS):
+        return False
+    try:
+        from ..agent import tool_operations
+        return tool_operations.get_tool_operation_type(tool_name) in (tool_operations.CREATE, tool_operations.MODIFY)
+    except Exception:
+        return False
+
+
+def has_followup_steps(request, tool_name=None):
     """True when the original request asks for more than one DISTINCT operation, so a confirmed step may not be the last. Pure.
 
     rc15 and rc17 hand tests (D05): "calculate the severity, write it to a field, and then style the layer" stopped after the
     confirmed write, because the Apply button runs the tool directly with no model turn. Only an explicit sequence word ("then",
-    "afterwards") or two or more distinct operation verbs count; ordinary words such as "show", "map", "list" or "find" do not, so
-    "Show me a map of schools" never triggers a follow-up turn."""
+    "afterwards") or two or more distinct operation verbs count; ordinary words such as "show", "map", "list" or "find" do not on
+    their own, so "Show me a map of schools" never triggers a follow-up turn for a read.
+
+    rc22 smoke (T2, V4, J4): "Show the ranking on the map" and "Import INFORM ... and show the risk" stopped after the confirmed
+    write too: the display half is implied, not sequenced. When the step that just finished is a data-writing tool (`tool_name`)
+    and the request asks to show/map/style something, there is a display step left to do."""
     text = f" {(request or '').lower()} "
     if not text.strip():
         return False
     if any(w in text for w in _SEQUENCE):
         return True
     verbs = {w.strip(",.;:") for w in text.split()} & _IMPERATIVE_STARTS
-    return len(verbs) >= 2
+    if len(verbs) >= 2:
+        return True
+    return bool(_DISPLAY_INTENT.search(text)) and _writes_data(tool_name)
 
 
 def continuation_prompt(original_request, tool_name, summary):

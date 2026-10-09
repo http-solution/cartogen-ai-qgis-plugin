@@ -41,3 +41,24 @@ class TestContinuationPrompt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDisplayStepAfterAWrite(unittest.TestCase):
+    """rc22 smoke T2/V4/J4: a confirmed data write whose request also asked to show the result must resume."""
+
+    def test_show_the_ranking_after_a_confirmed_write_resumes(self):
+        from cartogen_ai.core.agent import tool_operations as ops
+        write_tools = [n for n, op in ops.TOOL_OPERATION_TYPES.items()
+                       if op in (ops.CREATE, ops.MODIFY) and not any(p in n for p in rv._PRESENTATION_TOOL_PARTS)]
+        self.assertTrue(write_tools)
+        self.assertTrue(rv.has_followup_steps("Show the ranking on the map", write_tools[0]))
+
+    def test_a_presentation_tool_never_triggers_it(self):
+        self.assertFalse(rv.has_followup_steps("Show the ranking on the map", "apply_graduated_style"))
+
+    def test_a_read_tool_or_no_tool_keeps_the_old_behaviour(self):
+        self.assertFalse(rv.has_followup_steps("Show me a map of schools", "get_layers"))
+        self.assertFalse(rv.has_followup_steps("Show me a map of schools"))
+
+    def test_a_request_without_display_intent_does_not(self):
+        self.assertFalse(rv.has_followup_steps("Remove the layer smoke_points", "remove_layer"))
