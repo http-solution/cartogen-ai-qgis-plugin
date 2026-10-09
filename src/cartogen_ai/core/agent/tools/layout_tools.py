@@ -197,6 +197,31 @@ def _format_scale_denominator(n):
         return "unavailable"
 
 
+JIAF_FIELD_PREFIXES = ("jf_", "jp_", "js_")
+
+
+def jiaf_layout_note(field_names):
+    """The standing JIAF statement when any field name looks like a JIAF-support result field, else None. Pure."""
+    if any(str(n).lower().startswith(JIAF_FIELD_PREFIXES) for n in field_names or ()):
+        from .jiaf_inputs import STATEMENT
+        return STATEMENT
+    return None
+
+
+def _visible_layer_field_names():
+    """Field names of every visible vector layer in the project (main thread)."""
+    names = []
+    try:
+        root = QgsProject.instance().layerTreeRoot()
+        for node in root.findLayers():
+            layer = node.layer()
+            if layer is not None and node.isVisible() and hasattr(layer, "fields"):
+                names.extend(f.name() for f in layer.fields())
+    except Exception:
+        pass
+    return names
+
+
 @register_tool(
     "create_print_layout",
     "Create a map print layout composition with title, legend, scalebar, north arrow, and an "
@@ -275,6 +300,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                 zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
             if not body_text:
                 body_text = layout_style.access_reading_guide(visible)
+        jiaf_note = None
+        if template != "sitrep":
+            jiaf_note = jiaf_layout_note(_visible_layer_field_names())
+            if jiaf_note and jiaf_note not in (body_text or ""):
+                # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
+                # method and not endorsed by OCHA or the IASC. Added by the code whenever such a layer is visible, not left to the model.
+                body_text = (body_text + "\n" if body_text else "") + jiaf_note
         target_layer = None
         if zoom_to_layer:
             target_layer = _find_layer_by_name(zoom_to_layer)

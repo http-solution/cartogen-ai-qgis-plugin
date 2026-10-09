@@ -649,3 +649,15 @@ class TestCanvasRotation(unittest.TestCase):
         broken = MagicMock()
         broken.rotation.side_effect = RuntimeError("gone")
         self.assertEqual(canvas_rotation(broken), 0.0)
+
+
+class TestJiafLayoutNote(unittest.TestCase):
+    """Issue 229 (rc22 J16): a layout of JIAF-support results carries the not-the-method / not-endorsed statement, added by the code."""
+
+    def test_jiaf_result_fields_trigger_the_statement(self):
+        from cartogen_ai.core.agent.tools import layout_tools as lt
+        note = lt.jiaf_layout_note(["name", "jf_pre_sev"])
+        self.assertIn("not endorsed by OCHA or the IASC", note)
+        self.assertIsNotNone(lt.jiaf_layout_note(["js_food"]))
+        self.assertIsNone(lt.jiaf_layout_note(["name", "severity_score", "pop"]))
+        self.assertIsNone(lt.jiaf_layout_note([]))
