@@ -775,17 +775,10 @@ class CartogenAi:
 
     @staticmethod
     def _project_layer_facts(_unused=None):
-        """{layer name: {"kind", "geographic"}} for the open project (main thread). None outside QGIS, which skips preflight (an empty dict is a real, empty project)."""
-        try:
-            from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer
-        except ImportError:
-            return None
-        facts = {}
-        for layer in QgsProject.instance().mapLayers().values():
-            kind = "raster" if isinstance(layer, QgsRasterLayer) else "vector" if isinstance(layer, QgsVectorLayer) else None
-            if kind:
-                facts[layer.name()] = {"kind": kind, "geographic": bool(layer.crs().isGeographic())}
-        return facts
+        """Facts about the open project's layers (main thread); None outside QGIS, which skips preflight (an empty dict is a real,
+        empty project). See discovery.gather_facts."""
+        from . import discovery
+        return discovery.gather_facts()
 
     def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
                    correlation_id, provider_name):
@@ -800,7 +793,9 @@ class CartogenAi:
         if problem is None:
             problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type)
         if problem is None:
-            facts = self._run_on_main_thread(self._project_layer_facts, None)
+            facts = getattr(self, "_turn_facts", None)
+            if facts is None:
+                facts = self._run_on_main_thread(self._project_layer_facts, None)
             if isinstance(facts, dict) and not isinstance(facts.get("error"), str):    # None / error dict = no QGIS: skip preflight
                 problem = step_runner.preflight(steps, facts, tool_operations.get_tool_operation_type)
         if problem:
@@ -1639,6 +1634,22 @@ class CartogenAi:
             self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
             active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
         )
+        # Input discovery for pre-built chains: what the open project can bind to each chain slot, read once per turn on the main
+        # thread and reused by run_steps' preflight. Added to the system prompt, not the user's message, so it is not stored as
+        # something the user said.
+        self._turn_facts = None
+        try:
+            from . import capabilities, chains as chain_mod, discovery
+            fitting = chain_mod.chains_for([c for c, _t, _v in capabilities.needed_capabilities(user_query)])
+            if fitting and "run_steps" in active_tool_names:
+                facts = self._run_on_main_thread(discovery.gather_facts, None)
+                if isinstance(facts, dict) and not isinstance(facts.get("error"), str):
+                    self._turn_facts = facts
+                    check = discovery.chain_context(user_query, facts, fitting)
+                    if check:
+                        system_prompt_content += "\n\n" + check
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="chain_context", error_class=type(e).__name__, error=True)
 
         self._remember_grounding(user_query)
         self._remember_grounding(map_context)

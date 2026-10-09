@@ -135,6 +135,12 @@ INPUT_LAYER_NAME_TOOLS = frozenset({"buffer_analysis", "reproject_layer", "disso
                                     "select_by_attribute", "field_statistics", "check_pcode_uniqueness", "check_pcode_hierarchy"})
 
 
+# Geometry a parameter needs, when the project knows the layer's geometry type.
+PARAM_GEOMETRY = {"line_layer": "line", "zone_layer": "polygon", "mask_layer": "polygon", "overlay_layer": "polygon",
+                  "facility_layer": "point", "area_layer": "polygon"}
+NUMERIC_FIELD_TOOLS = frozenset({"apply_graduated_style"})
+
+
 def _literal_layer_args(step):
     for key, value in (step.get("arguments") or {}).items():
         if isinstance(value, str) and not _REF.match(value) and not (value.startswith("<") and value.endswith(">")):
@@ -166,6 +172,18 @@ def preflight(steps, facts, operation_of):
                         f"{', '.join(available) if available else '(none)'}. Use one of these names exactly.")
             if key != "layer_name" and info.get("kind") != kind:
                 return f"Step {i} ({tool}): '{name}' is a {info.get('kind')} layer but `{key}` needs a {kind} layer."
+            wanted = PARAM_GEOMETRY.get(key)
+            if wanted and info.get("geometry") and info["geometry"] != wanted:
+                return f"Step {i} ({tool}): `{key}` needs a {wanted} layer but '{name}' is a {info['geometry']} layer."
+            if tool in NUMERIC_FIELD_TOOLS and key == "layer_name":
+                field = (step.get("arguments") or {}).get("field")
+                if isinstance(field, str) and not _REF.match(field) and not field.startswith("<") and info.get("fields"):
+                    known = dict(info["fields"])
+                    if field not in known:
+                        return (f"Step {i} ({tool}): '{name}' has no field '{field}'. Fields: "
+                                f"{', '.join(n for n, _ in info['fields'][:20])}.")
+                    if not known[field]:
+                        return f"Step {i} ({tool}): field '{field}' of '{name}' is not numeric, so it cannot be graduated."
             if tool in GEOGRAPHIC_SENSITIVE and key == "layer_name" and info.get("geographic"):
                 return (f"Step {i} ({tool}): '{name}' is in a geographic CRS, so the distance would be applied in degrees. Add a "
                         "reproject_layer step to a projected CRS first and buffer its result.")

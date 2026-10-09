@@ -155,7 +155,8 @@ def workflow_directive(query):
                  + " (prefer a constrained Processing algorithm; use a script only as a last resort and say so).")
     try:
         from .chains import chains_for, chain_directive
-        found = chains_for([cid for cid, _t, _v in needed_capabilities(query)])
+        from .discovery import is_execution_request
+        found = chains_for([cid for cid, _t, _v in needed_capabilities(query)]) if is_execution_request(query) else []
         if found:
             text += " " + chain_directive(found)
     except Exception:
