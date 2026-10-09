@@ -126,6 +126,14 @@ FAILURE_ACK_KEYWORDS = (
 # tight and caused "Maximum iterations reached" on legitimate requests before
 # they could produce a final answer.
 MAX_ITERATIONS = 20
+# Provisional per-request token budget (input + output, all calls of one request), applied when the user has not set one. Chosen from
+# the evidence on hand, not from a calibrated optimum: the rc22 hand-test logs show tool calls per request of 1,1,1,1,2,2,2,2,5,8,10,
+# 11,14,15 (median 2, p90 11, max 15 -- the two 14-15 call requests were simple tasks that wandered), and the footers showed about
+# 21,700-26,000 tokens per model call (5.49M tokens over 253 calls). 450,000 is ~17 calls at the upper figure: above every request
+# observed, so it should not cut normal work, yet it stops a runaway at roughly the same point as the round cap instead of far past
+# it. The budget is checked BEFORE each request against the observed size of the last call. 0 in Settings = no limit.
+# Recalibrate from the model_call records (call_metrics) of successful single scenarios; see docs/COST_AND_ROUTING_PLAN_2026-10-09.md.
+DEFAULT_TURN_TOKEN_BUDGET = 450_000
 
 # Rate-limit resilience for large/complex requests (2026-09-12): up to MAX_ITERATIONS calls to
 # client.complete() used to fire back-to-back with zero pacing -- a genuinely complex multi-step
@@ -451,8 +459,8 @@ class CartogenAi:
 
     def _turn_limits(self):
         """(max tool-call rounds, max tokens) for one request. Settings override; a bad value falls back to the
-        defaults (MAX_ITERATIONS, no token limit). The round cap is clamped to 1-100."""
-        cap, budget = MAX_ITERATIONS, 0
+        defaults (MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET). The round cap is clamped to 1-100; a stored 0 means no token limit."""
+        cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         try:
             settings = QgsSettings()
             raw_cap = settings.value(SETTINGS_MAX_TOOL_ITERATIONS, None)
@@ -462,7 +470,7 @@ class CartogenAi:
             if raw_budget not in (None, ""):
                 budget = max(int(raw_budget), 0)
         except Exception:
-            cap, budget = MAX_ITERATIONS, 0
+            cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         return cap, budget
 
     def get_session_usage_text(self):

@@ -9,6 +9,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import QgsSettings
 
+from ..agent.agent_orchestrator import DEFAULT_TURN_TOKEN_BUDGET
 from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
@@ -555,10 +556,10 @@ class CartogenAiSettingsDialog(QDialog):
         self.max_turn_tokens_spin.setRange(0, 5_000_000)
         self.max_turn_tokens_spin.setSingleStep(10_000)
         self.max_turn_tokens_spin.setSpecialValueText("no limit")
-        self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, 0, 0, 5_000_000))
+        self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, DEFAULT_TURN_TOKEN_BUDGET, 0, 5_000_000))
         self.max_turn_tokens_spin.setToolTip(
             "Stops a request once the model calls in it have used this many tokens (input + output). "
-            "0 = no limit. The chat footer shows what each request used, so you can pick a number from real use.")
+            "0 = no limit. The default (450,000) is a provisional guardrail from observed use, not an optimum; the chat footer shows what each request used, so you can pick a number from real use.")
         limits_form.addRow("Max tokens per request:", self.max_turn_tokens_spin)
         self.layout_masthead_edit = QLineEdit()
         self.layout_masthead_edit.setPlaceholderText("#1f2d3a (default slate)")

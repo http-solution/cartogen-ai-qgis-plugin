@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """rc7 smoke test F10: per-turn tool-call cap, optional per-turn token budget, and a per-turn token figure.
 
-The cap defaults to the long-standing MAX_ITERATIONS; the token budget defaults to off (no measured figure says
-what a too-expensive turn is). Both are read from QGIS settings and fall back to those defaults on any bad value."""
+The cap defaults to the long-standing MAX_ITERATIONS; the token budget defaults to a provisional figure derived from rc22 hand-test logs (0 stored = no limit). Both are read from QGIS settings and fall back to those defaults on any bad value."""
 import unittest
 from unittest.mock import patch
 
@@ -50,12 +49,17 @@ class TestTurnLimits(unittest.TestCase):
     def test_defaults(self):
         _Settings.values = {}
         with patch.object(agent_mod, "QgsSettings", _Settings):
-            self.assertEqual(agent_mod.CartogenAi._turn_limits(_make_bare_agent(None)), (agent_mod.MAX_ITERATIONS, 0))
+            self.assertEqual(agent_mod.CartogenAi._turn_limits(_make_bare_agent(None)), (agent_mod.MAX_ITERATIONS, agent_mod.DEFAULT_TURN_TOKEN_BUDGET))
+
+    def test_stored_zero_means_no_limit(self):
+        _Settings.values = {"cartogen_ai/max_turn_tokens": "0"}
+        with patch.object(agent_mod, "QgsSettings", _Settings):
+            self.assertEqual(agent_mod.CartogenAi._turn_limits(_make_bare_agent(None))[1], 0)
 
     def test_bad_values_fall_back_to_defaults(self):
         _Settings.values = {"cartogen_ai/max_tool_iterations": "lots", "cartogen_ai/max_turn_tokens": "x"}
         with patch.object(agent_mod, "QgsSettings", _Settings):
-            self.assertEqual(agent_mod.CartogenAi._turn_limits(_make_bare_agent(None)), (agent_mod.MAX_ITERATIONS, 0))
+            self.assertEqual(agent_mod.CartogenAi._turn_limits(_make_bare_agent(None)), (agent_mod.MAX_ITERATIONS, agent_mod.DEFAULT_TURN_TOKEN_BUDGET))
 
     def test_the_cap_is_clamped(self):
         _Settings.values = {"cartogen_ai/max_tool_iterations": 0}
