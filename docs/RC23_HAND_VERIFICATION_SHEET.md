@@ -1,6 +1,6 @@
 # rc23 hand-verification sheet
 
-Zip: `cartogen_ai_v1.16.0-rc23.zip` (SHA-256 `b9c30d7417213ec104b803d05cfc471f52e1d5612adfebb13aca36a0894663a1`). Tracks issue #233. Use a fresh QGIS profile and the rc22 fixtures. Nothing below has been hand-tested by the developer; every row is yours to mark.
+Zip: the rc23 build made from the current `main` (the file name and SHA-256 are given when it is sent; an earlier rc23 zip, `b9c30d74...`, contained only the hand-test fixes and is superseded). Tracks issue #233. Use a fresh QGIS profile and the rc22 fixtures. Nothing below has been hand-tested by the developer; every row is yours to mark.
 
 Mark each row **PASS / FAIL / NOT RUN**, and for a FAIL write what you saw. Keep a screenshot of the chat and the result for each. Rows come from the rc22 matrix (`docs/RC22_RESULT_MATRIX_2026-10-09.csv`); the prompt and expectation are copied verbatim.
 

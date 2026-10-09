@@ -14,11 +14,13 @@ NEW_MARK_VERSIONS = ("1.16.0-rc22", "1.16.0-rc23")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Exports", "A relative output path now lands in your project folder (the reply names the full path), and a raster result such as slope can be exported as a GeoTIFF."),
-    ("Matching", "'Show the severity on the map' no longer asks which hazard; a task that names one hazard only matches when you name it."),
-    ("Follow-through", "After you confirm Apply edit, the 'show it on the map' part of your request runs; opening another project clears the previous plan."),
-    ("Styling and layouts", "Graduated styles honour an explicit colour ramp such as pale yellow to dark red, and a layout map follows the canvas rotation."),
-    ("Not hand-tested", "These fixes ran offline and in a local QGIS 4.2.2 run, but have not been hand-tested in a desktop session or against a real model."),
+    ("Cost", "Every request now shows what it used, a loop guard stops a stuck request, and a per-turn token budget (default 450,000, provisional; 0 = no limit) stops one before it overspends."),
+    ("Better tool choice", "Tools are chosen from the data sources and actions your request names, several pasted requests run as a confirmed queue, and a task naming one hazard only matches when you name it."),
+    ("New tools", "split_lines_by_zones (passable length and longest passable segment), generate_contours, and fetch_dem (Copernicus 30 m DEM, a surface model; add the Copernicus notice yourself when you publish)."),
+    ("Fewer round trips", "run_steps and eleven vetted chains let one model step do a known sequence; every chain is checked against your project first and stops at the first error or confirmation."),
+    ("Evidence", "Optional (Settings): a folder per request with the real calls, results, timings, written files with hashes, and a screenshot. It holds raw values."),
+    ("Fixes", "Relative output paths land in your project folder, rasters export as GeoTIFF, layouts follow canvas rotation, 'Yes, proceed.' works at the preview, and JIAF layouts carry the not-endorsed statement."),
+    ("Not hand-tested", "CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model yet."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
