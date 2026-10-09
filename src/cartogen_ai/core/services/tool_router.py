@@ -378,6 +378,11 @@ class ToolRouter:
                 always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
             if is_multi_step(user_query) and "run_steps" in known_names:
                 always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
+                from ..agent.capabilities import needed_capabilities
+                from ..agent.chains import chains_for
+                for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
+                    # run_steps only accepts tools that were offered, so offer the chain's own
+                    always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
         except Exception:
             pass
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.

@@ -141,6 +141,13 @@ def workflow_directive(query):
     if fallback:
         text += (" Steps marked 'no dedicated tool' can only be done with " + " or ".join(f"`{n}`" for n in fallback)
                  + " (prefer a constrained Processing algorithm; use a script only as a last resort and say so).")
+    try:
+        from .chains import chains_for, chain_directive
+        found = chains_for([cid for cid, _t, _v in needed_capabilities(query)])
+        if found:
+            text += " " + chain_directive(found)
+    except Exception:
+        pass
     text += (" Do each step once. When you already know every argument of a chain of steps (you choose the output layer names), "
              "send that chain as ONE `run_steps` call instead of one turn per step; check results before continuing only where the "
              "next step genuinely depends on what you see. If a step cannot be completed say which steps are done and "
