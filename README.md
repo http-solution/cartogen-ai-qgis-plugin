@@ -27,7 +27,7 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc23 pre-release** build (rc19 is the last published pre-release until rc23 is uploaded; rc20 to rc23 add the audit fixes, hand-test fixes and the cost and routing work made after it).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc23 pre-release** build (published as the `cartogen-ai-v1.16.0-rc23` pre-release on the Releases page; rc20 to rc23 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -273,8 +273,8 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc19 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc19); the release
-also carries a `SHA256-1.16.0-rc19.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+[1.16.0-rc23 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc23); the release
+also carries a `SHA256-1.16.0-rc23.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
@@ -455,5 +455,8 @@ top of this file.)
 
 ## Support
 
-For issues or questions, use the
-[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues).
+For bugs, use the
+[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues); for questions and
+ideas, use [Discussions](https://github.com/http-solution/cartogen-ai-qgis-plugin/discussions). Security problems go through
+[private vulnerability reporting](https://github.com/http-solution/cartogen-ai-qgis-plugin/security/advisories/new), not a public issue
+(see [SECURITY.md](SECURITY.md)). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
