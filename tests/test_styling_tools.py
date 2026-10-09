@@ -204,6 +204,20 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
         return layer
 
     @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGradientColorRamp", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_explicit_colours_become_the_ramp_and_bad_colours_are_an_error(self, mock_find, mock_ramp, mock_qcolor):
+        """rc22 smoke F2: 'pale yellow to dark red' was ignored."""
+        mock_find.return_value = self._make_layer([5, 10, 15])
+        bad = apply_graduated_style("districts", "pop_affected", color_from="pale yellow", color_to=None)
+        self.assertIn("error", bad)
+        mock_qcolor.return_value.isValid.return_value = False
+        bad = apply_graduated_style("districts", "pop_affected", color_from="not a colour", color_to="also not")
+        self.assertIn("error", bad)
+        self.assertIn("colours", bad["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRendererRange", create=True)

@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc21
+version=1.16.0-rc23
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,27 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc21 (2026-10-07):
+changelog=v1.16.0-rc23 (2026-10-09):
+    Release candidate 23 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the hand test of rc22.
+    - Fix: a relative output path (for example outputs/report.csv) is anchored to the saved project's folder, or the profile export folder for an unsaved project, instead of the QGIS process folder; the overwrite confirmation now looks in the right place and replies name the absolute path (rc22 hand test N3, N8, N9, H4).
+    - Fix: export_layer writes a GeoTIFF for a raster layer, so a slope or other raster result can be exported (H4, D5). A print layout's map takes the canvas rotation and its north arrow follows (F3).
+    - Fix: a task that names one specific hazard (drought, extreme heat) is only matched when the request names that hazard, so 'show the severity on the map' no longer asks 'which hazard?' (V1, J5, J16).
+    - Fix: after a confirmed Apply edit, a 'show it on the map' part of the same request now runs (T2, V4, J4). A project change drops the previous project's plan, pending previews and carried-over state so a plain 'Yes' cannot resume them (H5, T4, J4, V4).
+    - New: apply_graduated_style accepts color_from and color_to (colour words or hex) so an explicit ramp such as 'pale yellow to dark red' is honoured (F2). 'Cluster ... into N groups' reaches unsupervised classification (T6). Help shows the '(new)' explanation only when a mark is shown (V7).
+    - Verification: offline suite, ruff and live QGIS 4.2.2 Docker checks of the export, layout and styling fixes. NOT hand-tested: every fix above. Open from the same hand test and not fixed here: invented or wrong facts in replies (model behaviour), reply-wording requirements, legend entries hidden under opaque polygons (issue 165), and rows that were not run. No issue is closed by this build.
+
+v1.16.0-rc22 (2026-10-07):
+    Release candidate 22 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc20 architectural audit.
+    - Fix: a result that replaces a layer of the same name no longer overwrites a layer you made yourself. Plugin results are marked as the plugin's own; a same-named layer of yours is set aside (renamed) and the reply says so (rc20 audit A02).
+    - Fix: feature extraction from imagery only outlines the detected object, not the surrounding background (A01), and a rotated or non-square mask keeps its true geometry (A10).
+    - Fix: a long-running agent turn that was stopped or superseded can no longer deliver a stale result or act after the project changed (A04); the data-egress gate now follows layer lineage through renames and duplicates, so a derived layer keeps the protection of its source (A05); feature edits report a refused commit or delete instead of claiming success (A03).
+    - Fix: histogram equalisation no longer turns the lowest valid pixels into NoData: valid cells are 1-255 and 0 is NoData only (A09). Slope and hillshade on a projected DEM in feet convert metres into the DEM's own units (A11). GeoJSON export is RFC 7946: WGS84 coordinates, no legacy crs member (A12). A failed CRS transform is now an error instead of zooming or building a layout in the wrong place (A13).
+    - Safety: the isolated script worker (execute_pyqgis_script) receives COPIES of file-backed layers, so a script cannot modify your files; edits it makes to such a layer are discarded. Database and web-service layers have no file to copy and remain writable by a script (A06, issue 220).
+    - Memory: classification refuses rasters over 25 million cells or 60 million cell-band values (A15). Abandoned background-analysis objects are released once their task finishes (A16). The plugin's last-resort import bootstrap removes only its own modules (A18).
+    - Responsiveness: zonal_statistics (zones of 200 or more) and the model and outline steps of extract_features_from_imagery run off the GUI thread and honour Stop. Every other expensive tool still blocks QGIS while it runs (A14, issue 221 stays open).
+    - Verification: the full local run passed on the audit-fix build (offline suite, ruff, zip check, 360 QGIS 4.2.2 live tests against PostGIS). NOT hand-tested: every fix above. Imagery extraction needs the FastSAM model and was not run live. GitHub Actions did not run (account billing), so the Windows job and the gitleaks scan did not run. No audit issue (220-224) is closed by this build.
+
+v1.16.0-rc21 (2026-10-07):
     Release candidate 21 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes from the rc20 hand test.
     - Fix: manual class boundaries passed to apply_graduated_style must be finite, distinct numbers inside the field's own range. A boundary of 100 for values 5-15 used to make an inverted "100 - 15" class and a legend that matched nothing (rc20 hand test, #165); it is now an error that names the data range.
     - Fix: the north arrow on a print layout is linked to the map, so it turns with a rotated map. In rc20 it stayed at 0 degrees on a map rotated 30 degrees (rc20 hand test, #165). Checked in real QGIS 4.2.2: the new test fails on the old code and passes on this one.

@@ -54,7 +54,8 @@ class TestWeakTiesAreNotTrusted(unittest.TestCase):
         for query in (self.SEVERITY, self.PLAN):
             a = analyze_request(query)
             self.assertIsNone(a["task"], query)
-            self.assertEqual(a["directive"], "")
+            # no wrong TASK directive; a request that names three or more steps may carry the capability workflow directive instead
+            self.assertNotIn("Recognised task", a["directive"])
             self.assertEqual(a["user_message"], query.strip())
 
     def test_a_short_request_the_task_describes_still_matches(self):
@@ -153,3 +154,32 @@ class TestRegisterCorpusIsNotWorse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHazardTasksNeedTheHazardNamed(unittest.TestCase):
+    """rc22 live smoke V1/J5/J16/T2: a generic 'severity'/'risk' map request must not become a drought/heat task."""
+
+    def _ids(self, query):
+        from cartogen_ai.core.agent import task_matcher as tm
+        return [e["id"] for e, _s in tm.match(query, limit=10)]
+
+    def test_generic_severity_request_does_not_match_drought(self):
+        self.assertNotIn("14.05", self._ids("Show the severity on the map for smoke_admin"))
+        self.assertNotIn("14.05", self._ids("Make a map of the JIAF severity for the report"))
+
+    def test_generic_risk_request_does_not_match_a_specific_hazard(self):
+        ids = self._ids("Show the INFORM risk on the map using inf_risk")
+        self.assertNotIn("14.12", ids)
+        self.assertNotIn("14.14", ids)
+
+    def test_naming_the_hazard_still_finds_its_task(self):
+        self.assertIn("14.05", self._ids("Map drought severity"))
+        self.assertIn("14.02", self._ids("Map flood extent"))
+        self.assertIn("14.12", self._ids("Map extreme heat risk"))
+
+
+class TestClusteringFindsImageClassification(unittest.TestCase):
+    def test_cluster_a_raster_into_groups_finds_image_classification(self):
+        from cartogen_ai.core.agent import task_matcher as tm
+        top = [e["id"] for e, _s in tm.match("Cluster smoke_image into four groups", limit=3)]
+        self.assertIn("16.21", top)

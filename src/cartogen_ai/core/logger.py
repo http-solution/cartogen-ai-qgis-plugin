@@ -113,6 +113,10 @@ _SAFE_EVENT_FIELDS = {
     "facilities", "reached_layers", "service_area_ms", "prepare_ms", "nearest_ms", "build_ms", "replace_ms",
     # isolated-script reconciliation: how many parts of a script's work could not be applied (a count)
     "problems",
+    # model_call (core/agent/call_metrics.py): sizes, timings and tool NAMES of each request -- never prompt text, arguments or
+    # results. est_* are character-count estimates; input/cached/output tokens are provider-reported (or absent).
+    "call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens", "tool_count", "tool_calls", "outcome",
+    "est_system_tokens", "est_tools_tokens", "est_history_tokens", "est_user_tokens", "tool_names",
 }
 
 

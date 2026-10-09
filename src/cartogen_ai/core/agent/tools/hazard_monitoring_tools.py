@@ -31,6 +31,7 @@ import urllib.error
 from datetime import datetime, timezone
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._edit_session import EditError
 from ....infrastructure.auth import CredentialManager
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
@@ -706,6 +707,7 @@ def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=Non
 )
 def generate_situation_dashboard(bbox, output_path=None, title=None,
                                   include_fires=True, include_eonet=True, include_disasters=True):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     bbox_error = _validate_bbox(bbox)
     if bbox_error:
         return {"error": bbox_error}

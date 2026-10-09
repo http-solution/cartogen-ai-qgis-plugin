@@ -37,6 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
+from . import call_metrics, loop_guard
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -45,7 +46,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import tool_operations, tool_result as tool_results
+from . import evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -60,6 +61,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
     SETTINGS_MAX_TOOL_ITERATIONS,
     SETTINGS_MAX_TURN_TOKENS,
+    SETTINGS_EVIDENCE_ENABLED,
     provider_model_list_key,
 )
 
@@ -125,6 +127,14 @@ FAILURE_ACK_KEYWORDS = (
 # tight and caused "Maximum iterations reached" on legitimate requests before
 # they could produce a final answer.
 MAX_ITERATIONS = 20
+# Provisional per-request token budget (input + output, all calls of one request), applied when the user has not set one. Chosen from
+# the evidence on hand, not from a calibrated optimum: the rc22 hand-test logs show tool calls per request of 1,1,1,1,2,2,2,2,5,8,10,
+# 11,14,15 (median 2, p90 11, max 15 -- the two 14-15 call requests were simple tasks that wandered), and the footers showed about
+# 21,700-26,000 tokens per model call (5.49M tokens over 253 calls). 450,000 is ~17 calls at the upper figure: above every request
+# observed, so it should not cut normal work, yet it stops a runaway at roughly the same point as the round cap instead of far past
+# it. The budget is checked BEFORE each request against the observed size of the last call. 0 in Settings = no limit.
+# Recalibrate from the model_call records (call_metrics) of successful single scenarios; see docs/COST_AND_ROUTING_PLAN_2026-10-09.md.
+DEFAULT_TURN_TOKEN_BUDGET = 450_000
 
 # Rate-limit resilience for large/complex requests (2026-09-12): up to MAX_ITERATIONS calls to
 # client.complete() used to fire back-to-back with zero pacing -- a genuinely complex multi-step
@@ -356,6 +366,38 @@ class CartogenAi:
     def tools_schema(self):
         return TOOLS_SCHEMA
 
+    def _get_call_log(self):
+        """Per-call measurement log (call_metrics.CallLog); lazy for the same reason as _get_usage_tracker."""
+        log = self.__dict__.get("_call_log")
+        if log is None:
+            log = call_metrics.CallLog()
+            self._call_log = log
+        return log
+
+    def get_turn_call_records(self):
+        """The measured/estimated records of the turn that just ran (call_metrics), oldest first."""
+        return self._get_call_log().turn_records(self.__dict__.get("_current_turn_id"))
+
+    def get_turn_usage_detail_text(self):
+        """'This turn: 5 calls, 131,878 input (51,200 cached) + 2,100 output tokens; last call 27,400 input', observed only."""
+        return call_metrics.turn_usage_line(self.get_turn_call_records())
+
+    def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None):
+        """Builds, stores and logs one call record. Never raises: measurement must not break a turn."""
+        try:
+            client = getattr(self, "client", None)
+            record = call_metrics.new_record(
+                turn_id, call_index, model or getattr(client, "model", None), type(client).__name__, tools, messages, started)
+            call_metrics.finish_record(record, usage, call_metrics.monotonic() - started, tool_calls, outcome)
+            self._get_call_log().add(record)
+            log_event("model_call", tag="Agent", error=(outcome != "ok"),
+                      **{k: record[k] for k in ("call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens",
+                                                 "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
+                                                 "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
+                      tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
+        except Exception:
+            pass
+
     def _get_usage_tracker(self):
         """Mirrors _get_history_lock()'s own lazy-init pattern (see its docstring):
         tests that construct CartogenAi via __new__() to skip __init__ entirely still
@@ -418,8 +460,8 @@ class CartogenAi:
 
     def _turn_limits(self):
         """(max tool-call rounds, max tokens) for one request. Settings override; a bad value falls back to the
-        defaults (MAX_ITERATIONS, no token limit). The round cap is clamped to 1-100."""
-        cap, budget = MAX_ITERATIONS, 0
+        defaults (MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET). The round cap is clamped to 1-100; a stored 0 means no token limit."""
+        cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         try:
             settings = QgsSettings()
             raw_cap = settings.value(SETTINGS_MAX_TOOL_ITERATIONS, None)
@@ -429,7 +471,7 @@ class CartogenAi:
             if raw_budget not in (None, ""):
                 budget = max(int(raw_budget), 0)
         except Exception:
-            cap, budget = MAX_ITERATIONS, 0
+            cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         return cap, budget
 
     def get_session_usage_text(self):
@@ -452,6 +494,25 @@ class CartogenAi:
         new_history = load_chat_history()
         with self._get_history_lock():
             self.conversation_history = new_history
+        self.reset_project_scoped_state()
+
+    def reset_project_scoped_state(self):
+        """Drops what belongs to the PREVIOUS project: the task plan and any pending confirmation preview, the tools carried over
+        from the last turn, the grounding texts, the last tool call and a pending stray-fragment flag.
+
+        rc22 live smoke (H5, T4, J4, V4, A4/A5): the agent instance is cached across projects, and only the chat history was
+        reloaded, so a plan or a pending "Apply" from the earlier project resurfaced in a fresh project's chat and a plain "Yes"
+        resumed the old request (an INFORM styling plan in the JIAF project; a print layout from an earlier fragment instead of the
+        requested export). Called from reload_chat_history, i.e. on every project switch."""
+        try:
+            self.task_manager.clear_plan()
+            self.task_manager.plan_history = []
+        except Exception:
+            pass
+        self._recent_tools = ((), 0)
+        self._grounding_texts = []
+        self._last_tool_call = None
+        self._stray_fragment_turn = False
 
     def _is_project_inspector_enabled(self) -> bool:
         """§1.5 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
@@ -712,6 +773,160 @@ class CartogenAi:
             return set(QgsProject.instance().mapLayers().keys())
         except Exception:
             return set()
+
+    @staticmethod
+    def _project_layer_facts(_unused=None):
+        """Facts about the open project's layers (main thread); None outside QGIS, which skips preflight (an empty dict is a real,
+        empty project). See discovery.gather_facts."""
+        from . import discovery
+        return discovery.gather_facts()
+
+    def _evidence_start(self, user_query):
+        """Create this request's evidence recorder when the user switched evidence on in Settings, else None. Never raises."""
+        self._evidence = None
+        try:
+            if str(QgsSettings().value(SETTINGS_EVIDENCE_ENABLED, False)).lower() not in ("true", "1"):     # QSettings may hand back text
+                return
+            from .tools._paths import resolve_output_path
+            self._evidence = evidence.EvidenceRecorder(
+                resolve_output_path(evidence.relative_folder("t%d" % (getattr(self, "_turn_counter", 0) + 1))), user_query)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_start", error_class=type(e).__name__, error=True)
+
+    def _evidence_finish(self, final_text):
+        recorder = getattr(self, "_evidence", None)
+        self._evidence = None
+        if recorder is None:
+            return
+        try:
+            usage = self.get_turn_usage_detail_text() if hasattr(self, "get_turn_usage_detail_text") else ""
+            recorder.finish(final_text, usage_line=usage or "",
+                            screenshot_fn=lambda path: self._run_on_main_thread(self._save_canvas, path) is True)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_finish", error_class=type(e).__name__, error=True)
+
+    @staticmethod
+    def _save_canvas(path):
+        """Main thread: save the map canvas as an image. False when there is no canvas (headless)."""
+        try:
+            from qgis.utils import iface
+        except ImportError:
+            return False
+        if iface is None:
+            return False
+        iface.mapCanvas().saveAsImage(path)
+        return True
+
+    @staticmethod
+    def _layer_names(_unused=None):
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return []
+        return sorted(layer.name() for layer in QgsProject.instance().mapLayers().values())
+
+    def _note_turn_call(self, name, arguments, result):
+        """Remember (tool, arguments, result) for this turn so look_followup can see which map hints were never acted on."""
+        try:
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError):
+            args = {}
+        calls = getattr(self, "_turn_calls", None)
+        if calls is not None:
+            calls.append((name, args if isinstance(args, dict) else {}, result))
+
+    def _exec_recorded(self, name, arguments):
+        """_execute_tool, plus an evidence entry (real arguments, result, timing, layers created) when evidence is on."""
+        recorder = getattr(self, "_evidence", None)
+        if recorder is None:
+            result = self._execute_tool(name, arguments)
+            self._note_turn_call(name, arguments, result)
+            return result
+        before = self._run_on_main_thread(self._layer_names, None)
+        started = time.monotonic()
+        result = self._execute_tool(name, arguments)
+        elapsed = (time.monotonic() - started) * 1000
+        self._note_turn_call(name, arguments, result)
+        try:
+            after = self._run_on_main_thread(self._layer_names, None)
+            new = [n for n in (after if isinstance(after, list) else []) if n not in (before if isinstance(before, list) else [])]
+            try:
+                args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            except (TypeError, ValueError):
+                args = str(arguments)
+            recorder.record_call(name, args, result, elapsed, new)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_record", error_class=type(e).__name__, error=True)
+        return result
+
+    def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
+                   correlation_id, provider_name):
+        """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
+
+        Every inner call goes through _execute_tool exactly like a call the model made on its own, so confirmations, the egress gate,
+        undo snapshots and the stale-turn check all still apply; it is also recorded in turn_tool_log / turn_pending / the loop guard
+        so the final-text reconciliation and the guards see what really ran. The chain stops at the first error, the first call
+        waiting for the user's Confirm, a Stop request or a guard stop. Mutates turn_tool_log and turn_pending in place."""
+        steps, problem = step_runner.parse_steps(arguments)
+        schemas = {t.get("function", {}).get("name"): t.get("function", {}).get("parameters", {}) for t in active_tools}
+        if problem is None:
+            problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type)
+        if problem is None:
+            facts = getattr(self, "_turn_facts", None)
+            if facts is None:
+                facts = self._run_on_main_thread(self._project_layer_facts, None)
+            if isinstance(facts, dict) and not isinstance(facts.get("error"), str):    # None / error dict = no QGIS: skip preflight
+                problem = step_runner.preflight(steps, facts, tool_operations.get_tool_operation_type)
+        if problem:
+            return {"error": problem, "completed": 0}
+        results, summaries = [], []
+        total = len(steps)
+        for index, step in enumerate(steps, 1):
+            tool = step["tool"]
+            last = index == total
+            if should_stop is not None and should_stop():
+                return step_runner.final_result(total, summaries, stopped="Stopped by the user.")
+            resolved, problem = step_runner.resolve_arguments(step.get("arguments", {}), results)
+            if problem:
+                return step_runner.final_result(total, summaries + [step_runner.step_summary(index, tool, {"error": problem}, False, 300)],
+                                                stopped=f"Step {index} ({tool}): {problem}")
+            log_event("tool_call", tag="Agent", tool=tool, status="running", correlation_id=correlation_id, provider=provider_name)
+            if tool_step_callback is not None:
+                try:
+                    tool_step_callback(tool, "running", None)
+                except Exception:
+                    pass
+            started = time.monotonic()
+            result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
+            failed = tool_results.is_error(result)
+            turn_tool_log.append((tool, failed, tool_results.error_of(result)))
+            guard.record_call(tool, resolved, failed, tool_results.error_of(result) or "", tool_operations.get_tool_operation_type(tool))
+            status = tool_results.status_of(result)
+            if status in response_guard.NOT_RUN_STATUSES:
+                turn_pending.append(tool)
+            elif not failed and tool in turn_pending:
+                turn_pending[:] = [n for n in turn_pending if n != tool]
+            log_event("tool_call", tag="Agent", tool=tool, status="failed" if failed else "done",
+                      duration_ms=int((time.monotonic() - started) * 1000), correlation_id=correlation_id, provider=provider_name,
+                      **({"error_class": tool_results.error_class_of(result), "error": True} if failed else {}))
+            if tool_step_callback is not None:
+                try:
+                    tool_step_callback(tool, "failed" if failed else "done", tool_results.error_of(result))
+                except Exception:
+                    pass
+            self._remember_grounding(json.dumps(result, default=str))
+            results.append(result)
+            not_run = status in response_guard.NOT_RUN_STATUSES
+            summaries.append(step_runner.step_summary(index, tool, result, not (failed or not_run),
+                                                      step_runner.LAST_RESULT_CHARS if last else step_runner.RESULT_CHARS))
+            if failed:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) failed: {tool_results.error_of(result)}")
+            if not_run:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) is waiting for the user's confirmation.",
+                                                status=status)
+            if guard.stop:
+                return step_runner.final_result(total, summaries, stopped="Stopped by the loop guard.")
+        return step_runner.final_result(total, summaries)
 
     def _execute_tool(self, name, arguments):
         """Single entry point for every tool call in run()'s loop, regardless
@@ -1415,9 +1630,13 @@ class CartogenAi:
             return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
 
         token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
+        self._evidence_start(user_query)
         try:
-            return self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            reply = self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            self._evidence_finish(reply)
+            return reply
         finally:
+            self._evidence = None
             cancel_signal.end(token)
             self._turn_project_session = None
             self._stray_fragment_turn = False
@@ -1498,6 +1717,22 @@ class CartogenAi:
             self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
             active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
         )
+        # Input discovery for pre-built chains: what the open project can bind to each chain slot, read once per turn on the main
+        # thread and reused by run_steps' preflight. Added to the system prompt, not the user's message, so it is not stored as
+        # something the user said.
+        self._turn_facts = None
+        try:
+            from . import capabilities, chains as chain_mod, discovery
+            fitting = chain_mod.chains_for([c for c, _t, _v in capabilities.needed_capabilities(user_query)])
+            if fitting and "run_steps" in active_tool_names:
+                facts = self._run_on_main_thread(discovery.gather_facts, None)
+                if isinstance(facts, dict) and not isinstance(facts.get("error"), str):
+                    self._turn_facts = facts
+                    check = discovery.chain_context(user_query, facts, fitting)
+                    if check:
+                        system_prompt_content += "\n\n" + check
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="chain_context", error_class=type(e).__name__, error=True)
 
         self._remember_grounding(user_query)
         self._remember_grounding(map_context)
@@ -1506,11 +1741,15 @@ class CartogenAi:
         messages.append(user_message)
 
         self._get_usage_tracker().begin_turn()
+        turn_id = self._get_call_log().next_turn_id()
+        self._current_turn_id = turn_id
         max_rounds, max_turn_tokens = self._turn_limits()
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        self._turn_calls = []
+        look_nudged = False
         # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
         # have not since succeeded -- feeds response_guard's unbacked-data warning below.
         turn_pending = []
@@ -1521,8 +1760,15 @@ class CartogenAi:
         drift_nudged = False
 
         token_budget_hit = False
+        guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
+            max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
+        guard_stop = None
         for iteration_index in range(max_rounds):
-            if max_turn_tokens and iteration_index > 0 and self._get_usage_tracker().turn_tokens() >= max_turn_tokens:
+            # Checked BEFORE the request: tokens already spent this turn plus the observed size of the last call (the next call
+            # cannot be smaller, the history only grows) must fit the budget -- not merely "already over".
+            if max_turn_tokens and iteration_index > 0 and loop_guard.budget_exceeded(
+                    self._get_usage_tracker().turn_tokens(), max_turn_tokens,
+                    call_metrics.next_call_estimate(self._get_call_log().turn_records(turn_id))):
                 token_budget_hit = True
                 break
             if should_stop is not None and should_stop():
@@ -1536,18 +1782,25 @@ class CartogenAi:
             # the first place, proportional to how large the task actually is.
             if iteration_index >= PACING_THRESHOLD_ITERATIONS:
                 time.sleep(PACING_DELAY_SECONDS)
+            call_started = call_metrics.monotonic()
             try:
                 result = self.client.complete(
                     messages, tools=active_tools, max_tokens=_max_tokens_for_iteration(iteration_index)
                 )
             except Exception as e:
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception")
                 return f"[API error] {e}"
 
             if not isinstance(result, dict):
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")
                 return "[API error] Unexpected response from model client."
             if "error" in result:
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "provider_error")
                 return f"[API error] {result['error']}"
             self._accumulate_usage(result.get("usage"))
+            _reply = result.get("message") if isinstance(result.get("message"), dict) else {}
+            self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, result.get("usage"), "ok",
+                                    tool_calls=len(_reply.get("tool_calls") or []), model=result.get("model"))
 
             message = result.get("message")
             if not isinstance(message, dict):
@@ -1555,6 +1808,13 @@ class CartogenAi:
             messages.append(message)
 
             tool_calls = message.get("tool_calls")
+            if not tool_calls and not look_nudged:
+                nudge = look_followup.nudge_for(user_query, self._turn_calls)
+                if nudge:                                   # one deterministic follow-up; see look_followup's docstring
+                    look_nudged = True
+                    log_event("look_followup", tag="Agent", status="nudged", correlation_id=correlation_id)
+                    messages.append({"role": "user", "content": nudge})
+                    continue
             if not tool_calls:
                 content = message.get("content")
                 if content is None or (isinstance(content, str) and not content.strip()):
@@ -1605,13 +1865,27 @@ class CartogenAi:
                     except Exception:
                         pass
                 _tool_start = time.monotonic()
-                tool_result = self._execute_tool(name, arguments)
+                if name == "run_steps":
+                    tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
+                                                  should_stop, correlation_id, provider_name)
+                else:
+                    tool_result = self._exec_recorded(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
                 # Put "this call did not run" into the data the model reasons over, not only
                 # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
                 tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = tool_results.is_error(tool_result)
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
+                                  tool_operations.get_tool_operation_type(name))
+                if name == "find_tools" and not is_error and isinstance(tool_result, dict):
+                    # The model asked for tools its list did not cover: offer them for the rest of this turn (bounded, deduplicated).
+                    offered = {t.get("function", {}).get("name") for t in active_tools}
+                    for wanted in (tool_result.get("tool_names") or [])[:8]:
+                        schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
+                        if schema is not None and wanted not in offered:
+                            active_tools = list(active_tools) + [schema]
+                            offered.add(wanted)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
@@ -1644,6 +1918,14 @@ class CartogenAi:
                     "content": serialized,
                 })
 
+            guard_stop = guard.end_round() or guard.stop
+            if guard_stop:
+                final_text = guard.partial_report(guard_stop)
+                log_event("turn_guard_stop", tag="Agent", status=guard_stop["reason"], count=iteration_index + 1,
+                          correlation_id=correlation_id)
+                self._append_history(user_message, {"role": "assistant", "content": final_text})
+                return final_text
+
             # Mid-turn context compaction (see MAX_FULL_TOOL_RESULTS_PER_TURN's own comment) --
             # once per iteration, after this iteration's own tool results are appended, so a
             # large task's per-call payload to the model stays bounded for the rest of the turn.
@@ -1665,10 +1947,11 @@ class CartogenAi:
         # doomed step-per-item approach (e.g. one tool call per item in a long list)
         # instead of the more efficient path rule 14 in the system prompt asks for.
         if token_budget_hit:
-            final_text = (
-                "[Agent stopped] This request used its token budget (%s tokens, setting "
-                "cartogen_ai/max_turn_tokens) before finishing. Break it into smaller pieces, or raise the budget "
-                "in QGIS's advanced settings." % f"{max_turn_tokens:,}")
+            final_text = guard.partial_report({"reason": "token_budget", "detail": (
+                "this request reached its token budget (%s tokens, setting cartogen_ai/max_turn_tokens; the next call would "
+                "have passed it)" % f"{max_turn_tokens:,}")}).replace(
+                "before spending more of your API credit.", "before sending another request.")
+            final_text += " To allow more, raise the budget in Settings."
             self._append_history(user_message, {"role": "assistant", "content": final_text})
             return final_text
         final_text = (

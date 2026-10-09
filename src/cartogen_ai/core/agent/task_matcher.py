@@ -67,13 +67,51 @@ def _score(qtokens, entry):
     return round(min(base, 1.0), 4)
 
 
+# rc22 live smoke (V1, J5, J16, T2): "Show the severity on the map for smoke_admin" and "Show the INFORM risk on the map" matched
+# "Map drought severity" / "Map extreme-heat risk" on the shared words map + severity/risk, and the task's hazard_type slot then made
+# the agent ask "Which hazard specifically?" about a hazard the user never mentioned. A task that NAMES one specific hazard is only a
+# candidate when the query names that hazard too (or a synonym).
+_SPECIFIC_HAZARDS = {
+    "flood": {"flood", "floods", "flooded", "flooding", "floodwater", "inundation"},
+    "drought": {"drought", "droughts"},
+    "landslide": {"landslide", "landslides", "debris"},
+    "wildfire": {"wildfire", "wildfires", "fire", "fires", "burn"},
+    "earthquake": {"earthquake", "earthquakes", "seismic"},
+    "cyclone": {"cyclone", "cyclones", "hurricane", "hurricanes", "storm", "storms", "typhoon"},
+    "volcano": {"volcano", "volcanic", "volcanoes"},
+    "tsunami": {"tsunami", "tsunamis"},
+    "heat": {"heat", "heatwave"},
+    "cold": {"cold", "frost", "winter"},
+    "avalanche": {"avalanche", "avalanches"},
+    "erosion": {"erosion"},
+}
+_PLAIN_WORD = re.compile(r"[a-z]+")
+
+# Everyday words the register spells differently. rc22 smoke T6: "Cluster smoke_image into four groups" matched "Map vulnerable
+# groups" and the agent then claimed raster clustering was unavailable, although the register's image-classification task lists
+# unsupervised_classification (whose k-means clusters are exactly that).
+_QUERY_SYNONYMS = {"cluster": "classification", "clusters": "classification", "clustering": "classification",
+                   "kmeans": "classification", "unsupervised": "classification", "segment": "classification"}
+
+
+def _names_unmentioned_hazard(query_words, entry):
+    """True when the entry's title names a specific hazard and the query names none of that hazard's words. Pure."""
+    title = set(_PLAIN_WORD.findall(str(entry.get("text", "")).lower()))
+    named = [words for words in _SPECIFIC_HAZARDS.values() if title & words]
+    return bool(named) and not any(query_words & words for words in named)
+
+
 def match(query, limit=MAX_CANDIDATES):
     """Return [(entry, score)] best first. Empty when nothing scores."""
     q = _tokens(query)
     if not q:
         return []
+    query_words = set(_PLAIN_WORD.findall((query or "").lower()))
+    q = q | {_QUERY_SYNONYMS[w] for w in q if w in _QUERY_SYNONYMS}
     scored = []
     for e in reg.load():
+        if _names_unmentioned_hazard(query_words, e):
+            continue
         s = _score(q, e)
         if s > 0:
             scored.append((e, s))
@@ -424,6 +462,13 @@ def task_directive(entry, filled=None, query=None):
     named = [t for t in tools if t in named_tools(query or "")]
     if named:
         tools = named + [t for t in tools if t not in named]
+    # A data source the request names (OpenStreetMap/Overpass, HDX) leads the chain and a local-file loader goes last unless a file is
+    # named: 6.02 "Map hospitals and clinics" otherwise opened with add_layer_from_path for an Overpass request (2026-10-09).
+    try:
+        from .capabilities import lead_tools_for_task
+        tools = lead_tools_for_task(tools, query)
+    except Exception:
+        pass
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output
     # actually needs, or the model is told to deliver an HTML dashboard while

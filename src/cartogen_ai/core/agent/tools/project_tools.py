@@ -6,6 +6,7 @@ QGIS Project File Tools for Cartogen AI.
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 try:
     from qgis.core import QgsProject, QgsLayerTreeModel
@@ -69,6 +70,7 @@ def _temporary_layer_names(project):
     },
 )
 def save_project(output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     project = QgsProject.instance()

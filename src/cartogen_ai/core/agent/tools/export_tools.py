@@ -8,6 +8,7 @@ import json
 import tempfile
 import datetime
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
@@ -18,7 +19,7 @@ try:
     from qgis.core import (
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-        QgsVectorLayer, QgsFeature, QgsWkbTypes, QgsApplication,
+        QgsVectorLayer, QgsFeature, QgsWkbTypes, QgsApplication, QgsRasterLayer,
     )
     from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
@@ -274,11 +275,46 @@ def overwrite_preview(tool_name, arguments, path):
     return None
 
 
-@register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
+def _export_raster_layer(layer, layer_name, format, output_path, confirmed):
+    """GeoTIFF copy of a raster layer (rc22 smoke H4/D5: slope and other results are temporary files and the model, asked to export
+    one, called the vector exporter on it and failed). Only GeoTIFF is offered; other formats get a plain error."""
+    if str(format or "").lower() not in ("tif", "tiff", "geotiff", "gtiff", "gpkg", "geopackage", ""):
+        return {"error": f"Raster layers can be exported as GeoTIFF only, not '{format}'."}
+    if not output_path:
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{_sanitize_filename(layer.name())}.tif")
+    if not output_path.lower().endswith((".tif", ".tiff")):
+        output_path = os.path.splitext(output_path)[0] + ".tif"
+    if not confirmed:
+        preview = overwrite_preview("export_layer", {"layer_name": layer_name, "format": format, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        from osgeo import gdal
+    except ImportError:
+        return {"error": "GDAL's Python bindings are not available in this QGIS, so the raster could not be exported."}
+    source = (layer.source() or "").split("|", 1)[0]
+    if not source or not os.path.isfile(source):
+        return {"error": "This raster has no file on disk to copy (it is a web or in-memory layer)."}
+    try:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        dataset = gdal.Translate(output_path, source, format="GTiff", creationOptions=["COMPRESS=DEFLATE", "TILED=YES"])
+        if dataset is None or not os.path.isfile(output_path):
+            return {"error": f"GDAL did not write '{output_path}'."}
+        dataset = None
+    except Exception as e:
+        return {"error": f"Raster export failed: {e}"}
+    remember_written(output_path)
+    return {"success": True, "output_path": output_path, "format": "GeoTIFF", "layer_name": layer_name}
+
+
+@register_tool("export_layer", "Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
 def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    if QGIS_AVAILABLE and isinstance(layer, QgsRasterLayer):
+        return _export_raster_layer(layer, layer_name, format, output_path, confirmed)
 
     fmt_map = {
         "shp": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),
@@ -462,6 +498,7 @@ def _derive_csv_path(layer, output_path):
                "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
                {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
 def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False, confirmed=False):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -512,6 +549,7 @@ def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry
     },
 )
 def print_map(output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if iface is None or iface.mapCanvas() is None:
@@ -2051,6 +2089,7 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
     },
 )
 def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -2246,6 +2285,7 @@ def _inject_notices(html, notices):
     },
 )
 def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:

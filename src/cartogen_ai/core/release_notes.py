@@ -9,15 +9,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc21"
-NEW_MARK_VERSIONS = ("1.16.0-rc20", "1.16.0-rc21")
+WHATS_NEW_VERSION = "1.16.0-rc23"
+NEW_MARK_VERSIONS = ("1.16.0-rc22", "1.16.0-rc23")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Map classes", "Manual class boundaries must lie inside the data's range; an out-of-range boundary is now an error instead of an inverted class."),
-    ("Print layouts", "The north arrow follows a rotated map instead of staying at zero degrees."),
-    ("Safety", "A short pasted fragment such as \"template: access_map\" no longer makes the agent create or change anything; it asks what you want."),
-    ("Not hand-tested", "Everything here ran offline and in a local QGIS 4.2.2 run, but has not been hand-tested in a desktop session or against a real model."),
+    ("Exports", "A relative output path now lands in your project folder (the reply names the full path), and a raster result such as slope can be exported as a GeoTIFF."),
+    ("Matching", "'Show the severity on the map' no longer asks which hazard; a task that names one hazard only matches when you name it."),
+    ("Follow-through", "After you confirm Apply edit, the 'show it on the map' part of your request runs; opening another project clears the previous plan."),
+    ("Styling and layouts", "Graduated styles honour an explicit colour ramp such as pale yellow to dark red, and a layout map follows the canvas rotation."),
+    ("Not hand-tested", "These fixes ran offline and in a local QGIS 4.2.2 run, but have not been hand-tested in a desktop session or against a real model."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

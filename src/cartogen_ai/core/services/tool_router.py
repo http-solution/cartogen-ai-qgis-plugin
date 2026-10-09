@@ -282,6 +282,14 @@ def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> 
 # (10), since these are curated synonyms for a specific known gap rather than
 # an incidental substring hit, but not higher (a real name/description match
 # should still win a tie against an alias match).
+# Verbs and nouns that appear in dozens of tool names ("generate_*", "calculate_*", "*_layer"). A request that says "generate a buffer"
+# must not get +10 for generate_html_dashboard, generate_report and generate_mapping_task_grid; the distinctive word (buffer,
+# dashboard, report) still scores. Found by measurement on a long request: these verbs alone filled the tool list with unrelated tools.
+_GENERIC_NAME_WORDS = frozenset({"generate", "calculate", "create", "apply", "get", "set", "add", "fetch", "run", "export", "extract",
+                                 "analyze", "analyse", "layer", "layers", "map", "data", "style", "report", "analysis", "tool"})
+_LONG_QUERY_WORDS = 25
+_LONG_QUERY_MIN_SCORE = 6
+_DESCRIPTION_HIT_CAP = 4        # at most +8 from description words, however long the request
 _ALIAS_MATCH_SCORE = 10
 
 # Common English function/filler words, excluded from name/description scoring -- 2026-09-12,
@@ -359,6 +367,24 @@ class ToolRouter:
             "generate_spatial_report"
         } | explicit_tool_names
         known_names = {t.get("function", {}).get("name", "") for t in self.full_schema_list}
+        # Tools the request's DATA SOURCES and ACTIONS require (core/agent/capabilities.py), claimed before any description-word
+        # scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and NDWI tool for a
+        # water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
+        try:
+            from ..agent.capabilities import required_tools
+            always_include |= {n for n in required_tools(user_query) if n in known_names}
+            from ..agent.capabilities import is_multi_step, uncovered_capabilities
+            if (uncovered_capabilities(user_query) or is_multi_step(user_query)) and "find_tools" in known_names:
+                always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
+            if is_multi_step(user_query) and "run_steps" in known_names:
+                always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
+                from ..agent.capabilities import needed_capabilities
+                from ..agent.chains import chains_for
+                for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
+                    # run_steps only accepts tools that were offered, so offer the chain's own
+                    always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
+        except Exception:
+            pass
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
         _FALLBACK_TOOL = "execute_pyqgis_script"
@@ -403,7 +429,7 @@ class ToolRouter:
             # real word-boundary membership tests instead of "is this text contained anywhere in
             # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
             # not the only thing standing between a short query word and a false match.
-            name_words = set(name.lower().split("_"))
+            name_words = set(name.lower().split("_")) - _GENERIC_NAME_WORDS
             desc_words = set(re.findall(r"\w+", desc))
 
             score = 0
@@ -411,10 +437,10 @@ class ToolRouter:
             if query_words & {w for w in name_words if len(w) > 2}:
                 score += 10
 
-            # Description match score
-            for word in query_words:
-                if len(word) > 2 and word in desc_words:
-                    score += 2
+            # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
+            # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
+            description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
+            score += 2 * min(description_hits, _DESCRIPTION_HIT_CAP)
 
             # Curated alias/synonym match score
             for alias in _TOOL_ALIASES.get(name, []):
@@ -470,4 +496,8 @@ class ToolRouter:
         # behavior change from) filtering positives first and slicing second -- this is a
         # strict simplification/extension of the prior nothing_else_matched-only logic, not a
         # separate code path, and unconditionally applies to every query now.
-        return [tool for score, tool in scored_tools[:top_k] if score > 0]
+        # A long request shares an ordinary word or two with most tool descriptions; those one-word overlaps are noise, not relevance.
+        # For a request of more than _LONG_QUERY_WORDS words a tool must score at least _LONG_QUERY_MIN_SCORE (a name or alias match,
+        # three description words, or a capability the request names) to take a slot. Short requests keep the old rule (score > 0).
+        floor = _LONG_QUERY_MIN_SCORE if len(user_query.split()) > _LONG_QUERY_WORDS else 1
+        return [tool for score, tool in scored_tools[:top_k] if score >= floor]

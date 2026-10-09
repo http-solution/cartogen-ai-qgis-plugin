@@ -10,11 +10,15 @@ from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.data_export_tools import export_stored_data
 
 
+import os as _os
+EXPORT_PATH = _os.path.abspath(_os.path.join(_os.sep, "tmp", "export.json"))   # absolute on every OS: relative paths are anchored to the project (tools/_paths.py)
+
+
 class TestExportStoredData(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.data_export_tools.get_memory_manager")
     def test_reports_missing_memory_manager(self, mock_get_manager):
         mock_get_manager.return_value = None
-        result = export_stored_data("C:/tmp/export.json")
+        result = export_stored_data(EXPORT_PATH)
         self.assertIn("error", result)
         self.assertIn("Memory manager", result["error"])
 
@@ -39,10 +43,10 @@ class TestExportStoredData(unittest.TestCase):
         }
         mock_export.write_export_document.return_value = True
 
-        result = export_stored_data("C:/tmp/export.json")
+        result = export_stored_data(EXPORT_PATH)
 
         self.assertTrue(result["success"])
-        self.assertEqual(result["output_path"], "C:/tmp/export.json")
+        self.assertEqual(result["output_path"], EXPORT_PATH)
         self.assertEqual(result["project_memory_count"], 2)
         self.assertEqual(result["global_memory_count"], 1)
         self.assertEqual(result["chat_history_count"], 1)
@@ -68,7 +72,7 @@ class TestExportStoredData(unittest.TestCase):
         mock_export.build_export_document.return_value = {"project_memory": {}, "global_memory": {}, "chat_history": full}
         mock_export.write_export_document.return_value = True
 
-        result = export_stored_data("C:/tmp/export.json")
+        result = export_stored_data(EXPORT_PATH)
 
         self.assertEqual(result["chat_history_count"], 40)
         self.assertEqual(mock_export.build_export_document.call_args[0][2], full)
@@ -89,7 +93,7 @@ class TestExportStoredData(unittest.TestCase):
         result = export_stored_data("C:/bad/path/export.json")
 
         self.assertIn("error", result)
-        self.assertIn("C:/bad/path/export.json", result["error"])
+        self.assertIn(_os.path.normpath("C:/bad/path/export.json"), result["error"])   # the path is normalised: backslashes on Windows
 
     @patch("cartogen_ai.core.agent.tools.data_export_tools._chat_persistence")
     @patch("cartogen_ai.core.agent.tools.data_export_tools.get_memory_manager")
@@ -109,7 +113,7 @@ class TestExportStoredData(unittest.TestCase):
         with patch("cartogen_ai.core.agent.tools.data_export_tools._export") as mock_export:
             mock_export.build_export_document.return_value = {"project_memory": {"a": "1"}, "global_memory": {}, "chat_history": []}
             mock_export.write_export_document.return_value = True
-            result = export_stored_data("C:/tmp/export.json")
+            result = export_stored_data(EXPORT_PATH)
 
         self.assertTrue(result["success"])
         mock_export.build_export_document.assert_called_once_with({"a": "1"}, {}, [], chat_digest=[], chat_info={})

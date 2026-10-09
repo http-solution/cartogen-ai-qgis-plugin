@@ -251,7 +251,7 @@ def _nice(x):
     return round(x, digits) if digits > 0 else int(round(x, digits))
 
 
-def count_ranges(values, colours, classes=5):
+def count_ranges(values, colours, classes=5, unit=""):
     """[(low, high, colour, label)] for a count field (people, exposed population). Pure.
 
     Classes are quantile-based on the positive values, with limits rounded to two significant digits, because counts are heavy-tailed and
@@ -291,7 +291,11 @@ def count_ranges(values, colours, classes=5):
         low, high = edges[i], edges[i + 1]
         last = i == len(edges) - 2
         label = f"{low:,.0f} to {high:,.0f}" if last else f"{low:,.0f} to < {high:,.0f}"
-        out.append((low, high + (0.5 if last else 0.0), palette[i], label))
+        if unit:
+            label += " " + unit               # rc22 hand test V2 (issue 229): the legend said "3 to < 7" without saying what is counted
+        # QGIS ranges include BOTH ends and the first matching range wins, so a value exactly at a class limit (7 in "3 to < 7 | 7 to 10")
+        # drew in the lower class while the label said the upper one. The upper end of every class but the last is the float just below the limit.
+        out.append((low, high + 0.5 if last else math.nextafter(high, 0.0), palette[i], label))
     return out
 
 
@@ -589,7 +593,7 @@ def style_result_field(layer, look, field, top_k=None):
         elif look in ("people_in_need", "exposure", "allocation", "jiaf_count", "measure"):
             palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS,
                        "jiaf_count": EXPOSURE_COLORS, "measure": MEASURE_COLORS}[look]
-            ranges = count_ranges(values, palette)
+            ranges = count_ranges(values, palette, unit="people" if look in ("people_in_need", "exposure") else "")
             if not ranges:
                 return {"error": f"'{field}' holds no numeric values."}
         else:  # rank
@@ -731,6 +735,36 @@ def refresh_legend(layer):
         return True
     except Exception:
         return False
+
+
+def raise_above_polygons(layer):
+    """Move a point or line layer above the polygon layers that sit over it in the top level of the Layers panel (rc22 hand test T3: six
+    UNOSAT points were drawn correctly but hidden under the admin boundary). Returns the names it was lifted over. Polygon layers are never
+    moved, and a layer inside a group is left where the user put it."""
+    if not QGIS_AVAILABLE or layer is None:
+        return []
+    try:
+        from qgis.core import QgsLayerTree, QgsProject, QgsVectorLayer, QgsWkbTypes
+        if not isinstance(layer, QgsVectorLayer) or QgsWkbTypes.geometryType(layer.wkbType()) == QgsWkbTypes.GeometryType.PolygonGeometry:
+            return []
+        root = QgsProject.instance().layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None or node.parent() != root:
+            return []
+        children = root.children()
+        idx = children.index(node)
+        over = [c for c in children[:idx] if QgsLayerTree.isLayer(c) and isinstance(c.layer(), QgsVectorLayer)
+                and QgsWkbTypes.geometryType(c.layer().wkbType()) == QgsWkbTypes.GeometryType.PolygonGeometry]
+        if not over:
+            return []
+        top = children.index(over[0])
+        visible = node.itemVisibilityChecked()
+        new = root.insertLayer(top, layer)
+        new.setItemVisibilityChecked(visible)
+        root.removeChildNode(node)
+        return [c.name() for c in over]
+    except Exception:
+        return []
 
 
 def raise_above_rasters(layer):

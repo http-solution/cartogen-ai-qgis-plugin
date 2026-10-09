@@ -7,6 +7,7 @@ import math
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
@@ -533,6 +534,8 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
                 "description": "Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp "
                 "toward that cluster's color instead of the auto-selected one.",
             },
+            "color_from": {"type": "string", "description": "Optional start colour of an explicit ramp, as plain words ('pale yellow') or #rrggbb. Use with color_to when the user names the colours."},
+            "color_to": {"type": "string", "description": "Optional end colour of an explicit ramp ('dark red' or #rrggbb). Overrides the automatic ramp and cluster tint."},
             "breaks": {
                 "type": "array",
                 "items": {"type": "number"},
@@ -545,7 +548,7 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         "required": ["layer_name", "field"],
     },
 )
-def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5):
+def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5, color_from=None, color_to=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if breaks is not None and len(breaks) < 1:
@@ -577,7 +580,18 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
 
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
-        if cluster_color:
+        explicit_ramp = None
+        if color_from or color_to:
+            # rc22 smoke F2: an explicit "pale yellow to dark red" was ignored (the map came out Viridis) because the tool had no
+            # way to take colours. A ramp the user spelled out beats every automatic choice.
+            start, end = resolve_colour(color_from or "") or color_from, resolve_colour(color_to or "") or color_to
+            if not (start and end and QColor(start).isValid() and QColor(end).isValid()):
+                return {"error": "color_from and color_to must both be colours (a plain phrase such as 'pale yellow' / 'dark red' or a #rrggbb code)."}
+            explicit_ramp = QgsGradientColorRamp(QColor(start), QColor(end))
+        if explicit_ramp is not None:
+            color_ramp = explicit_ramp
+            ramp_label = f"{color_from} to {color_to}"
+        elif cluster_color:
             # Near-white to the cluster's color -- a sequential single-hue
             # ramp, the correct ramp family for ordered/graduated data
             # (matches this file's own qualitative-vs-diverging distinction
@@ -1174,6 +1188,7 @@ def set_layer_order(layer_names):
     },
 )
 def save_layer_style(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -1269,6 +1284,7 @@ def load_layer_style(layer_name, style_path):
     },
 )
 def export_layer_sld(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)

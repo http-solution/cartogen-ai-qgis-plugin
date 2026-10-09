@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_warning, log_error
 
@@ -1213,6 +1214,7 @@ def _fit_helmert_transform(control_points):
     },
 )
 def georeference_image(image_path, control_points, output_path, target_crs="EPSG:4326", transform_type="tps"):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not os.path.exists(image_path):

@@ -13,6 +13,7 @@ network-only tools (see NETWORK_ONLY_TOOLS in agent/agent_orchestrator.py).
 import os
 import tempfile
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 _CHART_TYPES = {"bar", "pie", "line"}
 _AGG_FUNCS = {"sum", "count", "mean", "min", "max"}
@@ -79,6 +80,7 @@ def _temp_png_path():
     },
 )
 def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None, output_path=None, color_palette=None, dpi=300):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     chart_type = (chart_type or "").lower()
     if chart_type not in _CHART_TYPES:
         return {"error": f"chart_type must be one of {sorted(_CHART_TYPES)}."}
@@ -469,6 +471,7 @@ def aggregate_data(rows, group_by_field, value_field=None, agg="sum"):
     },
 )
 def generate_sector_coverage_report(rows, group_by_field, reached_field, target_field=None, title=None, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     reached_result = aggregate_data(rows, group_by_field, reached_field, agg="sum")
     if "error" in reached_result:
         return reached_result

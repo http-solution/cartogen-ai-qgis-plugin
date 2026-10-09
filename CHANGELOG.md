@@ -7,6 +7,8 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc23](#v1-16-0-rc23) | 2026-10-09 | **Release candidate 23 for 1.16.0.** No breaking changes. Fixes from the hand test of rc22 (output paths, raster export, layout rotation, hazard matching, resume after Apply, project-change reset, explicit colour ramps); verified offline and in QGIS 4.2.2 Docker, not by hand. |
+| [1.16.0-rc22](#v1-16-0-rc22) | 2026-10-07 | **Release candidate 22 for 1.16.0.** No breaking changes. Fixes from the rc20 architectural audit (results never overwrite your layers, stale-turn and egress-lineage fixes, equalisation/slope/GeoJSON/CRS corrections, read-only script copies, first background work); verified locally in QGIS 4.2.2, not by hand. |
 | [1.16.0-rc21](#v1-16-0-rc21) | 2026-10-07 | **Release candidate 21 for 1.16.0.** No breaking changes. Fixes from the rc20 hand test: out-of-range manual class breaks rejected, north arrow follows a rotated map, a stray pasted fragment can no longer make the agent change anything; verified locally in QGIS 4.2.2, not by hand. |
 | [1.16.0-rc20](#v1-16-0-rc20) | 2026-10-06 | **Release candidate 20 for 1.16.0.** No breaking changes. Audit fixes since rc19: PostGIS read-only guard no longer leaves the connection read-only, raster grid alignment and units, unique unit labels, egress lineage after renames, refused saves reported as errors, one-way streets with blank directions; CI now runs against a real PostGIS server; not hand-tested. |
 | [1.16.0-rc19](#v1-16-0-rc19) | 2026-10-06 | **Release candidate 19 for 1.16.0.** No breaking changes. Fixes from the rc18 hand test: polite confirmations, imagery checkpoint download, no unrequested report after Stop, get_layer_extent so a bounding box is never guessed, results lifted above hiding rasters; not hand-tested. |
@@ -62,6 +64,32 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc23"></a>
+## [1.16.0-rc23] — 2026-10-09 — Release candidate 23 for 1.16.0: fixes from the hand test of rc22
+
+No breaking changes; QGIS 4.2+. Everything after the rc22 build:
+
+- Fix: a relative output path (for example outputs/report.csv) is anchored to the saved project's folder, or the profile export folder for an unsaved project, instead of the QGIS process folder; the overwrite confirmation now looks in the right place and replies name the absolute path (rc22 hand test N3, N8, N9, H4).
+- Fix: export_layer writes a GeoTIFF for a raster layer, so a slope or other raster result can be exported (H4, D5). A print layout's map takes the canvas rotation and its north arrow follows (F3).
+- Fix: a task that names one specific hazard (drought, extreme heat) is only matched when the request names that hazard, so 'show the severity on the map' no longer asks 'which hazard?' (V1, J5, J16).
+- Fix: after a confirmed Apply edit, a 'show it on the map' part of the same request now runs (T2, V4, J4). A project change drops the previous project's plan, pending previews and carried-over state so a plain 'Yes' cannot resume them (H5, T4, J4, V4).
+- New: apply_graduated_style accepts color_from and color_to (colour words or hex) so an explicit ramp such as 'pale yellow to dark red' is honoured (F2). 'Cluster ... into N groups' reaches unsupervised classification (T6). Help shows the '(new)' explanation only when a mark is shown (V7).
+- Verification: offline suite, ruff and live QGIS 4.2.2 Docker checks of the export, layout and styling fixes. NOT hand-tested: every fix above. Open from the same hand test and not fixed here: invented or wrong facts in replies (model behaviour), reply-wording requirements, legend entries hidden under opaque polygons (issue 165), and rows that were not run. No issue is closed by this build.
+
+<a id="v1-16-0-rc22"></a>
+## [1.16.0-rc22] — 2026-10-07 — Release candidate 22 for 1.16.0: fixes from the rc20 architectural audit
+
+No breaking changes; QGIS 4.2+. Everything after the rc21 build:
+
+- Fix: a result that replaces a layer of the same name no longer overwrites a layer you made yourself. Plugin results are marked as the plugin's own; a same-named layer of yours is set aside (renamed) and the reply says so (rc20 audit A02).
+- Fix: feature extraction from imagery only outlines the detected object, not the surrounding background (A01), and a rotated or non-square mask keeps its true geometry (A10).
+- Fix: a long-running agent turn that was stopped or superseded can no longer deliver a stale result or act after the project changed (A04); the data-egress gate now follows layer lineage through renames and duplicates, so a derived layer keeps the protection of its source (A05); feature edits report a refused commit or delete instead of claiming success (A03).
+- Fix: histogram equalisation no longer turns the lowest valid pixels into NoData: valid cells are 1-255 and 0 is NoData only (A09). Slope and hillshade on a projected DEM in feet convert metres into the DEM's own units (A11). GeoJSON export is RFC 7946: WGS84 coordinates, no legacy crs member (A12). A failed CRS transform is now an error instead of zooming or building a layout in the wrong place (A13).
+- Safety: the isolated script worker (execute_pyqgis_script) receives COPIES of file-backed layers, so a script cannot modify your files; edits it makes to such a layer are discarded. Database and web-service layers have no file to copy and remain writable by a script (A06, issue 220).
+- Memory: classification refuses rasters over 25 million cells or 60 million cell-band values (A15). Abandoned background-analysis objects are released once their task finishes (A16). The plugin's last-resort import bootstrap removes only its own modules (A18).
+- Responsiveness: zonal_statistics (zones of 200 or more) and the model and outline steps of extract_features_from_imagery run off the GUI thread and honour Stop. Every other expensive tool still blocks QGIS while it runs (A14, issue 221 stays open).
+- Verification: the full local run passed on the audit-fix build (offline suite, ruff, zip check, 360 QGIS 4.2.2 live tests against PostGIS). NOT hand-tested: every fix above. Imagery extraction needs the FastSAM model and was not run live. GitHub Actions did not run (account billing), so the Windows job and the gitleaks scan did not run. No audit issue (220-224) is closed by this build.
 
 <a id="v1-16-0-rc21"></a>
 ## [1.16.0-rc21] — 2026-10-07 — Release candidate 21 for 1.16.0: fixes from the rc20 hand test

@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (203 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (208 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -141,7 +141,7 @@ Save an agent plan as a re-usable JSON workflow preset. To build a recurring mon
 
 ### `export_layer`
 
-Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
+Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -960,6 +960,8 @@ Apply smart graduated choropleth style analyzing field distribution for optimal 
 | `num_classes` | integer | no | Number of classes to split the data into. Defaults to 5. Ignored if breaks is given. |
 | `opacity` | number | no | 0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap underneath stay visible) and 100 for points/lines. |
 | `cluster` | string | no | Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp toward that cluster's color instead of the auto-selected one. |
+| `color_from` | string | no | Optional start colour of an explicit ramp, as plain words ('pale yellow') or #rrggbb. Use with color_to when the user names the colours. |
+| `color_to` | string | no | Optional end colour of an explicit ramp ('dark red' or #rrggbb). Overrides the automatic ramp and cluster tint. |
 | `breaks` | array[number] | no | Optional explicit class-boundary values (e.g. operational response thresholds), sorted ascending -- when given, these define the classes directly instead of an auto-selected classification method, overriding 'mode'. Data's actual min/max become the outer class bounds. |
 
 ### `apply_graduated_symbol_style`
@@ -1652,6 +1654,29 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
 
+## corridor_tools
+
+### `generate_contours`
+
+Create vector contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a new line layer with an 'ELEV' field. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `raster_layer` | string | yes | Name of the DEM raster layer. |
+| `interval` | number | no | Elevation step between contour lines, default 10. |
+| `band` | integer | no | Band number, default 1. |
+| `output_name` | string | no |  |
+
+### `split_lines_by_zones`
+
+Split a line layer (a road, a highway, a pipeline) by a polygon layer of zones (exclusion zones, flood areas, buffers) into compromised pieces (inside any zone) and clear pieces (outside every zone), style them red and green, and report both the total passable length in km and the longest continuous passable segment in km (they are different numbers). Lengths are ellipsoidal. Connected line features are joined first, so a road stored as many OSM segments counts as one continuous road. Creates a new layer; the inputs are not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `line_layer` | string | yes | Name of the line layer. |
+| `zone_layer` | string | yes | Name of the polygon layer (for example the checkpoint buffers). |
+| `output_name` | string | no | Optional name of the result layer. |
+
 ## critical_link_tools
 
 ### `analyze_critical_links`
@@ -1720,6 +1745,25 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## dem_tools
+
+### `fetch_dem`
+
+Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 open dataset (about 30 m, no account or key needed) and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large areas. Use generate_contours or slope_analysis on the result.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | no | Name of a layer whose extent defines the area. |
+| `west` | number | no |  |
+| `south` | number | no |  |
+| `east` | number | no |  |
+| `north` | number | no |  |
+| `lat` | number | no | Centre latitude (with lon and radius_km). |
+| `lon` | number | no | Centre longitude. |
+| `radius_km` | number | no | Half-width of the square around the centre, km. |
+| `output_path` | string | no | Optional GeoTIFF path; relative paths are anchored to the project folder. |
+| `output_name` | string | no | Optional layer name. |
 
 ## engineering_tools
 
@@ -2226,6 +2270,24 @@ Split an area of interest into a grid of square mapping tasks for remote or crow
 | `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
 | `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
 | `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
+
+## tool_discovery
+
+### `find_tools`
+
+Look up which tools can do a step you were not given a tool for (for example 'contour lines', 'split a line by polygons', 'download elevation'). Returns the best matching tool names with a one-line description each, and makes them available for the rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `need` | string | yes | The step you need to do, in plain words. |
+
+### `run_steps`
+
+Run several tool calls in order in ONE step instead of one model turn each. Use it only when you already know every argument of the whole chain (for example you choose the output layer names yourself). Each step is {tool, arguments}; an argument may be the whole-string reference "$2.layer_name" (field `layer_name` of step 2's result) or "$prev.layer_name". Steps run one at a time through the normal tool path, so confirmations and safety checks still apply; the run STOPS at the first error or the first call waiting for the user's Confirm and reports exactly which steps ran. At most 8 steps; no deleting tools; do not nest run_steps. If a later step depends on something you must look at first, make separate calls instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `steps` | array[object] | yes | Ordered steps. |
 
 ## tool_operations_tools
 

@@ -7,6 +7,7 @@ Generates automated QgsPrintLayout compositions with title, map item, legend, sc
 import math
 import os
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 try:
     from qgis.core import (
@@ -62,6 +63,14 @@ def _text_budget(box_w_mm, box_h_mm):
     """How many characters a label box of this size can hold (the same budget _fit_text_to_box truncates to). Pure."""
     max_lines = max(1, int(box_h_mm // _LABEL_LINE_HEIGHT_MM))
     return max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
+
+
+def canvas_rotation(canvas):
+    """The map canvas's rotation in degrees (0.0 when there is no canvas or it cannot be read). Pure apart from the call."""
+    try:
+        return float(canvas.rotation()) if canvas else 0.0
+    except Exception:
+        return 0.0
 
 
 def _fit_text_to_box(text, box_w_mm, box_h_mm):
@@ -188,6 +197,31 @@ def _format_scale_denominator(n):
         return "unavailable"
 
 
+JIAF_FIELD_PREFIXES = ("jf_", "jp_", "js_")
+
+
+def jiaf_layout_note(field_names):
+    """The standing JIAF statement when any field name looks like a JIAF-support result field, else None. Pure."""
+    if any(str(n).lower().startswith(JIAF_FIELD_PREFIXES) for n in field_names or ()):
+        from .jiaf_inputs import STATEMENT
+        return STATEMENT
+    return None
+
+
+def _visible_layer_field_names():
+    """Field names of every visible vector layer in the project (main thread)."""
+    names = []
+    try:
+        root = QgsProject.instance().layerTreeRoot()
+        for node in root.findLayers():
+            layer = node.layer()
+            if layer is not None and node.isVisible() and hasattr(layer, "fields"):
+                names.extend(f.name() for f in layer.fields())
+    except Exception:
+        pass
+    return names
+
+
 @register_tool(
     "create_print_layout",
     "Create a map print layout composition with title, legend, scalebar, north arrow, and an "
@@ -233,6 +267,7 @@ def _format_scale_denominator(n):
     },
 )
 def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -265,6 +300,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                 zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
             if not body_text:
                 body_text = layout_style.access_reading_guide(visible)
+        jiaf_note = None
+        if template != "sitrep":
+            jiaf_note = jiaf_layout_note(_visible_layer_field_names())
+            if jiaf_note and jiaf_note not in (body_text or ""):
+                # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
+                # method and not endorsed by OCHA or the IASC. Added by the code whenever such a layer is visible, not left to the model.
+                body_text = (body_text + "\n" if body_text else "") + jiaf_note
         target_layer = None
         if zoom_to_layer:
             target_layer = _find_layer_by_name(zoom_to_layer)
@@ -323,6 +365,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             map_item.setExtent(map_extent)
         elif canvas:
             map_item.setExtent(canvas.extent())
+        # rc22 smoke F3: the canvas was rotated 30 degrees, but the layout's map (and so the linked north arrow) came out at 0 --
+        # the saved layout held mapRotation 0. The layout map follows the view the user is looking at.
+        rotation = canvas_rotation(canvas)
+        if rotation:
+            map_item.setMapRotation(rotation)
         layout.addLayoutItem(map_item)
         map_item.setId("MAP_MAIN")
 

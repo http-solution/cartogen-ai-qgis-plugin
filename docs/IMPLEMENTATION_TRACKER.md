@@ -64,6 +64,12 @@ frozen source docs themselves.
 
 ---
 
+> **2026-10-09 repository visibility:** this repository (`http-solution/cartogen-ai-qgis-plugin`) is now public. Older entries below that call
+> the remote private or say no public repository exists describe the earlier `cartogenai-glitch/CARTOGEN-AI` remote and are history, not current
+> state. A secret and personal-data scan of the tree and the full history (698 commits) found no real credentials; the one hard-coded smoke-test
+> password in `service/scripts/local_saas_smoke.sh` is now generated per run, and a personal email address was removed from
+> `docs/archive/DOCUMENTATION.md` (it remains in git history, which was not rewritten).
+
 ## 1. Open items that need a human decision (not an engineering call)
 
 These three are explicitly **not** something an agent should decide or silently implement —
@@ -2519,3 +2525,13 @@ Still open:
 | A18 | Bootstrap namespace eviction in the root `__init__.py` | **Last-resort path now scoped** (`claimed_module_names`; the normal path was scoped by #167); reload/upgrade behaviour still needs the §1.10 human test | Run the fresh-profile/upgrade gate |
 
 Release note: the rc21 changelog/notes do not yet mention the audit fixes; update them (or cut a later rc) before publishing.
+
+### 1.24 rc22 hand test: triage and fixes (added 2026-10-09)
+
+The owner's hand run of rc22 (120 rows: 32 PASS, 33 FAIL, 6 INCONCLUSIVE, 49 NOT RUN) is stored in `docs/RC22_LIVE_SMOKE_REPORT_2026-10-09.md` and
+`docs/RC22_RESULT_MATRIX_2026-10-09.csv`; the cause-by-cause triage, what was fixed afterwards and what is still open is `docs/RC22_SMOKE_TRIAGE_2026-10-09.md`.
+Fixed on the branch after rc22 (offline tests; raster export and the path rule also in Docker QGIS 4.2.2; none re-hand-tested): relative output paths,
+raster GeoTIFF export, canvas rotation in layouts, hazard-task over-matching, display step after a confirmed write, stale plan across projects, explicit colour
+ramps, cluster synonyms, Help (new)-mark note. **Open:** reply-quality failures that are model behaviour (invented facts, wrong country in the JIAF set-up), the
+legend listing layers hidden under opaque polygons (#165), the imagery/footprint preview inventing a CSV deliverable, the hub-siting "Yes" that ran nothing (R2/A1,
+cause not found), and 49 rows not run.

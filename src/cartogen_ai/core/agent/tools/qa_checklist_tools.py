@@ -33,6 +33,7 @@ TRANSITIONS entry for "map_qa")."""
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
@@ -89,6 +90,7 @@ _MANDATORY_LAYOUT_ELEMENTS = {
     },
 )
 def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)

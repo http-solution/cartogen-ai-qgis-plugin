@@ -134,6 +134,7 @@ class _FakeClient:
 def _make_bare_agent(client):
     agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
     agent.client = client
+    agent.loop_guard_enabled = False     # these tests drive the loop to its cap on purpose; the guard has its own tests (test_loop_guard.py)
     agent.conversation_history = []
     agent.task_manager = MagicMock()
     agent.task_manager.get_plan.return_value = None
