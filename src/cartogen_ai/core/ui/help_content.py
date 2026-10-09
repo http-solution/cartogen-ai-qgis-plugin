@@ -62,6 +62,11 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
             f"<code>{t}</code>" + (" <i>(new)</i>" if release_notes.tool_is_new(t) else "") for t in tools))
         for title, tools in release_notes.HUMANITARIAN_WORKFLOWS)
     version_line = f"<p style='color:gray;'>Version {version}</p>" if version else ""
+    # rc22 smoke V7: the sentence about (new) marks was shown although no tool carried one (no tool was added in the last two
+    # releases), so the Help promised marks that were never there. It appears only when at least one mark is shown.
+    any_new = any(release_notes.tool_is_new(t) for _title, tools in release_notes.HUMANITARIAN_WORKFLOWS for t in tools)
+    new_note = ("<i>(new)</i> marks tools added in the last two releases; they have been tested in CI, not by hand.\n    "
+                if any_new else "")
     return f"""
     <h3>🗺️ Cartogen AI — Help</h3>
     {version_line}
@@ -115,8 +120,7 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
     <h4>Humanitarian tools</h4>
     <p>Tools by workflow. Ask in plain language — you don't need the tool names. Where a number is a
     judgement call (a threshold, weights, a budget) the tool asks you for it and repeats it in the result.
-    <i>(new)</i> marks tools added in the last two releases; they have been tested in CI, not by hand.
-    Details: <code>docs/HUMANITARIAN_TOOLS_CATALOGUE.md</code>.</p>
+    {new_note}Details: <code>docs/HUMANITARIAN_TOOLS_CATALOGUE.md</code>.</p>
     <ul>{workflow_items}</ul>
 
     <h4>Layer context</h4>

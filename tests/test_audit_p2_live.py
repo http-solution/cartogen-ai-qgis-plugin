@@ -58,6 +58,36 @@ class TestAuditP2Live(unittest.TestCase):
         self.assertAlmostEqual(lat, 15.37, delta=0.1)
         self.assertNotIn("crs", data)
 
+    def test_a_raster_layer_exports_to_geotiff_at_a_project_relative_path(self):
+        """rc22 smoke H4/D5 (raster export) and N3/N8/N9 (relative paths)."""
+        import numpy
+        from osgeo import gdal, osr
+        from qgis.core import QgsRasterLayer
+        from cartogen_ai.core.agent.tools import _paths
+        from cartogen_ai.core.agent.tools.export_tools import export_layer
+        src = os.path.join(tempfile.mkdtemp(prefix="cartogen_rx_"), "slope.tif")
+        ds = gdal.GetDriverByName("GTiff").Create(src, 4, 4, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((0, 1, 0, 4, 0, -1))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        ds.SetProjection(srs.ExportToWkt())
+        ds.GetRasterBand(1).WriteArray(numpy.arange(16, dtype="float32").reshape(4, 4))
+        ds.FlushCache()
+        ds = None
+        layer = QgsRasterLayer(src, "slope")
+        self.assertTrue(layer.isValid())
+        QgsProject.instance().addMapLayer(layer)
+        home = tempfile.mkdtemp(prefix="cartogen_home_")
+        original = _paths._project_home
+        _paths._project_home = lambda: home
+        self.addCleanup(setattr, _paths, "_project_home", original)
+        res = export_layer("slope", "tif", output_path="outputs/slope_export.tif", confirmed=True)
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["output_path"], os.path.normpath(os.path.join(home, "outputs", "slope_export.tif")))
+        self.assertTrue(os.path.isfile(res["output_path"]))
+        out = gdal.Open(res["output_path"])
+        self.assertEqual(out.GetRasterBand(1).ReadAsArray()[3, 3], 15.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -175,3 +175,10 @@ class TestHazardTasksNeedTheHazardNamed(unittest.TestCase):
         self.assertIn("14.05", self._ids("Map drought severity"))
         self.assertIn("14.02", self._ids("Map flood extent"))
         self.assertIn("14.12", self._ids("Map extreme heat risk"))
+
+
+class TestClusteringFindsImageClassification(unittest.TestCase):
+    def test_cluster_a_raster_into_groups_finds_image_classification(self):
+        from cartogen_ai.core.agent import task_matcher as tm
+        top = [e["id"] for e, _s in tm.match("Cluster smoke_image into four groups", limit=3)]
+        self.assertIn("16.21", top)

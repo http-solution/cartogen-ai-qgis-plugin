@@ -73,3 +73,15 @@ class TestReleaseDocsInSync(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHelpNewMarkNote(unittest.TestCase):
+    """rc22 smoke V7: the Help may only explain the (new) marks when some tool carries one."""
+
+    def test_the_note_matches_the_marks(self):
+        from cartogen_ai.core import release_notes
+        from cartogen_ai.core.ui import help_content
+        html = help_content.build_help_html()
+        any_new = any(release_notes.tool_is_new(t) for _title, tools in release_notes.HUMANITARIAN_WORKFLOWS for t in tools)
+        self.assertEqual(any_new, "marks tools added" in html)
+        self.assertEqual(any_new, "<i>(new)</i>" in html.replace("<i>(new)</i> marks", "<i>(new)</i> marks"))

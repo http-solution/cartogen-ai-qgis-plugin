@@ -87,6 +87,12 @@ _SPECIFIC_HAZARDS = {
 }
 _PLAIN_WORD = re.compile(r"[a-z]+")
 
+# Everyday words the register spells differently. rc22 smoke T6: "Cluster smoke_image into four groups" matched "Map vulnerable
+# groups" and the agent then claimed raster clustering was unavailable, although the register's image-classification task lists
+# unsupervised_classification (whose k-means clusters are exactly that).
+_QUERY_SYNONYMS = {"cluster": "classification", "clusters": "classification", "clustering": "classification",
+                   "kmeans": "classification", "unsupervised": "classification", "segment": "classification"}
+
 
 def _names_unmentioned_hazard(query_words, entry):
     """True when the entry's title names a specific hazard and the query names none of that hazard's words. Pure."""
@@ -101,6 +107,7 @@ def match(query, limit=MAX_CANDIDATES):
     if not q:
         return []
     query_words = set(_PLAIN_WORD.findall((query or "").lower()))
+    q = q | {_QUERY_SYNONYMS[w] for w in q if w in _QUERY_SYNONYMS}
     scored = []
     for e in reg.load():
         if _names_unmentioned_hazard(query_words, e):
