@@ -328,6 +328,12 @@ def analyze_request(query, context=None, attachments=None):
         filled = tmatch.defaults(missing)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)
+        try:        # a request that names three or more distinct steps is a workflow: one matched task would mislead it
+            from ..agent import capabilities
+            if capabilities.is_multi_step(query):
+                directive = capabilities.workflow_directive(query)
+        except Exception:
+            pass
         user_message = tmatch.compose_user_message(query, filled, plan)
         return {
             "task":       entry,

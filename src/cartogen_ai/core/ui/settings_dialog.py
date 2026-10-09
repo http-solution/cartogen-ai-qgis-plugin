@@ -9,6 +9,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import QgsSettings
 
+from ..agent.agent_orchestrator import DEFAULT_TURN_TOKEN_BUDGET
 from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
@@ -26,6 +27,7 @@ from ...infrastructure.providers.claude import list_models as _list_claude
 from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
+    SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
@@ -471,6 +473,16 @@ class CartogenAiSettingsDialog(QDialog):
         )
         layout.addWidget(self.persist_project_memory_checkbox)
 
+        self.evidence_checkbox = QCheckBox("Save an evidence folder for each request (testing and review)")
+        self.evidence_checkbox.setChecked(bool(self.settings.value(SETTINGS_EVIDENCE_ENABLED, False, type=bool)))
+        self.evidence_checkbox.setToolTip(
+            "When on, every request writes a folder 'cartogen_evidence/<time>_<n>' next to the project (or in the QGIS profile "
+            "folder for an unsaved project) holding the request, every tool call with its REAL arguments and results, timings, the "
+            "layers created, the final reply, a map-canvas screenshot and copies of any files written, with SHA-256 hashes. "
+            "Unlike the logs, this includes raw values such as coordinates and attribute data, so do not share the folder "
+            "without checking it. Nothing is uploaded. Off by default.")
+        layout.addWidget(self.evidence_checkbox)
+
         # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
         # this shouldn't silently change every user's per-message cost
@@ -555,10 +567,10 @@ class CartogenAiSettingsDialog(QDialog):
         self.max_turn_tokens_spin.setRange(0, 5_000_000)
         self.max_turn_tokens_spin.setSingleStep(10_000)
         self.max_turn_tokens_spin.setSpecialValueText("no limit")
-        self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, 0, 0, 5_000_000))
+        self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, DEFAULT_TURN_TOKEN_BUDGET, 0, 5_000_000))
         self.max_turn_tokens_spin.setToolTip(
             "Stops a request once the model calls in it have used this many tokens (input + output). "
-            "0 = no limit. The chat footer shows what each request used, so you can pick a number from real use.")
+            "0 = no limit. The default (450,000) is a provisional guardrail from observed use, not an optimum; the chat footer shows what each request used, so you can pick a number from real use.")
         limits_form.addRow("Max tokens per request:", self.max_turn_tokens_spin)
         self.layout_masthead_edit = QLineEdit()
         self.layout_masthead_edit.setPlaceholderText("#1f2d3a (default slate)")
@@ -937,6 +949,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PROVIDER_KEY, provider)
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
+        self.settings.setValue(SETTINGS_EVIDENCE_ENABLED, self.evidence_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())

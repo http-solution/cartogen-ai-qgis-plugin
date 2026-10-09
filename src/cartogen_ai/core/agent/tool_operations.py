@@ -94,6 +94,11 @@ TOOL_OPERATION_TYPES = {
     "calculate_population_in_need": MODIFY,
     "calculate_damage_exposure_severity": MODIFY,
     "forecast_trend": READ,
+    "find_tools": READ,
+    "run_steps": READ,   # the container itself changes nothing; each inner step is classified and gated on its own
+    "split_lines_by_zones": CREATE,
+    "generate_contours": CREATE,
+    "fetch_dem": CREATE,
     "analyze_incident_trend": READ,
 
     # -- dataset_status_tools.py --

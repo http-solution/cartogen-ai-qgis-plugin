@@ -426,6 +426,23 @@ class TestChatWidgetLive(unittest.TestCase):
                          "enrichment, contract included")
         self.assertIn("just show me clinics instead", self._chat_text(ct).lower())
 
+    def test_a_natural_yes_at_the_preview_dispatches_the_original_request(self):
+        """rc22 hand test R2/A1 (issue 230): "Yes, proceed." at the in-chat preview was not an exact keyword, so it was sent to the
+        model as a NEW message ("no pending operation") and the request itself never ran. rc18 fixed the same defect for the other
+        reply branches via reply_vocab.router_reply; this branch still used set membership."""
+        for reply in ("Yes, proceed.", "yes please", "Sounds good, go ahead"):
+            agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "Loaded.", "tool_calls": []}}])
+            dock = self._make_dock(agent)
+            ct = dock.chat_tab_widget
+            self._reply(ct, "map health facilities")
+            self.assertTrue(ct._awaiting_preview_reply)
+            self._reply(ct, reply)
+            _pump(until=lambda: agent.client.calls >= 1)
+            self.assertEqual(agent.client.calls, 1, reply)
+            sent = agent.conversation_history[0]["content"]
+            self.assertIn("health facilities", sent.lower(), f"{reply!r} must run the original request, but the model got {sent!r}")
+            self.assertNotEqual(sent.strip().lower(), reply.strip().lower())
+
     # Both boxed-panel-growth-reclamps-a-floating-dock tests that used to live here were
     # deleted, not adapted, 2026-09-16: their entire premise (a QGroupBox that becomes visible
     # and forces the dock's minimum size to grow, needing a proactive re-clamp outside the

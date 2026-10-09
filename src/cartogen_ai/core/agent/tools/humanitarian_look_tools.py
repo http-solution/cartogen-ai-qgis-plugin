@@ -71,11 +71,15 @@ def apply_humanitarian_look(layer_name, look, field, top_k=None):
     result = style_result_field(layer, look, field, top_k)
     if "error" in result:
         return result
-    from .humanitarian_style import raise_above_rasters, refresh_legend
+    from .humanitarian_style import raise_above_polygons, raise_above_rasters, refresh_legend
     out = {"success": True, "layer_name": layer_name, "look": look, "field": field, "classes": result["classes"], "notes": list(result["notes"])}
     lifted = raise_above_rasters(layer)
     if lifted:
         out["moved_above_rasters"] = lifted
         out["notes"].append("Moved above " + ", ".join(lifted) + " so the result is not hidden behind a raster.")
+    covering = raise_above_polygons(layer)      # points and lines only; a polygon result is never moved over other polygons
+    if covering:
+        out["moved_above_polygons"] = covering
+        out["notes"].append("Moved above " + ", ".join(covering) + " so the points are not hidden behind a polygon layer.")
     refresh_legend(layer)
     return out

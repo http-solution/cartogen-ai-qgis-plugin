@@ -462,6 +462,13 @@ def task_directive(entry, filled=None, query=None):
     named = [t for t in tools if t in named_tools(query or "")]
     if named:
         tools = named + [t for t in tools if t not in named]
+    # A data source the request names (OpenStreetMap/Overpass, HDX) leads the chain and a local-file loader goes last unless a file is
+    # named: 6.02 "Map hospitals and clinics" otherwise opened with add_layer_from_path for an Overpass request (2026-10-09).
+    try:
+        from .capabilities import lead_tools_for_task
+        tools = lead_tools_for_task(tools, query)
+    except Exception:
+        pass
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output
     # actually needs, or the model is told to deliver an HTML dashboard while

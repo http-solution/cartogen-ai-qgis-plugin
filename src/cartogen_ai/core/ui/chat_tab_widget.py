@@ -151,6 +151,10 @@ class ChatTabWidget(QWidget):
         # don't echo the user's message again (it was shown when the question was asked).
         self._resume_after_local_data = False
         self._original_already_shown = False
+        # Several separate requests pasted as one message run as a queue, one at a time (agent/job_queue.py).
+        self._job_queue = None
+        self._awaiting_job_queue_reply = False
+        self._job_queue_running = False
         # Files the user attached since the last send. attach_file() still
         # analyses each one immediately (unchanged); this list is what lets the
         # NEXT message know those files exist, so a sitrep PDF or a damage
@@ -1027,6 +1031,9 @@ class ChatTabWidget(QWidget):
         if not text:
             return
 
+        if self._job_queue_gate(text):
+            return
+
         # The local-data question (see _ask_local_data_in_chat) is outstanding. A recognised
         # answer resolves it; anything else is treated as a new request and the question is
         # dropped, the same way an unrecognised preview reply is "send as typed".
@@ -1077,14 +1084,17 @@ class ChatTabWidget(QWidget):
             self._pending_analysis_text = None
             self._pending_analysis = None
             self.input_edit.setPlaceholderText(self._default_input_placeholder)
-            reply_key = _normalize_preview_reply(text)
-            if reply_key in _PREVIEW_CONFIRM_REPLIES:
+            # rc22 hand test R2/A1 (issue 230): the exact-keyword sets missed "Yes, proceed." -- the rc18 fix (reply_vocab.router_reply)
+            # reached the other reply branches but not this one, so a natural yes was sent to the model as a new message and the
+            # original request never ran. router_reply accepts a short reply made only of yes words and fillers.
+            decision = reply_vocab.router_reply(text)
+            if decision == "confirm":
                 self._dock.receiveMessageSignal.emit("user", text)
                 # already_echoed=True: original_text was already shown as its own bubble
                 # by _ask_preview_in_chat when the question was first asked -- see that
                 # method's docstring.
                 self._dispatch_message(original_text, pending_analysis, already_echoed=True)
-            elif reply_key in _PREVIEW_CANCEL_REPLIES:
+            elif decision == "cancel":
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
                     "ai", "Okay, cancelled -- send a new message whenever you're ready.")
@@ -1248,6 +1258,102 @@ class ChatTabWidget(QWidget):
         self.input_edit.setFocus()
         question = analysis.get("question") or "Could you tell me a bit more about what you need?"
         self._dock.receiveMessageSignal.emit("ai", question)
+
+    # ------------------------------------------------------ job queue --
+
+    def _job_queue_gate(self, text):
+        """True when this message was consumed by the job-queue flow (proposed a split, or answered the proposal).
+
+        2026-10-09 cost investigation: five unrelated analyses pasted as one message ran as one turn and spent the whole round budget.
+        When the message holds several whole requests (agent/job_queue.split_jobs: numbered or blank-line-separated, never a sentence
+        count), this shows the split and asks first; confirmed jobs then run one at a time, each its own turn with its own budget."""
+        from ..agent import job_queue
+        if self._awaiting_job_queue_reply:
+            self._awaiting_job_queue_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+            lowered = text.lower().strip().rstrip("!.?")
+            if lowered in ("first", "only first", "just the first", "first one"):
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._job_queue.keep_only_first()
+                self._start_next_job()
+                return True
+            choice = reply_vocab.router_reply(text) or ("confirm" if lowered in ("run", "run all", "run them", "start", "go") else None)
+            if choice == "confirm":
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._start_next_job()
+                return True
+            if choice == "cancel":
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._job_queue = None
+                self._dock.receiveMessageSignal.emit("ai", "Cancelled; nothing was run. Send the requests one at a time when you are ready.")
+                return True
+            self._job_queue = None            # something else was typed: it is a new message, the proposal is dropped
+            return False
+        if self._job_queue_running or self._awaiting_requirement_reply or self._awaiting_preview_reply or self._awaiting_local_data_reply:
+            return False
+        jobs = job_queue.split_jobs(text)
+        if not jobs:
+            return False
+        self._dock.receiveMessageSignal.emit("user", text)
+        self.input_edit.clear()
+        self._job_queue = job_queue.JobQueue(jobs)
+        self._awaiting_job_queue_reply = True
+        self.input_edit.setPlaceholderText("Reply run, first, or cancel")
+        self._dock.receiveMessageSignal.emit("ai", (
+            f"**This looks like {len(jobs)} separate requests.** Running them as one message makes the assistant try all of them in "
+            f"one turn, which is slow and uses a lot of your API credit. I can run them one at a time, each with its own budget "
+            f"and its own result:\n\n{job_queue.preview_text(jobs)}\n\n"
+            f"Reply **run** to start with job 1, **first** to run only job 1, or **cancel**. (If this is really one analysis, "
+            f"cancel and send it again as a single numbered list of short steps.)"))
+        return True
+
+    def _start_next_job(self):
+        """Sends the next pending job through the normal send path; sets the running flag so a job is never split again."""
+        queue = self._job_queue
+        item = queue.next_pending() if queue is not None else None
+        if item is None:
+            self._finish_job_queue()
+            return
+        index, job = item
+        self._job_queue_running = True
+        self._dock.receiveMessageSignal.emit("ai", f"**Job {index + 1} of {len(queue)}**")
+        self.input_edit.setPlainText(job)
+        self.send_message()
+
+    def _finish_job_queue(self):
+        queue = self._job_queue
+        if queue is not None and len(queue) > 1:
+            self._dock.receiveMessageSignal.emit("ai", f"_All jobs finished: {queue.summary()}._")
+        self._job_queue = None
+        self._job_queue_running = False
+
+    def _advance_job_queue(self, ok):
+        """Called when a turn ends. Records the job's outcome and starts the next one, or pauses after a failure or a Stop."""
+        queue = self._job_queue
+        if queue is None or not self._job_queue_running:
+            return
+        if self._awaiting_preview_reply or self._awaiting_requirement_reply or self._awaiting_local_data_reply:
+            return          # the job is waiting for the user's answer; its turn will end again after that
+        queue.finish_current(ok)
+        if not ok:
+            self._job_queue_running = False
+            left = queue.pending_count()
+            self._awaiting_job_queue_reply = left > 0
+            if left:
+                self.input_edit.setPlaceholderText("Reply run to continue with the rest, or cancel")
+                self._dock.receiveMessageSignal.emit("ai", (
+                    f"**Paused: job {max(i for i, state in enumerate(queue.status) if state == 'failed') + 1} did not complete.** "
+                    f"{queue.summary()}. Reply **run** to continue with the {left} remaining, or **cancel**."))
+            else:
+                self._finish_job_queue()
+            return
+        if queue.pending_count():
+            QTimer.singleShot(400, self._start_next_job)
+        else:
+            self._finish_job_queue()
 
     def _echo_original(self, text):
         """Shows the user's message as their own bubble, unless it was already shown when the
@@ -1725,6 +1831,7 @@ class ChatTabWidget(QWidget):
             # summary, then the answer.
             self._flush_tool_steps_summary()
             if err:
+                self._advance_job_queue(False)
                 self._dock.receiveMessageSignal.emit("ai", format_send_error(err))
                 # A multi-tool-call turn can accumulate usage on earlier,
                 # successful client.complete() calls before a later one in the
@@ -1735,6 +1842,8 @@ class ChatTabWidget(QWidget):
             else:
                 self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
                 self._after_successful_response(agent, response)
+                # a tool that failed and was recovered from does not pause the queue; a Stop or a guard/budget stop does
+                self._advance_job_queue(not (self._turn_stopped or str(response or "").startswith("[Agent stopped]")))
                 # rc18 hand test R3 (2026-10-06): after the user pressed Stop on a run whose imagery tool had already failed, the
                 # contract check asked the model for a report nobody wanted ("Do not redo the analysis ... call generate_spatial_report").
                 # A deliverable is only owed for a turn that ran to its end: not one the user stopped, and not one where a tool failed
@@ -1873,8 +1982,13 @@ class ChatTabWidget(QWidget):
             turn = agent.get_turn_usage_text() if hasattr(agent, "get_turn_usage_text") else None
         except Exception:
             turn = None
-        if text and turn:
-            text = f"{turn} \u00b7 {text}"
+        try:     # observed, provider-reported breakdown (fresh vs cached input, output, last call) when the provider reports it
+            detail = agent.get_turn_usage_detail_text() if hasattr(agent, "get_turn_usage_detail_text") else None
+        except Exception:
+            detail = None
+        lead = detail or turn          # the observed breakdown replaces the older one-number turn text, never duplicates it
+        if text and lead:
+            text = f"{lead} \u00b7 {text}"
         self._dock.usageSignal.emit(text or "")
 
     def _after_successful_response(self, agent, response_text):

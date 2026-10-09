@@ -64,6 +64,12 @@ frozen source docs themselves.
 
 ---
 
+> **2026-10-09 repository visibility:** this repository (`http-solution/cartogen-ai-qgis-plugin`) is now public. Older entries below that call
+> the remote private or say no public repository exists describe the earlier `cartogenai-glitch/CARTOGEN-AI` remote and are history, not current
+> state. A secret and personal-data scan of the tree and the full history (698 commits) found no real credentials; the one hard-coded smoke-test
+> password in `service/scripts/local_saas_smoke.sh` is now generated per run, and a personal email address was removed from
+> `docs/archive/DOCUMENTATION.md` (it remains in git history, which was not rewritten).
+
 ## 1. Open items that need a human decision (not an engineering call)
 
 These three are explicitly **not** something an agent should decide or silently implement —

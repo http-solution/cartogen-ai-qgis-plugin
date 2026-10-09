@@ -94,9 +94,17 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 
 ## Editions
 
-> **CORRECTION (2026-09-14, verified via `git remote -v` + authenticated `gh repo view`,
+> **UPDATE (2026-10-09, verified via the GitHub API: `visibility: public`, GPL-2.0):** this repository is
+> now PUBLIC at `http-solution/cartogen-ai-qgis-plugin`. That supersedes the 2026-09-14 note below, which
+> described the older `cartogenai-glitch/CARTOGEN-AI` remote (then private) and is kept only as history.
+> Because the repo and its full history are public: never commit credentials, API keys, personal email
+> addresses or personal data (the secret and PII scan on 2026-10-09 found none in the tree or history);
+> the earlier "no public repo exists" statements in older docs are out of date. GitHub Actions minutes
+> are free on a public repo; the `tests` workflow runs on every push and pull request.
+>
+> *Superseded -- historical note, 2026-09-14:* (2026-09-14, verified via `git remote -v` + authenticated `gh repo view`,
 > resolving a real conflict an external audit flagged between this section and
-> `docs/MASTER_TASK_REGISTRY.md`):** the GitHub remote this checkout's `origin` actually points
+> `docs/MASTER_TASK_REGISTRY.md`) the GitHub remote this checkout's `origin` actually points
 > to (`cartogenai-glitch/CARTOGEN-AI`) is **PRIVATE**, not public — confirmed with an
 > authenticated API call, not guessed. The separate repo `docs/MASTER_TASK_REGISTRY.md` names
 > as the intended public Community-facing repo (`cartogenai-glitch/cartogen_ai_community`) is

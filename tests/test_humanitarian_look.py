@@ -123,3 +123,18 @@ class TestCreatedLayerLooks(unittest.TestCase):
             self.assertEqual(len(hits), 1, score)
         self.assertTrue(all("onfidence" in r[3] for r in ranges))
         self.assertFalse(any("probab" in r[3].lower() for r in ranges))
+
+
+class TestCountLegend(unittest.TestCase):
+    """Issue 229 (rc22 V2): a value exactly at a class limit must draw in the class its label puts it in, and the legend says what is counted."""
+
+    def test_a_value_on_a_limit_belongs_to_the_upper_class(self):
+        ranges = h.count_ranges([3, 4, 5, 7, 7, 9, 10], h.PIN_COLORS, classes=2, unit="people")
+        (lo1, hi1, _c1, label1), (lo2, hi2, _c2, label2) = ranges
+        self.assertIn("< 7", label1)
+        self.assertLess(hi1, 7.0)                       # 7 is NOT inside the first class
+        self.assertGreaterEqual(7.0, lo2)
+        self.assertTrue(label1.endswith("people") and label2.endswith("people"))
+
+    def test_no_unit_means_no_suffix(self):
+        self.assertFalse(any(r[3].endswith("people") for r in h.count_ranges([1, 2, 3, 4], h.MEASURE_COLORS)))
