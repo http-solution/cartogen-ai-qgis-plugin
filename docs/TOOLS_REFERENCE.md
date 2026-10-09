@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (206 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (207 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1745,6 +1745,25 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## dem_tools
+
+### `fetch_dem`
+
+Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 open dataset (about 30 m, no account or key needed) and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large areas. Use generate_contours or slope_analysis on the result.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | no | Name of a layer whose extent defines the area. |
+| `west` | number | no |  |
+| `south` | number | no |  |
+| `east` | number | no |  |
+| `north` | number | no |  |
+| `lat` | number | no | Centre latitude (with lon and radius_km). |
+| `lon` | number | no | Centre longitude. |
+| `radius_km` | number | no | Half-width of the square around the centre, km. |
+| `output_path` | string | no | Optional GeoTIFF path; relative paths are anchored to the project folder. |
+| `output_name` | string | no | Optional layer name. |
 
 ## engineering_tools
 

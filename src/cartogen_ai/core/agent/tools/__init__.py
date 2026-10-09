@@ -15,6 +15,7 @@ from . import system_tools
 from . import task_tools
 from . import tool_discovery
 from . import corridor_tools
+from . import dem_tools
 from . import humanitarian_tools
 from . import layout_tools
 from . import db_and_workflow_tools
@@ -72,6 +73,7 @@ __all__ = [
     "task_tools",
     "tool_discovery",
     "corridor_tools",
+    "dem_tools",
     "humanitarian_tools",
     "layout_tools",
     "db_and_workflow_tools",

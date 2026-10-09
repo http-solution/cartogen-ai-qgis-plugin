@@ -25,15 +25,16 @@ class TestTable(unittest.TestCase):
         self.assertIn("reproject_layer", cap.required_tools(SCEN["marib"]))
 
     def test_steps_without_a_dedicated_tool_are_reported(self):
-        # contours and the highway split now have tools; only the elevation DOWNLOAD (source not yet verified) has none
-        self.assertEqual(cap.uncovered_capabilities(SCEN["taizz"]), ["elevation_download"])
+        # contours, the highway split and the elevation download (fetch_dem, Copernicus GLO-30) all have tools now
+        self.assertEqual(cap.uncovered_capabilities(SCEN["taizz"]), [])
+        self.assertIn("fetch_dem", cap.required_tools(SCEN["taizz"]))
         self.assertEqual(cap.uncovered_capabilities(SCEN["highway"]), [])
         self.assertIn("generate_contours", cap.required_tools(SCEN["taizz"]))
         self.assertIn("split_lines_by_zones", cap.required_tools(SCEN["highway"]))
         self.assertEqual(cap.uncovered_capabilities(SCEN["aden"]), [])
 
     def test_fallback_tools_are_offered_only_when_a_step_has_no_tool(self):
-        self.assertIn("run_allowlisted_processing_algorithm", cap.required_tools(SCEN["taizz"]))
+        self.assertNotIn("run_allowlisted_processing_algorithm", cap.required_tools(SCEN["taizz"]))
         self.assertNotIn("execute_pyqgis_script", cap.required_tools(SCEN["aden"]))
 
     def test_a_simple_request_names_few_capabilities(self):
@@ -86,7 +87,7 @@ class TestDirectives(unittest.TestCase):
         text = cap.workflow_directive(SCEN["taizz"])
         self.assertIn("multi-step workflow", text)
         self.assertLess(text.index("buffer"), text.index("slope"))
-        self.assertIn("elevation (DEM) download: no dedicated tool", text)
+        self.assertIn("elevation (DEM) download: fetch_dem", text)
         self.assertIn("contour lines: generate_contours", text)
         self.assertIn("never report the whole request as complete", text)
 

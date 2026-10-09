@@ -97,6 +97,7 @@ TOOL_OPERATION_TYPES = {
     "find_tools": READ,
     "split_lines_by_zones": CREATE,
     "generate_contours": CREATE,
+    "fetch_dem": CREATE,
     "analyze_incident_trend": READ,
 
     # -- dataset_status_tools.py --
