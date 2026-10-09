@@ -28,11 +28,15 @@ PRODUCT = "Copernicus DEM GLO-30 (COG)"
 CELLS_PER_DEGREE = 3600                 # 1 arc-second = about 30 m
 MAX_CELLS = 40_000_000                  # about 160 MB as Float32 before compression; larger areas are refused
 MAX_TILES = 16
-# Wording for ADAPTED data (the tool clips and re-encodes a window, so the data is modified); unmodified data would use the copyright
-# line alone. Taken from the notice published for GLO-30 users (checked against search excerpts of the Copernicus Data Space licence
-# page, not the full licence text -- the owner should read the full licence PDF before relying on this wording).
-ATTRIBUTION = ("Produced using Copernicus WorldDEM-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 provided "
+# Licence for the use of the Copernicus WorldDEM-30 (read in full, 2026-10-09), Article 6: (b) data that has been adapted or modified -- this
+# tool clips and re-encodes a window, so it is -- must carry the "produced using ..." notice; (c) anyone distributing or communicating it to
+# the general public must also pass on the no-liability sentence; (d) the user must not suggest official endorsement by the Provider, the
+# Licensor or the Copernicus bodies. The first two are shown with every result; (d) is a statement for whoever publishes a map made from it.
+ATTRIBUTION = ("produced using Copernicus WorldDEM-30 \u00a9 DLR e.V. 2010-2014 and \u00a9 Airbus Defence and Space GmbH 2014-2018 provided "
                "under COPERNICUS by the European Union and ESA; all rights reserved.")
+LIABILITY_NOTICE = ("The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any "
+                    "use of the Copernicus WorldDEM-30.")
+ENDORSEMENT_NOTE = "Do not present a map made from this data as officially endorsed by Copernicus, ESA, DLR or Airbus."
 CAVEATS = ("Surface model (DSM): includes buildings and tree canopy, not bare earth. Heights are orthometric (EGM2008). Grid is about "
            "30 m, so it cannot show small features such as embankments or gullies; contour spacing is not terrain accuracy.")
 
@@ -190,7 +194,7 @@ def fetch_dem(layer_name=None, west=None, south=None, east=None, north=None, lat
     if not layer.isValid():
         return {"error": "The downloaded DEM could not be loaded."}
     retrieved = datetime.date.today().isoformat()
-    for key, value in (("cartogen/source", PRODUCT), ("cartogen/retrieved", retrieved), ("cartogen/attribution", ATTRIBUTION),
+    for key, value in (("cartogen/source", PRODUCT), ("cartogen/retrieved", retrieved), ("cartogen/attribution", ATTRIBUTION), ("cartogen/liability_notice", LIABILITY_NOTICE),
                        ("cartogen/caveats", CAVEATS)):
         layer.setCustomProperty(key, value)
     QgsProject.instance().addMapLayer(layer)
@@ -198,7 +202,8 @@ def fetch_dem(layer_name=None, west=None, south=None, east=None, north=None, lat
               "bbox_wgs84": [round(v, 5) for v in box], "columns": cols, "rows": rows, "pixel_size_m_approx": 30,
               "tiles_used": [tile_name(*t) for t in tiles if "/vsicurl/" + tile_url(*t) in found],
               "vertical_datum": "EGM2008 orthometric", "model_type": "DSM (surface, not bare earth)",
-              "attribution": ATTRIBUTION, "caveats": CAVEATS}
+              "attribution": ATTRIBUTION, "liability_notice": LIABILITY_NOTICE, "endorsement_note": ENDORSEMENT_NOTE,
+              "caveats": CAVEATS}
     if missing:
         result["tiles_absent"] = missing
         result["warning"] = "Some tiles are not published (usually open sea); those parts of the area have no elevation."
