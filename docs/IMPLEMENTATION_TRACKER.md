@@ -2519,3 +2519,13 @@ Still open:
 | A18 | Bootstrap namespace eviction in the root `__init__.py` | **Last-resort path now scoped** (`claimed_module_names`; the normal path was scoped by #167); reload/upgrade behaviour still needs the §1.10 human test | Run the fresh-profile/upgrade gate |
 
 Release note: the rc21 changelog/notes do not yet mention the audit fixes; update them (or cut a later rc) before publishing.
+
+### 1.24 rc22 hand test: triage and fixes (added 2026-10-09)
+
+The owner's hand run of rc22 (120 rows: 32 PASS, 33 FAIL, 6 INCONCLUSIVE, 49 NOT RUN) is stored in `docs/RC22_LIVE_SMOKE_REPORT_2026-10-09.md` and
+`docs/RC22_RESULT_MATRIX_2026-10-09.csv`; the cause-by-cause triage, what was fixed afterwards and what is still open is `docs/RC22_SMOKE_TRIAGE_2026-10-09.md`.
+Fixed on the branch after rc22 (offline tests; raster export and the path rule also in Docker QGIS 4.2.2; none re-hand-tested): relative output paths,
+raster GeoTIFF export, canvas rotation in layouts, hazard-task over-matching, display step after a confirmed write, stale plan across projects, explicit colour
+ramps, cluster synonyms, Help (new)-mark note. **Open:** reply-quality failures that are model behaviour (invented facts, wrong country in the JIAF set-up), the
+legend listing layers hidden under opaque polygons (#165), the imagery/footprint preview inventing a CSV deliverable, the hub-siting "Yes" that ran nothing (R2/A1,
+cause not found), and 49 rows not run.
