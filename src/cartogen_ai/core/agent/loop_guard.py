@@ -99,3 +99,28 @@ def budget_exceeded(turn_tokens, budget, next_call_estimate=None):
     if not budget:
         return False
     return (turn_tokens + (next_call_estimate or 0)) > budget
+
+
+# rc22 hand test J13 (#231): the model made 20 calls on file paths it had invented, then hit the tool limit. With the exact
+# paths given the same tools worked, so the failure was guessing, not the tools. Two "file not found" results in a row is the
+# earliest reliable sign; the corrective message is injected once per turn by the orchestrator.
+MISSING_FILE_THRESHOLD = 2
+_MISSING_FILE_WORDS = ("file not found", "no such file", "does not exist", "cannot find the file", "path not found")
+MISSING_FILE_NUDGE = (
+    "Your last {n} calls failed because the file path does not exist. Stop guessing paths. Use only a path the user gave "
+    "in this conversation or one a tool returned (for example a layer's source from get_layers, or an output path in an "
+    "earlier result). If you do not have the real path, ask the user for the file or folder in one short question instead "
+    "of trying more names.")
+
+
+def missing_file_nudge(turn_tool_log, threshold=MISSING_FILE_THRESHOLD):
+    """The corrective message when the last `threshold` tool calls all failed with a missing-file error, else None. Pure.
+
+    `turn_tool_log` is the orchestrator's list of (tool name, is_error, message)."""
+    recent = list(turn_tool_log or [])[-threshold:]
+    if len(recent) < threshold:
+        return None
+    for _name, is_error, message in recent:
+        if not is_error or not any(w in str(message or "").lower() for w in _MISSING_FILE_WORDS):
+            return None
+    return MISSING_FILE_NUDGE.format(n=threshold)

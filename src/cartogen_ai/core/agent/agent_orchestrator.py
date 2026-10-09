@@ -1562,6 +1562,9 @@ class CartogenAi:
         final_text = response_guard.apply_ungrounded_claims_note(
             final_text, "\n".join(getattr(self, "_grounding_texts", [])),
             data_tool_ran and not pending)   # a call still waiting on the user produced no data; the other guard covers it
+        # #228 (T3): a styling claim needs a styling call that succeeded in this turn.
+        final_text = response_guard.apply_unconfirmed_style_note(
+            final_text, turn_tool_log, "\n".join(getattr(self, "_grounding_texts", [])))
         if pending:
             # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
             final_text = response_guard.strip_confirmation_prose(final_text)
@@ -1758,6 +1761,7 @@ class CartogenAi:
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
         sandbox_flailing_nudged = False
         drift_nudged = False
+        missing_file_nudged = False   # #231: one nudge per turn against guessed file paths
 
         token_budget_hit = False
         guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
@@ -1936,6 +1940,11 @@ class CartogenAi:
                 if nudge:
                     messages.append({"role": "user", "content": nudge})
                     sandbox_flailing_nudged = True
+            if not missing_file_nudged:
+                missing = loop_guard.missing_file_nudge(turn_tool_log)
+                if missing:
+                    messages.append({"role": "user", "content": missing})
+                    missing_file_nudged = True
             if not drift_nudged:
                 drift = self._named_tool_drift_nudge(user_query, turn_tool_log)
                 if drift:

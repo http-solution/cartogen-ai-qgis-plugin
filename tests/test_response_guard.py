@@ -315,3 +315,65 @@ class TestRc17GuardFalsePositives(unittest.TestCase):
         self.assertIn("No data was retrieved", stripped)
         pending = g.apply_unbacked_data_warning(self.TABLE, ["load_project"], [], True, backed_by_success=True)
         self.assertIn("No data was retrieved", pending)
+
+
+class TestInventedIdentifiersAndFigures(unittest.TestCase):
+    """#228 (rc22 hand test J9, J15, T4): a made-up District_4, and a wrong preliminary figure / overall mean."""
+
+    EVIDENCE = "District_1 phase 3 District_2 phase 5 District_3 phase 5 provisional total 2900 preliminary 1800 mean 41.2"
+
+    def test_an_identifier_no_tool_returned_is_flagged(self):
+        claims = rg.ungrounded_claims("District_4 has the highest need.", self.EVIDENCE)
+        self.assertIn("District_4", claims)
+
+    def test_a_real_identifier_is_not_flagged_even_in_another_case(self):
+        self.assertEqual(rg.ungrounded_claims("district_2 and District_3 are in phase 5.", self.EVIDENCE), [])
+
+    def test_an_identifier_that_only_extends_a_real_one_is_flagged(self):
+        self.assertIn("District_12", rg.ungrounded_claims("District_12 is affected.", self.EVIDENCE))
+
+    def test_a_wrong_preliminary_figure_is_flagged(self):
+        claims = rg.ungrounded_claims("The preliminary figure is 1200 people.", self.EVIDENCE)
+        self.assertIn("1200", claims)
+
+    def test_the_right_preliminary_figure_passes(self):
+        self.assertEqual(rg.ungrounded_claims("The preliminary figure is 1,800 people.", self.EVIDENCE), [])
+
+    def test_a_derived_total_of_two_evidence_numbers_passes(self):
+        self.assertEqual(rg.ungrounded_claims("The combined total is 4700.", self.EVIDENCE), [])
+
+    def test_a_small_count_after_a_summary_word_is_ignored(self):
+        self.assertEqual(rg.ungrounded_claims("The total of 3 layers was clipped.", self.EVIDENCE), [])
+
+    def test_a_wrong_overall_mean_is_flagged(self):
+        self.assertIn("388.5", rg.ungrounded_claims("The overall mean is 388.5.", self.EVIDENCE))
+
+
+class TestUnconfirmedStyleClaim(unittest.TestCase):
+    """#228 (rc22 hand test T3): class colours claimed, layer stayed single-symbol."""
+
+    CLAIM = "I applied a graduated style to the districts layer."
+
+    def test_a_claim_with_no_style_call_gets_a_note(self):
+        out = rg.apply_unconfirmed_style_note(self.CLAIM, [("get_layers", False, "")], "layers: districts")
+        self.assertIn("Style not confirmed", out)
+
+    def test_a_failed_style_call_does_not_back_the_claim(self):
+        out = rg.apply_unconfirmed_style_note(self.CLAIM, [("apply_graduated_style", True, "field missing")])
+        self.assertIn("Style not confirmed", out)
+
+    def test_a_successful_style_call_backs_the_claim(self):
+        out = rg.apply_unconfirmed_style_note(self.CLAIM, [("apply_graduated_style", False, "")])
+        self.assertEqual(out, self.CLAIM)
+
+    def test_a_tool_that_styles_its_own_output_is_covered_by_its_result(self):
+        out = rg.apply_unconfirmed_style_note(self.CLAIM, [("calculate_service_area", False, "")], "renderer: graduated")
+        self.assertEqual(out, self.CLAIM)
+
+    def test_text_without_an_applied_style_claim_is_untouched(self):
+        text = "You can use a graduated style for this."
+        self.assertEqual(rg.apply_unconfirmed_style_note(text, []), text)
+
+    def test_the_note_is_not_added_twice(self):
+        once = rg.apply_unconfirmed_style_note(self.CLAIM, [])
+        self.assertEqual(rg.apply_unconfirmed_style_note(once, []), once)
