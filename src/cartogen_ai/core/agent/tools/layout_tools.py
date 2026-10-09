@@ -7,6 +7,7 @@ Generates automated QgsPrintLayout compositions with title, map item, legend, sc
 import math
 import os
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 try:
     from qgis.core import (
@@ -62,6 +63,14 @@ def _text_budget(box_w_mm, box_h_mm):
     """How many characters a label box of this size can hold (the same budget _fit_text_to_box truncates to). Pure."""
     max_lines = max(1, int(box_h_mm // _LABEL_LINE_HEIGHT_MM))
     return max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
+
+
+def canvas_rotation(canvas):
+    """The map canvas's rotation in degrees (0.0 when there is no canvas or it cannot be read). Pure apart from the call."""
+    try:
+        return float(canvas.rotation()) if canvas else 0.0
+    except Exception:
+        return 0.0
 
 
 def _fit_text_to_box(text, box_w_mm, box_h_mm):
@@ -233,6 +242,7 @@ def _format_scale_denominator(n):
     },
 )
 def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -323,6 +333,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             map_item.setExtent(map_extent)
         elif canvas:
             map_item.setExtent(canvas.extent())
+        # rc22 smoke F3: the canvas was rotated 30 degrees, but the layout's map (and so the linked north arrow) came out at 0 --
+        # the saved layout held mapRotation 0. The layout map follows the view the user is looking at.
+        rotation = canvas_rotation(canvas)
+        if rotation:
+            map_item.setMapRotation(rotation)
         layout.addLayoutItem(map_item)
         map_item.setId("MAP_MAIN")
 

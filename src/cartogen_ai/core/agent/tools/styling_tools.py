@@ -7,6 +7,7 @@ import math
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
@@ -1174,6 +1175,7 @@ def set_layer_order(layer_names):
     },
 )
 def save_layer_style(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -1269,6 +1271,7 @@ def load_layer_style(layer_name, style_path):
     },
 )
 def export_layer_sld(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)

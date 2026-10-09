@@ -8,6 +8,7 @@ import json
 import tempfile
 import datetime
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
@@ -276,6 +277,7 @@ def overwrite_preview(tool_name, arguments, path):
 
 @register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
 def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -462,6 +464,7 @@ def _derive_csv_path(layer, output_path):
                "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
                {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
 def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False, confirmed=False):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -512,6 +515,7 @@ def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry
     },
 )
 def print_map(output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if iface is None or iface.mapCanvas() is None:
@@ -2051,6 +2055,7 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
     },
 )
 def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -2246,6 +2251,7 @@ def _inject_notices(html, notices):
     },
 )
 def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:

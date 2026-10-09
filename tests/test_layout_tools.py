@@ -630,3 +630,22 @@ class PaddedExtentTests(unittest.TestCase):
         self.assertEqual(padded_extent_bounds(nan, 0, nan, 0, True)[1], 0)
         inf = float("inf")
         self.assertEqual(padded_extent_bounds(-inf, -inf, inf, inf, False), (-inf, -inf, inf, inf))
+
+
+class TestCanvasRotation(unittest.TestCase):
+    """rc22 smoke F3: a rotated canvas must give the layout map a rotation."""
+
+    def test_reads_the_canvas_rotation(self):
+        from unittest.mock import MagicMock
+        from cartogen_ai.core.agent.tools.layout_tools import canvas_rotation
+        canvas = MagicMock()
+        canvas.rotation.return_value = 30
+        self.assertEqual(canvas_rotation(canvas), 30.0)
+
+    def test_no_canvas_or_a_broken_one_is_zero(self):
+        from unittest.mock import MagicMock
+        from cartogen_ai.core.agent.tools.layout_tools import canvas_rotation
+        self.assertEqual(canvas_rotation(None), 0.0)
+        broken = MagicMock()
+        broken.rotation.side_effect = RuntimeError("gone")
+        self.assertEqual(canvas_rotation(broken), 0.0)
