@@ -1337,6 +1337,7 @@ class TestNewTools(unittest.TestCase):
                 }
 
         agent = CartogenAi()
+        agent.loop_guard_enabled = False        # this test is about the round cap; the guard has its own tests
         agent.conversation_history = []
         agent.client = LoopingClient()
 

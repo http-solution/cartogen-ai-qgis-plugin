@@ -37,7 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
-from . import call_metrics
+from . import call_metrics, loop_guard
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -1575,8 +1575,15 @@ class CartogenAi:
         drift_nudged = False
 
         token_budget_hit = False
+        guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
+            max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
+        guard_stop = None
         for iteration_index in range(max_rounds):
-            if max_turn_tokens and iteration_index > 0 and self._get_usage_tracker().turn_tokens() >= max_turn_tokens:
+            # Checked BEFORE the request: tokens already spent this turn plus the observed size of the last call (the next call
+            # cannot be smaller, the history only grows) must fit the budget -- not merely "already over".
+            if max_turn_tokens and iteration_index > 0 and loop_guard.budget_exceeded(
+                    self._get_usage_tracker().turn_tokens(), max_turn_tokens,
+                    call_metrics.next_call_estimate(self._get_call_log().turn_records(turn_id))):
                 token_budget_hit = True
                 break
             if should_stop is not None and should_stop():
@@ -1673,6 +1680,8 @@ class CartogenAi:
                 tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = tool_results.is_error(tool_result)
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
+                                  tool_operations.get_tool_operation_type(name))
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
@@ -1705,6 +1714,14 @@ class CartogenAi:
                     "content": serialized,
                 })
 
+            guard_stop = guard.end_round() or guard.stop
+            if guard_stop:
+                final_text = guard.partial_report(guard_stop)
+                log_event("turn_guard_stop", tag="Agent", status=guard_stop["reason"], count=iteration_index + 1,
+                          correlation_id=correlation_id)
+                self._append_history(user_message, {"role": "assistant", "content": final_text})
+                return final_text
+
             # Mid-turn context compaction (see MAX_FULL_TOOL_RESULTS_PER_TURN's own comment) --
             # once per iteration, after this iteration's own tool results are appended, so a
             # large task's per-call payload to the model stays bounded for the rest of the turn.
@@ -1726,10 +1743,11 @@ class CartogenAi:
         # doomed step-per-item approach (e.g. one tool call per item in a long list)
         # instead of the more efficient path rule 14 in the system prompt asks for.
         if token_budget_hit:
-            final_text = (
-                "[Agent stopped] This request used its token budget (%s tokens, setting "
-                "cartogen_ai/max_turn_tokens) before finishing. Break it into smaller pieces, or raise the budget "
-                "in QGIS's advanced settings." % f"{max_turn_tokens:,}")
+            final_text = guard.partial_report({"reason": "token_budget", "detail": (
+                "this request reached its token budget (%s tokens, setting cartogen_ai/max_turn_tokens; the next call would "
+                "have passed it)" % f"{max_turn_tokens:,}")}).replace(
+                "before spending more of your API credit.", "before sending another request.")
+            final_text += " To allow more, raise the budget in Settings."
             self._append_history(user_message, {"role": "assistant", "content": final_text})
             return final_text
         final_text = (
