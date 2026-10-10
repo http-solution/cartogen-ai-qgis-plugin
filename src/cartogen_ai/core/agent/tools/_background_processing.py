@@ -131,6 +131,15 @@ def _enabled_in_settings():
         return True
 
 
+def is_thread_safe_algorithm(algorithm_id):
+    """True for native (C++) QGIS algorithms, the only ones this module runs on a worker thread without a special reason.
+
+    PR #249 / #251 evidence: running gdal:slope (a Python-implemented algorithm) through the task runner crashed the QGIS 4.2.2
+    live CI job with a segfault in 2 of 4 runs, while the native algorithms (network analysis since rc12, native:buffer) were stable.
+    Python-implemented algorithms (gdal:, qgis:, script:) therefore stay on the GUI thread until a cause is found and fixed. Pure."""
+    return str(algorithm_id).startswith("native:")
+
+
 def can_run_in_background():
     return bool(QGIS_AVAILABLE and _on_gui_thread() and _enabled_in_settings())
 

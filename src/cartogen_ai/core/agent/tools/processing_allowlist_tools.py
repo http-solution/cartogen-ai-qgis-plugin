@@ -181,9 +181,9 @@ def _run_allowlisted(alg_id, resolved_params):
     """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
 
     An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
-    GUI thread. Every other approved algorithm creates new data, which QGIS's task runner handles, so a long one no longer shows
-    "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
-    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.can_run_in_background():
+    GUI thread, and so do Python-implemented algorithms (gdal:, qgis:), which crashed CI on a worker thread. A native algorithm that
+    creates new data goes through QGIS's task runner, so a long one no longer shows "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
         return processing.run(alg_id, resolved_params)
     context = QgsProcessingContext()
     context.setProject(QgsProject.instance())
