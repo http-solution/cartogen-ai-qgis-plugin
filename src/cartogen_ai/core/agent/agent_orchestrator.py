@@ -1118,6 +1118,35 @@ class CartogenAi:
         # (unlike the equivalent call in _real_execute_tool's success branch).
         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
 
+    def _execute_two_phase_with_cleanup(self, name, filtered_args):
+        """The humanitarian boundary/footprint fetches: background download, main-thread layer
+        creation, then the temp file is removed whether or not layer creation worked."""
+        from .tools import humanitarian_tools as ht
+        large = bool(filtered_args.get("allow_large_download"))
+        if name == "fetch_geoboundaries":
+            fetch_result = ht.fetch_geoboundaries_network_phase(
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"), large)
+            add_phase = ht.add_geoboundaries_layer_main_thread_phase
+        elif name == "fetch_hdx_admin_boundaries":
+            fetch_result = ht.fetch_hdx_admin_boundaries_network_phase(
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"), large)
+            add_phase = ht.add_hdx_admin_boundaries_layer_main_thread_phase
+        else:
+            fetch_result = ht.fetch_building_footprints_network_phase(
+                filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
+                filtered_args.get("max_features", 5000), large)
+            add_phase = ht.add_building_footprints_layer_main_thread_phase
+        try:
+            res = self._run_current_turn_on_main_thread(add_phase, fetch_result)
+        finally:
+            local_path = fetch_result.get("local_path")
+            if local_path:
+                import os
+                with contextlib.suppress(OSError):
+                    os.remove(local_path)
+        self._log_tool_success(name, filtered_args, res)
+        return res
+
     def _execute_two_phase_tool(self, name, arguments):
         """Handles TWO_PHASE_TOOLS (see module-level comment): runs the network
         fetch on the calling thread (background, when invoked from run()), then
@@ -1169,62 +1198,9 @@ class CartogenAi:
             self._log_tool_success(name, filtered_args, res)
             return res
 
-        if name == "fetch_geoboundaries":
-            from .tools.humanitarian_tools import (
-                fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase,
-            )
-            fetch_result = fetch_geoboundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
-                bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    with contextlib.suppress(OSError):
-                        os.remove(local_path)
-            self._log_tool_success(name, filtered_args, res)
-            return res
+        if name in ("fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints"):
+            return self._execute_two_phase_with_cleanup(name, filtered_args)
 
-        if name == "fetch_hdx_admin_boundaries":
-            from .tools.humanitarian_tools import (
-                fetch_hdx_admin_boundaries_network_phase, add_hdx_admin_boundaries_layer_main_thread_phase,
-            )
-            fetch_result = fetch_hdx_admin_boundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
-                bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    with contextlib.suppress(OSError):
-                        os.remove(local_path)
-            self._log_tool_success(name, filtered_args, res)
-            return res
-
-        if name == "fetch_building_footprints":
-            from .tools.humanitarian_tools import (
-                fetch_building_footprints_network_phase, add_building_footprints_layer_main_thread_phase,
-            )
-            fetch_result = fetch_building_footprints_network_phase(
-                filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
-                filtered_args.get("max_features", 5000), bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    with contextlib.suppress(OSError):
-                        os.remove(local_path)
-            self._log_tool_success(name, filtered_args, res)
-            return res
 
         if name == "fetch_worldpop_population":
             from .tools.humanitarian_tools import (
@@ -1643,53 +1619,43 @@ class CartogenAi:
             self._turn_project_session = None
             self._stray_fragment_turn = False
 
-    def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
-        """should_stop, if given, is a zero-arg callable returning True once the
-        user has asked to abort (task_runner.py passes the running QgsTask's
-        isCanceled()). Checked once per loop iteration -- this can't interrupt
-        an in-flight API call or tool execution, but it does stop the agent
-        from starting another one, which was previously not possible at all.
+    @staticmethod
+    def _serialize_tool_result(tool_result):
+        try:
+            return json.dumps(tool_result, default=str)
+        except Exception as e:
+            return json.dumps({"error": f"Could not serialize tool result: {e}"})
 
-        tool_step_callback, if given, is called as tool_step_callback(name,
-        status, error) around every individual tool call in the loop below --
-        status is "running" right before execution and "done"/"failed" right
-        after. This is what lets the UI show live per-step progress during a
-        multi-tool-call turn (previously nothing was visible between "Thinking..."
-        and the final answer, no matter how many tools ran in between). Wrapped
-        in try/except so a UI-side rendering bug can never break the actual
-        agent loop -- worst case is a missed visual update, not a failed turn."""
+    @staticmethod
+    def _offer_found_tools(active_tools, tool_result):
+        """The model asked for tools its list did not cover: offer them for the rest of this turn (bounded, deduplicated)."""
+        offered = {t.get("function", {}).get("name") for t in active_tools}
+        for wanted in (tool_result.get("tool_names") or [])[:8]:
+            schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
+            if schema is not None and wanted not in offered:
+                active_tools = [*list(active_tools), schema]
+                offered.add(wanted)
+        return active_tools
+
+    def _end_of_round_nudges(self, messages, user_query, turn_tool_log, nudged):
+        """Each course-correction fires at most once per turn (tracked in `nudged`)."""
+        candidates = (
+            ("sandbox", lambda: self._sandbox_flailing_nudge(turn_tool_log)),
+            ("missing_file", lambda: loop_guard.missing_file_nudge(turn_tool_log)),
+            ("drift", lambda: self._named_tool_drift_nudge(user_query, turn_tool_log)),
+        )
+        for key, make in candidates:
+            if key in nudged:
+                continue
+            text = make()
+            if text:
+                messages.append({"role": "user", "content": text})
+                nudged.add(key)
+
+    def _prepare_turn_prompt(self, user_query, map_context):
+        """Routes tools for this turn and builds the system prompt (plus chain-input discovery);
+        split out of _run_impl purely to keep that loop's complexity reviewable."""
         from ..services.tool_router import ToolRouter
-        # Structured-logging policy, 2026-09-20: every tool-call log line for this
-        # turn carries the same correlation_id so a QgsMessageLog reader can group
-        # them without any of the log content itself being the user's actual query.
-        correlation_id = uuid.uuid4().hex[:8]
-        provider_name = type(getattr(self, "client", None)).__name__
-        # New turn -- undo must never reach back into a previous one (see
-        # transactions.py's docstring).
-        self._transaction_log.reset()
-        # New turn -- a plan made last turn must not silently satisfy this turn's gate
-        # (§1.6 option (b), plan_gate.py).
-        self._plan_gate.reset()
-        self._apply_auto_model_selection(user_query)
-        user_message = {"role": "user", "content": user_query}
-        self._stray_fragment_turn = self._is_stray_fragment_turn(user_query)
-
-        # Correction detection (self-learning mechanism 2, 2026-09-02): a plain-
-        # text heuristic over this new message, checked against the last tool
-        # call this session actually made. Deliberately conservative and known-
-        # imperfect -- see learning.py's module docstring for the honest caveat
-        # (there's no ground truth for "the user meant this as a correction"
-        # short of asking them). False negatives just mean nothing extra gets
-        # remembered; false positives store an overly specific rule, which the
-        # memory panel's Forget control (memory_dialog.py) lets the user remove.
-        if learning.detect_correction(user_query) and self._last_tool_call:
-            last_name, last_args = self._last_tool_call
-            learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
-        # Router runs BEFORE build_system_prompt now (2026-09-12, prompt modularization --
-        # following v1.13.1's fix to the same shape of problem on the tool-schema side): which
-        # of the 47 base-prompt rules actually need sending depends on which tools this turn can
-        # even reach, so the router's selection has to exist first. Nothing else depended on the
-        # old ordering (confirmed by reading this whole function before reordering it).
         router = ToolRouter(TOOLS_SCHEMA)
         self._turn_counter = getattr(self, "_turn_counter", 0) + 1
         recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
@@ -1735,6 +1701,55 @@ class CartogenAi:
                         system_prompt_content += "\n\n" + check
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="chain_context", error_class=type(e).__name__, error=True)
+        return active_tools, active_tool_names, system_prompt_content
+
+    def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
+        """should_stop, if given, is a zero-arg callable returning True once the
+        user has asked to abort (task_runner.py passes the running QgsTask's
+        isCanceled()). Checked once per loop iteration -- this can't interrupt
+        an in-flight API call or tool execution, but it does stop the agent
+        from starting another one, which was previously not possible at all.
+
+        tool_step_callback, if given, is called as tool_step_callback(name,
+        status, error) around every individual tool call in the loop below --
+        status is "running" right before execution and "done"/"failed" right
+        after. This is what lets the UI show live per-step progress during a
+        multi-tool-call turn (previously nothing was visible between "Thinking..."
+        and the final answer, no matter how many tools ran in between). Wrapped
+        in try/except so a UI-side rendering bug can never break the actual
+        agent loop -- worst case is a missed visual update, not a failed turn."""
+        # Structured-logging policy, 2026-09-20: every tool-call log line for this
+        # turn carries the same correlation_id so a QgsMessageLog reader can group
+        # them without any of the log content itself being the user's actual query.
+        correlation_id = uuid.uuid4().hex[:8]
+        provider_name = type(getattr(self, "client", None)).__name__
+        # New turn -- undo must never reach back into a previous one (see
+        # transactions.py's docstring).
+        self._transaction_log.reset()
+        # New turn -- a plan made last turn must not silently satisfy this turn's gate
+        # (§1.6 option (b), plan_gate.py).
+        self._plan_gate.reset()
+        self._apply_auto_model_selection(user_query)
+        user_message = {"role": "user", "content": user_query}
+        self._stray_fragment_turn = self._is_stray_fragment_turn(user_query)
+
+        # Correction detection (self-learning mechanism 2, 2026-09-02): a plain-
+        # text heuristic over this new message, checked against the last tool
+        # call this session actually made. Deliberately conservative and known-
+        # imperfect -- see learning.py's module docstring for the honest caveat
+        # (there's no ground truth for "the user meant this as a correction"
+        # short of asking them). False negatives just mean nothing extra gets
+        # remembered; false positives store an overly specific rule, which the
+        # memory panel's Forget control (memory_dialog.py) lets the user remove.
+        if learning.detect_correction(user_query) and self._last_tool_call:
+            last_name, last_args = self._last_tool_call
+            learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
+        # Router runs BEFORE build_system_prompt now (2026-09-12, prompt modularization --
+        # following v1.13.1's fix to the same shape of problem on the tool-schema side): which
+        # of the 47 base-prompt rules actually need sending depends on which tools this turn can
+        # even reach, so the router's selection has to exist first. Nothing else depended on the
+        # old ordering (confirmed by reading this whole function before reordering it).
+        active_tools, _active_tool_names, system_prompt_content = self._prepare_turn_prompt(user_query, map_context)
 
         self._remember_grounding(user_query)
         self._remember_grounding(map_context)
@@ -1758,9 +1773,7 @@ class CartogenAi:
         # One-shot flag for _sandbox_flailing_nudge below -- the nudge is a single course-
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
-        sandbox_flailing_nudged = False
-        drift_nudged = False
-        missing_file_nudged = False   # #231: one nudge per turn against guessed file paths
+        nudged = set()   # which one-shot nudges have fired (sandbox, missing_file (#231), drift)
 
         token_budget_hit = False
         guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
@@ -1880,13 +1893,7 @@ class CartogenAi:
                 guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
                                   tool_operations.get_tool_operation_type(name))
                 if name == "find_tools" and not is_error and isinstance(tool_result, dict):
-                    # The model asked for tools its list did not cover: offer them for the rest of this turn (bounded, deduplicated).
-                    offered = {t.get("function", {}).get("name") for t in active_tools}
-                    for wanted in (tool_result.get("tool_names") or [])[:8]:
-                        schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
-                        if schema is not None and wanted not in offered:
-                            active_tools = [*list(active_tools), schema]
-                            offered.add(wanted)
+                    active_tools = self._offer_found_tools(active_tools, tool_result)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
@@ -1905,10 +1912,7 @@ class CartogenAi:
                 if tool_step_callback is not None:
                     with contextlib.suppress(Exception):
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
-                try:
-                    serialized = json.dumps(tool_result, default=str)
-                except Exception as e:
-                    serialized = json.dumps({"error": f"Could not serialize tool result: {e}"})
+                serialized = self._serialize_tool_result(tool_result)
                 self._remember_grounding(serialized)
                 messages.append({
                     "role": "tool",
@@ -1930,21 +1934,7 @@ class CartogenAi:
             # large task's per-call payload to the model stays bounded for the rest of the turn.
             self._compact_old_tool_results(messages)
 
-            if not sandbox_flailing_nudged:
-                nudge = self._sandbox_flailing_nudge(turn_tool_log)
-                if nudge:
-                    messages.append({"role": "user", "content": nudge})
-                    sandbox_flailing_nudged = True
-            if not missing_file_nudged:
-                missing = loop_guard.missing_file_nudge(turn_tool_log)
-                if missing:
-                    messages.append({"role": "user", "content": missing})
-                    missing_file_nudged = True
-            if not drift_nudged:
-                drift = self._named_tool_drift_nudge(user_query, turn_tool_log)
-                if drift:
-                    messages.append({"role": "user", "content": drift})
-                    drift_nudged = True
+            self._end_of_round_nudges(messages, user_query, turn_tool_log, nudged)
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same
