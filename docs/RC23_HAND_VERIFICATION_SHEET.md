@@ -2,6 +2,8 @@
 
 Zip: the rc23 build made from the current `main` (the file name and SHA-256 are given when it is sent; an earlier rc23 zip, `b9c30d74...`, contained only the hand-test fixes and is superseded). Tracks issue #233. Use a fresh QGIS profile and the rc22 fixtures. Nothing below has been hand-tested by the developer; every row is yours to mark.
 
+**Data and destination.** Every prompt goes to the model provider you configured, together with what the agent reads to answer it (layer and field names, counts, tool results, which can include coordinates). Run these rows only on the synthetic fixtures, with a provider you are authorised to send them to, and write the provider and model at the top of your results. If an egress card names a layer you did not expect, cancel it and report it. Nothing here authorises sending real or sensitive data anywhere. See `docs/RELEASE_LIVE_TEST_SCENARIOS.md`, section 1a.
+
 Mark each row **PASS / FAIL / NOT RUN**, and for a FAIL write what you saw. Keep a screenshot of the chat and the result for each. Rows come from the rc22 matrix (`docs/RC22_RESULT_MATRIX_2026-10-09.csv`); the prompt and expectation are copied verbatim.
 
 | Row | Prompt (type it exactly) | Expected | Result | Notes / evidence file |
