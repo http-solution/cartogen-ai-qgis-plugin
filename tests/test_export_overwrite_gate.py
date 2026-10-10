@@ -1,4 +1,5 @@
 """Replacing a file the plugin did not write needs the user's confirmation (rc17 hand test A6, 2026-10-06)."""
+import pathlib
 import os
 import tempfile
 import unittest
@@ -16,7 +17,7 @@ class TestOverwritePreview(unittest.TestCase):
         self.assertIsNone(et.overwrite_preview("export_to_csv", {"layer_name": "L"}, self.path))
 
     def test_an_existing_file_the_session_did_not_write_asks_first(self):
-        open(self.path, "w").write("old")
+        pathlib.Path(self.path).write_text("old")
         res = et.overwrite_preview("export_to_csv", {"layer_name": "L", "output_path": self.path}, self.path)
         self.assertEqual(res["status"], "PREVIEW_REQUIRED")
         self.assertTrue(res["is_destructive"])
@@ -29,19 +30,19 @@ class TestOverwritePreview(unittest.TestCase):
         self.assertIsNone(et.overwrite_preview("export_to_csv", {}, self.path))
 
     def test_a_file_this_session_wrote_is_replaced_without_a_question(self):
-        open(self.path, "w").write("mine")
+        pathlib.Path(self.path).write_text("mine")
         et.remember_written(self.path)
         self.assertIsNone(et.overwrite_preview("export_to_csv", {}, self.path))
 
     def test_a_file_edited_after_the_plugin_wrote_it_asks_again(self):
-        open(self.path, "w").write("mine")
+        pathlib.Path(self.path).write_text("mine")
         et.remember_written(self.path)
-        open(self.path, "w").write("mine, then edited by the user")
+        pathlib.Path(self.path).write_text("mine, then edited by the user")
         self.assertEqual(et.overwrite_preview("export_to_csv", {}, self.path)["status"], "PREVIEW_REQUIRED")
 
     def test_a_path_without_an_extension_checks_the_files_a_driver_would_create(self):
         base = os.path.join(self.dir, "roads")
-        open(base + ".shp", "w").write("existing shapefile")
+        pathlib.Path(base + ".shp").write_text("existing shapefile")
         res = et.overwrite_preview("export_layer", {"layer_name": "L"}, base)
         self.assertIsNotNone(res)
         self.assertIn("roads.shp", res["message"])

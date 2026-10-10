@@ -1,6 +1,7 @@
 """Tests for core/models/egress_gate.py -- the pure half of the cloud-provider egress gate
 (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md). Wiring into the agent is tested separately in
 test_agent_runner.py; the sensitivity tool's downgrade lock in test_sensitivity_egress_lock.py."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.models import egress_gate as g
@@ -71,7 +72,7 @@ class TestProtectionRules(unittest.TestCase):
 
 
 class TestCollectLayerNames(unittest.TestCase):
-    KNOWN = {"roads", "clinics", "beneficiaries"}
+    KNOWN: ClassVar = {"roads", "clinics", "beneficiaries"}
 
     def test_finds_top_level_strings(self):
         self.assertEqual(g.collect_layer_names({"layer_name": "roads", "distance": 5}, self.KNOWN),
@@ -122,7 +123,7 @@ class TestFindProtected(unittest.TestCase):
 
 
 class TestEvaluate(unittest.TestCase):
-    LEVELS = {"beneficiaries": "SENSITIVE", "boundary": "PUBLIC"}
+    LEVELS: ClassVar = {"beneficiaries": "SENSITIVE", "boundary": "PUBLIC"}
 
     def _eval(self, **over):
         gl, gs = _ctx(over.pop("levels", self.LEVELS), over.pop("sources", None))

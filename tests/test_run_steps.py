@@ -1,5 +1,6 @@
 """run_steps: validation before anything runs, reference resolution, stop rules, and the round-trip saving in the agent loop.
 The tool dispatcher is stubbed (no QGIS main thread offline), so this proves the loop logic, not any real tool or any real model."""
+from typing import ClassVar
 import json
 import unittest
 from unittest.mock import patch
@@ -81,7 +82,7 @@ class TestLoop(unittest.TestCase):
             text = agent.run("buffer then clip")
         return text, client, ran
 
-    chain = [{"tool": "buffer_layer", "arguments": {"layer_name": "roads", "distance": 100}},
+    chain: ClassVar = [{"tool": "buffer_layer", "arguments": {"layer_name": "roads", "distance": 100}},
              {"tool": "clip_layer", "arguments": {"input_layer": "$prev.layer_name", "overlay_layer": "zones"}}]
 
     def test_a_chain_costs_two_model_calls_instead_of_three(self):
@@ -136,7 +137,7 @@ if __name__ == "__main__":
 
 
 class TestPreflight(unittest.TestCase):
-    FACTS = {"roads": {"kind": "vector", "geographic": True}, "dem": {"kind": "raster", "geographic": True},
+    FACTS: ClassVar = {"roads": {"kind": "vector", "geographic": True}, "dem": {"kind": "raster", "geographic": True},
              "utm_pts": {"kind": "vector", "geographic": False}}
 
     def check(self, steps):

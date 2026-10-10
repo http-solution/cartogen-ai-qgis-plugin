@@ -1,4 +1,6 @@
 """Tests for the Humanitarian Mapping Task Register and its matcher."""
+from typing import ClassVar
+import pathlib
 import unittest
 
 from cartogen_ai.core.agent import task_register as reg
@@ -359,7 +361,7 @@ class TestFacilityAccessToolHint(unittest.TestCase):
         import json
         import os
         import cartogen_ai.core.agent.task_register as reg
-        data = json.load(open(os.path.join(os.path.dirname(reg.__file__), "task_register.json"), encoding="utf-8"))
+        data = json.loads(pathlib.Path(os.path.join(os.path.dirname(reg.__file__), "task_register.json")).read_text(encoding="utf-8"))
         checked = 0
         for task in data:
             if "travel_time_matrix" in task["tools"]:
@@ -389,7 +391,7 @@ class TestHumanitarianToolsAreReachableFromTasks(unittest.TestCase):
     test 38 catalogued tools (the H1-H6 tools among them) were in no task at all."""
 
     # Tools that are ways to RENDER or edit rather than something a task is about, and cross-cutting helpers a task does not name.
-    EXEMPT = {"add_incident_point"}
+    EXEMPT: ClassVar = {"add_incident_point"}
 
     def test_every_catalogued_tool_is_in_some_task(self):
         import os

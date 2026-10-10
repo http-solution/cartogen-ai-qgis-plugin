@@ -6,6 +6,7 @@ built zip went from 63 source files to 44 -- a plugin whose agent had no tools
 to call, with nothing in the build output saying so. The build script is a
 plain module with no QGIS or Qt imports, so its rules can be checked directly.
 """
+import pathlib
 import importlib.util
 import os
 import unittest
@@ -105,7 +106,7 @@ class TestZonalStatisticsImportModule(unittest.TestCase):
         for r, d, files in os.walk(os.path.join(ROOT, "src")):
             for name in files:
                 if name.endswith(".py"):
-                    text = open(os.path.join(r, name), encoding="utf-8").read()
+                    text = pathlib.Path(os.path.join(r, name)).read_text(encoding="utf-8")
                     if re.search(r"from qgis\.core import[^\n]*QgsZonalStatistics", text):
                         bad.append(name)
         self.assertEqual(bad, [])

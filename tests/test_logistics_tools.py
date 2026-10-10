@@ -3,6 +3,7 @@ improvement (hub siting, service-area, travel-distance analysis), plus
 location_allocation/optimize_delivery_route added in the ArcGIS-parity pass.
 Follows the QGIS_AVAILABLE=False degrade-path convention used throughout the
 suite."""
+from typing import ClassVar
 import math
 import unittest
 from types import SimpleNamespace
@@ -1291,7 +1292,7 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
     geometry/network-analysis steps in between."""
 
     # people counted inside each reach polygon, by the name of the layer the zonal statistics is asked about
-    POP_BY_LAYER_SUFFIX = {"_concave_hull": 500.0, "_road_buffer": 400.0, "_convex_hull": 700.0}
+    POP_BY_LAYER_SUFFIX: ClassVar = {"_concave_hull": 500.0, "_road_buffer": 400.0, "_convex_hull": 700.0}
 
     def _run(self, reach_geometry=None, concave_error=None, **kw):
         """population_access_gap with every QGIS-touching collaborator mocked. Returns (result, mocks)."""

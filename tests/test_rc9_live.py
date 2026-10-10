@@ -1,6 +1,7 @@
 """Live-QGIS tests for the rc8-audit fixes (runs only where qgis.core exists: the CI `qgis-live-tests` job).
 
 Written WITHOUT a QGIS install: the first CI run is their first execution. Each class names the finding it guards."""
+import pathlib
 import os
 import unittest
 
@@ -91,7 +92,7 @@ class TestDashboardBackdrop(unittest.TestCase):
         out = os.path.join(tempfile.mkdtemp(), "d.html")
         res = generate_html_dashboard([{"layer_name": "Clinics"}], output_path=out, basemap="none", backdrop_layer="Yemen")
         self.assertNotIn("error", res, res)
-        html = open(out, encoding="utf-8").read()
+        html = pathlib.Path(out).read_text(encoding="utf-8")
         self.assertIn("#eeeae0", html)
         self.assertNotIn("tile_layer", html)
 

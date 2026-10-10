@@ -1,6 +1,7 @@
 """JIAF 2 stage 3 engine, offline. The default flag rules are OCHA's worksheet formulas (tests/test_jiaf_rules.py pins them, tests/test_jiaf_worksheet_adapter.py
 checks them against the official example workbook). The classes here that call the `manual_reading` profile pin that OLDER interpretation of the manual's wording,
 which is kept for comparison only and is not OCHA's rule set; the rest pin the manual's own rules (Box 21, Box 22)."""
+from typing import ClassVar
 import csv
 import os
 import tempfile
@@ -162,7 +163,7 @@ class TestRankAndSettings(unittest.TestCase):
 
 
 class TestAnalyzeAndTool(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
          "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
         ["YE1", "A", 300, 3, 100, 3, 300, 3, 200, 3, 50, 3],

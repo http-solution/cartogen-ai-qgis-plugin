@@ -4,6 +4,7 @@ The router cases are the measured gaps from the rc18 plain-language probe (befor
 got no style tool, or only set_layer_order / set_layer_transparency). They pin that the right tool is a candidate; they do NOT
 prove the model then picks it or draws a readable map -- that is what the live sheet's plain-language rows measure.
 """
+from typing import ClassVar
 import importlib
 import pkgutil
 import unittest
@@ -47,7 +48,7 @@ class ResolveColourTest(unittest.TestCase):
 
 
 class PlainLanguageRoutingTest(unittest.TestCase):
-    CASES = [
+    CASES: ClassVar = [
         ("Colour the districts by how many people live there", "apply_graduated_style"),
         ("Show where people are crowded together", "apply_heatmap_style"),
         ("Draw the bigger villages with bigger dots", "apply_graduated_symbol_style"),

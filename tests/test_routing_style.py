@@ -1,4 +1,5 @@
 """Pure half of the routing/reach styling (tools/routing_style.py): band edges, labels, palettes, group order."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.agent.tools import routing_style as rs
@@ -59,7 +60,7 @@ class TestPalette(unittest.TestCase):
 
 
 class TestReachGroup(unittest.TestCase):
-    METHODS = ["concave_hull", "road_buffer", "convex_hull"]
+    METHODS: ClassVar = ["concave_hull", "road_buffer", "convex_hull"]
 
     def test_headline_is_first_then_tightest_to_loosest(self):
         self.assertEqual(rs.reach_layer_order(self.METHODS, "concave_hull"), ["concave_hull", "road_buffer", "convex_hull"])

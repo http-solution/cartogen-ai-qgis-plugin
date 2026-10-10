@@ -2,6 +2,7 @@
 
 Written without a QGIS install: CI's first run is their first execution. The algorithms are run (not only their metadata) with
 QgsProcessingAlgorithm.run(), the way the Processing dialog and a model would run them."""
+from typing import ClassVar
 import unittest
 
 try:
@@ -112,7 +113,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
     # About 5 km along the equator as 45 separate ~111 m road features. CI showed the network algorithm returns WHOLE road features
     # (a single 5 km feature, or one polyline with many vertices, came back entirely for a 1,000 m cost), so the reach can only be
     # told apart from the whole road when the road is made of many features.
-    ROADS = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
+    ROADS: ClassVar = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
 
     def setUp(self):
         from tests.test_network_units_live import _boot

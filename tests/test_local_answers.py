@@ -1,4 +1,5 @@
 """Requests answered from the open project with no model call (2026-10-10 hand test: 'List the layers' took 13 API calls)."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.ui import local_answers as la
@@ -18,7 +19,7 @@ class TestIsListLayersRequest(unittest.TestCase):
 
 
 class TestFormatLayerList(unittest.TestCase):
-    SUMMARY = {"project_title": "Smoke", "canvas_crs": "EPSG:32636", "active_layer": "smoke_zones", "layer_count": 2, "truncated": False,
+    SUMMARY: ClassVar = {"project_title": "Smoke", "canvas_crs": "EPSG:32636", "active_layer": "smoke_zones", "layer_count": 2, "truncated": False,
                "layers": [{"name": "smoke_admin", "type": "Vector", "crs": "EPSG:32636", "feature_count": 3, "fields": ["fid", "admin_name"]},
                           {"name": "smoke_dem", "type": "Raster", "crs": "EPSG:32636", "feature_count": None, "fields": []}]}
 

@@ -1,3 +1,4 @@
+from typing import ClassVar
 import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.prompts import build_system_prompt
@@ -1069,7 +1070,7 @@ class TestEgressGateWiring(unittest.TestCase):
         with self._fake_qgis(layers, raise_on_layers),              patch.object(lineage, "QGIS_AVAILABLE", True),              patch.object(egress_gate, "read_mode", return_value=mode),              patch.object(egress_gate, "read_strict", return_value=strict):
             return agent._egress_gate_decision(tool, args)
 
-    LAYERS = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
+    LAYERS: ClassVar = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
 
     def test_cloud_provider_and_a_sensitive_layer_is_blocked(self):
         res = self._decide("https://api.openai.com/v1/chat/completions", self.LAYERS)

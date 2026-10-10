@@ -2,6 +2,7 @@
 Tests for ingest_osm_features two-phase vector ingestion.
 """
 
+from typing import ClassVar
 import json
 import os
 import unittest
@@ -287,7 +288,7 @@ class TestOverpassResilience(unittest.TestCase):
     model then burned its 20-call budget geocoding facilities one by one. Measured that evening,
     only 5 of 12 spaced requests to overpass-api.de succeeded, with failures scattered."""
 
-    OK_BODY = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+    OK_BODY: ClassVar = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
                              "tags": {"amenity": "hospital", "name": "Clinic A"}}]}
 
     def _ok(self):

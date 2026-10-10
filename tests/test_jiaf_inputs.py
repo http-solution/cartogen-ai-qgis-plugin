@@ -1,5 +1,6 @@
 """JIAF 2 stage 2: reading and validating sector inputs, offline. Grids mirror the layouts seen in the real Yemen worksheet and published
 HNO files; the real files themselves are not committed (tests/test_jiaf_inputs_yemen_local.py uses them when JIAF_YEMEN_DIR is set)."""
+from typing import ClassVar
 import os
 import tempfile
 import unittest
@@ -67,7 +68,7 @@ class TestOchaWorksheet(unittest.TestCase):
 
 
 class TestHxl(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["Demographic Information", None, None, None, "Humanitarian Condition Score", "Total PiN"],
         ["Gov_PCODE", "Governorate", "Dis_PCODE", "District", "Severity", "Total PiN", "Boys", "Total PiN", "Severity", "Total PiN", "Severity", "Total PiN"],
         ["#adm1 +code", "#adm1 +name", "#adm2 +code", "#adm2 +name", "#severity", "#inneed", "#inneed +boys", "#inneed +wsh", "#severity +wsh",
@@ -99,7 +100,7 @@ class TestHxl(unittest.TestCase):
 
 
 class TestSectorTemplate(unittest.TestCase):
-    HDR = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population", "Cluster's PiN (Number)"]
+    HDR: ClassVar = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population", "Cluster's PiN (Number)"]
 
     def test_reads_the_annex_4_layout_and_merges_sectors(self):
         a, _ = ji.parse_sector_template([self.HDR, ["Al-Anbar", "IQG01", "Al-Falluja", "IQG01Q01", "540,532", 1000]], "wash", "pin")
@@ -146,7 +147,7 @@ class TestValidation(unittest.TestCase):
 
 
 class TestSetup(unittest.TestCase):
-    OK = {"country": "Yemen", "planning_cycle": "HPC 2026", "unit_of_analysis": "admin 2", "manual_edition": "July 2024"}
+    OK: ClassVar = {"country": "Yemen", "planning_cycle": "HPC 2026", "unit_of_analysis": "admin 2", "manual_edition": "July 2024"}
 
     def test_valid_and_required_fields(self):
         _clean, al, errors = ji.validate_setup(dict(self.OK), [{"sector": "WASH", "pin_aligned": True, "severity_alignment": "aligned"}])

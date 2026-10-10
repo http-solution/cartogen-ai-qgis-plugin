@@ -1,6 +1,7 @@
 """F12 (rc7 smoke test, 2026-09-30): a dashboard of ~2,500 facility points drew every marker; slow to
 open and unreadable at country zoom. Point layers with >= CLUSTER_MIN_POINTS features are now drawn as
 clustered markers. The HTML tests need folium (skipped without it, like the rest of the dashboard tests)."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.agent.tools import export_tools as et
@@ -211,7 +212,7 @@ class TestNoBasemapAndBackdrop(unittest.TestCase):
         except ImportError:
             self.skipTest("folium not installed")
 
-    BOUNDARY = {"type": "FeatureCollection", "features": [
+    BOUNDARY: ClassVar = {"type": "FeatureCollection", "features": [
         {"type": "Feature", "properties": {"name": "Yemen"}, "geometry": {"type": "Polygon", "coordinates": [
             [[41.0, 12.0], [54.0, 12.0], [54.0, 19.0], [41.0, 19.0], [41.0, 12.0]]]}}]}
 

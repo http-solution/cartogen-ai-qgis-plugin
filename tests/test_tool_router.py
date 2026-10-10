@@ -1,3 +1,4 @@
+from typing import ClassVar
 import ast
 import inspect
 import unittest
@@ -319,7 +320,7 @@ class TestToolRouterRecallRegression(unittest.TestCase):
     silently regress recall on a query that happened to already be passing.
     Uses top_k=40, the value agent_orchestrator.py's real dispatch actually passes."""
 
-    QUERY_TO_EXPECTED_TOOL = [
+    QUERY_TO_EXPECTED_TOOL: ClassVar = [
         ("which districts are underserved and need more funding", "calculate_presence_gap"),
         ("rank the districts by how bad the situation is", "calculate_severity_index"),
         ("how many people cannot reach a hospital within an hour", "population_access_gap"),

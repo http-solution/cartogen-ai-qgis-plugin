@@ -1,5 +1,6 @@
 """JIAF 2 stage 4: decision records, final figures, pattern outputs, offline. The project store and layer writes are covered by
 tests/test_jiaf_review_live.py; the real Yemen files only when JIAF_YEMEN_DIR is set."""
+from typing import ClassVar
 import csv
 import os
 import tempfile
@@ -446,7 +447,7 @@ class TestPatterns(unittest.TestCase):
 
 
 class TestTools(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
          "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
         ["YE1", "A", 300, 3, 100, 3, 300, 3, 200, 3, 50, 3],

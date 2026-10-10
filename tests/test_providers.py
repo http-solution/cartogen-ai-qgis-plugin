@@ -1,3 +1,4 @@
+from typing import ClassVar
 import json
 import unittest
 from unittest.mock import patch, MagicMock
@@ -667,12 +668,12 @@ class TestProviderReturnContract(unittest.TestCase):
     clients, including the not-yet-wired-in cartogen.py stub -- the contract
     should hold for it too, same as every real client."""
 
-    SUCCESS_KEYS = {"message", "model"}
+    SUCCESS_KEYS: ClassVar = {"message", "model"}
     # 'usage' is optional on success -- present when the provider's raw response
     # actually reported token counts (see base.extract_openai_style_usage's
     # docstring: never fabricated as zero when a provider/model omits it).
-    OPTIONAL_SUCCESS_KEYS = {"usage"}
-    ERROR_KEYS = {"error"}
+    OPTIONAL_SUCCESS_KEYS: ClassVar = {"usage"}
+    ERROR_KEYS: ClassVar = {"error"}
 
     def _assert_contract_shape(self, result):
         keys = set(result.keys())

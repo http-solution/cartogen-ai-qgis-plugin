@@ -1,4 +1,5 @@
 """A request that names a tool must not be steered to a task that does not use it (rc15 hand test D01, 2026-10-06)."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.agent import task_matcher as tm
@@ -106,7 +107,7 @@ class TestSlotsAnsweredByOwnData(unittest.TestCase):
 class TestSingleSharedWord(unittest.TestCase):
     """rc17 hand test R4: one shared word is a coincidence in a long request, however high it scores."""
 
-    ENTRY = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
+    ENTRY: ClassVar = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
              "slots": []}
 
     def _classify(self, query):
