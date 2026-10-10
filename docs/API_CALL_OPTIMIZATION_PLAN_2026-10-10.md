@@ -125,3 +125,13 @@ Facts from the 20 files:
 Fixed in this change (small, safe, tested offline): the model-facing memory context no longer includes usage counters or learned-preference counts (the Memory panel still shows them) and renders operation arguments with sorted keys; a task result in the plan section is clipped to 160 characters with a note (the full result stays on the task and in the conversation).
 
 Not fixed, now in the plan: the per-request variation of the rule set (use a few fixed rule packs so the prefix repeats), the 40-tool schema block (Track B1/B2), and the model-driven `update_task` rounds (Track C1).
+
+## 10. API trace (built)
+
+`core/agent/api_trace.py` + Settings > "Record every model request and reply to a local folder (diagnostics)" (off by default) write one JSON line
+per model call of the agent loop to `cartogen_api_trace/api_calls_<date>.jsonl`: system instruction (stored once per distinct text, by hash), the
+messages sent, tool names offered and their schema size, the reply and tool calls, usage, latency, outcome. `tools/summarize_api_trace.py` prints
+one row per request and flags long requests, repeated identical tool calls, a system instruction that changes inside one request, and failed
+calls; `--show-turn` replays one request. The live-test runbook (section 1b) and the rc24 hand-verification sheet now require the call count per
+row. Limits: calls outside the agent loop (prompt refinement, an attached-image question) are not traced; the file holds raw text, so it is local
+only and off by default. This is Track D3's raw half; the per-request metrics view and the CI budgets (D1/D2) are still to build.

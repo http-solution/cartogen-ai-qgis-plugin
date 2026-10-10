@@ -6,6 +6,8 @@ Zip: `cartogen_ai_v1.16.0-rc24.zip` from the `cartogen-ai-v1.16.0-rc24` pre-rele
 
 ## 1. rc23 fixes (still unverified by hand)
 
+**Counting model calls.** rc24 does not have the API trace (it arrives in the next build; see `docs/RELEASE_LIVE_TEST_SCENARIOS.md` section 1b). For every row also note how many model calls it took: open Log Messages, filter on `Agent`, and count the `model_call` lines for that request (each shows call_index, input and output tokens and the tools offered). A row that passes but needs more than 4 calls is a finding. For the "List the layers" row (R1) rc24 still sends it to the model.
+
 Mark each row **PASS / FAIL / NOT RUN**, and for a FAIL write what you saw. Keep a screenshot of the chat and the result for each. Rows come from the rc22 matrix (`docs/RC22_RESULT_MATRIX_2026-10-09.csv`); the prompt and expectation are copied verbatim.
 
 | Row | Prompt (type it exactly) | Expected | Result | Notes / evidence file |

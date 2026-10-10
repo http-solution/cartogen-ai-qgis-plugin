@@ -46,7 +46,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
+from . import api_trace, evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -61,6 +61,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
     SETTINGS_MAX_TOOL_ITERATIONS,
     SETTINGS_MAX_TURN_TOKENS,
+    SETTINGS_API_TRACE_ENABLED,
     SETTINGS_EVIDENCE_ENABLED,
     provider_model_list_key,
 )
@@ -382,7 +383,8 @@ class CartogenAi:
         """'This turn: 5 calls, 131,878 input (51,200 cached) + 2,100 output tokens; last call 27,400 input', observed only."""
         return call_metrics.turn_usage_line(self.get_turn_call_records())
 
-    def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None):
+    def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None,
+                           response=None, error=None):
         """Builds, stores and logs one call record. Never raises: measurement must not break a turn."""
         try:
             client = getattr(self, "client", None)
@@ -397,6 +399,26 @@ class CartogenAi:
                       tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
         except Exception:
             pass
+        trace = self._api_trace()
+        if trace is not None:
+            client = getattr(self, "client", None)
+            trace.record(turn_id, call_index, type(client).__name__, model or getattr(client, "model", None), messages, tools,
+                         response=response, usage=usage, latency_ms=int((call_metrics.monotonic() - started) * 1000),
+                         outcome=outcome, error=error)
+
+    def _api_trace(self):
+        """The raw model-call trace (core/agent/api_trace.py) when the user switched it on in Settings, else None. Never raises."""
+        try:
+            if str(QgsSettings().value(SETTINGS_API_TRACE_ENABLED, False)).lower() not in ("true", "1"):    # QSettings may hand back text
+                return None
+            trace = self.__dict__.get("_api_trace_obj")
+            if trace is None:
+                from .tools._paths import resolve_output_path
+                trace = api_trace.ApiTrace(resolve_output_path(api_trace.relative_folder()))
+                self._api_trace_obj = trace
+            return trace
+        except Exception:
+            return None
 
     def _get_usage_tracker(self):
         """Mirrors _get_history_lock()'s own lazy-init pattern (see its docstring):
@@ -1792,19 +1814,19 @@ class CartogenAi:
                     messages, tools=active_tools, max_tokens=_max_tokens_for_iteration(iteration_index)
                 )
             except Exception as e:
-                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception")
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception", error=str(e))
                 return f"[API error] {e}"
 
             if not isinstance(result, dict):
                 self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")
                 return "[API error] Unexpected response from model client."
             if "error" in result:
-                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "provider_error")
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "provider_error", error=result.get("error"))
                 return f"[API error] {result['error']}"
             self._accumulate_usage(result.get("usage"))
             _reply = result.get("message") if isinstance(result.get("message"), dict) else {}
             self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, result.get("usage"), "ok",
-                                    tool_calls=len(_reply.get("tool_calls") or []), model=result.get("model"))
+                                    tool_calls=len(_reply.get("tool_calls") or []), model=result.get("model"), response=_reply)
 
             message = result.get("message")
             if not isinstance(message, dict):
