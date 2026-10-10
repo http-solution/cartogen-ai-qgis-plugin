@@ -22,7 +22,7 @@ from qgis.core import QgsSettings
 
 from .attachments import read_attached_file as _read_attached_file
 from .settings_dialog import PROVIDERS as _PROVIDERS
-from ...infrastructure.settings_keys import SETTINGS_PROVIDER
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
 
 
 class ChatInputController:
@@ -39,7 +39,7 @@ class ChatInputController:
         specific moment it becomes true for THIS file. Ollama is local -- nothing leaves
         the machine -- so it gets a different, accurate note rather than a generic
         third-party-sending warning that would be false for it."""
-        provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+        provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
         if provider_value == "ollama":
             return "This file's content stays local (Ollama) -- nothing is sent to a third party."
         label = next(

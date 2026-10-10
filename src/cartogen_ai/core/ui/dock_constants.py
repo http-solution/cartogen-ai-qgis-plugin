@@ -4,13 +4,17 @@ Pulled out (rather than one of those modules importing from another) so none of
 the three tab modules has to import from dock_widget.py itself -- dock_widget.py
 imports all three, so any of them importing back from it would be circular."""
 
-PROVIDER_CHOICES = [
+from ...infrastructure.settings_keys import ENABLED_PROVIDERS
+
+_ALL_PROVIDER_CHOICES = [
     ("OpenRouter (Hosted)", "openrouter"),
     ("Google Gemini (Hosted)", "gemini"),
     ("Ollama (Local)", "ollama"),
     ("OpenAI (Hosted)", "openai"),
     ("Claude / Anthropic (Hosted)", "claude"),
 ]
+# Quick switcher lists only the providers this build enables (settings_keys.ENABLED_PROVIDERS).
+PROVIDER_CHOICES = [c for c in _ALL_PROVIDER_CHOICES if c[1] in ENABLED_PROVIDERS]
 
 # Module-level (not a local in some widget's init_ui) so the Help tab can list the same
 # example prompts as the Chat tab's quick suggestion chips without a second, driftable

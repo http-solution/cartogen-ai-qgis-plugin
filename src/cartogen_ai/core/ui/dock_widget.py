@@ -30,7 +30,7 @@ from qgis.PyQt.QtWidgets import (
     QPushButton, QComboBox,
 )
 from qgis.core import QgsSettings
-from ...infrastructure.settings_keys import SETTINGS_PROVIDER
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
 
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
@@ -138,7 +138,7 @@ class CartogenAiDockWidget(QDockWidget):
         self.provider_combo = QComboBox()
         for label, value in PROVIDER_CHOICES:
             self.provider_combo.addItem(label, value)
-        current_provider = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+        current_provider = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
         idx = self.provider_combo.findData(current_provider)
 
         if idx >= 0:
@@ -248,7 +248,7 @@ class CartogenAiDockWidget(QDockWidget):
         if dialog.exec():
             self.statusSignal.emit("Settings saved")
             # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
-            provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+            provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
             idx = self.provider_combo.findData(provider_value)
 
             if idx >= 0:

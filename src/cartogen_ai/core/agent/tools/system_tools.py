@@ -400,9 +400,9 @@ def resolve_gemini_search_config():
     except ImportError:
         return {"error": "QGIS not available"}
 
-    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL
+    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, normalize_provider
     settings = QgsSettings()
-    provider = settings.value(SETTINGS_PROVIDER, "openrouter")
+    provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
     if provider != "gemini":
         return {"error": "gemini_grounded_search is only available when the active provider is Gemini. Use search_web instead."}
 
@@ -446,9 +446,9 @@ def resolve_openai_search_config():
     except ImportError:
         return {"error": "QGIS not available"}
 
-    from ....infrastructure.settings_keys import SETTINGS_PROVIDER
+    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
     settings = QgsSettings()
-    provider = settings.value(SETTINGS_PROVIDER, "openrouter")
+    provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
     if provider != "openai":
         return {"error": "openai_grounded_search is only available when the active provider is OpenAI. Use search_web instead."}
 

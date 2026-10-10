@@ -10,6 +10,20 @@ SETTINGS_PROVIDER = "cartogen_ai/provider"
 SETTINGS_API_KEY = "cartogen_ai/api_key"
 SETTINGS_ACCOUNT_BASE_URL = "cartogen_ai/account_base_url"
 
+# Providers a build offers. Fixed at release time (change this tuple and publish a new version to
+# widen it). OpenAI and Claude clients stay in the code but are untested, so the plugin-directory
+# build neither lists them in Settings nor runs them; see normalize_provider().
+ENABLED_PROVIDERS = ("openrouter", "gemini", "ollama", "cartogen")
+DEFAULT_PROVIDER = "openrouter"
+
+
+def normalize_provider(value):
+    """The provider to actually use for a saved setting. A value from an earlier version that
+    is no longer enabled (e.g. "openai") falls back to the default instead of silently running
+    an untested client; the saved setting itself is left alone."""
+    return value if value in ENABLED_PROVIDERS else DEFAULT_PROVIDER
+
+
 # Provider-specific Model Configuration
 SETTINGS_OPENROUTER_MODEL = "cartogen_ai/openrouter_model"
 SETTINGS_GEMINI_MODEL = "cartogen_ai/gemini_model"

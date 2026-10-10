@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc25](#v1-16-0-rc25) | 2026-10-10 | **Release candidate 25 for 1.16.0.** No breaking changes. Only tested providers (OpenRouter, Gemini, Ollama, Cartogen API stub) are offered; OpenAI and Claude are no longer listed or run; plugin-directory packaging fixes; opt-in API trace; local layer list. Not hand-tested. |
 | [1.16.0-rc24](#v1-16-0-rc24) | 2026-10-10 | **Release candidate 24 for 1.16.0.** No breaking changes. Reply checks for invented identifiers, figures and style claims; a guessed-file-path guard; raster and Processing runs in the background; read-only database layers for the script worker and SQL results. Not hand-tested. |
 | [1.16.0-rc23](#v1-16-0-rc23) | 2026-10-09 | **Release candidate 23 for 1.16.0.** No breaking changes. Cost measurement and limits, capability-based routing, a request queue, split_lines_by_zones / generate_contours / fetch_dem, run_steps with 11 vetted chains, an opt-in evidence folder, and fixes from the rc22 hand test; CI green on the merged head, not hand-tested. |
 | [1.16.0-rc22](#v1-16-0-rc22) | 2026-10-07 | **Release candidate 22 for 1.16.0.** No breaking changes. Fixes from the rc20 architectural audit (results never overwrite your layers, stale-turn and egress-lineage fixes, equalisation/slope/GeoJSON/CRS corrections, read-only script copies, first background work); verified locally in QGIS 4.2.2, not by hand. |
@@ -65,6 +66,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc25"></a>
+## [1.16.0-rc25] — 2026-10-10 — Release candidate 25 for 1.16.0: tested providers only, plugin-directory fixes
+
+No breaking changes; QGIS 4.2+. Everything after the rc24 build:
+
+- Providers limited to tested ones: Settings and the quick switcher now offer OpenRouter, Google Gemini, Ollama (local) and the Cartogen API entry only. OpenAI and Claude are no longer listed or run, because they were not tested. A provider saved by an earlier version (for example OpenAI) falls back to OpenRouter and its saved key and settings are left untouched. The Cartogen API entry is a stub: no hosted gateway is deployed yet, so it cannot be used until one exists.
+- Plugin-directory fixes: metadata.txt now parses (no percent sign), gives the project email and GitHub homepage, states requirements and the data sent to a cloud provider, and the package leaves out hidden git files, sample data and binary documents.
+- Opt-in API trace and local layer list: A Settings checkbox (off by default) records every model request and reply to a local file for diagnosing call counts. 'List the layers' is answered in the dock with no model call.
+- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.
 
 <a id="v1-16-0-rc24"></a>
 ## [1.16.0-rc24] — 2026-10-10 — Release candidate 24 for 1.16.0: reply checks, path guard, background raster runs, read-only database layers
