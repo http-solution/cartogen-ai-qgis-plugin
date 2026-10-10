@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc25
+version=1.16.0-rc26
 author=Alaa Alshoubaki
 email=info@cartogenai.com
 
@@ -23,7 +23,13 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc25 (2026-10-10):
+changelog=v1.16.0-rc26 (2026-10-10):
+    Release candidate 26 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Sends data-fetch requests through QGIS's network stack and fixes the plugin-directory security scan findings.
+    - Network requests use QGIS: Data-fetch tools (OpenStreetMap, HDX, hazard feeds, STAC and the like) now send their requests through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply. QGIS sets the User-Agent and applies its own network timeout (Settings > Options > Network, default 60 seconds) on these calls. Large downloads (Geofabrik extracts, model checkpoints) are still streamed with urllib, using the QGIS proxy. The AI provider clients still use the requests library; moving them is planned (#71).
+    - Security scan fixes: Short-key hashes are marked as non-security, a failed restore of the database session's read-only mode is now logged, and the reviewed best-effort handlers carry a reason, so the plugin-directory security scan reports far fewer findings.
+    - Not hand-tested: CI is green, including the new live network tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model.
+
+v1.16.0-rc25 (2026-10-10):
     Release candidate 25 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Limits the offered providers to the tested ones and carries the plugin-directory fixes.
     - Providers limited to tested ones: Settings and the quick switcher now offer OpenRouter, Google Gemini, Ollama (local) and the Cartogen API entry only. OpenAI and Claude are no longer listed or run, because they were not tested. A provider saved by an earlier version (for example OpenAI) falls back to OpenRouter and its saved key and settings are left untouched. The Cartogen API entry is a stub: no hosted gateway is deployed yet, so it cannot be used until one exists.
     - Plugin-directory fixes: metadata.txt now parses (no percent sign), gives the project email and GitHub homepage, states requirements and the data sent to a cloud provider, and the package leaves out hidden git files, sample data and binary documents.
