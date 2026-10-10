@@ -25,7 +25,7 @@ raster layers beyond letting them serialize into the project file unconditionall
 Known, documented limitations (not silently claimed as fixed):
 - Local-file vector and raster layers are handed to the worker as COPIES in the temp directory (audit A06), so a script cannot
   modify the user's files; edits it makes to such a layer are discarded, not reconciled. Database/web-service layers have no file
-  to copy and stay writable by the script.
+  to copy; they are locked read-only in the scratch project (#220).
 - Layer removal/reordering/style edits made by a script are not reconciled back into the live
   project -- only new layers (added) and existing MEMORY layers' feature data (since that's the
   one case where the pre-serialize export step already builds a mapping to reconcile) are synced
@@ -286,7 +286,8 @@ def _build_scratch_project(tempdir):
             layer.setDataSource(gpkg_path, layer.name(), "ogr")
             memory_layer_ids.append(layer_id)
 
-    _copy_file_backed_layers(scratch, live, tempdir, set(memory_layer_ids))
+    repointed = _copy_file_backed_layers(scratch, live, tempdir, set(memory_layer_ids))
+    _lock_uncopyable_layers(scratch, set(memory_layer_ids) | set(repointed))
 
     scratch_path = os.path.join(tempdir, "scratch_project.qgz")
     scratch.write(scratch_path)
@@ -336,6 +337,24 @@ def _copy_file_backed_layers(scratch, live, tempdir, already_handled):
         except Exception as exc:   # a layer that cannot be copied stays as-is rather than failing the whole script run
             log_event("script_isolation", tag="Tools", status="copy_skipped", error=True, error_class=type(exc).__name__)
     return repointed
+
+
+def _lock_uncopyable_layers(scratch, handled):
+    """Marks every vector layer that is neither a copy nor a re-exported memory layer read-only in the scratch project (#220, A06).
+
+    Database and web-service layers have no file to copy, so the worker reaches the real source. Read-only is written into the
+    scratch project file, so startEditing() refuses in the worker and a script can read the layer but not change it. A script's own
+    new layers are unaffected. Returns the ids locked. A layer that rejects the flag is left as it was and logged."""
+    locked = []
+    for layer_id, layer in list(scratch.mapLayers().items()):
+        if layer_id in handled or not hasattr(layer, "setReadOnly") or not hasattr(layer, "providerType"):
+            continue
+        try:
+            layer.setReadOnly(True)
+            locked.append(layer_id)
+        except Exception as exc:
+            log_event("script_isolation", tag="Tools", status="lock_skipped", error=True, error_class=type(exc).__name__)
+    return locked
 
 
 # --- result adoption ---------------------------------------------------------------------------------------------------------

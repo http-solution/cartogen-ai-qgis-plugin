@@ -19,11 +19,12 @@ preference, not a replacement.
 """
 
 from .registry import register_tool
+from . import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
                                     parameter_violation)
 
 try:
-    from qgis.core import QgsApplication, QgsProject, QgsRasterLayer
+    from qgis.core import QgsApplication, QgsProcessingContext, QgsProject, QgsRasterLayer
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -176,6 +177,20 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
         "required": ["alg_id", "params"],
     },
 )
+def _run_allowlisted(alg_id, resolved_params):
+    """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
+
+    An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
+    GUI thread. Every other approved algorithm creates new data, which QGIS's task runner handles, so a long one no longer shows
+    "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.can_run_in_background():
+        return processing.run(alg_id, resolved_params)
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    return _bg.run_algorithm(alg_id, resolved_params, context,
+                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1])
+
+
 def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -202,7 +217,9 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys)
-        output = processing.run(alg_id, resolved_params)
+        output = _run_allowlisted(alg_id, resolved_params)
+    except _bg.AnalysisCancelled:
+        return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}
 
