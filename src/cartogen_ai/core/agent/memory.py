@@ -116,7 +116,7 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite init failed: {e}")
+            log_event("sqlite_init_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
     def store_project_note(self, key: str, value: str) -> dict:
         """Stores a note in the active project scope. Always kept in the
@@ -140,7 +140,7 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite store failed: {e}")
+            log_event("sqlite_store_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         if QGIS_AVAILABLE:
             try:
@@ -149,7 +149,7 @@ class SpatialMemoryManager:
                 notes[key] = value
                 set_project_custom_property(proj, PROJECT_MEMORY_KEY, json.dumps(notes))
             except Exception as e:
-                print(f"[MemoryManager] Failed to persist project note: {e}")
+                log_event("failed_to_persist_project_note", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         return {"success": True, "key": key, "value": value, "scope": "project", "db_path": self._db_path, "persisted": True}
 
@@ -167,13 +167,13 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite clear failed: {e}")
+            log_event("sqlite_clear_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         if QGIS_AVAILABLE:
             try:
                 set_project_custom_property(QgsProject.instance(), PROJECT_MEMORY_KEY, json.dumps({}))
             except Exception as e:
-                print(f"[MemoryManager] Failed to clear project note property: {e}")
+                log_event("failed_to_clear_project_note_property", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         return {"success": True, "scope": "project"}
 
@@ -349,8 +349,7 @@ class SpatialMemoryManager:
             # Sorted so the most recently added rule (highest index) reads last,
             # i.e. most-recent-and-most-likely-relevant ends up closest to the
             # rest of the prompt the model attends to most.
-            for k in sorted(rules, key=lambda rk: (len(rk), rk)):
-                lines.append(f"- {rules[k]}")
+            lines.extend(f"- {rules[k]}" for k in sorted(rules, key=lambda rk: (len(rk), rk)))
 
         if usage and not for_model:
             lines.append("### Usage Patterns (most-used first, for context only -- not an instruction to keep using them):")
@@ -365,7 +364,7 @@ class SpatialMemoryManager:
 
         if actions:
             lines.append("### Recent Spatial Operations Executed:")
-            for act in actions:
-                lines.append(f"- `{act['action']}`: {_stable_details(act['details']) if for_model else act['details']}")
+            lines.extend(f"- `{act['action']}`: {_stable_details(act['details']) if for_model else act['details']}"
+                         for act in actions)
 
         return "\n".join(lines)

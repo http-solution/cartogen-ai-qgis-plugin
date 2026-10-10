@@ -144,7 +144,7 @@ class TestRunNetworkAlgorithmChoosesTheThread(unittest.TestCase):
 
 
 def _cancel(*a, **k):
-    raise bg.AnalysisCancelled("Stopped by the user.")
+    raise bg.AnalysisCancelledError("Stopped by the user.")
 
 
 @patch(_LT + "QGIS_AVAILABLE", True)
@@ -186,9 +186,9 @@ class TestToolsLetStopThrough(_LineNetworkMixin, unittest.TestCase):
         geoms = [f.geometry() for f in _stop_layer(["a", "b", "c"]).getFeatures.return_value]
         network = MagicMock()
         with patch(_LT + "_run_network_algorithm", side_effect=_cancel):
-            with self.assertRaises(bg.AnalysisCancelled):
+            with self.assertRaises(bg.AnalysisCancelledError):
                 lt._build_network_distance_matrix(network, geoms)
-            with self.assertRaises(bg.AnalysisCancelled):
+            with self.assertRaises(bg.AnalysisCancelledError):
                 lt._build_road_snapped_route("stops", network, geoms, [0, 1, 2])
         # control: an ordinary per-pair failure is still infinity / a skipped leg, as before
         with patch(_LT + "_run_network_algorithm", side_effect=RuntimeError("no path")):

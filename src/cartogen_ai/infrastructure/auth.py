@@ -15,6 +15,7 @@ from ..core.logger import log_warning
 from .settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, fallback_credential_key, auth_id_setting_key,
 )
+from ..core.logger import log_event
 
 
 def _store_auth_config(auth_mgr, config, had_existing_id):
@@ -270,7 +271,7 @@ class CredentialManager:
             settings.setValue(setting, config.id())
             return True
         except Exception as e:
-            print(f"[CredentialManager] secure account session save failed: {e}")
+            log_event("secure_account_session_save_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
             return False
 
     @staticmethod
@@ -289,7 +290,7 @@ class CredentialManager:
             if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
                 return config.config("password") or ""
         except Exception as e:
-            print(f"[CredentialManager] secure account session load failed: {e}")
+            log_event("secure_account_session_load_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
         return ""
 
     @staticmethod
@@ -307,7 +308,7 @@ class CredentialManager:
                     remove_fn(auth_id)
             settings.remove(setting)
         except Exception as e:
-            print(f"[CredentialManager] secure account session delete failed: {e}")
+            log_event("secure_account_session_delete_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
 
     _MISSING_KEY_MESSAGE = (
         "**No API key configured for the selected provider.** Open **Settings** "

@@ -19,6 +19,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_CHAT_HISTORY as CHAT_HISTORY_KEY,
     SETTINGS_PERSIST_CHAT_HISTORY as PERSIST_SETTING_KEY,
 )
+from ..logger import log_event
 
 
 
@@ -82,7 +83,7 @@ def _load_raw_entries() -> list:
             if isinstance(loaded, list):
                 return [e for e in loaded if isinstance(e, dict)]
     except Exception as e:
-        print(f"[ChatPersistence] Failed to load chat history: {e}")
+        log_event("failed_to_load_chat_history", tag="ChatPersistence", error_class=type(e).__name__, error=True)
     return []
 
 
@@ -152,7 +153,7 @@ def save_chat_history(history, user_ts=None) -> bool:
         save_chat_transcript(history, user_ts=user_ts)
         return ok
     except Exception as e:
-        print(f"[ChatPersistence] Failed to save chat history: {e}")
+        log_event("failed_to_save_chat_history", tag="ChatPersistence", error_class=type(e).__name__, error=True)
         return False
 
 
@@ -280,7 +281,7 @@ def _read_transcript_document() -> dict:
                 return {"messages": [m for m in doc["messages"] if isinstance(m, dict)],
                         "dropped": int(doc.get("dropped") or 0)}
     except Exception as e:
-        print(f"[ChatPersistence] Failed to read chat transcript: {e}")
+        log_event("failed_to_read_chat_transcript", tag="ChatPersistence", error_class=type(e).__name__, error=True)
     return empty
 
 
@@ -306,7 +307,7 @@ def save_chat_transcript(history, user_ts=None) -> bool:
                              default=str, ensure_ascii=False)
         return bool(QgsProject.instance().writeEntry(TRANSCRIPT_SCOPE, TRANSCRIPT_KEY, payload))
     except Exception as e:
-        print(f"[ChatPersistence] Failed to save chat transcript: {e}")
+        log_event("failed_to_save_chat_transcript", tag="ChatPersistence", error_class=type(e).__name__, error=True)
         return False
 
 

@@ -35,7 +35,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser,
     QPushButton, QTextEdit,
 )
-from ..logger import log_warning
+from ..logger import log_event, log_warning
 
 
 from . import reply_vocab
@@ -1766,7 +1766,7 @@ class ChatTabWidget(QWidget):
                     agent.task_manager.plan_updated.connect(self._on_live_plan_updated)
                     self._connected_task_manager = agent.task_manager
                 except Exception as e:
-                    print(f"[ChatTabWidget] Failed to connect plan_updated signal: {e}")
+                    log_event("failed_to_connect_plan_updated_signal", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
             self._on_live_plan_updated(agent.task_manager.get_plan())
 
         from ..services.task_runner import run_agent_task
@@ -1942,7 +1942,7 @@ class ChatTabWidget(QWidget):
         try:
             self._active_task.cancel()
         except Exception as e:
-            print(f"[ChatTabWidget] Failed to cancel task: {e}")
+            log_event("failed_to_cancel_task", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
     def _stop_current_task(self):
         """Cancels the in-flight request. This is cooperative, not instant --
@@ -2006,7 +2006,7 @@ class ChatTabWidget(QWidget):
             history = agent._read_history_snapshot() if hasattr(agent, "_read_history_snapshot") else getattr(agent, "conversation_history", [])
             save_chat_history(history, user_ts=getattr(self, "_turn_sent_iso", None))
         except Exception as e:
-            print(f"[ChatTabWidget] Failed to save chat history: {e}")
+            log_event("failed_to_save_chat_history", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
         try:
             from qgis.core import QgsProject
@@ -2034,7 +2034,7 @@ class ChatTabWidget(QWidget):
                 if highlight is not None:
                     self._active_highlights.append(highlight)
         except Exception as e:
-            print(f"[ChatTabWidget] Canvas highlight failed: {e}")
+            log_event("canvas_highlight_failed", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
     @staticmethod
     def _attachment_disclosure_note():

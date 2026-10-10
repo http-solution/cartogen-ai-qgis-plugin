@@ -376,9 +376,7 @@ def search_web(query: str, max_results: int = 3):
             results = list(ddgs.text(query, max_results=max_results))
             if not results:
                 return {"message": f"No results found for '{query}'"}
-            formatted = []
-            for r in results:
-                formatted.append(f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}")
+            formatted = [f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}" for r in results]
             return {"results": "\n\n".join(formatted)}
     except ImportError:
         return {

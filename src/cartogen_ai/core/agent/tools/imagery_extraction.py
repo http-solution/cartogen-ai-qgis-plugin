@@ -358,7 +358,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     try:
         from . import _background_processing as _bg
         inferred = _bg.run_callable(_infer, label="Feature extraction (model)")
-    except _bg.AnalysisCancelled as e:
+    except _bg.AnalysisCancelledError as e:
         return {"error": f"Stopped: {e}", "cancelled": True}
     except Exception as e:
         return {"error": describe_model_failure(e)}
@@ -408,7 +408,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
 
     try:
         traced_masks = _bg.run_callable(_trace_all, label="Feature extraction (outlines)")
-    except _bg.AnalysisCancelled as e:
+    except _bg.AnalysisCancelledError as e:
         return {"error": f"Stopped: {e}", "cancelled": True}
 
     # gdal.Polygonize traces the raw pixel grid, so every boundary is a jagged "staircase" of right angles at the mask's own

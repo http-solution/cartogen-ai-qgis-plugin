@@ -114,9 +114,10 @@ class EvidenceRecorder:
             manifest["screenshot_error"] = f"{type(e).__name__}"
         lines = [f"# Evidence for one request ({manifest['started']})", "", "## Request", "", _redact(self.query or ""), "",
                  "## Steps", "", "| # | Tool | OK | ms | Status | New layers | Output files |", "|---|---|---|---|---|---|---|"]
-        for c in self.calls:
-            lines.append(f"| {c['n']} | `{c['tool']}` | {'yes' if c['ok'] else 'NO'} | {c['elapsed_ms']} | {c['status'] or ''} | "
-                         f"{', '.join(c['new_layers'])} | {', '.join(os.path.basename(o) for o in c['outputs'])} |")
+        lines.extend(
+            f"| {c['n']} | `{c['tool']}` | {'yes' if c['ok'] else 'NO'} | {c['elapsed_ms']} | {c['status'] or ''} | "
+            f"{', '.join(c['new_layers'])} | {', '.join(os.path.basename(o) for o in c['outputs'])} |"
+            for c in self.calls)
         if not self.calls:
             lines.append("| - | (no tool calls) | | | | | |")
         lines += ["", "## Final reply", "", _redact(final_text or ""), ""]

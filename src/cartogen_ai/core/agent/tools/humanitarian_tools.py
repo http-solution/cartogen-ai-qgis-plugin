@@ -1890,7 +1890,7 @@ def add_incident_point(
         try:
             _style_incident_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new Incidents layer: {e}")
+            log_event("failed_to_style_new_incidents_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     feat = QgsFeature(layer.fields())
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
@@ -2158,7 +2158,7 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
         try:
             _style_named_point_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new '{layer_name}' layer: {e}")
+            log_event("failed_to_style_new_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     field_names = [f.name() for f in layer.fields()]
     added = 0

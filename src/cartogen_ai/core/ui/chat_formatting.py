@@ -47,7 +47,7 @@ def _render_table(rows, text_color, border_color, row_border_color):
             for c in cells
         )
         trs.append(f"<tr>{tds}</tr>")
-    return f'<table style="border-collapse:collapse;margin:6px 0;">' f"<tr>{th}</tr>{''.join(trs)}</table>"
+    return f'<table style="border-collapse:collapse;margin:6px 0;"><tr>{th}</tr>{"".join(trs)}</table>'
 
 
 # Extensions this project's own tools actually produce as output_path results (print
@@ -696,9 +696,9 @@ def summarize_tool_result(result, limit=400):
         parts.append(str(result["message"]))
     elif result.get("success") is True:
         parts.append("completed")
-    for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated"):
-        if result.get(key) not in (None, ""):
-            parts.append(f"{key.replace('_', ' ')}: {result[key]}")
+    parts.extend(f"{key.replace('_', ' ')}: {result[key]}"
+                 for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated")
+                 if result.get(key) not in (None, ""))
     if result.get("egress_override_note"):
         parts.append(str(result["egress_override_note"]))
     text = "; ".join(parts) or "completed"

@@ -35,6 +35,8 @@ from cartogen_ai.infrastructure.settings_keys import (
 )
 import contextlib
 
+from cartogen_ai.core.logger import log_event, log_info, log_warning, startup_state_fields
+
 SETTINGS_KEY = SETTINGS_API_KEY
 HELP_LAST_SHOWN_VERSION_KEY = SETTINGS_HELP_LAST_SHOWN_VERSION
 
@@ -76,7 +78,7 @@ class CartogenAi:
                 self.translator.load(locale_path)
                 QCoreApplication.installTranslator(self.translator)
         except Exception as e:
-            print(f"[CartogenAi] locale init failed: {e}")
+            log_event("locale_init_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         self.actions = []
         self.menu = self.tr("&Cartogen AI")
@@ -99,13 +101,13 @@ class CartogenAi:
             if old:
                 message = (self.tr("An older Cartogen AI install is still present (%s). Two copies load together; "
                                    "uninstall or delete the old folder and restart QGIS.") % os.path.basename(old[0]))
-                print(f"[CartogenAi] WARNING: {message}")
+                log_warning(message, tag="CartogenAi")
                 self.iface.messageBar().pushWarning("Cartogen AI", message)
         except Exception as e:
-            print(f"[CartogenAi] old-copy check skipped: {type(e).__name__}")
+            log_event("old_copy_check_skipped", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def initGui(self):
-        print("[CartogenAi] initGui()")
+        log_info("initGui()", tag="CartogenAi")
         self._warn_about_old_copy()
         # icon.svg -- a copy of branding/cartogen-mark.svg, the actual brand mark, not the flat
         # icon.png this replaced. Deliberately copied to the plugin ROOT rather than referencing
@@ -125,7 +127,7 @@ class CartogenAi:
         self.iface.addPluginToMenu(self.menu, action)
         self.actions.append(action)
         self.toolbar_action = action
-        print("[CartogenAi] toolbar action installed")
+        log_info("toolbar action installed", tag="CartogenAi")
 
         # Help moved here from a permanent 3rd dock tab, per a 2026-09-12 real-session user
         # report: a reference document doesn't need to occupy dock space at all times. The
@@ -168,17 +170,16 @@ class CartogenAi:
                 from cartogen_ai.processing.provider import CartogenProcessingProvider
                 self._processing_provider = CartogenProcessingProvider()
                 QgsApplication.processingRegistry().addProvider(self._processing_provider)
-                print("[CartogenAi] Processing provider registered")
+                log_info("Processing provider registered", tag="CartogenAi")
             except Exception as e:
-                print(f"[CartogenAi] Processing provider registration failed: {e}")
+                log_event("processing_provider_registration_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         # F18: say once, in the QGIS log, which behaviour-changing settings are on -- a persisted plan-validation
         # gate from an earlier evaluation once made every export fail its first call without anyone knowing why.
         try:
-            from cartogen_ai.core.logger import log_event, startup_state_fields
             log_event("startup_settings", **startup_state_fields(QgsSettings().value))
         except Exception as e:
-            print(f"[CartogenAi] startup settings log failed: {e}")
+            log_event("startup_settings_log_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _maybe_show_first_use_dialogs(self):
         """First-use onboarding (role/experience/communication-style profile, real-session
@@ -215,7 +216,7 @@ class CartogenAi:
                 return
             self.toggle_dock(True)
         except Exception as e:
-            print(f"[CartogenAi] auto-open of the panel failed: {e}")
+            log_event("auto_open_of_the_panel_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _on_project_changed(self, *_args):
         # #147 (audit F11): first thing, before any reload -- a turn still running for the previous project must stop and must
@@ -224,28 +225,28 @@ class CartogenAi:
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
         except Exception as e:
-            print(f"[CartogenAi] project session invalidate failed: {e}")
+            log_event("project_session_invalidate_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).
         try:
             from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
             healed = heal_layer_tree()
             if healed["orphans_removed"] or healed["duplicates_removed"]:
-                print(f"[CartogenAi] repaired layer tree: {healed}")
+                log_info(f"repaired layer tree: {healed}", tag="CartogenAi")
         except Exception as e:
-            print(f"[CartogenAi] layer tree repair failed: {e}")
+            log_event("layer_tree_repair_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self._agent is not None:
             try:
                 self._agent.reload_chat_history()
             except Exception as e:
-                print(f"[CartogenAi] chat history reload failed: {e}")
+                log_event("chat_history_reload_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self.dock_widget is not None:
             try:
                 self.dock_widget.refresh_chat_for_project_change()
             except Exception as e:
-                print(f"[CartogenAi] chat display refresh failed: {e}")
+                log_event("chat_display_refresh_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def unload(self):
-        print("[CartogenAi] unload()")
+        log_info("unload()", tag="CartogenAi")
         with contextlib.suppress(Exception):
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
@@ -256,14 +257,14 @@ class CartogenAi:
             try:
                 QCoreApplication.removeTranslator(self.translator)
             except Exception as e:
-                print(f"[CartogenAi] removeTranslator failed: {e}")
+                log_event("removetranslator_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self.translator = None
         # ...and the script-isolation worker is a child process that otherwise outlives an unload.
         try:
             from cartogen_ai.core.agent.services import script_isolation
             script_isolation.shutdown_worker()
         except Exception as e:
-            print(f"[CartogenAi] isolation worker shutdown failed: {e}")
+            log_event("isolation_worker_shutdown_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self._first_use_timer is not None:
             with contextlib.suppress(Exception):
                 self._first_use_timer.stop()
@@ -278,14 +279,14 @@ class CartogenAi:
             from cartogen_ai.core.agent.scheduler import get_scheduler
             get_scheduler().stop_all()
         except Exception as e:
-            print(f"[CartogenAi] scheduler stop_all failed: {e}")
+            log_event("scheduler_stop_all_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         if self._processing_provider is not None:
             try:
                 QgsApplication.processingRegistry().removeProvider(self._processing_provider)
-                print("[CartogenAi] Processing provider removed")
+                log_info("Processing provider removed", tag="CartogenAi")
             except Exception as e:
-                print(f"[CartogenAi] Processing provider removal failed: {e}")
+                log_event("processing_provider_removal_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self._processing_provider = None
 
         if self.dock_widget is not None:
@@ -299,12 +300,12 @@ class CartogenAi:
             try:
                 self.dock_widget.chat_tab_widget.cancel_active_task()
             except Exception as e:
-                print(f"[CartogenAi] cancel_active_task failed: {e}")
+                log_event("cancel_active_task_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             try:
                 self.iface.removeDockWidget(self.dock_widget)
                 self.dock_widget.deleteLater()
             except Exception as e:
-                print(f"[CartogenAi] removeDockWidget failed: {e}")
+                log_event("removedockwidget_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self.dock_widget = None
 
         if self._help_dialog is not None:
@@ -312,7 +313,7 @@ class CartogenAi:
                 self._help_dialog.close()
                 self._help_dialog.deleteLater()
             except Exception as e:
-                print(f"[CartogenAi] closing Help dialog failed: {e}")
+                log_event("closing_help_dialog_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self._help_dialog = None
 
         # P1 lifecycle bug, 2026-09-20 audit: removePluginMenu/removeToolBarIcon only
@@ -346,7 +347,7 @@ class CartogenAi:
                 self._agent = AgentCore()
                 self._agent_key = agent_hash
             except Exception as e:
-                print(f"[CartogenAi] agent init failed: {e}")
+                log_event("agent_init_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
                 traceback.print_exc()
                 self._agent = None
                 self._agent_key = None
@@ -364,7 +365,7 @@ class CartogenAi:
             return True, False
         try:
             from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
-            print("[CartogenAi] creating dock widget...")
+            log_info("creating dock widget...", tag="CartogenAi")
             self.dock_widget = CartogenAiDockWidget(
                 agent_provider=self._get_agent,
                 parent=self.iface.mainWindow(),
@@ -374,10 +375,10 @@ class CartogenAi:
             # user-driven show()/hide() calls.
             self.dock_widget.visibilityChanged.connect(self._on_dock_visibility)
             self.iface.addDockWidget(_dock_area_right(), self.dock_widget)
-            print("[CartogenAi] dock widget added to right area")
+            log_info("dock widget added to right area", tag="CartogenAi")
             return True, True
         except Exception as e:
-            print(f"[CartogenAi] _ensure_dock failed: {e}")
+            log_event("ensure_dock_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             traceback.print_exc()
             self.iface.messageBar().pushWarning(
                 "Cartogen AI",
@@ -409,7 +410,7 @@ class CartogenAi:
             self.toolbar_action.setChecked(visible)
 
     def toggle_dock(self, checked=False):
-        print(f"[CartogenAi] toggle_dock(checked={checked})")
+        log_info(f"toggle_dock(checked={checked})", tag="CartogenAi")
         ok, just_created = self._ensure_dock()
         if not ok:
             if self.toolbar_action is not None:

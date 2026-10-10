@@ -230,7 +230,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         network = _grid(20, 4)
         with self.assertRaises(RuntimeError) as ctx:
             self._run(self._params(network, INPUT="no such layer"))
-        self.assertNotIsInstance(ctx.exception, self.bg.AnalysisCancelled)
+        self.assertNotIsInstance(ctx.exception, self.bg.AnalysisCancelledError)
         self.assertTrue(str(ctx.exception).strip())
 
     def test_the_kill_switch_restores_the_synchronous_behaviour(self):

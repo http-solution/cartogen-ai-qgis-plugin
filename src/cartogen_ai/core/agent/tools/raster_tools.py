@@ -232,7 +232,7 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
             return {"error": f"Generated raster layer is invalid: {out_path}"}
         QgsProject.instance().addMapLayer(new_layer)
         return {"success": True, "layer_name": new_name}
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         return {"error": "Stopped before the raster operation finished. Nothing was added to the project.", "cancelled": True}
     except Exception as e:
         return {"error": f"{alg} failed: {e}"}
@@ -695,7 +695,7 @@ def zonal_statistics(raster_layer, vector_layer):
         return result
     except Exception as e:
         from . import _background_processing as _bg
-        if isinstance(e, _bg.AnalysisCancelled):
+        if isinstance(e, _bg.AnalysisCancelledError):
             return {"error": f"Stopped: {e}", "cancelled": True}
         return {"error": f"zonal_statistics failed: {e}"}
 

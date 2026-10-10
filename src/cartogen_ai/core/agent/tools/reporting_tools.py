@@ -91,8 +91,8 @@ def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None
         return {"error": "Pie charts can't represent negative values -- use a bar chart instead."}
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")  # headless -- no Qt/Tk backend clash inside QGIS's own event loop
+        import matplotlib as mpl
+        mpl.use("Agg")  # headless -- no Qt/Tk backend clash inside QGIS's own event loop
         import matplotlib.pyplot as plt
     except ImportError:
         return {"error": "matplotlib is required for chart generation. Install via qpip, or in the OSGeo4W Shell: python -m pip install matplotlib"}

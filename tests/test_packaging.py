@@ -47,10 +47,9 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
         offenders = []
         for r, d, f in os.walk(os.path.join(ROOT, "src")):
             d[:] = [x for x in d if x != "__pycache__"]
-            for name in f:
-                for pat in self.pu.EXCLUDE_FILE_PATTERNS:
-                    if fnmatch.fnmatch(name, pat):
-                        offenders.append(os.path.join(r, name))
+            offenders.extend(
+                os.path.join(r, name) for name in f
+                if any(fnmatch.fnmatch(name, pat) for pat in self.pu.EXCLUDE_FILE_PATTERNS))
         self.assertEqual(offenders, [], f"these would be dropped from the zip: {offenders}")
 
     def test_the_package_directory_is_not_the_import_name(self):

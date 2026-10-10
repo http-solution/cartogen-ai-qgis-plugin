@@ -214,9 +214,7 @@ def question_text(themes, country=None):
         lines.append("")
     lines.append("Other sources with downloadable versions, if you'd rather load your own:")
     for t in themes:
-        for src in SOURCES.get(t, []):
-            if not src.get("auto"):
-                lines.append(_source_line(src, country))
+        lines.extend(_source_line(src, country) for src in SOURCES.get(t, []) if not src.get("auto"))
     lines.append("")
     lines.append("Reply **download** to get local data, or **online** to continue without it.")
     return "\n".join(lines)

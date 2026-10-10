@@ -36,6 +36,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
     SETTINGS_USER_PROFILE as USER_PROFILE_KEY,
 )
+from ..logger import log_event
 
 # Word-count boundary below which a message is already unambiguous enough
 # that refining it would just add latency and a cheap-model-call cost for no
@@ -186,12 +187,12 @@ def refine(query: str, profile: str, client, max_tokens: int = _DEFAULT_REFINEME
     try:
         result = client.complete(messages, tools=None, max_tokens=max_tokens)
     except Exception as e:
-        print(f"[PromptRefiner] refinement call failed: {e}")
+        log_event("refinement_call_failed", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return {"error": str(e)}
 
     if not isinstance(result, dict) or "error" in result:
         err = result.get("error") if isinstance(result, dict) else "unexpected response shape"
-        print(f"[PromptRefiner] refinement call returned an error: {err}")
+        log_event("refinement_call_returned_an_error", tag="PromptRefiner", error=True)
         return {"error": err}
 
     message = result.get("message") or {}
@@ -280,7 +281,7 @@ def analyze_request(query, context=None, attachments=None):
         from ..agent import task_matcher as tmatch
         from ..agent import task_register as reg_module
     except Exception as e:  # pragma: no cover - diagnostic path
-        print(f"[PromptRefiner] task register unavailable: {e}")
+        log_event("task_register_unavailable", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return _empty_analysis(query)
 
     try:
@@ -351,7 +352,7 @@ def analyze_request(query, context=None, attachments=None):
             "expected_output": tmatch.expected_output(entry, query),
         }
     except Exception as e:  # pragma: no cover - never break the send path
-        print(f"[PromptRefiner] analyze_request failed: {e}")
+        log_event("analyze_request_failed", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return _empty_analysis(query)
 
 

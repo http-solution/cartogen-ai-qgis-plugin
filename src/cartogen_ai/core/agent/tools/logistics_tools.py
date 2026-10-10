@@ -463,7 +463,7 @@ def _run_network_algorithm(algorithm_id, params, context, network, label):
 
     BUG-2026-09-25-2: on a national road network (161,041 roads) one call took 292-572 s and
     froze QGIS with no way to stop it. See _background_processing.py for the design and its
-    measurements. Raises _bg.AnalysisCancelled on Stop: callers must let it through (the generic
+    measurements. Raises _bg.AnalysisCancelledError on Stop: callers must let it through (the generic
     `except Exception` around these calls would otherwise record a user's Stop as an ordinary
     failure and carry on with the next facility)."""
     try:
@@ -1269,7 +1269,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                     result["route_length_m"] = round(length_m, 1)
 
         return result
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         return _cancelled_result("delivery route")
     except Exception as e:
         return {"error": f"optimize_delivery_route failed: {e}"}
@@ -1344,7 +1344,7 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
                 feats = list(result_layer.getFeatures()) if result_layer is not None else []
                 cost = feats[0]["cost"] if feats else None
                 matrix[i][j] = float(cost) if cost is not None else float("inf")
-            except _bg.AnalysisCancelled:
+            except _bg.AnalysisCancelledError:
                 raise
             except Exception:
                 matrix[i][j] = float("inf")
@@ -1435,7 +1435,7 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
             params["END_POINT"] = _point_for_network(end, source_crs, network)
             output = _run_network_algorithm("native:shortestpathpointtopoint", params, context, network,
                                             "Delivery route")
-        except _bg.AnalysisCancelled:
+        except _bg.AnalysisCancelledError:
             raise
         except Exception as e:
             # One unroutable leg is skipped; the legs that did route are still returned. Logged by type only.
@@ -1640,7 +1640,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                 failure["notes"] = notes
             return failure
         return _service_area_result(run, served_count, speed_field, direction_field, closed_segments)
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         return _cancelled_result("service area")
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}
@@ -1793,7 +1793,7 @@ def _service_area_band(run, i, band, routed_network, start_point, band_hulls):
     params.update(run.extra_params)
     try:
         output = _run_network_algorithm("native:serviceareafrompoint", params, run.context, routed_network, "Service area")
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         raise
     except Exception as e:
         run.skipped.append({"facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint", "reason": str(e)})
@@ -1897,7 +1897,7 @@ def _grade_service_area_roads(run, i, routed_network, point):
             _hide_layers([n for n in run.layers_created
                           if n == f"{run.facility_layer}_service_area_lines_{i}"
                           or n.startswith(f"{run.facility_layer}_service_area_lines_{i}_band_")])
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         raise
     except Exception as grade_e:
         run.notes.append(f"Roads were not graded by travel cost for facility {i} ({type(grade_e).__name__}: {grade_e}); "
@@ -2392,7 +2392,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             result["destination_keys_note"] = (f"{unmatched_keys} destination(s) could not be matched back to a feature id and "
                                                "keep the end-point text QGIS reported as their key.")
         return _with_matrix_options(result, speed_field, closed_segments, direction_field)
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         return _cancelled_result("travel-time matrix")
     except Exception as e:
         return {"error": f"travel_time_matrix failed: {e}"}

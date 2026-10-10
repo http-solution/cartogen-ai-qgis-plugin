@@ -9,6 +9,7 @@ import os
 from types import SimpleNamespace
 from .registry import register_tool
 from ._paths import resolve_output_path
+from ...logger import log_event
 
 try:
     from qgis.core import (
@@ -216,15 +217,15 @@ def _visible_layer_field_names():
 def _page_geometry(page_orientation):
     """Item positions in mm for the two-column layout (map left, legend/scalebar/summary column right, or stacked
     below the map in portrait). Split out of create_print_layout unchanged; the comments record the live checks."""
-    INFO_ROW_H = 6
-    INFO_ROW_GAP = 2
+    info_row_h = 6
+    info_row_gap = 2
 
     portrait = str(page_orientation).lower() == "portrait"
     _page_width, page_height = (210, 297) if portrait else (297, 210)
     if portrait:
-        map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
+        map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (info_row_h + info_row_gap)
         col_x, col_w = 15, 180
-        info_y, info_h = map_y + map_h + 2, INFO_ROW_H
+        info_y, info_h = map_y + map_h + 2, info_row_h
         # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
         # fund a realistic body_h below -- still ample for the handful of
         # categories a humanitarian export's legend typically carries.
@@ -253,7 +254,7 @@ def _page_geometry(page_orientation):
         north_x, north_y = 175, scalebar_y
         title_w = 180
     else:
-        map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (INFO_ROW_H + INFO_ROW_GAP)
+        map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (info_row_h + info_row_gap)
         col_x, col_w = 195, 95
         legend_y, legend_h = map_y, 88
         # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
@@ -261,7 +262,7 @@ def _page_geometry(page_orientation):
         # map/legend/scalebar/title numbers confirmed against a live
         # full-Yemen export.
         body_y, body_h = legend_y + legend_h + 4, 78
-        info_y, info_h = map_y + map_h + 2, INFO_ROW_H
+        info_y, info_h = map_y + map_h + 2, info_row_h
         scalebar_y, scalebar_h = info_y + info_h + 3, 12
         north_x, north_y = map_x + map_w - 12, scalebar_y
         title_w = col_x + col_w - map_x
@@ -371,7 +372,7 @@ def _add_north_arrow(layout, map_item, g):
         try:
             north_arrow.setLinkedMap(map_item)
         except Exception as e:
-            print(f"[layout_tools] could not link the north arrow to the map: {e}")
+            log_event("could_not_link_the_north_arrow_to_the_map", tag="layout_tools", error_class=type(e).__name__, error=True)
 
 
 def _add_report_fields(res_msg, style_report, warnings):

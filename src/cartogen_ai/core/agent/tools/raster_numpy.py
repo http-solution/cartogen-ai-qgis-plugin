@@ -24,8 +24,8 @@ ASSIGN_CHUNK = 500_000
 
 
 def _np():
-    import numpy
-    return numpy
+    import numpy as np
+    return np
 
 
 # ---------------------------------------------------------------- pure numpy --

@@ -44,6 +44,7 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 from ...infrastructure.settings_keys import PROJECT_PROPERTY_DATASET_STATUS
+from ..logger import log_event
 
 DATASET_STATUS_PROPERTY_KEY = PROJECT_PROPERTY_DATASET_STATUS
 
@@ -142,7 +143,7 @@ def _write_record(layer, record) -> bool:
         layer.setCustomProperty(DATASET_STATUS_PROPERTY_KEY, json.dumps(record))
         return True
     except Exception as e:
-        print(f"[DatasetStatus] Failed to write dataset status: {e}")
+        log_event("failed_to_write_dataset_status", tag="DatasetStatus", error_class=type(e).__name__, error=True)
         return False
 
 

@@ -1430,7 +1430,7 @@ class CartogenAi:
             if target != default and hasattr(self.client, "_emit_status"):
                 self.client._emit_status(f"Auto-selected {target} ({complexity} request)")
         except Exception as e:
-            print(f"[CartogenAi] auto model selection failed: {e}")
+            log_event("auto_model_selection_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _reconcile_final_text_with_tool_log(self, final_text, turn_tool_log):
         """Code-level backstop for the tool-result narrative-mismatch bug (see

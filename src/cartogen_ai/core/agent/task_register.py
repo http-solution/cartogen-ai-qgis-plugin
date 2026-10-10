@@ -24,6 +24,7 @@ task's contract is injected.
 """
 import json
 import os
+from ..logger import log_event
 
 OUTPUTS = ("layer", "layout", "dashboard", "report", "analysis", "dataset", "guidance")
 
@@ -91,7 +92,7 @@ def load():
         with open(_data_path(), encoding="utf-8") as fh:
             data = json.load(fh)
     except Exception as e:  # pragma: no cover - diagnostic path
-        print(f"[TaskRegister] could not load task_register.json: {e}")
+        log_event("could_not_load_task_register_json", tag="TaskRegister", error_class=type(e).__name__, error=True)
         data = []
     _cache["data"] = data
     _cache["by_id"] = {e["id"]: e for e in data}
