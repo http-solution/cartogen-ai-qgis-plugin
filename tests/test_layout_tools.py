@@ -537,7 +537,7 @@ class TestExportLayoutAtlas(unittest.TestCase):
         mock_find_layer.return_value = layer
 
         mock_exporter_instance = mock_exporter_cls.return_value
-        mock_exporter_instance.exportToPdf.return_value = mock_exporter_cls.Success
+        mock_exporter_instance.exportToPdf.return_value = mock_exporter_cls.ExportResult.Success
 
         res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode", output_format="pdf")
 
