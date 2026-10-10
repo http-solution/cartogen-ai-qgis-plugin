@@ -156,6 +156,9 @@ def execute_read_only_sql(sql_query: str, connection_name: str = "", geometry_co
             if not layer.isValid():
                 return {"error": f"The query ran on PostGIS connection '{connection_name}' but QGIS could not load its result as a layer"
                                  + (f" (is '{geometry_column}' a geometry column?)." if geometry_column else ".")}
+            # #151: the result is a view of a query, never an editable table. Without this QGIS would let a later tool or the user
+            # start editing it and push changes back to the database through a normal (writable) connection.
+            layer.setReadOnly(True)
             QgsProject.instance().addMapLayer(layer)
             return {
                 "success": True,
