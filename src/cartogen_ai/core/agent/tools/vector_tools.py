@@ -525,22 +525,20 @@ def _prefetch_url_to_temp(file_path):
     opener = _build_safe_opener()
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
     try:
-        # os.fdopen wraps the fd first, before the network call -- if
-        # opener.open() raised inside a combined `with a, b:` instead, the
-        # raw fd from mkstemp would never get closed on that path.
-        with os.fdopen(fd, "wb") as f:
-            with opener.open(req, timeout=60) as response:
-                total = 0
-                while True:
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > _MAX_DOWNLOAD_BYTES:
-                        raise ValueError(
-                            f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
-                        )
-                    f.write(chunk)
+        # os.fdopen wraps the fd first, before the network call, so the raw fd from mkstemp is closed even
+        # when opener.open() raises: a combined `with` enters (and on error exits) its items in this order.
+        with os.fdopen(fd, "wb") as f, opener.open(req, timeout=60) as response:
+            total = 0
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_DOWNLOAD_BYTES:
+                    raise ValueError(
+                        f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
+                    )
+                f.write(chunk)
     except Exception:
         with contextlib.suppress(OSError):
             os.remove(tmp_path)

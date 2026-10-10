@@ -138,7 +138,7 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
 
     def _request_with_fallback(self, messages, tools, max_tokens=None):
         chain = self._model_chain()
-        for cycle in range(MAX_FULL_CYCLES):
+        for _cycle in range(MAX_FULL_CYCLES):
             any_rate_limited = False
             for idx, model_id in enumerate(chain):
                 self.current_index = idx

@@ -194,7 +194,7 @@ def check_metadata_parses(script_dir):
             pass
     except (configparser.Error, KeyError) as e:
         raise SystemExit(f"[Release] metadata.txt would be rejected by plugins.qgis.org: {e}\n"
-                         "Write 'percent' instead of '%' (and check the [general] section).")
+                         "Write 'percent' instead of '%' (and check the [general] section).") from e
 
 
 def package_plugin():

@@ -662,9 +662,8 @@ def _zonal_stats_into_layer(raster, polygon_layer):
 
     with edit_command(polygon_layer, "Zonal statistics"):
         for name in _ZONAL_FIELDS:
-            if polygon_layer.fields().indexOf(name) < 0:
-                if not polygon_layer.addAttribute(QgsField(name, QVariant.Double)):
-                    raise RuntimeError(f"could not add the field {name}")
+            if polygon_layer.fields().indexOf(name) < 0 and not polygon_layer.addAttribute(QgsField(name, QVariant.Double)):
+                raise RuntimeError(f"could not add the field {name}")
         polygon_layer.updateFields()
         indexes = [polygon_layer.fields().indexOf(name) for name in _ZONAL_FIELDS]
         for fid, stats in values.items():

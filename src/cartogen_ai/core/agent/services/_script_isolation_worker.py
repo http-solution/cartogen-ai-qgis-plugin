@@ -124,8 +124,8 @@ def main():
     sys.stdout.flush()
 
     try:
-        for line in sys.stdin:
-            line = line.strip()
+        for raw_line in sys.stdin:
+            line = raw_line.strip()
             if not line:
                 continue
             try:

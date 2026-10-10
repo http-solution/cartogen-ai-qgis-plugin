@@ -14,7 +14,7 @@ Responsibilities:
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 try:
     from qgis.core import (
@@ -67,7 +67,7 @@ class ChatAction:
 class ChatActionRegistry:
     """In-memory session registry mapping opaque IDs (act_...) to validated actions."""
 
-    _actions: dict[str, ChatAction] = {}
+    _actions: ClassVar[dict[str, ChatAction]] = {}
 
     @classmethod
     def register(cls, kind: str, label: str, payload: dict[str, Any], safety: str = "dialog") -> str:
@@ -485,20 +485,20 @@ def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) 
             })
 
     # Check 3: Full Opaque Polygon Fill Covering Map
-    if isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry:
-        if layer.opacity() >= 0.9:
-            renderer = layer.renderer()
-            if isinstance(renderer, QgsSingleSymbolRenderer):
-                sym = renderer.symbol()
-                if sym and sym.symbolLayerCount() > 0:
-                    sl = sym.symbolLayer(0)
-                    if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
-                        findings.append({
-                            "code": "OVERLAY_OCCLUSION",
-                            "severity": "warning",
-                            "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
-                            "repair_action": "apply_translucent_fill",
-                        })
+    if (isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry
+            and layer.opacity() >= 0.9):
+        renderer = layer.renderer()
+        if isinstance(renderer, QgsSingleSymbolRenderer):
+            sym = renderer.symbol()
+            if sym and sym.symbolLayerCount() > 0:
+                sl = sym.symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
+                    findings.append({
+                        "code": "OVERLAY_OCCLUSION",
+                        "severity": "warning",
+                        "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
+                        "repair_action": "apply_translucent_fill",
+                    })
 
     return findings
 

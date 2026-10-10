@@ -500,8 +500,8 @@ def _replace_memory_layer(live_layer, result_layer):
         try:
             load(original_fields, original_features)
         except Exception as second:
-            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})")
-        raise RuntimeError(f"update failed and the original was restored: {first}")
+            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})") from second
+        raise RuntimeError(f"update failed and the original was restored: {first}") from first
     live_layer.updateExtents()
     live_layer.triggerRepaint()
 

@@ -129,7 +129,7 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
             return {"success": True, "path": download_checkpoint(name, weights_dir)}
         except Exception as e:
             last_error = e        # fall through to ultralytics' own downloader once, then report whichever error is more useful
-    for attempt in (1,) if last_error is not None else (1, 2):
+    for _attempt in (1,) if last_error is not None else (1, 2):
         try:
             path = attempt_download_asset(name)
             if path and os.path.exists(str(path)):
@@ -388,8 +388,8 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     def _trace_all():
         """Pure GDAL/OGR + numpy (no QGIS objects), so it can run off the GUI thread: [(confidence, pixel_size, [wkt, ...])]."""
         traced = []
-        for mask, conf in zip(masks, confidences, strict=False):
-            conf = float(conf)
+        for mask, raw_conf in zip(masks, confidences, strict=False):
+            conf = float(raw_conf)
             if conf < confidence_threshold or _mask_pixel_count(mask) == 0:
                 continue
             mask_h, mask_w = mask.shape

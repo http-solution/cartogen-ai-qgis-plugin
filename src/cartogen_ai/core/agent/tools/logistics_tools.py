@@ -207,7 +207,7 @@ def _geoms_in_crs(geoms, from_crs, to_crs):
     except ValueError:
         raise
     except Exception as e:
-        raise ValueError(f"could not transform from {from_crs.authid()} to {to_crs.authid()}: {e}")
+        raise ValueError(f"could not transform from {from_crs.authid()} to {to_crs.authid()}: {e}") from e
 
 
 def _network_context(invalid_geometry_check=None):
@@ -1422,7 +1422,9 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
                                             "Delivery route")
         except _bg.AnalysisCancelled:
             raise
-        except Exception:  # nosec B112 (best-effort: skip this item)
+        except Exception as e:
+            # One unroutable leg is skipped; the legs that did route are still returned. Logged by type only.
+            log_event("swallowed_exception", tag="Tools", tool="delivery_route_leg", error_class=type(e).__name__, error=True)
             continue
         segment = output.get("OUTPUT")
         if segment is not None and segment.featureCount() > 0:

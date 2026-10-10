@@ -702,13 +702,13 @@ class CartogenAi:
         # GitHub #130: a stray pasted fragment ("template: access_map") is not a request, but a real model improvised calls for
         # it and created a layout. Such a turn may still READ the project (the model can ask what the user wants), but nothing
         # may be created, changed, deleted or written until the user says what they want. A human-confirmed card still runs.
-        if getattr(self, "_stray_fragment_turn", False) and not user_confirmed:
-            if tool_operations.get_tool_operation_type(name) in (
-                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH):
-                log_event("stray_fragment_blocked", tag="Agent", tool=name)
-                return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
-                                  "Ask the user what they want to do with it before creating, editing or exporting anything."),
-                        "blocked": True}
+        if (getattr(self, "_stray_fragment_turn", False) and not user_confirmed
+                and tool_operations.get_tool_operation_type(name) in (
+                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH)):
+            log_event("stray_fragment_blocked", tag="Agent", tool=name)
+            return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
+                              "Ask the user what they want to do with it before creating, editing or exporting anything."),
+                    "blocked": True}
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
         # blocking here means the DELETE/PUBLISH tool's own side effects never happen at

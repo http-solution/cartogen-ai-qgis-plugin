@@ -177,7 +177,7 @@ def group_reach_layers(layers_by_method, headline, facility_layer, extra_hidden=
     visible = reach_visibility(list(layers_by_method), headline)
     ordered_layers = [(m, layers_by_method[m], visible[m]) for m in order] + \
                      [(None, lyr, False) for lyr in extra_hidden if lyr is not None]
-    for position, (method, layer, show) in enumerate(ordered_layers):
+    for position, (_method, layer, show) in enumerate(ordered_layers):
         node = group.findLayer(layer.id())
         if node is None:
             top_level = _root_level_node(root, layer.id())

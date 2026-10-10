@@ -1110,8 +1110,8 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
                 return {"error": f"Tile '{row['QuadKey']}' did not decompress as gzip: {e}"}
             _LOOKUP_CACHE.set(tile_cache_key, tile_text)
 
-        for line in tile_text.splitlines():
-            line = line.strip()
+        for raw_line in tile_text.splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
             try:
@@ -1266,8 +1266,8 @@ def parse_bbox(value):
         value = [part for part in value.replace(";", ",").split(",") if part.strip()]
     try:
         min_lon, min_lat, max_lon, max_lat = (float(v) for v in value)
-    except (TypeError, ValueError):
-        raise ValueError("bbox must be four numbers: min_lon, min_lat, max_lon, max_lat (WGS84 degrees).")
+    except (TypeError, ValueError) as e:
+        raise ValueError("bbox must be four numbers: min_lon, min_lat, max_lon, max_lat (WGS84 degrees).") from e
     if not (-180 <= min_lon < max_lon <= 180 and -90 <= min_lat < max_lat <= 90):
         raise ValueError(
             f"bbox ({min_lon}, {min_lat}, {max_lon}, {max_lat}) is not a valid WGS84 box -- expected "
@@ -1318,7 +1318,7 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
     try:
         from osgeo import gdal, osr
     except ImportError as e:
-        raise RuntimeError(f"GDAL Python bindings are not available ({e}).")
+        raise RuntimeError(f"GDAL Python bindings are not available ({e}).") from e
     gdal.UseExceptions()
     options = {
         "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
@@ -1349,7 +1349,7 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError(str(e))
+        raise RuntimeError(str(e)) from e
     finally:
         for key in options:
             gdal.SetThreadLocalConfigOption(key, None)
@@ -1400,7 +1400,7 @@ def _download_to_file(url, dest, chunk=1 << 20):
     except Exception as e:
         with contextlib.suppress(OSError):
             os.remove(part)
-        raise RuntimeError(f"downloading the country file failed: {e}")
+        raise RuntimeError(f"downloading the country file failed: {e}") from e
 
 
 def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, bbox=None, allow_whole_country=False,
@@ -1724,9 +1724,8 @@ def _validate_incident_coding(event_type=None, sub_event_type=None, hazard_type=
     warnings = []
     if event_type is not None and event_type not in ACLED_EVENT_TAXONOMY:
         warnings.append(f"event_type '{event_type}' is not one of ACLED's 6 event types: {list(ACLED_EVENT_TAXONOMY)}")
-    elif event_type is not None and sub_event_type is not None:
-        if sub_event_type not in ACLED_EVENT_TAXONOMY[event_type]:
-            warnings.append(f"sub_event_type '{sub_event_type}' is not a valid ACLED sub-event of '{event_type}': {ACLED_EVENT_TAXONOMY[event_type]}")
+    elif event_type is not None and sub_event_type is not None and sub_event_type not in ACLED_EVENT_TAXONOMY[event_type]:
+        warnings.append(f"sub_event_type '{sub_event_type}' is not a valid ACLED sub-event of '{event_type}': {ACLED_EVENT_TAXONOMY[event_type]}")
     if hazard_type is not None and hazard_type not in IMSMA_HAZARD_TYPES:
         warnings.append(f"hazard_type '{hazard_type}' is not one of the IMSMA-style hazard types: {IMSMA_HAZARD_TYPES}")
     if contamination_status is not None and contamination_status not in IMSMA_CONTAMINATION_STATUSES:

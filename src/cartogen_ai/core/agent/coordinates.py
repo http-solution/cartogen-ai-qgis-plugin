@@ -49,8 +49,8 @@ def _in_degree_range(lon, lat):
 def _as_float(value, label):
     try:
         return float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{label} is missing or not a number ({value!r}).")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{label} is missing or not a number ({value!r}).") from e
 
 
 def resolve_lon_lat(point, crs=None, transform=None):

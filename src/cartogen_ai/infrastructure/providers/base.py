@@ -133,7 +133,7 @@ def _qgis_send(method, url, headers, payload, timeout):
     try:
         status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
     except _net.NetworkError as e:
-        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e))
+        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e)) from e
     return QgisResponse(status, reply_headers, body, url)
 
 

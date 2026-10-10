@@ -3,6 +3,7 @@
 The "What's new" and humanitarian-tool sections come from core/release_notes.py, which must be updated on every version bump
 (tests/test_release_docs_in_sync.py enforces it). Tool, task and section counts are read from the live registries, not typed in.
 """
+import contextlib
 from .. import release_notes
 from .dock_constants import PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS
 
@@ -10,21 +11,17 @@ from .dock_constants import PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS
 def _registry_counts():
     """(tools, tasks, sections), each None when it cannot be read -- the text then drops the number rather than stating a wrong one."""
     tools = tasks = sections = None
-    try:
+    with contextlib.suppress(Exception):
         from ..agent.tools.registry import TOOL_REGISTRY
         from ..agent import tools as _load_all  # noqa: F401  (importing the package registers every tool)
         tools = len(TOOL_REGISTRY) or None
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         import json
         import os
         path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent", "task_register.json")
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         tasks, sections = len(data), len({t.get("cat") for t in data})
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return tools, tasks, sections
 
 

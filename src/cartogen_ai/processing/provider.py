@@ -198,7 +198,7 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
                     pt = to_cand_crs.transform(pt)
                 except Exception as e:
                     raise QgsProcessingException(
-                        f"Could not transform a demand point from {demand_crs.authid()} to {cand_crs.authid()}: {e}")
+                        f"Could not transform a demand point from {demand_crs.authid()} to {cand_crs.authid()}: {e}") from e
             demand_points.append(pt)
         if skipped_demand:
             feedback.pushWarning(f"{skipped_demand} multipart demand feature(s) skipped: only single-point features are supported.")

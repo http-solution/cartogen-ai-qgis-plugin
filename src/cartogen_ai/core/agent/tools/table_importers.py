@@ -146,10 +146,12 @@ def normalise_rows(rows, kind, used):
     data rows)."""
     records, issues = [], []
     for i, raw in enumerate(rows, start=1):
-        get = lambda role: raw.get(used[role]) if role in used else None  # noqa: E731
+        def get(role, raw=raw):
+            return raw.get(used[role]) if role in used else None
+
         rec = {"row": i}
 
-        def bad(role, why):
+        def bad(role, why, i=i, get=get):
             issues.append({"row": i, "role": role, "value": None if _blank(get(role)) else str(get(role)), "problem": why})
 
         if kind == "ipc":

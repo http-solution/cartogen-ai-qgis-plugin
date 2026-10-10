@@ -234,7 +234,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
 
     harvested = harvest_outputs(output, definition)
     layers = []
-    for key, value in harvested:
+    for key, harvested_value in harvested:
+        value = harvested_value
         if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
             loaded = QgsRasterLayer(value, "raster_output")
             value = loaded if loaded.isValid() else None
