@@ -21,6 +21,22 @@ artifact below was actually inspected.
 6. **SKIP** is allowed only for PostGIS when no disposable test database exists.
 7. Save evidence under a dedicated test folder and cancel recurring schedules before exit.
 
+## 1a. Data and destination (read before the first prompt)
+
+Every prompt below goes to the model provider named in the candidate record, and so does what the agent reads to answer it. For the
+hub-ranking prompt (A3) that is the prompt text, the project's layer and field names, feature counts and CRS, and the tool result
+(the three candidate names and their distances; a result can include coordinates). Nothing in this runbook authorises sending
+anything else, anywhere else.
+
+1. **Data:** run these prompts only on the synthetic Amman-area fixtures in `docs/release_smoke_assets/` (`smoke_hubs`,
+   `smoke_points` and the rest). Never run them on a real project, on a layer marked SENSITIVE or RESTRICTED, or on any data you are
+   not free to send to the provider.
+2. **Destination:** write the provider and model into the candidate record before starting. Use only a provider you are authorised to
+   send the synthetic fixtures to. For anything else use a local Ollama model.
+3. **The data-protection gate:** if an egress card appears, read which layers and which provider it names, and approve it only for
+   the fixtures above. If it names a layer you did not expect, cancel and report it as a finding; do not approve to get past the step.
+4. **Record it:** in the notes for A3 write which provider and model received the request.
+
 ## 2. Candidate record and preparation
 
 | Field | Value |
