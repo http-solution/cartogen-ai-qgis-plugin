@@ -37,6 +37,28 @@ anything else, anywhere else.
    the fixtures above. If it names a layer you did not expect, cancel and report it as a finding; do not approve to get past the step.
 4. **Record it:** in the notes for A3 write which provider and model received the request.
 
+## 1b. Recording the API trace (every run)
+
+From the build after rc24 the plugin can write every model call to disk. This is how an unexpected number of calls, a loop, or a large prompt is
+diagnosed afterwards; a chat transcript cannot show it, and the Log Messages panel is metadata-only by policy.
+
+1. **Before the first prompt:** Settings > tick "Record every model request and reply to a local folder (diagnostics)". Use a fresh `TEST_ROOT`
+   project folder (or a saved project in it) so the trace lands in `TEST_ROOT/cartogen_api_trace/`.
+2. **Run the rows as usual.** One line is written per model call: system instruction (stored once per distinct text), messages sent, tool names
+   offered, the reply and tool calls, token usage, latency and outcome.
+3. **After the last row:** run
+   `python tools/summarize_api_trace.py TEST_ROOT/cartogen_api_trace > TEST_ROOT/logs/api_trace_summary.txt`
+   and, for any row that took more than 3 calls, `python tools/summarize_api_trace.py TEST_ROOT/cartogen_api_trace --show-turn <turn id>`.
+4. **Record per row** (add to the result notes): the number of model calls, input and cached tokens, and any flag the summary raised
+   (a request with six or more calls, an identical tool call repeated, a system instruction that changed inside one request, a failed call).
+   A row that passes functionally but makes more than 4 calls is a **finding**, not a pass with a footnote.
+5. **Send back** `api_trace_summary.txt` and the `--show-turn` output for any flagged turn. Do not send the raw `.jsonl` unless asked: it holds
+   layer names, attribute values and tool results (same data-and-destination rule as section 1a: synthetic fixtures only). Turn the setting off
+   when the run ends.
+
+Calls made outside the agent loop (the optional prompt refinement step, an attached-image question) are not traced yet; on a build before this
+feature, read the `model_call` lines (tag `Agent`) in the Log Messages panel instead and note the build.
+
 ## 2. Candidate record and preparation
 
 | Field | Value |

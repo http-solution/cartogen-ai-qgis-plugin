@@ -105,6 +105,7 @@ SETTINGS_MAX_TURN_TOKENS = "cartogen_ai/max_turn_tokens"
 # Opt-in per-request evidence folder (arguments, results, timings, created layers, canvas screenshot, output files). Off by default: the
 # folder holds raw arguments and results, which can include coordinates and attribute values, unlike the metadata-only logs.
 SETTINGS_EVIDENCE_ENABLED = "cartogen_ai/evidence_enabled"
+SETTINGS_API_TRACE_ENABLED = "cartogen_ai/api_trace_enabled"   # raw model requests and replies to a local folder; off by default
 
 # Print-layout masthead colour as #rrggbb (rc9: the default slate is the developer's pick and has not been judged on a
 # real basemap; an invalid value falls back to it). Light colours automatically get dark title text.

@@ -27,6 +27,7 @@ from ...infrastructure.providers.claude import list_models as _list_claude
 from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
+    SETTINGS_API_TRACE_ENABLED,
     SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
     SETTINGS_OPENROUTER_MODEL,
@@ -482,6 +483,16 @@ class CartogenAiSettingsDialog(QDialog):
             "Unlike the logs, this includes raw values such as coordinates and attribute data, so do not share the folder "
             "without checking it. Nothing is uploaded. Off by default.")
         layout.addWidget(self.evidence_checkbox)
+
+        self.api_trace_checkbox = QCheckBox("Record every model request and reply to a local folder (diagnostics)")
+        self.api_trace_checkbox.setChecked(bool(self.settings.value(SETTINGS_API_TRACE_ENABLED, False, type=bool)))
+        self.api_trace_checkbox.setToolTip(
+            "When on, every call to the model provider is written as one line to 'cartogen_api_trace/api_calls_<date>.jsonl' next to "
+            "the project (or in the QGIS profile folder for an unsaved project): the system instruction (kept once per distinct text), "
+            "the messages sent, the tool names offered, the reply and the token usage. It holds RAW text, including layer and field "
+            "names, attribute values and tool results, so check the folder before you share it. Nothing is uploaded. "
+            "Off by default. Use tools/summarize_api_trace.py to read it.")
+        layout.addWidget(self.api_trace_checkbox)
 
         # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
@@ -950,6 +961,7 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
         self.settings.setValue(SETTINGS_EVIDENCE_ENABLED, self.evidence_checkbox.isChecked())
+        self.settings.setValue(SETTINGS_API_TRACE_ENABLED, self.api_trace_checkbox.isChecked())
         self.settings.setValue(PROMPT_REFINEMENT_ENABLED_KEY, self.prompt_refinement_checkbox.isChecked())
         self.settings.setValue(PROMPT_PREVIEW_ENABLED_KEY, self.prompt_preview_checkbox.isChecked())
         self.settings.setValue(PROJECT_INSPECTOR_ENABLED_KEY, self.project_inspector_checkbox.isChecked())
