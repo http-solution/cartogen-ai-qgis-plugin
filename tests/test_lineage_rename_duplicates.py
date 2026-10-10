@@ -43,7 +43,7 @@ class TestGateAfterRename(unittest.TestCase):
         levels = {"renamed": "SENSITIVE", "output": None}
         lineage = {"output": [{"sources": ["original"], "source_ids": ["a"]}]}
         found = egress_gate.find_protected(
-            ["output"], lambda n: levels.get(n),
+            ["output"], levels.get,
             lambda n: [s for e in lineage.get(n, []) for s in effective_source_names(e, layers)], strict=False)
         self.assertIn("output", found)
 
@@ -52,7 +52,7 @@ class TestGateAfterRename(unittest.TestCase):
         levels = {"renamed": "SENSITIVE", "output": None}
         lineage = {"output": [{"sources": ["original"]}]}
         found = egress_gate.find_protected(
-            ["output"], lambda n: levels.get(n),
+            ["output"], levels.get,
             lambda n: [s for e in lineage.get(n, []) for s in effective_source_names(e, layers)], strict=False)
         self.assertEqual(found, {})        # documents why ids are recorded: names alone lose the link
 

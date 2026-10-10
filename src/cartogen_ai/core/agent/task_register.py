@@ -92,7 +92,7 @@ def load():
         with open(_data_path(), encoding="utf-8") as fh:
             _DATA = json.load(fh)
     except Exception as e:  # pragma: no cover - diagnostic path
-        print("[TaskRegister] could not load task_register.json: %s" % e)
+        print(f"[TaskRegister] could not load task_register.json: {e}")
         _DATA = []
     _BY_ID = {e["id"]: e for e in _DATA}
     return _DATA

@@ -72,7 +72,7 @@ def sample_size(population, confidence=0.95, margin_of_error=0.05, expected_prop
             return 0
         n = n / (1.0 + (n - 1.0) / population)
     n = n / (1.0 - float(nonresponse_rate))
-    n = int(math.ceil(n - 1e-9))
+    n = math.ceil(n - 1e-9)
     if population is not None:
         n = min(n, population)
     return n
@@ -221,7 +221,7 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
     rows, warnings = [], []
     for key, entry in groups.items():
         if population_attribute is not None and entry["has_pop"]:
-            population, basis = int(round(entry["population"])), f"field '{population_attribute}'"
+            population, basis = round(entry["population"]), f"field '{population_attribute}'"
         elif units is not None:
             population, basis = len(unit_points[key]), f"candidate units in '{units_layer}'"
         else:

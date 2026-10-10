@@ -83,7 +83,7 @@ class HistoryManager:
             if len(digest_body) > digest_max_chars:
                 digest_body = digest_body[-digest_max_chars:]
             digest_msg = {"role": "system", "content": f"{digest_marker}\n{digest_body}"}
-            self.history = [digest_msg] + kept
+            self.history = [digest_msg, *kept]
 
     def append(self, messages, max_messages, digest_marker, digest_max_chars):
         """Appends one or more messages to history and trims it, all under one lock

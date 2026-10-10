@@ -33,8 +33,8 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
     def test_no_bare_name_exclusion_matches_a_directory_inside_src(self):
         clash = self.src_dirs & set(self.pu.EXCLUDE_DIRS)
         self.assertEqual(clash, set(),
-                         "EXCLUDE_DIRS entries %s also name real packages under src/; "
-                         "they belong in EXCLUDE_ROOT_ONLY_DIRS" % sorted(clash))
+                         f"EXCLUDE_DIRS entries {sorted(clash)} also name real packages under src/; "
+                         "they belong in EXCLUDE_ROOT_ONLY_DIRS")
 
     def test_the_tools_package_is_specifically_protected(self):
         self.assertIn("tools", self.src_dirs)
@@ -50,7 +50,7 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
                 for pat in self.pu.EXCLUDE_FILE_PATTERNS:
                     if fnmatch.fnmatch(name, pat):
                         offenders.append(os.path.join(r, name))
-        self.assertEqual(offenders, [], "these would be dropped from the zip: %s" % offenders)
+        self.assertEqual(offenders, [], f"these would be dropped from the zip: {offenders}")
 
     def test_the_package_directory_is_not_the_import_name(self):
         """The zip's single top-level folder becomes the installed plugin
@@ -67,7 +67,7 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
         for name in ("_register_page.html", "_reg_compact.json", "_repo_snapshot.tgz"):
             self.assertTrue(
                 any(fnmatch.fnmatch(name, p) for p in self.pu.EXCLUDE_FILE_PATTERNS),
-                "%s would ship" % name)
+                f"{name} would ship")
 
 
 class TestBuilderMachineLeftoversAreNotPackaged(unittest.TestCase):

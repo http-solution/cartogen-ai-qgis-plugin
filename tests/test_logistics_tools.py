@@ -374,7 +374,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         # rc11 smoke test C1: a two-stop route took 14 minutes (matrix A->B and B->A, then the route, ~3 min each).
         network = MagicMock()
         network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
-        mock_find.side_effect = lambda name: {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        mock_find.side_effect = {"stops": _stop_layer(["a", "b"]), "roads": network}.get
         segment = MagicMock()
         segment.featureCount.return_value = 1
         mock_processing.run.return_value = {"OUTPUT": segment}
@@ -394,7 +394,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         # #131: "fastest route" used to return a shortest-distance route. strategy='fastest' now runs STRATEGY 1.
         network = MagicMock()
         network.fields.return_value.indexOf.side_effect = lambda name: 0 if name == "speed_kmh" else -1
-        mock_find.side_effect = lambda name: {"stops": _stop_layer(["a", "b"]), "roads": network}.get(name)
+        mock_find.side_effect = {"stops": _stop_layer(["a", "b"]), "roads": network}.get
         segment = MagicMock()
         segment.featureCount.return_value = 1
         mock_processing.run.return_value = {"OUTPUT": segment}
@@ -405,7 +405,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
                                           strategy="fastest", default_speed=40)
 
         self.assertTrue(res["success"])
-        search = [c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint"][0]
+        search = next(c for c in mock_processing.run.call_args_list if c.args[0] == "native:shortestpathpointtopoint")
         self.assertEqual(search.args[1]["STRATEGY"], 1)
         self.assertEqual(search.args[1]["DEFAULT_SPEED"], 40)
         self.assertEqual(res["total_travel_time_hours"], 0.75)
@@ -455,7 +455,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
     def test_bad_speed_field_errors_before_touching_processing(self, mock_find):
         network = MagicMock()
         network.fields.return_value.indexOf.return_value = -1
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         res = calculate_service_area("facilities", "roads", 1000, speed_field="ghost_field")
 
@@ -473,7 +473,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
     ):
         network = MagicMock()
         network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -508,7 +508,7 @@ class TestCalculateServiceAreaNetworkParams(_LineNetworkMixin, unittest.TestCase
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
     ):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -538,7 +538,7 @@ class TestCalculateServiceAreaNeverReplacesAGoodResultWithAnEmptyOne(_LineNetwor
 
     def _run(self, lines_layer, mock_find, mock_processing, **kwargs):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get
         hull_layer = MagicMock()
 
         def run_side_effect(alg_id, params, context=None):
@@ -601,7 +601,7 @@ class TestCalculateServiceAreaNeverReplacesAGoodResultWithAnEmptyOne(_LineNetwor
         good = MagicMock()
         _real_looking_lines(good, length=1.0)
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Origin Point"]), "roads": network}.get
         mock_processing.run.side_effect = lambda alg_id, params, context=None: (
             {"OUTPUT_LINES": good} if alg_id == "native:serviceareafrompoint" else {"OUTPUT": MagicMock()})
 
@@ -642,7 +642,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         mock_vector_layer_cls, mock_field_cls, mock_qvariant, mock_feature_cls, mock_apply_graduated,
     ):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         # Two bands -> two lines_layer/hull_layer pairs.
         def make_lines_and_hull(band):
@@ -699,7 +699,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         # completely unaffected by the multi-band addition -- no merge, no
         # auto-styling call, exact original layer-naming behavior.
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -736,7 +736,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
         # (already gets apply_graduated_style) right next to it. This is the fix.
         facilities_layer = _stop_layer(["Warehouse"])
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": facilities_layer, "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": facilities_layer, "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -824,7 +824,7 @@ class TestReplaceNamedLayer(unittest.TestCase):
 
     def test_our_own_earlier_result_is_still_replaced(self):
         ours = self._layer("Origin_service_area_0", owned=True)
-        project, new_layer, replaced = self._replace([ours])
+        project, _new_layer, replaced = self._replace([ours])
         project.removeMapLayer.assert_called_once_with(ours.id())
         ours.setName.assert_not_called()
         self.assertIsNone(replaced)
@@ -843,7 +843,7 @@ class TestReplaceNamedLayer(unittest.TestCase):
     def test_a_taken_aside_name_is_numbered(self):
         a = self._layer("Origin_service_area_0", owned=False)
         taken = self._layer("Origin_service_area_0 (previous)", owned=False)
-        project, _n, _r = self._replace([a, taken])
+        _project, _n, _r = self._replace([a, taken])
         a.setName.assert_called_once_with("Origin_service_area_0 (previous 2)")
 
     def test_no_existing_layer_just_adds(self):
@@ -891,7 +891,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
     ):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -932,7 +932,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
     ):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Degenerate", "Normal"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -971,7 +971,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         self, mock_find, _mock_processing_enum, _mock_context_cls, mock_processing, mock_project
     ):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get
 
         def run_side_effect(alg_id, params, context=None):
             raise RuntimeError("invalid geometry")
@@ -999,7 +999,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         fallback itself directly since its own internals (QgsGeometry etc.) are
         covered separately by TestDegenerateHullFallback."""
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Degenerate"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -1039,7 +1039,7 @@ class TestCalculateServiceAreaDegenerateNetworkIsolation(_LineNetworkMixin, unit
         which applies setInvalidGeometryCheck -- see TestNetworkContextAndStartPoint)
         rather than just isolating the failure after the fact."""
         network = MagicMock()
-        mock_find.side_effect = lambda name: {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get(name)
+        mock_find.side_effect = {"facilities": _stop_layer(["Warehouse"]), "roads": network}.get
 
         lines_layer = MagicMock()
         _real_looking_lines(lines_layer)
@@ -1216,9 +1216,9 @@ class TestTravelTimeMatrixNetworkParams(_LineNetworkMixin, unittest.TestCase):
     def test_bad_direction_field_errors_before_touching_processing(self, mock_find):
         network = MagicMock()
         network.fields.return_value.indexOf.return_value = -1
-        mock_find.side_effect = lambda name: {
+        mock_find.side_effect = {
             "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
-        }.get(name)
+        }.get
 
         res = travel_time_matrix("origins", "destinations", "roads", direction_field="ghost_field")
 
@@ -1231,9 +1231,9 @@ class TestTravelTimeMatrixNetworkParams(_LineNetworkMixin, unittest.TestCase):
     def test_default_strategy_is_shortest_and_fields_reach_processing_run(self, mock_find, mock_processing):
         network = MagicMock()
         network.fields.return_value.indexOf.side_effect = lambda name: 0 if name in ("speed_kmh", "oneway") else -1
-        mock_find.side_effect = lambda name: {
+        mock_find.side_effect = {
             "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
-        }.get(name)
+        }.get
 
         result_layer = MagicMock()
         result_layer.fields.return_value = []
@@ -1259,9 +1259,9 @@ class TestTravelTimeMatrixNetworkParams(_LineNetworkMixin, unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
     def test_fastest_strategy_sets_strategy_1(self, mock_find, mock_processing):
         network = MagicMock()
-        mock_find.side_effect = lambda name: {
+        mock_find.side_effect = {
             "origins": _stop_layer(["A"]), "destinations": _stop_layer(["B"]), "roads": network,
-        }.get(name)
+        }.get
 
         result_layer = MagicMock()
         result_layer.fields.return_value = []
@@ -1312,9 +1312,9 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
 
             area, hull, lines = MagicMock(), MagicMock(), MagicMock()
-            mock_find.side_effect = lambda name: {
+            mock_find.side_effect = {
                 "districts": area, "Facilities_service_area_0": hull,
-                "Facilities_service_area_lines_0": lines}.get(name)
+                "Facilities_service_area_lines_0": lines}.get
             mock_calc.return_value = {
                 "facility_count": 3,
                 "layers_created": ["Facilities_service_area_lines_0", "Facilities_service_area_0"],
@@ -1481,7 +1481,7 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         candidates_layer.crs.return_value.isGeographic.return_value = True
         candidates_layer.crs.return_value.authid.return_value = "EPSG:4326"
 
-        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+        mock_find.side_effect = {"candidates": candidates_layer, "demand": demand_layer}.get
 
         res = optimal_hub_siting("candidates", "demand")
         self.assertIn("warning", res)
@@ -1520,7 +1520,7 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         mock_project.instance.return_value.ellipsoid.return_value = "WGS84"
         mock_da_cls.return_value.measureLine.return_value = 111000.0
 
-        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+        mock_find.side_effect = {"candidates": candidates_layer, "demand": demand_layer}.get
 
         res = optimal_hub_siting("candidates", "demand")
 
@@ -1551,7 +1551,7 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
             "must not iterate candidate features once the pair-count cap is exceeded"
         )
 
-        mock_find.side_effect = lambda name: {"candidates": candidates_layer, "demand": demand_layer}.get(name)
+        mock_find.side_effect = {"candidates": candidates_layer, "demand": demand_layer}.get
 
         res = optimal_hub_siting("candidates", "demand")
         self.assertIn("error", res)
@@ -1571,8 +1571,7 @@ class TestGreedyPMedian(unittest.TestCase):
     def _corner_scenario(self):
         candidates = {"A": (0, 0), "B": (10, 10), "C": (0, 10), "D": (10, 0)}
         demand_points = [(1, 1), (1, 9), (9, 1), (9, 9)]
-        distances = {name: [_dist(pos, dp) for dp in demand_points] for name, pos in candidates.items()}
-        return distances
+        return {name: [_dist(pos, dp) for dp in demand_points] for name, pos in candidates.items()}
 
     def test_selects_requested_number_of_facilities(self):
         distances = self._corner_scenario()
@@ -2402,7 +2401,7 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
         calls, so the test supplies the post-update index mapping directly (fclass=0,
         assumed_speed_kmh=1 by default, matching what the real tool would end up with)."""
         field_mocks = [MagicMock() for _ in existing_fields]
-        for m, name in zip(field_mocks, existing_fields):
+        for m, name in zip(field_mocks, existing_fields, strict=False):
             m.name.return_value = name
         mapping = index_map or {name: i for i, name in enumerate(existing_fields)}
         if "assumed_speed_kmh" not in mapping:

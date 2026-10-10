@@ -184,7 +184,7 @@ class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
 
     def _single(self, strategy):
         from cartogen_ai.core.agent.tools import logistics_tools as lt
-        feats = [f for f in self.origin.getFeatures()]
+        feats = list(self.origin.getFeatures())
         out = lt._single_tree_matrix(self.origin, feats, self.dests, self.roads, strategy, 50, None, None, "yes", "-1", "no")
         self.assertNotIn("error", out, out)
         return sorted(float(v) for v in next(iter(out["matrix"].values())).values())
@@ -192,12 +192,12 @@ class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
     def test_shortest_distance_costs_match(self):
         native, single = self._native("shortest"), self._single("shortest")
         self.assertEqual(len(native), len(single))
-        for a, b in zip(native, single):
+        for a, b in zip(native, single, strict=False):
             self.assertAlmostEqual(a, b, delta=max(1.0, a * 0.001))
 
     def test_fastest_hours_match(self):
         native, single = self._native("fastest"), self._single("fastest")
-        for a, b in zip(native, single):
+        for a, b in zip(native, single, strict=False):
             self.assertAlmostEqual(a, b, delta=max(1e-5, a * 0.001))
 
     def test_more_than_the_threshold_uses_the_single_tree_and_reports_unreachable(self):

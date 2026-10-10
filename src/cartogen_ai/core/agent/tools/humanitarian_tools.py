@@ -28,6 +28,7 @@ from .. import coordinates as _coords
 # validation, no redirect re-checking -- even though every one of those first responses is
 # genuinely external, third-party-published content. Reused here rather than duplicated.
 from .vector_tools import _is_safe_url, _build_safe_opener
+import contextlib
 
 def _cleanup_cached_local_path(key, value):
     """TTLCache on_evict callback (SEC-004, 2026-09-14 audit): several of this file's cached
@@ -44,10 +45,8 @@ def _cleanup_cached_local_path(key, value):
     if isinstance(value, dict):
         local_path = value.get("local_path")
         if local_path and os.path.exists(local_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # Session-scoped cache for repeated identical lookups -- HDX/OSM/geoBoundaries
@@ -305,11 +304,11 @@ def _osm_feature(elem, clean_key, clean_value, geometry):
 def ingest_osm_features_network_phase(
     key: str,
     value: str,
-    bbox: list = None,
-    center_lat: float = None,
-    center_lon: float = None,
-    radius_km: float = None,
-    layer_name: str = None,
+    bbox: list | None = None,
+    center_lat: float | None = None,
+    center_lon: float | None = None,
+    radius_km: float | None = None,
+    layer_name: str | None = None,
 ) -> dict:
     """Pure network phase: queries Overpass API for OSM features and dumps a GeoJSON FeatureCollection
     to a temporary local file. Safe to run on a background thread."""
@@ -525,11 +524,11 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
 def ingest_osm_features(
     key: str,
     value: str,
-    bbox: list = None,
-    center_lat: float = None,
-    center_lon: float = None,
-    radius_km: float = None,
-    layer_name: str = None,
+    bbox: list | None = None,
+    center_lat: float | None = None,
+    center_lon: float | None = None,
+    radius_km: float | None = None,
+    layer_name: str | None = None,
 ) -> dict:
     """Direct standalone entrypoint: runs network fetch and main-thread layer creation."""
     fetch_result = ingest_osm_features_network_phase(
@@ -550,10 +549,8 @@ def ingest_osm_features(
     finally:
         if local_path:
             import os
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # ---- asking before a large download (F22) -----------------------------------------------------------------
@@ -913,10 +910,8 @@ def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1", allow_large
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
@@ -1057,7 +1052,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     import csv
     import io as _io
     rows = list(csv.DictReader(_io.StringIO(links_text)))
-    known_locations = sorted(set(r["Location"] for r in rows))
+    known_locations = sorted({r["Location"] for r in rows})
 
     location, candidates = _match_building_footprints_location(country_name, known_locations)
     if location is None:
@@ -1236,10 +1231,8 @@ def fetch_building_footprints(country_name, bbox, max_features=5000, allow_large
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
@@ -1254,10 +1247,8 @@ def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1", allow_large_downlo
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
@@ -1411,14 +1402,12 @@ def _download_to_file(url, dest, chunk=1 << 20):
                 out.write(block)
         os.replace(part, dest)
     except Exception as e:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(part)
-        except OSError:
-            pass
         raise RuntimeError(f"downloading the country file failed: {e}")
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False,
+def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, bbox=None, allow_whole_country=False,
                                             cache_dir=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
@@ -1514,10 +1503,8 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                         size = _clip_raster_to_bbox(cache_file, window, tmp_path)
                         used_cache = "downloaded"
             except RuntimeError as e:
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(tmp_path)
-                except OSError:
-                    pass
                 if _is_transport_failure(e) and not allow_whole_country:
                     # rc10 smoke test (first run against the real server): worldpop.org answers "Range downloading not
                     # supported by this server", so the remote window read cannot work there and the model retried the same
@@ -1678,7 +1665,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
         "required": ["iso3"],
     },
 )
-def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = None, bbox=None,
+def fetch_worldpop_population(iso3: str, year: str | None = None, extent_layer: str | None = None, bbox=None,
                               allow_whole_country: bool = False):
     """Does both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
@@ -1865,10 +1852,10 @@ def _clip_to_field_width(layer, fname, value):
     },
 )
 def add_incident_point(
-    lat: float, lon: float, date: str, description: str, severity: str = None,
-    event_type: str = None, sub_event_type: str = None,
-    hazard_type: str = None, contamination_status: str = None,
-    event_start: str = None, event_end: str = None, last_verified: str = None,
+    lat: float, lon: float, date: str, description: str, severity: str | None = None,
+    event_type: str | None = None, sub_event_type: str | None = None,
+    hazard_type: str | None = None, contamination_status: str | None = None,
+    event_start: str | None = None, event_end: str | None = None, last_verified: str | None = None,
 ):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2077,7 +2064,7 @@ def _style_named_point_layer(layer):
         "required": ["layer_name", "points"],
     },
 )
-def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_by_user: bool = False):
+def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_stated_by_user: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not points:

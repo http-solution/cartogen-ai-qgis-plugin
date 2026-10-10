@@ -129,7 +129,7 @@ class TestCountLegend(unittest.TestCase):
 
     def test_a_value_on_a_limit_belongs_to_the_upper_class(self):
         ranges = h.count_ranges([3, 4, 5, 7, 7, 9, 10], h.PIN_COLORS, classes=2, unit="people")
-        (lo1, hi1, _c1, label1), (lo2, hi2, _c2, label2) = ranges
+        (_lo1, hi1, _c1, label1), (lo2, _hi2, _c2, label2) = ranges
         self.assertIn("< 7", label1)
         self.assertLess(hi1, 7.0)                       # 7 is NOT inside the first class
         self.assertGreaterEqual(7.0, lo2)

@@ -314,7 +314,7 @@ class CredentialManager:
     )
 
     @classmethod
-    def missing_credential_message(cls, provider: str = None, client=None) -> str:
+    def missing_credential_message(cls, provider: str | None = None, client=None) -> str:
         """Returns a friendly, actionable chat message if there's no usable
         credential to send a request with, or None if it's fine to proceed.
         Meant to be checked BEFORE a request goes out, so the user sees this

@@ -140,7 +140,7 @@ class TestPrepareDashboardLayer(unittest.TestCase):
         fake_feat.geometry.return_value.isEmpty.return_value = False
         layer.getFeatures.return_value = [fake_feat]
 
-        result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
+        _result_layer, warning = _prepare_dashboard_layer(layer, max_features=2500)
 
         self.assertIsNotNone(warning)
         self.assertIn("simplified", warning)
@@ -168,7 +168,7 @@ class TestLayerProvenanceEntries(unittest.TestCase):
     def test_unfound_layers_reported_not_silently_dropped(self):
         entries = _layer_provenance_entries(["districts", "health_facilities"])
         self.assertEqual(len(entries), 2)
-        for entry, name in zip(entries, ["districts", "health_facilities"]):
+        for entry, name in zip(entries, ["districts", "health_facilities"], strict=False):
             self.assertEqual(entry["layer"], name)
             self.assertFalse(entry["found"])
             self.assertEqual(entry["history"], [])
@@ -853,7 +853,7 @@ class TestClassifyFreshness(unittest.TestCase):
         self.assertIsNone(_classify_freshness("not a date"))
 
     def test_just_now_is_fresh(self):
-        status, age = _classify_freshness(_iso_ago(seconds=5))
+        status, _age = _classify_freshness(_iso_ago(seconds=5))
         self.assertEqual(status, "fresh")
 
     def test_thirty_minutes_is_fresh(self):

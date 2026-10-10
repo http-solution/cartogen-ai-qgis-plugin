@@ -43,7 +43,7 @@ class TestRanksAreOfDistinctValues(unittest.TestCase):
         self.assertEqual(jr.distinct_ranks([5, 5, 5]), (5, None, None))
 
     def test_a_tie_for_the_highest_makes_the_next_value_second_not_the_tied_sector(self):
-        f, x = jr.pin_flags(vals(health=100, wash=100, shelter=40, nutrition=10), 1000, S, None)
+        _f, x = jr.pin_flags(vals(health=100, wash=100, shelter=40, nutrition=10), 1000, S, None)
         self.assertEqual((x["highest"], x["second"], x["third"]), (100, 40, 10))
         self.assertEqual(sorted(x["highest_sectors"]), ["health", "wash"])
 

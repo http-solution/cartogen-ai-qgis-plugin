@@ -85,7 +85,7 @@ ORDER = ["pdf", "docx", "txt", "table", "image", "vector", "raster", "project"]
 
 def derive_acc(entry):
     """Media kinds a user could usefully attach to this task."""
-    text = "%s %s" % (entry["text"], entry["cname"])
+    text = "{} {}".format(entry["text"], entry["cname"])
     kinds = set()
 
     if _DOC.search(text):
@@ -207,7 +207,7 @@ def main():
         if data == new:
             print("register file-io fields are up to date (%d tasks)" % len(new))
             return 0
-        diff = [e["id"] for old, e in zip(data, new) if old != e]
+        diff = [e["id"] for old, e in zip(data, new, strict=False) if old != e]
         print("register is STALE -- %d task(s) differ, e.g. %s" % (len(diff), diff[:10]))
         return 1
 

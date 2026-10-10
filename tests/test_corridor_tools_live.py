@@ -3,6 +3,7 @@ hand-testing; the Docker QGIS run is the only execution evidence."""
 import os
 import tempfile
 import unittest
+import itertools
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -37,7 +38,7 @@ class TestCorridorToolsLive(unittest.TestCase):
         line = QgsVectorLayer("LineString?crs=EPSG:32638&field=name:string", "road", "memory")
         feats = []
         edges = [500000 + 10000 * i / segments for i in range(segments + 1)]
-        for a, b in zip(edges, edges[1:]):
+        for a, b in itertools.pairwise(edges):
             f = QgsFeature(line.fields())
             f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(a, 1700000), QgsPointXY(b, 1700000)]))
             f.setAttributes(["seg"])
@@ -111,7 +112,7 @@ class TestCorridorToolsLive(unittest.TestCase):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(32638)
         ds.SetProjection(srs.ExportToWkt())
-        yy, xx = numpy.mgrid[0:rows, 0:cols]
+        _yy, xx = numpy.mgrid[0:rows, 0:cols]
         ds.GetRasterBand(1).WriteArray((xx * 1.0).astype("float32"))            # a ramp rising 1 m per 10 m pixel, 0..99 m
         ds.FlushCache()
         ds = None

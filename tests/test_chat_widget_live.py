@@ -1184,7 +1184,7 @@ class TestChatWidgetLive(unittest.TestCase):
         ]
         sensitivity = {"Beneficiary Registry": "SENSITIVE"}
         dialog = LayerContextPickerDialog(
-            layers, selection={}, sensitivity_lookup=lambda name: sensitivity.get(name))
+            layers, selection={}, sensitivity_lookup=sensitivity.get)
         self.addCleanup(dialog.close)
 
         self.assertTrue(dialog._checkboxes["Health Facilities"].isChecked())
@@ -1315,6 +1315,7 @@ def _geofabrik_fixture(folder):
         self.assertIn("local_list_probe", text)
         self.assertIn("No model was called", text)
         self.assertEqual(agent.conversation_history, [])        # the agent never saw the request
+    return None
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")

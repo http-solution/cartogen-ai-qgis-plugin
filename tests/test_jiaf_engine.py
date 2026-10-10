@@ -192,7 +192,7 @@ class TestAnalyzeAndTool(unittest.TestCase):
     def test_previous_year_enables_flag_6(self):
         prev = [self.GRID[0], ["YE1", "A", 100, 3, 100, 3, 100, 3, 100, 3, 50, 3], self.GRID[2]]
         out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"],
-                                          previous_file_path=self._csv([prev[0]] + prev[1:2]))
+                                          previous_file_path=self._csv([prev[0], *prev[1:2]]))
         self.assertNotIn("flag_6_note", out)
 
     def test_csv_export_never_overwrites(self):

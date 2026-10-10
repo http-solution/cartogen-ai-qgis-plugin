@@ -29,10 +29,10 @@ def run(units, decisions=None, bulk=(), overrides=None, previous=None):
     return a, rows, summary
 
 
-FLAGGED = dict(pin={"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
+FLAGGED = {"pin": {"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, "sev": {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}}
 # Severity 3, not 2: the worksheet's Preliminary PiN is 0 for a unit whose severity is 2 or lower (jiaf_rules.preliminary_pin), so a calm severity-2 unit would
 # have no PiN to carry.
-CALM = dict(pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
+CALM = {"pin": {"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, "sev": {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}}
 
 
 class TestDecisionValidation(unittest.TestCase):
@@ -113,7 +113,7 @@ class TestFinalize(unittest.TestCase):
         self.assertEqual(s["bulk_accepted_flags"], [1])
 
     def test_severity_decision_and_pending_and_no_national_severity(self):
-        flagged_sev = dict(pin=CALM["pin"], sev={"wash": 5, "health": 5, "shelter": 3, "nutrition": 3})  # severity flag 1: sectors_sev_5 (2) sectors in phase 5
+        flagged_sev = {"pin": CALM["pin"], "sev": {"wash": 5, "health": 5, "shelter": 3, "nutrition": 3}}  # severity flag 1: sectors_sev_5 (2) sectors in phase 5
         units = [unit("U1", **flagged_sev), unit("U2", **flagged_sev)]
         dec = {"pin": {}, "severity": {"U1": {"phase": 4, "evidence_basis": "outcome_indicators", "evidence": "CDR 1.2"}}}
         _a, rows, s = run(units, dec)

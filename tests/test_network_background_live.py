@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from tests.test_network_units_live import QGIS_LIVE_AVAILABLE, _boot
+import itertools
 
 if QGIS_LIVE_AVAILABLE:
     from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsSettings, QgsVectorLayer
@@ -100,7 +101,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
                 started = time.monotonic()
                 processing.run("native:serviceareafrompoint", {
                     "INPUT": lyr, "STRATEGY": 0, "TOLERANCE": 0, "DEFAULT_SPEED": 50,
-                    "START_POINT": "%s,%s" % ORIGIN, "TRAVEL_COST2": 500, "OUTPUT_LINES": "memory:"},
+                    "START_POINT": "{},{}".format(*ORIGIN), "TRAVEL_COST2": 500, "OUTPUT_LINES": "memory:"},
                     context=cls.lt._network_context())
                 cls._SLOW_N = n
                 if time.monotonic() - started >= 2.0:
@@ -125,7 +126,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
             self.assertTrue(sa.get("success") and tm.get("success"), (sa, tm))
             lines = QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0]
             outcomes[mode] = (lines.featureCount(), round(sum(f.geometry().length() for f in lines.getFeatures()), 6),
-                              round(float(list(list(tm["matrix"].values())[0].values())[0]), 3))
+                              round(float(next(iter(next(iter(tm["matrix"].values())).values()))), 3))
             # the background path really used a worker task; the synchronous one did not
             self.assertEqual(task_cls.call_count, 2 if mode == "background" else 0, mode)
         self.assertEqual(outcomes["background"], outcomes["synchronous"])
@@ -149,7 +150,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         self.assertTrue(sa.get("success"), sa)
         # guard: the analysis has to be long enough for "kept ticking" to mean something
         self.assertGreater(duration, 1.0, "test network too small to show anything")
-        gaps = [b - a for a, b in zip(ticks, ticks[1:])]
+        gaps = [b - a for a, b in itertools.pairwise(ticks)]
         # measured on the real 39,017-road network: 293 ticks in 18.5 s, worst gap 77 ms (timer 50 ms).
         # A synchronous run gives ~0 ticks (that is the freeze). Generous bounds for slow CI machines.
         self.assertGreater(len(ticks), 0.4 * duration / 0.05, "ticks=%d duration=%.1fs" % (len(ticks), duration))
@@ -187,7 +188,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         self.assertTrue(sa.get("cancelled"), sa)
         self.assertTrue(tm.get("cancelled"), tm)
         self.assertIn("Stopped", sa["error"])
-        self.assertLess(elapsed, 5.0, "took %.1fs to stop" % elapsed)   # unstopped: ~3 s + ~3 s each
+        self.assertLess(elapsed, 5.0, f"took {elapsed:.1f}s to stop")   # unstopped: ~3 s + ~3 s each
         self.assertEqual(set(QgsProject.instance().mapLayers()), layers_before)   # nothing was added
         # ...and QGIS is fine afterwards: the next request works normally
         self.cancel_signal.end()
@@ -208,7 +209,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
 
     def _params(self, network, **over):
         p = {"INPUT": network, "STRATEGY": 0, "TOLERANCE": 0, "DEFAULT_SPEED": 50,
-             "START_POINT": "%s,%s" % ORIGIN, "TRAVEL_COST2": 500, "OUTPUT_LINES": "memory:"}
+             "START_POINT": "{},{}".format(*ORIGIN), "TRAVEL_COST2": 500, "OUTPUT_LINES": "memory:"}
         p.update(over)
         return p
 

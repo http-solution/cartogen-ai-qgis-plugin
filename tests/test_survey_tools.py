@@ -38,7 +38,7 @@ class TestStatistics(unittest.TestCase):
         self.assertEqual(s.wilson_interval(0.5, 0, 1.96), (None, None))
 
     def test_weighted_mean_interval(self):
-        mean, low, high, n_eff = s.weighted_mean_interval([1, 2, 3, 4], [1, 1, 1, 1], 1.96)
+        mean, low, _high, n_eff = s.weighted_mean_interval([1, 2, 3, 4], [1, 1, 1, 1], 1.96)
         self.assertAlmostEqual(mean, 2.5)
         self.assertAlmostEqual(n_eff, 4.0)
         self.assertAlmostEqual(low, 2.5 - 1.96 * (1.25 / 4) ** 0.5, places=6)

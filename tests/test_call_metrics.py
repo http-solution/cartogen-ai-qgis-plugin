@@ -40,9 +40,8 @@ class TestRecords(unittest.TestCase):
 
 class TestTurnSummary(unittest.TestCase):
     def _rec(self, i, inp, cached, out, est_fixed=(9000, 16000)):
-        r = {"turn_id": 1, "call_index": i, "input_tokens": inp, "cached_tokens": cached, "output_tokens": out, "latency_ms": 100,
+        return {"turn_id": 1, "call_index": i, "input_tokens": inp, "cached_tokens": cached, "output_tokens": out, "latency_ms": 100,
              "est_system_tokens": est_fixed[0], "est_tools_tokens": est_fixed[1]}
-        return r
 
     def test_sums_split_fresh_from_cached_and_say_which_calls_reported_nothing(self):
         records = [self._rec(0, 26000, 0, 200), self._rec(1, 28000, 20000, 100), self._rec(2, None, None, None)]

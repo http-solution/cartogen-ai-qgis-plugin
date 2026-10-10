@@ -22,21 +22,19 @@ LOC = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Admin 3", "Adm
 
 def pin_grid(rows, flags=True):
     head = ["ID"] + LOC + SECTOR_HEADERS + (PIN_FLAG_HEADERS if flags else []) + ["Severity", "Preliminary PiN", "# Flags", "Final PiN"]
-    return [head] + rows
+    return [head, *rows]
 
 
 def row(admin2="HT0311", pocket=None, group=None, a3=None, pop=1000, pins=None, flag_cells=None, n_flags=None, prelim=None):
     pins = pins or {}
     cells = ["", "Nord", "HT03", "Cap", admin2, None, a3, pocket, pop, group] + [pins.get(h) for h in SECTOR_HEADERS]
     cells += list(flag_cells or [None] * len(PIN_FLAG_HEADERS))
-    return cells + [None, prelim, n_flags, None]
+    return [*cells, None, prelim, n_flags, None]
 
 
 def sev_grid(rows):
-    head = ["ID"] + LOC + SECTOR_HEADERS + ["Preliminary Intersectoral Severity based on overlap of sectoral deprivations", "Mortality", "Malnutrition",
-                                            "1 sectors in severity phase 5 [modify the threshold]", "2+ phase variation between preliminary severity and severity of any of the outcome indicators",
-                                            "# Flags", "Final Severity"]
-    return [head] + rows
+    head = ["ID", *LOC, *SECTOR_HEADERS, "Preliminary Intersectoral Severity based on overlap of sectoral deprivations", "Mortality", "Malnutrition", "1 sectors in severity phase 5 [modify the threshold]", "2+ phase variation between preliminary severity and severity of any of the outcome indicators", "# Flags", "Final Severity"]
+    return [head, *rows]
 
 
 def srow(admin2="HT0311", pocket=None, group=None, a3=None, phases=None, prelim=None, mort=None, flag1=None):
@@ -82,8 +80,8 @@ class TestColumnsByHeaderText(unittest.TestCase):
         # shuffle: move the WASH column to the front, add an unknown column, and put a title row above the headers
         head, body = grid[0], grid[1]
         i = head.index("WASH")
-        head2 = [head[i], "Notes"] + head[:i] + head[i + 1:]
-        body2 = [body[i], "x"] + body[:i] + body[i + 1:]
+        head2 = [head[i], "Notes", *head[:i], *head[i + 1:]]
+        body2 = [body[i], "x", *body[:i], *body[i + 1:]]
         units, _ = ji.parse_ocha_worksheet([["Title row"], head2, body2], sev_grid([]))
         self.assertEqual(units[0]["pin"]["wash"], 7)
         self.assertEqual(units[0]["pin"]["health"], 9)
@@ -105,7 +103,7 @@ class TestColumnsByHeaderText(unittest.TestCase):
 class TestHistoryAndThresholds(unittest.TestCase):
     def hist(self, rows):
         head = ["ID"] + LOC + [f"{h} - old" for h in SECTOR_HEADERS]
-        return [head] + rows
+        return [head, *rows]
 
     def test_previous_pin_is_attached_by_worksheet_id_including_pocket_and_a_unit_without_a_row_stays_none(self):
         pins = dict.fromkeys(SECTOR_HEADERS, 10)

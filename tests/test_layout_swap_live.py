@@ -84,7 +84,7 @@ class TestLayoutSwapAndAtlas(unittest.TestCase):
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["feature_count"], 3)
         names = sorted(os.path.basename(p) for p in res["output_files"])
-        self.assertEqual(len(set(n.lower() for n in names)), 3, names)
+        self.assertEqual(len({n.lower() for n in names}), 3, names)
         self.assertEqual(sorted(os.listdir(out)), names)
         self.assertTrue(res["atlas_settings_restored"])
         atlas = QgsProject.instance().layoutManager().layoutByName(made["layout_name"]).atlas()

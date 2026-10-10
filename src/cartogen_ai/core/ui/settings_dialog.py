@@ -49,6 +49,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
     provider_model_list_key,
 )
+import contextlib
 AUTO_LABEL = "auto (recommended)"
 
 
@@ -387,10 +388,8 @@ class CartogenAiSettingsDialog(QDialog):
             cached_raw = self.settings.value(provider_model_list_key(pv), "")
             if cached_raw:
 
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     self._cached_model_lists[pv] = json.loads(cached_raw)
-                except (TypeError, ValueError):
-                    pass
 
             self._provider_page_index[pv] = self.provider_stack.addWidget(page)
 

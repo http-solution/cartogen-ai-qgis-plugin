@@ -16,7 +16,7 @@ def _square(x0, y0, x1, y1):
 def _region(rid, name, polys, iso2=None, shp=True):
     return {"type": "Feature",
             "properties": {"id": rid, "name": name, "iso3166-1:alpha2": [iso2] if iso2 else None,
-                           "urls": {"shp": "https://download.geofabrik.de/%s-latest-free.shp.zip" % rid}
+                           "urls": {"shp": f"https://download.geofabrik.de/{rid}-latest-free.shp.zip"}
                            if shp else {"pbf": "x"}},
             "geometry": {"type": "MultiPolygon", "coordinates": polys}}
 

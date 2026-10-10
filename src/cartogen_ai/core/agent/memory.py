@@ -324,7 +324,7 @@ class SpatialMemoryManager:
         usage = {k[len("usage:"):]: v for k, v in glob_notes.items() if k.startswith("usage:")}
         other_notes = {
             k: v for k, v in glob_notes.items()
-            if not (k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:"))
+            if not (k.startswith(("pref:", "rule:", "usage:")))
         }
 
         lines = ["## \U0001f9e0 SPATIAL MEMORY CONTEXT"]

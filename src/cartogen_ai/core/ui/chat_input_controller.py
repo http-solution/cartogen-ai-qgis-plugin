@@ -95,8 +95,7 @@ class ChatInputController:
 
         from ..agent import file_io
         kind = file_io.classify(path)
-        carried = (" It will also be used with your next message as a %s input."
-                   % kind) if kind else ""
+        carried = (f" It will also be used with your next message as a {kind} input.") if kind else ""
         w._dock.receiveMessageSignal.emit(
             "ai", f"📎 **File attached:** {name}{carried}\n\nAnalyzing...")
         w._dock.statusSignal.emit("Analyzing...")
@@ -133,7 +132,7 @@ class ChatInputController:
                     return
 
             if client is not None and hasattr(client, "set_status_callback"):
-                client.set_status_callback(lambda msg: w._dock.statusSignal.emit(msg))
+                client.set_status_callback(w._dock.statusSignal.emit)
 
             if data.get("is_image"):
                 response = self.analyze_image(agent, name, data)

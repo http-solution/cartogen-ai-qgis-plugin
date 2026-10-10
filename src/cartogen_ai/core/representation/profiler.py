@@ -7,6 +7,7 @@ metadata into a structured LayerSemanticProfile.
 
 from typing import Any
 from .models import LayerSemanticProfile, FieldSemanticProfile
+import contextlib
 
 try:
     from qgis.core import (
@@ -64,10 +65,8 @@ def _classify_field_semantics(name: str, values: list[Any], field_type_name: str
     # Check numeric
     numeric_values = []
     for v in non_null_values:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             numeric_values.append(float(v))
-        except (ValueError, TypeError):
-            pass
 
     is_numeric = len(numeric_values) == len(non_null_values) and len(numeric_values) > 0
 
@@ -111,10 +110,10 @@ def _classify_field_semantics(name: str, values: list[Any], field_type_name: str
         dist = "uniform"
 
     # Directional check (0 - 360 bearing)
-    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and 0 <= min_val and max_val <= 360:
+    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and min_val >= 0 and max_val <= 360:
         sem_type = "directional"
     # Rate / Percentage check
-    elif any(k in name_lower for k in _RATE_KEYWORDS) or (0 <= min_val and max_val <= 1.0001) or (0 <= min_val and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
+    elif any(k in name_lower for k in _RATE_KEYWORDS) or (min_val >= 0 and max_val <= 1.0001) or (min_val >= 0 and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
         sem_type = "rate_percentage"
     # Raw count check. Bug found in a code-review pass (2026-09-20): the previous
     # `all(v.is_integer() for v in numeric_values if v >= 0)` is a vacuous-truth trap -- a

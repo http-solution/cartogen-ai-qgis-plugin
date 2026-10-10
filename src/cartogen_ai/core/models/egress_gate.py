@@ -198,7 +198,7 @@ def _protection_reason(name, get_level, get_sources, strict, seen, depth):
     for source in get_sources(name) or []:
         inherited = _protection_reason(source, get_level, get_sources, strict, seen, depth + 1)
         if inherited:
-            return "derived from '%s' (%s)" % (source, inherited)
+            return f"derived from '{source}' ({inherited})"
     return None
 
 
@@ -249,13 +249,13 @@ def evaluate_attachment(*, mode, provider_is_local, strict, file_name):
         return None
     if mode == MODE_ENFORCE:
         return {"action": "block", "message": (
-            "**Not sent: %s.** Strict cloud data protection is on, so an attached file -- which has "
+            f"**Not sent: {file_name}.** Strict cloud data protection is on, so an attached file -- which has "
             "no sensitivity tag -- is treated as protected and can't be sent to a cloud AI "
             "provider. Switch to a local provider (e.g. Ollama) to analyze it, or turn off strict "
-            "mode in Settings if this file is safe to share." % file_name)}
+            "mode in Settings if this file is safe to share.")}
     return {"action": "warn", "message": (
         "**Note:** strict cloud data protection is on and a cloud AI provider is selected, so "
-        "%s is being sent to it with no sensitivity check -- attached files carry no tag." % file_name)}
+        f"{file_name} is being sent to it with no sensitivity check -- attached files carry no tag.")}
 
 
 def attachment_decision(client, file_name):
@@ -274,19 +274,19 @@ def attachment_decision(client, file_name):
     except Exception:
         if mode == MODE_ENFORCE:
             return {"action": "block", "message": (
-                "**Not sent: %s.** The data-protection check could not be completed, and this "
-                "deployment blocks rather than guesses." % file_name)}
+                f"**Not sent: {file_name}.** The data-protection check could not be completed, and this "
+                "deployment blocks rather than guesses.")}
         return None
 
 
 def _layer_list(protected):
-    return "; ".join("'%s' (%s)" % (n, r) for n, r in protected.items())
+    return "; ".join(f"'{n}' ({r})" for n, r in protected.items())
 
 
 def _warning_text(tool_name, protected):
     return (
-        "'%s' involved protected data (%s) while a non-local AI provider is selected, so that "
-        "data may have been sent to it." % (tool_name, _layer_list(protected))
+        f"'{tool_name}' involved protected data ({_layer_list(protected)}) while a non-local AI provider is selected, so that "
+        "data may have been sent to it."
     )
 
 
@@ -297,12 +297,11 @@ def _block_result(tool_name, protected):
         "tool_name": tool_name,
         "layers": sorted(protected),
         "message": (
-            "Blocked before running: '%s' would send protected data (%s) to a cloud AI provider, "
+            f"Blocked before running: '{tool_name}' would send protected data ({_layer_list(protected)}) to a cloud AI provider, "
             "and this deployment restricts that to local inference. Do not retry this call with "
             "different arguments to get around this. Tell the user plainly that it needs a local "
             "provider (e.g. Ollama), or that the analysis should use only layers marked PUBLIC or "
             "INTERNAL (for example an aggregated or anonymized derivative they have released)."
-            % (tool_name, _layer_list(protected))
         ),
     }
 
@@ -328,12 +327,11 @@ def preview_required(tool_name, arguments, decision):
     return {
         "status": "PREVIEW_REQUIRED",
         "rationale": (
-            "'%s' would send protected data (%s) to the currently-selected cloud AI provider, "
+            f"'{tool_name}' would send protected data ({_layer_list(layers)}) to the currently-selected cloud AI provider, "
             "which this deployment's cloud data protection setting blocks by default. "
             "Confirming overrides that block for this one call only -- do this only if you "
             "(the user) have decided this specific data may leave this machine. Switching to a "
             "local provider (e.g. Ollama) in Settings avoids needing to override anything."
-            % (tool_name, _layer_list(layers))
         ),
         "code_snippet": "",
         "is_destructive": True,
@@ -353,9 +351,9 @@ def check_failed_decision(tool_name):
             "tool_name": tool_name,
             "layers": [],
             "message": (
-                "'%s' was blocked because the data-protection check could not be completed, and "
+                f"'{tool_name}' was blocked because the data-protection check could not be completed, and "
                 "this deployment blocks rather than guesses. Tell the user; a local provider "
-                "(e.g. Ollama) is not subject to this check." % tool_name
+                "(e.g. Ollama) is not subject to this check."
             ),
         },
         "warning": None,

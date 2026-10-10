@@ -93,7 +93,7 @@ def normalise_weights(weights):
 def weighted_scores(columns, weights):
     """Per-unit weighted sum of already-scaled columns (list of lists, one per criterion). Pure."""
     n = len(columns[0])
-    return [sum(col[i] * w for col, w in zip(columns, weights)) for i in range(n)]
+    return [sum(col[i] * w for col, w in zip(columns, weights, strict=False)) for i in range(n)]
 
 
 def rank(scores):
@@ -147,12 +147,12 @@ def evaluate(rows, criteria, trials=DEFAULT_TRIALS, perturbation=0.2, seed=0, to
     ranks = rank(scores)
     spread = stability(columns, weights, trials, perturbation, seed, top_k)
     results = []
-    for (row, _vals), score, r, sp in zip(complete, scores, ranks, spread):
+    for (row, _vals), score, r, sp in zip(complete, scores, ranks, spread, strict=False):
         results.append({"id": row.get("id"), "unit": row.get("label"), "score": round(score, 4), "rank": r,
                         "rank_min": sp["rank_min"], "rank_max": sp["rank_max"], "top_k_share": sp["top_k_share"]})
     results.sort(key=lambda x: (x["rank"], str(x["unit"])))
     return {"results": results, "excluded": excluded, "no_variation": no_variation,
-            "weights": {f: round(w, 4) for f, w in zip(fields, weights)}}
+            "weights": {f: round(w, 4) for f, w in zip(fields, weights, strict=False)}}
 
 
 # ---------------------------------------------------------------- QGIS --

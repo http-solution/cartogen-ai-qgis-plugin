@@ -175,7 +175,7 @@ class TestPinnedClusterLibraryAndSliderEnd(unittest.TestCase):
 
     def test_static_dashboard_loads_the_pinned_version_only(self):
         html = et._build_dashboard_html([_layer("Health Facilities", _points(150))])["html"]
-        self.assertIn("leaflet.markercluster/%s/leaflet.markercluster.js" % et.MARKERCLUSTER_VERSION, html)
+        self.assertIn(f"leaflet.markercluster/{et.MARKERCLUSTER_VERSION}/leaflet.markercluster.js", html)
         self.assertNotIn("leaflet.markercluster/1.1.0", html)
 
     def test_temporal_dashboard_loads_the_pinned_version_only(self):
@@ -183,13 +183,13 @@ class TestPinnedClusterLibraryAndSliderEnd(unittest.TestCase):
         for i, f in enumerate(feats):
             f["properties"]["start"] = f"2020-{1 + i % 12:02d}-01"
         html = et._build_temporal_dashboard_html([_layer("Incidents", feats, start_field="start")])["html"]
-        self.assertIn("leaflet.markercluster/%s/" % et.MARKERCLUSTER_VERSION, html)
+        self.assertIn(f"leaflet.markercluster/{et.MARKERCLUSTER_VERSION}/", html)
         self.assertNotIn("leaflet.markercluster/1.1.0", html)
 
     def test_slider_can_reach_the_last_date_when_the_span_is_not_a_multiple_of_the_step(self):
         import re
         feats = _points(5)
-        for f, d in zip(feats, ["2020-01-01", "2020-01-10", "2020-01-20", "2020-01-25", "2020-02-01"]):
+        for f, d in zip(feats, ["2020-01-01", "2020-01-10", "2020-01-20", "2020-01-25", "2020-02-01"], strict=False):
             f["properties"]["start"] = d
         html = et._build_temporal_dashboard_html([_layer("Incidents", feats, start_field="start")], step_days=30)["html"]
         m = re.search(r'id="cartogen-slider" type="range" min="(\d+)" max="(\d+)" step="(\d+)"', html)

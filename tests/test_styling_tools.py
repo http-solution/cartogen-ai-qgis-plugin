@@ -77,7 +77,7 @@ class TestLogarithmicBreaks(unittest.TestCase):
         breaks = _logarithmic_breaks([1, 10000], num_classes=4)
         # log10(1)=0, log10(10000)=4 -- 3 interior breaks at 1, 2, 3 in log space.
         self.assertEqual(len(breaks), 3)
-        for b, expected_log in zip(breaks, [1, 2, 3]):
+        for b, expected_log in zip(breaks, [1, 2, 3], strict=False):
             self.assertAlmostEqual(b, 10 ** expected_log, places=6)
 
     def test_none_when_any_value_non_positive(self):

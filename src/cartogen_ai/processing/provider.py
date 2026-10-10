@@ -495,7 +495,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             for line_feat in lines_layer.getFeatures():
                 new_feat = QgsFeature(sink_fields)
                 new_feat.setGeometry(line_feat.geometry())
-                new_feat.setAttributes(list(line_feat.attributes()) + [feat.id()])
+                new_feat.setAttributes([*list(line_feat.attributes()), feat.id()])
                 if not sink.addFeature(new_feat, QgsFeatureSink.Flag.FastInsert):
                     raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT_LINES))
             reached += 1

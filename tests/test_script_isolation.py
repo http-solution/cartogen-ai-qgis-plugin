@@ -22,10 +22,9 @@ class TestFindPythonInterpreter(unittest.TestCase):
         image this repo's CI pins (IMPLEMENTATION_TRACKER.md §1.11's Phase 1
         build note) -- sys.executable is already correct there, unlike Windows/
         macOS where it can be the QGIS binary itself."""
-        with patch.object(si.sys, "platform", "linux"):
-            with patch.object(si, "Path") as mock_path_cls:
-                mock_path_cls.return_value.__truediv__ = lambda self, other: MagicMock(exists=lambda: False)
-                result = si.find_python_interpreter()
+        with patch.object(si.sys, "platform", "linux"), patch.object(si, "Path") as mock_path_cls:
+            mock_path_cls.return_value.__truediv__ = lambda self, other: MagicMock(exists=lambda: False)
+            result = si.find_python_interpreter()
         self.assertEqual(result, sys.executable)
 
     def test_conda_install_uses_python_shortcut(self):

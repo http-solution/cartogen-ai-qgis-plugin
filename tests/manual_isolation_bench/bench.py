@@ -95,7 +95,7 @@ print("  child spawn, wall clock end-to-end (s):", stats(spawn))
 for k, v in child_phases.items():
     print(f"     child internal {k} (s):", stats(v))
 print("  reload one result layer into live project (s):", stats(reload_))
-total = [a + b + c for a, b, c in zip(ser, spawn, reload_)]
+total = [a + b + c for a, b, c in zip(ser, spawn, reload_, strict=False)]
 print("  TOTAL added overhead per call (s):", stats(total))
 
 # ---- In-process baseline: the real execute_pyqgis_script, trivial script -------------------

@@ -1384,7 +1384,7 @@ class TestIntersectAndUnionLayers(unittest.TestCase):
         res = union_layers("a", "b")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:union")
         self.assertIs(params["INPUT"], a)
         self.assertIs(params["OVERLAY"], b)
@@ -1413,7 +1413,7 @@ class TestDissolveAndMergeLayers(unittest.TestCase):
         res = dissolve_layer("layer")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:dissolve")
         self.assertEqual(params["FIELD"], [])
         self.assertIs(params["INPUT"], layer)
@@ -1455,7 +1455,7 @@ class TestDissolveAndMergeLayers(unittest.TestCase):
         res = merge_layers(["a", "b", "c"])
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:mergevectorlayers")
         self.assertEqual(params["LAYERS"], [a, b, c])
 

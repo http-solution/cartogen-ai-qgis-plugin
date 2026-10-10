@@ -147,7 +147,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
 
     def test_fastest_cost_of_3600_seconds_covers_the_whole_road(self):
         fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
-        ok, out = self._run_service_area(fac, 1, 3600.0)
+        _ok, out = self._run_service_area(fac, 1, 3600.0)
         self.assertAlmostEqual(self._length_m(out), 5000.0, delta=300.0)
 
     def test_a_facility_in_another_crs_starts_where_it_really_is(self):
@@ -158,7 +158,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
 
     def test_the_output_schema_is_the_child_algorithms_plus_the_facility_id(self):
         fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
-        ok, out = self._run_service_area(fac, 0, 500.0)
+        _ok, out = self._run_service_area(fac, 0, 500.0)
         names = [f.name() for f in out.fields()]
         self.assertIn("facility_fid", names)
         self.assertNotIn("name", names)                    # the road layer's own fields are not what the child returns
@@ -176,7 +176,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
         cands = _layer("Point", "EPSG:4326", ["POINT(0 0)", "POINT(1 1)"], "c")
         demand = _layer("Point", "EPSG:4326", ["POINT(0 1)", "POINT(1 0)"], "d")
         with patch("cartogen_ai.processing.provider.MAX_DISTANCE_PAIRS", 3):
-            results, ok, _ctx, feedback = _run(OptimalHubSitingAlgorithm(),
+            _results, ok, _ctx, _feedback = _run(OptimalHubSitingAlgorithm(),
                                                {"INPUT_CANDIDATES": cands, "INPUT_DEMAND": demand, "OUTPUT": "memory:"})
         self.assertFalse(ok)
 

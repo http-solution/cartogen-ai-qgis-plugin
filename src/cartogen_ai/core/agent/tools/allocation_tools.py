@@ -95,7 +95,7 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
             return {"error": "rounding must be above zero."}
         total_target = sum(amounts)
         floored = [int((a + _EPS) // unit) * unit for a in amounts]
-        pieces = int(round((total_target - sum(floored)) / unit))
+        pieces = round((total_target - sum(floored)) / unit)
         order = sorted(range(n), key=lambda i: (-(amounts[i] - floored[i]), i))
         for i in order:
             if pieces <= 0:
@@ -230,7 +230,7 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         return out
 
     results = [{"unit": r["unit"], "id": r["id"], "amount": round(a, 6), "share_of_budget": round(a / float(budget), 4),
-                "at_ceiling": i in out["capped"]} for i, (r, a) in enumerate(zip(rows, out["amounts"]))]
+                "at_ceiling": i in out["capped"]} for i, (r, a) in enumerate(zip(rows, out["amounts"], strict=False))]
     results.sort(key=lambda x: (-x["amount"], str(x["unit"])))
     result = {
         "success": True,
@@ -253,7 +253,7 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         result["results"], result["truncated"] = results, False
 
     if output_field:
-        by_id = {r["id"]: a for r, a in zip(rows, out["amounts"])}
+        by_id = {r["id"]: a for r, a in zip(rows, out["amounts"], strict=False)}
         try:
             with edit_command(layer, "Cartogen AI: write " + output_field) as owned:
                 idx = add_numeric_field(layer, output_field)

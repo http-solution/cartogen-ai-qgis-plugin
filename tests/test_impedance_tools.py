@@ -22,7 +22,7 @@ def _mock_network(field_names, features):
     attribute assignment for the latter, so this uses a MagicMock
     configured for both instead."""
     field_objs = [MagicMock() for _ in field_names]
-    for f, n in zip(field_objs, field_names):
+    for f, n in zip(field_objs, field_names, strict=False):
         f.name.return_value = n
     fields_mock = MagicMock()
     fields_mock.__iter__.side_effect = lambda: iter(field_objs)
@@ -37,7 +37,7 @@ def _mock_network(field_names, features):
 
 def _mock_feature(attrs, geom=None):
     feat = MagicMock()
-    feat.attribute.side_effect = lambda key: attrs.get(key)
+    feat.attribute.side_effect = attrs.get
     feat.id.return_value = id(feat)
     if geom is None:
         geom = MagicMock()
@@ -102,7 +102,7 @@ class TestBaseSpeedAndSurfaceBlending(unittest.TestCase):
         self.assertTrue(result.get("success"), result)
         expected_speed = _HIGHWAY_BASE_SPEED_KMH["primary"] * _SURFACE_PENALTY["gravel"]
         network.changeAttributeValue.assert_called_once()
-        called_fid, called_idx, called_value = network.changeAttributeValue.call_args[0]
+        _called_fid, _called_idx, called_value = network.changeAttributeValue.call_args[0]
         self.assertAlmostEqual(called_value, expected_speed)
 
     @patch("cartogen_ai.core.agent.tools.impedance_tools.QGIS_AVAILABLE", True)

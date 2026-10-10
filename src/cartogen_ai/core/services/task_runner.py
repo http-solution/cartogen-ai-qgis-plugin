@@ -132,7 +132,7 @@ def _get_main_thread_invoker():
         return None
     try:
         from qgis.PyQt.QtCore import QObject, Qt, pyqtSignal
-        queued = getattr(getattr(Qt, "ConnectionType", Qt), "QueuedConnection")
+        queued = getattr(Qt, "ConnectionType", Qt).QueuedConnection
 
         class _Invoker(QObject):
             call = pyqtSignal(object)

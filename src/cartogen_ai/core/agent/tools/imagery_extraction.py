@@ -26,6 +26,7 @@ import re
 import tempfile
 from .registry import register_tool
 from ... import net as _net
+import contextlib
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -364,10 +365,8 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     except Exception as e:
         return {"error": describe_model_failure(e)}
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(png_path)
-        except OSError:
-            pass
 
     if inferred is None:
         return {"success": True, "feature_count": 0, "message": "No features detected."}
@@ -391,7 +390,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     def _trace_all():
         """Pure GDAL/OGR + numpy (no QGIS objects), so it can run off the GUI thread: [(confidence, pixel_size, [wkt, ...])]."""
         traced = []
-        for mask, conf in zip(masks, confidences):
+        for mask, conf in zip(masks, confidences, strict=False):
             conf = float(conf)
             if conf < confidence_threshold or _mask_pixel_count(mask) == 0:
                 continue

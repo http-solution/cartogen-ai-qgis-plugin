@@ -122,7 +122,7 @@ class TestNormalizeMinmax(unittest.TestCase):
         direct, _ = _normalize_minmax(values)
         mean, sd = st.mean(values), st.pstdev(values)
         via_z, _ = _normalize_minmax([(v - mean) / sd for v in values])
-        for a, b in zip(direct, via_z):
+        for a, b in zip(direct, via_z, strict=False):
             self.assertAlmostEqual(a, b, places=9)
 
 
@@ -179,7 +179,7 @@ class TestComputeSeverityIndex(unittest.TestCase):
         self.assertEqual(res["applied_weights"], {"food_insec": 0.75, "water_pct": 0.25})
 
     def test_units_missing_an_indicator_are_excluded_not_imputed(self):
-        rows = self._rows() + [{"unit": "D", "food_insec": 20, "water_pct": None}]
+        rows = [*self._rows(), {"unit": "D", "food_insec": 20, "water_pct": None}]
         res = _compute_severity_index(rows, ["food_insec", "water_pct"], invert_indicators=["water_pct"])
         self.assertNotIn("D", [r["unit"] for r in res["results"]])
         self.assertEqual(res["excluded_units_missing_data"][0]["unit"], "D")
@@ -238,13 +238,13 @@ class TestCapEntries(unittest.TestCase):
 
     def test_exactly_at_limit_is_not_truncated(self):
         entries = list(range(50))
-        capped, total, truncated = _cap_entries(entries, limit=50)
+        capped, _total, truncated = _cap_entries(entries, limit=50)
         self.assertEqual(capped, entries)
         self.assertFalse(truncated)
 
     def test_default_limit_matches_module_constant(self):
         entries = list(range(_MAX_RESULT_ENTRIES + 1))
-        capped, total, truncated = _cap_entries(entries)
+        capped, _total, truncated = _cap_entries(entries)
         self.assertEqual(len(capped), _MAX_RESULT_ENTRIES)
         self.assertTrue(truncated)
 
@@ -424,26 +424,26 @@ class TestBucketDatesByPeriod(unittest.TestCase):
 
     def test_spans_multiple_periods(self):
         dates = [datetime.date(2026, 1, 1), datetime.date(2026, 1, 15), datetime.date(2026, 2, 10), datetime.date(2026, 3, 5)]
-        first, last, num_periods, indices = _bucket_dates_by_period(dates, 30)
+        _first, _last, num_periods, indices = _bucket_dates_by_period(dates, 30)
         self.assertEqual(num_periods, 3)
         self.assertEqual(indices, [0, 0, 1, 2])
 
     def test_unsorted_input_still_finds_correct_first_last(self):
         dates = [datetime.date(2026, 3, 5), datetime.date(2026, 1, 1), datetime.date(2026, 2, 10)]
-        first, last, num_periods, indices = _bucket_dates_by_period(dates, 30)
+        first, last, _num_periods, _indices = _bucket_dates_by_period(dates, 30)
         self.assertEqual(first, datetime.date(2026, 1, 1))
         self.assertEqual(last, datetime.date(2026, 3, 5))
 
     def test_single_date(self):
         dates = [datetime.date(2026, 1, 1)]
-        first, last, num_periods, indices = _bucket_dates_by_period(dates, 30)
+        _first, _last, num_periods, indices = _bucket_dates_by_period(dates, 30)
         self.assertEqual(num_periods, 1)
         self.assertEqual(indices, [0])
 
     def test_boundary_falls_into_next_period(self):
         # exactly period_days apart -- the period_days'th day starts a new bucket
         dates = [datetime.date(2026, 1, 1), datetime.date(2026, 1, 31)]
-        first, last, num_periods, indices = _bucket_dates_by_period(dates, 30)
+        _first, _last, num_periods, indices = _bucket_dates_by_period(dates, 30)
         self.assertEqual(indices, [0, 1])
         self.assertEqual(num_periods, 2)
 

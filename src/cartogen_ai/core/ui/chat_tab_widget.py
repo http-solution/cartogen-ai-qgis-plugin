@@ -1405,7 +1405,7 @@ class ChatTabWidget(QWidget):
                 analysis.get("task"), text, local_data_loader.project_layer_facts(),
                 declined=self._local_data_declined)
         except Exception as e:  # never let the offer check break sending a message
-            log_warning("ChatTab", "local-data offer check failed: %s" % e)
+            log_warning("ChatTab", f"local-data offer check failed: {e}")
             return False
         if not themes:
             return False
@@ -1498,10 +1498,10 @@ class ChatTabWidget(QWidget):
         if region:
             size = region.get("size_bytes") or 0
             size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
-            lines.append("The OpenStreetMap extract for **%s** is **%s**." % (region["name"], size_text))
+            lines.append("The OpenStreetMap extract for **{}** is **{}**.".format(region["name"], size_text))
         lines.append(
-            "[\U0001F4E5 Download local data](cartogen://action/%s)  "
-            "[\U0001F310 Continue online](cartogen://action/%s)" % (download_id, online_id)
+            f"[\U0001F4E5 Download local data](cartogen://action/{download_id})  "
+            f"[\U0001F310 Continue online](cartogen://action/{online_id})"
         )
         self._awaiting_local_data_reply = True
         self.input_edit.setPlaceholderText("Reply download or online, or use the buttons above...")
@@ -1534,8 +1534,8 @@ class ChatTabWidget(QWidget):
         from ..services.task_runner import run_background_call
         dest = local_data_loader.data_dir()
         self._dock.receiveMessageSignal.emit(
-            "ai", "Downloading the OpenStreetMap extract for **%s** (%s) from Geofabrik. This "
-                  "runs in the background; press Stop to cancel." % (
+            "ai", "Downloading the OpenStreetMap extract for **{}** ({}) from Geofabrik. This "
+                  "runs in the background; press Stop to cancel.".format(
                       region["name"],
                       "%d MB" % round(region["size_bytes"] / 1e6) if region.get("size_bytes") else "size unknown"))
         self._set_local_data_busy(True)
@@ -1543,7 +1543,7 @@ class ChatTabWidget(QWidget):
         def work(is_cancelled):
             return local_data_loader.download_and_extract(region, dest, is_cancelled=is_cancelled)
         self._active_task = run_background_call(
-            "Cartogen AI: download %s" % region["name"], work, self._on_local_download_done)
+            "Cartogen AI: download {}".format(region["name"]), work, self._on_local_download_done)
 
     def _on_local_download_done(self, result, error):
         self._set_local_data_busy(False)
@@ -1552,7 +1552,7 @@ class ChatTabWidget(QWidget):
             return
         if error is not None:
             self._dock.receiveMessageSignal.emit(
-                "ai", "The download didn't finish (%s). Continuing with online data." % error)
+                "ai", f"The download didn't finish ({error}). Continuing with online data.")
             self._resume_local_data_request()
             return
         from ..agent import local_data_loader
@@ -1561,12 +1561,11 @@ class ChatTabWidget(QWidget):
         except Exception as e:
             loaded = {"layers": [], "errors": [str(e)]}
         lines = ["Added to the project from Geofabrik (OpenStreetMap, ODbL):"]
-        lines += ["- **%s**: %s features%s" % (lyr["name"], format(lyr["count"], ","),
-                                              " (%s)" % lyr["note"] if lyr.get("note") else "")
+        lines += ["- **{}**: {} features{}".format(lyr["name"], format(lyr["count"], ","),
+                                              " ({})".format(lyr["note"]) if lyr.get("note") else "")
                   for lyr in loaded["layers"]]
-        lines += ["- %s" % err for err in loaded["errors"]]
-        lines.append("Saved in `%s`, so it's reused next time. Continuing with your request."
-                     % os.path.dirname(result["zip_path"]))
+        lines += [f"- {err}" for err in loaded["errors"]]
+        lines.append("Saved in `{}`, so it's reused next time. Continuing with your request.".format(os.path.dirname(result["zip_path"])))
         self._dock.receiveMessageSignal.emit("ai", "\n".join(lines))
         self._resume_local_data_request()
 
@@ -1925,14 +1924,14 @@ class ChatTabWidget(QWidget):
         if instruction is None:
             # Already retried once. Say so plainly rather than trying again.
             self._dock.receiveMessageSignal.emit(
-                "ai", "_%s_" % output_router.delivery_note(contract, executed))
+                "ai", f"_{output_router.delivery_note(contract, executed)}_")
             self._pending_contract = None
             self._contract_followup_used = False
             return
 
         self._contract_followup_used = True
         self._dock.receiveMessageSignal.emit(
-            "ai", "_%s Asking for it now._" % output_router.delivery_note(contract, executed))
+            "ai", f"_{output_router.delivery_note(contract, executed)} Asking for it now._")
         # Re-enter dispatch with the contract preserved, so the follow-up turn
         # is checked the same way -- and _contract_followup_used stops it there.
         followup_analysis = {"contract": contract, "user_message": instruction, "directive": ""}

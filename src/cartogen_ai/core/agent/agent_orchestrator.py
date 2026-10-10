@@ -64,6 +64,7 @@ from ...infrastructure.settings_keys import (
     SETTINGS_EVIDENCE_ENABLED,
     provider_model_list_key,
 )
+import contextlib
 
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
@@ -748,8 +749,7 @@ class CartogenAi:
                 res["egress_warning"] = egress["warning"]
             if egress_override_applied and isinstance(res, dict):
                 res["egress_override_note"] = (
-                    "User confirmed sending protected data (%s) to a cloud provider for this call."
-                    % ", ".join(sorted(egress["layers"]))
+                    "User confirmed sending protected data ({}) to a cloud provider for this call.".format(", ".join(sorted(egress["layers"])))
                 )
             if name == "create_plan" and isinstance(res, dict) and res.get("success"):
                 self._plan_gate.mark_plan_created()
@@ -909,7 +909,7 @@ class CartogenAi:
                 return step_runner.final_result(total, summaries, stopped="Stopped by the user.")
             resolved, problem = step_runner.resolve_arguments(step.get("arguments", {}), results)
             if problem:
-                return step_runner.final_result(total, summaries + [step_runner.step_summary(index, tool, {"error": problem}, False, 300)],
+                return step_runner.final_result(total, [*summaries, step_runner.step_summary(index, tool, {"error": problem}, False, 300)],
                                                 stopped=f"Step {index} ({tool}): {problem}")
             log_event("tool_call", tag="Agent", tool=tool, status="running", correlation_id=correlation_id, provider=provider_name)
             if tool_step_callback is not None:
@@ -1160,10 +1160,8 @@ class CartogenAi:
             finally:
                 if is_temp:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1193,10 +1191,8 @@ class CartogenAi:
                 local_path = fetch_result.get("local_path")
                 if local_path:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1214,10 +1210,8 @@ class CartogenAi:
                 local_path = fetch_result.get("local_path")
                 if local_path:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1235,10 +1229,8 @@ class CartogenAi:
                 local_path = fetch_result.get("local_path")
                 if local_path:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1354,10 +1346,8 @@ class CartogenAi:
                 local_path = fetch_result.get("local_path")
                 if local_path:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1909,7 +1899,7 @@ class CartogenAi:
                     for wanted in (tool_result.get("tool_names") or [])[:8]:
                         schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
                         if schema is not None and wanted not in offered:
-                            active_tools = list(active_tools) + [schema]
+                            active_tools = [*list(active_tools), schema]
                             offered.add(wanted)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
@@ -1978,8 +1968,8 @@ class CartogenAi:
         # instead of the more efficient path rule 14 in the system prompt asks for.
         if token_budget_hit:
             final_text = guard.partial_report({"reason": "token_budget", "detail": (
-                "this request reached its token budget (%s tokens, setting cartogen_ai/max_turn_tokens; the next call would "
-                "have passed it)" % f"{max_turn_tokens:,}")}).replace(
+                "this request reached its token budget ({} tokens, setting cartogen_ai/max_turn_tokens; the next call would "
+                "have passed it)".format(f"{max_turn_tokens:,}"))}).replace(
                 "before spending more of your API credit.", "before sending another request.")
             final_text += " To allow more, raise the budget in Settings."
             self._append_history(user_message, {"role": "assistant", "content": final_text})

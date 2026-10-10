@@ -71,7 +71,7 @@ def effective_source_names(entry, layers):
     return names
 
 
-def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None, source_ids: list = None) -> bool:
+def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list | None = None, source_ids: list | None = None) -> bool:
     """Attaches tool execution lineage metadata to a layer's custom properties."""
     if not QGIS_AVAILABLE or layer is None:
         return False

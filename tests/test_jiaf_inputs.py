@@ -16,11 +16,11 @@ SEV_HDR = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population
 
 
 def _pin_grid(rows):
-    return [["Location", None, None, None, "Populaton", None, "Sectoral PiN (Number)"], PIN_HDR] + rows
+    return [["Location", None, None, None, "Populaton", None, "Sectoral PiN (Number)"], PIN_HDR, *rows]
 
 
 def _sev_grid(rows):
-    return [["Location"], ["Location"], SEV_HDR] + rows
+    return [["Location"], ["Location"], SEV_HDR, *rows]
 
 
 class TestValues(unittest.TestCase):
@@ -103,7 +103,7 @@ class TestSectorTemplate(unittest.TestCase):
 
     def test_reads_the_annex_4_layout_and_merges_sectors(self):
         a, _ = ji.parse_sector_template([self.HDR, ["Al-Anbar", "IQG01", "Al-Falluja", "IQG01Q01", "540,532", 1000]], "wash", "pin")
-        sev_hdr = self.HDR[:5] + ["Cluster's Severity (Number)"]
+        sev_hdr = [*self.HDR[:5], "Cluster's Severity (Number)"]
         b, _ = ji.parse_sector_template([sev_hdr, ["Al-Anbar", "IQG01", "Al-Falluja", "IQG01Q01", "540,532", 4]], "wash", "severity")
         merged = ji.merge_units([a, b])
         self.assertEqual(len(merged), 1)
@@ -149,7 +149,7 @@ class TestSetup(unittest.TestCase):
     OK = {"country": "Yemen", "planning_cycle": "HPC 2026", "unit_of_analysis": "admin 2", "manual_edition": "July 2024"}
 
     def test_valid_and_required_fields(self):
-        clean, al, errors = ji.validate_setup(dict(self.OK), [{"sector": "WASH", "pin_aligned": True, "severity_alignment": "aligned"}])
+        _clean, al, errors = ji.validate_setup(dict(self.OK), [{"sector": "WASH", "pin_aligned": True, "severity_alignment": "aligned"}])
         self.assertEqual(errors, [])
         self.assertEqual(al[0]["sector"], "wash")
         _c, _a, errors = ji.validate_setup({"country": "Yemen"}, [])

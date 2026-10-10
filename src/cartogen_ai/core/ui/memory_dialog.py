@@ -196,7 +196,7 @@ class CartogenAiMemoryDialog(QDialog):
             return
         learned = {
             k: v for k, v in notes.items()
-            if k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:")
+            if k.startswith(("pref:", "rule:", "usage:"))
         }
         self.learned_items_combo.blockSignals(True)
         self.learned_items_combo.clear()

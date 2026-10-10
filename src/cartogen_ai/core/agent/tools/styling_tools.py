@@ -10,6 +10,7 @@ from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+import itertools
 
 try:
     from qgis.core import (
@@ -628,9 +629,9 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             sorted_breaks, breaks_error = _validate_manual_breaks(breaks, min(values), max(values))
             if breaks_error:
                 return {"error": breaks_error}
-            bounds = [min(values)] + sorted_breaks + [max(values)]
+            bounds = [min(values), *sorted_breaks, max(values)]
             ranges = []
-            for lower, upper in zip(bounds[:-1], bounds[1:]):
+            for lower, upper in itertools.pairwise(bounds):
                 label = f"{lower:,.2f} - {upper:,.2f}"
                 symbol = QgsSymbol.defaultSymbol(layer.geometryType())
                 ranges.append(QgsRendererRange(lower, upper, symbol, label))

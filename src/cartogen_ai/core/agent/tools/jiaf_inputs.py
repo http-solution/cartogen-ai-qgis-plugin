@@ -327,7 +327,7 @@ def worksheet_thresholds(wb_tables):
         if "sector" in head:
             labels = [_text(r[head.index("sector")]) for r in sub["grid"][1:] if len(r) > head.index("sector")]
             sectors = [SECTOR_LABELS.get(_norm(x)) for x in labels if x]
-            unknown = [x for x, sec in zip([x for x in labels if x], sectors) if sec is None]
+            unknown = [x for x, sec in zip([x for x in labels if x], sectors, strict=False) if sec is None]
             if unknown:
                 notes.append(f"Sub-population sectors not recognised as JIAF sectors and ignored: {unknown}.")
             out["f4_subpopulation_sectors"] = tuple(dict.fromkeys(sec for sec in sectors if sec))

@@ -191,7 +191,7 @@ def _format_scale_denominator(n):
     try:
         if n is None or n != n or n in (float("inf"), float("-inf")) or n <= 0:
             return "unavailable"
-        return f"1:{int(round(n)):,}"
+        return f"1:{round(n):,}"
     except (TypeError, ValueError, OverflowError):
         return "unavailable"
 
@@ -389,7 +389,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         INFO_ROW_GAP = 2
 
         portrait = page_orientation.lower() == "portrait"
-        page_width, page_height = (210, 297) if portrait else (297, 210)
+        _page_width, page_height = (210, 297) if portrait else (297, 210)
         if portrait:
             map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
             col_x, col_w = 15, 180

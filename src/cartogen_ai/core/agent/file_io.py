@@ -123,8 +123,8 @@ def describe_attachment(path, task_text=""):
     effect = READER_EFFECT.get(kind, "read")
     name = os.path.basename(path)
     if tool:
-        return "%s (%s) -> %s via %s" % (name, kind, effect, tool)
-    return "%s (%s) -> %s" % (name, kind, effect)
+        return f"{name} ({kind}) -> {effect} via {tool}"
+    return f"{name} ({kind}) -> {effect}"
 
 
 # ------------------------------------------------------------ artifacts ----
@@ -178,6 +178,6 @@ def artifact_sentence(kind, tools=()):
         return "a written answer in the chat (no file written)"
     listed = ", ".join(e.lstrip(".").upper() for e in exts)
     if len(exts) != 1:
-        return "%s files" % listed
+        return f"{listed} files"
     article = "an" if listed[0] in "AEFHILMNORSX" else "a"
-    return "%s %s file" % (article, listed)
+    return f"{article} {listed} file"

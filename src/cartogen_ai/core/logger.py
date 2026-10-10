@@ -38,10 +38,7 @@ _SECRET_PATTERNS = [
 def _redact(message: str) -> str:
     text = str(message)
     for pattern in _SECRET_PATTERNS:
-        if pattern.groups:
-            text = pattern.sub(lambda m: m.group(1) + _REDACTED, text)
-        else:
-            text = pattern.sub(_REDACTED, text)
+        text = pattern.sub(lambda m: m.group(1) + _REDACTED, text) if pattern.groups else pattern.sub(_REDACTED, text)
     return text
 
 

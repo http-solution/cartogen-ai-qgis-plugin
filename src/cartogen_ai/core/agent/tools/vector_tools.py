@@ -28,6 +28,7 @@ except ImportError:
 
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+import contextlib
 
 
 def _find_layer_by_name(name):
@@ -156,11 +157,10 @@ def get_layer_extent(layer_name):
         wgs = _Xf(crs, _Crs("EPSG:4326"), QgsProject.instance()).transformBoundingBox(rect)
     except Exception as e:
         return {"error": f"Could not transform the extent of {label} to WGS84: {e}"}
-    result = {"success": True, "source": label, "source_crs": crs.authid(),
+    return {"success": True, "source": label, "source_crs": crs.authid(),
               "native_extent": {"xmin": rect.xMinimum(), "ymin": rect.yMinimum(), "xmax": rect.xMaximum(), "ymax": rect.yMaximum()},
               "wgs84": bbox_orders(wgs.xMinimum(), wgs.yMinimum(), wgs.xMaximum(), wgs.yMaximum()),
               "note": "Use the bbox that matches the tool's order. Degrees; the box is the transformed rectangle, slightly larger than a rotated area needs."}
-    return result
 
 
 def _model_view_entry(entry, layer):
@@ -508,7 +508,7 @@ def _prefetch_url_to_temp(file_path):
     read() in one shot -- file_path is LLM-controlled, so neither the final
     destination nor the response size can be trusted just because the
     initial URL passed _is_safe_url."""
-    if not (file_path.startswith("http://") or file_path.startswith("https://")):
+    if not (file_path.startswith(("http://", "https://"))):
         return file_path, False
 
     unsafe_reason = _is_safe_url(file_path)
@@ -542,10 +542,8 @@ def _prefetch_url_to_temp(file_path):
                         )
                     f.write(chunk)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp_path)
-        except OSError:
-            pass
         raise
     return tmp_path, True
 
@@ -630,14 +628,14 @@ def _describe_unreadable_download(path):
     if text.startswith(b"pk\x03\x04"):
         return ("The download is a zip archive, not a single geodata file. Load a direct link "
                 "to the file inside it, or a URL that serves the file itself.")
-    if text.startswith(b"<!doctype html") or text.startswith(b"<html") or b"<html" in text[:512]:
+    if text.startswith((b"<!doctype html", b"<html")) or b"<html" in text[:512]:
         return ("The URL returned an HTML web page, not geodata. For GitHub, use the "
                 "raw.githubusercontent.com link (the 'Raw' button), not the /blob/ page URL. "
                 "For other sites, use the direct download link.")
-    if text.startswith(b"<?xml") or text.startswith(b"<"):
+    if text.startswith((b"<?xml", b"<")):
         return ("The URL returned XML that GDAL could not read as a layer. It may be a "
                 "server error/exception report rather than data.")
-    if text.startswith(b"{") or text.startswith(b"["):
+    if text.startswith((b"{", b"[")):
         if size > 5 * 1024 * 1024:
             return None
         try:
@@ -714,10 +712,8 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         return result
     finally:
         if is_temp:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # Ordered by confidence -- checked in this order, first exact (case-insensitive)
@@ -784,7 +780,7 @@ def _validate_wgs84_coordinates(x_values, y_values):
     other CRS since valid ranges vary."""
     if not x_values or not y_values:
         return None
-    pairs = list(zip(x_values, y_values))
+    pairs = list(zip(x_values, y_values, strict=False))
     bad = [(x, y) for x, y in pairs if not (-180 <= x <= 180 and -90 <= y <= 90)]
     if len(bad) > len(pairs) / 2:
         return (

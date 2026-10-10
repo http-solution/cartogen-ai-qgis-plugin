@@ -65,6 +65,6 @@ def nudge_for(query, turn_calls):
     pending = pending_hints(turn_calls)
     if not pending:
         return None
-    calls = "; ".join("apply_humanitarian_look(layer_name=%r, look=%r, field=%r)" % (h["layer_name"], h["look"], h["field"]) for h in pending[:3])
+    calls = "; ".join("apply_humanitarian_look(layer_name={!r}, look={!r}, field={!r})".format(h["layer_name"], h["look"], h["field"]) for h in pending[:3])
     return ("The request asked to see the result on the map, and the result is still in default colours. Call " + calls +
             " now with exactly these arguments, then say what the map shows. Do not describe colours or classes that were not applied.")

@@ -25,7 +25,7 @@ class TestRegisterIntegrity(unittest.TestCase):
         known = set(TOOL_REGISTRY)
         for e in self.data:
             for t in e["tools"]:
-                self.assertIn(t, known, "%s references unknown tool %s" % (e["id"], t))
+                self.assertIn(t, known, "{} references unknown tool {}".format(e["id"], t))
 
     def test_layer_and_layout_tasks_can_acquire_data(self):
         acquire = ("fetch_", "search_", "add_layer_from_path", "load_", "geocode_",
@@ -35,7 +35,7 @@ class TestRegisterIntegrity(unittest.TestCase):
             if e["out"] in ("layer", "layout"):
                 self.assertTrue(
                     any(t.startswith(acquire) or t in acquire for t in e["tools"]),
-                    "%s (%s) has no way to get data" % (e["id"], e["text"]))
+                    "{} ({}) has no way to get data".format(e["id"], e["text"]))
 
     def test_only_guidance_tasks_may_have_no_tools(self):
         for e in self.data:
@@ -234,7 +234,7 @@ class TestDirective(unittest.TestCase):
     def test_directive_stays_within_the_prompt_budget(self):
         for e in reg.load():
             d = tm.task_directive(e, {"aoi": "current canvas extent"})
-            self.assertLess(len(d), 500, "%s directive too long" % e["id"])
+            self.assertLess(len(d), 500, "{} directive too long".format(e["id"]))
 
     def test_directive_names_the_task_and_the_deliverable(self):
         e = reg.by_id("14.01")
@@ -284,7 +284,7 @@ class TestSlotsAreAnswerable(unittest.TestCase):
         for tid in ("3.01", "3.18", "7.14", "7.20", "25b.05"):
             e = reg.by_id(tid)
             self.assertIsNotNone(e, tid)
-            self.assertNotIn("facility_type", e["slots"], "%s: %s" % (tid, e["text"]))
+            self.assertNotIn("facility_type", e["slots"], "{}: {}".format(tid, e["text"]))
 
     def test_a_real_distribution_point_task_still_asks(self):
         e = reg.by_id("24.05")
@@ -318,7 +318,7 @@ class TestEveryContractIsCoherent(unittest.TestCase):
             if e["out"] in ("layer", "guidance"):
                 continue
             c = tm.output_contract(e)
-            self.assertTrue(c["render"], "%s (%s) has no renderer" % (e["id"], e["out"]))
+            self.assertTrue(c["render"], "{} ({}) has no renderer".format(e["id"], e["out"]))
 
     def test_the_writer_for_a_produced_file_is_in_the_render_chain(self):
         from cartogen_ai.core.agent import file_io
@@ -331,12 +331,12 @@ class TestEveryContractIsCoherent(unittest.TestCase):
     def test_a_guidance_task_never_promises_a_file(self):
         for e in self.data:
             if e["out"] == "guidance":
-                self.assertEqual(e["prod"], [], "%s: %s" % (e["id"], e["text"]))
+                self.assertEqual(e["prod"], [], "{}: {}".format(e["id"], e["text"]))
 
     def test_every_non_guidance_task_can_take_some_file(self):
         for e in self.data:
             if e["out"] != "guidance":
-                self.assertTrue(e["acc"], "%s takes no file at all" % e["id"])
+                self.assertTrue(e["acc"], "{} takes no file at all".format(e["id"]))
 
     def test_no_directive_is_too_long_to_ride_alongside_the_system_prompt(self):
         for e in self.data:
@@ -349,7 +349,7 @@ class TestEveryContractIsCoherent(unittest.TestCase):
         unreachable by anything."""
         missed = [e["id"] for e in self.data
                   if e["id"] not in [m[0]["id"] for m in tm.match(e["text"])]]
-        self.assertEqual(missed, [], "unreachable tasks: %s" % missed[:10])
+        self.assertEqual(missed, [], f"unreachable tasks: {missed[:10]}")
 
 
 class TestFacilityAccessToolHint(unittest.TestCase):

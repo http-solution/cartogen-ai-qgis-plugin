@@ -26,7 +26,7 @@ class TestLogRedaction(unittest.TestCase):
 
     def test_log_info_redacts_openrouter_style_key(self):
         fake_key = "sk-or-" + "v1-abcdefghijklmnopqrstuvwxyz"   # made-up; built at run time so scanners do not flag the file
-        out = self._captured(logger.log_info, 'Tool call: save_key({"api_key": "%s"})' % fake_key)
+        out = self._captured(logger.log_info, f'Tool call: save_key({{"api_key": "{fake_key}"}})')
         self.assertNotIn(fake_key, out)
         self.assertIn("***REDACTED***", out)
 
@@ -144,7 +144,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_enabled_immediately_after_enable_call(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 
         with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
@@ -155,7 +155,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_expires_on_its_own_without_manual_disable(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 
         with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
@@ -168,7 +168,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_disable_ends_it_immediately(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.remove.side_effect = lambda k: store.pop(k, None)
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 

@@ -279,7 +279,7 @@ def analyze_critical_links(road_network_layer, origins_layer, destinations_layer
         return {"error": f"No destination is within {max_snap_m:g} m of the road network, so there is nothing to route to."}
 
     load_by_edge, origins_done, reached_total, unreached_total, stopped = {}, 0, 0.0, 0.0, False
-    for (feat, o_weight), t in zip(usable, tied):
+    for (feat, o_weight), t in zip(usable, tied, strict=False):
         if time.monotonic() - started > time_budget_s:
             stopped = True
             break

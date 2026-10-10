@@ -137,7 +137,7 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     """Apply the recorded decisions to an `analyze` result. Returns (rows, summary). Pure."""
     expected = analysis["expected_sectors"]
     by_unit = {_row_key(u): u for u in units}
-    bulk = set(int(x) for x in bulk_accepted_flags or ())
+    bulk = {int(x) for x in bulk_accepted_flags or ()}
     issues, rows = [], []
     final_total = provisional_total = published_total = 0.0
     published_differs = published_undocumented = 0
@@ -452,7 +452,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
                 rank = r["final_pin_rank"]
                 vals = [r["final_pin"], r["final_severity"], (rank if isinstance(rank, int) else (4 if rank == "other" else None)),
                         PIN_STATUS_CODE.get(r["final_pin_status"]), SEV_STATUS_CODE.get(r["final_severity_status"])]
-                for i, v in zip(idx, vals):
+                for i, v in zip(idx, vals, strict=False):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names

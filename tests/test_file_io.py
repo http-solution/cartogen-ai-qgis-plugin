@@ -49,7 +49,7 @@ class TestClassify(unittest.TestCase):
             for e in exts:
                 seen.setdefault(e, []).append(kind)
         overlapping = {e: k for e, k in seen.items() if len(k) > 1}
-        self.assertEqual(overlapping, {}, "unexpected overlap: %s" % overlapping)
+        self.assertEqual(overlapping, {}, f"unexpected overlap: {overlapping}")
 
 
 class TestReadersAreReal(unittest.TestCase):
@@ -58,19 +58,19 @@ class TestReadersAreReal(unittest.TestCase):
         for kind, tool in file_io.READERS.items():
             if tool is None:
                 continue
-            self.assertIn(tool, TOOL_REGISTRY, "%s reader %s is not registered" % (kind, tool))
+            self.assertIn(tool, TOOL_REGISTRY, f"{kind} reader {tool} is not registered")
 
     def test_every_specialised_reader_is_a_registered_tool(self):
         from cartogen_ai.core.agent.tools import TOOL_REGISTRY
         for key, tool in file_io.SPECIALISED_READERS.items():
-            self.assertIn(tool, TOOL_REGISTRY, "%s -> %s is not registered" % (key, tool))
+            self.assertIn(tool, TOOL_REGISTRY, f"{key} -> {tool} is not registered")
 
     def test_every_writer_is_a_registered_tool(self):
         from cartogen_ai.core.agent.tools import TOOL_REGISTRY
         for kind, (_exts, writer) in file_io.ARTIFACTS.items():
             if writer is None:
                 continue
-            self.assertIn(writer, TOOL_REGISTRY, "%s writer %s is not registered" % (kind, writer))
+            self.assertIn(writer, TOOL_REGISTRY, f"{kind} writer {writer} is not registered")
 
     def test_every_chart_tool_is_a_registered_tool(self):
         from cartogen_ai.core.agent.tools import TOOL_REGISTRY
@@ -160,12 +160,12 @@ class TestRegisterFileFieldsAreDerivedAndCurrent(unittest.TestCase):
     def test_every_accepted_kind_is_a_real_media_kind(self):
         for e in self.data:
             for k in e["acc"]:
-                self.assertIn(k, file_io.MEDIA, "%s accepts unknown kind %s" % (e["id"], k))
+                self.assertIn(k, file_io.MEDIA, "{} accepts unknown kind {}".format(e["id"], k))
 
     def test_every_accepted_kind_has_a_way_to_be_read(self):
         for e in self.data:
             for k in e["acc"]:
-                self.assertIn(k, file_io.READERS, "%s: nothing reads %s" % (e["id"], k))
+                self.assertIn(k, file_io.READERS, "{}: nothing reads {}".format(e["id"], k))
 
     def test_produced_extensions_match_the_contract(self):
         for e in self.data:
@@ -180,7 +180,7 @@ class TestRegisterFileFieldsAreDerivedAndCurrent(unittest.TestCase):
     def test_pdf_docx_and_txt_are_offered_together_or_not_at_all(self):
         for e in self.data:
             doc = {k for k in ("pdf", "docx", "txt") if k in e["acc"]}
-            self.assertIn(len(doc), (0, 3), "%s offers only %s" % (e["id"], sorted(doc)))
+            self.assertIn(len(doc), (0, 3), "{} offers only {}".format(e["id"], sorted(doc)))
 
     def test_the_committed_register_matches_a_fresh_derivation(self):
         """tools/derive_task_io.py is the only source of acc/prod. If someone

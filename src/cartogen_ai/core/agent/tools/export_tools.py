@@ -13,6 +13,7 @@ from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
+import contextlib
 
 try:
     from qgis.core import (
@@ -324,7 +325,7 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
         "kml": ("KML", ".kml", "KML (*.kml)"),
     }
     fmt_key = format.lower()
-    driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
+    driver, ext, _filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
 
     # No blocking QFileDialog here -- this tool is called by the LLM agent's unattended
     # tool-calling loop (agent/agent_orchestrator.py), not only from direct human UI interaction. A
@@ -917,7 +918,7 @@ def _resolve_popup_kwargs(folium_module, name, features, popup_fields, popup_lab
         popup_fields = [f for f in popup_fields if not str(f).startswith("__cartogen_")]
     if not popup_fields and features:
         popup_fields = [
-            k for k in features[0].get("properties", {}).keys()
+            k for k in features[0].get("properties", {})
             if not str(k).startswith("__cartogen_")
         ]
     if popup_fields and len(popup_fields) > _MAX_DASHBOARD_POPUP_FIELDS:
@@ -989,7 +990,7 @@ CLUSTER_MIN_POINTS = 100
 # folium 0.20 loads Leaflet.markercluster 1.1.0 from cdnjs; the F12 browser check used 1.5.3 (the current cdnjs
 # release, which needs Leaflet >= 1.0). Point the plugin at the tested version instead of an untested one.
 MARKERCLUSTER_VERSION = "1.5.3"
-_MARKERCLUSTER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/%s/" % MARKERCLUSTER_VERSION
+_MARKERCLUSTER_CDN = f"https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/{MARKERCLUSTER_VERSION}/"
 
 
 def _pinned_marker_cluster():
@@ -1337,7 +1338,7 @@ def _build_trend_chart_data(layer_chart_inputs):
         if not category_field:
             continue
         any_category_field = True
-        for feat, location_value, start_ms in zip(features, location_values, start_ms_list):
+        for feat, location_value, start_ms in zip(features, location_values, start_ms_list, strict=False):
             if start_ms is None:
                 continue
             category = feat.get("properties", {}).get(category_field)
@@ -1553,7 +1554,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
         location_values = _resolve_feature_locations(features, location_field)
 
         new_features = []
-        for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values):
+        for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values, strict=False):
             props = dict(feat.get("properties", {}))
             props["__cartogen_start_ms"] = start_ms
             props["__cartogen_end_ms"] = end_ms
@@ -2169,10 +2170,8 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
         return {"error": f"generate_html_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _temp_html_path():
@@ -2359,10 +2358,8 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
         return {"error": f"generate_temporal_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _compute_animation_frame_epochs(min_ms, max_ms, step_days):

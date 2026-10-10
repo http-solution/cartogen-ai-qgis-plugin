@@ -838,7 +838,7 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names):
+        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
             candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
@@ -989,7 +989,7 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names):
+        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
             candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
@@ -2148,7 +2148,7 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
     ellipsoid = _network_context().ellipsoid()
     matrix, unreachable = {}, 0
     origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
-    for origin_feat, origin_id in zip(origin_features, origin_ids):
+    for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
         try:
             origin_xy = _point_xy_in_network_crs(origin_feat.geometry().asPoint(), origins.crs(), network)
             dest_xys = [_point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network) for f in dest_feats]
@@ -2157,7 +2157,7 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
         except Exception as e:
             return {"error": f"travel_time_matrix could not build the shortest-path tree for origin '{origin_id}': {e}"}
         row = {}
-        for feat, cost in zip(dest_feats, costs):
+        for feat, cost in zip(dest_feats, costs, strict=False):
             row[str(feat.id())] = cost
             if cost is None:
                 unreachable += 1
@@ -2276,7 +2276,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         # The end point is printed with limited precision: match to the nearest destination within a tiny distance.
         key_tolerance = 1e-4 if network.crs().isGeographic() else 0.1
         unmatched_keys = 0
-        for origin_feat, origin_id in zip(origin_features, origin_ids):
+        for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
             point = origin_feat.geometry().asPoint()
             params = {
                 "INPUT": network,
@@ -2346,7 +2346,7 @@ DEFAULT_REACH_GEOMETRY = "concave_hull"
 # through QgsGeometry.concaveHull(targetPercent, allowHoles) (QGIS >= 3.28, needs GEOS >= 3.11).
 CONCAVE_HULL_RATIO = 0.85
 REACH_LABELS = {
-    "concave_hull": "Concave hull of the reached roads (ratio %s) -- headline" % CONCAVE_HULL_RATIO,
+    "concave_hull": f"Concave hull of the reached roads (ratio {CONCAVE_HULL_RATIO}) -- headline",
     "road_buffer": "Reached roads buffered -- tight lower figure",
     "convex_hull": "Convex hull of the reached roads -- upper bound",
 }
@@ -2460,7 +2460,7 @@ def _exact_spatial_index():
     a straight road 1 m away gave 100 m) and facilities near a threshold were classified wrongly. QGIS documents this limit of an
     index without stored geometries."""
     flag_type = getattr(QgsSpatialIndex, "Flag", QgsSpatialIndex)
-    flag = getattr(flag_type, "FlagStoreFeatureGeometries")
+    flag = flag_type.FlagStoreFeatureGeometries
     try:
         return QgsSpatialIndex(flags=flag)
     except TypeError:
@@ -2586,14 +2586,13 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
 
         out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
         provider = out.dataProvider()
-        provider.addAttributes(list(facilities.fields()) + [
-            QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
+        provider.addAttributes([*list(facilities.fields()), QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
         out.updateFields()
         rows = []
-        for f, cls, d in zip(feats, classes, distances):
+        for f, cls, d in zip(feats, classes, distances, strict=False):
             nf = QgsFeature(out.fields())
             nf.setGeometry(f.geometry())
-            nf.setAttributes(list(f.attributes()) + [cls, None if d is None else round(d, 1)])
+            nf.setAttributes([*list(f.attributes()), cls, None if d is None else round(d, 1)])
             rows.append(nf)
         provider.addFeatures(rows)
         out.updateExtents()
@@ -2621,7 +2620,7 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         name_field = next((fld.name() for fld in facilities.fields() if fld.name().lower() in ("name", "name_en")), None)
         beyond_names = []
         if name_field:
-            beyond_names = [str(f[name_field]) for f, c in zip(feats, classes) if c == "beyond" and f[name_field]][:25]
+            beyond_names = [str(f[name_field]) for f, c in zip(feats, classes, strict=False) if c == "beyond" and f[name_field]][:25]
         summary = _access_summary(classes)
         result = {
             "success": True,

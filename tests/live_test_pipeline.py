@@ -177,7 +177,7 @@ def run_live_test():
     print(f"   -> Raw count query top candidate: {top_count.id} ({top_count.label})")
     assert top_count.id == "polygon_proportional_centroid", "Raw count must prefer proportional centroid!"
     # Verify choropleth candidate has warning
-    choropleth_cand = [c for c in cand_count if c.id == "polygon_choropleth_rate"][0]
+    choropleth_cand = next(c for c in cand_count if c.id == "polygon_choropleth_rate")
     assert len(choropleth_cand.warnings) > 0, "Choropleth with raw count must carry a cartographic warning!"
     print(f"      * Choropleth warning verified: {choropleth_cand.warnings[0]}")
 

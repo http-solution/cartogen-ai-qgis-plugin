@@ -79,6 +79,5 @@ def enum_member(name, *owners):
             if found is not None:
                 return found
     raise AttributeError(
-        "enum member %r not found on any of: %s"
-        % (name, ", ".join(getattr(o, "__name__", repr(o)) for o in owners if o is not None))
+        "enum member {!r} not found on any of: {}".format(name, ", ".join(getattr(o, "__name__", repr(o)) for o in owners if o is not None))
     )

@@ -110,7 +110,7 @@ def style_lines_by_cost(layer, field, edges, unit):
     colors = band_colors(len(edges))
     labels = band_labels(edges, unit)
     ranges = []
-    for (lo, hi), color, label in zip(edges, colors, labels):
+    for (lo, hi), color, label in zip(edges, colors, labels, strict=False):
         symbol = QgsLineSymbol.createSimple({
             "color": color, "width": "0.8", "capstyle": "round", "joinstyle": "round"})
         ranges.append(QgsRendererRange(lo, hi, symbol, label))

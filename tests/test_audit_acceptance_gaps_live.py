@@ -204,7 +204,7 @@ class TestReconcileOtherEdits(_Base):
 
     def _assert_reconciled_or_explicit(self, outcome, reconciled):
         _new, updated, problems = outcome
-        self.assertTrue(updated == ["mem"] and reconciled() or bool(problems), f"silently ignored: updated={updated} problems={problems}")
+        self.assertTrue((updated == ["mem"] and reconciled()) or bool(problems), f"silently ignored: updated={updated} problems={problems}")
         self.assertEqual(self.live.featureCount() > 0, True, "the live layer must not be emptied")
         self.assertTrue(self.live.isValid())
 

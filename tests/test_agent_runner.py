@@ -174,7 +174,7 @@ class TestToolStepCallback(unittest.TestCase):
         self.assertEqual(steps, [("get_layers", "running", None), ("get_layers", "done", None)])
 
     def test_fires_running_then_failed_on_tool_error(self):
-        final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
+        _final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
         self.assertEqual(steps, [
             ("get_layers", "running", None),
             ("get_layers", "failed", "Layer 'X' not found"),
@@ -249,7 +249,7 @@ class TestPacingAndCompaction(unittest.TestCase):
         return client, mock_sleep
 
     def test_no_pacing_delay_below_threshold_paces_above_it(self):
-        client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
+        _client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
         # PACING_THRESHOLD_ITERATIONS=3 -> iterations 0,1,2 get no delay; every iteration from 3
         # up to MAX_ITERATIONS-1 does -- a small/typical turn never reaches this at all.
         expected_pacing_calls = agent_mod.MAX_ITERATIONS - agent_mod.PACING_THRESHOLD_ITERATIONS

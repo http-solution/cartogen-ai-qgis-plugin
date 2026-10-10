@@ -25,6 +25,7 @@ import collections
 import io
 import urllib.error
 import urllib.request
+import contextlib
 
 try:
     from qgis.core import QgsBlockingNetworkRequest, QgsNetworkAccessManager  # noqa: F401
@@ -115,11 +116,9 @@ def _qgis_send(method, url, header_items, data, timeout):
         qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
     if timeout and hasattr(qreq, "setTransferTimeout"):
         qreq.setTransferTimeout(int(timeout * 1000))
-    try:
+    with contextlib.suppress(AttributeError, TypeError):
         qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
                           _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
-    except (AttributeError, TypeError):
-        pass
     if method == "POST" and not has_content_type:
         # urllib sends this for a POST body with no type; without it Qt logs a warning and guesses.
         qreq.setRawHeader(QByteArray(b"Content-Type"), QByteArray(b"application/x-www-form-urlencoded"))

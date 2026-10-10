@@ -271,7 +271,7 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
             MagicMock(name=lambda: n) for n in
             ("name", "description", "category", "event_type", "sub_event_type", "hazard_type", "contamination_status")
         ]
-        for f, n in zip(layer.fields.return_value, ("name", "description", "category", "event_type", "sub_event_type", "hazard_type", "contamination_status")):
+        for f, n in zip(layer.fields.return_value, ("name", "description", "category", "event_type", "sub_event_type", "hazard_type", "contamination_status"), strict=False):
             f.name.return_value = n
         layer.addFeature.return_value = True
         mock_project.instance.return_value.mapLayersByName.return_value = [layer]
@@ -300,7 +300,7 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
         )
         layer = MagicMock()
         layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
-        for f, n in zip(layer.fields.return_value, field_names):
+        for f, n in zip(layer.fields.return_value, field_names, strict=False):
             f.name.return_value = n
         layer.addFeature.return_value = True
         mock_project.instance.return_value.mapLayersByName.return_value = [layer]
@@ -364,7 +364,7 @@ class TestStylingFailureDoesNotBlockNewLayerCreation(unittest.TestCase):
         new_layer.isValid.return_value = True
         new_layer.addFeature.return_value = True
         new_layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
-        for f, n in zip(new_layer.fields.return_value, field_names):
+        for f, n in zip(new_layer.fields.return_value, field_names, strict=False):
             f.name.return_value = n
         mock_vector_layer_cls.return_value = new_layer
         mock_project.instance.return_value.mapLayersByName.return_value = []  # no existing layer

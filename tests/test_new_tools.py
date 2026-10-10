@@ -1008,7 +1008,7 @@ class TestNewTools(unittest.TestCase):
         _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
         bbox = [12.77, 45.00, 12.80, 45.04]
         south, west, north, east = bbox
-        qk = list(_quadkeys_for_bbox(south, west, north, east))[0]
+        qk = next(iter(_quadkeys_for_bbox(south, west, north, east)))
 
         links_csv = (
             "Location,QuadKey,Url,Size,UploadDate\n"

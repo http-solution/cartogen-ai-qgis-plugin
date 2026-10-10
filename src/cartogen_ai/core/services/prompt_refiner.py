@@ -242,8 +242,8 @@ def compose_optimum_prompt(user_message, directive):
     """
     if not directive:
         return user_message
-    return ("Message sent as you:\n%s\n\n"
-            "Added to the system prompt:\n%s" % (user_message, directive))
+    return (f"Message sent as you:\n{user_message}\n\n"
+            f"Added to the system prompt:\n{directive}")
 
 
 def analyze_request(query, context=None, attachments=None):
@@ -279,7 +279,7 @@ def analyze_request(query, context=None, attachments=None):
         from ..agent import task_matcher as tmatch
         from ..agent import task_register as reg_module
     except Exception as e:  # pragma: no cover - diagnostic path
-        print("[PromptRefiner] task register unavailable: %s" % e)
+        print(f"[PromptRefiner] task register unavailable: {e}")
         return _empty_analysis(query)
 
     try:
@@ -352,7 +352,7 @@ def analyze_request(query, context=None, attachments=None):
             "expected_output": tmatch.expected_output(entry, query),
         }
     except Exception as e:  # pragma: no cover - never break the send path
-        print("[PromptRefiner] analyze_request failed: %s" % e)
+        print(f"[PromptRefiner] analyze_request failed: {e}")
         return _empty_analysis(query)
 
 
@@ -362,7 +362,7 @@ def build_disambiguation_messages(query, candidates):
     Sends just the shortlisted task ids and labels -- never the register, which
     is ~40 KB and would dwarf every other prompt this plugin sends.
     """
-    listing = "; ".join("%s = %s" % (e["id"], e["text"]) for e, _ in candidates[:5])
+    listing = "; ".join("{} = {}".format(e["id"], e["text"]) for e, _ in candidates[:5])
     system = (
         "Pick which task the user means. Candidates: " + listing + ". "
         'Respond as JSON only: {"task_id": "..."} using exactly one of the ids above, '

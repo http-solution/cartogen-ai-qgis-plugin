@@ -32,10 +32,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
-    if isinstance(layer_or_name, str):
-        layer = _find_layer_by_name(layer_or_name)
-    else:
-        layer = layer_or_name
+    layer = _find_layer_by_name(layer_or_name) if isinstance(layer_or_name, str) else layer_or_name
 
     if layer is None or not layer.isValid():
         return {"error": f"Layer '{layer_or_name}' not found or invalid"}

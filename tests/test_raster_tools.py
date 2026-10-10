@@ -85,7 +85,7 @@ class TestHillshadeUsesGeographicZFactor(unittest.TestCase):
         res = hillshade("dem")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:hillshade")
         self.assertAlmostEqual(params["Z_FACTOR"], 1.0 / (111320.0 * math.cos(math.radians(36.0))), places=9)
 
@@ -338,7 +338,7 @@ class TestElevationProfileValidation(unittest.TestCase):
         dem_layer.crs.return_value = MagicMock(isValid=MagicMock(return_value=True))
         dem_layer.dataProvider.return_value.sample.return_value = (5.0, True)
         self.fake_core.QgsCoordinateTransform.return_value.transform.return_value = "dem-crs-point"
-        mock_find.side_effect = lambda name: {"line": line_layer, "dem": dem_layer}.get(name)
+        mock_find.side_effect = {"line": line_layer, "dem": dem_layer}.get
 
         res = elevation_profile("line", "dem", num_samples=2)
 
@@ -618,7 +618,7 @@ class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
                  patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True) as mock_wkb, \
                  patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name") as mock_find:
                 mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
-                mock_find.side_effect = lambda name: {population_raster_layer: raster, "districts": vector}.get(name)
+                mock_find.side_effect = {population_raster_layer: raster, "districts": vector}.get
                 with patch("cartogen_ai.core.agent.tools.raster_tools._zonal_sums_detached",
                            return_value={7: 1000}) as detached, \
                      patch("cartogen_ai.core.agent.tools.raster_tools._overlapping_zone_count", return_value=0):
@@ -871,7 +871,7 @@ class TestSlopeAndAspectAnalysis(unittest.TestCase):
         res = aspect_analysis("dem")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:aspect")
         self.assertIs(params["INPUT"], dem)
 
@@ -1014,7 +1014,7 @@ class TestClassificationTools(unittest.TestCase):
         res = supervised_classification("img", "training")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "saga:supervisedclassificationforgrids")
         self.assertIs(params["TRAINING"], training)
         self.assertEqual(mock_run.call_args[1]["output_key"], "CLASSES")
@@ -1053,7 +1053,7 @@ class TestMosaicBandCompositePanSharpening(unittest.TestCase):
         res = mosaic_rasters(["a", "b", "c"])
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "gdal:merge")
         self.assertEqual(params["INPUT"], [a, b, c])
         self.assertFalse(params["SEPARATE"])
@@ -1109,7 +1109,7 @@ class TestMosaicBandCompositePanSharpening(unittest.TestCase):
         res = pan_sharpening("ms", "pan")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "gdal:pansharp")   # #162: the registry id is gdal:pansharp
         self.assertIs(params["SPECTRAL"], ms)
         self.assertIs(params["PANCHROMATIC"], pan)

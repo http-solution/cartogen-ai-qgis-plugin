@@ -404,7 +404,7 @@ class ToolRouter:
         # this line). Deterministic tie-breaking reintroduces that specific bias in exchange for
         # the caching win -- acceptable since filler tools are, by definition, not a real match
         # for the query either way, but worth knowing if that older bias ever matters again.
-        shuffled = sorted(list(self.full_schema_list), key=lambda x: x.get("function", {}).get("name", ""))
+        shuffled = sorted(self.full_schema_list, key=lambda x: x.get("function", {}).get("name", ""))
 
         scored_tools = []
         for tool_obj in shuffled:

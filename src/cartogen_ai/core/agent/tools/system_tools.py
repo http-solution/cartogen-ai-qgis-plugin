@@ -348,9 +348,8 @@ def _validate_script_safety(script: str):
         elif isinstance(node, ast.Name):
             if node.id in _BLOCKED_CALLS:
                 return f"Blocked reference to '{node.id}' -- not allowed in execute_pyqgis_script."
-        elif isinstance(node, ast.Attribute):
-            if node.attr in _BLOCKED_DUNDER_ATTRS:
-                return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
+        elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_DUNDER_ATTRS:
+            return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
     return None
 
 
@@ -511,8 +510,7 @@ def _geocode_one(location_name: str):
                 }
                 _GEOCODE_CACHE.set(location_name, result)
                 return result
-            else:
-                return {"error": "Location not found."}
+            return {"error": "Location not found."}
     except Exception as e:
         return {"error": str(e)}
 

@@ -49,7 +49,7 @@ def tile_name(lat_floor, lon_floor):
 
 def tile_url(lat_floor, lon_floor, base=None):
     name = tile_name(lat_floor, lon_floor)
-    return "%s/%s/%s.tif" % ((base or TILE_BASE).rstrip("/"), name, name)
+    return "{}/{}/{}.tif".format((base or TILE_BASE).rstrip("/"), name, name)
 
 
 def bbox_from_centre(lat, lon, radius_km):
@@ -73,8 +73,8 @@ def validate_bbox(west, south, east, north):
 def tiles_for_bbox(west, south, east, north):
     """The (lat_floor, lon_floor) of every 1-degree tile touching the box. A box edge exactly on a tile edge does not pull in the next
     tile. Pure."""
-    lats = range(int(math.floor(south)), int(math.ceil(north)))
-    lons = range(int(math.floor(west)), int(math.ceil(east)))
+    lats = range(math.floor(south), math.ceil(north))
+    lons = range(math.floor(west), math.ceil(east))
     return [(la, lo) for la in lats for lo in lons]
 
 

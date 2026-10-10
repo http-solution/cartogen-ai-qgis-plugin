@@ -87,7 +87,7 @@ class TestLineComponentSymbology(unittest.TestCase):
         mock_qcolor_cls.return_value.isValid.return_value = True
         layer = MagicMock()  # a real MagicMock instance -- isinstance(layer, MagicMock) is trivially True
         layer.geometryType.return_value = "LINE"
-        mock_line_symbol_layer_cls.side_effect = lambda: MagicMock()
+        mock_line_symbol_layer_cls.side_effect = MagicMock
         symbol_instance = mock_line_symbol_cls.return_value
 
         descriptor = MapOutputDescriptor(layer_id="x", output_role="route_line")

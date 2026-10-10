@@ -93,7 +93,7 @@ class TestCollectLayerNames(unittest.TestCase):
 
 def _ctx(levels, sources=None):
     sources = sources or {}
-    return (lambda n: levels.get(n), lambda n: sources.get(n, []))
+    return (levels.get, lambda n: sources.get(n, []))
 
 
 class TestFindProtected(unittest.TestCase):
@@ -126,10 +126,10 @@ class TestEvaluate(unittest.TestCase):
 
     def _eval(self, **over):
         gl, gs = _ctx(over.pop("levels", self.LEVELS), over.pop("sources", None))
-        kw = dict(mode=g.MODE_ENFORCE, provider_is_local=False, tool_name="buffer_analysis",
-                  arguments={"layer_name": "beneficiaries", "distance": 100},
-                  project_layer_names=["beneficiaries", "boundary"],
-                  get_level=gl, get_sources=gs, strict=False)
+        kw = {"mode": g.MODE_ENFORCE, "provider_is_local": False, "tool_name": "buffer_analysis",
+                  "arguments": {"layer_name": "beneficiaries", "distance": 100},
+                  "project_layer_names": ["beneficiaries", "boundary"],
+                  "get_level": gl, "get_sources": gs, "strict": False}
         kw.update(over)
         return g.evaluate(**kw)
 
@@ -201,7 +201,7 @@ class TestEvaluate(unittest.TestCase):
 
 class TestAttachments(unittest.TestCase):
     def _ev(self, **over):
-        kw = dict(mode=g.MODE_ENFORCE, provider_is_local=False, strict=True, file_name="households.csv")
+        kw = {"mode": g.MODE_ENFORCE, "provider_is_local": False, "strict": True, "file_name": "households.csv"}
         kw.update(over)
         return g.evaluate_attachment(**kw)
 

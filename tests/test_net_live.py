@@ -44,7 +44,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/redirect":
             self._send(302, b"", {"Location": "/ok"})            # relative, as RFC 7231 allows
         elif self.path == "/redirect-abs":
-            self._send(302, b"", {"Location": "http://%s/ok" % self.headers.get("Host")})
+            self._send(302, b"", {"Location": "http://{}/ok".format(self.headers.get("Host"))})
         elif self.path == "/slow":
             time.sleep(4)
             self._send(200, b"late")

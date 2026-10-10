@@ -126,7 +126,7 @@ class TestFallbackTaskCancellation(unittest.TestCase):
         def on_complete(resp, err):
             done.set()
 
-        handle = run_agent_task(agent, "hello", on_complete=lambda r, e: on_complete(r, e))
+        handle = run_agent_task(agent, "hello", on_complete=on_complete)
         done.wait(timeout=2)
         self.assertIn("fn", capture)
         self.assertFalse(capture["fn"]())  # not canceled yet

@@ -50,7 +50,7 @@ def _boot():
         from processing.core.Processing import Processing
         Processing.initialize()
     except Exception as e:
-        _PROCESSING_READY = "the Processing plugin isn't importable here (%s)" % e
+        _PROCESSING_READY = f"the Processing plugin isn't importable here ({e})"
         return _PROCESSING_READY
     from cartogen_ai.core.agent.tools import logistics_tools as lt
     if not lt.QGIS_AVAILABLE:
@@ -91,7 +91,7 @@ class _Base(unittest.TestCase):
         crs = QgsCoordinateReferenceSystem(crs_id)
         xf = QgsCoordinateTransform(WGS, crs, QgsProject.instance())
         pts = [xf.transform(QgsPointXY(lon, lat)) for lon, lat in lonlat_pts]
-        lyr = QgsVectorLayer("%s?crs=%s&field=name:string" % (kind, crs_id), name, "memory")
+        lyr = QgsVectorLayer(f"{kind}?crs={crs_id}&field=name:string", name, "memory")
         f = QgsFeature(lyr.fields())
         if kind == "LineString":
             f.setGeometry(QgsGeometry.fromPolylineXY(pts))
@@ -124,7 +124,7 @@ class _Base(unittest.TestCase):
 
     def first_cost(self, matrix_result):
         self.assertIn("matrix", matrix_result, matrix_result)
-        return float(list(list(matrix_result["matrix"].values())[0].values())[0])
+        return float(next(iter(next(iter(matrix_result["matrix"].values())).values())))
 
 
 SITES = [("Amman 32N", 31.95, 35.85), ("Arctic 70N", 70.0, 25.0), ("Far north 80N", 80.0, 25.0)]
@@ -154,7 +154,7 @@ class TestCostsAreRealMetres(_Base):
                         self.assertTrue(sa.get("layers_created"), sa)
                         reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
                         # 1000 m each way along the road = 2000 m of road reached
-                        self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                        self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                         tm = self.lt.travel_time_matrix("origin", "dest", "roads")
                         self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.003)
                         # the units are also stated in the results, so the model can't misreport them
@@ -173,7 +173,7 @@ class TestCostsAreRealMetres(_Base):
                     # 0.04 h at 50 km/h is 2 km, so it reaches 2 km each way = 4 km of road
                     sa = self.lt.calculate_service_area("origin", "roads", 0.04, strategy="fastest", default_speed=50)
                     reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                    self.assertAlmostEqual(reached / 4000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                    self.assertAlmostEqual(reached / 4000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                     self.assertEqual(tm["cost_unit"], "hours")
                     self.assertEqual(sa["travel_cost_unit"], "hours")
 
@@ -205,7 +205,7 @@ class TestOriginInADifferentCrsThanTheNetwork(_Base):
                 sa, tm, truth = self._run(network_crs, point_crs)
                 self.assertTrue(sa.get("layers_created"), sa)
                 reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                 self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.003)
 
 
@@ -249,7 +249,7 @@ class TestAntimeridian(_Base):
                 self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.01)
                 sa = self.lt.calculate_service_area("origin", "roads", 1000)
                 reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.02, msg="reached %.0f m" % reached)
+                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.02, msg=f"reached {reached:.0f} m")
 
 
 if __name__ == "__main__":

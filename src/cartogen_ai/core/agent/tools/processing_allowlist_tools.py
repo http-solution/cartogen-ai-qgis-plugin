@@ -87,9 +87,7 @@ def harvest_outputs(output, definition=None):
     found = []
     for key in order:
         value = output[key]
-        if hasattr(value, "setName"):
-            found.append((key, value))
-        elif isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value:
+        if hasattr(value, "setName") or (isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value):
             found.append((key, value))
     return found
 

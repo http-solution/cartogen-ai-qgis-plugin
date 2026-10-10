@@ -33,6 +33,7 @@ from cartogen_ai.infrastructure.settings_keys import (
     SETTINGS_AUTO_OPEN_DOCK,
     SETTINGS_HELP_LAST_SHOWN_VERSION,
 )
+import contextlib
 
 SETTINGS_KEY = SETTINGS_API_KEY
 HELP_LAST_SHOWN_VERSION_KEY = SETTINGS_HELP_LAST_SHOWN_VERSION
@@ -332,10 +333,8 @@ class CartogenAi:
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
-            try:
+            with contextlib.suppress(TypeError, RuntimeError):
                 action.triggered.disconnect()
-            except (TypeError, RuntimeError):
-                pass
             action.deleteLater()
         self.actions = []
         self.toolbar_action = None

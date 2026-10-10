@@ -383,7 +383,7 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
 
     params = {"NO_DATA": None, "RTYPE": 5}
     formula_terms = []
-    for letter, layer, w in zip(_OVERLAY_LETTERS, layers, normalized):
+    for letter, layer, w in zip(_OVERLAY_LETTERS, layers, normalized, strict=False):
         params[f"INPUT_{letter}"] = layer
         params[f"BAND_{letter}"] = 1
         formula_terms.append(f"{letter}.astype(float)*{w}")
@@ -391,7 +391,7 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
 
     res = _with_alignment_note(_run_raster_and_add("gdal:rastercalculator", params, "weighted_overlay"), align_note)
     if isinstance(res, dict) and res.get("success"):
-        res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized]))
+        res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized], strict=False))
         # HX1b: an ordered, opaque low-to-high surface under the vectors instead of QGIS's grey stretch (best effort)
         try:
             from .output_style import style_continuous_raster
@@ -669,7 +669,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
         polygon_layer.updateFields()
         indexes = [polygon_layer.fields().indexOf(name) for name in _ZONAL_FIELDS]
         for fid, stats in values.items():
-            for index, value in zip(indexes, stats):
+            for index, value in zip(indexes, stats, strict=False):
                 if not polygon_layer.changeAttributeValue(fid, index, None if value is None or value != value else float(value)):
                     raise RuntimeError("a statistic could not be written to the layer")
 
@@ -1569,7 +1569,7 @@ def _zonal_sums_detached(raster, polygon_layer):
         return None
     # A memory layer numbers its features in insertion order, which is how the originals are matched back.
     values = [f.attribute("pop_sum") for f in sorted(scratch.getFeatures(), key=lambda f: f.id())]
-    return {fid: (None if v is None or v != v else v) for fid, v in zip(original_ids, values)}
+    return {fid: (None if v is None or v != v else v) for fid, v in zip(original_ids, values, strict=False)}
 
 
 def _zonal_population_total(raster, polygon_layer):

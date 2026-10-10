@@ -66,9 +66,7 @@ def _looks_like_raw_count(field_name, values):
     name_l = (field_name or "").lower()
     if any(hint in name_l for hint in _COUNT_NAME_HINTS):
         return True
-    if values and all(float(v).is_integer() for v in values) and max(values) > 100:
-        return True
-    return False
+    return bool(values and all(float(v).is_integer() for v in values) and max(values) > 100)
 
 
 def _recommend_for_geometry(geometry_kind, field_present, field_numeric, cardinality,
@@ -256,7 +254,7 @@ def recommend_visualization_method(layer_name, field=None, intended_message=None
         numeric_values = [v for v in raw_values if isinstance(v, (int, float))]
         field_numeric = bool(raw_values) and len(numeric_values) == len(raw_values)
         if not field_numeric:
-            cardinality = len(set(str(v) for v in raw_values))
+            cardinality = len({str(v) for v in raw_values})
         elif len(numeric_values) > 5:
             classification = _classify_values(numeric_values)
     else:

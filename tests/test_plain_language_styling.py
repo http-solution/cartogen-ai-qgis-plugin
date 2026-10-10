@@ -9,15 +9,14 @@ import pkgutil
 import unittest
 
 from cartogen_ai.core.agent.tools.plain_colour import resolve_colour
+import contextlib
 
 
 def _router():
     import cartogen_ai.core.agent.tools as tools
     for m in pkgutil.iter_modules(tools.__path__):
-        try:
+        with contextlib.suppress(Exception):
             importlib.import_module("cartogen_ai.core.agent.tools." + m.name)
-        except Exception:
-            pass
     from cartogen_ai.core.agent.tools.registry import get_tools_schema
     from cartogen_ai.core.services.tool_router import ToolRouter
     return ToolRouter(get_tools_schema())

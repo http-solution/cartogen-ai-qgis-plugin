@@ -30,6 +30,7 @@ from processing.core.Processing import Processing  # noqa: E402
 Processing.initialize()
 from cartogen_ai.core.agent import cancel_signal, local_data_loader as ldl  # noqa: E402
 from cartogen_ai.core.agent.tools import logistics_tools as lt  # noqa: E402
+import itertools  # noqa: E402
 
 print("QGIS", Qgis.QGIS_VERSION.split("-")[0], "| testing source:", SRC.replace(os.path.expanduser("~"), "~"))
 results = []
@@ -62,7 +63,7 @@ timer.timeout.connect(lambda: ticks.append(time.monotonic()))
 
 
 def gaps():
-    return [b - a for a, b in zip(ticks, ticks[1:])]
+    return [b - a for a, b in itertools.pairwise(ticks)]
 
 
 # ---- Part A: Stop after 30 s -------------------------------------------------------------------------
@@ -78,7 +79,7 @@ timer.stop()
 cancel_signal.end()
 print("returned after %.1f s (Stop was due at 30 s); GUI ticks: %d, worst gap %.0f ms" % (elapsed, len(ticks), max(gaps()) * 1000 if gaps() else -1))
 print("progress messages:", len(statuses), "| last:", statuses[-1] if statuses else None)
-check("Stop ended the analysis promptly", res.get("cancelled") and 30 <= elapsed < 40, "%.1f s" % elapsed)
+check("Stop ended the analysis promptly", res.get("cancelled") and 30 <= elapsed < 40, f"{elapsed:.1f} s")
 check("the GUI kept ticking the whole time (no freeze)", len(ticks) > 0.8 * elapsed / 0.1 and max(gaps()) < 1.0,
       "%d ticks in %.0f s, worst gap %.0f ms" % (len(ticks), elapsed, max(gaps()) * 1000))
 check("progress was reported to the user", len(statuses) >= 2 and "press Stop" in statuses[0], statuses[:1])

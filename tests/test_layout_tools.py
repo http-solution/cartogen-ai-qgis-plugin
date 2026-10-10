@@ -349,7 +349,7 @@ class TestAtlasFileNamesAndLayoutNames(unittest.TestCase):
         from cartogen_ai.core.agent.tools.layout_tools import unique_atlas_file_name
         used = set()
         stems = [unique_atlas_file_name(v, used, "page") for v in ("Sanaa", "Sanaa", "sanaa", "Aden/1", "Aden_1")]
-        self.assertEqual(len(set(s.lower() for s in stems)), 5)
+        self.assertEqual(len({s.lower() for s in stems}), 5)
         self.assertEqual(stems[0], "Sanaa")
         self.assertEqual(stems[1], "Sanaa_2")
 

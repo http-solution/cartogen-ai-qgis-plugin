@@ -204,7 +204,7 @@ def _plugin_parent_dir():
     # cartogen_ai has no top-level __init__.py (a namespace package), so
     # __file__ is None -- __path__[0] is the actual on-disk package directory
     # in both layouts (installed as a QGIS plugin folder, or this repo's src/).
-    package_dir = Path(list(cartogen_ai.__path__)[0]).resolve()
+    package_dir = Path(next(iter(cartogen_ai.__path__))).resolve()
     return str(package_dir.parent)
 
 
@@ -530,10 +530,7 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
             continue
         try:
             if source_is_under(layer.source(), scratch_dir):
-                if hasattr(layer, "bandCount"):
-                    adopted = _keep_raster(layer)
-                else:
-                    adopted = _detach_vector_layer(layer)
+                adopted = _keep_raster(layer) if hasattr(layer, "bandCount") else _detach_vector_layer(layer)
             else:
                 adopted = layer.clone()
         except Exception as e:

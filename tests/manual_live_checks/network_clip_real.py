@@ -42,13 +42,13 @@ QgsProject.instance().setEllipsoid("NONE")
 cache = os.path.join(tempfile.gettempdir(), "cartogen_jordan_e2e")
 region = ldl.resolve_region(35.93, 31.95, cache)
 loaded = ldl.load_layers(ldl.download_and_extract(region, cache), ["roads"])
-roads = "OSM Roads (%s)" % region["name"]
+roads = "OSM Roads ({})".format(region["name"])
 print("network:", loaded["layers"][0]["count"], "roads")
 
 CASES = [
-    ("Amman, 3 km by road", (35.92975, 31.94606), dict(travel_cost=3000)),
-    ("Irbid, 3 km by road", (35.85, 32.5556), dict(travel_cost=3000)),
-    ("Amman, 12 min at 50 km/h (10 km)", (35.92975, 31.94606), dict(travel_cost=0.2, strategy="fastest", default_speed=50)),
+    ("Amman, 3 km by road", (35.92975, 31.94606), {"travel_cost": 3000}),
+    ("Irbid, 3 km by road", (35.85, 32.5556), {"travel_cost": 3000}),
+    ("Amman, 12 min at 50 km/h (10 km)", (35.92975, 31.94606), {"travel_cost": 0.2, "strategy": "fastest", "default_speed": 50}),
 ]
 
 
@@ -86,10 +86,10 @@ for label, (lon, lat), kw in CASES:
     b = wkts(full)
     drop_service_areas()
     print("full:    %.1f s over all roads, %d line features" % (t_full, len(b)))
-    check("%s: identical geometry" % label, clipped.get("success") and full.get("success") and a == b and len(a) > 0,
+    check(f"{label}: identical geometry", clipped.get("success") and full.get("success") and a == b and len(a) > 0,
           "%d features each" % len(a))
-    check("%s: faster (%.0fx)" % (label, t_full / max(t_clip, 0.1)), t_clip < t_full, "%.1f s vs %.1f s" % (t_clip, t_full))
-    check("%s: the clip was applied" % label, bool(info), info.get("roads_routed_max"))
+    check(f"{label}: faster ({t_full / max(t_clip, 0.1):.0f}x)", t_clip < t_full, f"{t_clip:.1f} s vs {t_full:.1f} s")
+    check(f"{label}: the clip was applied", bool(info), info.get("roads_routed_max"))
 
 print("\n%d/%d passed" % (sum(results), len(results)))
 sys.exit(0 if all(results) else 1)

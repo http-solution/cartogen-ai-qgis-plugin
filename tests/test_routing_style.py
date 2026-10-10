@@ -2,6 +2,7 @@
 import unittest
 
 from cartogen_ai.core.agent.tools import routing_style as rs
+import itertools
 
 
 class TestBandEdges(unittest.TestCase):
@@ -10,7 +11,7 @@ class TestBandEdges(unittest.TestCase):
         self.assertEqual(len(edges), 5)
         self.assertEqual(edges[0][0], 0.0)
         self.assertEqual(edges[-1][1], 5000.0)
-        for (_, hi), (lo, _) in zip(edges, edges[1:]):
+        for (_, hi), (lo, _) in itertools.pairwise(edges):
             self.assertAlmostEqual(hi, lo)
 
     def test_a_degenerate_max_still_gives_one_band(self):

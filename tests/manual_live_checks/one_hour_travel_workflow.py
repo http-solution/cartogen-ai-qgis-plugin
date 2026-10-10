@@ -70,7 +70,7 @@ origin.dataProvider().addFeatures([f])
 QgsProject.instance().addMapLayer(origin)
 wgs = QgsCoordinateReferenceSystem("EPSG:4326")
 olon_lat = QgsCoordinateTransform(WEB_MERCATOR, wgs, QgsProject.instance()).transform(QgsPointXY(ox, oy))
-print("origin = %.5f N, %.5f E (Amman)" % (olon_lat.y(), olon_lat.x()))
+print(f"origin = {olon_lat.y():.5f} N, {olon_lat.x():.5f} E (Amman)")
 
 da = QgsDistanceArea()
 da.setSourceCrs(wgs, QgsProject.instance().transformContext())
@@ -86,7 +86,7 @@ fac = QgsProject.instance().mapLayersByName(fac_name)[0]
 roads_crs = QgsProject.instance().mapLayersByName(roads_name)[0].crs()
 to_wgs = QgsCoordinateTransform(roads_crs, wgs, QgsProject.instance())
 costs, straight = {}, {}
-for key, value in list(tm["matrix"].values())[0].items():
+for key, value in next(iter(tm["matrix"].values())).items():
     # the matrix is keyed by each destination's coordinates in the NETWORK's CRS: "x, y"
     try:
         hours = float(value)
@@ -112,7 +112,7 @@ print("within one hour: %d | beyond one hour: %d" % (len(within), len(beyond)))
 check("the one-hour split is meaningful (some inside, some beyond)", within and beyond, "%d inside / %d beyond" % (len(within), len(beyond)))
 if beyond:
     far = max(costs[k] for k in beyond)
-    print("farthest facility by road: %.1f hours" % far)
+    print(f"farthest facility by road: {far:.1f} hours")
 
 # --- 2. a one-hour service area around the origin ---------------------------------------------------------
 t = time.time()

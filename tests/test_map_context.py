@@ -18,7 +18,7 @@ class TestEstimateLayerContextTokens(unittest.TestCase):
 
     def test_more_layers_estimate_more_tokens(self):
         one = [{"name": "A", "type": "Vector", "crs": "EPSG:4326", "fields": ["a", "b"]}]
-        two = one + [{"name": "B", "type": "Vector", "crs": "EPSG:4326", "fields": ["a", "b", "c"]}]
+        two = [*one, {"name": "B", "type": "Vector", "crs": "EPSG:4326", "fields": ["a", "b", "c"]}]
         self.assertGreater(estimate_layer_context_tokens(two), estimate_layer_context_tokens(one))
 
     def test_never_returns_zero_for_a_real_layer(self):

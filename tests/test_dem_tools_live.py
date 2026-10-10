@@ -43,6 +43,7 @@ class _RangeHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
         self.wfile.write(body)
+        return None
 
     def end_headers(self):
         self.send_header("Accept-Ranges", "bytes")

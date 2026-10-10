@@ -160,7 +160,7 @@ class TestParamResolution(unittest.TestCase):
 
         run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "roads", "DISTANCE": 500})
 
-        called_alg, called_params = mock_processing.run.call_args[0]
+        _called_alg, called_params = mock_processing.run.call_args[0]
         self.assertIs(called_params["INPUT"], real_layer)
         self.assertEqual(called_params["DISTANCE"], 500)
 

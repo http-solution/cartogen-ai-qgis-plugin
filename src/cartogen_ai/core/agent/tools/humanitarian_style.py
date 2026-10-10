@@ -246,7 +246,7 @@ def _nice(x):
     if x == 0:
         return 0
     from math import floor, log10
-    digits = 1 - int(floor(log10(abs(x))))
+    digits = 1 - floor(log10(abs(x)))
     return round(x, digits) if digits > 0 else int(round(x, digits))
 
 

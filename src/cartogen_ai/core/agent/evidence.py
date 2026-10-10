@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import shutil
+import contextlib
 
 MAX_RESULT_CHARS = 20000
 MAX_COPY_BYTES = 50 * 1024 * 1024
@@ -87,10 +88,8 @@ class EvidenceRecorder:
                 if size > MAX_COPY_BYTES or self._copied + size > MAX_TOTAL_COPY_BYTES:
                     entry["copied"] = False
                     entry["note"] = "not copied (size limit); the original is at the source path"
-                    try:
+                    with contextlib.suppress(OSError):
                         entry["sha256"] = sha256_of(src)
-                    except OSError:
-                        pass
                 else:
                     os.makedirs(out_dir, exist_ok=True)
                     dest = os.path.join(out_dir, f"{call['n']:02d}_{os.path.basename(src)}")

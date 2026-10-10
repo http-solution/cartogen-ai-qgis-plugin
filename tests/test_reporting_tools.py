@@ -45,7 +45,7 @@ class TestAggregateRows(unittest.TestCase):
             {"district": "Aden", "idps": "50"},
             {"district": "Taiz", "idps": "30"},
         ]
-        groups, skipped = _aggregate_rows(rows, "district", "idps", "sum")
+        groups, _skipped = _aggregate_rows(rows, "district", "idps", "sum")
         self.assertEqual(groups, {"Aden": 150.0, "Taiz": 30.0})
 
     def test_mean_groups(self):
@@ -137,7 +137,7 @@ class TestApplyPieSliceCap(unittest.TestCase):
     def test_exactly_at_cap_is_unchanged(self):
         labels = [f"c{i}" for i in range(8)]
         values = list(range(8))
-        new_labels, new_values, note = _apply_pie_slice_cap(labels, values, max_slices=8)
+        new_labels, _new_values, note = _apply_pie_slice_cap(labels, values, max_slices=8)
         self.assertEqual(new_labels, labels)
         self.assertIsNone(note)
 
