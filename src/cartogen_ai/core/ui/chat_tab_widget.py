@@ -1171,6 +1171,19 @@ class ChatTabWidget(QWidget):
         # needs clearing, so a stale click on an old card's link can't resurrect it.
         self._pending_refinement_cards = None
 
+        # "List the layers" is a read of the open project: answer it here, with no model call (2026-10-10 hand test: 13 API calls
+        # for this one request). See ui/local_answers.py for how narrow the match is.
+        from .local_answers import is_list_layers_request, format_layer_list
+        if is_list_layers_request(text):
+            try:
+                from ..agent.map_context import get_map_context_summary as _summary
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit("ai", format_layer_list(_summary()))
+                return
+            except Exception as e:
+                from ..logger import log_event
+                log_event("swallowed_exception", tag="UI", tool="local_list_layers", error_class=type(e).__name__, error=True)
+
         from ..services.prompt_refiner import (
             analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
         )
