@@ -71,8 +71,18 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+# The standard this repository is held to (rc28 audit): pycodestyle, pyflakes, bugbear, comprehensions, simplify, return,
+# pie, pylint errors/warnings, ruff-specific, bandit (S) and pyupgrade. Complexity is capped at 25 (McCabe).
+select = ["E", "F", "W", "B", "C4", "C90", "SIM", "RET", "PIE", "PLE", "PLW", "RUF", "S", "UP"]
 ignore = ["E501"]  # line length handled flexibly for descriptive strings
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, write to fake /tmp paths, use seeded random data, build SQL strings to feed the read-only guard, and call
+# subprocess/urllib against local servers: the security rules (S) are for shipped code, not for test code.
+"tests/**" = ["S101", "S108", "S310", "S311", "S603", "S608"]
 
 [tool.mypy]
 python_version = "3.10"
