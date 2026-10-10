@@ -15,13 +15,13 @@ import contextlib
 import json
 import os
 import time
-import urllib.request
 from ..net import urlopen as _qgis_urlopen
 import zipfile
 
 from .coordinates import interpret_request_pair
 from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region
 from .tools._urllib_retry import urlopen_with_retry
+from ..net import build_request as _net_build_request
 
 try:
     from qgis.core import (
@@ -127,7 +127,7 @@ def load_index(cache_dir):
     path = os.path.join(cache_dir, "geofabrik-index-v1.json")
     if not _fresh(path, INDEX_MAX_AGE_S):
         os.makedirs(cache_dir, exist_ok=True)
-        with urlopen_with_retry(urllib.request.Request(GEOFABRIK_INDEX_URL, headers=_UA), timeout=60) as r:
+        with urlopen_with_retry(_net_build_request(GEOFABRIK_INDEX_URL, headers=_UA), timeout=60) as r:
             body = r.read()
         json.loads(body)  # don't cache a truncated or error page
         with open(path, "wb") as f:
@@ -156,13 +156,13 @@ def _remote_size(url):
     103 MB: the HEAD either failed or carried no Content-Length (the cause was not captured). A one-byte ranged GET is the
     standard second way to learn the total -- its Content-Range header ends in the full size -- so try it before giving up."""
     with contextlib.suppress(Exception):
-        req = urllib.request.Request(url, method="HEAD", headers=_UA)
+        req = _net_build_request(url, method="HEAD", headers=_UA)
         with urlopen_with_retry(req, timeout=30) as r:
             size = int(r.headers.get("Content-Length") or 0)
         if size:
             return size
     with contextlib.suppress(Exception):
-        req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
+        req = _net_build_request(url, headers={**_UA, "Range": "bytes=0-0"})
         # stream=True: a server that ignores Range sends the whole body, and only the headers are read here.
         with urlopen_with_retry(req, timeout=30, stream=True) as r:
             content_range = r.headers.get("Content-Range") or ""
@@ -190,7 +190,7 @@ def probe_connectivity():
     silent multi-second hang trying to download, or a silent wrong guess to just go online."""
     start = time.monotonic()
     try:
-        req = urllib.request.Request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
+        req = _net_build_request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
         # stream=True (urllib): QGIS applies its own 60 s network timeout, and this probe must give up in a few seconds.
         with _qgis_urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S, stream=True):
             pass
@@ -218,7 +218,7 @@ def download_extract(region, dest_dir, progress=None, is_cancelled=None):
     if _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path):
         return path
     part = path + ".part"
-    req = urllib.request.Request(region["shp_url"], headers=_UA)
+    req = _net_build_request(region["shp_url"], headers=_UA)
     with urlopen_with_retry(req, timeout=60, stream=True) as r, open(part, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0) or region.get("size_bytes") or 0
         done = 0

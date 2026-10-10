@@ -7,10 +7,9 @@ performs visual canvas inspections, and calculates temporal layer change detecti
 import contextlib
 import json
 import time
-import urllib.request
 from ...net import urlopen as _qgis_urlopen
-import urllib.parse
 from .registry import register_tool
+from ...net import build_request as _net_build_request
 
 try:
     from qgis.utils import iface
@@ -61,7 +60,7 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
 
     try:
         data_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data_bytes, headers={"Content-Type": "application/json", "User-Agent": "QGIS-AI-Assistant"})
+        req = _net_build_request(url, data=data_bytes, headers={"Content-Type": "application/json", "User-Agent": "QGIS-AI-Assistant"})
         _STAC_REQUEST_COUNT += 1
         with _qgis_urlopen(req, timeout=15) as response:
             res = json.loads(response.read().decode())

@@ -27,6 +27,7 @@ import tempfile
 from .registry import register_tool
 from ... import net as _net
 import contextlib
+from ...net import build_request as _net_build_request
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -80,7 +81,6 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     deleting a partial file did not help, so the first attempt now bypasses it. No Range header is ever sent, so a 416 cannot happen, and a
     file smaller than `min_bytes` is never accepted. Written against the real asset (checked 2026-10-06: FastSAM-s.pt is 23,851,578 bytes at
     the v8.3.0 release; a plain GET returned it complete)."""
-    import urllib.request
     min_bytes = _CHECKPOINT_MIN_BYTES if min_bytes is None else min_bytes
     os.makedirs(dest_dir, exist_ok=True)
     final = os.path.join(dest_dir, name)
@@ -88,7 +88,7 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     for template in urls:
         tmp = final + ".partial"
         try:
-            req = urllib.request.Request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
+            req = _net_build_request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
             with (opener or (lambda r, timeout: _net.urlopen(r, timeout=timeout, stream=True)))(req, timeout=60) as resp, open(tmp, "wb") as fh:
                 while True:
                     chunk = resp.read(1 << 20)

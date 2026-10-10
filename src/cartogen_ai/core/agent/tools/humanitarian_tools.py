@@ -29,6 +29,7 @@ from .. import coordinates as _coords
 # genuinely external, third-party-published content. Reused here rather than duplicated.
 from .vector_tools import _is_safe_url, _build_safe_opener
 import contextlib
+from ...net import build_request as _net_build_request
 
 def _cleanup_cached_local_path(key, value):
     """TTLCache on_evict callback (SEC-004, 2026-09-14 audit): several of this file's cached
@@ -84,7 +85,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
     url = f"https://data.humdata.org/api/3/action/package_search?q={encoded}&rows={limit}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             results = data.get("result", {}).get("results", [])
@@ -110,7 +111,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
 
 def _fts_request(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
     with _qgis_urlopen(req, timeout=15) as response:
         return json.loads(response.read().decode())
 
@@ -248,7 +249,7 @@ def fetch_osm_features(key: str, value: str, bbox: list):
     url = "https://overpass-api.de/api/interpreter"
 
     try:
-        req = urllib.request.Request(url, data=overpass_ql.encode('utf-8'), headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, data=overpass_ql.encode('utf-8'), headers={'User-Agent': 'QGIS-AI-Assistant'})
         # 30s, not the usual 15s -- the query itself requests a 25s server-side
         # budget ([timeout:25] above), so a client timeout below that would abort
         # legitimate slow-but-still-running queries before the server's own limit.
@@ -360,7 +361,7 @@ def ingest_osm_features_network_phase(
     # checked as fallbacks: one took ~40 s, one timed out, one failed TLS verification, so none
     # was added. The query is read-only, so resending the POST is safe.
     try:
-        req = urllib.request.Request(
+        req = _net_build_request(
             url,
             data=overpass_ql.encode('utf-8'),
             headers={'User-Agent': 'QGIS-AI-Assistant'}
@@ -565,7 +566,7 @@ def _content_length(url, timeout=15):
     """Bytes from a HEAD request's Content-Length, or None when the server gives none or HEAD fails. Uses the
     SSRF-guarded opener, so a redirect to a private address is refused here too."""
     try:
-        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "QGIS-AI-Assistant"})
+        req = _net_build_request(url, method="HEAD", headers={"User-Agent": "QGIS-AI-Assistant"})
         with _build_safe_opener().open(req, timeout=timeout) as response:
             raw = response.headers.get("Content-Length")
         return int(raw) if raw not in (None, "") else None
@@ -627,7 +628,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     url = f"https://www.geoboundaries.org/api/current/gbOpen/{iso3}/{admin_level}/"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode())
         # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
@@ -651,7 +652,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         too_big = check_download_size(f"The {iso3} {admin_level} boundary file", [geojson_url], allow_large_download)
         if too_big:
             return too_big
-        req2 = urllib.request.Request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = response2.read()
 
@@ -756,7 +757,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     show_url = f"https://data.humdata.org/api/3/action/package_show?id={dataset_name}"
 
     try:
-        req = urllib.request.Request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=20) as response:
             data = json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
@@ -800,7 +801,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     if too_big:
         return too_big
     try:
-        req2 = urllib.request.Request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req2 = _net_build_request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             zip_bytes = response2.read()
     except Exception as e:
@@ -1038,7 +1039,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
         links_text = cached["links_text"]
     else:
         try:
-            req = urllib.request.Request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
+            req = _net_build_request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
             with _qgis_urlopen(req, timeout=30) as response:
                 links_text = response.read().decode()
         except Exception as e:
@@ -1098,7 +1099,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
             if unsafe_reason:
                 return {"error": f"Refusing to fetch tile '{row['QuadKey']}': {unsafe_reason}"}
             try:
-                req = urllib.request.Request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
+                req = _net_build_request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
                 with _build_safe_opener().open(req, timeout=60) as response:
                     gz_bytes = response.read()
             except Exception as e:
@@ -1388,7 +1389,7 @@ def _download_to_file(url, dest, chunk=1 << 20):
         raise RuntimeError(f"Refusing to fetch WorldPop file URL: {unsafe}")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     part = dest + ".part"
-    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
     try:
         with _build_safe_opener().open(req, timeout=300) as response, open(part, "wb") as out:
             while True:
@@ -1443,7 +1444,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
 
     try:
         list_url = f"https://hub.worldpop.org/rest/data/pop/wpgp?iso3={iso3}"
-        req = urllib.request.Request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
             listing = json.loads(response.read().decode())
         datasets = listing.get("data", [])
@@ -1562,7 +1563,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
             _LOOKUP_CACHE.set(cache_key, result)
             return result
 
-        req2 = urllib.request.Request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req2 = _net_build_request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=300) as response2:
             raster_bytes = response2.read()
 

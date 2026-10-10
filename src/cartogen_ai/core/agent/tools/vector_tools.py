@@ -29,6 +29,7 @@ except ImportError:
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 import contextlib
+from ...net import build_request as _net_build_request
 
 
 def _find_layer_by_name(name):
@@ -517,11 +518,10 @@ def _prefetch_url_to_temp(file_path):
 
     import os
     import tempfile
-    import urllib.request
 
     clean = file_path.split("?")[0]
     ext = os.path.splitext(clean)[1] or ""
-    req = urllib.request.Request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
+    req = _net_build_request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
     opener = _build_safe_opener()
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
     try:

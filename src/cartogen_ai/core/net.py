@@ -38,13 +38,22 @@ except ImportError:  # no QGIS: unit tests, the isolation worker
 ALLOWED_SCHEMES = ("http", "https")
 
 
-def _as_request(request):
-    return request if isinstance(request, urllib.request.Request) else urllib.request.Request(str(request))
-
-
 def _check_scheme(url):
     if url.split(":", 1)[0].lower() not in ALLOWED_SCHEMES:
         raise urllib.error.URLError(f"unsupported URL scheme (only http and https are allowed): {url.split(':', 1)[0]}")
+
+
+def build_request(url, data=None, headers=None, method=None):
+    """The one place a urllib Request is made for a data fetch: the scheme is checked first (http and https only; file:, ftp: and
+    custom schemes are refused), which is what Bandit B310 / ruff S310 ask for."""
+    if ":" not in str(url):
+        raise ValueError(f"unknown url type: {url!r}")   # what urllib itself raises for a string that is not a URL
+    _check_scheme(str(url))
+    return urllib.request.Request(str(url), data=data, headers=headers or {}, method=method)  # noqa: S310 (scheme checked above)
+
+
+def _as_request(request):
+    return request if isinstance(request, urllib.request.Request) else build_request(request)
 
 
 class _Headers:
@@ -188,7 +197,7 @@ def _urllib_open(req, timeout):
             handlers.append(urllib.request.ProxyHandler(proxies))
     if handlers:
         return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
-    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 (scheme checked above)
+    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310  # nosec B310 (scheme checked by build_request/urlopen)
 
 
 def urlopen(request, timeout=30, stream=False):

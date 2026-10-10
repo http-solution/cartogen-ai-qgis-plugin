@@ -58,7 +58,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         _LOOKUP_CACHE._store.clear()
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_auto_selects_most_recent_year(self, mock_urlopen, mock_opener):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
@@ -74,7 +74,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         os.remove(res["local_path"])
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_selects_requested_year(self, mock_urlopen, mock_opener):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
@@ -86,7 +86,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         import os
         os.remove(res["local_path"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_unavailable_year_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
 
@@ -95,7 +95,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("1999", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_rejects_unsafe_second_hop_file_url(self, mock_urlopen):
         """SEC-001 (2026-09-13 security audit): file_urls[0] comes from WorldPop's own API
         listing -- third-party content, not a hardcoded endpoint. A response pointing that
@@ -110,7 +110,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("Refusing to fetch", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_no_datasets_found_is_a_clean_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"data": []})
 
@@ -119,7 +119,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_result_is_cached_on_repeated_call(self, mock_urlopen, mock_opener):
         mock_urlopen.return_value = _mock_response(_YEM_LISTING)
         mock_opener.return_value = _mock_safe_opener(_mock_response(b"fake-tiff-bytes"))
@@ -138,7 +138,7 @@ class TestFetchWorldpopNetworkPhase(unittest.TestCase):
         import os
         os.remove(first["local_path"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_handles_network_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_worldpop_population_network_phase("YEM", allow_whole_country=True)
@@ -165,7 +165,7 @@ class TestFetchWorldpopPopulationCombined(unittest.TestCase):
         _LOOKUP_CACHE._store.clear()
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_leaves_downloaded_file_on_disk_after_loading(self, mock_urlopen, mock_opener):
         # Regression guard for the correctness issue found while designing this
         # tool: a raster layer reads its backing file lazily, so (unlike

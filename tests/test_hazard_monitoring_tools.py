@@ -69,7 +69,7 @@ class TestFetchNasaActiveFiresNetworkPhase(unittest.TestCase):
         self.assertIn("firms.modaps.eosdis.nasa.gov", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="TESTKEY")
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_parses_csv_and_filters_by_confidence(self, mock_urlopen, mock_cred):
         csv_body = (
             "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight\n"
@@ -86,7 +86,7 @@ class TestFetchNasaActiveFiresNetworkPhase(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools._urllib_retry.time.sleep")
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="TESTKEY")
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_retries_on_transient_503_then_succeeds(self, mock_urlopen, mock_cred, mock_sleep):
         # API-003, 2026-09-14 audit: this fetch used to have zero retry/backoff at all --
         # unlike every LLM provider call, a single transient 5xx failed the whole tool call
@@ -110,7 +110,7 @@ class TestFetchNasaActiveFiresNetworkPhase(unittest.TestCase):
         self.assertEqual(mock_urlopen.call_count, 2)
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="BADKEY")
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_firms_error_body_detected(self, mock_urlopen, mock_cred):
         mock_urlopen.return_value = _mock_response("Invalid MAP_KEY")
         res = hz.fetch_nasa_active_fires_network_phase([0, 0, 1, 1])
@@ -134,7 +134,7 @@ class TestFetchNasaEonetEventsNetworkPhase(unittest.TestCase):
         res = hz.fetch_nasa_eonet_events_network_phase(status="bogus")
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_uses_most_recent_geometry_and_bbox_filters(self, mock_urlopen):
         payload = {
             "events": [
@@ -161,7 +161,7 @@ class TestFetchNasaEonetEventsNetworkPhase(unittest.TestCase):
         self.assertEqual(res["events"][0]["unit"], "EONET_1")
         self.assertEqual(res["events"][0]["lat"], 31.0)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_non_dict_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
         """Real live crash, 2026-09-13: a chat turn ended in a bare 'Error: 'str' object
         has no attribute 'get'' -- traced to this exact gap. The request/decode try/except
@@ -174,7 +174,7 @@ class TestFetchNasaEonetEventsNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("unexpected response shape", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_null_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(None))
         res = hz.fetch_nasa_eonet_events_network_phase()
@@ -197,7 +197,7 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
             ]
         }
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_default_excludes_green(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase()
@@ -205,19 +205,19 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertEqual(len(res["alerts"]), 2)
         self.assertTrue(all(a["alert_level"] == "Red" for a in res["alerts"]))
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_min_alert_level_green_includes_everything(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase(min_alert_level="Green")
         self.assertEqual(len(res["alerts"]), 3)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_bbox_filters_client_side(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase(bbox=[0, 0, 1, 1], min_alert_level="Green")
         self.assertEqual(len(res["alerts"]), 0)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_country_filters_to_named_place_case_insensitive(self, mock_urlopen):
         """2026-09-15, real live report: a request naming Yemen with no bbox returned every
         GDACS alert worldwide. country= is the fix -- scopes by GDACS's own per-alert country
@@ -228,14 +228,14 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertEqual(res["alerts"][0]["name"], "Flood C")
         self.assertEqual(res["country"], "yemen")
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_country_with_no_matches_returns_empty_not_an_error(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         res = hz.fetch_gdacs_disaster_alerts_network_phase(min_alert_level="Green", country="Chad")
         self.assertTrue(res["success"])
         self.assertEqual(res["alerts"], [])
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_country_and_bbox_combine_as_and(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(json.dumps(self._payload()))
         # Yemen's Flood C is at (44.0, 15.5) -- a Jordan-only bbox should exclude it even
@@ -244,12 +244,12 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
             bbox=[34.5, 30.5, 35.5, 31.5], min_alert_level="Green", country="Jordan")
         self.assertEqual(len(res["alerts"]), 2)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen", side_effect=OSError("timeout"))
+    @patch("urllib.request.urlopen", side_effect=OSError("timeout"))
     def test_network_failure_returns_clean_error(self, mock_urlopen):
         res = hz.fetch_gdacs_disaster_alerts_network_phase()
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_non_dict_json_response_returns_clean_error_not_a_crash(self, mock_urlopen):
         """Same live crash class as TestFetchNasaEonetEventsNetworkPhase's identical test --
         GDACS's own docs already warn its data 'may require further validation', so a
@@ -259,7 +259,7 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("unexpected response shape", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_missing_eventid_is_empty_string_not_the_literal_none(self, mock_urlopen):
         """str(props.get("eventid")) used to turn a genuinely missing eventid into the
         literal string "None" -- indistinguishable from a real event ID and wrongly
@@ -428,7 +428,7 @@ class TestGenerateSituationDashboardDegradesWithoutQgis(unittest.TestCase):
         self.assertIn("error", res)
 
     @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.CredentialManager.get_credential", return_value="")
-    @patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_no_qgis_degrades_cleanly_not_keyerror(self, mock_urlopen, mock_cred):
         mock_urlopen.return_value = _mock_response(json.dumps({"features": [], "events": []}))
         res = hz.generate_situation_dashboard([34.9, 30.9, 35.2, 31.3])

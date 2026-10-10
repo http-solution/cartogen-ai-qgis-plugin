@@ -41,6 +41,7 @@ from ...models.confidence import set_layer_confidence
 # network hiccup or 5xx failed the whole tool call outright, on tools specifically designed
 # to be re-run on a recurring schedule (see module docstring).
 from ._urllib_retry import urlopen_with_retry
+from ...net import build_request as _net_build_request
 
 try:
     from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
@@ -211,7 +212,7 @@ def fetch_nasa_active_fires_network_phase(bbox, days=1, min_confidence="nominal"
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{api_key}/{source}/{area}/{days}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
             csv_text = response.read().decode()
     except Exception as e:
@@ -371,7 +372,7 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
     url = f"{_EONET_BASE_URL}?{urllib.parse.urlencode(params)}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -535,7 +536,7 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
     country_needle = str(country).strip().lower() if country else None
 
     try:
-        req = urllib.request.Request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
             data = json.loads(response.read().decode())
     except Exception as e:

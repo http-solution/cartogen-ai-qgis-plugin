@@ -7,6 +7,7 @@ import ast
 import builtins as _builtins_module
 from .registry import register_tool
 from ._cache_utils import TTLCache
+from ...net import build_request as _net_build_request
 
 # execute_pyqgis_script runs model-generated code directly in the QGIS process.
 # These modules/builtins give file-system, network, process, or interpreter-escape
@@ -499,7 +500,7 @@ def _geocode_one(location_name: str):
     url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             if data:
