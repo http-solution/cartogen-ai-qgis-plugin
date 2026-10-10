@@ -38,6 +38,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, json.dumps({"ua": self.headers.get("User-Agent")}).encode(), {"Content-Type": "application/json"})
         elif self.path == "/missing":
             self._send(404, b"no such thing")
+        elif self.path == "/unauthorized":
+            self._send(401, b"Incorrect API key provided: sk-ab***yz")
         elif self.path == "/busy":
             self._send(503, b"later")
         elif self.path == "/redirect":
@@ -55,7 +57,12 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
-        self._send(200, self.rfile.read(n))
+        body = self.rfile.read(n)
+        if self.path == "/chat":
+            self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
+                                        "body": json.loads(body.decode())}).encode(), {"Content-Type": "application/json"})
+        else:
+            self._send(200, body)
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS")
@@ -138,6 +145,26 @@ class TestNetLive(unittest.TestCase):
         t.start()
         t.join(30)
         self.assertEqual(out, {"status": 200, "has_ua": True})
+
+    def test_provider_post_sends_auth_and_json_and_parses_the_reply(self):
+        from cartogen_ai.infrastructure.providers.base import post_with_retry
+        r = post_with_retry(self.base + "/chat", {"Authorization": "Bearer k", "Content-Type": "application/json"},
+                            json.dumps({"q": 1}), timeout=10)
+        r.raise_for_status()
+        self.assertEqual(r.json(), {"auth": "Bearer k", "ctype": "application/json", "body": {"q": 1}})
+
+    def test_provider_401_raises_httperror_with_a_redacted_message(self):
+        from cartogen_ai.infrastructure.providers.base import HTTPError, format_http_error, get_with_retry
+        r = get_with_retry(self.base + "/unauthorized", {}, timeout=10)
+        self.assertEqual(r.status_code, 401)
+        with self.assertRaises(HTTPError) as cm:
+            r.raise_for_status()
+        self.assertNotIn("sk-ab", format_http_error("Provider error", cm.exception))
+
+    def test_provider_connection_refused_is_a_requests_style_error(self):
+        from cartogen_ai.infrastructure.providers.base import RequestException, get_with_retry
+        with self.assertRaises(RequestException):
+            get_with_retry("http://127.0.0.1:9/", {}, timeout=3, max_retries=0)
 
     def test_stream_still_reads_in_chunks(self):
         from cartogen_ai.core import net

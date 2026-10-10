@@ -26,6 +26,7 @@ def list_models(endpoint_url):
             f"{_server_root(endpoint_url)}/api/tags",
             headers={},
             timeout=15,
+            local=True,   # a local server stays on requests (see base._use_qgis_network)
         )
         response.raise_for_status()
         data = response.json()
@@ -82,7 +83,7 @@ class OllamaClient(BaseAiProvider):
         # 180s (vs. 60s elsewhere) -- local models can take a while.
         try:
             response = post_with_retry(
-                self.base_url, headers, json.dumps(payload), timeout=180,
+                self.base_url, headers, json.dumps(payload), timeout=180, local=True,
             )
             response.raise_for_status()
         except HTTPError as e:

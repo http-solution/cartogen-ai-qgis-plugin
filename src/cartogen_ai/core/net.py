@@ -22,6 +22,7 @@ Two deliberate limits on the buffered path:
 Only http and https URLs are opened; file:, ftp: and custom schemes are refused (Bandit B310).
 """
 
+import collections
 import io
 import socket
 import urllib.error
@@ -104,11 +105,16 @@ def _enum(owner, group, name):
     return getattr(scoped, name) if scoped is not None and hasattr(scoped, name) else getattr(owner, name)
 
 
-def _qgis_urlopen(req, timeout):
-    url = req.full_url
+Reply = collections.namedtuple("Reply", "ok status headers body error timed_out")
+
+
+def _qgis_send(method, url, header_items, data, timeout):
+    """One request through QgsBlockingNetworkRequest. Never raises for an HTTP error status: the caller decides."""
     qreq = QNetworkRequest(QUrl(url))
-    for key, value in req.header_items():
-        qreq.setRawHeader(QByteArray(key.encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+    has_content_type = False
+    for key, value in header_items:
+        has_content_type = has_content_type or str(key).lower() == "content-type"
+        qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
     if timeout and hasattr(qreq, "setTransferTimeout"):
         qreq.setTransferTimeout(int(timeout * 1000))
     try:
@@ -116,8 +122,7 @@ def _qgis_urlopen(req, timeout):
                           _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
     except (AttributeError, TypeError):
         pass
-    method = req.get_method()
-    if method == "POST" and not req.has_header("Content-type"):
+    if method == "POST" and not has_content_type:
         # urllib sends this for a POST body with no type; without it Qt logs a warning and guesses.
         qreq.setRawHeader(QByteArray(b"Content-Type"), QByteArray(b"application/x-www-form-urlencoded"))
     blocking = QgsBlockingNetworkRequest()
@@ -126,24 +131,54 @@ def _qgis_urlopen(req, timeout):
     elif method == "HEAD":
         err = blocking.head(qreq, True)
     elif method == "POST":
-        err = blocking.post(qreq, QByteArray(req.data or b""))
+        err = blocking.post(qreq, QByteArray(data or b""))
     else:
         raise urllib.error.URLError(f"unsupported method: {method}")
     reply = blocking.reply()
-    content = bytes(reply.content())
     status = reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute"))
-    status = int(status) if status is not None else 0
     # QgsNetworkReplyContent has rawHeaderList()/rawHeader(), not Qt's rawHeaderPairs() (found by the first CI run of test_net_live).
     headers = [(bytes(name).decode("latin-1"), bytes(reply.rawHeader(name)).decode("latin-1")) for name in reply.rawHeaderList()]
-    ok = _enum(QgsBlockingNetworkRequest, "ErrorCode", "NoError")
-    if err == ok:
-        return Response(content, status or 200, headers, url)
-    if status >= 400:
+    return Reply(
+        ok=(err == _enum(QgsBlockingNetworkRequest, "ErrorCode", "NoError")),
+        status=int(status) if status is not None else 0,
+        headers=headers,
+        body=bytes(reply.content()),
+        error=reply.errorString() or "network error",
+        timed_out=(err == _enum(QgsBlockingNetworkRequest, "ErrorCode", "TimeoutError")),
+    )
+
+
+def _qgis_urlopen(req, timeout):
+    url = req.full_url
+    r = _qgis_send(req.get_method(), url, req.header_items(), req.data, timeout)
+    if r.ok:
+        return Response(r.body, r.status or 200, r.headers, url)
+    if r.status >= 400:
         # Same exception urllib raises, with the body readable from it as callers expect.
-        raise urllib.error.HTTPError(url, status, reply.errorString(), _Headers(headers), io.BytesIO(content))
-    if err == _enum(QgsBlockingNetworkRequest, "ErrorCode", "TimeoutError"):
+        raise urllib.error.HTTPError(url, r.status, r.error, _Headers(r.headers), io.BytesIO(r.body))
+    if r.timed_out:
         raise urllib.error.URLError(socket.timeout("timed out"))
-    raise urllib.error.URLError(f"{reply.errorString() or 'network error'} (HTTP status {status or 'none'}, url {url})")
+    raise urllib.error.URLError(f"{r.error} (HTTP status {r.status or 'none'}, url {url})")
+
+
+class NetworkError(Exception):
+    """No HTTP answer at all (DNS failure, refused connection, timeout). `timed_out` tells the two kinds apart."""
+
+    def __init__(self, message, timed_out=False):
+        super().__init__(message)
+        self.timed_out = timed_out
+
+
+def request(method, url, headers=None, data=None, timeout=30):
+    """requests-style call for the AI provider clients: returns (status, headers, body) for ANY HTTP status, including 4xx and
+    5xx, and raises NetworkError when there was no answer. Only valid when QGIS_NETWORK_AVAILABLE."""
+    _check_scheme(url)
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    r = _qgis_send(method.upper(), url, list((headers or {}).items()), data, timeout)
+    if r.ok or r.status:
+        return r.status or 200, r.headers, r.body
+    raise NetworkError(r.error, timed_out=r.timed_out)
 
 
 def _urllib_open(req, timeout):
