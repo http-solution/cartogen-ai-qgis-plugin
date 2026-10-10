@@ -925,9 +925,9 @@ def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
             f'&nbsp;<a href="{href}">Details&nbsp;&#9662;</a></div>'
         )
     lines = [
-        f'<div style="font-size:11px;color:{color};margin:2px 0;">'
+        (f'<div style="font-size:11px;color:{color};margin:2px 0;">'
         f'&#128295;&nbsp;{n} tool call{plural}'
-        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>'
+        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>')
     ]
     for s in steps:
         icon = _STEP_STATUS.get(s["status"], _STEP_STATUS["done"])["icon"]

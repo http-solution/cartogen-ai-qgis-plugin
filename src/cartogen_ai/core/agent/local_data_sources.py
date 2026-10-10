@@ -201,9 +201,9 @@ def question_text(themes, country=None):
         "This request needs **{}**, and this project doesn't have {} yet.".format(
             " and ".join(labels), "it" if len(labels) == 1 else "them"),
         "",
-        "I can **download the data once** into the project and work from local files: better "
+        ("I can **download the data once** into the project and work from local files: better "
         "coverage, road types and speed limits, no dependence on the busy live OpenStreetMap "
-        "server, and fewer API calls. Or I can **fetch it online** each time, as before.",
+        "server, and fewer API calls. Or I can **fetch it online** each time, as before."),
         "",
     ]
     if auto:

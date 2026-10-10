@@ -63,14 +63,14 @@ def generate():
     lines = [
         "# Tool Reference",
         "",
-        f"Auto-generated from the live tool registry ({len(TOOLS_SCHEMA)} tools) by "
+        (f"Auto-generated from the live tool registry ({len(TOOLS_SCHEMA)} tools) by "
         "`docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this "
-        "can never drift from the actual code.",
+        "can never drift from the actual code."),
         "",
-        "Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure "
+        ("Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure "
         "HTTP, safe from any background thread); **two-phase** tools split a network fetch "
         "(background thread) from the QGIS-touching part (main thread); **task-management** "
-        "tools are excluded from auto-advance in the Task Manager.",
+        "tools are excluded from auto-advance in the Task Manager."),
         "",
     ]
 

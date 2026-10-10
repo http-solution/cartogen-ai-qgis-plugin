@@ -84,7 +84,7 @@ jobs:
       - name: Lint with Ruff
         if: runner.os == 'Linux'
         run: |
-          pip install ruff
+          pip install ruff==0.17.0
           ruff check .
 
       - name: Type check (mypy)

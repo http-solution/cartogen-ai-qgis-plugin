@@ -290,8 +290,8 @@ _OUTPUT_OVERRIDE = [
     # "report" as a NOUN names a deliverable ("write a report", "a situation report", "report on ..."); as a VERB it only asks for the answer
     # ("Report the model used and the detection count", "report each ID"). rc18 hand test R3/N5 (2026-10-06): the verb form forced an
     # MD-file deliverable, and after a failed run a follow-up turn demanded generate_spatial_report that nobody asked for.
-    ("report",    r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
-                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b"),
+    ("report",    (r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
+                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b")),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
     # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
     # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested

@@ -223,9 +223,9 @@ class CredentialManager:
         if not status.get("disabled"):
             return ""
         lines = [
-            "This isn't something Cartogen AI's own installer can fix -- it only installs "
+            ("This isn't something Cartogen AI's own installer can fix -- it only installs "
             "Python packages (via qpip), never QGIS's native Qt/QCA libraries or its "
-            "settings. Two documented causes:"
+            "settings. Two documented causes:")
         ]
         for i, item in enumerate(status["known_causes"], start=1):
             lines.append(f"{i}. {item['cause']}\n   Fix: {item['fix']}")

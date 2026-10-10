@@ -82,6 +82,11 @@ ignore = [
     "PERF203",  # try/except per item is deliberate (one bad feature must not abort the batch); Python 3.10 target
 ]
 
+[tool.ruff.lint.flake8-import-conventions]
+# Replaces ruff's default alias table (which newer releases extend with datetime -> dt): `import datetime` is the stdlib's own
+# spelling and is used throughout; only the scientific-stack aliases are enforced.
+aliases = { numpy = "np", matplotlib = "mpl", "matplotlib.pyplot" = "plt", pandas = "pd", scipy = "sp" }
+
 [tool.ruff.lint.pep8-naming]
 # Names that are dictated by Qt, QGIS or the `requests` API and cannot follow PEP 8: method overrides called by the framework
 # (event handlers, QgsProcessingAlgorithm and provider hooks, QgsTask/feedback callbacks), Qt signal attributes, the
