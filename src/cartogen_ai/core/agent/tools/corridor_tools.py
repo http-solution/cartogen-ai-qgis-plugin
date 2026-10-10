@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Corridor and terrain operations that no other tool covered: contour lines, and splitting a line by zones.
 
 2026-10-09 cost investigation: two of five realistic humanitarian scenarios could not be completed with the shipped tools. A highway

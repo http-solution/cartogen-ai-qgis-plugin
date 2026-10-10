@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F19 (rc7 smoke test, 2026-09-30): fetch_worldpop_population downloaded the WHOLE-country raster
 (Yemen, 141 s) for a ~77 x 71 km catchment. With extent_layer/bbox only that window is read through
 GDAL /vsicurl/. Network and GDAL are mocked here; tests/test_worldpop_clip_live.py clips a real raster."""

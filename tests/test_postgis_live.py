@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#151: execute_read_only_sql against a real PostGIS server. Skipped unless CARTOGEN_TEST_PG_HOST is set (the CI live job starts a
 postgis service container and sets it). Written without a local QGIS or database: CI's first run is its first execution, and what it
 shows about the read-only enforcement is the point of the test, not an assumption."""

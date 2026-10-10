@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Checks, with a real key, what Google's OpenAI-compatible Gemini endpoint does with the options the API-call optimisation plan
 (docs/API_CALL_OPTIMIZATION_PLAN_2026-10-10.md, phase 0) wants to use. It uses the plugin's own GeminiClient, so it tests what the
 plugin would actually send.
@@ -27,7 +26,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from cartogen_ai.infrastructure.providers.gemini import GeminiClient  # noqa: E402
+from cartogen_ai.infrastructure.providers.gemini import GeminiClient
 
 DUMMY_TOOL = [{"type": "function", "function": {
     "name": "get_layers", "description": "Lists the layers in the project.",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dataset Status / QA-Gate tools for Cartogen AI -- the agent-facing surface
 of models/dataset_status.py (point 2 of

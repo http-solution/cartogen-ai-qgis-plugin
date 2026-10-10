@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools import multimodal_remote_sensing as mrs

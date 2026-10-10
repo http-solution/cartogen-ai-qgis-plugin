@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic coordinate handling -- pure Python, no QGIS, so it is unit-testable.
 

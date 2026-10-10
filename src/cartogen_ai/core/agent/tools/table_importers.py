@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """File-based importers for published humanitarian tables: IPC phase classification, INFORM Risk and UNOSAT damage points (H7,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md). No network and no credentials: the user supplies a CSV/Excel file
 (typically downloaded from HDX).

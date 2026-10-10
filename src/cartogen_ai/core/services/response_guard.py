@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Code-level defences against the assistant presenting invented tool output.
 

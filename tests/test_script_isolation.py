@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for agent/services/script_isolation.py's QGIS-free pure logic --
 interpreter lookup and worker-environment construction. These run on the

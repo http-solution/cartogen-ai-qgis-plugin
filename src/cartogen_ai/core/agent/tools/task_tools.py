@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Agent Task & Memory Tools for Cartogen AI.
 Exposes tool functions allowing the LLM to manage task plans, preview safety checks, and memory.
 """
 
-from typing import List
 from .registry import register_tool
 from ..coordinates import contains_coordinate_pair
 
@@ -39,7 +37,7 @@ def get_memory_manager():
 
 
 @register_tool("create_plan", "Create a multi-step execution plan for complex spatial tasks.", {"type": "object", "properties": {"title": {"type": "string"}, "task_descriptions": {"type": "array", "items": {"type": "string"}}}, "required": ["title", "task_descriptions"]})
-def create_plan(title: str, task_descriptions: List[str]):
+def create_plan(title: str, task_descriptions: list[str]):
     if _TASK_MANAGER is None:
         return {"error": "Task manager not initialized."}
     return _TASK_MANAGER.create_plan(title, task_descriptions)

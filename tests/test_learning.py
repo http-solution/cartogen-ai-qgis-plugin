@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for services/learning.py -- the adaptive self-learning helpers added
 2026-09-02 (see BUG_TRACKER.md and learning.py's module docstring for the
 feature request and the deliberate scoping of each mechanism).

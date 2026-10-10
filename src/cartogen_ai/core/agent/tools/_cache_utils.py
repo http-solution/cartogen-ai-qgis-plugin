@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Small shared in-memory TTL cache for repeated identical external lookups
 within a plugin session (geocoding, OSM, HDX, geoBoundaries). Mirrors the

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 QGIS Project File Tools for Cartogen AI.
 """

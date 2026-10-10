@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The Humanitarian Mapping Task Register, as machine-readable task contracts.
 
 792 tasks across 36 sections. Each entry carries:

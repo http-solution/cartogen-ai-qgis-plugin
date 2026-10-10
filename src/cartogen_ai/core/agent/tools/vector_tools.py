@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Vector Geoprocessing & Spatial Tool implementations for Cartogen AI.
 """
@@ -736,7 +735,7 @@ def _sniff_csv_header(file_path, delimiter=","):
     dependency isn't installed, or when the CSV wasn't attached through the
     chat UI at all (e.g. the user just names a path in a message)."""
     import csv
-    with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+    with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
         reader = csv.reader(f, delimiter=delimiter)
         return next(reader, [])
 
@@ -808,7 +807,7 @@ def _sample_xy_values(file_path, ext, x_field, y_field, delimiter, sheet_name, l
     try:
         if ext == ".csv":
             import csv
-            with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+            with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 for i, row in enumerate(reader):
                     if i >= limit:

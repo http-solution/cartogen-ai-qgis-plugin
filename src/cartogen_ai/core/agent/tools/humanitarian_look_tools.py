@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """apply_humanitarian_look: give a result field written by an analysis tool its humanitarian map look (HX1).
 
 calculate_severity_index, calculate_population_in_need, calculate_presence_gap, calculate_damage_exposure_severity and calculate_mcda_ranking

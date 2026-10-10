@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Canvas Highlighting for Cartogen AI.
 Flashes a layer's extent on the map canvas when the AI's reply mentions it,

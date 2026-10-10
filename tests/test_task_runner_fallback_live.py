@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit A03: when QGIS task scheduling fails and the thread fallback runs, the completion callback must run on the Qt MAIN thread
 (it touches widgets), never on the worker. Real Qt threads, a real QgsApplication."""
 import threading

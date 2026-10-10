@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/processing_allowlist_tools.py -- the Tier 2
 allow-listed Processing algorithm runner, point 19's "larger question"
 (docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Follows this

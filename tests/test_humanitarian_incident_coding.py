@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the 2026-09-04 dual controlled-vocabulary incident-coding
 addition to agent/tools/humanitarian_tools.py (ACLED-style event_type/
 sub_event_type + IMSMA/IMAS-style hazard_type/contamination_status), layered

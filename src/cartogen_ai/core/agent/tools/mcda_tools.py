@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Multi-criteria ranking of areas, with a check that the ranking is not just an artefact of the weights (H5,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).

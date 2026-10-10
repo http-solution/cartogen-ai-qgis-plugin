@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Offline check of the id scanner behind the live registry diagnostic (tests/test_processing_registry_diagnostic_live.py)."""
 import unittest
 

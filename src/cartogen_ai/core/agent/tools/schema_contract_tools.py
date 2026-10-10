@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Schema-contract tools for Cartogen AI -- the agent-facing surface of
 validators/schema_contracts.py (point 5 of

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The opt-in model-call trace (core/agent/api_trace.py) and its summary. 2026-10-10: the exported captures held only the system
 instruction, so the many-calls investigation could not be finished; this records requests, replies and usage per call."""
 import json

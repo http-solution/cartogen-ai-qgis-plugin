@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Offline guard for the live-test list: a live module must run in CI or be excluded with a reason (see tests/_live_modules.py)."""
 import unittest
 

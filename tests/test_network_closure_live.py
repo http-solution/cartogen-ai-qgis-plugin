@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Closed road segments are removed from the network, in real QGIS (audit F19, #155).
 
 Written without a QGIS install here: CI's first run is its first execution. Ground truth for lengths is measured on the WGS84

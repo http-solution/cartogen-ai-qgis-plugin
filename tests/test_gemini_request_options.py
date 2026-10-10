@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """tool_choice / extra_body on GeminiClient (API-call optimisation plan, phase 0). Offline: the HTTP call is mocked, so this proves what
 is SENT, not what Google's endpoint accepts (tools/diagnose_gemini_endpoint.py does that with a real key)."""
 import json

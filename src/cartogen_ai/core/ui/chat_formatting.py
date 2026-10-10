@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Pure-Python chat presentation logic for the dock widget: markdown-to-HTML
 rendering, relative timestamps, and chat-bubble color derivation.
@@ -118,7 +117,7 @@ def _latex_inner(inner):
 
     def _sup(m):
         body = m.group(1) if m.group(1) is not None else m.group(2)
-        return "".join(_SUPERSCRIPTS.get(ch, None) or "\x00" for ch in body)
+        return "".join(_SUPERSCRIPTS.get(ch) or "\x00" for ch in body)
     t = re.sub(r"\^(?:\{([0-9+\-]+)\}|([0-9]))", _sup, t)
     if "\x00" in t or "\\" in t or "^" in t:
         return None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Critical-link (bottleneck) screening on a road network (H9, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
 What it measures: for a set of origins and destinations, how much origin-to-destination demand has its SHORTEST path through each road

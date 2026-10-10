@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Conversation history storage, trimming, and mid-turn compaction for Cartogen AI.
 

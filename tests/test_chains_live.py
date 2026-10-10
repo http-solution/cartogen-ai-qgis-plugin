@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Runs each pre-built chain end to end in real QGIS with its slots filled, calling the real tool functions through the same
 reference resolution run_steps uses. fetch_dem reads synthetic tiles from a local range-capable server (the real bucket is not used in
 CI). Proves tool order, argument names and result fields; says nothing about whether a model follows the skeleton."""
@@ -14,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     import numpy  # noqa: F401
-    from osgeo import gdal  # noqa: F401
+    from osgeo import gdal
     from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsVectorLayer
     LIVE = True
 except ImportError:

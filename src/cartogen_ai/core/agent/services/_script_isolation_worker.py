@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Persistent worker process for `execute_pyqgis_script` isolation
 (see script_isolation.py's module docstring for the full design).

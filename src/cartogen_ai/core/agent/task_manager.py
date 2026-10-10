@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent Task Manager for Cartogen AI.
 Handles multi-step spatial workflow planning, task status tracking,
@@ -6,7 +5,6 @@ preview-before-apply safety confirmation, and action explainability.
 """
 
 import datetime
-from typing import List, Dict, Optional
 
 try:
     from qgis.PyQt.QtCore import QObject, pyqtSignal
@@ -45,11 +43,11 @@ class AgentTaskManager(QObject):
         if QT_AVAILABLE:
             super().__init__()
         self.title = ""
-        self.tasks: List[Dict] = []
+        self.tasks: list[dict] = []
         self._next_id = 1
-        self.plan_history: List[Dict] = []
+        self.plan_history: list[dict] = []
 
-    def create_plan(self, title: str, task_descriptions: List[str]) -> dict:
+    def create_plan(self, title: str, task_descriptions: list[str]) -> dict:
         """Creates a new multi-step execution plan. Archives the previous plan into
         plan_history first (if it had any tasks), so starting a new plan doesn't
         silently erase what the last one accomplished."""
@@ -182,7 +180,7 @@ class AgentTaskManager(QObject):
         """Returns the archived plan snapshots, most recent first."""
         return [dict(p) for p in self.plan_history]
 
-    def auto_advance_if_unambiguous(self, result_summary: str, tool_name: str = "") -> Optional[dict]:
+    def auto_advance_if_unambiguous(self, result_summary: str, tool_name: str = "") -> dict | None:
         """Best-effort safety net for when the model creates a plan but then forgets to call
         update_task after actually doing the work (a real, observed failure mode -- a plan can
         sit frozen at TODO forever even though the underlying tool calls genuinely succeeded).

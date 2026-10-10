@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The plugin-directory build offers only tested providers (settings_keys.ENABLED_PROVIDERS).
 Pure-Python checks: no QGIS needed."""
 import re

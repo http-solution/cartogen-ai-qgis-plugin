@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
 import cartogen_ai.core.agent.agent_orchestrator as agent_mod

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Which entries of sys.modules belong to THIS plugin's cartogen_ai tree (audit F31, #167).
 
 __init__.py used to evict every `cartogen_ai` / `cartogen_ai.*` module on load. That is needed after an in-place upgrade

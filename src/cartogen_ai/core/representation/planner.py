@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Representation Planner Engine for Cartogen AI.
 
@@ -6,7 +5,6 @@ Generates and scores candidate map representations based on layer semantics,
 spatial density, statistical honesty, and user analytical intent.
 """
 
-from typing import List, Optional
 from .models import (
     LayerSemanticProfile,
     RepresentationCandidate,
@@ -14,7 +12,7 @@ from .models import (
 )
 
 
-def _infer_intent_keywords(user_intent: Optional[str]) -> str:
+def _infer_intent_keywords(user_intent: str | None) -> str:
     """Classifies user intent into a core cartographic question."""
     if not user_intent:
         return "general"
@@ -38,12 +36,12 @@ def _infer_intent_keywords(user_intent: Optional[str]) -> str:
 
 def plan_representations(
     profile: LayerSemanticProfile,
-    user_intent: Optional[str] = None,
-    target_field: Optional[str] = None,
-) -> List[RepresentationCandidate]:
+    user_intent: str | None = None,
+    target_field: str | None = None,
+) -> list[RepresentationCandidate]:
     """Evaluates the LayerSemanticProfile and returns a sorted list of scored candidates."""
     intent_type = _infer_intent_keywords(user_intent)
-    candidates: List[RepresentationCandidate] = []
+    candidates: list[RepresentationCandidate] = []
 
     # -----------------------------------------------------------------------
     # 1. Point Geometries

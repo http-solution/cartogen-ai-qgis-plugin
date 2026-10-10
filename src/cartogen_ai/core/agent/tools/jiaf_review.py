@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4a: recording the group's decisions and producing the FINAL figures
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md, sections 2, 4 and 5).
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """What kinds of FILE a task can take in, and what kinds of file it puts out.
 
 The task register (task_register.py) models abstract slots -- area of interest,

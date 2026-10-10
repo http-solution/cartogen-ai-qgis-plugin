@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 2: reading and validating sector inputs, offline. Grids mirror the layouts seen in the real Yemen worksheet and published
 HNO files; the real files themselves are not committed (tests/test_jiaf_inputs_yemen_local.py uses them when JIAF_YEMEN_DIR is set)."""
 import os

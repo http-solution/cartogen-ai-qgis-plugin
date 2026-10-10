@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """P1 fix, 2026-09-20 audit: core/logger.py used to forward whatever string a
 caller built straight to QgsMessageLog/stdout -- including tool arguments and
 tool results, which can embed a provider API key, a bearer token, or a

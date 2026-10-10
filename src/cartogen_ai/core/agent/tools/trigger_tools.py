@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Forecast trigger evaluation for anticipatory action (H4, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Centralized QgsSettings and QgsProject property keys for Cartogen AI.
 Adheres to the standard 'cartogen_ai/' namespace to guarantee isolation

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Which QGIS project a running agent turn belongs to (GitHub #147; audit F11).
 

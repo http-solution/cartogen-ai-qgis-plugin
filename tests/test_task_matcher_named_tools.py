@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A request that names a tool must not be steered to a task that does not use it (rc15 hand test D01, 2026-10-06)."""
 import unittest
 

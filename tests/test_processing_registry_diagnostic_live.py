@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Diagnostic (GitHub #162, audit F26): which Processing algorithm ids the plugin references are missing from the real registry.
 
 Step 1 of the work package: it changes no behaviour and does not fail on a missing id -- it PRINTS a report (visible in the CI log)

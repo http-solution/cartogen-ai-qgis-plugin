@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Road barriers for the routing tools (H1, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 

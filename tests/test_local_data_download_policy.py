@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F22 (rc7 smoke test, 2026-09-30): a 103 MB OSM extract downloaded with no question because the
 silent-download threshold was a fixed 150 MB. The default is now 50 MB (owner decision 2026-09-30; it was 150), but the threshold is now a
 setting, and a fresh local copy no longer triggers a question about a download that will not happen."""

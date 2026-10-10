@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """What a request needs, in terms of data sources and actions, and which tools provide each.
 
 Why (2026-10-09 cost investigation): the tool router ranked tools by incidental word overlap with their descriptions, so a long

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.prompts import build_system_prompt

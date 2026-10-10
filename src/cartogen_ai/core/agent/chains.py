@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pre-built `run_steps` chains for workflows that recur.
 
 A chain is a vetted skeleton: which tools, in which order, with which argument names, and which results feed which step

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Job splitting is conservative: only whole requests at explicit boundaries become jobs."""
 import unittest
 

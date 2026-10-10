@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for core/net.py (task #71): urlopen goes through QgsBlockingNetworkRequest and behaves like urllib's, on the
 main thread and on a worker thread. Talks to a throwaway HTTP server on 127.0.0.1. Written without hand-testing; the Docker QGIS
 run is the only execution evidence."""

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the numpy replacements of ids the 4.2.2 registry lacks (#162 step 2). Written without a QGIS install: CI's first run is their first execution."""
 import os
 import tempfile

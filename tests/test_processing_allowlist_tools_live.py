@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the generic Processing tool (#163, audit F27). Written without a QGIS install: CI's first run is their first execution."""
 import unittest
 

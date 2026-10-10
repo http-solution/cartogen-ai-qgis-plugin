@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS checks of split_lines_by_zones and generate_contours against geometry with known answers. Written without
 hand-testing; the Docker QGIS run is the only execution evidence."""
 import os

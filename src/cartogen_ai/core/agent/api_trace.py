@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Opt-in trace of every model call: the system instruction, the messages sent, the tool names offered, the reply and the usage.
 
 Why: the 2026-10-10 investigation of "13 API calls for List the layers" could not be finished because the exported captures held only the

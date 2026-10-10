@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4b: the intersectoral pattern outputs of Workspace 3C (Reference Table 3C, July 2024 manual, pp.48-49).
 
 SUPPORT FOR PEOPLE WHO RUN THE JIAF 2 PROCESS. NOT the JIAF method, NOT endorsed by OCHA or the IASC. These are the lists and counts the manual asks the

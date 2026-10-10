@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual check that routing over the FULL Jordan road network (161,041 roads) no longer freezes QGIS.
 
 Not part of the automated suite: it uses the Geofabrik Jordan extract (cached under %TEMP%, ~60 MB) and

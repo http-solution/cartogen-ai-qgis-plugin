@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 HTTP for the data-fetch tools, through QGIS's own network stack when it is there.
 
@@ -24,7 +23,6 @@ Only http and https URLs are opened; file:, ftp: and custom schemes are refused 
 
 import collections
 import io
-import socket
 import urllib.error
 import urllib.request
 
@@ -157,7 +155,7 @@ def _qgis_urlopen(req, timeout):
         # Same exception urllib raises, with the body readable from it as callers expect.
         raise urllib.error.HTTPError(url, r.status, r.error, _Headers(r.headers), io.BytesIO(r.body))
     if r.timed_out:
-        raise urllib.error.URLError(socket.timeout("timed out"))
+        raise urllib.error.URLError(TimeoutError("timed out"))
     raise urllib.error.URLError(f"{r.error} (HTTP status {r.status or 'none'}, url {url})")
 
 

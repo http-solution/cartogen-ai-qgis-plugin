@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Spatial Memory Manager for Cartogen AI.
 Provides project-bound long-term spatial memory, sidecar SQLite database persistence,

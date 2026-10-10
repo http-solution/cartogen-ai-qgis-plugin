@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H6 aggregate_survey_indicator: the estimates, intervals and suppression are pure; layer work is in test_survey_tools_live.py."""
 import unittest
 

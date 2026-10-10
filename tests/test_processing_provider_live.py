@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the native Processing algorithms (audit F03, F04, F06 -> GitHub #139, #140, #142).
 
 Written without a QGIS install: CI's first run is their first execution. The algorithms are run (not only their metadata) with

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 run_allowlisted_processing_algorithm -- a Tier 2 slice of the tiered
 allow-list model point 19's "larger question" describes

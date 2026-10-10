@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-facing view onto models/transactions.py's TurnTransactionLog -- see
 that module's docstring for exactly what is and isn't tracked/undoable.

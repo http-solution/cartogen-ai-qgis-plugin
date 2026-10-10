@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Native QgsTask / Async Runner for Cartogen AI.
 Executes non-blocking background LLM requests while keeping the QGIS GUI fully responsive.

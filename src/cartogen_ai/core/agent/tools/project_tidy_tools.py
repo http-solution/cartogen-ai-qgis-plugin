@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tidy an existing project's layers (GitHub #120 / #128, rc11 smoke test).
 

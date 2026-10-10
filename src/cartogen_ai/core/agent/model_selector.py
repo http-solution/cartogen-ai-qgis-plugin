@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Complexity-based automatic model selection for Cartogen AI.
 Picks between a cheaper/faster and a more capable model from whatever live

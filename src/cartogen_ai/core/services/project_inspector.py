@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic Project Inspector snapshot.
 

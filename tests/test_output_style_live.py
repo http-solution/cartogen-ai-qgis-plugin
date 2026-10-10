@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for output styling, the processing allowlist extension and print layout styling. Written without a QGIS
 install: the first CI run is their first execution."""
 import os

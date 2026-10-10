@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Live Verification Pipeline for Cartogen AI:
 - Live Map Intelligence Engine (layer ordering, component 20% fill alpha, scale-aware PAL labeling)
@@ -210,7 +209,7 @@ def run_live_test():
         assert exp_res["success"], f"Export failed: {exp_res}"
         print(f"   -> Export result: {exp_res}")
 
-        with open(tmp_csv, "r", encoding="utf-8") as f:
+        with open(tmp_csv, encoding="utf-8") as f:
             rows = list(csv.reader(f))
         # Header + 2 data rows = 3 rows total
         data_rows = rows[1:]

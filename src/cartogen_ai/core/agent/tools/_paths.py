@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Where a tool-supplied output path really points.
 
 rc22 live smoke test (2026-10-09, N3/N8/N9/H4): the model passed relative paths such as "outputs/smoke_layout.pdf" and the tools used

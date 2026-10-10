@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Requests answered from the open project with no model call (2026-10-10 hand test: 'List the layers' took 13 API calls)."""
 import unittest
 

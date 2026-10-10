@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the file-input/file-output half of the task register.
 
 The point of these is that the register cannot advertise a capability the

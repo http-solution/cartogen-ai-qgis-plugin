@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for H2 generate_mapping_task_grid. Written without a QGIS install: CI's first run is their first execution."""
 import json
 import os

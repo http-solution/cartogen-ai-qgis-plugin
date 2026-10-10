@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Feature-adding tools must not report success when the provider refuses the save (GitHub #144, audit F08)."""
 import unittest
 from unittest.mock import MagicMock, patch

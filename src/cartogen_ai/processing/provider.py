@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Native QGIS Processing Provider and Algorithms for Cartogen AI.
 Exposes optimal hub siting and multi-band service area calculations to QGIS Processing.

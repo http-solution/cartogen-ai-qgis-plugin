@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests verifying clean architectural package boundaries:
 - cartogen_ai.infrastructure

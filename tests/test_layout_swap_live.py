@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A failing layout re-run keeps the old layout; duplicate atlas values give distinct files (audit F28, #164).
 
 Written without a QGIS install here: CI's first run is its first execution."""

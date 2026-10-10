@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Downloads a Geofabrik OpenStreetMap extract once and loads roads + health facilities from it.
 
 The user-facing side (asking first, listing other sources) is local_data_sources.py and

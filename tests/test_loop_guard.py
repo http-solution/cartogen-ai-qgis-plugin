@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """LoopGuard: catches stuck turns (duplicates, repeated failure, no progress) without stopping legitimate work."""
 import unittest
 

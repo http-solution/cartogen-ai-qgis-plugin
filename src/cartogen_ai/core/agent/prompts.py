@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dynamic System Prompt Builder for Cartogen AI.
 Injects active Task Plans, Project Spatial Memory, and GIS rules into LLM prompt.

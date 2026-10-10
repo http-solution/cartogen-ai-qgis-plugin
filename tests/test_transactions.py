@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for models/transactions.py's TurnTransactionLog -- see that
 module's docstring for exactly what this narrow undo mechanism covers
 (new layers a call added) and what it deliberately doesn't (in-place

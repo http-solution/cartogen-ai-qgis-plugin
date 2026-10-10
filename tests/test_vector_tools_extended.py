@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the geoprocessing/selection tools added to vector_tools.py in the
 QGIS-feature-coverage pass (difference, convex hull/Voronoi/Delaunay, nearest-
 feature join, singlepart/simplify, field statistics, select-by-location).

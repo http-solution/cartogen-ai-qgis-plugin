@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Snapshot/restore pairs for a priority subset of MODIFY/DELETE tools --
 the real, still-open half of point 20 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md that

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for fetch_fts_funding_data (agent/tools/humanitarian_tools.py), the
 Phase 2 humanitarian-ops improvement: OCHA Financial Tracking Service
 integration for funding requirements/received/gap/coverage. Network calls are

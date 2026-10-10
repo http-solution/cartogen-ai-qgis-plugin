@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Turn-scoped operation log + best-effort undo for the tool calls the agent
 makes while answering one user request.

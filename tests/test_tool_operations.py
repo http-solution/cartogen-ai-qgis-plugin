@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tool_operations.py -- the READ/CREATE/MODIFY/DELETE/
 PUBLISH taxonomy (point 20 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). The completeness

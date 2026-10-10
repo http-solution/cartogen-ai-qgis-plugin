@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Project notes & memory dialog -- Broadsheet redesign Phase 1, mockup state 1o
 ("Project notes & memory ... editable and exportable", the same "← back" dialog
 pattern settings_dialog.py already established for Settings, 1n). Rehouses the old

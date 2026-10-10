@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for ingest_osm_features two-phase vector ingestion.
 """
@@ -91,7 +90,7 @@ class TestIngestOsmFeatures(unittest.TestCase):
         self.assertTrue(os.path.exists(res["local_path"]))
 
         # Verify GeoJSON content
-        with open(res["local_path"], "r", encoding="utf-8") as f:
+        with open(res["local_path"], encoding="utf-8") as f:
             data = json.load(f)
             self.assertEqual(data["type"], "FeatureCollection")
             self.assertEqual(len(data["features"]), 2)
@@ -141,7 +140,7 @@ class TestIngestOsmFeatures(unittest.TestCase):
 
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["feature_count"], 2)
-        with open(res["local_path"], "r", encoding="utf-8") as f:
+        with open(res["local_path"], encoding="utf-8") as f:
             data = json.load(f)
         coords = [tuple(f["geometry"]["coordinates"]) for f in data["features"]]
         self.assertIn((35.0, 0.0), coords)

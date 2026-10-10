@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Clipping the road network to what a service area can reach is EXACT (real QGIS).
 
 BUG-2026-09-25-2: routing builds a graph from every road in the layer (about 0.6-1 ms per road; 331 s

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Layer data-sensitivity classification dialog.
 
 IMPLEMENTATION_TRACKER.md §1.4 decision 3 (who classifies layers, and how),

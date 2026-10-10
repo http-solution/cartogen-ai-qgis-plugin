@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic hydrologic engineering checks and calculations (watershed / peak-flow requests).
 

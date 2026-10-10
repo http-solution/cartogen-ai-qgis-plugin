@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H8 allocation envelope: the arithmetic, offline. The layer work needs QGIS (tests/test_allocation_tools_live.py)."""
 import random
 import unittest

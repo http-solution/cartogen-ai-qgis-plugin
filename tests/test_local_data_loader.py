@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """agent/local_data_loader.py's background-thread half (no QGIS needed): region lookup, the
 download itself, reuse of a recent copy, and unzipping only what's needed."""
 import io

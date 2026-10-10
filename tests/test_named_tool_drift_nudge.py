@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A named tool that is not called after several other calls gets a nudge (rc17 hand test B3, 2026-10-06)."""
 import unittest
 

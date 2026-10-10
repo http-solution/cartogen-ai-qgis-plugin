@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure half of the routing/reach styling (tools/routing_style.py): band edges, labels, palettes, group order."""
 import unittest
 

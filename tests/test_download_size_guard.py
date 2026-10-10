@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F22: the other fetch tools (geoBoundaries, HDX, building footprints) ask before a large download.
 
 The rule: a server-reported size above the user's threshold stops the tool with a message telling the model to ask,

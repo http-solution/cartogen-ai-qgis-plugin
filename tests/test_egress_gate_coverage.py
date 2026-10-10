@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Keeps the egress gate's coverage claim true (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md §9).
 
 The gate decides, BEFORE a tool runs, whether the call touches a protected layer -- and it can only

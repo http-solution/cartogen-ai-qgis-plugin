@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the release packaging rules in plugin_upload.py.
 
 These exist because of a real near-miss: excluding the repo-root `tools/`

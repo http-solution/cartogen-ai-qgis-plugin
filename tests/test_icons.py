@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the pure-Python half of ui/icons.py -- icon_svg()'s color substitution and template
 lookup. themed_icon() (QSvgRenderer/QPainter rasterization) needs a live QGIS process and is
 covered by the live-QGIS verification for the UI/chat redesign workstream instead (2026-09-12);

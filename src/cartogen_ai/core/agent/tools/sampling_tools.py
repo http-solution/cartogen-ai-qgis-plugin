@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Survey sampling frame design for needs assessments (H3, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 

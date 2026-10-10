@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Cloud-provider egress gate -- the technical half of the DPO determination recorded in SECURITY.md
 ("DPIA determination and deployment constraints", 2026-09-24).

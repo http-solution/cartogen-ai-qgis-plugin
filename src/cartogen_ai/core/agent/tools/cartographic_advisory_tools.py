@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Visualization-selection advisory tool for Cartogen AI -- v1.8.0 workstream 1,
 adapting the external "QGIS Cartographic Intelligence Standard" document's

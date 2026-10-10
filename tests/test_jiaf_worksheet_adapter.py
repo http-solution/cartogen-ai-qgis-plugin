@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The OCHA Worksheet 3A/3B adapter: table-aware reading, header-matched columns, unit identity (population group + pocket of need + Admin 3/2/1 P-code),
 the worksheet's own flag columns, its `Thresholds` named cells and its historical table.
 
@@ -53,7 +52,7 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(ji.worksheet_id(None, None, None, None, "HT03"), "HT03")
 
     def test_a_pocket_of_need_in_the_same_admin2_is_a_separate_unit(self):
-        pins = {h: 10 for h in SECTOR_HEADERS}
+        pins = dict.fromkeys(SECTOR_HEADERS, 10)
         units, _ = ji.parse_ocha_worksheet(pin_grid([row(pins=pins), row(pocket="IDP camp", pins=pins), row(group="IDPs", pins=pins)]), sev_grid([]))
         self.assertEqual(len(units), 3)
         self.assertEqual(sorted(ji.uid(u) for u in units), sorted(["IDP campHT0311", "HT0311", "IDPsHT0311"]))
@@ -61,8 +60,8 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(camp["admin2_code"], "HT0311")
 
     def test_pin_and_severity_rows_of_the_same_unit_are_merged_including_the_pocket(self):
-        pins = {h: 10 for h in SECTOR_HEADERS}
-        phases = {h: 3 for h in SECTOR_HEADERS}
+        pins = dict.fromkeys(SECTOR_HEADERS, 10)
+        phases = dict.fromkeys(SECTOR_HEADERS, 3)
         units, _ = ji.parse_ocha_worksheet(pin_grid([row(pins=pins), row(pocket="IDP camp", pins=pins)]),
                                            sev_grid([srow(phases=phases, prelim=3), srow(pocket="IDP camp", phases=dict(phases, WASH=5), prelim=3)]))
         self.assertEqual(len(units), 2)
@@ -72,7 +71,7 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(main["severity"]["wash"], 3)
 
     def test_admin3_rows_are_distinct_units_under_one_admin2(self):
-        pins = {h: 10 for h in SECTOR_HEADERS}
+        pins = dict.fromkeys(SECTOR_HEADERS, 10)
         units, _ = ji.parse_ocha_worksheet(pin_grid([row(a3="HT031101", pins=pins), row(a3="HT031102", pins=pins)]), sev_grid([]))
         self.assertEqual(sorted(ji.uid(u) for u in units), ["HT031101", "HT031102"])
 
@@ -109,7 +108,7 @@ class TestHistoryAndThresholds(unittest.TestCase):
         return [head] + rows
 
     def test_previous_pin_is_attached_by_worksheet_id_including_pocket_and_a_unit_without_a_row_stays_none(self):
-        pins = {h: 10 for h in SECTOR_HEADERS}
+        pins = dict.fromkeys(SECTOR_HEADERS, 10)
         units, _ = ji.parse_ocha_worksheet(pin_grid([row(pins=pins), row(pocket="IDP camp", pins=pins), row(admin2="HT0312", pins=pins)]), sev_grid([]))
         old_main = ["", "Nord", "HT03", "Cap", "HT0311", None, None, None, 1000, None] + [100] * 8
         old_camp = ["", "Nord", "HT03", "Cap", "HT0311", None, None, "IDP camp", 1000, None] + [50] * 8
@@ -159,7 +158,7 @@ class TestWorkbookRead(unittest.TestCase):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "WS - 3.1 Overall PiN"
-        pins = {h: 100 for h in SECTOR_HEADERS}
+        pins = dict.fromkeys(SECTOR_HEADERS, 100)
         pins["CCCM"] = 0
         pins["Education"] = 0
         grid = pin_grid([row(pins=pins, pop=1000), row(pocket="IDP camp", pins=pins, pop=1000)], flags=False)
@@ -168,7 +167,7 @@ class TestWorkbookRead(unittest.TestCase):
             ws.append(r)
         ws.add_table(Table(displayName="tblPiNAnalysis", ref=f"A2:{openpyxl.utils.get_column_letter(len(grid[1]))}{len(grid)}"))
         sv = wb.create_sheet("WS - 3.2 Intersectoral Severity")
-        sg = sev_grid([srow(phases={h: 3 for h in SECTOR_HEADERS}, prelim=3), srow(pocket="IDP camp", phases={h: 3 for h in SECTOR_HEADERS}, prelim=3)])
+        sg = sev_grid([srow(phases=dict.fromkeys(SECTOR_HEADERS, 3), prelim=3), srow(pocket="IDP camp", phases=dict.fromkeys(SECTOR_HEADERS, 3), prelim=3)])
         for r in sg:
             sv.append(r)
         sv.add_table(Table(displayName="tblSeverityAnalysis", ref=f"A1:{openpyxl.utils.get_column_letter(len(sg[0]))}{len(sg)}"))

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for H1 apply_network_barriers. Written without a QGIS install: CI's first run is their first execution."""
 import unittest
 

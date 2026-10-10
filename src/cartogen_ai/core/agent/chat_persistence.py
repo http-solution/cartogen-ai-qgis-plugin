@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Project-Bound Chat History Persistence for Cartogen AI.
 Saves/restores conversation history via QgsProject custom properties, so

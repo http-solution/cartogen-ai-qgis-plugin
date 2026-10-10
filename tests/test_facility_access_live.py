@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """classify_facilities_by_access agrees with routed costs (real QGIS) -- F08, rc7 smoke test.
 
 Facilities sit ON road crossings of a grid network, so the access leg is ~0 and the only difference

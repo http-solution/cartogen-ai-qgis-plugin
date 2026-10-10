@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS test of the job queue through the real dock: five pasted requests are proposed, confirmed, then run one at a time.
 Written without hand-testing; the Docker QGIS run is the only execution evidence."""
 import unittest

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Core Exception Hierarchy for Cartogen AI.
 
@@ -67,4 +66,3 @@ class SecuritySandboxError(CartogenError):
 
 class TaskExecutionError(CartogenError):
     """Raised when a background spatial task or analysis workflow fails execution."""
-    pass

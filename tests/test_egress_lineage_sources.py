@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """GitHub #149 / #150 (audit F13, F14): the egress gate must see layers named inside SQL and in list/nested arguments, treat the
 monitoring workflow as whole-project, and the lineage helpers must record the same sources and the layers a result created.
 Pure functions only; the QGIS-side tagging in the orchestrator is not exercised here."""

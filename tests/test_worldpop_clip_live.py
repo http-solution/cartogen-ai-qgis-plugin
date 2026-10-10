@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Clipping a population raster to a window keeps its pixel values (real GDAL) -- F19, rc7 smoke test.
 
 Uses a synthetic local GeoTIFF instead of the WorldPop server, so CI needs no network: the code under

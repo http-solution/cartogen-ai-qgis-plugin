@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Imagery feature extraction via SAM-family segmentation (FastSAM), for
 Cartogen AI. See docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md for the full design

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual check that clipping the road network to a service area's reach is exact AND faster, on the REAL
 Jordan network (161,041 roads).
 

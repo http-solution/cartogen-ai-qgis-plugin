@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic Provenance Record for Cartogen AI -- point 17 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.

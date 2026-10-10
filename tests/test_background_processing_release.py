@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit A16: abandoned processing bundles are released once their task finishes (pure logic, no QGIS)."""
 import unittest
 

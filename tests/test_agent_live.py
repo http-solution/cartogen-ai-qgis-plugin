@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Headless functional test of the full agent execution pipeline against a REAL QGIS
 process -- real CartogenAi() agent, real task_manager/memory_manager (bound via the same
 bind_agent_context() production __init__ already calls), real TOOL_REGISTRY, real

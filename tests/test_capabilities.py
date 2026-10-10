@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Capability table, router selection and task directives on the five 2026-10-09 scenarios (cost investigation)."""
 import json
 import unittest

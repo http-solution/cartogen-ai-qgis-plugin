@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F12 (rc7 smoke test, 2026-09-30): a dashboard of ~2,500 facility points drew every marker; slow to
 open and unreadable at country zoom. Point layers with >= CLUSTER_MIN_POINTS features are now drawn as
 clustered markers. The HTML tests need folium (skipped without it, like the rest of the dashboard tests)."""

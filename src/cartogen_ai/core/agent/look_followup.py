@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Finish the map step a request asked for when the model stops one call short.
 
 rc22 hand test (issue 232, rows T3, V11, T2/V4): after an import or analysis tool wrote its result field, the tool returned the exact

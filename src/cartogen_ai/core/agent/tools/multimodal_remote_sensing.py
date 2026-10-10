@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Multimodal Vision Inspection & STAC Satellite Tools for Cartogen AI.
 Interacts with STAC Satellite APIs (Earth Search / Sentinel STAC),

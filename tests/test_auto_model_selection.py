@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Automatic model selection, end to end (cost review, 2026-09-25).
 
 Found: agent_orchestrator._apply_auto_model_selection assigned `client.model = picked`, but the

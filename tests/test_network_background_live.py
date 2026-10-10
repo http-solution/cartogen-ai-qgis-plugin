@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Network analysis no longer freezes QGIS: it runs on a worker thread and can be stopped (real QGIS).
 
 Live-reported 2026-09-25 (BUG-2026-09-25-2): routing over a national road network (161,041 roads)

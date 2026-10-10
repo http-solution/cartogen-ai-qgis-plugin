@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 cartogen_ai.core.validators -- Core validation logic and schema contracts.
 
@@ -15,8 +14,8 @@ from .pcode_validation import (
 )
 
 __all__ = [
+    "check_pcode_hierarchy",
+    "check_pcode_uniqueness",
     "list_contracts",
     "validate_layer_schema",
-    "check_pcode_uniqueness",
-    "check_pcode_hierarchy",
 ]

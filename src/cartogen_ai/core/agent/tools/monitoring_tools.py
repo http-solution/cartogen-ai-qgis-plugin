@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Recurring monitoring workflows for Cartogen AI.
 

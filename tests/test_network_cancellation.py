@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Stop reaches a running network analysis, and no tool mistakes it for an ordinary failure.
 
 BUG-2026-09-25-2: a routing call over a national road network took 292-572 s on the GUI thread with no

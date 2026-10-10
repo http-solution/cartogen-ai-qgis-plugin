@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Allocation envelope: split a budget the user supplies across areas by need (H8,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 

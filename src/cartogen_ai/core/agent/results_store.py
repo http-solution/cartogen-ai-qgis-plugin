@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A per-project GeoPackage that keeps analysis outputs across Save and Reopen (rc7 smoke test F06).
 
 Cartogen's analysis tools produce QGIS MEMORY layers. QGIS writes a memory layer's definition into the project file

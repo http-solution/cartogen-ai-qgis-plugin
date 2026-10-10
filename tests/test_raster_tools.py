@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for weighted_overlay_analysis, added to raster_tools.py in the
 QGIS-feature-coverage pass, and interpolate_surface/elevation_profile/
 georeference_image/estimate_population_exposure, added in the ArcGIS-parity

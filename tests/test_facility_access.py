@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F08 (rc7 smoke test, 2026-09-30): 'health facilities beyond one hour' took 43 min 48 s because
 travel_time_matrix ran a shortest-path search per destination (3,369). classify_facilities_by_access
 answers it from one service area; tests/test_rc8_live.py checks it against routed costs in real QGIS."""

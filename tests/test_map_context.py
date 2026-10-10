@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.agent.map_context import (
     get_map_context_summary, estimate_layer_context_tokens, filter_layers_by_selection,

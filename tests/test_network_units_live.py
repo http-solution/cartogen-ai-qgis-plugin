@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The network tools (service area, travel-time matrix, delivery route) work in real metres, in real QGIS.
 
 Live-reported 2026-09-24/25 ("Health facilities beyond one hour's travel", Amman) and measured

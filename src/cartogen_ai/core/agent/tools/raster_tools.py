@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Raster & Remote Sensing Processing Tools for Cartogen AI.
 """

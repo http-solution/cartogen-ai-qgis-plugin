@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 QGIS Network Access Manager proxy detection helper.
 Extracted into a standalone module with zero third-party dependencies (no requests)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 System & External Integration Tools for Cartogen AI.
 (Web Search, Geocoding, PyQGIS Dynamic Execution)

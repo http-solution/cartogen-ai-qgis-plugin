@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Proactive Map Context Summary for Cartogen AI.
 Builds a lightweight snapshot of the current project/canvas so the agent has

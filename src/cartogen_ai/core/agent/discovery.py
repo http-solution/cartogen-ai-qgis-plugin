@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Input discovery for pre-built chains: what is actually in the project, and which chain slots it can fill.
 
 Layer NAMES alone were all the preflight knew. A chain also depends on geometry type (a line layer to split, polygons to clip to),

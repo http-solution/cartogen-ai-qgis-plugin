@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 2: reading and validating sector inputs, and recording the analysis set-up
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md).
 
@@ -135,7 +134,7 @@ def read_grid(path, sheet=None):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".csv":
         import csv
-        with open(path, "r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
+        with open(path, encoding="utf-8-sig", errors="ignore", newline="") as fh:
             return [list(r) for r in csv.reader(fh)], []
     if ext in (".xlsx", ".xlsm"):
         import openpyxl

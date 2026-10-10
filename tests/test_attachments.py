@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for ui/attachments.py's read_attached_file(). Extracted out of
 ui/dock_widget.py in v1.2.31 specifically because it has zero Qt/QGIS
 dependencies, unlike the rest of dock_widget.py which cannot be imported

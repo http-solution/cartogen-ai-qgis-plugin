@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for validators/schema_contracts.py -- machine-readable dataset schema
 contracts closing point 5 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.

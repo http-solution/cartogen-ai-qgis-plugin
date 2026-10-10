@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/schema_contract_tools.py -- the registered-tool
 surface over validators/schema_contracts.py (point 5 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).

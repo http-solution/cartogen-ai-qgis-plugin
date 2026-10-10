@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Map looks for the humanitarian tools' outputs (styling review, docs/HUMANITARIAN_TOOLS_CATALOGUE.md section "Map styling review").
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """run_steps: validation before anything runs, reference resolution, stop rules, and the round-trip saving in the agent loop.
 The tool dispatcher is stubbed (no QGIS main thread offline), so this proves the loop logic, not any real tool or any real model."""
 import json

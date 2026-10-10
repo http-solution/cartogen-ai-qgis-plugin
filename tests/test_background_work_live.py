@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for audit A14: zonal_statistics runs through the background runner and still writes the zs_ fields, and
 run_callable keeps the GUI loop alive, returns results, re-raises errors and honours Stop. Written without hand-testing; the
 Docker QGIS run is the only execution evidence."""

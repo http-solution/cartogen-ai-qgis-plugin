@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure halves of output_style.py and layout_style.py (the QGIS halves are in tests/test_output_style_live.py)."""
 import datetime
 import unittest
@@ -142,7 +141,7 @@ class TestClassificationAndStamps(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    import unittest.mock  # noqa: F401
+    import unittest.mock
     unittest.main()
 
 

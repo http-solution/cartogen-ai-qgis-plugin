@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Operation-type taxonomy for every registered Cartogen AI tool.
 

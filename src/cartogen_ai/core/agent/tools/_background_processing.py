@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Run a QGIS Processing algorithm on a worker thread while the GUI keeps responding.
 
 The problem (live-reported 2026-09-25, BUG-2026-09-25-2): tools run on QGIS's GUI thread, and
@@ -64,7 +63,7 @@ if QGIS_AVAILABLE:
             self.errors = []
             self.no_route_count = 0
 
-        def reportError(self, error, fatalError=False):  # noqa: N802 -- Qt override
+        def reportError(self, error, fatalError=False):
             # rc7 smoke test F15: ~130 "There is no route from start point ... to end point ..." lines were logged at
             # CRITICAL for facilities the road network never reaches (islands, disconnected clusters). That is a normal
             # result, not a failure: count it (see no_route_count) instead of raising it to CRITICAL, and let every

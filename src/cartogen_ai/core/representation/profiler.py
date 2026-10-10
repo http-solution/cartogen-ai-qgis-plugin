@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Layer Semantic Profiler for Cartogen AI.
 
@@ -6,7 +5,7 @@ Inspects live QGIS layers and extracts statistical, spatial, and semantic
 metadata into a structured LayerSemanticProfile.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 from .models import LayerSemanticProfile, FieldSemanticProfile
 
 try:
@@ -42,7 +41,7 @@ _DIRECTION_KEYWORDS = {
 }
 
 
-def _classify_field_semantics(name: str, values: List[Any], field_type_name: str) -> FieldSemanticProfile:
+def _classify_field_semantics(name: str, values: list[Any], field_type_name: str) -> FieldSemanticProfile:
     """Classifies a field into nominal, quantity, rate, datetime, or status based on values and nomenclature."""
     name_lower = name.lower()
     total_count = len(values)
@@ -280,7 +279,7 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
     density, overlap = _estimate_spatial_density_and_overlap(layer)
 
     # Field analysis (sampling up to 300 features for value statistics)
-    fields_dict: Dict[str, FieldSemanticProfile] = {}
+    fields_dict: dict[str, FieldSemanticProfile] = {}
     if hasattr(layer, "fields") and hasattr(layer, "getFeatures"):
         field_names = [f.name() for f in layer.fields()]
         field_types = {f.name(): f.typeName() for f in layer.fields()}

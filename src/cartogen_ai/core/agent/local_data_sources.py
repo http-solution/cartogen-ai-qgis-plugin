@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Offer to download a request's base data once, locally, instead of fetching it live.
 
 Why this exists (live-reported 2026-09-24/25, "Health facilities beyond one hour's travel"):

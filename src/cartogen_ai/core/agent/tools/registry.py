@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Registry for Cartogen AI tools. Provides @register_tool decorator to register
 functions along with their OpenAI-compatible schema definitions.

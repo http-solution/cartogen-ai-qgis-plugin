@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual end-to-end check of "Health facilities beyond one hour's travel 3999682,3756232" with REAL data.
 
 Not part of the automated suite: it downloads the Geofabrik Jordan OpenStreetMap extract (~60 MB, cached

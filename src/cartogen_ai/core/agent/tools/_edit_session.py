@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Owned, checked attribute edits on a vector layer (GitHub #143 and #144; audit F07 and F08).
 

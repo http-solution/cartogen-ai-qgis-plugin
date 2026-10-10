@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """fetch_dem: download elevation for an area from the Copernicus DEM GLO-30 open dataset.
 
 2026-10-09 cost investigation, scenario 4 (terrain study): no tool could obtain a DEM, so the model improvised with scripts. Source chosen

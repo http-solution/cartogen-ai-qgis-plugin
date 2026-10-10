@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Session-scoped token usage tracking for Cartogen AI.
 

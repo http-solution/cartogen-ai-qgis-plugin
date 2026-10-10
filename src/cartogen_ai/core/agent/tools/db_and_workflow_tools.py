@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PostGIS Database Integration and Workflow Persistence Tools for Cartogen AI.
 Enforces read-only DB role execution guards for SQL queries and provides workflow saving/loading.

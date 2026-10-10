@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the rc8-audit fixes (runs only where qgis.core exists: the CI `qgis-live-tests` job).
 
 Written WITHOUT a QGIS install: the first CI run is their first execution. Each class names the finding it guards."""
@@ -46,7 +45,7 @@ class TestConcaveReachPolygon(unittest.TestCase):
         # so a concave hull that follows the roads must be smaller. (The first version used an L, whose convex hull is
         # already as tight as any hull can be: CI showed equal areas.)
         lines = []
-        for i in range(0, 11):
+        for i in range(11):
             lines.append(f"LINESTRING({i * 0.1} 0, {i * 0.1 + 0.1} 0)")
             lines.append(f"LINESTRING(0 {i * 0.1}, 0 {i * 0.1 + 0.1})")
             lines.append(f"LINESTRING(1.1 {i * 0.1}, 1.1 {i * 0.1 + 0.1})")

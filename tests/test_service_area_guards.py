@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Guards for calculate_service_area (rc7 smoke test, 2026-09-30, finding F05).
 

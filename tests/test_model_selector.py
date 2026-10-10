@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.agent.model_selector import classify_complexity, pick_model_for_complexity, filter_chat_model_ids
 

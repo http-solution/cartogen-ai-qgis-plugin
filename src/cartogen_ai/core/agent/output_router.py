@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Make the answer come back in the shape the task promised.
 
 task_matcher.output_contract() says what a request should turn into -- a

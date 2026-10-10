@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS check that the scoped enum names the plugin uses exist (plugins.qgis.org Qt6 compatibility check, 2026-10-10: 38 unscoped
 enum uses such as QgsProcessing.TypeVectorPoint were flagged). A name that did not resolve would be an AttributeError the first time
 its code path ran, and several of these paths only run in a real map session, so every one is resolved here."""

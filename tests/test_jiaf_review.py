@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 4: decision records, final figures, pattern outputs, offline. The project store and layer writes are covered by
 tests/test_jiaf_review_live.py; the real Yemen files only when JIAF_YEMEN_DIR is set."""
 import csv
@@ -183,7 +182,7 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual(row["preliminary_pin"], 100)
         self.assertTrue(row["pin_coverage"]["preliminary_pin_is_lower_bound"])
         self.assertEqual(res["totals"]["units_with_missing_pin_sector"], 1)
-        full = je.analyze([unit("U1", pin={s: 5 for s in je.MAIN_SECTORS})])["rows"][0]
+        full = je.analyze([unit("U1", pin=dict.fromkeys(je.MAIN_SECTORS, 5))])["rows"][0]
         self.assertFalse(full["pin_coverage"]["preliminary_pin_is_lower_bound"])
 
     def test_incomplete_coverage_needs_a_decision_and_is_kept_apart_from_the_other_fields(self):
@@ -240,7 +239,7 @@ class TestMissingVersusZero(unittest.TestCase):
         _row, f = self._flag1({"wash": 100})  # three of four sectors have no figure
         self.assertEqual(set(f["detail"]["missing_sectors"]), {"health", "shelter", "nutrition"})
         self.assertEqual(f["detail"]["zero_sectors"], [])
-        _row, f = self._flag1({s: 10 for s in ("wash", "health", "shelter", "nutrition")})
+        _row, f = self._flag1(dict.fromkeys(("wash", "health", "shelter", "nutrition"), 10))
         self.assertFalse(f["fired"])
         self.assertEqual(f["detail"], {"missing_sectors": [], "zero_sectors": []})
 
@@ -413,7 +412,7 @@ class TestPatterns(unittest.TestCase):
 
     def test_q6_to_q9_severity(self):
         sev = {"wash": 4, "health": 4, "shelter": 4, "nutrition": 5, "education": 4}
-        pin = {s: 450 for s in sev}
+        pin = dict.fromkeys(sev, 450)
         units = [unit("A", pin=pin, sev=sev, pop=1000), unit("B", pin={"wash": 1, "health": 1}, sev={"wash": 2, "health": 1}, pop=1000)]
         out = self._pat(units)
         self.assertEqual(out["q6_severity"]["units_with_many_sectors_in_phase_4_or_5"], [{"unit": "A", "sectors": 5}])

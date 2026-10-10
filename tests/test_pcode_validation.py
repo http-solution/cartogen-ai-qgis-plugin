@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for validators/pcode_validation.py -- P-code uniqueness and
 parent/child hierarchy prefix-match checks closing point 6 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.

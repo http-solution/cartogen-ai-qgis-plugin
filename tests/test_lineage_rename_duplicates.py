@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A derived output must stay protected when its protected source is renamed, or shares its name with an open layer (GitHub #150)."""
 import unittest
 

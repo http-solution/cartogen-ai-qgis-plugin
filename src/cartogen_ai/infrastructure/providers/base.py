@@ -19,7 +19,7 @@ except (ImportError, AttributeError):
     class HTTPError(Exception):
         def __init__(self, *args, **kwargs):
             super().__init__(*args)
-            self.response = kwargs.get("response", None)
+            self.response = kwargs.get("response")
     class RequestException(Exception):
         pass
     class ConnectionError_(RequestException):

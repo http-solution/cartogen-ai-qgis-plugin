@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 import datetime
 from unittest.mock import patch, MagicMock

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Semantic Tool Router & Retrieval Engine for Cartogen AI.
 Filters top-k relevant tool schemas based on user query keywords and intent matching
@@ -7,7 +6,6 @@ to prevent LLM system prompt context overload.
 
 import difflib
 import re
-from typing import List, Dict
 
 
 # Curated phrase synonyms for tools whose real-world paraphrases don't share
@@ -315,10 +313,10 @@ _STOPWORDS = {
 class ToolRouter:
     """Keyword & intent-based tool schema selector."""
 
-    def __init__(self, full_schema_list: List[Dict]):
+    def __init__(self, full_schema_list: list[dict]):
         self.full_schema_list = full_schema_list
 
-    def filter_relevant_tools(self, user_query: str, top_k: int = 40, carry_over_tools=None) -> List[Dict]:
+    def filter_relevant_tools(self, user_query: str, top_k: int = 40, carry_over_tools=None) -> list[dict]:
         """Returns top_k relevant tool schemas matching user query terms.
 
         `carry_over_tools`: names of tools the PREVIOUS turn used. A short follow-up ("EPSG:3857", "yes, the second one") shares no

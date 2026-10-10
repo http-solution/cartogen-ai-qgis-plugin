@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Sensitivity/disclosure classification for Cartogen AI layers -- point 24
 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
 

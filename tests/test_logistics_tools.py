@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/logistics_tools.py -- the Phase 3 humanitarian-ops
 improvement (hub siting, service-area, travel-distance analysis), plus
 location_allocation/optimize_delivery_route added in the ArcGIS-parity pass.

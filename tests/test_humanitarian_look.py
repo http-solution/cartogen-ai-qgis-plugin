@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """HX1 humanitarian map looks for analysis result fields: the pure class and palette rules, offline. The renderer needs QGIS
 (tests/test_humanitarian_look_live.py)."""
 import random

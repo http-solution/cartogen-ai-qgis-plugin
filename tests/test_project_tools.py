@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/project_tools.py (save_project/load_project), added
 in the QGIS-feature-coverage pass. load_project follows the same
 PREVIEW_REQUIRED destructive-confirmation pattern as vector_tools.remove_layer

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Opt-in evidence folder for one request: what was asked, every tool call with its real arguments and result, how long it took, which
 layers it created, the final reply, a canvas screenshot, and copies of the files it wrote (each with a SHA-256).
 

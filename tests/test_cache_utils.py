@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/_cache_utils.py's TTLCache, including the on_evict callback
 added for SEC-004 (2026-09-14 audit) -- see humanitarian_tools.py's
 _cleanup_cached_local_path for the real-world motivation (cleaning up a cached fetch

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Derive the derived fields of the task register, in place.
 
 Adds two keys to every entry of src/cartogen_ai/core/agent/task_register.json:

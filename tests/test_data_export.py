@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/data_export.py -- GDPR review findings F7/F8
 (docs/GDPR_COMPLIANCE_REVIEW.docx). Pure Python/JSON, no qgis import at
 all, so fully testable without any QGIS_AVAILABLE guard."""

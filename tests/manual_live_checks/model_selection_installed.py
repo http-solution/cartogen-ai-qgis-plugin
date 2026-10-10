@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual live check of automatic model selection against an INSTALLED plugin, in real QGIS.
 
 Not part of the automated suite (needs QGIS and an installed plugin folder). Run with QGIS's Python:

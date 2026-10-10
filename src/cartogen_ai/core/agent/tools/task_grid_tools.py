@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Mapping task grid for remote/crowd mapping (H2, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 

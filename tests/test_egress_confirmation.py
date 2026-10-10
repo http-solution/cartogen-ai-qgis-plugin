@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for the cloud-data-protection override flow (rc7 smoke test, 2026-09-30,
 findings F02 / F03).

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Closed road segments for the routing tools (audit F19, #155).
 
 A speed field cannot say "closed" to QGIS's routing algorithms: the old blocked speed was a finite 0.1 km/h, so a route or

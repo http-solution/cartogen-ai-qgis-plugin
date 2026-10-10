@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for agent/coordinates.py -- deterministic coordinate handling (rc7 smoke test,
 2026-09-30, findings F04 and F20).

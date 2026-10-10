@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS-palette theme extraction, used by both dock_widget.py (the container
 stylesheet) and chat_tab_widget.py (per-message bubble colors). Pulled out of
 dock_widget.py during the tab-widget split (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md)

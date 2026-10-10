@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Help content for the Help dialog, kept Qt-free so tests can read it (help_tab_widget.py only wraps it in a widget).
 
 The "What's new" and humanitarian-tool sections come from core/release_notes.py, which must be updated on every version bump

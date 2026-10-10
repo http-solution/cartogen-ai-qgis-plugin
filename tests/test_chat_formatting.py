@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _clock_time, _blend_hex, derive_bubble_colors,

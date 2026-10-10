@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/impedance_tools.py -- the composite impedance
 field builder, point 8 / docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md
 section 2 item 2, v1.7.0 workstream 4."""

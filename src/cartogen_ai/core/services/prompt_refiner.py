@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Prompt Refinement Layer for Cartogen AI.
 Optional, opt-in step that rewrites a raw chat message into two better-

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Typography, panels and a legend that matches the map, for create_print_layout (visualization gap analysis, 2026-10-01).
 
 What the layout looked like before (read from create_print_layout, not assumed): every label used QGIS's default font; no

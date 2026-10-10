@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Registered tool surface for agent/data_export.py -- GDPR review findings
 F7/F8 (docs/GDPR_COMPLIANCE_REVIEW.docx). See that module's own docstring

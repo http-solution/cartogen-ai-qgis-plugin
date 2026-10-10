@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/reporting_tools.py (generate_chart, extract_pdf_tables,
 extract_word_tables, aggregate_data) -- the Phase 1 humanitarian-ops
 improvements: statistical charting and structured document-table extraction,

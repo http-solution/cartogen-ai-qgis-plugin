@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for core/models/egress_gate.py -- the pure half of the cloud-provider egress gate
 (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md). Wiring into the agent is tested separately in
 test_agent_runner.py; the sensitivity tool's downgrade lock in test_sensitivity_egress_lock.py."""

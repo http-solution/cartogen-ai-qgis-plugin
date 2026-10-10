@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 File-attachment reading, analysis, and disclosure for Cartogen AI's chat tab.
 

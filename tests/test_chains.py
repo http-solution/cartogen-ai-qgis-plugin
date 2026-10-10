@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pre-built run_steps chains: each skeleton must pass run_steps' own validation against the REAL registered tool schemas, chains are
 selected only when the request names all their steps, and the router offers the chain's tools."""
 import json

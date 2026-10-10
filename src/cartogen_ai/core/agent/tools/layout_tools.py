@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Print Layout Composition Tools for Cartogen AI.
 Generates automated QgsPrintLayout compositions with title, map item, legend, scalebar, and north arrow.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """agent/local_data_sources.py: when to offer a local download, what the question lists, and
 which Geofabrik region a location falls in. Live-reported 2026-09-24/25: the same travel-time
 request failed twice because roads/facilities were fetched live from an overloaded Overpass."""

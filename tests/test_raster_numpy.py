@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#162 step 2: the numpy kernels that replace gdal:contraststretch and saga k-means. GDAL I/O is in test_raster_numpy_live.py."""
 import unittest
 

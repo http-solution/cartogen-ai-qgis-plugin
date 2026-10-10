@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Renamed from cartogen_ai.py (see that file's own MOVED stub for why): a file
 literally named cartogen_ai.py at the plugin root collided with the
@@ -54,7 +53,7 @@ def _read_plugin_version(plugin_dir):
     rather than hardcoded so the menu label can never drift from metadata.txt."""
     metadata_path = os.path.join(plugin_dir, "metadata.txt")
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             for line in f:
                 match = re.match(r"^version\s*=\s*(.+)$", line.strip())
                 if match:

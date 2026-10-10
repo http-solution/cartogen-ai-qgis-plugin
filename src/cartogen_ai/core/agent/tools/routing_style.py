@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """How routing and reach results look on the map (visualization round 2, 2026-10-01).
 
 Three rules, each an answer to something that read badly before:

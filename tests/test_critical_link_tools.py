@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H9 critical links: the tree-load accumulation and class bounds, offline. The graph work needs QGIS (tests/test_critical_link_tools_live.py)."""
 import itertools
 import random

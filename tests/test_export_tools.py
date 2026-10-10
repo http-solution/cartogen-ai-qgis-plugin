@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the provenance-footer addition to generate_report/generate_spatial_report
 (agent/tools/export_tools.py) -- Tier-2 item #7 from the humanitarian feature review:
 surface what agent/lineage.py already tracks per layer (tool, params, sources,

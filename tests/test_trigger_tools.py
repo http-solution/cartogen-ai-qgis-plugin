@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H4 evaluate_forecast_trigger: the rule evaluator is pure, so the whole rule is tested here; reading a layer needs QGIS."""
 import datetime
 import unittest

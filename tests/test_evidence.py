@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Evidence folder: files written, redaction, output copies with hashes, size limit, and the agent hook (off by default, on via setting)."""
 import json
 import os

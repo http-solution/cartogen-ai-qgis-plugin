@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """find_tools: lets the model ask for the tools a step needs when the ones it was given do not cover it.
 
 The tool router sends a bounded list per request. When the model identifies a step that list does not cover (say, contour lines or

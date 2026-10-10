@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/_urllib_retry.py -- API-003, 2026-09-14 audit."""
 import io
 import unittest

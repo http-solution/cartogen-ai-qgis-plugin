@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H1 apply_network_barriers: the pure rules and the early validation. The distance work needs QGIS (tests/test_barrier_tools_live.py)."""
 import unittest
 

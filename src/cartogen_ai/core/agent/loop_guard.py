@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Stops an agent turn that is stuck, before it spends the whole round budget doing nothing.
 
 Why (2026-10-09 cost investigation): a round cap alone lets a stuck turn burn every round. The three signs of a stuck turn are

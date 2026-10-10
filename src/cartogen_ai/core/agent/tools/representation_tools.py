@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 High-Level Representation & Cartographic Planning Tools for Cartogen AI.
 
@@ -9,7 +8,7 @@ Exposes:
 - explain_current_representation
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 from .registry import register_tool
 from ..map_intelligence import ChatActionRegistry
 from ...representation.models import RepresentationCandidate
@@ -42,7 +41,7 @@ def _get_layer(name: str):
         "required": ["layer_name"],
     },
 )
-def analyze_layer_for_visualization(layer_name: str) -> Dict[str, Any]:
+def analyze_layer_for_visualization(layer_name: str) -> dict[str, Any]:
     layer = _get_layer(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found."}
@@ -84,7 +83,7 @@ def analyze_layer_for_visualization(layer_name: str) -> Dict[str, Any]:
         "required": ["layer_name"],
     },
 )
-def recommend_map_representation(layer_name: str, user_intent: Optional[str] = None, target_field: Optional[str] = None) -> Dict[str, Any]:
+def recommend_map_representation(layer_name: str, user_intent: str | None = None, target_field: str | None = None) -> dict[str, Any]:
     layer = _get_layer(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found."}
@@ -147,7 +146,7 @@ def recommend_map_representation(layer_name: str, user_intent: Optional[str] = N
         "required": ["layer_name", "representation_id"],
     },
 )
-def apply_recommended_representation(layer_name: str, representation_id: str, target_field: Optional[str] = None) -> Dict[str, Any]:
+def apply_recommended_representation(layer_name: str, representation_id: str, target_field: str | None = None) -> dict[str, Any]:
     layer = _get_layer(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found."}
@@ -172,7 +171,7 @@ def apply_recommended_representation(layer_name: str, representation_id: str, ta
         "required": ["layer_name"],
     },
 )
-def explain_current_representation(layer_name: str) -> Dict[str, Any]:
+def explain_current_representation(layer_name: str) -> dict[str, Any]:
     layer = _get_layer(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found."}

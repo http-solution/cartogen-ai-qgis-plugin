@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data Analysis & Prediction Tools for Cartogen AI.
 
@@ -792,7 +791,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
 
     unit_results = []
     units_missing_population = []
-    class_population = {c: 0.0 for c in range(1, 6)}
+    class_population = dict.fromkeys(range(1, 6), 0.0)
     population_in_need = 0.0
 
     for r in severity["results"]:
@@ -942,7 +941,7 @@ def _assign_points_to_polygons_indexed(index, admin_features_by_id, point_geomet
     whichever the spatial index happened to return first, and is counted in stats['ambiguous']. Points that match nothing
     are stats['unmatched']; empty/missing geometries are stats['skipped']. Every point is counted at most once, so the
     per-polygon counts never sum to more than the number of points."""
-    counts = {fid: 0 for fid in admin_features_by_id}
+    counts = dict.fromkeys(admin_features_by_id, 0)
     stats = {"matched": 0, "ambiguous": 0, "unmatched": 0, "skipped": 0}
 
     for geom in point_geometries:
@@ -1102,7 +1101,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
 
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
     unit_results = []
-    class_buildings = {c: 0 for c in range(1, 6)}
+    class_buildings = dict.fromkeys(range(1, 6), 0)
     buildings_in_high_severity = 0
     for r in severity["results"]:
         fid = fid_by_unit.get(r["unit"])

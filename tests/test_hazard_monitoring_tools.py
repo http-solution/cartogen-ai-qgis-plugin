@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/hazard_monitoring_tools.py -- NASA FIRMS/EONET and GDACS live hazard
 fetch tools. Network calls are mocked; QGIS isn't available in this test environment, so these
 cover the network_phase functions (pure Python, no qgis.core) plus the main_thread_phase/

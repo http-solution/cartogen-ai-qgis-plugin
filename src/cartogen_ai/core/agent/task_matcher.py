@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Match a user request to a task in the Humanitarian Mapping Task Register,
 work out what information is still missing, and describe what the answer
 should turn into.

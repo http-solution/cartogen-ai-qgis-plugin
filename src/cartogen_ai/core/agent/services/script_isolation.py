@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Process-isolation boundary for `execute_pyqgis_script`
 (IMPLEMENTATION_TRACKER.md §1.11; docs/EXECUTE_PYQGIS_SCRIPT_ISOLATION_SCOPE_2026-09-24.md,

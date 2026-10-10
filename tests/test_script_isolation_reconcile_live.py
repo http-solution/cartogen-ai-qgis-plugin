@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS test of result adoption after an isolated script (audit F09, F10 -> GitHub #145, #146).
 
 Simulates the worker's output instead of spawning it: the live project is snapshotted with the real _build_scratch_project, the

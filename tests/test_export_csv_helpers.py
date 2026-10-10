@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """CSV export helpers (rc7 smoke test F13): UTF-8 BOM for Excel, X/Y columns for point layers."""
 import csv
 import os

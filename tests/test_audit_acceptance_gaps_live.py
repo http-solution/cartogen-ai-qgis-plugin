@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Acceptance lines of audit issues #139, #140, #141, #142 and #146 that the first live tests did not cover (null geometries; layer ids,
 selected features and filtered sources; US-survey-foot and geographic units; dateline, pole and foot-unit CRSs; geometry, schema and
 count edits after an isolated script). Written without a local QGIS: CI's first run is its first execution, and a failure here is a

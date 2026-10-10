@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for the Intelligent Representation Planner and representation tools."""
 
 import unittest

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure checks of fetch_dem's planning rules (tile names, tile selection, size limits). No network, no QGIS."""
 import unittest
 

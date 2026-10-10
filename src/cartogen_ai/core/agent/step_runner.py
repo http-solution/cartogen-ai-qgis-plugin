@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Validation, reference resolution and summaries for run_steps: several tool calls in ONE model round trip.
 
 Why (2026-10-09 cost plan, step 6): every model call resends the system prompt, the tool schemas and the history, so a workflow of N

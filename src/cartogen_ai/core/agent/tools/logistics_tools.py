@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Humanitarian Logistics Tools for Cartogen AI.
 Hub siting, service-area, and travel-distance analysis for supply chain / last-

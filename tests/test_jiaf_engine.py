@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 3 engine, offline. The default flag rules are OCHA's worksheet formulas (tests/test_jiaf_rules.py pins them, tests/test_jiaf_worksheet_adapter.py
 checks them against the official example workbook). The classes here that call the `manual_reading` profile pin that OLDER interpretation of the manual's wording,
 which is kept for comparison only and is not OCHA's rule set; the rest pin the manual's own rules (Box 21, Box 22)."""
@@ -53,7 +52,7 @@ class TestPinFlags(unittest.TestCase):
     """The manual_reading profile (older interpretation, comparison only)."""
 
     def test_flag_1_counts_missing_and_zero_sectors_against_the_setting(self):
-        u = unit(pin={s: 10 for s in je.MAIN_SECTORS[:6]} | {"wash": 0})
+        u = unit(pin=dict.fromkeys(je.MAIN_SECTORS[:6], 10) | {"wash": 0})
         f, _ = flags(u)
         self.assertTrue(f[1]["fired"])
         self.assertEqual(f[1]["value"], 2)  # shelter absent + wash at zero

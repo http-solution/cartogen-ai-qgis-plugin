@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS check of fetch_dem against a local HTTP server that serves synthetic COG-named tiles, so the /vsicurl/ + BuildVRT +
 windowed Translate path is really executed without depending on the internet. Whether the real AWS bucket answers is checked separately
 (see docs/COST_AND_ROUTING_PLAN_2026-10-09.md). Written without hand-testing."""

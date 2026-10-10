@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Headless functional test of the chat send path against REAL Qt widgets.
 
 Every other check in this repo's test suite proves the wiring exists and the

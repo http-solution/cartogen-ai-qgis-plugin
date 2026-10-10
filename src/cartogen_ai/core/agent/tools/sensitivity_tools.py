@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Sensitivity / disclosure classification tools for Cartogen AI -- the
 agent-facing surface of models/sensitivity.py (point 24 of

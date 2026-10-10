@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Layer Metadata and Lineage Tracking Engine for Cartogen AI.
 Tags modified or generated layers with tool lineage, parameters, source layers, and execution timestamps.

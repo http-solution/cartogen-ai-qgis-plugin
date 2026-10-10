@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 3 on a real QGIS layer: writing the preliminary figures after confirmation. Written without a local QGIS: CI's first run is its first execution."""
 import csv
 import os

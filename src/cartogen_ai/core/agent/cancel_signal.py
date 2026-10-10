@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """How a long-running tool learns that the user pressed Stop, and how it reports progress.
 
 Why this exists (2026-09-25): agent.run() is given a `should_stop` callable (the running QgsTask's

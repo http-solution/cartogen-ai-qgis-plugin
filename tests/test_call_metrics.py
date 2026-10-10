@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Per-call measurement (call_metrics): measured tokens are never guessed, estimates are labelled, nothing raises."""
 import unittest
 

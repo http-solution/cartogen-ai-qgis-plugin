@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live QGIS test of plugin_main.CartogenAi's load/unload lifecycle.
 
 P1 finding, 2026-09-20 audit: initGui() parents its QActions to

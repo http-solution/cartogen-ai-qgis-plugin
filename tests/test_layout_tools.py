@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/layout_tools.py's create_print_layout -- extended to
 support PNG/JPEG image export (dpi-controlled) alongside the existing PDF
 export, plus an optional body_text summary panel, closing the gap that was

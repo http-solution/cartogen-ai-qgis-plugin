@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """core/net.py: the urllib-compatible wrapper over QGIS's network stack (task #71). These run without QGIS, so they cover the
 scheme check, the urllib fallback and the response object; the QgsBlockingNetworkRequest path is in test_net_live.py."""
 import io

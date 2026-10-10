@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for the Map Intelligence Engine and ChatActionRegistry."""
 
 import unittest

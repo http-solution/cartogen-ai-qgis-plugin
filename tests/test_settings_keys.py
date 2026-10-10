@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for centralized settings_keys module (infrastructure boundary).
 """

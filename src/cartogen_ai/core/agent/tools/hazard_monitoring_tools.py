@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Live Hazard Monitoring tools for Cartogen AI.
 

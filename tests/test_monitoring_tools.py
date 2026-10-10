@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/scheduler.py and agent/tools/monitoring_tools.py -- the
 recurring-monitoring feature (session-scoped QTimer schedules re-running a
 saved analysis workflow and diffing per-unit results over time). Follows the

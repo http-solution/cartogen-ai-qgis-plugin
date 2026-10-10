@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Export & Reporting Tools for Cartogen AI.
 """
@@ -375,7 +374,7 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
     reported as its own error rather than silently leaving unsanitized output in place."""
     import csv
     try:
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+        with open(csv_path, newline="", encoding="utf-8-sig") as f:
             rows = list(csv.reader(f))
         if not rows:
             return None
@@ -1124,7 +1123,7 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
                     ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                 )
 
-                def style_function(feat, _cmap=colormap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
+                def style_function(feat, _cmap=colormap, _field=color_field):
                     val = feat["properties"].get(_field)
                     return {
                         "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
@@ -1527,7 +1526,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
                         ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                     )
 
-                    def style_function(feat, _cmap=cmap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
+                    def style_function(feat, _cmap=cmap, _field=color_field):
                         val = feat["properties"].get(_field)
                         return {
                             "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
@@ -2041,7 +2040,7 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
     write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
     if "error" in write_res:
         return None, write_res
-    with open(tmp_path, "r", encoding="utf-8") as f:
+    with open(tmp_path, encoding="utf-8") as f:
         return json.load(f), None
 
 
@@ -2118,7 +2117,7 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({
@@ -2314,7 +2313,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Onboarding profile for Cartogen AI -- a short, narrative first-use questionnaire (role/use-case,
 QGIS experience level, communication style), requested directly 2026-09-12 ("optimize the user
@@ -162,7 +161,7 @@ def load_onboarding_profile():
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
     except OSError:
         return None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Control flow of _edit_session.edit_command and _add_calculated_field with fake layers (GitHub #143, #144).
 tests/test_edit_session_live.py runs the same behaviour in real QGIS."""
 import unittest

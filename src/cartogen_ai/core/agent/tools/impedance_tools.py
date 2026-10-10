@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Composite impedance field builder for road-network routing -- point 8 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, per

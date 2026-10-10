@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Replacing a file the plugin did not write needs the user's confirmation (rc17 hand test A6, 2026-10-06)."""
 import os
 import tempfile

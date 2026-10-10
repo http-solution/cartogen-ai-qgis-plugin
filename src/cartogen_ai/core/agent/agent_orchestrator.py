@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Core CartogenAi class for Cartogen AI: the tool-calling orchestration loop.
 Integrates Multi-LLM provider clients, Spatial Memory Engine, and Task List Manager.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The one place that decides what the model may SEE about a layer (rc7 smoke test F21).
 
 The egress gate (egress_gate.py) stops tool calls that read a protected layer's DATA from going to a cloud model.

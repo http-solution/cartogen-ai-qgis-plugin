@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The five humanitarian scenarios from the 2026-10-09 cost investigation, verbatim (ASCII-safe degree signs kept as written)."""
 SCEN = {
 "marib": "I need an urgent health access assessment for displaced families around Marib city. Query OpenStreetMap via the Overpass API for all operational hospitals, clinics, and pharmacies within the Marib area (bounding box around 15.35° N, 45.20° E to 15.55° N, 45.45° E), along with the primary and secondary road network. Create a 15-minute walking distance buffer (1.2 km) and a 30-minute buffer (2.5 km) around each health facility using a metric projection (UTM 38N / EPSG:32638). Symbolize the zones with an accessible green-to-amber color ramp and report the total square kilometers covered by walking access.",

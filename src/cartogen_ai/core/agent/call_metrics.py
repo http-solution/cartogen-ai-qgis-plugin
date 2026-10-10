@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Per-model-call measurement: what each request to the model cost and what it carried.
 
 Why (2026-10-09): a user's multi-scenario prompt consumed API credit and the first diagnosis rested on ESTIMATES (a ~26k-token

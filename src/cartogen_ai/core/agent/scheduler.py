@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 In-session recurring workflow scheduler for Cartogen AI.
 

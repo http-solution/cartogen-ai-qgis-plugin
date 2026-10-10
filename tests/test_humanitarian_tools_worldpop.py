@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for fetch_worldpop_population (agent/tools/humanitarian_tools.py),
 the WorldPop open-data population tool added in the ArcGIS-parity pass, an
 open-data approximation of ArcGIS Business Analyst's demographic layer.

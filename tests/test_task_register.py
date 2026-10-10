@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the Humanitarian Mapping Task Register and its matcher."""
 import unittest
 

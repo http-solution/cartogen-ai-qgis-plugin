@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Reporting & Document Analysis Tools for Cartogen AI.
 Statistical charting, structured table extraction from PDF/Word documents,
@@ -239,7 +238,7 @@ def _read_tabular_rows(file_path, sheet_name=None, delimiter=","):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
         import csv
-        with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+        with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
             rows = list(reader)
             return rows, list(reader.fieldnames or [])

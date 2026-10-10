@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Chat tab, extracted from dock_widget.py's CartogenAiDockWidget
 (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
 quick-suggestion chips, prompt-refinement panel, and file-attachment analysis. The old

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The travel-time matrix charges partial-edge costs on both sides of the single-tree threshold (audit F16, #152).
 
 Acceptance from the issue: on a 1,000 m road, points at 490 m and 510 m cost about 490 m and 510 m, and the single-tree path

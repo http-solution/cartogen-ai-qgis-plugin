@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Onboarding profile dialog -- a short, narrative first-use questionnaire (role/use-case, QGIS
 experience level, communication style). Requested directly 2026-09-12: "introduce your self and

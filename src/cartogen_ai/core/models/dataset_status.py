@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dataset Status / QA-Gate State Machine for Cartogen AI.
 
