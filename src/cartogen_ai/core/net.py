@@ -110,8 +110,11 @@ def _qgis_urlopen(req, timeout):
                           _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
     except (AttributeError, TypeError):
         pass
-    blocking = QgsBlockingNetworkRequest()
     method = req.get_method()
+    if method == "POST" and not req.has_header("Content-type"):
+        # urllib sends this for a POST body with no type; without it Qt logs a warning and guesses.
+        qreq.setRawHeader(QByteArray(b"Content-Type"), QByteArray(b"application/x-www-form-urlencoded"))
+    blocking = QgsBlockingNetworkRequest()
     if method == "GET":
         err = blocking.get(qreq, True)
     elif method == "HEAD":
@@ -124,7 +127,8 @@ def _qgis_urlopen(req, timeout):
     content = bytes(reply.content())
     status = reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute"))
     status = int(status) if status is not None else 0
-    headers = [(bytes(k).decode("latin-1"), bytes(v).decode("latin-1")) for k, v in reply.rawHeaderPairs()]
+    # QgsNetworkReplyContent has rawHeaderList()/rawHeader(), not Qt's rawHeaderPairs() (found by the first CI run of test_net_live).
+    headers = [(bytes(name).decode("latin-1"), bytes(reply.rawHeader(name)).decode("latin-1")) for name in reply.rawHeaderList()]
     ok = _enum(QgsBlockingNetworkRequest, "ErrorCode", "NoError")
     if err == ok:
         return Response(content, status or 200, headers, url)
