@@ -670,7 +670,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             else:
                 return {"error": f"Unsupported output_path extension '{ext}' -- use .pdf, .png, .jpg, or .jpeg."}
 
-            if result != QgsLayoutExporter.Success:
+            if result != QgsLayoutExporter.ExportResult.Success:
                 return {"error": f"Export to '{output_path}' failed (QgsLayoutExporter result code {result})."}
             res_msg["output_path"] = output_path
             res_msg["dpi"] = dpi
@@ -848,7 +848,7 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
                     result = exporter.exportToPdf(out_path, settings)
                 else:
                     result = exporter.exportToImage(out_path, settings)
-                if result != QgsLayoutExporter.Success:
+                if result != QgsLayoutExporter.ExportResult.Success:
                     return {"error": f"Atlas export failed on feature '{raw_name}' (QgsLayoutExporter result code {result})."}
                 output_files.append(out_path)
                 has_feature = atlas.next()

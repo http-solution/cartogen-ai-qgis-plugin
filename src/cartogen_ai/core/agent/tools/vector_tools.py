@@ -1129,9 +1129,9 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     buffer_settings = QgsTextBufferSettings()
     buffer_settings.setEnabled(True)
     buffer_settings.setSize(0.8)
-    buffer_settings.setSizeUnit(QgsUnitTypes.RenderMillimeters)
+    buffer_settings.setSizeUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
     buffer_settings.setColor(QColor(255, 255, 255, 204))
-    buffer_settings.setJoinStyle(Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else Qt.RoundJoin)
+    buffer_settings.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     text_format.setBuffer(buffer_settings)
     settings.setFormat(text_format)
 

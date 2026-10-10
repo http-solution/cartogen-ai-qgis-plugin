@@ -113,14 +113,14 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT_CANDIDATES,
                 self.tr("Candidate Hub Locations"),
-                [QgsProcessing.TypeVectorPoint],
+                [QgsProcessing.SourceType.TypeVectorPoint],
             )
         )
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_DEMAND,
                 self.tr("Demand Points"),
-                [QgsProcessing.TypeVectorPoint],
+                [QgsProcessing.SourceType.TypeVectorPoint],
             )
         )
         self.addParameter(
@@ -130,7 +130,7 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterNumber(
                 self.MAX_DISTANCE,
                 self.tr("Maximum Service Distance Threshold (meters, optional)"),
-                type=QgsProcessingParameterNumber.Double,
+                type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=0.0,
                 optional=True,
                 minValue=0.0,
@@ -140,7 +140,7 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT,
                 self.tr("Ranked Candidates"),
-                type=QgsProcessing.TypeVectorPoint,
+                type=QgsProcessing.SourceType.TypeVectorPoint,
             )
         )
 
@@ -271,7 +271,7 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
                 new_attrs.append(item["served"])
                 new_attrs.append(round(item["pct"], 1))
             new_feat.setAttributes(new_attrs)
-            if not sink.addFeature(new_feat, QgsFeatureSink.FastInsert):
+            if not sink.addFeature(new_feat, QgsFeatureSink.Flag.FastInsert):
                 raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT))
 
         if cancelled:
@@ -328,21 +328,21 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT_FACILITIES,
                 self.tr("Facility Point Locations"),
-                [QgsProcessing.TypeVectorPoint],
+                [QgsProcessing.SourceType.TypeVectorPoint],
             )
         )
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_NETWORK,
                 self.tr("Road / Transport Network"),
-                [QgsProcessing.TypeVectorLine],
+                [QgsProcessing.SourceType.TypeVectorLine],
             )
         )
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.TRAVEL_COST,
                 self.tr("Travel Cost (metres for Shortest, seconds for Fastest)"),
-                type=QgsProcessingParameterNumber.Double,
+                type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=1000.0,
                 minValue=0.0,
             )
@@ -359,7 +359,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterNumber(
                 self.DEFAULT_SPEED,
                 self.tr("Default Speed (km/h)"),
-                type=QgsProcessingParameterNumber.Double,
+                type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=50.0,
                 minValue=1.0,
             )
@@ -388,7 +388,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT_LINES,
                 self.tr("Reachable Network Lines"),
-                type=QgsProcessing.TypeVectorLine,
+                type=QgsProcessing.SourceType.TypeVectorLine,
             )
         )
 
@@ -497,7 +497,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
                 new_feat = QgsFeature(sink_fields)
                 new_feat.setGeometry(line_feat.geometry())
                 new_feat.setAttributes(list(line_feat.attributes()) + [feat.id()])
-                if not sink.addFeature(new_feat, QgsFeatureSink.FastInsert):
+                if not sink.addFeature(new_feat, QgsFeatureSink.Flag.FastInsert):
                     raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT_LINES))
             reached += 1
             feedback.setProgress(int((idx + 1) / total * 100))

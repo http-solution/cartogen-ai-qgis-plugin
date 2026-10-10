@@ -904,7 +904,7 @@ def apply_heatmap_style(layer_name, field=None):
             renderer.setWeightExpression(f'"{field}"')
         renderer.setRadius(12.0)
         if QgsUnitTypes is not None and hasattr(QgsUnitTypes, "RenderMillimeters"):
-            renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+            renderer.setRadiusUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
 
         # CRITICAL: Baseline stop (0.0) MUST have alpha = 0 (100% transparent) so
         # zero-density areas do not blot out the basemap with solid purple/dark color!
