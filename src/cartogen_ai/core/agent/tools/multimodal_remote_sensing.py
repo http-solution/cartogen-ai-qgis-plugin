@@ -8,6 +8,7 @@ performs visual canvas inspections, and calculates temporal layer change detecti
 import json
 import time
 import urllib.request
+from ...net import urlopen as _qgis_urlopen
 import urllib.parse
 from .registry import register_tool
 
@@ -62,7 +63,7 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
         data_bytes = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data_bytes, headers={"Content-Type": "application/json", "User-Agent": "QGIS-AI-Assistant"})
         _STAC_REQUEST_COUNT += 1
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with _qgis_urlopen(req, timeout=15) as response:
             res = json.loads(response.read().decode())
             features = res.get("features", [])
 
@@ -172,7 +173,7 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str, ali
                 made = QgsProject.instance().mapLayersByName(result["layer_name"])
                 if made:
                     result["styled"] = style_diverging_raster(made[-1])
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
         return result
     except Exception as e:

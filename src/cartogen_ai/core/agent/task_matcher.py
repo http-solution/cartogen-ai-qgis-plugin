@@ -198,7 +198,7 @@ def _known_tool_names():
     try:
         from .tools.registry import TOOL_REGISTRY
         names.update(TOOL_REGISTRY)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return names
 
@@ -467,7 +467,7 @@ def task_directive(entry, filled=None, query=None):
     try:
         from .capabilities import lead_tools_for_task
         tools = lead_tools_for_task(tools, query)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output

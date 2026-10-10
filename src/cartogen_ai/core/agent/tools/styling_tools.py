@@ -347,7 +347,7 @@ def _layer_geometry_kind(layer):
     try:
         if layer.type() == QgsMapLayer.LayerType.RasterLayer:
             return "raster"
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         gt = layer.geometryType()
@@ -948,7 +948,7 @@ def _heatmap_algorithm_id():
         for candidate in ("qgis:heatmapkerneldensityestimation", "native:heatmapkerneldensityestimation"):
             if registry.algorithmById(candidate) is not None:
                 return candidate
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return "qgis:heatmapkerneldensityestimation"
 
@@ -1007,7 +1007,7 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         try:
             from .output_style import style_continuous_raster
             style_continuous_raster(raster_layer, "density")   # a density surface in the default grey stretch was unreadable
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         return {"success": True, "layer_name": result_name, "radius": radius, "pixel_size": resolved_pixel_size}
     except Exception as e:

@@ -5,6 +5,8 @@ Enforces read-only DB role execution guards for SQL queries and provides workflo
 """
 
 import re
+
+from ...logger import log_warning
 from .registry import register_tool
 from ....infrastructure.settings_keys import workflow_preset_key
 
@@ -53,8 +55,10 @@ def _enforce_db_read_only(connection_uri_str: str, sql_query: str, provider_regi
     def _restore():
         try:
             conn.executeSql("SET SESSION CHARACTERISTICS AS TRANSACTION READ " + ("ONLY" if previous_read_only else "WRITE"))
-        except Exception:
-            pass          # nothing more can be done; the query below has already been refused or has finished
+        except Exception as e:
+            # Nothing more can be done here, but a session left read-only on a pooled connection is what broke the user's own writes
+            # once (PR #210), so say so rather than staying silent. Metadata only: the exception type, never its text.
+            log_warning(f"Could not restore the database session's read-only mode ({type(e).__name__})", tag="Agent")
 
     try:
         try:
@@ -80,7 +84,7 @@ def build_query_table(sql_query: str, key_column: str = "_cg_id") -> str:
     unique key (a query layer needs one). Pure. #151: the old code used `uri.setSql("(...)")`, which is a feature FILTER on a
     table that was never named, not a query-layer definition."""
     inner = sql_query.strip().rstrip(";").strip()
-    return f"(SELECT row_number() OVER () AS {key_column}, * FROM ({inner}) AS _cg_q)"
+    return f"(SELECT row_number() OVER () AS {key_column}, * FROM ({inner}) AS _cg_q)"  # nosec B608 (user SQL is wrapped, and read-only mode is enforced separately)
 
 
 @register_tool("execute_read_only_sql", "Execute a read-only SQL query against a named PostGIS connection or active project layers.", {"type": "object", "properties": {"connection_name": {"type": "string"}, "sql_query": {"type": "string"}, "geometry_column": {"type": "string", "description": "Name of the geometry column in the query result; omit for a non-spatial result table."}}, "required": ["sql_query"]})

@@ -25,6 +25,6 @@ def get_qgis_proxy_dict():
                     auth = f"{user}:{password}@" if user else ""
                     proxy_url = f"http://{auth}{host}:{port}"
                     return {"http": proxy_url, "https": proxy_url}
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return None

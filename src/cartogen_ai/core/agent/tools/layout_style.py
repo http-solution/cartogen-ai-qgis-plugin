@@ -408,7 +408,7 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
             if needed < size.height():
                 label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
 
     def footer():

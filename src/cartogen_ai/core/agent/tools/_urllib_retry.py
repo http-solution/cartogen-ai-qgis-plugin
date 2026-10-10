@@ -14,7 +14,9 @@ non-idempotent-POST concern here -- retrying is always safe.
 
 import time
 import urllib.error
-import urllib.request
+import urllib.request  # noqa: F401  (tests patch urllib.request.urlopen, which core.net looks up at call time)
+
+from ... import net as _net
 
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_SECONDS = 1.5
@@ -26,7 +28,7 @@ RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def urlopen_with_retry(request, timeout, opener=None, max_retries=DEFAULT_MAX_RETRIES,
-                       backoff_seconds=DEFAULT_BACKOFF_SECONDS):
+                       backoff_seconds=DEFAULT_BACKOFF_SECONDS, stream=False):
     """Drop-in replacement for `urllib.request.urlopen(request, timeout=timeout)` (or
     `opener.open(request, timeout=timeout)` when an SSRF-safe opener from vector_tools.py's
     _build_safe_opener() is given instead) -- retries a transient network error or a
@@ -35,7 +37,11 @@ def urlopen_with_retry(request, timeout, opener=None, max_retries=DEFAULT_MAX_RE
     A permanent HTTPError (4xx other than 429) is NOT retried -- it's raised immediately, same
     as an unretried call would, so callers that already special-case e.g. 404 keep working
     unchanged."""
-    opener_call = opener.open if opener is not None else urllib.request.urlopen
+    if opener is not None:
+        opener_call = opener.open
+    else:
+        def opener_call(req, timeout):
+            return _net.urlopen(req, timeout=timeout, stream=stream)
     last_exc = None
     for attempt in range(max_retries + 1):
         try:

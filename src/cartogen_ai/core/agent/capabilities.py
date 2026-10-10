@@ -159,7 +159,7 @@ def workflow_directive(query):
         found = chains_for([cid for cid, _t, _v in needed_capabilities(query)]) if is_execution_request(query) else []
         if found:
             text += " " + chain_directive(found)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     text += (" Do each step once. When you already know every argument of a chain of steps (you choose the output layer names), "
              "send that chain as ONE `run_steps` call instead of one turn per step; check results before continuing only where the "

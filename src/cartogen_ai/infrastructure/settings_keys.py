@@ -7,7 +7,7 @@ from other QGIS plugins and ensure consistent settings management.
 
 # Provider and Core Engine
 SETTINGS_PROVIDER = "cartogen_ai/provider"
-SETTINGS_API_KEY = "cartogen_ai/api_key"
+SETTINGS_API_KEY = "cartogen_ai/api_key"  # pragma: allowlist secret (the settings key NAME; keys live in the Auth Manager)
 SETTINGS_ACCOUNT_BASE_URL = "cartogen_ai/account_base_url"
 
 # Providers a build offers. Fixed at release time (change this tuple and publish a new version to

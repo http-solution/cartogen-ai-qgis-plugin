@@ -26,6 +26,7 @@ import os
 import re
 import tempfile
 from .registry import register_tool
+from ... import net as _net
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -88,7 +89,7 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
         tmp = final + ".partial"
         try:
             req = urllib.request.Request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
-            with (opener or urllib.request.urlopen)(req, timeout=60) as resp, open(tmp, "wb") as fh:
+            with (opener or (lambda r, timeout: _net.urlopen(r, timeout=timeout, stream=True)))(req, timeout=60) as resp, open(tmp, "wb") as fh:
                 while True:
                     chunk = resp.read(1 << 20)
                     if not chunk:

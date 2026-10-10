@@ -383,7 +383,7 @@ class ToolRouter:
                 for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
                     # run_steps only accepts tools that were offered, so offer the chain's own
                     always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}

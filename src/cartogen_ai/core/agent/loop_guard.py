@@ -27,7 +27,7 @@ def canonical_arguments(arguments):
 
 
 def call_key(name, arguments):
-    return name + ":" + hashlib.sha1(canonical_arguments(arguments).encode("utf-8", "replace")).hexdigest()[:12]
+    return name + ":" + hashlib.sha1(canonical_arguments(arguments).encode("utf-8", "replace"), usedforsecurity=False).hexdigest()[:12]
 
 
 class LoopGuard:

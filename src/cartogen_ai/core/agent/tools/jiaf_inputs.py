@@ -306,7 +306,7 @@ def read_workbook_tables(path):
             try:
                 for sheet, coord in d.destinations:
                     names[name] = wb[sheet][coord.replace("$", "")].value
-            except Exception:
+            except Exception:  # nosec B112 (best-effort: skip this item)
                 continue
         return {"tables": tables, "names": names}
     finally:

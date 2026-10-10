@@ -489,6 +489,7 @@ def _geocode_one(location_name: str):
     session (e.g. the model re-checking a coordinate it already resolved)
     cost zero extra network calls."""
     import urllib.request
+    from ...net import urlopen as _qgis_urlopen
     import json
     import urllib.parse
 
@@ -501,7 +502,7 @@ def _geocode_one(location_name: str):
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             if data:
                 result = {
@@ -623,7 +624,7 @@ def execute_pyqgis_script(script: str):
     local_env['__name__'] = 'execute_pyqgis_script'
 
     try:
-        exec(script, local_env)
+        exec(script, local_env)  # nosec B102 (runs only in the restricted script sandbox)
         if 'run' not in local_env:
             return {"error": "Script must define a 'run()' function."}
 

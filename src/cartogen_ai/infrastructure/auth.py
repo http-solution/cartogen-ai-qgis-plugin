@@ -37,7 +37,7 @@ def _store_auth_config(auth_mgr, config, had_existing_id):
 class CredentialManager:
     """Manages API keys securely using QgsAuthManager when available."""
 
-    AUTH_KEY_PREFIX = "cartogen_ai_auth_id_"
+    AUTH_KEY_PREFIX = "cartogen_ai_auth_id_"  # pragma: allowlist secret (a settings-key prefix, not a credential)
 
     # P1 fix, 2026-09-20 audit + explicit product policy decision (strict option
     # chosen over an opt-in plaintext-persist path): providers whose key is held

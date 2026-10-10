@@ -15,7 +15,7 @@ def _registry_counts():
         from ..agent.tools.registry import TOOL_REGISTRY
         from ..agent import tools as _load_all  # noqa: F401  (importing the package registers every tool)
         tools = len(TOOL_REGISTRY) or None
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         import json
@@ -24,7 +24,7 @@ def _registry_counts():
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         tasks, sections = len(data), len({t.get("cat") for t in data})
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return tools, tasks, sections
 

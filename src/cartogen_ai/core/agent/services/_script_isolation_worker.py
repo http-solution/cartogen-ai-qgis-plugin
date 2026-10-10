@@ -55,7 +55,7 @@ def _run_job(job, local_env_factory):
     local_env["__name__"] = "execute_pyqgis_script"
 
     try:
-        exec(script, local_env)
+        exec(script, local_env)  # nosec B102 (runs only in the restricted script sandbox)
         if "run" not in local_env:
             return {"error": "Script must define a 'run()' function."}
         result = local_env["run"]()

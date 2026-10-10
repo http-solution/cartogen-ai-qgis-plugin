@@ -48,7 +48,7 @@ def gather_facts(_unused=None):
                 rect = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance()).transformBoundingBox(rect)
             if not rect.isNull():       # isEmpty() is also true for a one-point layer (zero width and height)
                 fact["extent_wgs84"] = (rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum())
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         facts[layer.name()] = fact
     return facts

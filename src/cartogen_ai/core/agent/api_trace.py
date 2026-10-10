@@ -83,7 +83,7 @@ def tool_summary(tools):
         try:
             names.append((tool.get("function") or {}).get("name"))
             chars += len(json.dumps(tool, default=str))
-        except Exception:
+        except Exception:  # nosec B112 (best-effort: skip this item)
             continue
     return {"count": len(names), "names": names, "schema_chars": chars}
 

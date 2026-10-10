@@ -9,6 +9,7 @@ import re
 import json
 import math
 import urllib.request
+from ...net import urlopen as _qgis_urlopen
 import urllib.parse
 import urllib.error
 from datetime import date
@@ -86,7 +87,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             results = data.get("result", {}).get("results", [])
             output = []
@@ -112,7 +113,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
 def _fts_request(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-    with urllib.request.urlopen(req, timeout=15) as response:
+    with _qgis_urlopen(req, timeout=15) as response:
         return json.loads(response.read().decode())
 
 
@@ -253,7 +254,7 @@ def fetch_osm_features(key: str, value: str, bbox: list):
         # 30s, not the usual 15s -- the query itself requests a 25s server-side
         # budget ([timeout:25] above), so a client timeout below that would abort
         # legitimate slow-but-still-running queries before the server's own limit.
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             res_json = json.loads(response.read().decode())
             elements = res_json.get("elements", [])
             nodes = [el for el in elements if el.get("type") == "node"]
@@ -631,7 +632,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode())
         # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
         # (2026-09-13): json.loads succeeding doesn't guarantee a dict.
@@ -684,7 +685,7 @@ def _auto_label_admin(layer):
     try:
         from .output_style import style_auto_labels
         style_auto_labels(layer)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         from qgis.core import QgsFillSymbol
@@ -693,7 +694,7 @@ def _auto_label_admin(layer):
         layer.triggerRepaint()
         from .styling_tools import auto_arrange_layer_order
         auto_arrange_layer_order()
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -764,7 +765,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
 
     try:
         req = urllib.request.Request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=20) as response:
+        with _qgis_urlopen(req, timeout=20) as response:
             data = json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
@@ -1048,7 +1049,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     else:
         try:
             req = urllib.request.Request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with _qgis_urlopen(req, timeout=30) as response:
                 links_text = response.read().decode()
         except Exception as e:
             return {"error": f"Failed to fetch building footprints dataset index: {e}"}
@@ -1459,7 +1460,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
     try:
         list_url = f"https://hub.worldpop.org/rest/data/pop/wpgp?iso3={iso3}"
         req = urllib.request.Request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             listing = json.loads(response.read().decode())
         datasets = listing.get("data", [])
         if not datasets:
@@ -1642,7 +1643,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
         try:
             from .output_style import style_continuous_raster
             style_continuous_raster(layer, "population")   # zero cells transparent, heavy-tailed warm ramp
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass   # styling is cosmetic: never fail the fetch over it
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
         for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
@@ -2111,7 +2112,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
             return {"error": f"Unknown crs '{crs}'. Use a code such as \"EPSG:3857\"."}
         _xf = QgsCoordinateTransform(src, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
 
-        def transform(x, y):
+        def transform(x, y):  # noqa: F811 (None default above, real function only for a projected CRS)
             pt = _xf.transform(QgsPointXY(x, y))
             return pt.x(), pt.y()
 

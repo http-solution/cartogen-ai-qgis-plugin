@@ -69,7 +69,7 @@ def _style_hazard(layer, kind):
     try:
         from .humanitarian_style import style_hazard_layer
         style_hazard_layer(layer, kind)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 def _stamp_fetched_at(layer):

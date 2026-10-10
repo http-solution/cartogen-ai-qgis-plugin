@@ -110,7 +110,7 @@ def stability(columns, weights, trials=DEFAULT_TRIALS, perturbation=0.2, seed=0,
     """Re-rank `trials` times with each weight multiplied by a random factor in [1-perturbation, 1+perturbation] (then renormalised)
     and report per unit {rank_min, rank_max, top_k_share}. Reproducible for a seed. Pure."""
     n = len(columns[0])
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 (seeded sampling for reproducibility, not security)
     best, worst, in_top = [n + 1] * n, [0] * n, [0] * n
     for _ in range(trials):
         w = normalise_weights([base * (1.0 + rng.uniform(-perturbation, perturbation)) for base in weights])

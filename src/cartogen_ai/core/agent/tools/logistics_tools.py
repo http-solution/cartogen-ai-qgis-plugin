@@ -566,7 +566,7 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
                 seen = _direction_values_present(network.uniqueValues(dir_idx))
                 if seen and seen <= {"F", "T", "B"}:
                     value_forward, value_backward, value_both = "F", "T", "B"
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
         extra["DIRECTION_FIELD"] = direction_field
         extra["VALUE_FORWARD"] = value_forward
@@ -637,7 +637,7 @@ def is_plugin_result(layer):
 def mark_plugin_result(layer):
     try:
         layer.setCustomProperty(_RESULT_OWNER_KEY, "1")
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -727,7 +727,7 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
         try:
             import json as _json
             new_layer.setCustomProperty(_RESULT_PARAMS_KEY, _json.dumps(params, sort_keys=True, default=str))
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     mark_plugin_result(new_layer)
     if set_aside:
@@ -744,7 +744,7 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     try:
         from ..results_store import persist_layer
         persist_layer(new_layer, tool="analysis")
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return replaced
 
@@ -1432,7 +1432,7 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
                                             "Delivery route")
         except _bg.AnalysisCancelled:
             raise
-        except Exception:
+        except Exception:  # nosec B112 (best-effort: skip this item)
             continue
         segment = output.get("OUTPUT")
         if segment is not None and segment.featureCount() > 0:
@@ -2822,7 +2822,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
                 try:
                     if lyr is not None and QgsProject.instance().layerTreeRoot().findLayer(lyr.id()) is None:
                         QgsProject.instance().layerTreeRoot().addLayer(lyr)
-                except Exception:
+                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                     pass
 
     head = figures[headline]
