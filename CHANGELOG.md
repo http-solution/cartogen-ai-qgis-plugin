@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc27](#v1-16-0-rc27) | 2026-10-10 | **Release candidate 27 for 1.16.0.** No breaking changes. AI provider requests go through QGIS's network stack (proxy, authentication, SSL); Qt6 enum names scoped. Not hand-tested; the provider path is CI-tested against a local server only. |
 | [1.16.0-rc26](#v1-16-0-rc26) | 2026-10-10 | **Release candidate 26 for 1.16.0.** No breaking changes. Data-fetch requests go through QGIS's network stack (proxy, authentication, SSL); directory security-scan fixes. Not hand-tested. |
 | [1.16.0-rc25](#v1-16-0-rc25) | 2026-10-10 | **Release candidate 25 for 1.16.0.** No breaking changes. Only tested providers (OpenRouter, Gemini, Ollama, Cartogen API stub) are offered; OpenAI and Claude are no longer listed or run; plugin-directory packaging fixes; opt-in API trace; local layer list. Not hand-tested. |
 | [1.16.0-rc24](#v1-16-0-rc24) | 2026-10-10 | **Release candidate 24 for 1.16.0.** No breaking changes. Reply checks for invented identifiers, figures and style claims; a guessed-file-path guard; raster and Processing runs in the background; read-only database layers for the script worker and SQL results. Not hand-tested. |
@@ -67,6 +68,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc27"></a>
+## [1.16.0-rc27] — 2026-10-10 — Release candidate 27 for 1.16.0: AI provider requests through QGIS, Qt6 enum names
+
+No breaking changes; QGIS 4.2+. Everything after the rc26 build:
+
+- AI provider calls use QGIS's network stack: Requests to OpenRouter, Google Gemini and the Cartogen API entry now go through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply to them. A call waits at most the timeout set in QGIS (Settings > Options > Network, default 60 seconds). Ollama (a local server that can take minutes to answer) and the Cartogen account client still use the requests library. While QGIS's Network Logger panel is open, request headers, including the API key, appear in it on your own machine. This path has been tested in CI against a local server only, not against a real provider.
+- Qt6 enum names: The 38 unscoped enum uses the plugin directory's Qt6 check flagged (for example QgsProcessing.TypeVectorPoint) now use the scoped names, and a live test confirms each resolves in QGIS 4.2.2.
+- Not hand-tested: CI is green, including the live network and enum tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model or API key.
 
 <a id="v1-16-0-rc26"></a>
 ## [1.16.0-rc26] — 2026-10-10 — Release candidate 26 for 1.16.0: QGIS network stack for data fetches, security-scan fixes

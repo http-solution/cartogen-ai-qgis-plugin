@@ -9,14 +9,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc26"
-NEW_MARK_VERSIONS = ("1.16.0-rc25", "1.16.0-rc26")
+WHATS_NEW_VERSION = "1.16.0-rc27"
+NEW_MARK_VERSIONS = ("1.16.0-rc26", "1.16.0-rc27")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Network requests use QGIS', "Data-fetch tools (OpenStreetMap, HDX, hazard feeds, STAC and the like) now send their requests through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply. QGIS sets the User-Agent and applies its own network timeout (Settings > Options > Network, default 60 seconds) on these calls. Large downloads (Geofabrik extracts, model checkpoints) are still streamed with urllib, using the QGIS proxy. The AI provider clients still use the requests library; moving them is planned (#71)."),
-    ('Security scan fixes', "Short-key hashes are marked as non-security, a failed restore of the database session's read-only mode is now logged, and the reviewed best-effort handlers carry a reason, so the plugin-directory security scan reports far fewer findings."),
-    ('Not hand-tested', 'CI is green, including the new live network tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model.'),
+    ("AI provider calls use QGIS's network stack", "Requests to OpenRouter, Google Gemini and the Cartogen API entry now go through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply to them. A call waits at most the timeout set in QGIS (Settings > Options > Network, default 60 seconds). Ollama (a local server that can take minutes to answer) and the Cartogen account client still use the requests library. While QGIS's Network Logger panel is open, request headers, including the API key, appear in it on your own machine. This path has been tested in CI against a local server only, not against a real provider."),
+    ('Qt6 enum names', "The 38 unscoped enum uses the plugin directory's Qt6 check flagged (for example QgsProcessing.TypeVectorPoint) now use the scoped names, and a live test confirms each resolves in QGIS 4.2.2."),
+    ('Not hand-tested', 'CI is green, including the live network and enum tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model or API key.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
