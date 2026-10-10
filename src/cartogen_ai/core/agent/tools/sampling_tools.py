@@ -124,6 +124,97 @@ def _random_points_in(geom, count, rng):
     return out
 
 
+def _group_strata(strata, stratum_field, population_attribute):
+    """One record per stratum (polygons sharing a stratum name are merged): geometries, population and their union."""
+    groups = {}
+    for f in strata.getFeatures():
+        g = f.geometry()
+        if g is None or g.isEmpty():
+            continue
+        key = str(f[stratum_field]) if stratum_field else str(f.id())
+        entry = groups.setdefault(key, {"geoms": [], "population": 0.0, "has_pop": population_attribute is not None})
+        entry["geoms"].append(g)
+        if population_attribute is not None:
+            try:
+                entry["population"] += float(f[population_attribute])
+            except (TypeError, ValueError):
+                entry["has_pop"] = False
+    for entry in groups.values():
+        entry["geom"] = QgsGeometry.unaryUnion(entry["geoms"])
+    return groups
+
+
+def _units_by_stratum(units, strata, groups):
+    """{stratum: [(unit feature id, point)]}: each candidate unit's centroid assigned to the stratum polygon that contains it."""
+    unit_points = {key: [] for key in groups}
+    if units is None:
+        return unit_points
+    index = QgsSpatialIndex()
+    key_by_id = {}
+    for i, (key, entry) in enumerate(groups.items()):
+        feat = QgsFeature(i)
+        feat.setGeometry(entry["geom"])
+        index.addFeature(feat)
+        key_by_id[i] = key
+    for uf in units.getFeatures():
+        g = uf.geometry()
+        if g is None or g.isEmpty():
+            continue
+        pt = _to_crs(g.centroid(), units.crs(), strata.crs())
+        for i in index.intersects(pt.boundingBox()):
+            if groups[key_by_id[i]]["geom"].contains(pt):
+                unit_points[key_by_id[i]].append((uf.id(), pt.asPoint()))
+                break
+    return unit_points
+
+
+def _stratum_rows(groups, unit_points, units, units_layer, population_attribute, confidence, margin_of_error, expected_proportion,
+                  design_effect, nonresponse_rate):
+    """(per-stratum plan rows, error dict or None): the population, how it was known and the sample size each stratum needs."""
+    rows = []
+    for key, entry in groups.items():
+        if population_attribute is not None and entry["has_pop"]:
+            population, basis = round(entry["population"]), f"field '{population_attribute}'"
+        elif units is not None:
+            population, basis = len(unit_points[key]), f"candidate units in '{units_layer}'"
+        else:
+            population, basis = None, "unknown (no finite-population correction)"
+        needed = sample_size(population, confidence, margin_of_error, expected_proportion, design_effect, nonresponse_rate)
+        if needed > MAX_SAMPLE_PER_STRATUM:
+            return None, {"error": f"Stratum '{key}' needs {needed} units, above the limit of {MAX_SAMPLE_PER_STRATUM}. "
+                                   "Loosen the margin of error or confidence."}
+        rows.append({"stratum": key, "population": population, "population_basis": basis, "sample_required": needed,
+                     "sample_drawn": 0})
+    return rows, None
+
+
+def _draw_sample_features(out, rows, groups, unit_points, units, seed, warnings):
+    """Draws each stratum's sample (candidate units, or random points) as features of `out`; records shortfalls in `warnings`."""
+    feats = []
+    for row in rows:
+        key, needed = row["stratum"], row["sample_required"]
+        rng_seed = stratum_seed(seed, key)
+        if units is not None:
+            candidates = unit_points[key]
+            picks = draw_indices(len(candidates), needed, rng_seed)
+            chosen = [(f"unit:{candidates[i][0]}", candidates[i][1]) for i in picks]
+            source = "candidate unit"
+        else:
+            pts = _random_points_in(groups[key]["geom"], needed, random.Random(rng_seed))  # nosec B311 (seeded sampling for reproducibility, not security)  # noqa: S311  (seeded and reproducible by design, not security)
+            chosen = [("random", p) for p in pts]
+            source = "random point"
+        for n, (_origin, pt) in enumerate(chosen, 1):
+            f = QgsFeature(out.fields())
+            f.setGeometry(QgsGeometry.fromPointXY(pt))
+            f.setAttributes([f"{key}-{n:04d}", key, source])
+            feats.append(f)
+        row["sample_drawn"] = len(chosen)
+        if len(chosen) < needed:
+            warnings.append(f"Stratum '{key}': needed {needed} but only {len(chosen)} could be drawn"
+                            + (" (fewer candidate units than the sample size)." if units is not None else "."))
+    return feats
+
+
 @register_tool(
     "design_sampling_frame",
     "Design a household/community survey sample (e.g. for a multi-sector needs assessment): works out how many units to survey in "
@@ -180,58 +271,16 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
         seed = random.SystemRandom().randrange(2 ** 31)
     seed = int(seed)
 
-    # one record per stratum (polygons sharing a stratum name are merged)
-    groups = {}
-    for f in strata.getFeatures():
-        g = f.geometry()
-        if g is None or g.isEmpty():
-            continue
-        key = str(f[stratum_field]) if stratum_field else str(f.id())
-        entry = groups.setdefault(key, {"geoms": [], "population": 0.0, "has_pop": population_attribute is not None})
-        entry["geoms"].append(g)
-        if population_attribute is not None:
-            try:
-                entry["population"] += float(f[population_attribute])
-            except (TypeError, ValueError):
-                entry["has_pop"] = False
+    groups = _group_strata(strata, stratum_field, population_attribute)
     if not groups:
         return {"error": f"'{strata_layer}' has no usable polygons."}
-    for entry in groups.values():
-        entry["geom"] = QgsGeometry.unaryUnion(entry["geoms"])
+    unit_points = _units_by_stratum(units, strata, groups)
 
-    unit_points = {key: [] for key in groups}
-    if units is not None:
-        index = QgsSpatialIndex()
-        key_by_id = {}
-        for i, (key, entry) in enumerate(groups.items()):
-            feat = QgsFeature(i)
-            feat.setGeometry(entry["geom"])
-            index.addFeature(feat)
-            key_by_id[i] = key
-        for uf in units.getFeatures():
-            g = uf.geometry()
-            if g is None or g.isEmpty():
-                continue
-            pt = _to_crs(g.centroid(), units.crs(), strata.crs())
-            for i in index.intersects(pt.boundingBox()):
-                if groups[key_by_id[i]]["geom"].contains(pt):
-                    unit_points[key_by_id[i]].append((uf.id(), pt.asPoint()))
-                    break
-
-    rows, warnings = [], []
-    for key, entry in groups.items():
-        if population_attribute is not None and entry["has_pop"]:
-            population, basis = round(entry["population"]), f"field '{population_attribute}'"
-        elif units is not None:
-            population, basis = len(unit_points[key]), f"candidate units in '{units_layer}'"
-        else:
-            population, basis = None, "unknown (no finite-population correction)"
-        needed = sample_size(population, confidence, margin_of_error, expected_proportion, design_effect, nonresponse_rate)
-        if needed > MAX_SAMPLE_PER_STRATUM:
-            return {"error": f"Stratum '{key}' needs {needed} units, above the limit of {MAX_SAMPLE_PER_STRATUM}. "
-                             "Loosen the margin of error or confidence."}
-        rows.append({"stratum": key, "population": population, "population_basis": basis, "sample_required": needed,
-                     "sample_drawn": 0})
+    rows, row_error = _stratum_rows(groups, unit_points, units, units_layer, population_attribute, confidence, margin_of_error,
+                                    expected_proportion, design_effect, nonresponse_rate)
+    if row_error:
+        return row_error
+    warnings = []
 
     result = {
         "success": True,
@@ -248,28 +297,7 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
 
     out = QgsVectorLayer(f"Point?crs={strata.crs().authid()}&field=sample_id:string&field=stratum:string&field=source:string",
                          output_layer_name, "memory")
-    feats = []
-    for row in rows:
-        key, needed = row["stratum"], row["sample_required"]
-        rng_seed = stratum_seed(seed, key)
-        if units is not None:
-            candidates = unit_points[key]
-            picks = draw_indices(len(candidates), needed, rng_seed)
-            chosen = [(f"unit:{candidates[i][0]}", candidates[i][1]) for i in picks]
-            source = "candidate unit"
-        else:
-            pts = _random_points_in(groups[key]["geom"], needed, random.Random(rng_seed))  # nosec B311 (seeded sampling for reproducibility, not security)  # noqa: S311  (seeded and reproducible by design, not security)
-            chosen = [("random", p) for p in pts]
-            source = "random point"
-        for n, (_origin, pt) in enumerate(chosen, 1):
-            f = QgsFeature(out.fields())
-            f.setGeometry(QgsGeometry.fromPointXY(pt))
-            f.setAttributes([f"{key}-{n:04d}", key, source])
-            feats.append(f)
-        row["sample_drawn"] = len(chosen)
-        if len(chosen) < needed:
-            warnings.append(f"Stratum '{key}': needed {needed} but only {len(chosen)} could be drawn"
-                            + (" (fewer candidate units than the sample size)." if units is not None else "."))
+    feats = _draw_sample_features(out, rows, groups, unit_points, units, seed, warnings)
     out.dataProvider().addFeatures(feats)
     out.updateExtents()
     QgsProject.instance().addMapLayer(out)
