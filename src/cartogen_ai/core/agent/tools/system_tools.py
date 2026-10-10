@@ -371,7 +371,7 @@ def search_web(query: str, max_results: int = 3):
         try:
             from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS
+            from duckduckgo_search import DDGS  # type: ignore[no-redef]
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
             if not results:

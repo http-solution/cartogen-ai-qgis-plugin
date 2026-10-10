@@ -15,7 +15,7 @@ try:
     ConnectionError_ = requests.exceptions.ConnectionError
     Timeout_ = requests.exceptions.Timeout
 except (ImportError, AttributeError):
-    requests = None
+    requests = None  # type: ignore[assignment]
     class HTTPError(Exception):  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             super().__init__(*args)

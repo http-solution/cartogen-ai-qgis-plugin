@@ -221,7 +221,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 # is a re-run and needs no question; replacing a file that was already on disk, or one edited or swapped since, does. rc17 hand test A6
 # (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
 # stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
-_WRITTEN_THIS_SESSION = {}
+_WRITTEN_THIS_SESSION: dict = {}
 _DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml")
 
 

@@ -3,8 +3,8 @@ Registry for Cartogen AI tools. Provides @register_tool decorator to register
 functions along with their OpenAI-compatible schema definitions.
 """
 
-TOOL_REGISTRY = {}
-TOOLS_SCHEMA = []
+TOOL_REGISTRY: dict = {}
+TOOLS_SCHEMA: list = []
 
 
 def register_tool(name, description, parameters):
