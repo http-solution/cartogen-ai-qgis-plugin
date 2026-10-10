@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 QGIS Project File Tools for Cartogen AI.
 """
 
+import contextlib
 import os
 
 from .registry import register_tool
@@ -43,10 +43,9 @@ def _temporary_layer_names(project):
     """Names of the project's layers that live only in memory. Best-effort; an unreadable layer is skipped."""
     names = []
     for layer in project.mapLayers().values():
-        try:
+        is_memory = False
+        with contextlib.suppress(Exception):   # an unreadable layer is not counted
             is_memory = layer.providerType() == "memory" or (hasattr(layer, "isTemporary") and layer.isTemporary())
-        except Exception:  # nosec B112 (best-effort: skip this item)
-            continue
         if is_memory:
             names.append(layer.name())
     return sorted(names)

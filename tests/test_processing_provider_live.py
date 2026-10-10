@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the native Processing algorithms (audit F03, F04, F06 -> GitHub #139, #140, #142).
 
 Written without a QGIS install: CI's first run is their first execution. The algorithms are run (not only their metadata) with
 QgsProcessingAlgorithm.run(), the way the Processing dialog and a model would run them."""
+from typing import ClassVar
 import unittest
 
 try:
@@ -113,7 +113,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
     # About 5 km along the equator as 45 separate ~111 m road features. CI showed the network algorithm returns WHOLE road features
     # (a single 5 km feature, or one polyline with many vertices, came back entirely for a 1,000 m cost), so the reach can only be
     # told apart from the whole road when the road is made of many features.
-    ROADS = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
+    ROADS: ClassVar = [f"LINESTRING({i * 0.001:.3f} 0, {(i + 1) * 0.001:.3f} 0)" for i in range(45)]
 
     def setUp(self):
         from tests.test_network_units_live import _boot
@@ -148,7 +148,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
 
     def test_fastest_cost_of_3600_seconds_covers_the_whole_road(self):
         fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
-        ok, out = self._run_service_area(fac, 1, 3600.0)
+        _ok, out = self._run_service_area(fac, 1, 3600.0)
         self.assertAlmostEqual(self._length_m(out), 5000.0, delta=300.0)
 
     def test_a_facility_in_another_crs_starts_where_it_really_is(self):
@@ -159,7 +159,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
 
     def test_the_output_schema_is_the_child_algorithms_plus_the_facility_id(self):
         fac = _layer("Point", "EPSG:4326", ["POINT(0 0)"], "fac")
-        ok, out = self._run_service_area(fac, 0, 500.0)
+        _ok, out = self._run_service_area(fac, 0, 500.0)
         names = [f.name() for f in out.fields()]
         self.assertIn("facility_fid", names)
         self.assertNotIn("name", names)                    # the road layer's own fields are not what the child returns
@@ -177,7 +177,7 @@ class TestServiceAreaUnitsCrsAndSchema(unittest.TestCase):
         cands = _layer("Point", "EPSG:4326", ["POINT(0 0)", "POINT(1 1)"], "c")
         demand = _layer("Point", "EPSG:4326", ["POINT(0 1)", "POINT(1 0)"], "d")
         with patch("cartogen_ai.processing.provider.MAX_DISTANCE_PAIRS", 3):
-            results, ok, _ctx, feedback = _run(OptimalHubSitingAlgorithm(),
+            _results, ok, _ctx, _feedback = _run(OptimalHubSitingAlgorithm(),
                                                {"INPUT_CANDIDATES": cands, "INPUT_DEMAND": demand, "OUTPUT": "memory:"})
         self.assertFalse(ok)
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS test for the downloaded admin-boundary layer (GitHub #127): one layer after a re-download, name labels on, a pale
 fill instead of the opaque default, and polygons drawn below points and lines. Written without a QGIS install: CI's first run is
 its first execution; a failure is a finding about the code unless it shows a wrong expectation."""

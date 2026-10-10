@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """GitHub #147 (audit F11): a turn is bound to the project that started it. Offline: the generation counter, and the orchestrator's
 guards (tool entry point, history write) driven through a bare object. The real readProject/cleared wiring is not run here."""
 import unittest

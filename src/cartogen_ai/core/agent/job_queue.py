@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Several separate requests pasted into one message become a queue of jobs, each run on its own.
 
 Why (2026-10-09): five unrelated analyses (Marib, Hadramawt, Aden, Taizz, the coastal highway) pasted as one message were run as ONE

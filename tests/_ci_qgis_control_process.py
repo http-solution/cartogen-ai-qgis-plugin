@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """CI-only diagnostic, added 2026-09-20/21 per external review: isolates whether the
 post-test "Segmentation fault (core dumped)" seen in qgis-live-tests is a QGIS/Qt
 interpreter-shutdown issue in the CI image itself, independent of this repo's code --

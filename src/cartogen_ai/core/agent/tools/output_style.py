@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Default look for outputs that used to arrive in QGIS's raw defaults (visualization gap analysis, 2026-10-01).
 
 Measured gaps this closes (see docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md):

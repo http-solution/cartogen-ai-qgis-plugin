@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authentication and Credential Security Manager for Cartogen AI.
 Uses QGIS native QgsAuthManager (encrypted keyring storage) with fallback to QgsSettings.
 """
+
+from typing import ClassVar
 
 try:
     from qgis.core import QgsApplication, QgsAuthMethodConfig, QgsSettings
@@ -47,8 +48,8 @@ class CredentialManager:
     # by design, regardless of user consent. See LEGACY_SETTINGS_KEYS/get_credential
     # below for the separate, retained migration path that only READS/REMOVES
     # plaintext keys written by OLDER versions of this file, before this policy.
-    _session_credentials = {}
-    _session_only_providers = set()
+    _session_credentials: ClassVar[dict] = {}
+    _session_only_providers: ClassVar[set] = set()
 
     @classmethod
     def used_session_only_fallback(cls, provider: str) -> bool:
@@ -58,7 +59,7 @@ class CredentialManager:
     # save_credential and get_credential so they can never drift out of sync with each
     # other (a prior version used two separate, mismatched mappings — a saved OpenRouter/
     # Ollama key would silently land somewhere get_credential never looked).
-    LEGACY_SETTINGS_KEYS = {
+    LEGACY_SETTINGS_KEYS: ClassVar[dict] = {
         "openrouter": SETTINGS_API_KEY,
         "gemini": fallback_credential_key("gemini"),
         "ollama": fallback_credential_key("ollama"),
@@ -226,7 +227,7 @@ class CredentialManager:
             "settings. Two documented causes:"
         ]
         for i, item in enumerate(status["known_causes"], start=1):
-            lines.append("%d. %s\n   Fix: %s" % (i, item["cause"], item["fix"]))
+            lines.append(f"{i}. {item['cause']}\n   Fix: {item['fix']}")
         return "\n\n".join(lines)
 
     @staticmethod
@@ -315,7 +316,7 @@ class CredentialManager:
     )
 
     @classmethod
-    def missing_credential_message(cls, provider: str = None, client=None) -> str:
+    def missing_credential_message(cls, provider: str | None = None, client=None) -> str | None:
         """Returns a friendly, actionable chat message if there's no usable
         credential to send a request with, or None if it's fine to proceed.
         Meant to be checked BEFORE a request goes out, so the user sees this

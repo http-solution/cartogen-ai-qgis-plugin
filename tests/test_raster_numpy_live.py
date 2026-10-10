@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the numpy replacements of ids the 4.2.2 registry lacks (#162 step 2). Written without a QGIS install: CI's first run is their first execution."""
+import contextlib
 import os
 import tempfile
 import unittest
@@ -16,11 +16,9 @@ except ImportError:
 def _boot():
     from tests.test_chat_widget_live import _boot_qgis
     _boot_qgis()
-    try:
+    with contextlib.suppress(Exception):
         from processing.core.Processing import Processing
         Processing.initialize()
-    except Exception:
-        pass
 
 
 def _tif(path, array, nodata=None):

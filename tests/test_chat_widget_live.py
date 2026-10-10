@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Headless functional test of the chat send path against REAL Qt widgets.
 
 Every other check in this repo's test suite proves the wiring exists and the
@@ -49,16 +48,15 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"livetest"], False)
+    if _APP_HOLDER["app"] is None:
+        _APP_HOLDER["app"] = QgsApplication([b"livetest"], False)
         QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+        _APP_HOLDER["app"].initQgis()
+    return _APP_HOLDER["app"]
 
 
 def _pump(ms=4000, until=None):
@@ -82,7 +80,7 @@ def _pump(ms=4000, until=None):
     loop.exec()
     timer.stop()
     if until is not None:
-        assert until(), "condition never became true within %dms" % ms
+        assert until(), f"condition never became true within {ms}ms"
 
 
 class _FakeClient:
@@ -288,7 +286,7 @@ class TestChatWidgetLive(unittest.TestCase):
                       "the composed prompt must carry the answer forward, not just the original text")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "the merged, now-answerable request must actually reach the agent")
 
@@ -349,7 +347,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0, "must not have sent anything while awaiting the reply")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         self.assertFalse(ct._awaiting_preview_reply)
         self.assertEqual(agent.client.calls, 1, "a confirming reply must be what actually dispatches the call")
@@ -382,7 +380,7 @@ class TestChatWidgetLive(unittest.TestCase):
             "quoted back inside it afterward")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         log_after = self._chat_text(ct)
         occurrences = log_after.count("map health facilities")
@@ -419,7 +417,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self._reply(ct, "map health facilities")
         self.assertTrue(ct._awaiting_preview_reply)
         self._reply(ct, "just show me clinics instead")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "an unrecognized reply must dispatch exactly once, with no contract "
                          "follow-up -- the whole point is opting OUT of the register's "
@@ -437,7 +435,7 @@ class TestChatWidgetLive(unittest.TestCase):
             self._reply(ct, "map health facilities")
             self.assertTrue(ct._awaiting_preview_reply)
             self._reply(ct, reply)
-            _pump(until=lambda: agent.client.calls >= 1)
+            _pump(until=lambda agent=agent: agent.client.calls >= 1)
             self.assertEqual(agent.client.calls, 1, reply)
             sent = agent.conversation_history[0]["content"]
             self.assertIn("health facilities", sent.lower(), f"{reply!r} must run the original request, but the model got {sent!r}")
@@ -562,8 +560,7 @@ class TestChatWidgetLive(unittest.TestCase):
         _pump(500)  # let the follow-up's on_complete/chat emit finish landing
 
         self.assertEqual(agent.client.calls, 2,
-                         "expected exactly one follow-up call (2 total), got %d -- either the "
-                         "contract check never fired, or it looped" % agent.client.calls)
+                         f"expected exactly one follow-up call (2 total), got {agent.client.calls} -- either the contract check never fired, or it looped")
         log = self._chat_text(ct)
         self.assertIn("generate_html_dashboard", log,
                       "the follow-up instruction must name the missing renderer")
@@ -580,7 +577,7 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self._reply(ct, "build me a dashboard of displacement by district")
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         self.assertEqual(agent.client.calls, 1,
@@ -903,7 +900,7 @@ class TestChatWidgetLive(unittest.TestCase):
         task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen", "new_field": "severity"}
 
         ct._dispatch_message("calculate severity", None)
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         log = self._chat_text(ct)
@@ -1070,7 +1067,7 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
         for i in range(40):
-            ct.chat_browser.append("line %d<br><br><br>" % i)
+            ct.chat_browser.append(f"line {i}<br><br><br>")
         QApplication.processEvents()
         sb = ct.chat_browser.verticalScrollBar()
         self.assertGreater(sb.maximum(), 0)
@@ -1082,7 +1079,7 @@ class TestChatWidgetLive(unittest.TestCase):
         sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum.value)   # the signal takes an int
         QApplication.processEvents()
         for i in range(20):
-            ct.chat_browser.append("more %d<br><br><br>" % i)
+            ct.chat_browser.append(f"more {i}<br><br><br>")
         QApplication.processEvents()
         self.assertEqual(sb.value(), 0, "document growth pulled a scrolled-up user back to the bottom")
         # a new message always brings the view back to the end
@@ -1185,7 +1182,7 @@ class TestChatWidgetLive(unittest.TestCase):
         ]
         sensitivity = {"Beneficiary Registry": "SENSITIVE"}
         dialog = LayerContextPickerDialog(
-            layers, selection={}, sensitivity_lookup=lambda name: sensitivity.get(name))
+            layers, selection={}, sensitivity_lookup=sensitivity.get)
         self.addCleanup(dialog.close)
 
         self.assertTrue(dialog._checkboxes["Health Facilities"].isChecked())
@@ -1316,6 +1313,7 @@ def _geofabrik_fixture(folder):
         self.assertIn("local_list_probe", text)
         self.assertIn("No model was called", text)
         self.assertEqual(agent.conversation_history, [])        # the agent never saw the request
+    return None
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")

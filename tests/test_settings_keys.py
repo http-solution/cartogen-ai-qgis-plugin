@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for centralized settings_keys module (infrastructure boundary).
 """
@@ -9,7 +8,7 @@ from cartogen_ai.infrastructure import settings_keys
 class TestSettingsKeys(unittest.TestCase):
     def test_namespace_prefix_on_all_constants(self):
         for name in dir(settings_keys):
-            if name.startswith("SETTINGS_") or name.startswith("PROJECT_PROPERTY_"):
+            if name.startswith(("SETTINGS_", "PROJECT_PROPERTY_")):
                 val = getattr(settings_keys, name)
                 self.assertTrue(
                     val.startswith("cartogen_ai/"),

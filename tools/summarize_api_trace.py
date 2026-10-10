@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Reads the model-call trace the plugin writes when "Record every model request and reply" is on (Settings) and prints one row per
 request plus plain-language flags (a request with many calls, an identical tool call repeated, a system instruction that changed inside
 one request, a failed call).
@@ -15,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from cartogen_ai.core.agent.api_trace import read_records, summarize  # noqa: E402
+from cartogen_ai.core.agent.api_trace import read_records, summarize
 
 
 def _short(text, n=100):
@@ -36,7 +35,7 @@ def main():
     print(f"{len(records)} model calls in {len(rows)} request(s)\n")
     print(f"{'turn':>10} {'calls':>5} {'in_tok':>8} {'cached':>7} {'out_tok':>7} {'sys_chars':>9} {'tools':>5}  tools called")
     for r in rows:
-        print(f"{str(r['turn_id']):>10} {r['calls']:>5} {r['input_tokens']:>8} {r['cached_tokens']:>7} {r['output_tokens']:>7} "
+        print(f"{r['turn_id']!s:>10} {r['calls']:>5} {r['input_tokens']:>8} {r['cached_tokens']:>7} {r['output_tokens']:>7} "
               f"{r['system_chars']:>9} {r['tools_offered']:>5}  {', '.join(str(n) for n in r['tools_called'][:10]) or '-'}")
     print("\nFlags:" if flags else "\nNo flags.")
     for f in flags:

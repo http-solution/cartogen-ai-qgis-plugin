@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A multi-step request resumes once after a confirmed step (rc15/rc17 hand tests, D05)."""
 import unittest
 

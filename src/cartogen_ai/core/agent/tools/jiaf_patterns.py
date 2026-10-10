@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4b: the intersectoral pattern outputs of Workspace 3C (Reference Table 3C, July 2024 manual, pp.48-49).
 
 SUPPORT FOR PEOPLE WHO RUN THE JIAF 2 PROCESS. NOT the JIAF method, NOT endorsed by OCHA or the IASC. These are the lists and counts the manual asks the
@@ -41,7 +40,7 @@ DEFAULTS = {  # (value, where it comes from)
 
 def pearson(xs, ys):
     """Pearson correlation of paired values; None with fewer than 3 pairs or no variance."""
-    pairs = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
+    pairs = [(x, y) for x, y in zip(xs, ys, strict=False) if x is not None and y is not None]
     n = len(pairs)
     if n < 3:
         return None
@@ -289,7 +288,7 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
         with edit_command(layer, "Cartogen AI: JIAF pattern counts") as owned:
             idx = [add_numeric_field(layer, n) for n in names]
             for fid, rec in pairs:
-                for i, key in zip(idx, ("sectors_above_share", "sectors_in_phase_4_or_5")):
+                for i, key in zip(idx, ("sectors_above_share", "sectors_in_phase_4_or_5"), strict=False):
                     v = counts[key].get(rec["code"])
                     if v is not None:
                         set_value(layer, fid, i, float(v))

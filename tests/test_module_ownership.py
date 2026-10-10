@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Scoped module eviction on plugin load (audit F31, #167). Offline; the real unload (translator, isolation worker) needs QGIS."""
 import importlib.util
 import os

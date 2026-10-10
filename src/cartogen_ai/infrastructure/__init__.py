@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Infrastructure boundary package for Cartogen AI.
 Houses external networking, authentication, settings, and environment abstractions.

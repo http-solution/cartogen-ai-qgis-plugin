@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for agent/services/script_isolation.py's QGIS-free pure logic --
 interpreter lookup and worker-environment construction. These run on the
@@ -23,16 +22,14 @@ class TestFindPythonInterpreter(unittest.TestCase):
         image this repo's CI pins (IMPLEMENTATION_TRACKER.md §1.11's Phase 1
         build note) -- sys.executable is already correct there, unlike Windows/
         macOS where it can be the QGIS binary itself."""
-        with patch.object(si.sys, "platform", "linux"):
-            with patch.object(si, "Path") as mock_path_cls:
-                mock_path_cls.return_value.__truediv__ = lambda self, other: MagicMock(exists=lambda: False)
-                result = si.find_python_interpreter()
+        with patch.object(si.sys, "platform", "linux"), patch.object(si, "Path") as mock_path_cls:
+            mock_path_cls.return_value.__truediv__ = lambda self, other: MagicMock(exists=lambda: False)
+            result = si.find_python_interpreter()
         self.assertEqual(result, sys.executable)
 
     def test_conda_install_uses_python_shortcut(self):
-        with patch.object(si.sys, "prefix", "/opt/conda/envs/qgis"):
-            with patch("pathlib.Path.exists", return_value=True):
-                result = si.find_python_interpreter()
+        with patch.object(si.sys, "prefix", "/opt/conda/envs/qgis"), patch("pathlib.Path.exists", return_value=True):
+            result = si.find_python_interpreter()
         self.assertEqual(result, "python")
 
     def _windows_fixture(self, layout):
@@ -131,9 +128,10 @@ class TestBuildWorkerEnvironment(unittest.TestCase):
         self.assertIn("/fake/src", env.get("PYTHONPATH", ""))
 
     def test_prepends_plugin_parent_without_dropping_existing_pythonpath(self):
-        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"),              patch.object(si, "_qgis_sys_path_entries", return_value=[]):
-            with patch.dict(os.environ, {"PYTHONPATH": "/other/existing/path"}, clear=False):
-                env = si._build_worker_environment()
+        with patch.object(si, "_plugin_parent_dir", return_value="/fake/src"), \
+                patch.object(si, "_qgis_sys_path_entries", return_value=[]), \
+                patch.dict(os.environ, {"PYTHONPATH": "/other/existing/path"}, clear=False):
+            env = si._build_worker_environment()
         parts = env["PYTHONPATH"].split(os.pathsep)
         self.assertEqual(parts[0], "/fake/src")
         self.assertIn("/other/existing/path", parts)

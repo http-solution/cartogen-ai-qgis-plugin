@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
 """Evidence folder: files written, redaction, output copies with hashes, size limit, and the agent hook (off by default, on via setting)."""
+from typing import ClassVar
+import pathlib
 import json
 import os
 import tempfile
@@ -19,34 +20,34 @@ class TestRecorder(unittest.TestCase):
 
     def test_a_call_with_an_output_file_is_copied_and_hashed(self):
         out = os.path.join(self.dir, "report.csv")
-        open(out, "w").write("a,b\n1,2\n")
+        pathlib.Path(out).write_text("a,b\n1,2\n")
         self.rec.record_call("export_layer", {"layer_name": "roads", "api_key": "sekret"}, {"success": True, "path": out}, 12, ["roads_x"])
-        self.rec.finish("Done.", usage_line="3 calls", screenshot_fn=lambda p: open(p, "wb").write(b"png") and True)
+        self.rec.finish("Done.", usage_line="3 calls", screenshot_fn=lambda p: pathlib.Path(p).write_bytes(b"png") and True)
         folder = self.rec.folder
-        manifest = json.load(open(os.path.join(folder, "manifest.json")))
+        manifest = json.loads(pathlib.Path(os.path.join(folder, "manifest.json")).read_text())
         self.assertEqual(manifest["files"][0]["sha256"], ev.sha256_of(out))
         self.assertTrue(os.path.isfile(os.path.join(folder, manifest["files"][0]["copy"])))
         self.assertEqual(manifest["screenshot"]["file"], "screenshot.png")
-        line = json.loads(open(os.path.join(folder, "steps.jsonl")).read().splitlines()[0])
+        line = json.loads(pathlib.Path(os.path.join(folder, "steps.jsonl")).read_text().splitlines()[0])
         self.assertEqual((line["tool"], line["ok"], line["new_layers"]), ("export_layer", True, ["roads_x"]))
-        text = open(os.path.join(folder, "steps.jsonl")).read() + open(os.path.join(folder, "summary.md")).read()
+        text = pathlib.Path(os.path.join(folder, "steps.jsonl")).read_text() + pathlib.Path(os.path.join(folder, "summary.md")).read_text()
         self.assertNotIn("sekret", text)
         self.assertNotIn("abc123", text)
-        self.assertIn("| 1 | `export_layer` | yes |", open(os.path.join(folder, "summary.md")).read())
+        self.assertIn("| 1 | `export_layer` | yes |", pathlib.Path(os.path.join(folder, "summary.md")).read_text())
 
     def test_a_failed_call_is_marked_and_a_missing_screenshot_is_not_an_error(self):
         self.rec.record_call("clip_layer", {}, {"error": "boom"}, 5)
         self.rec.finish("It failed.", screenshot_fn=lambda p: False)
-        self.assertIn("| NO |", open(os.path.join(self.rec.folder, "summary.md")).read())
-        self.assertNotIn("screenshot", json.load(open(os.path.join(self.rec.folder, "manifest.json"))))
+        self.assertIn("| NO |", pathlib.Path(os.path.join(self.rec.folder, "summary.md")).read_text())
+        self.assertNotIn("screenshot", json.loads(pathlib.Path(os.path.join(self.rec.folder, "manifest.json")).read_text()))
 
     def test_oversized_outputs_are_hashed_but_not_copied(self):
         big = os.path.join(self.dir, "big.bin")
-        open(big, "wb").write(b"x" * 10)
+        pathlib.Path(big).write_bytes(b"x" * 10)
         with patch.object(ev, "MAX_COPY_BYTES", 5):
             self.rec.record_call("export_layer", {}, {"path": big}, 1)
             self.rec.finish("")
-        entry = json.load(open(os.path.join(self.rec.folder, "manifest.json")))["files"][0]
+        entry = json.loads(pathlib.Path(os.path.join(self.rec.folder, "manifest.json")).read_text())["files"][0]
         self.assertFalse(entry["copied"])
         self.assertEqual(entry["sha256"], ev.sha256_of(big))
 
@@ -56,7 +57,7 @@ class TestRecorder(unittest.TestCase):
 
 
 class _Settings:
-    values = {}
+    values: ClassVar = {}
 
     def value(self, key, default=None, *a, **k):
         return self.values.get(key, default)
@@ -89,10 +90,10 @@ class TestAgentHook(unittest.TestCase):
         base = self.run_turn(True)
         root = os.path.join(base, "cartogen_evidence")
         folder = os.path.join(root, os.listdir(root)[0])
-        steps = [json.loads(line) for line in open(os.path.join(folder, "steps.jsonl"))]
+        steps = [json.loads(line) for line in pathlib.Path(os.path.join(folder, "steps.jsonl")).read_text().splitlines()]
         self.assertEqual([s["tool"] for s in steps], ["buffer_layer", "clip_layer"])
         self.assertEqual(steps[1]["arguments"]["input_layer"], "buffer_layer_out")      # the REAL resolved argument, not the reference
-        self.assertIn("done", open(os.path.join(folder, "summary.md")).read())
+        self.assertIn("done", pathlib.Path(os.path.join(folder, "summary.md")).read_text())
 
 
 if __name__ == "__main__":

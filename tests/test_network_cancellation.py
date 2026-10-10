@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Stop reaches a running network analysis, and no tool mistakes it for an ordinary failure.
 
 BUG-2026-09-25-2: a routing call over a national road network took 292-572 s on the GUI thread with no
@@ -58,7 +57,7 @@ class TestCancelSignal(unittest.TestCase):
 class TestRunPublishesAndClearsTheStopCheck(unittest.TestCase):
     def _agent(self, impl):
         agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
-        agent.client = SimpleNamespace(_emit_status=lambda text: self.statuses.append(text))
+        agent.client = SimpleNamespace(_emit_status=self.statuses.append)
         agent._run_impl = impl
         return agent
 
@@ -159,7 +158,7 @@ class TestToolsLetStopThrough(_LineNetworkMixin, unittest.TestCase):
     ordinary failure and carry on with the next facility, pair or origin."""
 
     def test_service_area_stops_and_does_not_report_a_skipped_facility(self, mock_find, mock_qgis, mock_proc, mock_project):
-        mock_find.side_effect = lambda n: {"facilities": _stop_layer(["A", "B"]), "roads": MagicMock()}.get(n)
+        mock_find.side_effect = {"facilities": _stop_layer(["A", "B"]), "roads": MagicMock()}.get
         with patch(_LT + "_run_network_algorithm", side_effect=_cancel) as run:
             res = lt.calculate_service_area("facilities", "roads", 1000)
         self.assertTrue(res.get("cancelled"), res)
@@ -169,15 +168,15 @@ class TestToolsLetStopThrough(_LineNetworkMixin, unittest.TestCase):
         mock_project.instance.return_value.addMapLayer.assert_not_called()
 
     def test_travel_time_matrix_stops_instead_of_moving_to_the_next_origin(self, mock_find, mock_qgis, mock_proc, mock_project):
-        mock_find.side_effect = lambda n: {"origins": _stop_layer(["A", "B"]), "dests": MagicMock(),
-                                           "roads": MagicMock()}.get(n)
+        mock_find.side_effect = {"origins": _stop_layer(["A", "B"]), "dests": MagicMock(),
+                                           "roads": MagicMock()}.get
         with patch(_LT + "_run_network_algorithm", side_effect=_cancel) as run:
             res = lt.travel_time_matrix("origins", "dests", "roads")
         self.assertTrue(res.get("cancelled"), res)
         self.assertEqual(run.call_count, 1)
 
     def test_delivery_route_stops_during_the_distance_matrix(self, mock_find, mock_qgis, mock_proc, mock_project):
-        mock_find.side_effect = lambda n: {"stops": _stop_layer(["a", "b", "c"]), "roads": MagicMock()}.get(n)
+        mock_find.side_effect = {"stops": _stop_layer(["a", "b", "c"]), "roads": MagicMock()}.get
         with patch(_LT + "_run_network_algorithm", side_effect=_cancel) as run:
             res = lt.optimize_delivery_route("stops", road_network_layer="roads")
         self.assertTrue(res.get("cancelled"), res)
@@ -198,7 +197,7 @@ class TestToolsLetStopThrough(_LineNetworkMixin, unittest.TestCase):
             self.assertIsNone(lt._build_road_snapped_route("stops", network, geoms, [0, 1, 2]))
 
     def test_an_ordinary_failure_is_still_a_skipped_facility_not_a_stop(self, mock_find, mock_qgis, mock_proc, mock_project):
-        mock_find.side_effect = lambda n: {"facilities": _stop_layer(["A"]), "roads": MagicMock()}.get(n)
+        mock_find.side_effect = {"facilities": _stop_layer(["A"]), "roads": MagicMock()}.get
         with patch(_LT + "_run_network_algorithm", side_effect=RuntimeError("degenerate network")):
             res = lt.calculate_service_area("facilities", "roads", 1000)
         self.assertNotIn("cancelled", res)

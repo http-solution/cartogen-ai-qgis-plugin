@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Data shared across dock_widget.py, chat_tab_widget.py, and help_tab_widget.py.
 Pulled out (rather than one of those modules importing from another) so none of
 the three tab modules has to import from dock_widget.py itself -- dock_widget.py

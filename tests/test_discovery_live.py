@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """gather_facts against real QGIS layers: geometry type, numeric fields, feature count, WGS84 extent and the derived UTM zone."""
 import os
 import unittest

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H7 table importers (IPC / INFORM / UNOSAT): detection, validation, joining and the CSV read, offline. The layer join needs QGIS
 (tests/test_table_importers_live.py). Column layouts are UNVERIFIED against real HDX files; these tests pin the behaviour, not the files."""
 import os

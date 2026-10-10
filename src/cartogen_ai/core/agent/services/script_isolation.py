@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Process-isolation boundary for `execute_pyqgis_script`
 (IMPLEMENTATION_TRACKER.md §1.11; docs/EXECUTE_PYQGIS_SCRIPT_ISOLATION_SCOPE_2026-09-24.md,
@@ -33,6 +32,7 @@ Known, documented limitations (not silently claimed as fixed):
   no iface/canvas/selection access, so the realistic pattern is "read some layers, add a new
   computed one" or "add features to an existing memory layer this turn already created").
 """
+import contextlib
 import json
 import os
 import shutil
@@ -205,7 +205,7 @@ def _plugin_parent_dir():
     # cartogen_ai has no top-level __init__.py (a namespace package), so
     # __file__ is None -- __path__[0] is the actual on-disk package directory
     # in both layouts (installed as a QGIS plugin folder, or this repo's src/).
-    package_dir = Path(list(cartogen_ai.__path__)[0]).resolve()
+    package_dir = Path(next(iter(cartogen_ai.__path__))).resolve()
     return str(package_dir.parent)
 
 
@@ -442,11 +442,10 @@ def _detach_vector_layer(layer):
     if not ok:
         raise RuntimeError("could not copy the features")
     copy.updateExtents()
-    try:
+    # the data matters more than the symbology
+    with contextlib.suppress(Exception):
         if layer.renderer() is not None:
             copy.setRenderer(layer.renderer().clone())
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass            # the data matters more than the symbology
     return copy
 
 
@@ -501,8 +500,8 @@ def _replace_memory_layer(live_layer, result_layer):
         try:
             load(original_fields, original_features)
         except Exception as second:
-            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})")
-        raise RuntimeError(f"update failed and the original was restored: {first}")
+            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})") from second
+        raise RuntimeError(f"update failed and the original was restored: {first}") from first
     live_layer.updateExtents()
     live_layer.triggerRepaint()
 
@@ -531,10 +530,7 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
             continue
         try:
             if source_is_under(layer.source(), scratch_dir):
-                if hasattr(layer, "bandCount"):
-                    adopted = _keep_raster(layer)
-                else:
-                    adopted = _detach_vector_layer(layer)
+                adopted = _keep_raster(layer) if hasattr(layer, "bandCount") else _detach_vector_layer(layer)
             else:
                 adopted = layer.clone()
         except Exception as e:
@@ -622,7 +618,7 @@ class _IsolationWorker:
             }
         env = _build_worker_environment()
         try:
-            self._proc = subprocess.Popen(  # nosec B603 (fixed argv list, no shell, no user input in the command)
+            self._proc = subprocess.Popen(  # noqa: S603  # nosec B603 (fixed argv list, no shell, no user input in the command)
                 [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -682,11 +678,9 @@ class _IsolationWorker:
     def _kill(self):
         if self._proc is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._proc.kill()
             self._proc.wait(timeout=5)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         self._proc = None
 
     def _kill_and_drain_stderr(self):

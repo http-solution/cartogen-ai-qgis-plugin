@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/task_manager.py -- the Activity tab's plan/task state.
 
 No QGIS needed: AgentTaskManager degrades to plain Python when qgis.PyQt isn't

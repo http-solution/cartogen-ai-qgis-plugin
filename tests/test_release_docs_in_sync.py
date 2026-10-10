@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Fails when a version bump leaves release-facing text behind: the in-plugin Help, the README "What's new" and humanitarian table, the
 CHANGELOG and the metadata changelog must all describe the same version, and the counts they quote must match the live registries.
 Update core/release_notes.py (checklist: CONTRIBUTING.md, "Releasing") to fix a failure here."""

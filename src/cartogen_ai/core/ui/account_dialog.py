@@ -1,3 +1,4 @@
+import contextlib
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
@@ -180,11 +181,9 @@ class CartogenAccountDialog(QDialog):
 
     def _sign_out(self):
         client = self._make_client()
-        try:
+        with contextlib.suppress(Exception):
             if client:
                 client.logout()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         CredentialManager.clear_account_session()
         self.client = None
         self.status_label.setText("Signed out. Hosted Cartogen AI API access is disconnected.")

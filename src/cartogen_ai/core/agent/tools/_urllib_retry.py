@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared retry/backoff for urllib.request-based fetches -- API-003, 2026-09-14 audit.
 
@@ -14,7 +13,7 @@ non-idempotent-POST concern here -- retrying is always safe.
 
 import time
 import urllib.error
-import urllib.request  # noqa: F401  (tests patch urllib.request.urlopen, which core.net looks up at call time)
+import urllib.request
 
 from ... import net as _net
 

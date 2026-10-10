@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-facing introspection over the READ/CREATE/MODIFY/DELETE/PUBLISH
 taxonomy in agent/tool_operations.py (point 20 of

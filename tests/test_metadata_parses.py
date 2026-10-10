@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """metadata.txt must parse the way plugins.qgis.org parses it. 2026-10-10: the QGIS plugin directory rejected the upload with
 "Errors parsing cartogen-ai/metadata.txt. '%' must be followed by '%' or '(' ..." because an old changelog block said "under 25% keyword
 coverage". The server reads the file with Python's ConfigParser, whose default interpolation treats '%' as special; desktop QGIS did not
@@ -21,7 +20,7 @@ class TestMetadataParsesLikeTheDirectory(unittest.TestCase):
     def test_every_value_reads_with_the_default_configparser(self):
         parser = configparser.ConfigParser()          # default BasicInterpolation, as the server uses
         parser.read(PATH, encoding="utf-8")
-        for key, _value in parser["general"].items():      # iterating applies the interpolation to every value
+        for _key, _value in parser["general"].items():      # iterating applies the interpolation to every value
             pass
         self.assertIn("version", parser["general"])
 

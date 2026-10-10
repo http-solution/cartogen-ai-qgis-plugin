@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit A02: re-running an analysis replaces the plugin's OWN earlier result by name, but a layer the user made with the same name
 (for example an unsaved memory layer) is kept, renamed, never removed. Real QGIS layers."""
 import unittest

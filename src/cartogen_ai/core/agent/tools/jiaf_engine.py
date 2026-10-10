@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 3: the preliminary calculations the July 2024 manual makes mechanical
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md, sections 2, 4 and 6).
 
@@ -84,7 +83,7 @@ READINGS = [
 
 
 def readings_for(settings):
-    return READINGS_OCHA if settings["rules_profile"] == rules.PROFILE_ID else ["manual_reading profile (this module's INTERPRETATION of the manual, not OCHA's rules; for comparison only):"] + READINGS
+    return READINGS_OCHA if settings["rules_profile"] == rules.PROFILE_ID else ["manual_reading profile (this module's INTERPRETATION of the manual, not OCHA's rules; for comparison only):", *READINGS]
 
 
 # ------------------------------------------------------------------ pure --
@@ -301,6 +300,27 @@ def rank_of_value(ranked, value):
     return "other"
 
 
+def _compare_stored_flags(u, pf, sf, flag_check):
+    """Adds one unit's worksheet-cached flag columns (when the file has them) to `flag_check`, compared with the recomputed flags."""
+    for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
+        for n, was in (got or {}).items():
+            key = str(n)
+            mine = flags.get(n) if isinstance(n, int) else flags.get(6)
+            if mine is None:
+                continue
+            if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
+                part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
+                fired = bool(part and part["fired"])
+            else:
+                fired = bool(mine["fired"])
+            c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
+            c["compared"] += 1
+            if fired == was:
+                c["agree"] += 1
+            else:
+                c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+
+
 def analyze(units, previous_units=None, overrides=None):
     """The full preliminary analysis of validated units (see validate_units). Returns a dict with per-unit rows and totals."""
     settings = merge_settings(overrides)
@@ -365,23 +385,7 @@ def analyze(units, previous_units=None, overrides=None):
                 totals["units_without_worksheet_preliminary_pin"] += 1
             else:
                 totals["worksheet_preliminary_pin"] += gated
-        for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
-            for n, was in (got or {}).items():
-                key = str(n)
-                mine = flags.get(n) if isinstance(n, int) else flags.get(6)
-                if mine is None:
-                    continue
-                if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
-                    part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
-                    fired = bool(part and part["fired"])
-                else:
-                    fired = bool(mine["fired"])
-                c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
-                c["compared"] += 1
-                if fired == was:
-                    c["agree"] += 1
-                else:
-                    c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+        _compare_stored_flags(u, pf, sf, flag_check)
         if psev is not None:
             sev_dist[psev] = sev_dist.get(psev, 0) + 1
         if psev == 5 or sf[1]["fired"]:
@@ -418,8 +422,8 @@ def analyze(units, previous_units=None, overrides=None):
     # How many units flag 1 would flag at each threshold, and counting only missing or only zero PiN, for the team to look at (the threshold is theirs).
     miss_n = [len(r["pin_coverage"]["missing_sectors"]) for r in rows]
     zero_n = [len(r["pin_coverage"]["zero_sectors"]) for r in rows]
-    top = max([a + b for a, b in zip(miss_n, zero_n)] + [3])
-    sensitivity = {"missing_and_zero": {t: sum(1 for a, b in zip(miss_n, zero_n) if a + b >= t) for t in range(1, top + 1)},
+    top = max([a + b for a, b in zip(miss_n, zero_n, strict=False)] + [3])
+    sensitivity = {"missing_and_zero": {t: sum(1 for a, b in zip(miss_n, zero_n, strict=False) if a + b >= t) for t in range(1, top + 1)},
                    "missing_only": {t: sum(1 for a in miss_n if a >= t) for t in range(1, top + 1)},
                    "zero_only": {t: sum(1 for b in zero_n if b >= t) for t in range(1, top + 1)}}
     assessable = sum(1 for r in rows if r["severity_flags"][2]["fired"] is not None)
@@ -633,7 +637,7 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
                 r = rec["row"]
                 vals = [r["preliminary_pin"], r["preliminary_severity"], sum(1 for f in r["pin_flags"].values() if f["fired"]),
                         sum(1 for f in r["severity_flags"].values() if f["fired"])]
-                for i, v in zip(idx, vals):
+                for i, v in zip(idx, vals, strict=False):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names

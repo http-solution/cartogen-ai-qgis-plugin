@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Turn-scoped plan-validation gate for high-risk tool calls.
 

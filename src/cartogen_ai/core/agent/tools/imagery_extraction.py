@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Imagery feature extraction via SAM-family segmentation (FastSAM), for
 Cartogen AI. See docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md for the full design
@@ -27,6 +26,8 @@ import re
 import tempfile
 from .registry import register_tool
 from ... import net as _net
+import contextlib
+from ...net import build_request as _net_build_request
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -80,7 +81,6 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     deleting a partial file did not help, so the first attempt now bypasses it. No Range header is ever sent, so a 416 cannot happen, and a
     file smaller than `min_bytes` is never accepted. Written against the real asset (checked 2026-10-06: FastSAM-s.pt is 23,851,578 bytes at
     the v8.3.0 release; a plain GET returned it complete)."""
-    import urllib.request
     min_bytes = _CHECKPOINT_MIN_BYTES if min_bytes is None else min_bytes
     os.makedirs(dest_dir, exist_ok=True)
     final = os.path.join(dest_dir, name)
@@ -88,7 +88,7 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     for template in urls:
         tmp = final + ".partial"
         try:
-            req = urllib.request.Request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
+            req = _net_build_request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
             with (opener or (lambda r, timeout: _net.urlopen(r, timeout=timeout, stream=True)))(req, timeout=60) as resp, open(tmp, "wb") as fh:
                 while True:
                     chunk = resp.read(1 << 20)
@@ -101,11 +101,9 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
             return final
         except Exception as e:
             last = e
-            try:
+            with contextlib.suppress(OSError):
                 if os.path.isfile(tmp):
                     os.remove(tmp)
-            except OSError:
-                pass
     raise last or RuntimeError("download failed")
 
 
@@ -131,7 +129,7 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
             return {"success": True, "path": download_checkpoint(name, weights_dir)}
         except Exception as e:
             last_error = e        # fall through to ultralytics' own downloader once, then report whichever error is more useful
-    for attempt in (1,) if last_error is not None else (1, 2):
+    for _attempt in (1,) if last_error is not None else (1, 2):
         try:
             path = attempt_download_asset(name)
             if path and os.path.exists(str(path)):
@@ -365,10 +363,8 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     except Exception as e:
         return {"error": describe_model_failure(e)}
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(png_path)
-        except OSError:
-            pass
 
     if inferred is None:
         return {"success": True, "feature_count": 0, "message": "No features detected."}
@@ -392,8 +388,8 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     def _trace_all():
         """Pure GDAL/OGR + numpy (no QGIS objects), so it can run off the GUI thread: [(confidence, pixel_size, [wkt, ...])]."""
         traced = []
-        for mask, conf in zip(masks, confidences):
-            conf = float(conf)
+        for mask, raw_conf in zip(masks, confidences, strict=False):
+            conf = float(raw_conf)
             if conf < confidence_threshold or _mask_pixel_count(mask) == 0:
                 continue
             mask_h, mask_w = mask.shape

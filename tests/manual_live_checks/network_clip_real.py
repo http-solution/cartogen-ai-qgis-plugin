@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual check that clipping the road network to a service area's reach is exact AND faster, on the REAL
 Jordan network (161,041 roads).
 
@@ -43,13 +42,13 @@ QgsProject.instance().setEllipsoid("NONE")
 cache = os.path.join(tempfile.gettempdir(), "cartogen_jordan_e2e")
 region = ldl.resolve_region(35.93, 31.95, cache)
 loaded = ldl.load_layers(ldl.download_and_extract(region, cache), ["roads"])
-roads = "OSM Roads (%s)" % region["name"]
+roads = "OSM Roads ({})".format(region["name"])
 print("network:", loaded["layers"][0]["count"], "roads")
 
 CASES = [
-    ("Amman, 3 km by road", (35.92975, 31.94606), dict(travel_cost=3000)),
-    ("Irbid, 3 km by road", (35.85, 32.5556), dict(travel_cost=3000)),
-    ("Amman, 12 min at 50 km/h (10 km)", (35.92975, 31.94606), dict(travel_cost=0.2, strategy="fastest", default_speed=50)),
+    ("Amman, 3 km by road", (35.92975, 31.94606), {"travel_cost": 3000}),
+    ("Irbid, 3 km by road", (35.85, 32.5556), {"travel_cost": 3000}),
+    ("Amman, 12 min at 50 km/h (10 km)", (35.92975, 31.94606), {"travel_cost": 0.2, "strategy": "fastest", "default_speed": 50}),
 ]
 
 
@@ -78,7 +77,7 @@ for label, (lon, lat), kw in CASES:
     a = wkts(clipped)
     drop_service_areas()
     info = clipped.get("network_clipping") or {}
-    print("clipped: %.1f s, routed over %s of %s roads, %d line features" % (t_clip, info.get("roads_routed_max"), info.get("roads_full"), len(a)))
+    print(f"clipped: {t_clip:.1f} s, routed over {info.get('roads_routed_max')} of {info.get('roads_full')} roads, {len(a)} line features")
 
     t = time.time()
     with patch.object(lt, "_clip_network_to_reach", side_effect=lambda n, c, r: (n, {"applied": False})):
@@ -86,11 +85,11 @@ for label, (lon, lat), kw in CASES:
     t_full = time.time() - t
     b = wkts(full)
     drop_service_areas()
-    print("full:    %.1f s over all roads, %d line features" % (t_full, len(b)))
-    check("%s: identical geometry" % label, clipped.get("success") and full.get("success") and a == b and len(a) > 0,
-          "%d features each" % len(a))
-    check("%s: faster (%.0fx)" % (label, t_full / max(t_clip, 0.1)), t_clip < t_full, "%.1f s vs %.1f s" % (t_clip, t_full))
-    check("%s: the clip was applied" % label, bool(info), info.get("roads_routed_max"))
+    print(f"full:    {t_full:.1f} s over all roads, {len(b)} line features")
+    check(f"{label}: identical geometry", clipped.get("success") and full.get("success") and a == b and len(a) > 0,
+          f"{len(a)} features each")
+    check(f"{label}: faster ({t_full / max(t_clip, 0.1):.0f}x)", t_clip < t_full, f"{t_clip:.1f} s vs {t_full:.1f} s")
+    check(f"{label}: the clip was applied", bool(info), info.get("roads_routed_max"))
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

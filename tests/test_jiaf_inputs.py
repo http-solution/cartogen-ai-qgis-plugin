@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 2: reading and validating sector inputs, offline. Grids mirror the layouts seen in the real Yemen worksheet and published
 HNO files; the real files themselves are not committed (tests/test_jiaf_inputs_yemen_local.py uses them when JIAF_YEMEN_DIR is set)."""
+from typing import ClassVar
 import os
 import tempfile
 import unittest
@@ -17,11 +17,11 @@ SEV_HDR = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population
 
 
 def _pin_grid(rows):
-    return [["Location", None, None, None, "Populaton", None, "Sectoral PiN (Number)"], PIN_HDR] + rows
+    return [["Location", None, None, None, "Populaton", None, "Sectoral PiN (Number)"], PIN_HDR, *rows]
 
 
 def _sev_grid(rows):
-    return [["Location"], ["Location"], SEV_HDR] + rows
+    return [["Location"], ["Location"], SEV_HDR, *rows]
 
 
 class TestValues(unittest.TestCase):
@@ -68,7 +68,7 @@ class TestOchaWorksheet(unittest.TestCase):
 
 
 class TestHxl(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["Demographic Information", None, None, None, "Humanitarian Condition Score", "Total PiN"],
         ["Gov_PCODE", "Governorate", "Dis_PCODE", "District", "Severity", "Total PiN", "Boys", "Total PiN", "Severity", "Total PiN", "Severity", "Total PiN"],
         ["#adm1 +code", "#adm1 +name", "#adm2 +code", "#adm2 +name", "#severity", "#inneed", "#inneed +boys", "#inneed +wsh", "#severity +wsh",
@@ -100,11 +100,11 @@ class TestHxl(unittest.TestCase):
 
 
 class TestSectorTemplate(unittest.TestCase):
-    HDR = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population", "Cluster's PiN (Number)"]
+    HDR: ClassVar = ["Admin 1", "Admin 1 P-Code", "Admin 2", "Admin 2 P-Code", "Population", "Cluster's PiN (Number)"]
 
     def test_reads_the_annex_4_layout_and_merges_sectors(self):
         a, _ = ji.parse_sector_template([self.HDR, ["Al-Anbar", "IQG01", "Al-Falluja", "IQG01Q01", "540,532", 1000]], "wash", "pin")
-        sev_hdr = self.HDR[:5] + ["Cluster's Severity (Number)"]
+        sev_hdr = [*self.HDR[:5], "Cluster's Severity (Number)"]
         b, _ = ji.parse_sector_template([sev_hdr, ["Al-Anbar", "IQG01", "Al-Falluja", "IQG01Q01", "540,532", 4]], "wash", "severity")
         merged = ji.merge_units([a, b])
         self.assertEqual(len(merged), 1)
@@ -147,10 +147,10 @@ class TestValidation(unittest.TestCase):
 
 
 class TestSetup(unittest.TestCase):
-    OK = {"country": "Yemen", "planning_cycle": "HPC 2026", "unit_of_analysis": "admin 2", "manual_edition": "July 2024"}
+    OK: ClassVar = {"country": "Yemen", "planning_cycle": "HPC 2026", "unit_of_analysis": "admin 2", "manual_edition": "July 2024"}
 
     def test_valid_and_required_fields(self):
-        clean, al, errors = ji.validate_setup(dict(self.OK), [{"sector": "WASH", "pin_aligned": True, "severity_alignment": "aligned"}])
+        _clean, al, errors = ji.validate_setup(dict(self.OK), [{"sector": "WASH", "pin_aligned": True, "severity_alignment": "aligned"}])
         self.assertEqual(errors, [])
         self.assertEqual(al[0]["sector"], "wash")
         _c, _a, errors = ji.validate_setup({"country": "Yemen"}, [])
@@ -161,7 +161,7 @@ class TestSetup(unittest.TestCase):
             {"sector": "health", "pin_aligned": False}, {"sector": "nutrition", "severity_alignment": "adapted"},
             {"sector": "mystery"}, {"sector": "wash", "severity_alignment": "weird"}])
         self.assertEqual(len(errors), 4)
-        _c, a, errors = ji.validate_setup(dict(self.OK), [{"sector": "health", "pin_aligned": False, "pin_explanation": "counts all affected"}])
+        _c, _a, errors = ji.validate_setup(dict(self.OK), [{"sector": "health", "pin_aligned": False, "pin_explanation": "counts all affected"}])
         self.assertEqual(errors, [])
 
     def test_hct_flag_must_be_boolean(self):

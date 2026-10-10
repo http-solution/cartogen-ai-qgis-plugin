@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Makes tests/ a proper package and puts src/ on sys.path before any test
 module imports from cartogen_ai.core.* -- mirrors the same bootstrap in the

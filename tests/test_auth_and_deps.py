@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.infrastructure.auth import CredentialManager

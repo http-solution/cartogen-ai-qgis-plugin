@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """HX1 humanitarian looks on result fields, in real QGIS. Written without a local QGIS: CI's first run is its first execution."""
 import os
 import tempfile

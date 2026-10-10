@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 2 on a real QGIS project: the set-up record and the P-code join. Written without a local QGIS: CI's first run is its first execution."""
 import csv
 import os

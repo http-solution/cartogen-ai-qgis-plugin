@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 2: reading and validating sector inputs, and recording the analysis set-up
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md).
 
@@ -22,6 +21,8 @@ The OCHA worksheet is read TABLE-AWARE when the workbook has its Excel tables (`
 pocket of need + Admin 3 / Admin 2 / Admin 1 P-code), so a pocket of need in the same Admin 2 is a separate unit. Without the tables (a CSV, a copy that lost
 them) the header-row search is used instead.
 """
+from typing import Any
+import contextlib
 import json
 import os
 import re
@@ -65,7 +66,7 @@ VALIDATION_BLOCKERS = {
     ],
 }
 # One adapter per supported layout, with what each has actually been checked against. Only the Yemen layouts are validated; Annex 4 is NOT.
-ADAPTERS = {
+ADAPTERS: dict[str, dict[str, Any]] = {
     "ocha_worksheet": {"status": "validated on OCHA's official example workbook (6 units, flags and severity compared with its cached values) and on the supplied Yemen 2026 worksheet",
                        "evidence": ("example: every cached PiN flag, severity flag, preliminary severity and preliminary PiN reproduced (tests/test_jiaf_worksheet_adapter.py, "
                                     "local-only: the workbook is not committed); Yemen: 333 admin-2 units read, preliminary severity matches the stored column in 333/333")},
@@ -135,7 +136,7 @@ def read_grid(path, sheet=None):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".csv":
         import csv
-        with open(path, "r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
+        with open(path, encoding="utf-8-sig", errors="ignore", newline="") as fh:
             return [list(r) for r in csv.reader(fh)], []
     if ext in (".xlsx", ".xlsm"):
         import openpyxl
@@ -230,8 +231,8 @@ def parse_ocha_worksheet(pin_grid, sev_grid):
             for prefix, n in (_PIN_FLAG_HEADERS if kind == "pin" else _SEV_FLAG_HEADERS):
                 if h.startswith(prefix):
                     flag_cols[n] = i
-        for row in grid[hdr + 1:]:
-            row = list(row) + [None] * (len(header) - len(row))
+        for raw_row in grid[hdr + 1:]:
+            row = list(raw_row) + [None] * (len(header) - len(raw_row))
             a1c, a1n, code, name, a3c, a3n, pocket, group = _identity(idx, row)
             if code is None:
                 continue
@@ -278,8 +279,8 @@ def parse_ocha_history(units, hist_grid):
     old_cols = {SECTOR_LABELS[h[:-6]]: i for h, i in idx.items() if h.endswith(" - old") and h[:-6] in SECTOR_LABELS}
     by_id = {uid(u): u for u in units}
     matched = rows = 0
-    for row in hist_grid[hdr + 1:]:
-        row = list(row) + [None] * (len(header) - len(row))
+    for raw_row in hist_grid[hdr + 1:]:
+        row = list(raw_row) + [None] * (len(header) - len(raw_row))
         a1c, _a1n, code, _name, a3c, _a3n, pocket, group = _identity(idx, row)
         if code is None:
             continue
@@ -303,11 +304,9 @@ def read_workbook_tables(path):
                 tables[t.name] = {"sheet": ws.title, "ref": t.ref, "grid": [[c.value for c in r] for r in ws[t.ref]]}
         names = {}
         for name, d in wb.defined_names.items():
-            try:
+            with contextlib.suppress(Exception):   # a defined name that does not resolve to a cell is skipped
                 for sheet, coord in d.destinations:
                     names[name] = wb[sheet][coord.replace("$", "")].value
-            except Exception:  # nosec B112 (best-effort: skip this item)
-                continue
         return {"tables": tables, "names": names}
     finally:
         wb.close()  # Windows keeps the file locked otherwise (CI: PermissionError WinError 32 when the caller deletes it)
@@ -328,7 +327,7 @@ def worksheet_thresholds(wb_tables):
         if "sector" in head:
             labels = [_text(r[head.index("sector")]) for r in sub["grid"][1:] if len(r) > head.index("sector")]
             sectors = [SECTOR_LABELS.get(_norm(x)) for x in labels if x]
-            unknown = [x for x, sec in zip([x for x in labels if x], sectors) if sec is None]
+            unknown = [x for x, sec in zip([x for x in labels if x], sectors, strict=False) if sec is None]
             if unknown:
                 notes.append(f"Sub-population sectors not recognised as JIAF sectors and ignored: {unknown}.")
             out["f4_subpopulation_sectors"] = tuple(dict.fromkeys(sec for sec in sectors if sec))
@@ -389,8 +388,8 @@ def parse_hxl_table(grid):
     if other:
         notes.append(f"Ignored tag attributes that are not JIAF sectors: {sorted(other)}.")
     units = []
-    for row in grid[tr + 1:]:
-        row = list(row) + [None] * (len(tags) - len(row))
+    for raw_row in grid[tr + 1:]:
+        row = list(raw_row) + [None] * (len(tags) - len(raw_row))
         code = _text(row[col["admin2_code"]])
         if code is None or code.startswith("#"):
             continue
@@ -430,8 +429,8 @@ def parse_sector_template(grid, sector, kind):
     if value_col is None:
         return [], [f"No \"Cluster's {'PiN' if kind == 'pin' else 'Severity'} (Number)\" column."]
     units = []
-    for row in grid[hdr + 1:]:
-        row = list(row) + [None] * (len(header) - len(row))
+    for raw_row in grid[hdr + 1:]:
+        row = list(raw_row) + [None] * (len(header) - len(raw_row))
         code = _text(row[idx["admin 2 p-code"]])
         if code is None:
             continue
@@ -654,7 +653,7 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
     units, fmt, notes = loaded
 
     issues, summary = validate_units(units)
-    stored = {}
+    stored: dict = {}
     for u in units:
         for k, v in u["stored"].items():
             if k != "evidence" and not _blank(v):

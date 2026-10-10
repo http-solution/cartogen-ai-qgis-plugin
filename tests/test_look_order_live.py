@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """apply_humanitarian_look(damage_class) on a point layer drawn BELOW a polygon layer lifts the points above it (issue 232, row T3)."""
 import os
 import unittest

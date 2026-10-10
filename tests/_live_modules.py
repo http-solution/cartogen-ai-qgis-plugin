@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Which tests/test_*_live.py modules the qgis-live-tests CI job runs.
 
 The runner used to list every live module by hand, and a module that was never added to the list simply never ran: the live

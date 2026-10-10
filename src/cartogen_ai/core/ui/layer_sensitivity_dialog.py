@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Layer data-sensitivity classification dialog.
 
 IMPLEMENTATION_TRACKER.md §1.4 decision 3 (who classifies layers, and how),
@@ -116,10 +115,7 @@ class LayerSensitivityDialog(QDialog):
         result = _get_layer_sensitivity(name)
         level = result.get("level")
         reason = result.get("reason")
-        if level:
-            text = f"Current: {level}" + (f" ({reason})" if reason else "")
-        else:
-            text = "Current: untagged"
+        text = f"Current: {level}" + (f" ({reason})" if reason else "") if level else "Current: untagged"
         self.current_level_label.setText(text)
         idx = self.level_combo.findText(level) if level else -1
         self.level_combo.setCurrentIndex(idx if idx >= 0 else 0)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests verifying clean architectural package boundaries:
 - cartogen_ai.infrastructure
@@ -40,7 +39,7 @@ class TestArchitectureBoundaries(unittest.TestCase):
         src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
         result = subprocess.run(
             [sys.executable, "-c", "from cartogen_ai.infrastructure.auth import CredentialManager"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
             env={**os.environ, "PYTHONPATH": src_dir},
         )
         self.assertEqual(result.returncode, 0, result.stderr)

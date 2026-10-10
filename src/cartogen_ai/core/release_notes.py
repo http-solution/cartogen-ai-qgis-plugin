@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Single source for the release-facing text that must change on EVERY version bump: the in-plugin Help ("What's new" and the
 humanitarian tool list) and the README's "What's new" section and humanitarian table. Qt-free so tests can read it.
 

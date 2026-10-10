@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Layer Cartography & Styling Tools for Cartogen AI.
 """
 
+import contextlib
 import math
 import os
 
@@ -11,6 +11,7 @@ from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+import itertools
 
 try:
     from qgis.core import (
@@ -344,11 +345,9 @@ def _geometry_sort_key(geometry_kind):
 def _layer_geometry_kind(layer):
     if not QGIS_AVAILABLE:
         return "unknown"
-    try:
+    with contextlib.suppress(Exception):
         if layer.type() == QgsMapLayer.LayerType.RasterLayer:
             return "raster"
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     try:
         gt = layer.geometryType()
         if gt == QgsWkbTypes.GeometryType.PointGeometry:
@@ -629,9 +628,9 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             sorted_breaks, breaks_error = _validate_manual_breaks(breaks, min(values), max(values))
             if breaks_error:
                 return {"error": breaks_error}
-            bounds = [min(values)] + sorted_breaks + [max(values)]
+            bounds = [min(values), *sorted_breaks, max(values)]
             ranges = []
-            for lower, upper in zip(bounds[:-1], bounds[1:]):
+            for lower, upper in itertools.pairwise(bounds):
                 label = f"{lower:,.2f} - {upper:,.2f}"
                 symbol = QgsSymbol.defaultSymbol(layer.geometryType())
                 ranges.append(QgsRendererRange(lower, upper, symbol, label))
@@ -942,14 +941,12 @@ def _heatmap_algorithm_id():
     `qgis:heatmapkerneldensityestimation` missing from the QGIS 4.2.2 registry (772 algorithms); the `native:` spelling is
     the likely replacement but is NOT confirmed here, so ask the registry and fall back to the old id (whose failure then
     reports the real error) rather than guess."""
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsApplication
         registry = QgsApplication.processingRegistry()
         for candidate in ("qgis:heatmapkerneldensityestimation", "native:heatmapkerneldensityestimation"):
             if registry.algorithmById(candidate) is not None:
                 return candidate
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return "qgis:heatmapkerneldensityestimation"
 
 
@@ -1004,11 +1001,9 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         if not raster_layer.isValid():
             return {"error": "Generated density raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(raster_layer, "density")   # a density surface in the default grey stretch was unreadable
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         return {"success": True, "layer_name": result_name, "radius": radius, "pixel_size": resolved_pixel_size}
     except Exception as e:
         return {"error": f"hotspot_analysis failed: {e}"}

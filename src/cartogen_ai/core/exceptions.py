@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from typing import Any
 """
 Core Exception Hierarchy for Cartogen AI.
 
@@ -10,7 +10,7 @@ API provider failures, validation errors, and sandbox violations.
 class CartogenError(Exception):
     """Base exception for all Cartogen AI operational errors."""
 
-    def __init__(self, message: str, user_message: str = None, details: dict = None):
+    def __init__(self, message: str, user_message: str | None = None, details: dict | None = None):
         super().__init__(message)
         self.message = message
         self.user_message = user_message or message
@@ -18,7 +18,7 @@ class CartogenError(Exception):
 
     def to_dict(self) -> dict:
         """Returns a standardized dictionary for tool return envelopes."""
-        res = {"error": self.user_message}
+        res: dict[str, Any] = {"error": self.user_message}
         if self.details:
             res["details"] = self.details
         return res
@@ -27,8 +27,8 @@ class CartogenError(Exception):
 class ApiError(CartogenError):
     """Raised when external LLM providers or remote spatial APIs return unrecoverable errors."""
 
-    def __init__(self, message: str, provider: str = None, status_code: int = None, user_message: str = None):
-        details = {}
+    def __init__(self, message: str, provider: str | None = None, status_code: int | None = None, user_message: str | None = None):
+        details: dict[str, Any] = {}
         if provider:
             details["provider"] = provider
         if status_code is not None:
@@ -41,7 +41,7 @@ class ApiError(CartogenError):
 class SpatialValidationError(CartogenError):
     """Raised when layer geometry, CRS, fields, or parameters fail spatial validation."""
 
-    def __init__(self, message: str, layer_name: str = None, field_name: str = None, user_message: str = None):
+    def __init__(self, message: str, layer_name: str | None = None, field_name: str | None = None, user_message: str | None = None):
         details = {}
         if layer_name:
             details["layer_name"] = layer_name
@@ -55,7 +55,7 @@ class SpatialValidationError(CartogenError):
 class SecuritySandboxError(CartogenError):
     """Raised when user-supplied or LLM-generated code violates AST or security sandbox boundaries."""
 
-    def __init__(self, message: str, blocked_ident: str = None):
+    def __init__(self, message: str, blocked_ident: str | None = None):
         details = {"blocked_identifier": blocked_ident} if blocked_ident else {}
         super().__init__(
             message,
@@ -67,4 +67,3 @@ class SecuritySandboxError(CartogenError):
 
 class TaskExecutionError(CartogenError):
     """Raised when a background spatial task or analysis workflow fails execution."""
-    pass

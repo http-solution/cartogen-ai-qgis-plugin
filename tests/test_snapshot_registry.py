@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/_snapshot_registry.py -- the priority-subset
 undo/rollback mechanism for MODIFY/DELETE tools, v1.7.0 workstream 2 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md point 20. Mocks

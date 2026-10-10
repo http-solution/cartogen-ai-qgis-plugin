@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import urllib.error
 import unittest
 from unittest.mock import patch, MagicMock
 import cartogen_ai.core.agent.agent_orchestrator as agent_mod
@@ -857,7 +857,7 @@ class TestNewTools(unittest.TestCase):
 
         vt._is_safe_url = fake_is_safe_url
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(urllib.error.URLError):
                 vt._prefetch_url_to_temp(f"http://127.0.0.1:{srv.server_address[1]}/start")
         finally:
             vt._is_safe_url = original_is_safe_url
@@ -900,7 +900,7 @@ class TestNewTools(unittest.TestCase):
         original_is_safe_url = vt._is_safe_url
         vt._is_safe_url = lambda url: None
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(ValueError):
                 vt._prefetch_url_to_temp(f"http://127.0.0.1:{srv.server_address[1]}/big")
         finally:
             vt._MAX_DOWNLOAD_BYTES = original_cap
@@ -922,13 +922,13 @@ class TestNewTools(unittest.TestCase):
         res = add_geoboundaries_layer_main_thread_phase({"error": "geoBoundaries API request failed: boom"})
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_geoboundaries_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_geoboundaries_network_phase("JOR", "ADM1")
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_geoboundaries_rejects_unsafe_second_hop_url(self, mock_urlopen):
         """SEC-001 (2026-09-13 security audit): geoBoundaries' own API response names the
         actual download URL (gjDownloadURL) -- third-party-controlled content, not a
@@ -945,7 +945,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("Refusing to fetch", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_rejects_unsafe_second_hop_url(self, mock_urlopen):
         """SEC-001: HDX's own catalog response names the zip resource URL -- published by
         whichever organization uploaded the dataset, third-party content. A fresh, unused
@@ -966,7 +966,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("Refusing to fetch", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_building_footprints_rejects_unsafe_tile_url(self, mock_urlopen):
         """SEC-001: each row's Url comes from Microsoft's own published tile index. Unlike
         the per-country caches elsewhere in this file, the index CSV here is cached under
@@ -992,7 +992,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("Refusing to fetch", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_building_footprints_caches_tile_download_across_calls(self, mock_urlopen, mock_opener):
         """PERF-004, 2026-09-13 audit: the tile-index CSV was already cached, but the actual
         per-quadkey tile download wasn't -- a second call for the same bbox re-downloaded and
@@ -1009,7 +1009,7 @@ class TestNewTools(unittest.TestCase):
         _HUMANITARIAN_LOOKUP_CACHE._store.pop(("building_footprints_links",), None)
         bbox = [12.77, 45.00, 12.80, 45.04]
         south, west, north, east = bbox
-        qk = list(_quadkeys_for_bbox(south, west, north, east))[0]
+        qk = next(iter(_quadkeys_for_bbox(south, west, north, east)))
 
         links_csv = (
             "Location,QuadKey,Url,Size,UploadDate\n"
@@ -1054,13 +1054,13 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("digit", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         mock_urlopen.side_effect = OSError("network unreachable")
         res = fetch_hdx_admin_boundaries_network_phase("SDN", "ADM1")
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_reports_404_as_no_coverage(self, mock_urlopen):
         import io
         import urllib.error
@@ -1074,7 +1074,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("coverage isn't universal", res["error"])
         self.assertIn("fetch_geoboundaries", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_non_dict_json_returns_clean_error(self, mock_urlopen):
         """Same live crash class fixed in hazard_monitoring_tools.py the same day
         (2026-09-13): package_show's own try/except only guarantees valid JSON, not a
@@ -1093,7 +1093,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("unexpected response shape", res["error"])
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_errors_when_no_geojson_resource(self, mock_urlopen):
         import json as _json
         package_show_body = _json.dumps({
@@ -1108,7 +1108,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("no GeoJSON boundaries resource", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_hdx_admin_boundaries_network_phase_happy_path_extracts_pcode_field(self, mock_urlopen, mock_opener):
         # End-to-end through the real (non-mocked) JSON/zip/pcode-detection
         # logic -- only the two urlopen() network calls are mocked. Confirms
@@ -1240,7 +1240,7 @@ class TestNewTools(unittest.TestCase):
         res = fetch_building_footprints_network_phase("Yemen", [12.9, 45.1, 12.7, 44.9])
         self.assertIn("error", res)
 
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_building_footprints_network_phase_handles_request_failure_gracefully(self, mock_urlopen):
         # Shared cache key regardless of country -- must be cleared explicitly, or a
         # successful index fetch cached by an earlier test (e.g. the PERF-004 cache test
@@ -1251,7 +1251,7 @@ class TestNewTools(unittest.TestCase):
         self.assertIn("error", res)
 
     @patch("cartogen_ai.core.agent.tools.humanitarian_tools._build_safe_opener")
-    @patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen")
+    @patch("urllib.request.urlopen")
     def test_building_footprints_network_phase_happy_path(self, mock_urlopen, mock_opener):
         # End-to-end through the real (non-mocked) CSV-index parsing, quadkey
         # filtering, gzip decompression, and bbox-crop logic -- only the two
@@ -1830,7 +1830,7 @@ class TestNewTools(unittest.TestCase):
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
 
     def test_search_hdx_datasets_sets_a_request_timeout(self):
-        with patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
+        with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value = self._mock_urlopen_response(b'{"result": {"results": []}}')
             search_hdx_datasets("floods")
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
@@ -1839,7 +1839,7 @@ class TestNewTools(unittest.TestCase):
         # The Overpass QL itself requests [timeout:25] server-side -- the client
         # timeout must be >= that, or a legitimate slow-but-still-running query gets
         # aborted client-side before the server's own deadline is even reached.
-        with patch("cartogen_ai.core.agent.tools.humanitarian_tools.urllib.request.urlopen") as mock_urlopen:
+        with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value = self._mock_urlopen_response(b'{"elements": []}')
             fetch_osm_features("amenity", "hospital", [1, 2, 3, 4])
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 30)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Finish the map step a request asked for when the model stops one call short.
 
 rc22 hand test (issue 232, rows T3, V11, T2/V4): after an import or analysis tool wrote its result field, the tool returned the exact
@@ -66,6 +65,6 @@ def nudge_for(query, turn_calls):
     pending = pending_hints(turn_calls)
     if not pending:
         return None
-    calls = "; ".join("apply_humanitarian_look(layer_name=%r, look=%r, field=%r)" % (h["layer_name"], h["look"], h["field"]) for h in pending[:3])
+    calls = "; ".join("apply_humanitarian_look(layer_name={!r}, look={!r}, field={!r})".format(h["layer_name"], h["look"], h["field"]) for h in pending[:3])
     return ("The request asked to see the result on the map, and the result is still in default colours. Call " + calls +
             " now with exactly these arguments, then say what the map shows. Do not describe colours or classes that were not applied.")

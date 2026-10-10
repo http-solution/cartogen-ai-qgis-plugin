@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Recurring monitoring workflows for Cartogen AI.
 
@@ -265,7 +264,7 @@ def run_monitoring_workflow(preset_name):
 def schedule_recurring_workflow(preset_name, interval_minutes, max_runs=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    steps, error = _load_steps(preset_name)
+    _steps, error = _load_steps(preset_name)
     if error:
         return {"error": error}
 

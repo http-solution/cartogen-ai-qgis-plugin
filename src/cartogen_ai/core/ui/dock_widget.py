@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dock Widget UI for Cartogen AI.
 Broadsheet redesign Phase 1 (mockup state 1k, "no tabs, one scroll"): this hosts ONE

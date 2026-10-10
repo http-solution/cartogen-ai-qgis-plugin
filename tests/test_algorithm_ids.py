@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Offline check of the id scanner behind the live registry diagnostic (tests/test_processing_registry_diagnostic_live.py)."""
+from typing import ClassVar
 import unittest
 
 from tests._algorithm_ids import referenced_algorithm_ids, suggestions
@@ -19,7 +19,7 @@ class TestScanner(unittest.TestCase):
 
 
 class TestSuggestions(unittest.TestCase):
-    ALL = ["native:heatmapkerneldensityestimation", "gdal:rastercalculator", "native:contraststretch_x", "gdal:merge", "qgis:other"]
+    ALL: ClassVar = ["native:heatmapkerneldensityestimation", "gdal:rastercalculator", "native:contraststretch_x", "gdal:merge", "qgis:other"]
 
     def test_same_short_name_under_another_provider_comes_first(self):
         self.assertEqual(suggestions("qgis:heatmapkerneldensityestimation", self.ALL)[0], "native:heatmapkerneldensityestimation")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch
 from cartogen_ai.core.agent.memory import SpatialMemoryManager, is_project_memory_persist_enabled

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Pure-Python chat presentation logic for the dock widget: markdown-to-HTML
 rendering, relative timestamps, and chat-bubble color derivation.
@@ -118,7 +117,7 @@ def _latex_inner(inner):
 
     def _sup(m):
         body = m.group(1) if m.group(1) is not None else m.group(2)
-        return "".join(_SUPERSCRIPTS.get(ch, None) or "\x00" for ch in body)
+        return "".join(_SUPERSCRIPTS.get(ch) or "\x00" for ch in body)
     t = re.sub(r"\^(?:\{([0-9+\-]+)\}|([0-9]))", _sup, t)
     if "\x00" in t or "\\" in t or "^" in t:
         return None
@@ -276,10 +275,7 @@ def render_markdown(text, colors=None):
     # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
     def _style_link(m):
         label, url = m.group(1), m.group(2).strip()
-        if (url.startswith("cartogen://action/") or
-            url.startswith("cartogen://export/") or
-            url.startswith("cartogen://prompt/") or
-            url.startswith("cartogen://zoom/")):
+        if (url.startswith(("cartogen://action/", "cartogen://export/", "cartogen://prompt/", "cartogen://zoom/"))):
             if url.startswith("cartogen://prompt/"):
                 raw_prompt = url[len("cartogen://prompt/"):]
                 import urllib.parse
@@ -787,14 +783,13 @@ def render_safety_gate_html(task, colors):
         f'display:inline-block;padding:5px 14px;border:1px solid {subtle_color};'
         f'color:{text_color};font-size:12px;">Cancel</a>'
     )
-    card = (
+    return (
         '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
         f'style="margin:10px 0;background-color:{danger_bg};"><tr>'
         f'<td style="border:1px solid {danger};padding:10px 12px;">'
         f'{heading}{summary_html}{rationale_html}{code_html}{actions}'
         '</td></tr></table>'
     )
-    return card
 
 
 # Braille-dot spinner frames for the one task currently IN_PROGRESS in an in-chat plan
@@ -899,13 +894,12 @@ def render_task_progress_html(plan_data, colors, spinner_frame=0):
         f'<a href="cartogen://clearplan" style="font-size:10px;color:{subtle_color};">Clear plan</a></div>'
     )
 
-    card = (
+    return (
         '<table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:8px 0;"><tr>'
         f'<td style="border-left:2px solid {border};padding:4px 0 4px 10px;">'
         f'{heading}{"".join(rows)}{footer}'
         '</td></tr></table>'
     )
-    return card
 
 
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
@@ -987,7 +981,7 @@ def format_send_error(err) -> str:
     def has(*needles):
         for n in needles:
             if isinstance(n, int):
-                if re.search(r"(?<!\d)%d(?!\d)" % n, text):
+                if re.search(rf"(?<!\d){n}(?!\d)", text):
                     return True
             elif n in lower:
                 return True

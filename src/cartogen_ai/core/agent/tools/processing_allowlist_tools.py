@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 run_allowlisted_processing_algorithm -- a Tier 2 slice of the tiered
 allow-list model point 19's "larger question" describes
@@ -18,6 +17,7 @@ sandbox in any way -- this is a new, narrower, safer path offered as a
 preference, not a replacement.
 """
 
+import contextlib
 from .registry import register_tool
 from . import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
@@ -88,9 +88,7 @@ def harvest_outputs(output, definition=None):
     found = []
     for key in order:
         value = output[key]
-        if hasattr(value, "setName"):
-            found.append((key, value))
-        elif isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value:
+        if hasattr(value, "setName") or (isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value):
             found.append((key, value))
     return found
 
@@ -236,7 +234,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
 
     harvested = harvest_outputs(output, definition)
     layers = []
-    for key, value in harvested:
+    for key, harvested_value in harvested:
+        value = harvested_value
         if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
             loaded = QgsRasterLayer(value, "raster_output")
             value = loaded if loaded.isValid() else None
@@ -269,13 +268,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             layer_node.setItemVisibilityChecked(False)
 
     result = {"success": True, "alg_id": alg_id, "layer_name": layer_name, "visible": caller_named_it}
-    try:
+    # a result with the default look beats a failed tool call
+    with contextlib.suppress(Exception):
         from .output_style import style_algorithm_output
         styled = style_algorithm_output(new_layer, alg_id)
         if styled:
             result["styled_as"] = styled
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass   # a result with the default look beats a failed tool call
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()
         result["feature_count"] = count

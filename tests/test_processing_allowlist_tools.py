@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/processing_allowlist_tools.py -- the Tier 2
 allow-listed Processing algorithm runner, point 19's "larger question"
 (docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Follows this
@@ -161,7 +160,7 @@ class TestParamResolution(unittest.TestCase):
 
         run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "roads", "DISTANCE": 500})
 
-        called_alg, called_params = mock_processing.run.call_args[0]
+        _called_alg, called_params = mock_processing.run.call_args[0]
         self.assertIs(called_params["INPUT"], real_layer)
         self.assertEqual(called_params["DISTANCE"], 500)
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dependency Verification Utility for Cartogen AI.
 Checks availability of optional third-party Python packages and reports what's

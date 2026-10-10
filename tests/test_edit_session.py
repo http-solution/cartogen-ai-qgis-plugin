@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Control flow of _edit_session.edit_command and _add_calculated_field with fake layers (GitHub #143, #144).
 tests/test_edit_session_live.py runs the same behaviour in real QGIS."""
 import unittest
@@ -37,34 +36,30 @@ class TestEditCommand(unittest.TestCase):
 
     def test_a_layer_that_cannot_be_edited_raises(self):
         layer = _layer(start_ok=False)
-        with self.assertRaises(EditError):
-            with edit_command(layer, "x"):
-                pass
+        with self.assertRaises(EditError), edit_command(layer, "x"):
+            pass
         layer.beginEditCommand.assert_not_called()
 
     def test_a_failure_inside_undoes_only_this_command_and_rolls_back_only_an_owned_session(self):
         owned_layer = _layer()
         owned_layer.isEditable.side_effect = [False, True]
-        with self.assertRaises(RuntimeError):
-            with edit_command(owned_layer, "x"):
-                raise RuntimeError("boom")
+        with self.assertRaises(RuntimeError), edit_command(owned_layer, "x"):
+            raise RuntimeError("boom")
         owned_layer.destroyEditCommand.assert_called_once()
         owned_layer.rollBack.assert_called_once()
         owned_layer.commitChanges.assert_not_called()
 
         users_layer = _layer(editable=True)
-        with self.assertRaises(RuntimeError):
-            with edit_command(users_layer, "x"):
-                raise RuntimeError("boom")
+        with self.assertRaises(RuntimeError), edit_command(users_layer, "x"):
+            raise RuntimeError("boom")
         users_layer.destroyEditCommand.assert_called_once()
         users_layer.rollBack.assert_not_called()          # the user's other pending edits stay
 
     def test_a_rejected_commit_rolls_back_and_raises_with_the_providers_text(self):
         layer = _layer(commit_ok=False)
         layer.isEditable.side_effect = [False, True]
-        with self.assertRaises(EditError) as ctx:
-            with edit_command(layer, "x"):
-                pass
+        with self.assertRaises(EditError) as ctx, edit_command(layer, "x"):
+            pass
         self.assertIn("disk full", str(ctx.exception))
         layer.rollBack.assert_called_once()
 

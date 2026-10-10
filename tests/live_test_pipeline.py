@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Live Verification Pipeline for Cartogen AI:
 - Live Map Intelligence Engine (layer ordering, component 20% fill alpha, scale-aware PAL labeling)
@@ -178,7 +177,7 @@ def run_live_test():
     print(f"   -> Raw count query top candidate: {top_count.id} ({top_count.label})")
     assert top_count.id == "polygon_proportional_centroid", "Raw count must prefer proportional centroid!"
     # Verify choropleth candidate has warning
-    choropleth_cand = [c for c in cand_count if c.id == "polygon_choropleth_rate"][0]
+    choropleth_cand = next(c for c in cand_count if c.id == "polygon_choropleth_rate")
     assert len(choropleth_cand.warnings) > 0, "Choropleth with raw count must carry a cartographic warning!"
     print(f"      * Choropleth warning verified: {choropleth_cand.warnings[0]}")
 
@@ -210,7 +209,7 @@ def run_live_test():
         assert exp_res["success"], f"Export failed: {exp_res}"
         print(f"   -> Export result: {exp_res}")
 
-        with open(tmp_csv, "r", encoding="utf-8") as f:
+        with open(tmp_csv, encoding="utf-8") as f:
             rows = list(csv.reader(f))
         # Header + 2 data rows = 3 rows total
         data_rows = rows[1:]

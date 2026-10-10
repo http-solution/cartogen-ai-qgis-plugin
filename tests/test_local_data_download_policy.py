@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """F22 (rc7 smoke test, 2026-09-30): a 103 MB OSM extract downloaded with no question because the
 silent-download threshold was a fixed 150 MB. The default is now 50 MB (owner decision 2026-09-30; it was 150), but the threshold is now a
 setting, and a fresh local copy no longer triggers a question about a download that will not happen."""
+from typing import ClassVar
 import os
 import tempfile
 import time
@@ -35,7 +35,7 @@ class TestAskThreshold(unittest.TestCase):
 
 
 class TestShouldAsk(unittest.TestCase):
-    REGION = {"id": "yemen", "name": "Yemen", "size_bytes": 103 * MB}
+    REGION: ClassVar = {"id": "yemen", "name": "Yemen", "size_bytes": 103 * MB}
 
     def test_the_observed_103mb_case_is_asked_at_the_default_but_silent_at_150(self):
         self.assertTrue(ldl.should_ask_before_download(self.REGION, True, False, ldl.ask_threshold_bytes(lambda: None)))
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
 
 class TestMeteredConnection(unittest.TestCase):
-    REGION = {"id": "x", "name": "X", "size_bytes": 5 * MB}  # well under any threshold
+    REGION: ClassVar = {"id": "x", "name": "X", "size_bytes": 5 * MB}  # well under any threshold
 
     def test_a_metered_connection_asks_even_for_a_small_known_size(self):
         self.assertFalse(ldl.should_ask_before_download(self.REGION, True, False, 50 * MB))

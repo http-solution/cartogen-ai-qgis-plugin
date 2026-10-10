@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from cartogen_ai.core.agent.tools import get_tool_registry, get_tools_schema
 

@@ -39,6 +39,7 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 `BaseAiProvider` implementation here uses) rather than a provider-specific SDK.
 """
 
+import contextlib
 import json
 from .base import (
     ModelChainMixin,
@@ -124,10 +125,8 @@ class CartogenClient(ModelChainMixin, BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):
         headers = {

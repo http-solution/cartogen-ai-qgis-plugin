@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure rules behind tidy_project_layers (GitHub #120 / #128)."""
 import unittest
 

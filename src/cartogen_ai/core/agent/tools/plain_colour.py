@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Plain-language colour words -> hex, Qt-free so it is unit-testable without QGIS.
 
 Why: change_layer_color and the symbol styles only accepted what QColor parses ("#cc0000", "darkred"). A person asks for "dark

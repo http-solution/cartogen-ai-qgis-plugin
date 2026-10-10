@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Corridor and terrain operations that no other tool covered: contour lines, and splitting a line by zones.
 
 2026-10-09 cost investigation: two of five realistic humanitarian scenarios could not be completed with the shipped tools. A highway
@@ -149,7 +148,7 @@ def split_lines_by_zones(line_layer, zone_layer, output_name=None):
         back = QgsCoordinateTransform(metric, lines_layer.crs(), QgsProject.instance()) if metric != lines_layer.crs() else None
         features = []
         for status, parts, lengths in (("clear", clear_parts, clear_len), ("compromised", bad_parts, bad_len)):
-            for index, (part, length) in enumerate(zip(parts, lengths), 1):
+            for index, (part, length) in enumerate(zip(parts, lengths, strict=False), 1):
                 geometry = QgsGeometry(part)
                 if back is not None:
                     geometry.transform(back)

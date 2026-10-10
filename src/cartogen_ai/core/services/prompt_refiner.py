@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Prompt Refinement Layer for Cartogen AI.
 Optional, opt-in step that rewrites a raw chat message into two better-
@@ -14,6 +13,7 @@ any tool -- it calls client.complete(messages, tools=None, ...), the same
 method every provider client already implements, with no tools passed.
 """
 
+import contextlib
 import json
 
 try:
@@ -151,7 +151,7 @@ def build_refinement_messages(query: str, profile: str) -> list:
     ]
 
 
-def parse_refinement_response(raw_content) -> dict:
+def parse_refinement_response(raw_content) -> dict | None:
     """Defensive parsing matching agent_orchestrator.py's _real_execute_tool pattern
     (json.loads wrapped in try/except, degrading rather than raising).
     Returns None for anything that isn't a complete, well-shaped response --
@@ -243,8 +243,8 @@ def compose_optimum_prompt(user_message, directive):
     """
     if not directive:
         return user_message
-    return ("Message sent as you:\n%s\n\n"
-            "Added to the system prompt:\n%s" % (user_message, directive))
+    return (f"Message sent as you:\n{user_message}\n\n"
+            f"Added to the system prompt:\n{directive}")
 
 
 def analyze_request(query, context=None, attachments=None):
@@ -280,7 +280,7 @@ def analyze_request(query, context=None, attachments=None):
         from ..agent import task_matcher as tmatch
         from ..agent import task_register as reg_module
     except Exception as e:  # pragma: no cover - diagnostic path
-        print("[PromptRefiner] task register unavailable: %s" % e)
+        print(f"[PromptRefiner] task register unavailable: {e}")
         return _empty_analysis(query)
 
     try:
@@ -328,12 +328,10 @@ def analyze_request(query, context=None, attachments=None):
         filled = tmatch.defaults(missing)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)
-        try:        # a request that names three or more distinct steps is a workflow: one matched task would mislead it
+        with contextlib.suppress(Exception):  # a request that names three or more distinct steps is a workflow: one matched task would mislead it
             from ..agent import capabilities
             if capabilities.is_multi_step(query):
                 directive = capabilities.workflow_directive(query)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         user_message = tmatch.compose_user_message(query, filled, plan)
         return {
             "task":       entry,
@@ -353,7 +351,7 @@ def analyze_request(query, context=None, attachments=None):
             "expected_output": tmatch.expected_output(entry, query),
         }
     except Exception as e:  # pragma: no cover - never break the send path
-        print("[PromptRefiner] analyze_request failed: %s" % e)
+        print(f"[PromptRefiner] analyze_request failed: {e}")
         return _empty_analysis(query)
 
 
@@ -363,7 +361,7 @@ def build_disambiguation_messages(query, candidates):
     Sends just the shortlisted task ids and labels -- never the register, which
     is ~40 KB and would dwarf every other prompt this plugin sends.
     """
-    listing = "; ".join("%s = %s" % (e["id"], e["text"]) for e, _ in candidates[:5])
+    listing = "; ".join("{} = {}".format(e["id"], e["text"]) for e, _ in candidates[:5])
     system = (
         "Pick which task the user means. Candidates: " + listing + ". "
         'Respond as JSON only: {"task_id": "..."} using exactly one of the ids above, '

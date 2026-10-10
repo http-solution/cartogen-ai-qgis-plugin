@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Automated packaging and release script for Cartogen AI.
 Zips plugin assets for deployment and upload to QGIS Plugin Repository.
@@ -173,7 +172,7 @@ EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py
 def get_plugin_version(script_dir):
     metadata_path = os.path.join(script_dir, "metadata.txt")
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             for line in f:
                 match = re.match(r"^version\s*=\s*(.+)$", line.strip())
                 if match:
@@ -195,7 +194,7 @@ def check_metadata_parses(script_dir):
             pass
     except (configparser.Error, KeyError) as e:
         raise SystemExit(f"[Release] metadata.txt would be rejected by plugins.qgis.org: {e}\n"
-                         "Write 'percent' instead of '%' (and check the [general] section).")
+                         "Write 'percent' instead of '%' (and check the [general] section).") from e
 
 
 def package_plugin():

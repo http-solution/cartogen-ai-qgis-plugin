@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Headless functional test of the full agent execution pipeline against a REAL QGIS
 process -- real CartogenAi() agent, real task_manager/memory_manager (bound via the same
 bind_agent_context() production __init__ already calls), real TOOL_REGISTRY, real
@@ -43,19 +42,18 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
+    if _APP_HOLDER["app"] is None:
         # GUI mode True, not False (test_chat_widget_live.py's own _boot_qgis() uses False,
         # but that file never exercises real tool execution -- its fakes never touch
         # qgis.core at all) -- matches CLAUDE.md's own documented guidance ("QgsApplication
         # ([], True) -- GUI mode, not False") for reliably getting a fully working QGIS
         # environment in this sandbox.
-        _APP = QgsApplication([], True)
-        _APP.initQgis()
+        _APP_HOLDER["app"] = QgsApplication([], True)
+        _APP_HOLDER["app"].initQgis()
         # Confirmed live: without this, `import processing` inside vector_tools.py/
         # styling_tools.py's own QGIS_AVAILABLE try/except raised a bare ModuleNotFoundError
         # (reproduced directly, both as a plain script AND under unittest -- this is not a
@@ -72,7 +70,7 @@ def _boot_qgis():
         plugins_dir = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
         if os.path.isdir(plugins_dir) and plugins_dir not in sys.path:
             sys.path.insert(0, plugins_dir)
-    return _APP
+    return _APP_HOLDER["app"]
 
 
 def _tool_call(call_id, name, arguments_obj):

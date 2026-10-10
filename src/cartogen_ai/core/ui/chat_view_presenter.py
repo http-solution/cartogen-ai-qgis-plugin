@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 In-chat tool-step and plan-progress rendering for Cartogen AI's chat tab.
 

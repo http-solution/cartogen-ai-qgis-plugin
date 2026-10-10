@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Input discovery and data-aware chain context (pure), preflight geometry/field checks, and the turn-level injection."""
 import unittest
 from unittest.mock import patch

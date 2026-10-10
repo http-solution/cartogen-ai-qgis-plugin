@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/layout_tools.py's create_print_layout -- extended to
 support PNG/JPEG image export (dpi-controlled) alongside the existing PDF
 export, plus an optional body_text summary panel, closing the gap that was
@@ -350,7 +349,7 @@ class TestAtlasFileNamesAndLayoutNames(unittest.TestCase):
         from cartogen_ai.core.agent.tools.layout_tools import unique_atlas_file_name
         used = set()
         stems = [unique_atlas_file_name(v, used, "page") for v in ("Sanaa", "Sanaa", "sanaa", "Aden/1", "Aden_1")]
-        self.assertEqual(len(set(s.lower() for s in stems)), 5)
+        self.assertEqual(len({s.lower() for s in stems}), 5)
         self.assertEqual(stems[0], "Sanaa")
         self.assertEqual(stems[1], "Sanaa_2")
 

@@ -87,6 +87,12 @@ jobs:
           pip install ruff
           ruff check .
 
+      - name: Type check (mypy)
+        if: runner.os == 'Linux' && matrix.python-version == '3.11'
+        run: |
+          pip install mypy types-requests
+          mypy
+
       - name: Verify release zip packaging
         if: runner.os == 'Linux'
         run: |

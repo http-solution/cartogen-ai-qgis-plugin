@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Machine-readable dataset schema contracts for Cartogen AI.
 

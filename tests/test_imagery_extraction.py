@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/imagery_extraction.py -- SAM-family (FastSAM)
 imagery feature extraction, see docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md. Only
 the pure-Python pieces (coordinate math, mask pixel counting) and the

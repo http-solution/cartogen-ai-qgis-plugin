@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-facing view onto models/transactions.py's TurnTransactionLog -- see
 that module's docstring for exactly what is and isn't tracked/undoable.
@@ -19,14 +18,13 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-_TRANSACTION_LOG = None
+_BOUND = {"log": None}   # holder rather than a global (ruff PLW0603)
 
 
 def bind_transaction_log(transaction_log):
     """Binds the active CartogenAi instance's TurnTransactionLog to the tool
     handlers below."""
-    global _TRANSACTION_LOG
-    _TRANSACTION_LOG = transaction_log
+    _BOUND["log"] = transaction_log
 
 
 @register_tool(
@@ -38,9 +36,9 @@ def bind_transaction_log(transaction_log):
     {"type": "object", "properties": {}, "required": []},
 )
 def get_turn_transaction_log():
-    if _TRANSACTION_LOG is None:
+    if _BOUND["log"] is None:
         return {"error": "Transaction log not initialized."}
-    entries = _TRANSACTION_LOG.summary()
+    entries = _BOUND["log"].summary()
     return {
         "entries": entries,
         "undo_available": any(e.get("undo") and not e.get("undone") for e in entries),
@@ -67,10 +65,10 @@ def get_turn_transaction_log():
     },
 )
 def undo_last_operation(confirmed: bool = False):
-    if _TRANSACTION_LOG is None:
+    if _BOUND["log"] is None:
         return {"error": "Transaction log not initialized."}
 
-    entry = _TRANSACTION_LOG.last_undoable()
+    entry = _BOUND["log"].last_undoable()
     if entry is None:
         return {
             "success": False,
@@ -115,7 +113,7 @@ def _undo_remove_layers(entry, undo, confirmed):
         else:
             missing.append(lid)
 
-    _TRANSACTION_LOG.mark_undone(entry["index"])
+    _BOUND["log"].mark_undone(entry["index"])
     result = {
         "success": True,
         "undone_tool": entry["name"],
@@ -158,7 +156,7 @@ def _undo_via_snapshot(entry, undo, confirmed):
     if not restore_fn(undo):
         return {"error": f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
 
-    _TRANSACTION_LOG.mark_undone(entry["index"])
+    _BOUND["log"].mark_undone(entry["index"])
     return {
         "success": True,
         "undone_tool": entry["name"],

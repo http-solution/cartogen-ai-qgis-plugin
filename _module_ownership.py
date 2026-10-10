@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Which entries of sys.modules belong to THIS plugin's cartogen_ai tree (audit F31, #167).
 
 __init__.py used to evict every `cartogen_ai` / `cartogen_ai.*` module on load. That is needed after an in-place upgrade
@@ -74,8 +73,6 @@ def claimed_module_names(modules, package_dir):
         children = set()
     claimed = []
     for name in list(modules):
-        if name == "cartogen_ai":
-            claimed.append(name)
-        elif name.startswith("cartogen_ai.") and name.split(".")[1] in children:
+        if name == "cartogen_ai" or (name.startswith("cartogen_ai.") and name.split(".")[1] in children):
             claimed.append(name)
     return claimed

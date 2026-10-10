@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-internal services that are not registered tools -- process-isolation
 management for `execute_pyqgis_script` lives here (script_isolation.py). Not

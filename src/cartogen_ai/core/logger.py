@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Centralized Logging Infrastructure for Cartogen AI.
 
@@ -6,6 +5,7 @@ Routes diagnostic, warning, and error messages to QgsMessageLog when running ins
 falling back gracefully to standard Python logging / sys.stderr in headless or test environments.
 """
 
+import contextlib
 import re
 import sys
 import time
@@ -39,10 +39,7 @@ _SECRET_PATTERNS = [
 def _redact(message: str) -> str:
     text = str(message)
     for pattern in _SECRET_PATTERNS:
-        if pattern.groups:
-            text = pattern.sub(lambda m: m.group(1) + _REDACTED, text)
-        else:
-            text = pattern.sub(_REDACTED, text)
+        text = pattern.sub(lambda m: m.group(1) + _REDACTED, text) if pattern.groups else pattern.sub(_REDACTED, text)
     return text
 
 
@@ -51,7 +48,7 @@ try:
     QGIS_LOG_AVAILABLE = True
 except ImportError:
     QGIS_LOG_AVAILABLE = False
-    class Qgis:
+    class Qgis:  # type: ignore[no-redef]
         Info = 0
         Warning = 1
         Critical = 2
@@ -64,11 +61,9 @@ def log_info(message: str, tag: str = TAG) -> None:
     """Logs an informational message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Info)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] {message}", file=sys.stdout)
 
 
@@ -76,11 +71,9 @@ def log_warning(message: str, tag: str = TAG) -> None:
     """Logs a warning message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Warning)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] WARNING: {message}", file=sys.stderr)
 
 
@@ -88,11 +81,9 @@ def log_error(message: str, tag: str = TAG) -> None:
     """Logs an error message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Critical)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
 
 
@@ -167,7 +158,7 @@ def startup_state_fields(read_setting):
 
 
 _DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging_until"
-_diagnostic_warning_shown = False
+_diagnostic_state = {"warning_shown": False}   # holder rather than a global (ruff PLW0603)
 _DEFAULT_DIAGNOSTIC_DURATION_SECONDS = 3600  # 1 hour
 
 
@@ -182,20 +173,16 @@ def enable_diagnostic_logging(duration_seconds: int = _DEFAULT_DIAGNOSTIC_DURATI
     when actively debugging; there is no Settings UI toggle for it by design."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().setValue(_DIAGNOSTIC_SETTING, time.time() + duration_seconds)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def disable_diagnostic_logging() -> None:
     """Ends diagnostic logging immediately, without waiting for it to expire."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().remove(_DIAGNOSTIC_SETTING)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def _diagnostic_logging_enabled() -> bool:
@@ -227,8 +214,7 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
     even in this explicit debugging mode."""
     if not _diagnostic_logging_enabled():
         return
-    global _diagnostic_warning_shown
-    if not _diagnostic_warning_shown:
+    if not _diagnostic_state["warning_shown"]:
         log_warning(
             "Verbose diagnostic logging is ON -- raw prompt/response/tool "
             "content may now be logged locally to QgsMessageLog, which can "
@@ -237,5 +223,5 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
             "disable_diagnostic_logging() to end it immediately instead.",
             tag=tag,
         )
-        _diagnostic_warning_shown = True
+        _diagnostic_state["warning_shown"] = True
     log_info(f"[DIAGNOSTIC] {message}", tag=tag)

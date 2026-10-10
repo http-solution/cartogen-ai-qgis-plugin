@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for obfuscate_sensitive_points (agent/tools/vector_tools.py) -- a
 Do No Harm geoprivacy safeguard for plotting sensitive point data (GBV
 survivors, individual IDP households, protection incidents). The two pure

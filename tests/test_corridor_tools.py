@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure parts of corridor_tools (no QGIS needed)."""
 import unittest
 

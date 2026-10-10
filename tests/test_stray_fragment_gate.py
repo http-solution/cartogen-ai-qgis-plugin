@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A stray pasted fragment ("template: access_map") is not a request: the agent may read the project but must not create, change or
 export anything for it (GitHub #130; the rc20 hand test saw a real model create a print layout for that fragment alone)."""
 import unittest

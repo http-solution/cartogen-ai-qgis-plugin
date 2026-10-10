@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Pure halves of output_style.py and layout_style.py (the QGIS halves are in tests/test_output_style_live.py)."""
+from typing import ClassVar
 import datetime
 import unittest
 import unittest.mock
@@ -98,7 +98,7 @@ class TestAllowlistExtensions(unittest.TestCase):
 
 
 class TestLayoutLegendSelection(unittest.TestCase):
-    ENTRIES = [
+    ENTRIES: ClassVar = [
         {"id": "a", "name": "Clinics", "visible": True, "provider": "memory"},
         {"id": "b", "name": "Roads", "visible": False, "provider": "ogr"},
         {"id": "c", "name": "OSM Standard", "visible": True, "provider": "wms"},
@@ -142,7 +142,7 @@ class TestClassificationAndStamps(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    import unittest.mock  # noqa: F401
+    import unittest.mock
     unittest.main()
 
 
@@ -170,7 +170,7 @@ class TestUnitsAndAutoLabels(unittest.TestCase):
 
 
 class TestAccessMapTemplate(unittest.TestCase):
-    NAMES = {"a": "Clinics_roads_by_cost_0", "b": "Clinics_access_30", "c": "Districts", "d": "Clinics_reachable_area"}
+    NAMES: ClassVar = {"a": "Clinics_roads_by_cost_0", "b": "Clinics_access_30", "c": "Districts", "d": "Clinics_reachable_area"}
 
     def test_ranking_puts_the_reach_polygon_first_and_other_layers_last(self):
         self.assertEqual(ls.order_for_access_map(["a", "b", "c", "d"], self.NAMES), ["d", "b", "a", "c"])

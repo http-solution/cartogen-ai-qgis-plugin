@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Confidence/uncertainty classification tools for Cartogen AI -- the
 agent-facing surface of models/confidence.py (point 23 of

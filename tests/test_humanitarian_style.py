@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure half of tools/humanitarian_style.py: palettes and ordering rules. The QGIS half is in test_humanitarian_style_live.py."""
 import unittest
 

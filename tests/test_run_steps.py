@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """run_steps: validation before anything runs, reference resolution, stop rules, and the round-trip saving in the agent loop.
 The tool dispatcher is stubbed (no QGIS main thread offline), so this proves the loop logic, not any real tool or any real model."""
+from typing import ClassVar
 import json
 import unittest
 from unittest.mock import patch
@@ -57,7 +57,7 @@ class _Scripted:
 
 
 def _call(i, name, args):
-    return {"id": "c%d" % i, "function": {"name": name, "arguments": json.dumps(args)}}
+    return {"id": f"c{i}", "function": {"name": name, "arguments": json.dumps(args)}}
 
 
 def _tools(*names):
@@ -82,7 +82,7 @@ class TestLoop(unittest.TestCase):
             text = agent.run("buffer then clip")
         return text, client, ran
 
-    chain = [{"tool": "buffer_layer", "arguments": {"layer_name": "roads", "distance": 100}},
+    chain: ClassVar = [{"tool": "buffer_layer", "arguments": {"layer_name": "roads", "distance": 100}},
              {"tool": "clip_layer", "arguments": {"input_layer": "$prev.layer_name", "overlay_layer": "zones"}}]
 
     def test_a_chain_costs_two_model_calls_instead_of_three(self):
@@ -93,7 +93,7 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(batched, "done")
         self.assertEqual(c1.calls, 2)
         self.assertEqual(ran[1], ("clip_layer", {"input_layer": "buffer_layer_out", "overlay_layer": "zones"}))
-        one_by_one, c2, _ = self.run_agent(
+        _one_by_one, c2, _ = self.run_agent(
             [{"role": "assistant", "content": None, "tool_calls": [_call(1, "buffer_layer", self.chain[0]["arguments"])]},
              {"role": "assistant", "content": None, "tool_calls": [_call(2, "clip_layer", {"input_layer": "buffer_layer_out", "overlay_layer": "zones"})]},
              done], lambda n, a: {"success": True, "layer_name": n + "_out"})
@@ -103,7 +103,7 @@ class TestLoop(unittest.TestCase):
         return json.loads([m for m in client.last_messages if m.get("role") == "tool"][-1]["content"])
 
     def test_it_stops_at_the_first_error_and_says_what_ran(self):
-        text, client, ran = self.run_agent(
+        _text, client, ran = self.run_agent(
             [{"role": "assistant", "content": None, "tool_calls": [_call(1, "run_steps", {"steps": self.chain})]},
              {"role": "assistant", "content": "stopped"}],
             lambda n, a: {"error": "bad layer"})
@@ -114,7 +114,7 @@ class TestLoop(unittest.TestCase):
         self.assertIn("NOT run", payload["not_run"])
 
     def test_it_stops_at_a_pending_confirmation(self):
-        text, client, ran = self.run_agent(
+        _text, client, ran = self.run_agent(
             [{"role": "assistant", "content": None, "tool_calls": [_call(1, "run_steps", {"steps": self.chain})]},
              {"role": "assistant", "content": "waiting"}],
             lambda n, a: {"status": "PREVIEW_REQUIRED"})
@@ -125,7 +125,7 @@ class TestLoop(unittest.TestCase):
 
     def test_an_invalid_plan_runs_nothing(self):
         bad = [{"tool": "buffer_layer", "arguments": {"layer_name": "roads"}}]
-        text, client, ran = self.run_agent(
+        _text, client, ran = self.run_agent(
             [{"role": "assistant", "content": None, "tool_calls": [_call(1, "run_steps", {"steps": bad})]},
              {"role": "assistant", "content": "fixed later"}], lambda n, a: {"success": True})
         self.assertEqual(ran, [])
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
 
 class TestPreflight(unittest.TestCase):
-    FACTS = {"roads": {"kind": "vector", "geographic": True}, "dem": {"kind": "raster", "geographic": True},
+    FACTS: ClassVar = {"roads": {"kind": "vector", "geographic": True}, "dem": {"kind": "raster", "geographic": True},
              "utm_pts": {"kind": "vector", "geographic": False}}
 
     def check(self, steps):

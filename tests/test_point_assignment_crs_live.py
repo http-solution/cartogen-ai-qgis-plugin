@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#161: points in one CRS are assigned to admin polygons in another. Written without a local QGIS: CI's first run is its first execution."""
 import unittest
 

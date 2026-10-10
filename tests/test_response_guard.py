@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for services/response_guard.py -- the code-level defence against the assistant
 presenting invented tool output (rc7 smoke test, 2026-09-30, finding F03).

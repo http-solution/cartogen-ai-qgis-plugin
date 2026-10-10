@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS test for H4: reading forecast rows (including real QDate values) from a layer. Written without a QGIS install."""
 import datetime
 import unittest

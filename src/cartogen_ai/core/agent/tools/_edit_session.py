@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Owned, checked attribute edits on a vector layer (GitHub #143 and #144; audit F07 and F08).
 
@@ -47,15 +46,14 @@ def edit_command(layer, label):
             layer.rollBack()
         raise
     layer.endEditCommand()
-    if owned:
-        if not layer.commitChanges():
-            try:
-                errors = "; ".join(str(e) for e in layer.commitErrors())
-            except Exception:
-                errors = ""
-            if layer.isEditable():
-                layer.rollBack()
-            raise EditError("the provider rejected the changes" + (f": {errors}" if errors else "."))
+    if owned and not layer.commitChanges():
+        try:
+            errors = "; ".join(str(e) for e in layer.commitErrors())
+        except Exception:
+            errors = ""
+        if layer.isEditable():
+            layer.rollBack()
+        raise EditError("the provider rejected the changes" + (f": {errors}" if errors else "."))
 
 
 def begin_feature_edits(layer):

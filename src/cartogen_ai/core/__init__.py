@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 cartogen_ai.core -- the Community-edition package published from this repo.
 

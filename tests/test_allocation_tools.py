@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H8 allocation envelope: the arithmetic, offline. The layer work needs QGIS (tests/test_allocation_tools_live.py)."""
 import random
 import unittest
@@ -64,7 +63,7 @@ class TestAllocate(unittest.TestCase):
             amounts = out["amounts"]
             self.assertAlmostEqual(sum(amounts) + out["unallocated"], budget, places=4)
             self.assertTrue(all(a >= 0 for a in amounts))
-            self.assertTrue(all(a == 0 for a, w in zip(amounts, weights) if w == 0))
+            self.assertTrue(all(a == 0 for a, w in zip(amounts, weights, strict=False) if w == 0))
             if share is not None:
                 self.assertTrue(all(a <= share * budget + 1e-6 for a in amounts), (weights, budget, share, rounding, amounts))
 

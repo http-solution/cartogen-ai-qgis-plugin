@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Mapping task grid for remote/crowd mapping (H2, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -253,7 +252,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
                          output_layer_name, "memory")
     to_wgs = _transform(metric, wgs)
     features, geojson = [], []
-    for (cell, piece), value, klass in zip(kept, values, classes):
+    for (cell, piece), value, klass in zip(kept, values, classes, strict=False):
         geom = QgsGeometry(piece)
         geom.transform(to_wgs)
         props = {"task_id": task_id(cell["col"], cell["row"]), "area_km2": round(piece.area() / 1e6, 4),

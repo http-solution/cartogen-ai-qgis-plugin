@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Thread-safe tool dispatch for Cartogen AI.
 
@@ -18,7 +17,7 @@ try:
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    class QObject:
+    class QObject:  # type: ignore[no-redef]
         pass
     def pyqtSignal(*args, **kwargs):
         class SignalMock:
@@ -27,7 +26,7 @@ except ImportError:
         return SignalMock()
     def pyqtSlot(*args, **kwargs):
         return lambda fn: fn
-    class Qt:
+    class Qt:  # type: ignore[no-redef]
         # Mirrors the Qt6 shape the real code now uses. The plugin reaches enum
         # members through their enum type (Qt.ConnectionType.X) because Qt6
         # requires it, so this stub has to expose the nested type too -- not

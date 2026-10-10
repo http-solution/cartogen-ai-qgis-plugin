@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Humanitarian Logistics Tools for Cartogen AI.
 Hub siting, service-area, and travel-distance analysis for supply chain / last-
@@ -28,6 +27,8 @@ unverified-live caveat, plus its own: the intermediate merge/dissolve/
 intersect steps have not been run against a real QGIS session either.
 """
 
+import types
+import contextlib
 import datetime
 import time
 from .registry import register_tool
@@ -207,7 +208,7 @@ def _geoms_in_crs(geoms, from_crs, to_crs):
     except ValueError:
         raise
     except Exception as e:
-        raise ValueError(f"could not transform from {from_crs.authid()} to {to_crs.authid()}: {e}")
+        raise ValueError(f"could not transform from {from_crs.authid()} to {to_crs.authid()}: {e}") from e
 
 
 def _network_context(invalid_geometry_check=None):
@@ -307,11 +308,9 @@ def _usable_speed_share(values):
     total = usable = 0
     for value in values:
         total += 1
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             if value is not None and float(value) > 0:
                 usable += 1
-        except (TypeError, ValueError):
-            pass
     return ((usable / total) if total else 0.0), usable, total
 
 
@@ -562,12 +561,10 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
             # Geofabrik shapefile extracts encode one-way as F (forward) / T (towards, i.e. backward) / B (both), not OSM's
             # yes / -1 / no. With the OSM defaults nothing matched, every road counted as two-way and one-way streets were
             # silently ignored (rc11 smoke test: the Yemen roads layer held F and B). Detected from the layer's own values.
-            try:
+            with contextlib.suppress(Exception):
                 seen = _direction_values_present(network.uniqueValues(dir_idx))
                 if seen and seen <= {"F", "T", "B"}:
                     value_forward, value_backward, value_both = "F", "T", "B"
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         extra["DIRECTION_FIELD"] = direction_field
         extra["VALUE_FORWARD"] = value_forward
         extra["VALUE_BACKWARD"] = value_backward
@@ -635,10 +632,8 @@ def is_plugin_result(layer):
 
 
 def mark_plugin_result(layer):
-    try:
+    with contextlib.suppress(Exception):
         layer.setCustomProperty(_RESULT_OWNER_KEY, "1")
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def set_aside_user_layers(name, project=None):
@@ -724,11 +719,9 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
                                 "note": replacement_note(name, changes)}
         project.removeMapLayer(stale.id())
     if params is not None:
-        try:
+        with contextlib.suppress(Exception):
             import json as _json
             new_layer.setCustomProperty(_RESULT_PARAMS_KEY, _json.dumps(params, sort_keys=True, default=str))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     mark_plugin_result(new_layer)
     if set_aside:
         note = set_aside_note(set_aside)
@@ -741,11 +734,9 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     else:
         project.addMapLayer(new_layer, False)   # the caller puts the layer in a group itself
     # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
-    try:
+    with contextlib.suppress(Exception):
         from ..results_store import persist_layer
         persist_layer(new_layer, tool="analysis")
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return replaced
 
 
@@ -839,7 +830,7 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names):
+        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
             candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
@@ -990,7 +981,7 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names):
+        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
             candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
 
         if not candidate_distances:
@@ -1089,6 +1080,55 @@ def _optimize_route(distance_matrix, start_index=0):
     return tour, _tour_length(tour, distance_matrix)
 
 
+def _prepare_route_network(road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both):
+    """(network layer or None, closed-segment count, extra processing params, error dict or None) for optimize_delivery_route."""
+    if road_network_layer is None:
+        return None, 0, {}, None
+    network = _find_layer_by_name(road_network_layer)
+    if network is None:
+        return None, 0, {}, {"error": f"Layer '{road_network_layer}' not found"}
+    geometry_error = _network_geometry_error(network, road_network_layer)
+    if geometry_error:
+        return None, 0, {}, {"error": geometry_error}
+    network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
+    if closed_error:
+        return None, 0, {}, {"error": closed_error}
+    extra_params, field_error = _network_direction_speed_params(
+        network, speed_field, direction_field, value_forward, value_backward, value_both
+    )
+    if field_error:
+        return None, 0, {}, {"error": field_error}
+    return network, closed_segments, extra_params, None
+
+
+def _straight_line_crs_note(stops_layer, layer, distance_area):
+    """The extra sentence for the straight-line warning when the stops layer is in a geographic CRS ('' otherwise)."""
+    note = ""
+    # QGIS-006, 2026-09-13 audit (fixed 2026-09-19): the straight-line distance_matrix
+    # above now goes through _make_distance_area/_measure_distance -- real-world
+    # ellipsoidal meters on a geographic CRS, unchanged planar meters on a projected
+    # one. Warning only fires if ellipsoidal setup itself failed.
+    try:
+        if layer.crs().isGeographic():
+            if distance_area is not None:
+                note += (
+                    f" '{stops_layer}' is in a geographic CRS ({layer.crs().authid()}) -- "
+                    "total_distance is real-world meters via ellipsoidal (WGS84 geodesic) "
+                    "measurement, not raw planar degrees."
+                )
+            else:
+                note += (
+                    f" '{stops_layer}' is also in a geographic CRS ({layer.crs().authid()}), "
+                    "but ellipsoidal distance measurement could not be set up, so "
+                    "total_distance is in DEGREES, not any real distance unit -- reproject "
+                    "to a projected/UTM CRS first for a meaningful figure."
+                )
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="logistics_route_crs_warning",
+                  error_class=type(e).__name__, error=True)
+    return note
+
+
 @register_tool(
     "optimize_delivery_route",
     "Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order "
@@ -1136,24 +1176,10 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
     if layer is None:
         return {"error": f"Layer '{stops_layer}' not found"}
 
-    network = None
-    closed_segments = 0
-    extra_params = {}
-    if road_network_layer is not None:
-        network = _find_layer_by_name(road_network_layer)
-        if network is None:
-            return {"error": f"Layer '{road_network_layer}' not found"}
-        geometry_error = _network_geometry_error(network, road_network_layer)
-        if geometry_error:
-            return {"error": geometry_error}
-        network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
-        if closed_error:
-            return {"error": closed_error}
-        extra_params, field_error = _network_direction_speed_params(
-            network, speed_field, direction_field, value_forward, value_backward, value_both
-        )
-        if field_error:
-            return {"error": field_error}
+    network, closed_segments, extra_params, network_error = _prepare_route_network(
+        road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both)
+    if network_error:
+        return network_error
 
     try:
         feats = [f for f in layer.getFeatures() if not f.geometry().isEmpty()]
@@ -1217,28 +1243,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                 "is a stop sequence only, not a routable path. Do not render a line through these "
                 "stops as a delivery route; pass road_network_layer to build one."
             )
-            # QGIS-006, 2026-09-13 audit (fixed 2026-09-19): the straight-line distance_matrix
-            # above now goes through _make_distance_area/_measure_distance -- real-world
-            # ellipsoidal meters on a geographic CRS, unchanged planar meters on a projected
-            # one. Warning only fires if ellipsoidal setup itself failed.
-            try:
-                if layer.crs().isGeographic():
-                    if distance_area is not None:
-                        warning += (
-                            f" '{stops_layer}' is in a geographic CRS ({layer.crs().authid()}) -- "
-                            "total_distance is real-world meters via ellipsoidal (WGS84 geodesic) "
-                            "measurement, not raw planar degrees."
-                        )
-                    else:
-                        warning += (
-                            f" '{stops_layer}' is also in a geographic CRS ({layer.crs().authid()}), "
-                            "but ellipsoidal distance measurement could not be set up, so "
-                            "total_distance is in DEGREES, not any real distance unit -- reproject "
-                            "to a projected/UTM CRS first for a meaningful figure."
-                        )
-            except Exception as e:
-                log_event("swallowed_exception", tag="Tools", tool="logistics_route_crs_warning",
-                          error_class=type(e).__name__, error=True)
+            warning += _straight_line_crs_note(stops_layer, layer, distance_area)
             result["warning"] = warning
             return result
 
@@ -1432,7 +1437,9 @@ def _build_road_snapped_route(stops_layer_name, network, geoms, tour, source_crs
                                             "Delivery route")
         except _bg.AnalysisCancelled:
             raise
-        except Exception:  # nosec B112 (best-effort: skip this item)
+        except Exception as e:
+            # One unroutable leg is skipped; the legs that did route are still returned. Logged by type only.
+            log_event("swallowed_exception", tag="Tools", tool="delivery_route_leg", error_class=type(e).__name__, error=True)
             continue
         segment = output.get("OUTPUT")
         if segment is not None and segment.featureCount() > 0:
@@ -1577,26 +1584,9 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
                             value_forward="yes", value_backward="-1", value_both="no", style_by_cost=True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    # v1.8.0 workstream 4: travel_cost as a list builds a real isochrone/
-    # access-band map (one combined, auto-styled polygon layer per facility)
-    # instead of requiring N separate calls plus manual styling. The
-    # single-value path below is otherwise completely unchanged from its
-    # already-live-verified behavior -- multi_band only ever adds new
-    # branches, it never alters what a scalar travel_cost does.
-    is_multi_band = isinstance(travel_cost, (list, tuple))
-    if is_multi_band:
-        if not travel_cost:
-            return {"error": "travel_cost list must contain at least one value."}
-        travel_costs = sorted(float(v) for v in travel_cost)
-        if travel_costs[0] <= 0:
-            return {"error": "travel_cost must be positive."}
-    else:
-        if travel_cost <= 0:
-            return {"error": "travel_cost must be positive."}
-        travel_costs = [travel_cost]
-    strategy = (strategy or "shortest").lower()
-    if strategy not in ("shortest", "fastest"):
-        return {"error": "strategy must be 'shortest' or 'fastest'."}
+    travel_costs, is_multi_band, strategy, input_error = _service_area_costs(travel_cost, strategy)
+    if input_error:
+        return input_error
 
     network = _find_layer_by_name(road_network_layer)
     facilities = _find_layer_by_name(facility_layer)
@@ -1629,286 +1619,345 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
         notes.append(unit_note)
 
     try:
-        strategy_val = 1 if strategy == "fastest" else 0
-        layers_created = []
-        styled_layers = []
-        served_count = 0
-        skipped = []
-        # #130 point 3: what these result layers are built with; a later run that replaces one by name compares against it.
-        run_params = {"tool": "calculate_service_area", "road_network_layer": road_network_layer, "strategy": strategy, "travel_cost": travel_costs,
-                      "speed_field": speed_field, "direction_field": direction_field, "default_speed": default_speed}
-        replaced_results = []
-
-        def _put(name, layer, **kw):
-            r = _replace_named_layer(name, layer, params=run_params, **kw)
-            if r:
-                replaced_results.append(r)
-        # BUG-2026-09-05-2 fix (2026-09-08): both processing.run() calls below used to
-        # sit inside one try/except that spans the whole facility loop, so a single
-        # facility hitting the known small/degenerate-network edge case (a collinear
-        # 1-segment network's convex hull degenerating to a LineString that a Polygon-
-        # typed sink then refuses, or a 2-segment L-shaped network making
-        # native:serviceareafrompoint itself raise on invalid intermediate geometry)
-        # aborted the ENTIRE multi-facility request, discarding results already computed
-        # for every other facility. Each stage is now isolated per facility: a failure is
-        # recorded and that facility is skipped (or, if only the hull step fails, its
-        # already-built reachable-network lines are still kept), so the rest of the batch
-        # still comes back.
-        #
-        # BUG-2026-09-05-2 further fix (2026-09-10): the two failure shapes themselves
-        # are now addressed, not just isolated. (1) serviceareafrompoint's own
-        # "invalid geometry" abort: pass a QgsProcessingContext with
-        # GeometrySkipInvalid so the algorithm skips an invalid input feature
-        # internally, exactly the remedy its own error message names ("change the
-        # 'Invalid features filtering' option") -- reasoned from QGIS's documented
-        # Processing API, not independently re-run against live QGIS this session
-        # (no live/headless QGIS available in this environment -- see docs/BUG_TRACKER.md).
-        # Built once here (same setting for every facility in the batch, not per-facility
-        # state) rather than reconstructed inside the loop below. The real enum lives on
-        # Qgis.InvalidGeometryCheck (QgsProcessingContext.setInvalidGeometryCheck's own
-        # signature is `check: Qgis.InvalidGeometryCheck`, confirmed live against QGIS
-        # 4.2.2 -- not QgsProcessing, which has no such nested enum at all on that
-        # install) -- resolved via resolve_qgis_enum rather than hard-coded, matching
-        # this file's own QgsWkbTypes.GeometryType.* precedent for enums that moved
-        # between QGIS majors.
-        # (2) the convexhull LineString/Polygon-sink failure: see
-        # _degenerate_hull_fallback's own docstring for the isolated root cause and fix,
-        # which *is* provable without live QGIS since it follows from convex-hull
-        # geometry (collinear points) rather than from QGIS-specific runtime behaviour.
-        # QGIS-005, 2026-09-14 audit: was passed straight to setInvalidGeometryCheck() with no
-        # explicit None check -- only "safe" by whatever this function's own outer exception
-        # handling happens to do with the resulting error, not by design (QGIS-004's identical
-        # class of gap). Today inert (this enum resolves fine on both QGIS 3.x/4.x).
-        _max_speed = _max_speed_in_field(network, speed_field) if (strategy == "fastest" and speed_field) else None
-        # With a speed field whose maximum can't be read, the reach isn't a safe upper bound: no clipping.
-        reach_m = None if (strategy == "fastest" and speed_field and _max_speed is None) else \
-            _reach_metres(travel_costs, strategy, default_speed, _max_speed)
-        clip_summary = {"facilities_clipped": 0, "roads_full": None, "roads_routed_max": 0}
         _invalid_geom_check = resolve_qgis_enum(Qgis, "InvalidGeometryCheck", "GeometrySkipInvalid")
         if _invalid_geom_check is None:
             return {"error": "Could not resolve QgsProcessing's InvalidGeometryCheck enum in this QGIS version."}
-        context = _network_context(_invalid_geom_check)
+        run = _new_service_area_run(
+            facility_layer, road_network_layer, facilities, network, travel_costs, is_multi_band, strategy, default_speed,
+            speed_field, direction_field, extra_params, style_by_cost, (value_forward, value_backward, value_both), notes,
+            _invalid_geom_check)
+        served_count = 0
         for i, feat in enumerate(facilities.getFeatures()):
-            geom = feat.geometry()
-            if geom is None or geom.isEmpty():
-                continue
-            point = geom.asPoint()
-            try:
-                start_point = _point_for_network(point, facilities.crs(), network)
-                routed_network, clip = network, {"applied": False}
-                if reach_m is not None:
-                    routed_network, clip = _clip_network_to_reach(
-                        network, _point_xy_in_network_crs(point, facilities.crs(), network), reach_m)
-            except Exception as e:
-                skipped.append({"facility_index": i, "stage": "coordinate_transform", "reason": str(e)})
-                continue
-            if clip.get("applied"):
-                clip_summary["facilities_clipped"] += 1
-                clip_summary["roads_full"] = clip["roads_full"]
-                clip_summary["roads_routed_max"] = max(clip_summary["roads_routed_max"], clip["roads_used"])
-
-            band_hulls = []  # (band_value, hull_layer) -- only populated/used when is_multi_band
-            facility_served = False
-            for band in travel_costs:
-                params = {
-                    "INPUT": routed_network,
-                    "STRATEGY": strategy_val,
-                    "DEFAULT_SPEED": default_speed,
-                    "TOLERANCE": 0,
-                    "START_POINT": start_point,
-                    "TRAVEL_COST2": band,
-                    "OUTPUT_LINES": "memory:",
-                }
-                params.update(extra_params)
-                try:
-                    output = _run_network_algorithm("native:serviceareafrompoint", params, context, routed_network,
-                                                    "Service area")
-                except _bg.AnalysisCancelled:
-                    raise
-                except Exception as e:
-                    skipped.append({"facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint", "reason": str(e)})
-                    continue
-                lines_layer = output.get("OUTPUT_LINES")
-                if lines_layer is None or lines_layer.featureCount() == 0:
-                    continue
-                if _reachable_network_is_degenerate(lines_layer):
-                    # Never replace an existing good layer with an empty result (rc7 smoke test F05):
-                    # _replace_named_layer below removes the previous layer of the same name first.
-                    skipped.append({
-                        "facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint",
-                        "reason": "the reachable network has zero length: the start point snapped to a "
-                                  "road but nothing is reachable within travel_cost. Check travel_cost's "
-                                  "unit (metres for 'shortest', hours for 'fastest') and the speed_field. "
-                                  "The existing layers were left untouched.",
-                    })
-                    continue
-
-                lines_name = (
-                    f"{facility_layer}_service_area_lines_{i}" if not is_multi_band
-                    else f"{facility_layer}_service_area_lines_{i}_band_{band:g}"
-                )
-                _put(lines_name, lines_layer)
-                layers_created.append(lines_name)
-                try:
-                    from ..map_intelligence import process_map_output
-                    process_map_output(lines_layer, output_role="route_line")
-                except Exception as style_e:
-                    log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_styling",
-                              error_class=type(style_e).__name__, error=True)
-                # Matches the original single-band semantics exactly: a
-                # facility/band counts as "served" once its lines layer is
-                # built, regardless of whether hull-building below succeeds
-                # -- the hull is a bonus output, not the served/skipped
-                # criterion.
-                facility_served = True
-
-                hull_layer = None
-                try:
-                    hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
-                    hull_layer = hull.get("OUTPUT")
-                except Exception as e:
-                    # Match native:convexhull's Polygon-typed-sink rejection on its own
-                    # constant wording ("...to layer of type Polygon") rather than the
-                    # source geometry type name -- live-confirmed against real QGIS 4.2.2
-                    # that this rejection's source-type name varies by exactly how the
-                    # reachable network degenerates (LineString for a collinear road,
-                    # GeometryCollection for other degenerate shapes; _degenerate_hull_fallback's
-                    # own docstring further documents a single-Point case) -- an earlier
-                    # version of this guard matched only "LineString"/"Point" and missed the
-                    # GeometryCollection variant found live.
-                    if "to layer of type Polygon" in str(e):
-                        hull_layer = _degenerate_hull_fallback(lines_layer, band)
-                    if hull_layer is None:
-                        skipped.append({"facility_index": i, "travel_cost": band, "stage": "convexhull", "reason": str(e)})
-
-                if hull_layer is not None:
-                    if is_multi_band:
-                        band_hulls.append((band, hull_layer))
-                    else:
-                        hull_name = f"{facility_layer}_service_area_{i}"
-                        _put(hull_name, hull_layer)
-                        layers_created.append(hull_name)
-                        # Live-reported, 2026-09-28: this single-band hull polygon (the
-                        # common case -- one travel_cost value, not a list) was left at
-                        # QGIS's raw default new-layer symbology every time -- unlike the
-                        # multi-band path just below, which already gets
-                        # apply_graduated_style, and unlike buffer_analysis's polygon
-                        # output, which already gets this exact call. Same gap class as
-                        # BUG-2026-09-27-3 (route line casing), just for this tool's
-                        # polygon output instead of its line output.
-                        try:
-                            from ..map_intelligence import process_map_output
-                            process_map_output(
-                                hull_layer, output_role="proximity_buffer",
-                                source_layer_id=facilities.id() if hasattr(facilities, "id") else None,
-                            )
-                        except Exception as style_e:
-                            log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_hull_styling",
-                                      error_class=type(style_e).__name__, error=True)
-
-            if facility_served and style_by_cost:
-                graded_name = f"{facility_layer}_roads_by_cost_{i}"
-                try:
-                    from . import routing_style
-                    max_cost = max(travel_costs)
-                    graded, graded_reason = _cost_graded_roads(
-                        routed_network, _point_xy_in_network_crs(point, facilities.crs(), network), strategy,
-                        default_speed, extra_params.get("SPEED_FIELD"), extra_params.get("DIRECTION_FIELD"),
-                        value_forward, value_backward, value_both, context.ellipsoid(), max_cost, graded_name)
-                    if graded is None:
-                        notes.append(f"Roads were not graded by travel cost for facility {i}: {graded_reason}.")
-                    else:
-                        _put(graded_name, graded)
-                        unit = "hours" if strategy == "fastest" else "meters"
-                        routing_style.style_lines_by_cost(
-                            graded, "travel_cost", routing_style.cost_band_edges(max_cost), unit)
-                        styled_layers.append(graded_name)
-                        _hide_layers([n for n in layers_created
-                                      if n == f"{facility_layer}_service_area_lines_{i}"
-                                      or n.startswith(f"{facility_layer}_service_area_lines_{i}_band_")])
-                except _bg.AnalysisCancelled:
-                    raise
-                except Exception as grade_e:
-                    notes.append(f"Roads were not graded by travel cost for facility {i} ({type(grade_e).__name__}: {grade_e}); "
-                                 "the plain reached-roads layer is shown instead.")
-
-            if is_multi_band and band_hulls:
-                merged_name = f"{facility_layer}_service_area_bands_{i}"
-                merged_layer = _merge_band_hulls(band_hulls, merged_name)
-                if merged_layer is not None:
-                    _put(merged_name, merged_layer)
-                    layers_created.append(merged_name)
-                    from .styling_tools import apply_graduated_style
-                    apply_graduated_style(merged_name, "travel_cost_band")
-
-            if facility_served:
+            if _service_area_for_facility(run, i, feat):
                 served_count += 1
 
         if served_count == 0:
             failure = {"error": "Could not build a service area for any facility -- check the facility points are near the road network."}
-            if skipped:
-                failure["error"] += " Details: " + "; ".join(str(x.get("reason")) for x in skipped[:3])
-                failure["skipped"] = skipped
+            if run.skipped:
+                failure["error"] += " Details: " + "; ".join(str(x.get("reason")) for x in run.skipped[:3])
+                failure["skipped"] = run.skipped
             if notes:
                 failure["notes"] = notes
             return failure
-
-        result = {
-            "success": True,
-            "facility_count": served_count,
-            "travel_cost": travel_costs if is_multi_band else travel_costs[0],
-            "strategy": strategy,
-            "travel_cost_unit": "hours" if strategy == "fastest" else "meters",
-            "layers_created": layers_created,
-        }
-        if styled_layers:
-            result["styled_layers"] = styled_layers
-            result["styling_note"] = (
-                "Roads are drawn in travel-cost bands (dark = near the origin, warm = far); the plain reached-roads line layers "
-                "are hidden but kept for analysis.")
-        if clip_summary["facilities_clipped"]:
-            # Exact, not an approximation (see _clip_network_to_reach): worth saying so the model
-            # doesn't describe the analysis as "limited to nearby roads".
-            result["network_clipping"] = {
-                **clip_summary,
-                "note": "Only roads that can be reached within the requested cost were routed; the result "
-                        "is identical to routing over the whole network, just faster.",
-            }
-        if replaced_results:
-            result["replaced_results"] = replaced_results
-            extra = len(replaced_results) - 1
-            result["replace_note"] = ("Tell the user: " + replaced_results[0]["note"]
-                                      + (f" {extra} related result layer(s) of the same run were replaced the same way." if extra else ""))
-        if speed_field:
-            result["speed_field"] = speed_field
-        result.update(_closed_note(closed_segments))
-        if direction_field:
-            result["direction_field"] = direction_field
-        # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
-        # of them as saved analysis output. State the truth so the model relays it.
-        result["hull_note"] = (
-            "The '..._service_area_N' polygons are CONVEX HULLS of the reached roads -- a display outline and an "
-            "UPPER BOUND on reach (they include land between the roads). Do not sum population inside them as "
-            "'people reached'; use population_access_gap (road-buffer reach) for that."
-        )
-        result["storage_note"] = (
-            "The layers created here are temporary (in-memory) layers: they are NOT saved to disk and "
-            "are lost when QGIS closes unless exported (export_layer) or saved into a GeoPackage."
-        )
-        if notes:
-            result["notes"] = notes
-        if skipped:
-            result["warnings"] = (
-                f"{len(skipped)} facility/band combination(s) could not be fully processed -- see "
-                "'skipped' for detail. Known limitation on very small/degenerate road networks "
-                "(BUG-2026-09-05-2); real road datasets are very unlikely to hit this."
-            )
-            result["skipped"] = skipped
-        return result
+        return _service_area_result(run, served_count, speed_field, direction_field, closed_segments)
     except _bg.AnalysisCancelled:
         return _cancelled_result("service area")
     except Exception as e:
         return {"error": f"calculate_service_area failed: {e}"}
+
+
+def _service_area_costs(travel_cost, strategy):
+    """(sorted travel costs, is_multi_band, normalised strategy, error dict or None)."""
+    # v1.8.0 workstream 4: travel_cost as a list builds a real isochrone/
+    # access-band map (one combined, auto-styled polygon layer per facility)
+    # instead of requiring N separate calls plus manual styling. The
+    # single-value path below is otherwise completely unchanged from its
+    # already-live-verified behavior -- multi_band only ever adds new
+    # branches, it never alters what a scalar travel_cost does.
+    is_multi_band = isinstance(travel_cost, (list, tuple))
+    if is_multi_band:
+        if not travel_cost:
+            return None, is_multi_band, strategy, {"error": "travel_cost list must contain at least one value."}
+        travel_costs = sorted(float(v) for v in travel_cost)
+        if travel_costs[0] <= 0:
+            return None, is_multi_band, strategy, {"error": "travel_cost must be positive."}
+    else:
+        if travel_cost <= 0:
+            return None, is_multi_band, strategy, {"error": "travel_cost must be positive."}
+        travel_costs = [travel_cost]
+    strategy = (strategy or "shortest").lower()
+    if strategy not in ("shortest", "fastest"):
+        return None, is_multi_band, strategy, {"error": "strategy must be 'shortest' or 'fastest'."}
+    return travel_costs, is_multi_band, strategy, None
+
+
+def _new_service_area_run(facility_layer, road_network_layer, facilities, network, travel_costs, is_multi_band, strategy,
+                          default_speed, speed_field, direction_field, extra_params, style_by_cost, direction_values, notes,
+                          invalid_geom_check):
+    """Everything calculate_service_area's per-facility steps share: the inputs, the processing context and the output lists."""
+    # BUG-2026-09-05-2 fix (2026-09-08): both processing.run() calls below used to
+    # sit inside one try/except that spans the whole facility loop, so a single
+    # facility hitting the known small/degenerate-network edge case (a collinear
+    # 1-segment network's convex hull degenerating to a LineString that a Polygon-
+    # typed sink then refuses, or a 2-segment L-shaped network making
+    # native:serviceareafrompoint itself raise on invalid intermediate geometry)
+    # aborted the ENTIRE multi-facility request, discarding results already computed
+    # for every other facility. Each stage is now isolated per facility: a failure is
+    # recorded and that facility is skipped (or, if only the hull step fails, its
+    # already-built reachable-network lines are still kept), so the rest of the batch
+    # still comes back.
+    #
+    # BUG-2026-09-05-2 further fix (2026-09-10): the two failure shapes themselves
+    # are now addressed, not just isolated. (1) serviceareafrompoint's own
+    # "invalid geometry" abort: pass a QgsProcessingContext with
+    # GeometrySkipInvalid so the algorithm skips an invalid input feature
+    # internally, exactly the remedy its own error message names ("change the
+    # 'Invalid features filtering' option") -- reasoned from QGIS's documented
+    # Processing API, not independently re-run against live QGIS this session
+    # (no live/headless QGIS available in this environment -- see docs/BUG_TRACKER.md).
+    # Built once here (same setting for every facility in the batch, not per-facility
+    # state) rather than reconstructed inside the loop below. The real enum lives on
+    # Qgis.InvalidGeometryCheck (QgsProcessingContext.setInvalidGeometryCheck's own
+    # signature is `check: Qgis.InvalidGeometryCheck`, confirmed live against QGIS
+    # 4.2.2 -- not QgsProcessing, which has no such nested enum at all on that
+    # install) -- resolved via resolve_qgis_enum rather than hard-coded, matching
+    # this file's own QgsWkbTypes.GeometryType.* precedent for enums that moved
+    # between QGIS majors.
+    # (2) the convexhull LineString/Polygon-sink failure: see
+    # _degenerate_hull_fallback's own docstring for the isolated root cause and fix,
+    # which *is* provable without live QGIS since it follows from convex-hull
+    # geometry (collinear points) rather than from QGIS-specific runtime behaviour.
+    # QGIS-005, 2026-09-14 audit: was passed straight to setInvalidGeometryCheck() with no
+    # explicit None check -- only "safe" by whatever this function's own outer exception
+    # handling happens to do with the resulting error, not by design (QGIS-004's identical
+    # class of gap). Today inert (this enum resolves fine on both QGIS 3.x/4.x).
+    _max_speed = _max_speed_in_field(network, speed_field) if (strategy == "fastest" and speed_field) else None
+    # With a speed field whose maximum can't be read, the reach isn't a safe upper bound: no clipping.
+    reach_m = None if (strategy == "fastest" and speed_field and _max_speed is None) else \
+        _reach_metres(travel_costs, strategy, default_speed, _max_speed)
+    # #130 point 3: what these result layers are built with; a later run that replaces one by name compares against it.
+    run_params = {"tool": "calculate_service_area", "road_network_layer": road_network_layer, "strategy": strategy,
+                  "travel_cost": travel_costs, "speed_field": speed_field, "direction_field": direction_field,
+                  "default_speed": default_speed}
+    return types.SimpleNamespace(
+        facility_layer=facility_layer, facilities=facilities, network=network, travel_costs=travel_costs,
+        is_multi_band=is_multi_band, strategy=strategy, strategy_val=1 if strategy == "fastest" else 0,
+        default_speed=default_speed, extra_params=extra_params, style_by_cost=style_by_cost,
+        value_forward=direction_values[0], value_backward=direction_values[1], value_both=direction_values[2],
+        reach_m=reach_m, clip_summary={"facilities_clipped": 0, "roads_full": None, "roads_routed_max": 0},
+        context=_network_context(invalid_geom_check), run_params=run_params, notes=notes,
+        layers_created=[], styled_layers=[], skipped=[], replaced_results=[])
+
+
+def _put_service_result(run, name, layer, **kw):
+    """Adds a result layer, replacing a previous layer of the same name, and remembers what was replaced."""
+    r = _replace_named_layer(name, layer, params=run.run_params, **kw)
+    if r:
+        run.replaced_results.append(r)
+
+
+def _service_area_for_facility(run, i, feat):
+    """Builds the service-area layers for one facility; True when at least one band's reachable-road layer was built."""
+    geom = feat.geometry()
+    if geom is None or geom.isEmpty():
+        return False
+    point = geom.asPoint()
+    try:
+        start_point = _point_for_network(point, run.facilities.crs(), run.network)
+        routed_network, clip = run.network, {"applied": False}
+        if run.reach_m is not None:
+            routed_network, clip = _clip_network_to_reach(
+                run.network, _point_xy_in_network_crs(point, run.facilities.crs(), run.network), run.reach_m)
+    except Exception as e:
+        run.skipped.append({"facility_index": i, "stage": "coordinate_transform", "reason": str(e)})
+        return False
+    if clip.get("applied"):
+        summary = run.clip_summary
+        summary["facilities_clipped"] += 1
+        summary["roads_full"] = clip["roads_full"]
+        summary["roads_routed_max"] = max(summary["roads_routed_max"], clip["roads_used"])
+
+    band_hulls = []  # (band_value, hull_layer) -- only populated/used when is_multi_band
+    facility_served = False
+    for band in run.travel_costs:
+        if _service_area_band(run, i, band, routed_network, start_point, band_hulls):
+            # Matches the original single-band semantics exactly: a facility/band counts as "served" once its lines
+            # layer is built, regardless of whether hull-building succeeds -- the hull is a bonus output.
+            facility_served = True
+
+    if facility_served and run.style_by_cost:
+        _grade_service_area_roads(run, i, routed_network, point)
+
+    if run.is_multi_band and band_hulls:
+        merged_name = f"{run.facility_layer}_service_area_bands_{i}"
+        merged_layer = _merge_band_hulls(band_hulls, merged_name)
+        if merged_layer is not None:
+            _put_service_result(run, merged_name, merged_layer)
+            run.layers_created.append(merged_name)
+            from .styling_tools import apply_graduated_style
+            apply_graduated_style(merged_name, "travel_cost_band")
+    return facility_served
+
+
+def _service_area_band(run, i, band, routed_network, start_point, band_hulls):
+    """One facility x one travel cost: the reached-road lines and (when it can be built) the hull. True when the lines layer was built."""
+    params = {
+        "INPUT": routed_network,
+        "STRATEGY": run.strategy_val,
+        "DEFAULT_SPEED": run.default_speed,
+        "TOLERANCE": 0,
+        "START_POINT": start_point,
+        "TRAVEL_COST2": band,
+        "OUTPUT_LINES": "memory:",
+    }
+    params.update(run.extra_params)
+    try:
+        output = _run_network_algorithm("native:serviceareafrompoint", params, run.context, routed_network, "Service area")
+    except _bg.AnalysisCancelled:
+        raise
+    except Exception as e:
+        run.skipped.append({"facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint", "reason": str(e)})
+        return False
+    lines_layer = output.get("OUTPUT_LINES")
+    if lines_layer is None or lines_layer.featureCount() == 0:
+        return False
+    if _reachable_network_is_degenerate(lines_layer):
+        # Never replace an existing good layer with an empty result (rc7 smoke test F05):
+        # _replace_named_layer below removes the previous layer of the same name first.
+        run.skipped.append({
+            "facility_index": i, "travel_cost": band, "stage": "serviceareafrompoint",
+            "reason": "the reachable network has zero length: the start point snapped to a "
+                      "road but nothing is reachable within travel_cost. Check travel_cost's "
+                      "unit (metres for 'shortest', hours for 'fastest') and the speed_field. "
+                      "The existing layers were left untouched.",
+        })
+        return False
+
+    lines_name = (
+        f"{run.facility_layer}_service_area_lines_{i}" if not run.is_multi_band
+        else f"{run.facility_layer}_service_area_lines_{i}_band_{band:g}"
+    )
+    _put_service_result(run, lines_name, lines_layer)
+    run.layers_created.append(lines_name)
+    try:
+        from ..map_intelligence import process_map_output
+        process_map_output(lines_layer, output_role="route_line")
+    except Exception as style_e:
+        log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_styling",
+                  error_class=type(style_e).__name__, error=True)
+    _service_area_hull(run, i, band, lines_layer, band_hulls)
+    return True
+
+
+def _service_area_hull(run, i, band, lines_layer, band_hulls):
+    """The convex hull of one band's reached roads: kept for the multi-band merge, or added (and styled) as its own layer."""
+    hull_layer = None
+    try:
+        hull = processing.run("native:convexhull", {"INPUT": lines_layer, "OUTPUT": "memory:"})
+        hull_layer = hull.get("OUTPUT")
+    except Exception as e:
+        # Match native:convexhull's Polygon-typed-sink rejection on its own
+        # constant wording ("...to layer of type Polygon") rather than the
+        # source geometry type name -- live-confirmed against real QGIS 4.2.2
+        # that this rejection's source-type name varies by exactly how the
+        # reachable network degenerates (LineString for a collinear road,
+        # GeometryCollection for other degenerate shapes; _degenerate_hull_fallback's
+        # own docstring further documents a single-Point case) -- an earlier
+        # version of this guard matched only "LineString"/"Point" and missed the
+        # GeometryCollection variant found live.
+        if "to layer of type Polygon" in str(e):
+            hull_layer = _degenerate_hull_fallback(lines_layer, band)
+        if hull_layer is None:
+            run.skipped.append({"facility_index": i, "travel_cost": band, "stage": "convexhull", "reason": str(e)})
+
+    if hull_layer is None:
+        return
+    if run.is_multi_band:
+        band_hulls.append((band, hull_layer))
+        return
+    hull_name = f"{run.facility_layer}_service_area_{i}"
+    _put_service_result(run, hull_name, hull_layer)
+    run.layers_created.append(hull_name)
+    # Live-reported, 2026-09-28: this single-band hull polygon (the
+    # common case -- one travel_cost value, not a list) was left at
+    # QGIS's raw default new-layer symbology every time -- unlike the
+    # multi-band path, which already gets apply_graduated_style, and unlike
+    # buffer_analysis's polygon output, which already gets this exact call.
+    # Same gap class as BUG-2026-09-27-3 (route line casing), just for this
+    # tool's polygon output instead of its line output.
+    try:
+        from ..map_intelligence import process_map_output
+        process_map_output(
+            hull_layer, output_role="proximity_buffer",
+            source_layer_id=run.facilities.id() if hasattr(run.facilities, "id") else None,
+        )
+    except Exception as style_e:
+        log_event("swallowed_exception", tag="Tools", tool="calculate_service_area_hull_styling",
+                  error_class=type(style_e).__name__, error=True)
+
+
+def _grade_service_area_roads(run, i, routed_network, point):
+    """Adds the cost-graded road layer for one facility and hides its plain reached-roads layers (or records why it could not)."""
+    graded_name = f"{run.facility_layer}_roads_by_cost_{i}"
+    try:
+        from . import routing_style
+        max_cost = max(run.travel_costs)
+        graded, graded_reason = _cost_graded_roads(
+            routed_network, _point_xy_in_network_crs(point, run.facilities.crs(), run.network), run.strategy,
+            run.default_speed, run.extra_params.get("SPEED_FIELD"), run.extra_params.get("DIRECTION_FIELD"),
+            run.value_forward, run.value_backward, run.value_both, run.context.ellipsoid(), max_cost, graded_name)
+        if graded is None:
+            run.notes.append(f"Roads were not graded by travel cost for facility {i}: {graded_reason}.")
+        else:
+            _put_service_result(run, graded_name, graded)
+            unit = "hours" if run.strategy == "fastest" else "meters"
+            routing_style.style_lines_by_cost(
+                graded, "travel_cost", routing_style.cost_band_edges(max_cost), unit)
+            run.styled_layers.append(graded_name)
+            _hide_layers([n for n in run.layers_created
+                          if n == f"{run.facility_layer}_service_area_lines_{i}"
+                          or n.startswith(f"{run.facility_layer}_service_area_lines_{i}_band_")])
+    except _bg.AnalysisCancelled:
+        raise
+    except Exception as grade_e:
+        run.notes.append(f"Roads were not graded by travel cost for facility {i} ({type(grade_e).__name__}: {grade_e}); "
+                         "the plain reached-roads layer is shown instead.")
+
+
+def _service_area_result(run, served_count, speed_field, direction_field, closed_segments):
+    """The success reply of calculate_service_area."""
+    result = {
+        "success": True,
+        "facility_count": served_count,
+        "travel_cost": run.travel_costs if run.is_multi_band else run.travel_costs[0],
+        "strategy": run.strategy,
+        "travel_cost_unit": "hours" if run.strategy == "fastest" else "meters",
+        "layers_created": run.layers_created,
+    }
+    if run.styled_layers:
+        result["styled_layers"] = run.styled_layers
+        result["styling_note"] = (
+            "Roads are drawn in travel-cost bands (dark = near the origin, warm = far); the plain reached-roads line layers "
+            "are hidden but kept for analysis.")
+    if run.clip_summary["facilities_clipped"]:
+        # Exact, not an approximation (see _clip_network_to_reach): worth saying so the model
+        # doesn't describe the analysis as "limited to nearby roads".
+        result["network_clipping"] = {
+            **run.clip_summary,
+            "note": "Only roads that can be reached within the requested cost were routed; the result "
+                    "is identical to routing over the whole network, just faster.",
+        }
+    if run.replaced_results:
+        result["replaced_results"] = run.replaced_results
+        extra = len(run.replaced_results) - 1
+        result["replace_note"] = ("Tell the user: " + run.replaced_results[0]["note"]
+                                  + (f" {extra} related result layer(s) of the same run were replaced the same way." if extra else ""))
+    if speed_field:
+        result["speed_field"] = speed_field
+    result.update(_closed_note(closed_segments))
+    if direction_field:
+        result["direction_field"] = direction_field
+    # rc7 smoke test F06: the result layers are memory (scratch) layers; the reply used to speak
+    # of them as saved analysis output. State the truth so the model relays it.
+    result["hull_note"] = (
+        "The '..._service_area_N' polygons are CONVEX HULLS of the reached roads -- a display outline and an "
+        "UPPER BOUND on reach (they include land between the roads). Do not sum population inside them as "
+        "'people reached'; use population_access_gap (road-buffer reach) for that."
+    )
+    result["storage_note"] = (
+        "The layers created here are temporary (in-memory) layers: they are NOT saved to disk and "
+        "are lost when QGIS closes unless exported (export_layer) or saved into a GeoPackage."
+    )
+    if run.notes:
+        result["notes"] = run.notes
+    if run.skipped:
+        result["warnings"] = (
+            f"{len(run.skipped)} facility/band combination(s) could not be fully processed -- see "
+            "'skipped' for detail. Known limitation on very small/degenerate road networks "
+            "(BUG-2026-09-05-2); real road datasets are very unlikely to hit this."
+        )
+        result["skipped"] = run.skipped
+    return result
 
 
 def _merge_band_hulls(band_hulls, output_name):
@@ -2149,7 +2198,7 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
     ellipsoid = _network_context().ellipsoid()
     matrix, unreachable = {}, 0
     origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
-    for origin_feat, origin_id in zip(origin_features, origin_ids):
+    for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
         try:
             origin_xy = _point_xy_in_network_crs(origin_feat.geometry().asPoint(), origins.crs(), network)
             dest_xys = [_point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network) for f in dest_feats]
@@ -2158,12 +2207,40 @@ def _single_tree_matrix(origins, origin_features, destinations, network, strateg
         except Exception as e:
             return {"error": f"travel_time_matrix could not build the shortest-path tree for origin '{origin_id}': {e}"}
         row = {}
-        for feat, cost in zip(dest_feats, costs):
+        for feat, cost in zip(dest_feats, costs, strict=False):
             row[str(feat.id())] = cost
             if cost is None:
                 unreachable += 1
         matrix[str(origin_id)] = row
     return {"matrix": matrix, "unreachable_count": unreachable}
+
+
+def _large_matrix_error(destinations_layer, destinations, allow_large, use_single_tree):
+    """The refusal (with a pointer to classify_facilities_by_access) for a destination layer too big for the per-destination
+    matrix path, or None when the matrix may be built."""
+    if destinations is None or allow_large or use_single_tree or _matrix_destination_count(destinations) <= MATRIX_LARGE_DESTINATIONS:
+        return None
+    # rc7 smoke test F08: 3,369 destinations took ~37 minutes after a ~6 minute graph build. (Not one
+    # shortest-path search per destination: QGIS runs a single Dijkstra per origin. The likely cost is tying every
+    # destination into the graph -- QgsVectorLayerDirector.makeGraph compares each road segment with each tie point, so
+    # it grows with segments x destinations. Source-read, not profiled.) The usual question behind such a call --
+    # which facilities are within/beyond a travel cost of an origin -- has a seconds-long answer.
+    return {"error": (
+        f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix ties every "
+        "destination into the road graph and would take a very long time. To find which facilities are "
+        "within/beyond a travel cost of an origin, call classify_facilities_by_access instead. If a full "
+        "matrix is genuinely needed, call travel_time_matrix again with allow_large=true."),
+        "suggested_tool": "classify_facilities_by_access"}
+
+
+def _with_matrix_options(result, speed_field, closed_segments, direction_field):
+    """Adds the routing options that shaped a travel-time matrix (speed field, closed-segment note, direction field) to `result`."""
+    if speed_field:
+        result["speed_field"] = speed_field
+    result.update(_closed_note(closed_segments))
+    if direction_field:
+        result["direction_field"] = direction_field
+    return result
 
 
 @register_tool(
@@ -2209,18 +2286,9 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
     destinations = _find_layer_by_name(destinations_layer)
     use_single_tree = (destinations is not None and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS
                        and single_tree_costs_available())
-    if destinations is not None and not allow_large and not use_single_tree and _matrix_destination_count(destinations) > MATRIX_LARGE_DESTINATIONS:
-        # rc7 smoke test F08: 3,369 destinations took ~37 minutes after a ~6 minute graph build. (Not one
-        # shortest-path search per destination: QGIS runs a single Dijkstra per origin. The likely cost is tying every
-        # destination into the graph -- QgsVectorLayerDirector.makeGraph compares each road segment with each tie point, so
-        # it grows with segments x destinations. Source-read, not profiled.) The usual question behind such a call --
-        # which facilities are within/beyond a travel cost of an origin -- has a seconds-long answer.
-        return {"error": (
-            f"'{destinations_layer}' has {_matrix_destination_count(destinations):,} features; travel_time_matrix ties every "
-            "destination into the road graph and would take a very long time. To find which facilities are "
-            "within/beyond a travel cost of an origin, call classify_facilities_by_access instead. If a full "
-            "matrix is genuinely needed, call travel_time_matrix again with allow_large=true."),
-            "suggested_tool": "classify_facilities_by_access"}
+    large_error = _large_matrix_error(destinations_layer, destinations, allow_large, use_single_tree)
+    if large_error:
+        return large_error
     network = _find_layer_by_name(road_network_layer)
     if origins is None:
         return {"error": f"Layer '{origins_layer}' not found"}
@@ -2262,12 +2330,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                          "segment and charged the cost to that spot, direction-aware, as QGIS's own point-to-layer tool does. "
                          "The short leg from the destination to the road is not added. Destination keys are feature ids."),
             }
-            if speed_field:
-                result["speed_field"] = speed_field
-            result.update(_closed_note(closed_segments))
-            if direction_field:
-                result["direction_field"] = direction_field
-            return result
+            return _with_matrix_options(result, speed_field, closed_segments, direction_field)
         origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
         destination_points = []
         for dest in destinations.getFeatures():
@@ -2277,7 +2340,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         # The end point is printed with limited precision: match to the nearest destination within a tiny distance.
         key_tolerance = 1e-4 if network.crs().isGeographic() else 0.1
         unmatched_keys = 0
-        for origin_feat, origin_id in zip(origin_features, origin_ids):
+        for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
             point = origin_feat.geometry().asPoint()
             params = {
                 "INPUT": network,
@@ -2328,12 +2391,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         if unmatched_keys:
             result["destination_keys_note"] = (f"{unmatched_keys} destination(s) could not be matched back to a feature id and "
                                                "keep the end-point text QGIS reported as their key.")
-        if speed_field:
-            result["speed_field"] = speed_field
-        result.update(_closed_note(closed_segments))
-        if direction_field:
-            result["direction_field"] = direction_field
-        return result
+        return _with_matrix_options(result, speed_field, closed_segments, direction_field)
     except _bg.AnalysisCancelled:
         return _cancelled_result("travel-time matrix")
     except Exception as e:
@@ -2347,7 +2405,7 @@ DEFAULT_REACH_GEOMETRY = "concave_hull"
 # through QgsGeometry.concaveHull(targetPercent, allowHoles) (QGIS >= 3.28, needs GEOS >= 3.11).
 CONCAVE_HULL_RATIO = 0.85
 REACH_LABELS = {
-    "concave_hull": "Concave hull of the reached roads (ratio %s) -- headline" % CONCAVE_HULL_RATIO,
+    "concave_hull": f"Concave hull of the reached roads (ratio {CONCAVE_HULL_RATIO}) -- headline",
     "road_buffer": "Reached roads buffered -- tight lower figure",
     "convex_hull": "Convex hull of the reached roads -- upper bound",
 }
@@ -2461,7 +2519,7 @@ def _exact_spatial_index():
     a straight road 1 m away gave 100 m) and facilities near a threshold were classified wrongly. QGIS documents this limit of an
     index without stored geometries."""
     flag_type = getattr(QgsSpatialIndex, "Flag", QgsSpatialIndex)
-    flag = getattr(flag_type, "FlagStoreFeatureGeometries")
+    flag = flag_type.FlagStoreFeatureGeometries
     try:
         return QgsSpatialIndex(flags=flag)
     except TypeError:
@@ -2587,14 +2645,13 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
 
         out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
         provider = out.dataProvider()
-        provider.addAttributes(list(facilities.fields()) + [
-            QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
+        provider.addAttributes([*list(facilities.fields()), QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
         out.updateFields()
         rows = []
-        for f, cls, d in zip(feats, classes, distances):
+        for f, cls, d in zip(feats, classes, distances, strict=False):
             nf = QgsFeature(out.fields())
             nf.setGeometry(f.geometry())
-            nf.setAttributes(list(f.attributes()) + [cls, None if d is None else round(d, 1)])
+            nf.setAttributes([*list(f.attributes()), cls, None if d is None else round(d, 1)])
             rows.append(nf)
         provider.addFeatures(rows)
         out.updateExtents()
@@ -2622,7 +2679,7 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         name_field = next((fld.name() for fld in facilities.fields() if fld.name().lower() in ("name", "name_en")), None)
         beyond_names = []
         if name_field:
-            beyond_names = [str(f[name_field]) for f, c in zip(feats, classes) if c == "beyond" and f[name_field]][:25]
+            beyond_names = [str(f[name_field]) for f, c in zip(feats, classes, strict=False) if c == "beyond" and f[name_field]][:25]
         summary = _access_summary(classes)
         result = {
             "success": True,
@@ -2646,6 +2703,81 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         return result
     except Exception as e:
         return {"error": f"classify_facilities_by_access failed: {e}"}
+
+
+def _build_reach_polygon(method, name, line_layers, hull_layers, reach_buffer_m):
+    """(reach polygon layer, explanatory note) for one reach method; raises RuntimeError when its inputs are missing."""
+    if method == "road_buffer":
+        if not line_layers:
+            raise RuntimeError("no reached-road layer to buffer")
+        return _road_reach_polygon(line_layers, reach_buffer_m, name), ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
+    if method == "concave_hull":
+        if not line_layers:
+            raise RuntimeError("no reached-road layer to build a concave hull from")
+        return _concave_reach_polygon(line_layers, CONCAVE_HULL_RATIO, name), CONCAVE_HULL_REACH_NOTE.format(r=CONCAVE_HULL_RATIO)
+    if not hull_layers:
+        raise RuntimeError("no reachable-area polygons for the convex hull")
+    if len(hull_layers) > 1:
+        merged = processing.run(
+            "native:mergevectorlayers",
+            {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
+        )["OUTPUT"]
+    else:
+        merged = hull_layers[0]
+    # Dissolve away overlaps between facilities' service areas -- a location reachable from two
+    # facilities must only count once.
+    reachable = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})["OUTPUT"]
+    reachable.setName(name)
+    return reachable, CONVEX_HULL_REACH_NOTE
+
+
+def _reach_figure(method, layer_name, *, base_name, reach_geometry, line_layers, hull_layers, reach_buffer_m, area, area_layer,
+                  facility_layer, population_raster_layer):
+    """The population figure for one reach method, or {"available": False, "reason": ...} when it could not be computed."""
+    from .raster_tools import estimate_population_exposure
+    try:
+        reachable, note = _build_reach_polygon(method, layer_name, line_layers, hull_layers, reach_buffer_m)
+        _replace_named_layer(layer_name, reachable, to_tree=False)   # grouped later, with the headline on top
+        within_name = f"{area_layer}_reachable_by_{facility_layer}" if method == reach_geometry \
+            else f"{area_layer}_reachable_by_{facility_layer}_{method}"
+        within = processing.run(
+            "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"})["OUTPUT"]
+        _replace_named_layer(within_name, within, to_tree=False)
+        # A zero-feature intersection means literally 0 people are covered -- handled explicitly rather than
+        # trusting zonal statistics against an empty layer.
+        if within.featureCount() == 0:
+            reachable_pop = 0.0
+        else:
+            pop_result = estimate_population_exposure(population_raster_layer, within_name)
+            if "error" in pop_result:
+                raise RuntimeError(pop_result["error"])
+            reachable_pop = pop_result["total_population"]
+        return {"layer": layer_name, "within_layer": within_name, "note": note,
+                "reachable_population": reachable_pop, "_reach": reachable, "_within": within}
+    except Exception as e:
+        return {"available": False, "reason": str(e)}
+
+
+def _style_reach_figures(figures, headline, facility_layer):
+    # Visualization: distinct translucent colours, one group with the headline on top and visible, the other figures hidden.
+    try:
+        from . import routing_style
+        groupable = {m: f["_reach"] for m, f in figures.items() if "_reach" in f}
+        for m, lyr in groupable.items():
+            routing_style.style_reach_polygon(lyr, m)
+        routing_style.group_reach_layers(
+            groupable, headline, facility_layer,
+            extra_hidden=[f["_within"] for f in figures.values() if "_within" in f])
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="population_access_gap_styling",
+                  error_class=type(e).__name__, error=True)
+        # The layers were added without a tree node; make sure they are still visible.
+        for f in figures.values():
+            for key in ("_reach", "_within"):
+                lyr = f.get(key)
+                with contextlib.suppress(Exception):
+                    if lyr is not None and QgsProject.instance().layerTreeRoot().findLayer(lyr.id()) is None:
+                        QgsProject.instance().layerTreeRoot().addLayer(lyr)
 
 
 @register_tool(
@@ -2727,54 +2859,12 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
 
     base_name = f"{facility_layer}_reachable_area"
 
-    def build_reach(method, name):
-        if method == "road_buffer":
-            if not line_layers:
-                raise RuntimeError("no reached-road layer to buffer")
-            return _road_reach_polygon(line_layers, reach_buffer_m, name), ROAD_BUFFER_REACH_NOTE.format(m=reach_buffer_m)
-        if method == "concave_hull":
-            if not line_layers:
-                raise RuntimeError("no reached-road layer to build a concave hull from")
-            return _concave_reach_polygon(line_layers, CONCAVE_HULL_RATIO, name), CONCAVE_HULL_REACH_NOTE.format(r=CONCAVE_HULL_RATIO)
-        if not hull_layers:
-            raise RuntimeError("no reachable-area polygons for the convex hull")
-        if len(hull_layers) > 1:
-            merged = processing.run(
-                "native:mergevectorlayers",
-                {"LAYERS": hull_layers, "CRS": hull_layers[0].crs().authid(), "OUTPUT": "memory:"},
-            )["OUTPUT"]
-        else:
-            merged = hull_layers[0]
-        # Dissolve away overlaps between facilities' service areas -- a location reachable from two
-        # facilities must only count once.
-        reachable = processing.run("native:dissolve", {"INPUT": merged, "FIELD": [], "OUTPUT": "memory:"})["OUTPUT"]
-        reachable.setName(name)
-        return reachable, CONVEX_HULL_REACH_NOTE
-
     figures = {}
     for method in REACH_METHODS:
         layer_name = base_name if method == reach_geometry else f"{base_name}_{method}"
-        try:
-            reachable, note = build_reach(method, layer_name)
-            _replace_named_layer(layer_name, reachable, to_tree=False)   # grouped below, with the headline on top
-            within_name = f"{area_layer}_reachable_by_{facility_layer}" if method == reach_geometry \
-                else f"{area_layer}_reachable_by_{facility_layer}_{method}"
-            within = processing.run(
-                "native:intersection", {"INPUT": area, "OVERLAY": reachable, "OUTPUT": "memory:"})["OUTPUT"]
-            _replace_named_layer(within_name, within, to_tree=False)
-            # A zero-feature intersection means literally 0 people are covered -- handled explicitly rather than
-            # trusting zonal statistics against an empty layer.
-            if within.featureCount() == 0:
-                reachable_pop = 0.0
-            else:
-                pop_result = estimate_population_exposure(population_raster_layer, within_name)
-                if "error" in pop_result:
-                    raise RuntimeError(pop_result["error"])
-                reachable_pop = pop_result["total_population"]
-            figures[method] = {"layer": layer_name, "within_layer": within_name, "note": note,
-                               "reachable_population": reachable_pop, "_reach": reachable, "_within": within}
-        except Exception as e:
-            figures[method] = {"available": False, "reason": str(e)}
+        figures[method] = _reach_figure(method, layer_name, base_name=base_name, reach_geometry=reach_geometry, line_layers=line_layers,
+                                        hull_layers=hull_layers, reach_buffer_m=reach_buffer_m, area=area, area_layer=area_layer,
+                                        facility_layer=facility_layer, population_raster_layer=population_raster_layer)
 
     headline = reach_geometry
     if "reachable_population" not in figures.get(headline, {}):
@@ -2803,27 +2893,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         })
     available = [f["reachable_population"] for f in reach_figures if f.get("reachable_population") is not None]
 
-    # Visualization: distinct translucent colours, one group with the headline on top and visible, the other figures hidden.
-    try:
-        from . import routing_style
-        groupable = {m: f["_reach"] for m, f in figures.items() if "_reach" in f}
-        for m, lyr in groupable.items():
-            routing_style.style_reach_polygon(lyr, m)
-        routing_style.group_reach_layers(
-            groupable, headline, facility_layer,
-            extra_hidden=[f["_within"] for f in figures.values() if "_within" in f])
-    except Exception as e:
-        log_event("swallowed_exception", tag="Tools", tool="population_access_gap_styling",
-                  error_class=type(e).__name__, error=True)
-        # The layers were added without a tree node; make sure they are still visible.
-        for f in figures.values():
-            for key in ("_reach", "_within"):
-                lyr = f.get(key)
-                try:
-                    if lyr is not None and QgsProject.instance().layerTreeRoot().findLayer(lyr.id()) is None:
-                        QgsProject.instance().layerTreeRoot().addLayer(lyr)
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
+    _style_reach_figures(figures, headline, facility_layer)
 
     head = figures[headline]
     reachable_population = head["reachable_population"]

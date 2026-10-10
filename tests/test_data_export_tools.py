@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/data_export_tools.py -- the registered-tool
 surface over agent/data_export.py (GDPR review findings F7/F8). Mocks the
 live memory-manager accessor and chat_persistence directly, matching

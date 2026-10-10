@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A fresh full request typed while a question is open is not an answer to it (rc15/rc17 hand tests, 2026-10-06)."""
 import unittest
 

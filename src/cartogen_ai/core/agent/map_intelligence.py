@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Map Intelligence Engine & Chat Action Registry for Cartogen AI.
 
@@ -15,7 +14,7 @@ Responsibilities:
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar
 
 try:
     from qgis.core import (
@@ -43,11 +42,11 @@ except ImportError:
 class MapOutputDescriptor:
     layer_id: str
     output_role: str  # 'proximity_buffer', 'administrative_boundary', 'facilities', 'thematic_choropleth', 'hazard_extent', 'selection_overlay', 'route_line'
-    source_layer_id: Optional[str] = None
+    source_layer_id: str | None = None
     geometry_role: str = "operational_overlay"  # 'focal_point', 'context_overlay', 'boundary', 'raster_dem', 'hillshade'
-    recommended_label_field: Optional[str] = None
-    style_profile: Optional[str] = None
-    properties: Dict[str, Any] = field(default_factory=dict)
+    recommended_label_field: str | None = None
+    style_profile: str | None = None
+    properties: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -59,19 +58,19 @@ class ChatAction:
     id: str
     kind: str  # 'export', 'zoom', 'set_transparency', 'apply_style', 'label_layer', 'undo'
     label: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     safety: str = "dialog"  # 'immediate', 'dialog', 'confirm'
-    project_id: Optional[str] = None
+    project_id: str | None = None
     expires_on_project_change: bool = True
 
 
 class ChatActionRegistry:
     """In-memory session registry mapping opaque IDs (act_...) to validated actions."""
 
-    _actions: Dict[str, ChatAction] = {}
+    _actions: ClassVar[dict[str, ChatAction]] = {}
 
     @classmethod
-    def register(cls, kind: str, label: str, payload: Dict[str, Any], safety: str = "dialog") -> str:
+    def register(cls, kind: str, label: str, payload: dict[str, Any], safety: str = "dialog") -> str:
         act_id = f"act_{uuid.uuid4().hex[:8]}"
         project_id = None
         if QGIS_AVAILABLE and QgsProject.instance():
@@ -88,7 +87,7 @@ class ChatActionRegistry:
         return act_id
 
     @classmethod
-    def get(cls, act_id: str) -> Optional[ChatAction]:
+    def get(cls, act_id: str) -> ChatAction | None:
         action = cls._actions.get(act_id)
         if not action:
             return None
@@ -378,10 +377,10 @@ def _apply_line_component_symbology(layer: 'QgsVectorLayer', descriptor: MapOutp
 
 def configure_intelligent_labels(
     layer: 'QgsVectorLayer',
-    field_name: Optional[str] = None,
+    field_name: str | None = None,
     priority: int = 5,
-    min_scale: Optional[float] = None,
-    max_scale: Optional[float] = None,
+    min_scale: float | None = None,
+    max_scale: float | None = None,
 ) -> bool:
     """Configures high-quality PAL labeling with halos, obstacle boundaries, and scale thresholds."""
     if not QGIS_AVAILABLE or not isinstance(layer, QgsVectorLayer) or not field_name:
@@ -449,9 +448,9 @@ def configure_intelligent_labels(
 # 6. Map Quality Evaluator
 # ---------------------------------------------------------------------------
 
-def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> List[Dict[str, Any]]:
+def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> list[dict[str, Any]]:
     """Evaluates canvas readability and structural correctness after layer generation."""
-    findings = []
+    findings: list = []
     if not QGIS_AVAILABLE or not layer:
         return findings
 
@@ -486,20 +485,20 @@ def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) 
             })
 
     # Check 3: Full Opaque Polygon Fill Covering Map
-    if isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry:
-        if layer.opacity() >= 0.9:
-            renderer = layer.renderer()
-            if isinstance(renderer, QgsSingleSymbolRenderer):
-                sym = renderer.symbol()
-                if sym and sym.symbolLayerCount() > 0:
-                    sl = sym.symbolLayer(0)
-                    if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
-                        findings.append({
-                            "code": "OVERLAY_OCCLUSION",
-                            "severity": "warning",
-                            "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
-                            "repair_action": "apply_translucent_fill",
-                        })
+    if (isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry
+            and layer.opacity() >= 0.9):
+        renderer = layer.renderer()
+        if isinstance(renderer, QgsSingleSymbolRenderer):
+            sym = renderer.symbol()
+            if sym and sym.symbolLayerCount() > 0:
+                sl = sym.symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
+                    findings.append({
+                        "code": "OVERLAY_OCCLUSION",
+                        "severity": "warning",
+                        "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
+                        "repair_action": "apply_translucent_fill",
+                    })
 
     return findings
 
@@ -511,11 +510,11 @@ def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) 
 def process_map_output(
     layer: 'QgsMapLayer',
     output_role: str,
-    source_layer_id: Optional[str] = None,
-    recommended_label_field: Optional[str] = None,
-    style_profile: Optional[str] = None,
-    properties: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    source_layer_id: str | None = None,
+    recommended_label_field: str | None = None,
+    style_profile: str | None = None,
+    properties: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Single post-processing service invoked whenever a layer is created or substantially modified."""
     # Design-state memory (§1.16 "smart mapping" -- see map_state_memory.py's module
     # docstring): if a PRIOR call already produced this output_role in this project and

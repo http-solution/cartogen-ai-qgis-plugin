@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Small shared in-memory TTL cache for the grounded-search provider calls
 (gemini.py/openai.py's grounded_search()) -- both are real, billed LLM API

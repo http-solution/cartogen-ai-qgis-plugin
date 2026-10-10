@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Which typed chat replies may answer which kind of pending question -- Qt-free so it can be unit
 tested (same reasoning as chat_formatting.py and icons.py's pure half).

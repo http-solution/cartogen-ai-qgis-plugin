@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Export & Reporting Tools for Cartogen AI.
 """
 
+import types
 import os
 import json
 import tempfile
@@ -14,6 +14,7 @@ from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
+import contextlib
 
 try:
     from qgis.core import (
@@ -220,7 +221,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 # is a re-run and needs no question; replacing a file that was already on disk, or one edited or swapped since, does. rc17 hand test A6
 # (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
 # stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
-_WRITTEN_THIS_SESSION = {}
+_WRITTEN_THIS_SESSION: dict = {}
 _DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml")
 
 
@@ -325,7 +326,7 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
         "kml": ("KML", ".kml", "KML (*.kml)"),
     }
     fmt_key = format.lower()
-    driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
+    driver, ext, _filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
 
     # No blocking QFileDialog here -- this tool is called by the LLM agent's unattended
     # tool-calling loop (agent/agent_orchestrator.py), not only from direct human UI interaction. A
@@ -375,7 +376,7 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
     reported as its own error rather than silently leaving unsanitized output in place."""
     import csv
     try:
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+        with open(csv_path, newline="", encoding="utf-8-sig") as f:
             rows = list(csv.reader(f))
         if not rows:
             return None
@@ -918,7 +919,7 @@ def _resolve_popup_kwargs(folium_module, name, features, popup_fields, popup_lab
         popup_fields = [f for f in popup_fields if not str(f).startswith("__cartogen_")]
     if not popup_fields and features:
         popup_fields = [
-            k for k in features[0].get("properties", {}).keys()
+            k for k in features[0].get("properties", {})
             if not str(k).startswith("__cartogen_")
         ]
     if popup_fields and len(popup_fields) > _MAX_DASHBOARD_POPUP_FIELDS:
@@ -990,7 +991,7 @@ CLUSTER_MIN_POINTS = 100
 # folium 0.20 loads Leaflet.markercluster 1.1.0 from cdnjs; the F12 browser check used 1.5.3 (the current cdnjs
 # release, which needs Leaflet >= 1.0). Point the plugin at the tested version instead of an untested one.
 MARKERCLUSTER_VERSION = "1.5.3"
-_MARKERCLUSTER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/%s/" % MARKERCLUSTER_VERSION
+_MARKERCLUSTER_CDN = f"https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/{MARKERCLUSTER_VERSION}/"
 
 
 def _pinned_marker_cluster():
@@ -1124,7 +1125,7 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
                     ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                 )
 
-                def style_function(feat, _cmap=colormap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
+                def style_function(feat, _cmap=colormap, _field=color_field):
                     val = feat["properties"].get(_field)
                     return {
                         "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
@@ -1338,7 +1339,7 @@ def _build_trend_chart_data(layer_chart_inputs):
         if not category_field:
             continue
         any_category_field = True
-        for feat, location_value, start_ms in zip(features, location_values, start_ms_list):
+        for feat, location_value, start_ms in zip(features, location_values, start_ms_list, strict=False):
             if start_ms is None:
                 continue
             category = feat.get("properties", {}).get(category_field)
@@ -1376,6 +1377,109 @@ def _json_for_inline_script(value):
     U+2028/U+2029 JS line-terminator characters that are the other classic
     gotcha here, so nothing extra is needed for those.)"""
     return json.dumps(value).replace("</", "<\\/")
+
+
+def _add_static_overlay(folium, m, layer, popup):
+    """A layer without start_field: an ordinary always-visible overlay (a choropleth when color_field is numeric)."""
+    name = layer["name"]
+    geojson = layer.get("geojson", {})
+    features = geojson.get("features", [])
+    # Static reference layer -- same choropleth-or-plain rendering
+    # _build_dashboard_html uses, inlined here since this is its
+    # only other caller.
+    color_field = layer.get("color_field")
+    style_function = None
+    if color_field and features:
+        values = [
+            f["properties"][color_field] for f in features
+            if isinstance(f.get("properties", {}).get(color_field), (int, float))
+        ]
+        if values:
+            import branca.colormap as branca_cm
+            cmap = branca_cm.LinearColormap(
+                ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
+            )
+
+            def style_function(feat, _cmap=cmap, _field=color_field):
+                val = feat["properties"].get(_field)
+                return {
+                    "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
+                    "color": "black", "weight": 1, "fillOpacity": 0.6,
+                }
+    gj_kwargs = {"name": name}
+    if popup is not None:
+        gj_kwargs["popup"] = popup
+    if style_function:
+        gj_kwargs["style_function"] = style_function
+    folium.GeoJson(geojson, **gj_kwargs).add_to(m)
+
+
+def _add_temporal_overlay(folium, m, layer, popup, warnings, acc):
+    """A layer with start_field: bakes each feature's window, colour and location into its properties and adds it (clustered when large)."""
+    name = layer["name"]
+    geojson = layer.get("geojson", {})
+    features = geojson.get("features", [])
+    start_field = layer.get("start_field")
+    # Temporal layer: bake each feature's window + color + location into
+    # its own properties so the client-side slider JS can restyle/
+    # toggle/filter it without recomputing anything (see module
+    # docstring above on why colors are baked in Python rather than
+    # recolored live in JS).
+    location_field = layer.get("location_field")
+    colors = _resolve_temporal_colors(
+        name, features, layer.get("category_field"), layer.get("color_field"), warnings,
+    )
+    bounds = _resolve_temporal_bounds(features, start_field, layer.get("end_field"), name, warnings)
+    location_values = _resolve_feature_locations(features, location_field)
+
+    new_features = []
+    for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values, strict=False):
+        props = dict(feat.get("properties", {}))
+        props["__cartogen_start_ms"] = start_ms
+        props["__cartogen_end_ms"] = end_ms
+        props["__cartogen_color"] = color
+        props["__cartogen_location"] = None if location_value is None else str(location_value)
+        new_features.append({**feat, "properties": props})
+        if start_ms is not None:
+            acc.all_start_ms.append(start_ms)
+        if end_ms is not None:
+            acc.all_end_ms.append(end_ms)
+        if location_value is not None:
+            acc.all_locations.add(str(location_value))
+    temporal_geojson = {**geojson, "features": new_features}
+
+    acc.chart_inputs.append((features, layer.get("category_field"), location_values, [s for s, _e in bounds]))
+
+    def _cartogen_temporal_style(feat):
+        return {
+            "fillColor": feat["properties"].get("__cartogen_color", "#3388ff"),
+            "color": "#333333", "weight": 1, "fillOpacity": 0.6, "opacity": 1,
+        }
+
+    gj_kwargs = {
+        "name": name, "style_function": _cartogen_temporal_style,
+        "marker": folium.CircleMarker(radius=layer.get("marker_radius") or 6, fill=True),
+    }
+    if popup is not None:
+        gj_kwargs["popup"] = popup
+    gj = folium.GeoJson(temporal_geojson, **gj_kwargs)
+    if _should_cluster(features):
+        # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
+        # its opacity, which a cluster would still count, so the page script rebuilds this cluster
+        # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
+        MarkerCluster = _pinned_marker_cluster()
+        cluster = MarkerCluster(name=name).add_to(m)
+        gj.add_to(cluster)
+        acc.cluster_js_vars.append(cluster.get_name())
+        warnings.append(
+            f"'{name}': {len(features):,} points are drawn as clusters of the features active at the "
+            "selected date (cluster bubbles use the default colours; individual markers keep their "
+            "category colours once you zoom in)."
+        )
+    else:
+        gj.add_to(m)
+        acc.cluster_js_vars.append("null")
+    acc.temporal_js_vars.append(gj.get_name())
 
 
 def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=None, backdrop=None):
@@ -1494,113 +1598,22 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
     if basemap_warning:
         warnings.append(basemap_warning)
 
-    temporal_js_vars = []
-    cluster_js_vars = []     # parallel to temporal_js_vars: a MarkerCluster's JS name, or "null"
-    all_start_ms, all_end_ms = [], []
-    all_locations = set()
-    chart_inputs = []
+    acc = types.SimpleNamespace(
+        temporal_js_vars=[],
+        cluster_js_vars=[],     # parallel to temporal_js_vars: a MarkerCluster's JS name, or "null"
+        all_start_ms=[], all_end_ms=[], all_locations=set(), chart_inputs=[])
 
     for layer in layers:
-        name = layer["name"]
-        geojson = layer.get("geojson", {})
-        features = geojson.get("features", [])
-        start_field = layer.get("start_field")
-
         popup = _resolve_popup_kwargs(
-            folium, name, features, layer.get("popup_fields"), layer.get("popup_labels"), warnings,
+            folium, layer["name"], layer.get("geojson", {}).get("features", []), layer.get("popup_fields"),
+            layer.get("popup_labels"), warnings,
         )
-
-        if not start_field:
-            # Static reference layer -- same choropleth-or-plain rendering
-            # _build_dashboard_html uses, inlined here since this is its
-            # only other caller.
-            color_field = layer.get("color_field")
-            style_function = None
-            if color_field and features:
-                values = [
-                    f["properties"][color_field] for f in features
-                    if isinstance(f.get("properties", {}).get(color_field), (int, float))
-                ]
-                if values:
-                    import branca.colormap as branca_cm
-                    cmap = branca_cm.LinearColormap(
-                        ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
-                    )
-
-                    def style_function(feat, _cmap=cmap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
-                        val = feat["properties"].get(_field)
-                        return {
-                            "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
-                            "color": "black", "weight": 1, "fillOpacity": 0.6,
-                        }
-            gj_kwargs = {"name": name}
-            if popup is not None:
-                gj_kwargs["popup"] = popup
-            if style_function:
-                gj_kwargs["style_function"] = style_function
-            folium.GeoJson(geojson, **gj_kwargs).add_to(m)
-            continue
-
-        # Temporal layer: bake each feature's window + color + location into
-        # its own properties so the client-side slider JS can restyle/
-        # toggle/filter it without recomputing anything (see module
-        # docstring above on why colors are baked in Python rather than
-        # recolored live in JS).
-        location_field = layer.get("location_field")
-        colors = _resolve_temporal_colors(
-            name, features, layer.get("category_field"), layer.get("color_field"), warnings,
-        )
-        bounds = _resolve_temporal_bounds(features, start_field, layer.get("end_field"), name, warnings)
-        location_values = _resolve_feature_locations(features, location_field)
-
-        new_features = []
-        for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values):
-            props = dict(feat.get("properties", {}))
-            props["__cartogen_start_ms"] = start_ms
-            props["__cartogen_end_ms"] = end_ms
-            props["__cartogen_color"] = color
-            props["__cartogen_location"] = None if location_value is None else str(location_value)
-            new_features.append({**feat, "properties": props})
-            if start_ms is not None:
-                all_start_ms.append(start_ms)
-            if end_ms is not None:
-                all_end_ms.append(end_ms)
-            if location_value is not None:
-                all_locations.add(str(location_value))
-        temporal_geojson = {**geojson, "features": new_features}
-
-        chart_inputs.append((features, layer.get("category_field"), location_values, [s for s, _e in bounds]))
-
-        def _cartogen_temporal_style(feat):
-            return {
-                "fillColor": feat["properties"].get("__cartogen_color", "#3388ff"),
-                "color": "#333333", "weight": 1, "fillOpacity": 0.6, "opacity": 1,
-            }
-
-        gj_kwargs = {
-            "name": name, "style_function": _cartogen_temporal_style,
-            "marker": folium.CircleMarker(radius=layer.get("marker_radius") or 6, fill=True),
-        }
-        if popup is not None:
-            gj_kwargs["popup"] = popup
-        gj = folium.GeoJson(temporal_geojson, **gj_kwargs)
-        if _should_cluster(features):
-            # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
-            # its opacity, which a cluster would still count, so the page script rebuilds this cluster
-            # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
-            MarkerCluster = _pinned_marker_cluster()
-            cluster = MarkerCluster(name=name).add_to(m)
-            gj.add_to(cluster)
-            cluster_js_vars.append(cluster.get_name())
-            warnings.append(
-                f"'{name}': {len(features):,} points are drawn as clusters of the features active at the "
-                "selected date (cluster bubbles use the default colours; individual markers keep their "
-                "category colours once you zoom in)."
-            )
+        if not layer.get("start_field"):
+            _add_static_overlay(folium, m, layer, popup)
         else:
-            gj.add_to(m)
-            cluster_js_vars.append("null")
-        temporal_js_vars.append(gj.get_name())
+            _add_temporal_overlay(folium, m, layer, popup, warnings, acc)
+    temporal_js_vars, cluster_js_vars = acc.temporal_js_vars, acc.cluster_js_vars
+    all_start_ms, all_end_ms, all_locations, chart_inputs = acc.all_start_ms, acc.all_end_ms, acc.all_locations, acc.chart_inputs
 
     folium.LayerControl().add_to(m)
 
@@ -2041,7 +2054,7 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
     write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
     if "error" in write_res:
         return None, write_res
-    with open(tmp_path, "r", encoding="utf-8") as f:
+    with open(tmp_path, encoding="utf-8") as f:
         return json.load(f), None
 
 
@@ -2118,7 +2131,7 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({
@@ -2170,10 +2183,8 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
         return {"error": f"generate_html_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _temp_html_path():
@@ -2314,7 +2325,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({
@@ -2360,10 +2371,8 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
         return {"error": f"generate_temporal_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _compute_animation_frame_epochs(min_ms, max_ms, step_days):

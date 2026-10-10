@@ -1,3 +1,4 @@
+import contextlib
 import json
 import time
 from .base import (
@@ -107,10 +108,8 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
     def _emit_status(self, text):
         self.last_status = text
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):
         headers = {
@@ -139,7 +138,7 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
 
     def _request_with_fallback(self, messages, tools, max_tokens=None):
         chain = self._model_chain()
-        for cycle in range(MAX_FULL_CYCLES):
+        for _cycle in range(MAX_FULL_CYCLES):
             any_rate_limited = False
             for idx, model_id in enumerate(chain):
                 self.current_index = idx

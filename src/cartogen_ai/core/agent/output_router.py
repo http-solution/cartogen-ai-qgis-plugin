@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Make the answer come back in the shape the task promised.
 
 task_matcher.output_contract() says what a request should turn into -- a
@@ -104,11 +103,11 @@ def followup_instruction(contract, executed_tools, already_retried=False, has_la
     writer = file_io.writer_for(kind) or (needed[0] if needed else "apply_categorized_style")
     artifact = file_io.artifact_sentence(kind)
     return (
-        "The deliverable for this task is %s, and it has not been produced yet. "
+        f"The deliverable for this task is {artifact}, and it has not been produced yet. "
         "Using the layers and results already in the project from the previous "
-        "step, call %s now to produce it. Do not redo the analysis, and do not "
+        f"step, call {writer} now to produce it. Do not redo the analysis, and do not "
         "answer in prose instead -- if a required argument is genuinely missing, "
-        "say which one and stop." % (artifact, writer)
+        "say which one and stop."
     )
 
 
@@ -123,11 +122,10 @@ def delivery_note(contract, executed_tools):
     kind = contract.get("kind")
     artifact = file_io.artifact_sentence(kind)
     if kind in _NO_RENDER:
-        return "Delivered: %s." % artifact
+        return f"Delivered: {artifact}."
     if satisfied(contract, executed_tools):
-        return "Delivered: %s." % artifact
-    return ("Expected %s for this task, but the step that writes it did not run."
-            % artifact)
+        return f"Delivered: {artifact}."
+    return (f"Expected {artifact} for this task, but the step that writes it did not run.")
 
 
 def describe_contract(contract):
@@ -135,7 +133,7 @@ def describe_contract(contract):
     if not contract:
         return ""
     kind = contract.get("kind")
-    line = "Output: %s -- %s." % (kind, file_io.artifact_sentence(kind))
+    line = f"Output: {kind} -- {file_io.artifact_sentence(kind)}."
     if contract.get("overridden"):
         line += " (You asked for this explicitly; it overrides the task default.)"
     return line

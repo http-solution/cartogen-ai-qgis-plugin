@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Reporting & Document Analysis Tools for Cartogen AI.
 Statistical charting, structured table extraction from PDF/Word documents,
@@ -41,7 +40,7 @@ def _apply_pie_slice_cap(labels, values, max_slices=_PIE_MAX_SLICES):
     actually the smallest meaningful grouping. Pure Python, no matplotlib needed."""
     if len(labels) <= max_slices:
         return labels, values, None
-    paired = sorted(zip(labels, values), key=lambda lv: lv[1], reverse=True)
+    paired = sorted(zip(labels, values, strict=False), key=lambda lv: lv[1], reverse=True)
     kept = paired[: max_slices - 1]
     rest = paired[max_slices - 1 :]
     other_total = sum(v for _, v in rest)
@@ -173,7 +172,7 @@ def extract_pdf_tables(file_path, page=None):
                         continue
                     header, *data_rows = table
                     header = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(header)]
-                    rows = [dict(zip(header, row)) for row in data_rows]
+                    rows = [dict(zip(header, row, strict=False)) for row in data_rows]
                     tables_found.append({
                         "page": start_index + offset,
                         "columns": header,
@@ -218,7 +217,7 @@ def extract_word_tables(file_path):
                 continue
             header, *data_rows = grid
             header = [h if h else f"col_{i}" for i, h in enumerate(header)]
-            rows = [dict(zip(header, row)) for row in data_rows]
+            rows = [dict(zip(header, row, strict=False)) for row in data_rows]
             tables_found.append({"columns": header, "row_count": len(rows), "rows": rows})
 
         if not tables_found:
@@ -239,7 +238,7 @@ def _read_tabular_rows(file_path, sheet_name=None, delimiter=","):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
         import csv
-        with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+        with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
             rows = list(reader)
             return rows, list(reader.fieldnames or [])

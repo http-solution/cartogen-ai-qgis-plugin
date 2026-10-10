@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for tidy_project_layers (GitHub #120 / #128). Written without a QGIS install: CI's first run is their first
 execution."""
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for owned, checked attribute edits and SI measurements (audit F05, F07, F08 -> GitHub #141, #143, #144).
 Written without a QGIS install: CI's first run is their first execution."""
 import unittest

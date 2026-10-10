@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Project notes & memory dialog -- Broadsheet redesign Phase 1, mockup state 1o
 ("Project notes & memory ... editable and exportable", the same "← back" dialog
 pattern settings_dialog.py already established for Settings, 1n). Rehouses the old
@@ -144,9 +143,9 @@ class CartogenAiMemoryDialog(QDialog):
         stored = len(chat_persistence.load_chat_transcript())
         reply = QMessageBox.question(
             self, "Clear Saved Chat",
-            ("Permanently delete the conversation saved in this project's file (%d messages)?\n\n"
+            (f"Permanently delete the conversation saved in this project's file ({stored} messages)?\n\n"
              "The conversation on screen is not affected, and copies of the project file that were already "
-             "shared keep their own copy." % stored),
+             "shared keep their own copy."),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -155,7 +154,7 @@ class CartogenAiMemoryDialog(QDialog):
         if result.get("success"):
             QMessageBox.information(
                 self, "Clear Saved Chat",
-                "Deleted %d saved messages from this project. Save the project to keep the change." % result.get("removed", 0))
+                f"Deleted {result.get('removed', 0)} saved messages from this project. Save the project to keep the change.")
         else:
             QMessageBox.warning(self, "Clear Saved Chat", "Could not delete the saved conversation.")
 
@@ -197,7 +196,7 @@ class CartogenAiMemoryDialog(QDialog):
             return
         learned = {
             k: v for k, v in notes.items()
-            if k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:")
+            if k.startswith(("pref:", "rule:", "usage:"))
         }
         self.learned_items_combo.blockSignals(True)
         self.learned_items_combo.clear()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Onboarding profile for Cartogen AI -- a short, narrative first-use questionnaire (role/use-case,
 QGIS experience level, communication style), requested directly 2026-09-12 ("optimize the user
@@ -22,6 +21,7 @@ QGIS_AVAILABLE-guarded throughout (same convention as memory.py/prompt_refiner.p
 formatting/parsing logic stays unit-testable without a QGIS install.
 """
 
+import contextlib
 import os
 import re
 
@@ -83,12 +83,10 @@ def _profile_base_dir():
     location outside QGIS (tests, or the rare case qgisSettingsDirPath() itself fails), mirroring
     memory.py's _get_db_path() home-dir fallback pattern."""
     if QGIS_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             base = QgsApplication.qgisSettingsDirPath()
             if base:
                 return os.path.join(base, "cartogen_ai")
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     return os.path.join(os.path.expanduser("~"), ".cartogen_ai")
 
 
@@ -113,10 +111,8 @@ def mark_onboarding_completed():
     user has SEEN the offer and chosen not to fill it in; it should not nag again next launch."""
     if not QGIS_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().setValue(ONBOARDING_COMPLETED_KEY, True)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def save_onboarding_profile(role, role_other, experience, style):
@@ -162,7 +158,7 @@ def load_onboarding_profile():
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
     except OSError:
         return None

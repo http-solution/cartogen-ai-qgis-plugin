@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the rc8-audit fixes (runs only where qgis.core exists: the CI `qgis-live-tests` job).
 
 Written WITHOUT a QGIS install: the first CI run is their first execution. Each class names the finding it guards."""
+import pathlib
 import os
 import unittest
 
@@ -46,7 +46,7 @@ class TestConcaveReachPolygon(unittest.TestCase):
         # so a concave hull that follows the roads must be smaller. (The first version used an L, whose convex hull is
         # already as tight as any hull can be: CI showed equal areas.)
         lines = []
-        for i in range(0, 11):
+        for i in range(11):
             lines.append(f"LINESTRING({i * 0.1} 0, {i * 0.1 + 0.1} 0)")
             lines.append(f"LINESTRING(0 {i * 0.1}, 0 {i * 0.1 + 0.1})")
             lines.append(f"LINESTRING(1.1 {i * 0.1}, 1.1 {i * 0.1 + 0.1})")
@@ -92,7 +92,7 @@ class TestDashboardBackdrop(unittest.TestCase):
         out = os.path.join(tempfile.mkdtemp(), "d.html")
         res = generate_html_dashboard([{"layer_name": "Clinics"}], output_path=out, basemap="none", backdrop_layer="Yemen")
         self.assertNotIn("error", res, res)
-        html = open(out, encoding="utf-8").read()
+        html = pathlib.Path(out).read_text(encoding="utf-8")
         self.assertIn("#eeeae0", html)
         self.assertNotIn("tile_layer", html)
 
@@ -185,7 +185,7 @@ class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
 
     def _single(self, strategy):
         from cartogen_ai.core.agent.tools import logistics_tools as lt
-        feats = [f for f in self.origin.getFeatures()]
+        feats = list(self.origin.getFeatures())
         out = lt._single_tree_matrix(self.origin, feats, self.dests, self.roads, strategy, 50, None, None, "yes", "-1", "no")
         self.assertNotIn("error", out, out)
         return sorted(float(v) for v in next(iter(out["matrix"].values())).values())
@@ -193,12 +193,12 @@ class TestSingleTreeMatrixMatchesNative(unittest.TestCase):
     def test_shortest_distance_costs_match(self):
         native, single = self._native("shortest"), self._single("shortest")
         self.assertEqual(len(native), len(single))
-        for a, b in zip(native, single):
+        for a, b in zip(native, single, strict=False):
             self.assertAlmostEqual(a, b, delta=max(1.0, a * 0.001))
 
     def test_fastest_hours_match(self):
         native, single = self._native("fastest"), self._single("fastest")
-        for a, b in zip(native, single):
+        for a, b in zip(native, single, strict=False):
             self.assertAlmostEqual(a, b, delta=max(1e-5, a * 0.001))
 
     def test_more_than_the_threshold_uses_the_single_tree_and_reports_unreachable(self):

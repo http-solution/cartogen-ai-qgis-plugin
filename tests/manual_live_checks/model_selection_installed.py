@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual live check of automatic model selection against an INSTALLED plugin, in real QGIS.
 
 Not part of the automated suite (needs QGIS and an installed plugin folder). Run with QGIS's Python:
@@ -47,7 +46,7 @@ def show(path):
     return path.replace(HOME, "~")
 
 
-print("QGIS", Qgis.QGIS_VERSION.split("-")[0], "| plugin loaded from:", show(list(cartogen_ai.__path__)[0]))
+print("QGIS", Qgis.QGIS_VERSION.split("-")[0], "| plugin loaded from:", show(next(iter(cartogen_ai.__path__))))
 with open(os.path.join(PLUG, "cartogen_ai_plugin", "metadata.txt"), encoding="utf-8") as f:
     print("plugin version:", next(ln.split("=", 1)[1].strip() for ln in f if ln.startswith("version=")))
 
@@ -87,7 +86,7 @@ def run_requests(settings_cls, provider_module, queries):
                 agent.run(q, map_context={})
                 err = None
             except Exception as e:  # a crash here would be a new live error
-                err = "%s: %s" % (type(e).__name__, e)
+                err = f"{type(e).__name__}: {e}"
             out.append((q, expect, list(sent), err))
         return agent, out
 
@@ -109,10 +108,10 @@ class RealSettings:
 
 
 provider = str(real.value("cartogen_ai/provider", "openrouter"))
-print("provider =", provider, "| model setting =", real.value("cartogen_ai/%s_model" % provider))
+print("provider =", provider, "| model setting =", real.value(f"cartogen_ai/{provider}_model"))
 if provider in ("gemini", "openai", "cartogen"):
     pmod = importlib.import_module("cartogen_ai.infrastructure.providers." + provider)
-    listing = real.value("cartogen_ai/%s_model_list" % provider, "")
+    listing = real.value(f"cartogen_ai/{provider}_model_list", "")
     print("cached model list:", len(json.loads(listing)) if listing else 0, "models")
     queries = [("list layers", None), ("zoom to Amman", None),
                ("Health facilities beyond one hour's travel 3999682,3756232", None),
@@ -121,10 +120,10 @@ if provider in ("gemini", "openai", "cartogen"):
     default = agent._auto_default_model
     check("auto mode active with a default model", agent._auto_model_provider == provider and default, default)
     for q, _, sent, err in out:
-        check("agent.run(%r) completes" % q[:38], err is None and len(sent) >= 1, err or sent[:1])
+        check(f"agent.run({q[:38]!r}) completes", err is None and len(sent) >= 1, err or sent[:1])
         check("   sends a model, never a special-purpose one", sent and not any(t in sent[0] for t in SPECIAL), sent[:1])
 else:
-    print("(provider %s does not use automatic selection; part 1 skipped)" % provider)
+    print(f"(provider {provider} does not use automatic selection; part 1 skipped)")
 
 # ---- part 2: simulated OpenAI default install ------------------------------------------------
 print("\n== Part 2: simulated OpenAI default install (expensive default, auto) ==")
@@ -149,7 +148,7 @@ queries = [("list layers", "gpt-5-mini"), ("zoom to Amman", "gpt-5-mini"),
 agent, out = run_requests(FakeSettings, openai_mod, queries)
 check("default model", agent._auto_default_model == "gpt-5.6", agent._auto_default_model)
 for q, expect, sent, err in out:
-    check("%r -> %s" % (q[:44], expect), err is None and sent[:1] == [expect], err or sent[:1])
+    check(f"{q[:44]!r} -> {expect}", err is None and sent[:1] == [expect], err or sent[:1])
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

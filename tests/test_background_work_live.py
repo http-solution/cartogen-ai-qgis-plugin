@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for audit A14: zonal_statistics runs through the background runner and still writes the zs_ fields, and
 run_callable keeps the GUI loop alive, returns results, re-raises errors and honours Stop. Written without hand-testing; the
 Docker QGIS run is the only execution evidence."""
+import contextlib
 import os
 import tempfile
 import time
@@ -21,11 +21,9 @@ except ImportError:
 def _boot():
     from tests.test_chat_widget_live import _boot_qgis
     _boot_qgis()
-    try:
+    with contextlib.suppress(Exception):
         from processing.core.Processing import Processing
         Processing.initialize()
-    except Exception:
-        pass
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS + gdal + numpy")

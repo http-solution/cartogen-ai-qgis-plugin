@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """File-based importers for published humanitarian tables: IPC phase classification, INFORM Risk and UNOSAT damage points (H7,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md). No network and no credentials: the user supplies a CSV/Excel file
 (typically downloaded from HDX).
@@ -147,10 +146,12 @@ def normalise_rows(rows, kind, used):
     data rows)."""
     records, issues = [], []
     for i, raw in enumerate(rows, start=1):
-        get = lambda role: raw.get(used[role]) if role in used else None  # noqa: E731
+        def get(role, raw=raw):
+            return raw.get(used[role]) if role in used else None
+
         rec = {"row": i}
 
-        def bad(role, why):
+        def bad(role, why, i=i, get=get):
             issues.append({"row": i, "role": role, "value": None if _blank(get(role)) else str(get(role)), "problem": why})
 
         if kind == "ipc":
@@ -271,6 +272,60 @@ def _layer(name):
     return layers[0] if layers else None
 
 
+def _read_table(file_path, sheet_name, delimiter):
+    """(rows, columns, error dict or None) from a CSV/Excel file."""
+    from .reporting_tools import _read_tabular_rows
+    try:
+        rows, columns = _read_tabular_rows(file_path, sheet_name=sheet_name, delimiter=delimiter)
+    except ImportError:
+        return None, None, {"error": "pandas and openpyxl are required to read Excel files. Install via qpip, or in the OSGeo4W Shell: python -m pip install pandas openpyxl"}
+    except ValueError as e:
+        return None, None, {"error": str(e)}
+    except Exception as e:
+        return None, None, {"error": f"Could not read '{file_path}': {e}"}
+    if not rows:
+        return None, None, {"error": f"'{file_path}' has no data rows."}
+    return rows, columns, None
+
+
+def _plan_layer_join(layer_name, layer_key_field, records, used):
+    """(layer, matched (feature id, record) pairs, join report, error dict or None) for joining records to a project layer."""
+    layer = _layer(layer_name)
+    if layer is None:
+        return None, None, None, {"error": f"Layer '{layer_name}' not found"}
+    if not hasattr(layer, "getFeatures"):
+        return None, None, None, {"error": f"'{layer_name}' must be a vector layer."}
+    if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
+        return None, None, None, {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
+    use_code = "area_code" in used
+    layer_keys = []
+    for feat in layer.getFeatures():
+        v = feat[layer_key_field]
+        layer_keys.append((feat.id(), key_of(v, None) if use_code else key_of(None, v)))
+    pairs, report = plan_join(records, layer_keys)
+    return layer, pairs, report, None
+
+
+def _write_joined_fields(layer, layer_name, kind, fields, pairs, result):
+    """Writes the matched records' numeric values to `layer` as new fields, recording the outcome in `result`."""
+    try:
+        with edit_command(layer, "Cartogen AI: import " + kind) as owned:
+            idx = {role: add_numeric_field(layer, name) for role, name in fields.items()}
+            for fid, rec in pairs:
+                for role, i in idx.items():
+                    if rec.get(role) is not None:
+                        set_value(layer, fid, i, float(rec[role]))
+        result["fields_written"] = sorted(fields.values())
+        from .humanitarian_style import table_look_hints
+        result["map_looks"] = table_look_hints(layer_name, result["fields_written"])
+        if not owned:
+            result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
+    except EditError as e:
+        result["write_warning"] = f"Values were not written to the layer: {e}"
+    except Exception as e:
+        result["write_warning"] = f"Values were not written to the layer: {e}"
+
+
 @register_tool(
     "import_humanitarian_table",
     "Read a published humanitarian table from a CSV/Excel file the user supplies (typically downloaded from HDX) and validate it: "
@@ -306,17 +361,9 @@ def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, de
         return {"error": "mapping must be an object {role: column}."}
     if not os.path.exists(file_path):
         return {"error": f"File not found: {file_path}"}
-    from .reporting_tools import _read_tabular_rows
-    try:
-        rows, columns = _read_tabular_rows(file_path, sheet_name=sheet_name, delimiter=delimiter)
-    except ImportError:
-        return {"error": "pandas and openpyxl are required to read Excel files. Install via qpip, or in the OSGeo4W Shell: python -m pip install pandas openpyxl"}
-    except ValueError as e:
-        return {"error": str(e)}
-    except Exception as e:
-        return {"error": f"Could not read '{file_path}': {e}"}
-    if not rows:
-        return {"error": f"'{file_path}' has no data rows."}
+    rows, columns, read_error = _read_table(file_path, sheet_name, delimiter)
+    if read_error:
+        return read_error
 
     used, missing, ambiguous, problems = detect_columns(columns, kind, mapping)
     base = {"kind": kind, "columns_in_file": columns, "mapping_used": used}
@@ -357,21 +404,11 @@ def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, de
         return result
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    layer = _layer(layer_name)
-    if layer is None:
-        return {"error": f"Layer '{layer_name}' not found"}
-    if not hasattr(layer, "getFeatures"):
-        return {"error": f"'{layer_name}' must be a vector layer."}
-    if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
-        return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
-    use_code = "area_code" in used
-    layer_keys = []
-    for feat in layer.getFeatures():
-        v = feat[layer_key_field]
-        layer_keys.append((feat.id(), key_of(v, None) if use_code else key_of(None, v)))
-    pairs, report = plan_join(records, layer_keys)
+    layer, pairs, report, join_error = _plan_layer_join(layer_name, layer_key_field, records, used)
+    if join_error:
+        return join_error
     result["join"] = report
-    result["join_key"] = "area_code (P-code)" if use_code else "area_name"
+    result["join_key"] = "area_code (P-code)" if "area_code" in used else "area_name"
     if not pairs:
         result["join_warning"] = "No row matched the layer; check layer_key_field and the file's key column (P-code vs name)."
     if not write_fields:
@@ -392,20 +429,5 @@ def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, de
             "message": f"Confirmation required before adding fields to '{layer_name}'.",
             "join": report,
         }
-    try:
-        with edit_command(layer, "Cartogen AI: import " + kind) as owned:
-            idx = {role: add_numeric_field(layer, name) for role, name in fields.items()}
-            for fid, rec in pairs:
-                for role, i in idx.items():
-                    if rec.get(role) is not None:
-                        set_value(layer, fid, i, float(rec[role]))
-        result["fields_written"] = sorted(fields.values())
-        from .humanitarian_style import table_look_hints
-        result["map_looks"] = table_look_hints(layer_name, result["fields_written"])
-        if not owned:
-            result["note"] = "The layer is already in edit mode, so the new values are in your edit session and are NOT saved."
-    except EditError as e:
-        result["write_warning"] = f"Values were not written to the layer: {e}"
-    except Exception as e:
-        result["write_warning"] = f"Values were not written to the layer: {e}"
+    _write_joined_fields(layer, layer_name, kind, fields, pairs, result)
     return result

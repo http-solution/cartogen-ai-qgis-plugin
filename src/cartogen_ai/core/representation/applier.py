@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Representation Applier for Cartogen AI.
 
@@ -6,7 +5,7 @@ Applies recommended representation candidates directly to QGIS layers using nati
 renderers (Cluster, Displacement, Heatmap, Graduated, Categorized, Proportional).
 """
 
-from typing import Any, Dict
+from typing import Any
 from .models import RepresentationCandidate
 
 try:
@@ -28,15 +27,12 @@ def _find_layer_by_name(name: str):
     return layers[0] if layers else None
 
 
-def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate) -> Dict[str, Any]:
+def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate) -> dict[str, Any]:
     """Applies the specified candidate representation to the layer."""
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
-    if isinstance(layer_or_name, str):
-        layer = _find_layer_by_name(layer_or_name)
-    else:
-        layer = layer_or_name
+    layer = _find_layer_by_name(layer_or_name) if isinstance(layer_or_name, str) else layer_or_name
 
     if layer is None or not layer.isValid():
         return {"error": f"Layer '{layer_or_name}' not found or invalid"}

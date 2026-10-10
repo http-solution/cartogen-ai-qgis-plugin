@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for core/net.py (task #71): urlopen goes through QgsBlockingNetworkRequest and behaves like urllib's, on the
 main thread and on a worker thread. Talks to a throwaway HTTP server on 127.0.0.1. Written without hand-testing; the Docker QGIS
 run is the only execution evidence."""
@@ -45,7 +44,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/redirect":
             self._send(302, b"", {"Location": "/ok"})            # relative, as RFC 7231 allows
         elif self.path == "/redirect-abs":
-            self._send(302, b"", {"Location": "http://%s/ok" % self.headers.get("Host")})
+            self._send(302, b"", {"Location": "http://{}/ok".format(self.headers.get("Host"))})
         elif self.path == "/slow":
             time.sleep(4)
             self._send(200, b"late")
@@ -72,7 +71,7 @@ class TestNetLive(unittest.TestCase):
         from tests.test_chat_widget_live import _boot_qgis
         _boot_qgis()
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-        cls.base = "http://127.0.0.1:%d" % cls.server.server_address[1]
+        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod

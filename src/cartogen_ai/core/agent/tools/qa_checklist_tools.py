@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Automated per-map-product QA checklist for Cartogen AI -- point 26 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, confirmed distinct
 from this plugin's own docs/RELEASE_SMOKE_TEST.md (that document verifies

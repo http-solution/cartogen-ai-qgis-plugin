@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Representation Planning & Intelligence Engine for Cartogen AI.
 
@@ -18,11 +17,11 @@ from .planner import plan_representations
 from .applier import apply_representation
 
 __all__ = [
+    "CandidateScore",
     "FieldSemanticProfile",
     "LayerSemanticProfile",
     "RepresentationCandidate",
-    "CandidateScore",
-    "profile_layer",
-    "plan_representations",
     "apply_representation",
+    "plan_representations",
+    "profile_layer",
 ]

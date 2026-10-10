@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H4 evaluate_forecast_trigger: the rule evaluator is pure, so the whole rule is tested here; reading a layer needs QGIS."""
 import datetime
 import unittest
@@ -97,7 +96,7 @@ class TestEvaluate(unittest.TestCase):
     def test_min_exceedances(self):
         r = [{"unit": "A", "q": 200}, {"unit": "A", "q": 50}]
         self.assertFalse(by_unit(t.evaluate_triggers(r, "q", 100, ">=", "unit", min_exceedances=2))["A"]["activated"])
-        self.assertTrue(by_unit(t.evaluate_triggers(r + [{"unit": "A", "q": 300}], "q", 100, ">=", "unit",
+        self.assertTrue(by_unit(t.evaluate_triggers([*r, {"unit": "A", "q": 300}], "q", 100, ">=", "unit",
                                                     min_exceedances=2))["A"]["activated"])
 
     def test_comparison_operators_and_strictness(self):

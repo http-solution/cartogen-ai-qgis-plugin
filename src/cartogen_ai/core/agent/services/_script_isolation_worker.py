@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Persistent worker process for `execute_pyqgis_script` isolation
 (see script_isolation.py's module docstring for the full design).
@@ -55,7 +54,7 @@ def _run_job(job, local_env_factory):
     local_env["__name__"] = "execute_pyqgis_script"
 
     try:
-        exec(script, local_env)  # nosec B102 (this is the isolated worker process; the script runs with restricted builtins after the static safety check)
+        exec(script, local_env)  # noqa: S102  # nosec B102 (this is the isolated worker process; the script runs with restricted builtins after the static safety check)
         if "run" not in local_env:
             return {"error": "Script must define a 'run()' function."}
         result = local_env["run"]()
@@ -125,8 +124,8 @@ def main():
     sys.stdout.flush()
 
     try:
-        for line in sys.stdin:
-            line = line.strip()
+        for raw_line in sys.stdin:
+            line = raw_line.strip()
             if not line:
                 continue
             try:

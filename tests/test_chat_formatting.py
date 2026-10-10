@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from typing import ClassVar
 import unittest
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _clock_time, _blend_hex, derive_bubble_colors,
@@ -299,7 +299,7 @@ class TestFriendlyToolName(unittest.TestCase):
 
 
 class TestRenderToolStepHtml(unittest.TestCase):
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_running_status_shows_using_label(self):
         html = render_tool_step_html("apply_graduated_style", "running", None, self._colors)
@@ -336,7 +336,7 @@ class TestRenderToolStepsToggleHtml(unittest.TestCase):
     multi-tool-call turn) -- one compact toggleable summary line replacing the old
     one-line-per-event approach. See chat_tab_widget._flush_tool_steps_summary/
     _on_step_anchor_clicked for how the toggle actually gets wired up live."""
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_collapsed_shows_count_and_comma_joined_friendly_names(self):
         steps = [
@@ -382,7 +382,7 @@ class TestRenderToolStepsToggleHtml(unittest.TestCase):
 class TestRenderToolStepsFailureDetailsHtml(unittest.TestCase):
     """Failures are always shown regardless of the toggle above's collapsed/expanded state --
     never gated behind a click, matching this codebase's no-silent-failures posture elsewhere."""
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_no_failed_steps_returns_empty_string(self):
         steps = [{"name": "get_layers", "status": "done", "error": None}]
@@ -552,7 +552,7 @@ class TestSimplifyLatex(unittest.TestCase):
 
     def test_the_observed_fragments(self):
         self.assertEqual(self.f(r"area $\le$ 3,000 $\text{km}^2$"), "area ≤ 3,000 km²")
-        self.assertEqual(self.f(r"3 $\times$ 4"), "3 × 4")
+        self.assertEqual(self.f(r"3 $\times$ 4"), "3 \u00d7 4")
 
     def test_powers_and_percent(self):
         self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")

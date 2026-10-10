@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """save_project must not claim temporary layers were persisted (rc15 hand test D07, 2026-10-06)."""
 import unittest
 

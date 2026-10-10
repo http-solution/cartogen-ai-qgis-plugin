@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import contextlib
 """
 Canvas Highlighting for Cartogen AI.
 Flashes a layer's extent on the map canvas when the AI's reply mentions it,
@@ -27,20 +27,14 @@ def _discard_highlight(highlight):
     or project reload they were drawn again as a solid orange block that no layer toggle removed
     (removing them from the scene in the QGIS console made it vanish). hide() is kept first so a
     failure below still leaves the item invisible."""
-    try:
+    with contextlib.suppress(Exception):
         highlight.hide()
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         scene = highlight.scene()
         if scene is not None:
             scene.removeItem(highlight)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         highlight.deleteLater()
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def flash_layer_extent(iface, layer, on_expired=None, duration_ms=HIGHLIGHT_DURATION_MS):

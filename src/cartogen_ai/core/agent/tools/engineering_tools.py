@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic hydrologic engineering checks and calculations (watershed / peak-flow requests).
 
@@ -29,7 +28,7 @@ from .registry import register_tool
 
 _DMS_COMPONENT = re.compile(
     r"(?P<degrees>\d{1,3})\s*[°º]\s*"
-    r"(?P<minutes>\d{1,2})\s*['′]\s*"
+    r"(?P<minutes>\d{1,2})\s*['\u2032]\s*"
     r"(?P<seconds>\d{1,2}(?:\.\d+)?)\s*(?:[\"″])?\s*"
     r"(?P<hemisphere>[NSEW])",
     re.IGNORECASE,

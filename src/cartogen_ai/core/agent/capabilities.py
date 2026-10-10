@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """What a request needs, in terms of data sources and actions, and which tools provide each.
 
 Why (2026-10-09 cost investigation): the tool router ranked tools by incidental word overlap with their descriptions, so a long
@@ -10,6 +9,7 @@ capability lists the registered tools that provide it, best first. Capabilities 
 
 Pure (stdlib only). tests/test_capabilities.py checks that every tool named here exists in the live registry, so the table cannot
 drift from the tools."""
+import contextlib
 import re
 
 # (id, regex over the lower-cased request, ordered dedicated tools, tools that can cover it when none does)
@@ -153,14 +153,12 @@ def workflow_directive(query):
     if fallback:
         text += (" Steps marked 'no dedicated tool' can only be done with " + " or ".join(f"`{n}`" for n in fallback)
                  + " (prefer a constrained Processing algorithm; use a script only as a last resort and say so).")
-    try:
+    with contextlib.suppress(Exception):
         from .chains import chains_for, chain_directive
         from .discovery import is_execution_request
         found = chains_for([cid for cid, _t, _v in needed_capabilities(query)]) if is_execution_request(query) else []
         if found:
             text += " " + chain_directive(found)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     text += (" Do each step once. When you already know every argument of a chain of steps (you choose the output layer names), "
              "send that chain as ONE `run_steps` call instead of one turn per step; check results before continuing only where the "
              "next step genuinely depends on what you see. If a step cannot be completed say which steps are done and "

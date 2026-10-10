@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS test for audit A06: the isolated script's scratch project holds COPIES of file-backed layers, so editing them cannot
 change the user's files. Simulates the worker by editing the scratch project directly. Written without hand-testing; the Docker
 QGIS run is the only execution evidence."""
@@ -41,10 +40,10 @@ class TestLockUncopyableLayers(unittest.TestCase):
             self.read_only = False
             self._can_lock = can_lock
 
-        def providerType(self):      # noqa: N802 -- QGIS API name
+        def providerType(self):
             return "postgres"
 
-        def setReadOnly(self, value):  # noqa: N802
+        def setReadOnly(self, value):
             if not self._can_lock:
                 raise RuntimeError("no")
             self.read_only = value
@@ -53,7 +52,7 @@ class TestLockUncopyableLayers(unittest.TestCase):
         def __init__(self, layers):
             self._layers = layers
 
-        def mapLayers(self):   # noqa: N802
+        def mapLayers(self):
             return dict(self._layers)
 
     def test_unhandled_layers_are_locked_and_handled_ones_are_not(self):

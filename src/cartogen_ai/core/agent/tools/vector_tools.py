@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Vector Geoprocessing & Spatial Tool implementations for Cartogen AI.
 """
@@ -29,6 +28,8 @@ except ImportError:
 
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+import contextlib
+from ...net import build_request as _net_build_request
 
 
 def _find_layer_by_name(name):
@@ -157,11 +158,10 @@ def get_layer_extent(layer_name):
         wgs = _Xf(crs, _Crs("EPSG:4326"), QgsProject.instance()).transformBoundingBox(rect)
     except Exception as e:
         return {"error": f"Could not transform the extent of {label} to WGS84: {e}"}
-    result = {"success": True, "source": label, "source_crs": crs.authid(),
+    return {"success": True, "source": label, "source_crs": crs.authid(),
               "native_extent": {"xmin": rect.xMinimum(), "ymin": rect.yMinimum(), "xmax": rect.xMaximum(), "ymax": rect.yMaximum()},
               "wgs84": bbox_orders(wgs.xMinimum(), wgs.yMinimum(), wgs.xMaximum(), wgs.yMaximum()),
               "note": "Use the bbox that matches the tool's order. Degrees; the box is the transformed rectangle, slightly larger than a rotated area needs."}
-    return result
 
 
 def _model_view_entry(entry, layer):
@@ -509,7 +509,7 @@ def _prefetch_url_to_temp(file_path):
     read() in one shot -- file_path is LLM-controlled, so neither the final
     destination nor the response size can be trusted just because the
     initial URL passed _is_safe_url."""
-    if not (file_path.startswith("http://") or file_path.startswith("https://")):
+    if not (file_path.startswith(("http://", "https://"))):
         return file_path, False
 
     unsafe_reason = _is_safe_url(file_path)
@@ -518,35 +518,30 @@ def _prefetch_url_to_temp(file_path):
 
     import os
     import tempfile
-    import urllib.request
 
     clean = file_path.split("?")[0]
     ext = os.path.splitext(clean)[1] or ""
-    req = urllib.request.Request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
+    req = _net_build_request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
     opener = _build_safe_opener()
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
     try:
-        # os.fdopen wraps the fd first, before the network call -- if
-        # opener.open() raised inside a combined `with a, b:` instead, the
-        # raw fd from mkstemp would never get closed on that path.
-        with os.fdopen(fd, "wb") as f:
-            with opener.open(req, timeout=60) as response:
-                total = 0
-                while True:
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > _MAX_DOWNLOAD_BYTES:
-                        raise ValueError(
-                            f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
-                        )
-                    f.write(chunk)
+        # os.fdopen wraps the fd first, before the network call, so the raw fd from mkstemp is closed even
+        # when opener.open() raises: a combined `with` enters (and on error exits) its items in this order.
+        with os.fdopen(fd, "wb") as f, opener.open(req, timeout=60) as response:
+            total = 0
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_DOWNLOAD_BYTES:
+                    raise ValueError(
+                        f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
+                    )
+                f.write(chunk)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp_path)
-        except OSError:
-            pass
         raise
     return tmp_path, True
 
@@ -631,14 +626,14 @@ def _describe_unreadable_download(path):
     if text.startswith(b"pk\x03\x04"):
         return ("The download is a zip archive, not a single geodata file. Load a direct link "
                 "to the file inside it, or a URL that serves the file itself.")
-    if text.startswith(b"<!doctype html") or text.startswith(b"<html") or b"<html" in text[:512]:
+    if text.startswith((b"<!doctype html", b"<html")) or b"<html" in text[:512]:
         return ("The URL returned an HTML web page, not geodata. For GitHub, use the "
                 "raw.githubusercontent.com link (the 'Raw' button), not the /blob/ page URL. "
                 "For other sites, use the direct download link.")
-    if text.startswith(b"<?xml") or text.startswith(b"<"):
+    if text.startswith((b"<?xml", b"<")):
         return ("The URL returned XML that GDAL could not read as a layer. It may be a "
                 "server error/exception report rather than data.")
-    if text.startswith(b"{") or text.startswith(b"["):
+    if text.startswith((b"{", b"[")):
         if size > 5 * 1024 * 1024:
             return None
         try:
@@ -715,10 +710,8 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         return result
     finally:
         if is_temp:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # Ordered by confidence -- checked in this order, first exact (case-insensitive)
@@ -736,7 +729,7 @@ def _sniff_csv_header(file_path, delimiter=","):
     dependency isn't installed, or when the CSV wasn't attached through the
     chat UI at all (e.g. the user just names a path in a message)."""
     import csv
-    with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+    with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
         reader = csv.reader(f, delimiter=delimiter)
         return next(reader, [])
 
@@ -785,7 +778,7 @@ def _validate_wgs84_coordinates(x_values, y_values):
     other CRS since valid ranges vary."""
     if not x_values or not y_values:
         return None
-    pairs = list(zip(x_values, y_values))
+    pairs = list(zip(x_values, y_values, strict=False))
     bad = [(x, y) for x, y in pairs if not (-180 <= x <= 180 and -90 <= y <= 90)]
     if len(bad) > len(pairs) / 2:
         return (
@@ -808,7 +801,7 @@ def _sample_xy_values(file_path, ext, x_field, y_field, delimiter, sheet_name, l
     try:
         if ext == ".csv":
             import csv
-            with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+            with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 for i, row in enumerate(reader):
                     if i >= limit:
@@ -1043,14 +1036,12 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
 
         QgsProject.instance().addMapLayer(layer)
         if layer.isSpatial():
-            try:
+            with contextlib.suppress(Exception):
                 from .output_style import style_points_default
                 if layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
                     style_points_default(layer)   # one consistent point look instead of a random default colour
                     from .output_style import style_auto_labels
                     style_auto_labels(layer)      # facility names when the layer is small enough to read
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         result = {
             "success": True,
             "layer_name": layer.name(),
@@ -1116,10 +1107,8 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     settings = QgsPalLayerSettings()
     text_format = QgsTextFormat()
     if QFont is not None:
-        try:
+        with contextlib.suppress(Exception):
             text_format.setFont(QFont("Source Sans 3", int(font_size)))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     text_format.setColor(QColor("#1C1C1E"))
     text_format.setSize(font_size)
 
@@ -1713,7 +1702,8 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
     # Cardinality check: if the join field isn't unique on the join-layer side, the join will
     # duplicate features on the target side -- warn rather than silently producing surprise duplicates.
     cardinality_warning = None
-    try:
+    # best-effort; don't block the join if the cardinality check itself fails
+    with contextlib.suppress(Exception):
         join_idx = b.fields().indexOf(join_field)
         total_features = b.featureCount()
         unique_count = len(b.uniqueValues(join_idx))
@@ -1723,8 +1713,6 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
                 f"values across {total_features} features) -- this join may duplicate features on "
                 f"'{target_layer}' (1-to-many), not a clean 1-to-1 join."
             )
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass  # best-effort; don't block the join if the cardinality check itself fails
 
     res = _run_and_add(
         "native:joinattributestable",
@@ -2297,7 +2285,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         index = QgsSpatialIndex(admin_layer.getFeatures())
         admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
 
-    rng = random.Random(seed)  # nosec B311 (seeded sampling for reproducibility, not security)
+    rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
     unmatched_count = 0
 

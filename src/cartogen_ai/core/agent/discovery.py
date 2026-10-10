@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Input discovery for pre-built chains: what is actually in the project, and which chain slots it can fill.
 
 Layer NAMES alone were all the preflight knew. A chain also depends on geometry type (a line layer to split, polygons to clip to),
@@ -9,6 +8,7 @@ What this does and does not do: it proposes bindings (a layer the request names,
 derived from a layer's extent, and says plainly when a slot has no candidate. It never invents data, never picks between several equally
 good layers (it lists them and the model must ask), and a derived UTM zone is a suggestion for the model to pass on, not a rule.
 Not verified against a real model."""
+import contextlib
 import re
 
 from .tools.corridor_tools import utm_epsg_for
@@ -42,14 +42,12 @@ def gather_facts(_unused=None):
                         fields=[(f.name(), bool(f.isNumeric())) for f in layer.fields()])
         else:
             continue
-        try:
+        with contextlib.suppress(Exception):
             rect = layer.extent()
             if layer.crs() != wgs84 and not rect.isNull():
                 rect = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance()).transformBoundingBox(rect)
             if not rect.isNull():       # isEmpty() is also true for a one-point layer (zero width and height)
                 fact["extent_wgs84"] = (rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum())
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         facts[layer.name()] = fact
     return facts
 
@@ -86,7 +84,7 @@ def utm_for_fact(fact):
     box = (fact or {}).get("extent_wgs84")
     if not box:
         return None
-    return "EPSG:%d" % utm_epsg_for((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+    return f"EPSG:{utm_epsg_for((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)}"
 
 
 def chain_report(chain, facts, query):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Which Processing algorithms may run on the background task runner (PR #249 / #251: gdal:slope crashed the live CI job there)."""
 import unittest
 

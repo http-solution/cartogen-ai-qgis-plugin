@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """One place that says what a tool result is.
 
 A tool may return a dict (most do) or a plain list (get_layers, get_attributes and other read tools). Code that handled results

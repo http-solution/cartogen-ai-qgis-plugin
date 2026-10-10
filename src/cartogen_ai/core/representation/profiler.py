@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Layer Semantic Profiler for Cartogen AI.
 
@@ -6,8 +5,9 @@ Inspects live QGIS layers and extracts statistical, spatial, and semantic
 metadata into a structured LayerSemanticProfile.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 from .models import LayerSemanticProfile, FieldSemanticProfile
+import contextlib
 
 try:
     from qgis.core import (
@@ -42,7 +42,7 @@ _DIRECTION_KEYWORDS = {
 }
 
 
-def _classify_field_semantics(name: str, values: List[Any], field_type_name: str) -> FieldSemanticProfile:
+def _classify_field_semantics(name: str, values: list[Any], field_type_name: str) -> FieldSemanticProfile:
     """Classifies a field into nominal, quantity, rate, datetime, or status based on values and nomenclature."""
     name_lower = name.lower()
     total_count = len(values)
@@ -65,10 +65,8 @@ def _classify_field_semantics(name: str, values: List[Any], field_type_name: str
     # Check numeric
     numeric_values = []
     for v in non_null_values:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             numeric_values.append(float(v))
-        except (ValueError, TypeError):
-            pass
 
     is_numeric = len(numeric_values) == len(non_null_values) and len(numeric_values) > 0
 
@@ -112,10 +110,10 @@ def _classify_field_semantics(name: str, values: List[Any], field_type_name: str
         dist = "uniform"
 
     # Directional check (0 - 360 bearing)
-    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and 0 <= min_val and max_val <= 360:
+    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and min_val >= 0 and max_val <= 360:
         sem_type = "directional"
     # Rate / Percentage check
-    elif any(k in name_lower for k in _RATE_KEYWORDS) or (0 <= min_val and max_val <= 1.0001) or (0 <= min_val and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
+    elif any(k in name_lower for k in _RATE_KEYWORDS) or (min_val >= 0 and max_val <= 1.0001) or (min_val >= 0 and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
         sem_type = "rate_percentage"
     # Raw count check. Bug found in a code-review pass (2026-09-20): the previous
     # `all(v.is_integer() for v in numeric_values if v >= 0)` is a vacuous-truth trap -- a
@@ -144,7 +142,7 @@ def _classify_field_semantics(name: str, values: List[Any], field_type_name: str
     )
 
 
-def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
+def _estimate_spatial_density_and_overlap(layer: Any) -> tuple[str, float]:
     """Samples bounding boxes of up to 250 features to estimate point/polygon crowding and overlap ratio."""
     if not hasattr(layer, "getFeatures"):
         return "medium", 0.0
@@ -166,7 +164,7 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
         return "low", 0.0
 
     # Calculate overall extent area
-    try:
+    with contextlib.suppress(Exception):
         layer_extent = layer.extent() if hasattr(layer, "extent") else None
         if layer_extent and hasattr(layer_extent, "width") and hasattr(layer_extent, "height"):
             w = layer_extent.width()
@@ -175,8 +173,6 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
                 overall_area = w * h
                 if overall_area <= 0:
                     return "extreme", 1.0
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
     # Count pairwise overlaps
     overlap_count = 0
@@ -186,17 +182,15 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
         for j in range(i + 1, sample_limit):
             total_pairs += 1
             b1, b2 = features[i], features[j]
-            try:
+            with contextlib.suppress(Exception):
                 if hasattr(b1, "intersects"):
                     res = b1.intersects(b2)
                     if isinstance(res, bool) and res:
                         overlap_count += 1
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
     overlap_ratio = (overlap_count / max(1, total_pairs))
 
-    total_count = 0
+    total_count: float = 0
     if hasattr(layer, "featureCount"):
         cnt = layer.featureCount()
         if isinstance(cnt, (int, float)):
@@ -227,11 +221,9 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
     crs = "EPSG:4326"
     is_geo = True
     if hasattr(layer, "crs"):
-        try:
+        with contextlib.suppress(Exception):
             crs = layer.crs().authid()
             is_geo = layer.crs().isGeographic()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
     # 1. Raster Layer
     if (
@@ -280,11 +272,11 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
     density, overlap = _estimate_spatial_density_and_overlap(layer)
 
     # Field analysis (sampling up to 300 features for value statistics)
-    fields_dict: Dict[str, FieldSemanticProfile] = {}
+    fields_dict: dict[str, FieldSemanticProfile] = {}
     if hasattr(layer, "fields") and hasattr(layer, "getFeatures"):
         field_names = [f.name() for f in layer.fields()]
         field_types = {f.name(): f.typeName() for f in layer.fields()}
-        values_per_field = {fn: [] for fn in field_names}
+        values_per_field: dict[str, list] = {fn: [] for fn in field_names}
 
         for i, feat in enumerate(layer.getFeatures()):
             if i >= 300:

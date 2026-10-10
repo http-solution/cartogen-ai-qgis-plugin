@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Raster contrast equalisation and unsupervised classification without Processing algorithm ids that QGIS 4.2.2 does not have.
 

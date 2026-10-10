@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Opt-in trace of every model call: the system instruction, the messages sent, the tool names offered, the reply and the usage.
 
 Why: the 2026-10-10 investigation of "13 API calls for List the layers" could not be finished because the exported captures held only the
@@ -10,6 +9,7 @@ So it is OFF by default (Settings > "Record every model request and reply"), wri
 profile export folder for an unsaved project), never uploaded, and API-key-shaped strings are still redacted. The system instruction is
 stored once per distinct text (by SHA-256) and each call line carries its hash, so ~30,000 characters are not repeated on every line and
 "which prompt shape was this call" is a one-glance question. Qt-free and QGIS-free; not hand-tested in the QGIS UI."""
+import contextlib
 import datetime
 import hashlib
 import json
@@ -80,11 +80,9 @@ def sanitize_message(message):
 def tool_summary(tools):
     names, chars = [], 0
     for tool in tools or []:
-        try:
+        with contextlib.suppress(Exception):   # a malformed tool entry is skipped; the trace only summarises
             names.append((tool.get("function") or {}).get("name"))
             chars += len(json.dumps(tool, default=str))
-        except Exception:  # nosec B112 (best-effort: skip this item)
-            continue
     return {"count": len(names), "names": names, "schema_chars": chars}
 
 

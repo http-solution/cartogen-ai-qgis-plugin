@@ -85,7 +85,7 @@ class TestCheckpointDownload(unittest.TestCase):
 
     def test_a_short_file_is_rejected_and_nothing_is_left_behind(self):
         d = tempfile.mkdtemp()
-        with self.assertRaises(Exception):
+        with self.assertRaises(RuntimeError):
             ie.download_checkpoint("m.pt", d, opener=lambda r, timeout: _Resp(b"x" * 10), min_bytes=100)
         self.assertEqual(os.listdir(d), [])
 

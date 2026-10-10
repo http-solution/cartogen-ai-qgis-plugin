@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Code-level defences against the assistant presenting invented tool output.
 
@@ -402,7 +401,7 @@ def apply_ungrounded_claims_note(final_text, evidence, data_tool_ran=True):
     if not claims:
         return final_text
     listed = "; ".join(claims)
-    return (f"{str(final_text).rstrip()}\n\nℹ️ **{_UNGROUNDED_MARKER} in this conversation:** {listed}. "
+    return (f"{str(final_text).rstrip()}\n\n\u2139\ufe0f **{_UNGROUNDED_MARKER} in this conversation:** {listed}. "
             "These come from the model's general knowledge, not from your data or a tool run here; verify them before relying on them.")
 
 
@@ -437,5 +436,5 @@ def apply_unconfirmed_style_note(final_text, turn_tool_log, evidence=""):
     """`final_text` with a footnote when it claims an applied style that no successful tool call backs, or unchanged."""
     if not unconfirmed_style_claim(final_text, turn_tool_log, evidence):
         return final_text
-    return (f"{str(final_text).rstrip()}\n\nℹ️ **{_STYLE_MARKER}:** no styling tool finished successfully in this turn, so the "
+    return (f"{str(final_text).rstrip()}\n\n\u2139\ufe0f **{_STYLE_MARKER}:** no styling tool finished successfully in this turn, so the "
             "colours or classes described above may not be on the layer. Check the map and ask again if it still looks unstyled.")

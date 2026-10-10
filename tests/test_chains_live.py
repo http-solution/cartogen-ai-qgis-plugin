@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """Runs each pre-built chain end to end in real QGIS with its slots filled, calling the real tool functions through the same
 reference resolution run_steps uses. fetch_dem reads synthetic tiles from a local range-capable server (the real bucket is not used in
 CI). Proves tool order, argument names and result fields; says nothing about whether a model follows the skeleton."""
+import contextlib
 import copy
 import functools
 import http.server
@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     import numpy  # noqa: F401
-    from osgeo import gdal  # noqa: F401
+    from osgeo import gdal
     from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsVectorLayer
     LIVE = True
 except ImportError:
@@ -34,11 +34,9 @@ class TestChainsLive(unittest.TestCase):
     def setUp(self):
         from tests.test_chat_widget_live import _boot_qgis
         _boot_qgis()
-        try:
+        with contextlib.suppress(Exception):
             from processing.core.Processing import Processing
             Processing.initialize()
-        except Exception:
-            pass
         QgsProject.instance().clear()
         self.addCleanup(QgsProject.instance().clear)
         import cartogen_ai.core.agent.tools  # noqa: F401  (registers every tool)
@@ -178,7 +176,7 @@ class TestChainsLive(unittest.TestCase):
         self.addCleanup(server.shutdown)
         from cartogen_ai.core.agent.tools import dem_tools
         old = dem_tools.TILE_BASE
-        dem_tools.TILE_BASE = "http://127.0.0.1:%d" % server.server_address[1]
+        dem_tools.TILE_BASE = f"http://127.0.0.1:{server.server_address[1]}"
         self.addCleanup(lambda: setattr(dem_tools, "TILE_BASE", old))
         self._vector("Polygon((45.2 15.2,45.6 15.2,45.6 15.6,45.2 15.6,45.2 15.2))", "aoi")
 

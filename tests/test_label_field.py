@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Result labels come from a name-like field, not from the first attribute (CI on the release smoke fixture, 2026-10-06)."""
 import unittest
 

@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F10: per-turn tool-call cap, optional per-turn token budget, and a per-turn token figure.
 
 The cap defaults to the long-standing MAX_ITERATIONS; the token budget defaults to a provisional figure derived from rc22 hand-test logs (0 stored = no limit). Both are read from QGIS settings and fall back to those defaults on any bad value."""
+from typing import ClassVar
 import unittest
 from unittest.mock import patch
 
@@ -12,7 +12,7 @@ from tests.test_agent_runner import _make_bare_agent
 
 
 class _Settings:
-    values = {}
+    values: ClassVar = {}
 
     def value(self, key, default=None, *a, **k):
         return self.values.get(key, default)
@@ -27,7 +27,7 @@ class _LoopingClient:
     def complete(self, messages, tools=None, max_tokens=None):
         self.calls += 1
         return {"message": {"role": "assistant", "content": None, "tool_calls": [
-            {"id": "c%d" % self.calls, "function": {"name": "get_layers", "arguments": "{}"}}]},
+            {"id": f"c{self.calls}", "function": {"name": "get_layers", "arguments": "{}"}}]},
             "usage": {"input_tokens": 100, "output_tokens": 50}}
 
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure rules behind isolated-script result adoption (GitHub #145, #146; audit F09, F10)."""
 import os
 import tempfile

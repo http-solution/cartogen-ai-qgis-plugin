@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Renamed from cartogen_ai.py (see that file's own MOVED stub for why): a file
 literally named cartogen_ai.py at the plugin root collided with the
@@ -34,6 +33,7 @@ from cartogen_ai.infrastructure.settings_keys import (
     SETTINGS_AUTO_OPEN_DOCK,
     SETTINGS_HELP_LAST_SHOWN_VERSION,
 )
+import contextlib
 
 SETTINGS_KEY = SETTINGS_API_KEY
 HELP_LAST_SHOWN_VERSION_KEY = SETTINGS_HELP_LAST_SHOWN_VERSION
@@ -54,7 +54,7 @@ def _read_plugin_version(plugin_dir):
     rather than hardcoded so the menu label can never drift from metadata.txt."""
     metadata_path = os.path.join(plugin_dir, "metadata.txt")
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             for line in f:
                 match = re.match(r"^version\s*=\s*(.+)$", line.strip())
                 if match:
@@ -246,12 +246,10 @@ class CartogenAi:
 
     def unload(self):
         print("[CartogenAi] unload()")
-        try:
+        with contextlib.suppress(Exception):
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
             project_session.retire_plugin()      # tasks started before this point must not call back into the destroyed UI (#167)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
         # old one outlived the plugin.
         if self.translator is not None:
@@ -267,18 +265,14 @@ class CartogenAi:
         except Exception as e:
             print(f"[CartogenAi] isolation worker shutdown failed: {e}")
         if self._first_use_timer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._first_use_timer.stop()
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
             self._first_use_timer = None
 
-        try:
+        with contextlib.suppress(TypeError, RuntimeError):
             project = QgsProject.instance()
             project.readProject.disconnect(self._on_project_changed)
             project.cleared.disconnect(self._on_project_changed)
-        except (TypeError, RuntimeError):
-            pass
 
         try:
             from cartogen_ai.core.agent.scheduler import get_scheduler
@@ -333,10 +327,8 @@ class CartogenAi:
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
-            try:
+            with contextlib.suppress(TypeError, RuntimeError):
                 action.triggered.disconnect()
-            except (TypeError, RuntimeError):
-                pass
             action.deleteLater()
         self.actions = []
         self.toolbar_action = None

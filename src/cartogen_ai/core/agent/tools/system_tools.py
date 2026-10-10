@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 System & External Integration Tools for Cartogen AI.
 (Web Search, Geocoding, PyQGIS Dynamic Execution)
 """
 
+from typing import Any
 import ast
 import builtins as _builtins_module
 from .registry import register_tool
 from ._cache_utils import TTLCache
+from ...net import build_request as _net_build_request
 
 # execute_pyqgis_script runs model-generated code directly in the QGIS process.
 # These modules/builtins give file-system, network, process, or interpreter-escape
@@ -349,9 +350,8 @@ def _validate_script_safety(script: str):
         elif isinstance(node, ast.Name):
             if node.id in _BLOCKED_CALLS:
                 return f"Blocked reference to '{node.id}' -- not allowed in execute_pyqgis_script."
-        elif isinstance(node, ast.Attribute):
-            if node.attr in _BLOCKED_DUNDER_ATTRS:
-                return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
+        elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_DUNDER_ATTRS:
+            return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
     return None
 
 
@@ -371,7 +371,7 @@ def search_web(query: str, max_results: int = 3):
         try:
             from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS
+            from duckduckgo_search import DDGS  # type: ignore[no-redef]
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
             if not results:
@@ -501,7 +501,7 @@ def _geocode_one(location_name: str):
     url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             if data:
@@ -512,8 +512,7 @@ def _geocode_one(location_name: str):
                 }
                 _GEOCODE_CACHE.set(location_name, result)
                 return result
-            else:
-                return {"error": "Location not found."}
+            return {"error": "Location not found."}
     except Exception as e:
         return {"error": str(e)}
 
@@ -616,7 +615,7 @@ def execute_pyqgis_script(script: str):
     # in-process, same as before isolation existed: this still exercises
     # _validate_script_safety and the _SAFE_BUILTINS defense-in-depth layer,
     # which is what this repo's ~40 execute_pyqgis_script tests actually verify.
-    local_env = {}
+    local_env: dict[str, Any] = {}
     local_env['__builtins__'] = _SAFE_BUILTINS
     # __name__ is a normal module global CPython's class-statement machinery
     # reads implicitly (for __qualname__/__module__), not a builtin -- without
@@ -624,7 +623,7 @@ def execute_pyqgis_script(script: str):
     local_env['__name__'] = 'execute_pyqgis_script'
 
     try:
-        exec(script, local_env)  # nosec B102 (in-process fallback used only when qgis is not importable, i.e. unit tests; inside QGIS the script runs in the isolated worker above; builtins are restricted here too)
+        exec(script, local_env)  # noqa: S102  # nosec B102 (in-process fallback used only when qgis is not importable, i.e. unit tests; inside QGIS the script runs in the isolated worker above; builtins are restricted here too)
         if 'run' not in local_env:
             return {"error": "Script must define a 'run()' function."}
 

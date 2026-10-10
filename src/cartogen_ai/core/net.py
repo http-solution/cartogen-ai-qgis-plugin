@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 HTTP for the data-fetch tools, through QGIS's own network stack when it is there.
 
@@ -24,9 +23,9 @@ Only http and https URLs are opened; file:, ftp: and custom schemes are refused 
 
 import collections
 import io
-import socket
 import urllib.error
 import urllib.request
+import contextlib
 
 try:
     from qgis.core import QgsBlockingNetworkRequest, QgsNetworkAccessManager  # noqa: F401
@@ -39,13 +38,22 @@ except ImportError:  # no QGIS: unit tests, the isolation worker
 ALLOWED_SCHEMES = ("http", "https")
 
 
-def _as_request(request):
-    return request if isinstance(request, urllib.request.Request) else urllib.request.Request(str(request))
-
-
 def _check_scheme(url):
     if url.split(":", 1)[0].lower() not in ALLOWED_SCHEMES:
         raise urllib.error.URLError(f"unsupported URL scheme (only http and https are allowed): {url.split(':', 1)[0]}")
+
+
+def build_request(url, data=None, headers=None, method=None):
+    """The one place a urllib Request is made for a data fetch: the scheme is checked first (http and https only; file:, ftp: and
+    custom schemes are refused), which is what Bandit B310 / ruff S310 ask for."""
+    if ":" not in str(url):
+        raise ValueError(f"unknown url type: {url!r}")   # what urllib itself raises for a string that is not a URL
+    _check_scheme(str(url))
+    return urllib.request.Request(str(url), data=data, headers=headers or {}, method=method)  # noqa: S310 (scheme checked above)
+
+
+def _as_request(request):
+    return request if isinstance(request, urllib.request.Request) else build_request(request)
 
 
 class _Headers:
@@ -117,11 +125,9 @@ def _qgis_send(method, url, header_items, data, timeout):
         qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
     if timeout and hasattr(qreq, "setTransferTimeout"):
         qreq.setTransferTimeout(int(timeout * 1000))
-    try:
+    with contextlib.suppress(AttributeError, TypeError):
         qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
                           _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
-    except (AttributeError, TypeError):
-        pass
     if method == "POST" and not has_content_type:
         # urllib sends this for a POST body with no type; without it Qt logs a warning and guesses.
         qreq.setRawHeader(QByteArray(b"Content-Type"), QByteArray(b"application/x-www-form-urlencoded"))
@@ -157,7 +163,7 @@ def _qgis_urlopen(req, timeout):
         # Same exception urllib raises, with the body readable from it as callers expect.
         raise urllib.error.HTTPError(url, r.status, r.error, _Headers(r.headers), io.BytesIO(r.body))
     if r.timed_out:
-        raise urllib.error.URLError(socket.timeout("timed out"))
+        raise urllib.error.URLError(TimeoutError("timed out"))
     raise urllib.error.URLError(f"{r.error} (HTTP status {r.status or 'none'}, url {url})")
 
 
@@ -184,16 +190,14 @@ def request(method, url, headers=None, data=None, timeout=30):
 def _urllib_open(req, timeout):
     """The single audited urllib call: the scheme was checked by the caller, and the proxy QGIS is configured with is used."""
     handlers = []
-    try:
+    with contextlib.suppress(Exception):
         from .proxy import get_qgis_proxy_dict
         proxies = get_qgis_proxy_dict()
         if proxies:
             handlers.append(urllib.request.ProxyHandler(proxies))
-    except Exception:  # nosec B110 (best-effort: no proxy configured is the normal case)
-        pass
     if handlers:
         return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
-    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 (scheme checked above)
+    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310  # nosec B310 (scheme checked by build_request/urlopen)
 
 
 def urlopen(request, timeout=30, stream=False):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data Analysis & Prediction Tools for Cartogen AI.
 
@@ -7,12 +6,14 @@ distribution-analysis approach already used in styling_tools.py's
 apply_graduated_style (mean/variance/skewness computed by hand there too).
 """
 
+import contextlib
 import datetime
 import os
 from .registry import register_tool
 from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure
 from .multimodal_remote_sensing import calculate_raster_change_detection
+import itertools
 
 try:
     from qgis.core import QgsProject
@@ -87,17 +88,13 @@ def _parse_date(value):
     if isinstance(value, datetime.date):
         return value
     if hasattr(value, "toPyDate"):
-        try:
+        with contextlib.suppress(Exception):
             return value.toPyDate()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     s = str(value).strip()
     if not s:
         return None
-    try:
+    with contextlib.suppress(ValueError):
         return datetime.date.fromisoformat(s[:10])
-    except ValueError:
-        pass
     for fmt in ("%Y/%m/%d", "%d-%m-%Y", "%m/%d/%Y", "%d/%m/%Y"):
         try:
             return datetime.datetime.strptime(s, fmt).date()
@@ -115,14 +112,14 @@ def _linear_regression(x_values, y_values):
     ss_xx = sum((x - mean_x) ** 2 for x in x_values)
     if ss_xx == 0:
         return {"slope": 0.0, "intercept": mean_y, "r_squared": 0.0}
-    ss_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values))
+    ss_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values, strict=False))
     slope = ss_xy / ss_xx
     intercept = mean_y - slope * mean_x
     ss_tot = sum((y - mean_y) ** 2 for y in y_values)
     if ss_tot == 0:
         r_squared = 1.0 if slope == 0 else 0.0
     else:
-        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(x_values, y_values))
+        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(x_values, y_values, strict=False))
         r_squared = 1 - ss_res / ss_tot
     return {"slope": slope, "intercept": intercept, "r_squared": r_squared}
 
@@ -135,7 +132,7 @@ def _forecast_series(dates, values, periods_ahead):
     if len(dates) < 3:
         return {"error": f"Need at least 3 data points to fit a trend, got {len(dates)}."}
 
-    pairs = sorted(zip(dates, values), key=lambda p: p[0])
+    pairs = sorted(zip(dates, values, strict=False), key=lambda p: p[0])
     dates_sorted = [p[0] for p in pairs]
     values_sorted = [p[1] for p in pairs]
 
@@ -146,7 +143,7 @@ def _forecast_series(dates, values, periods_ahead):
 
     # Project at the data's own observation cadence (median gap between
     # consecutive points), not an arbitrary fixed interval.
-    gaps = sorted(b - a for a, b in zip(x_values, x_values[1:])) or [1]
+    gaps = sorted(b - a for a, b in itertools.pairwise(x_values)) or [1]
     cadence_days = gaps[len(gaps) // 2] or 1
 
     last_x = x_values[-1]
@@ -290,7 +287,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
 
     scored = []
     for i, row in enumerate(complete):
-        score = sum(normalized_columns[f][i] * w for f, w in zip(indicators, norm_weights))
+        score = sum(normalized_columns[f][i] * w for f, w in zip(indicators, norm_weights, strict=False))
         scored.append({
             "unit": row.get("unit"),
             "severity_score": round(score, 4),
@@ -303,7 +300,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
         "success": True,
         "method": "min-max normalization to 0-1, weighted sum, equal-interval 1-5 severity class",
         "indicators": list(indicators),
-        "applied_weights": {f: round(w, 4) for f, w in zip(indicators, norm_weights)},
+        "applied_weights": {f: round(w, 4) for f, w in zip(indicators, norm_weights, strict=False)},
         "inverted_indicators": sorted(invert_set),
         "scored_units": len(scored),
         "results": scored,
@@ -349,7 +346,7 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -540,7 +537,7 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -745,7 +742,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -792,7 +789,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
 
     unit_results = []
     units_missing_population = []
-    class_population = {c: 0.0 for c in range(1, 6)}
+    class_population = dict.fromkeys(range(1, 6), 0.0)
     population_in_need = 0.0
 
     for r in severity["results"]:
@@ -942,7 +939,7 @@ def _assign_points_to_polygons_indexed(index, admin_features_by_id, point_geomet
     whichever the spatial index happened to return first, and is counted in stats['ambiguous']. Points that match nothing
     are stats['unmatched']; empty/missing geometries are stats['skipped']. Every point is counted at most once, so the
     per-polygon counts never sum to more than the number of points."""
-    counts = {fid: 0 for fid in admin_features_by_id}
+    counts = dict.fromkeys(admin_features_by_id, 0)
     stats = {"matched": 0, "ambiguous": 0, "unmatched": 0, "skipped": 0}
 
     for geom in point_geometries:
@@ -1102,7 +1099,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
 
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
     unit_results = []
-    class_buildings = {c: 0 for c in range(1, 6)}
+    class_buildings = dict.fromkeys(range(1, 6), 0)
     buildings_in_high_severity = 0
     for r in severity["results"]:
         fid = fid_by_unit.get(r["unit"])
@@ -1270,7 +1267,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
     # Points and zones may be in different CRSs (#161): move the points into the zones' CRS once, up front.
     if dated_geoms:
         moved = list(_geometries_in_crs((g for _d, g in dated_geoms), layer.crs(), zones.crs()))
-        dated_geoms = [(d, g) for (d, _old), g in zip(dated_geoms, moved) if g is not None]
+        dated_geoms = [(d, g) for (d, _old), g in zip(dated_geoms, moved, strict=False) if g is not None]
 
     if not dated_geoms:
         return {"error": f"No usable (date, geometry) pairs found in '{point_layer}' via '{date_field}'."}
@@ -1286,7 +1283,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
         }
 
     buckets = {}
-    for idx, geom in zip(bucket_indices, geoms):
+    for idx, geom in zip(bucket_indices, geoms, strict=False):
         buckets.setdefault(idx, []).append(geom)
 
     zone_features = list(zones.getFeatures())

@@ -9,22 +9,22 @@ from ...core.proxy import get_qgis_proxy_dict
 from ...core import net as _net
 
 try:
-    import requests
+    import requests  # type: ignore[import-untyped]
     HTTPError = requests.exceptions.HTTPError
     RequestException = requests.exceptions.RequestException
     ConnectionError_ = requests.exceptions.ConnectionError
     Timeout_ = requests.exceptions.Timeout
 except (ImportError, AttributeError):
-    requests = None
-    class HTTPError(Exception):
+    requests = None  # type: ignore[assignment]
+    class HTTPError(Exception):  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             super().__init__(*args)
-            self.response = kwargs.get("response", None)
-    class RequestException(Exception):
+            self.response = kwargs.get("response")
+    class RequestException(Exception):  # type: ignore[no-redef]
         pass
-    class ConnectionError_(RequestException):
+    class ConnectionError_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
-    class Timeout_(RequestException):
+    class Timeout_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
 
 # Status codes worth retrying: 429 (rate limited) and the common transient
@@ -133,7 +133,7 @@ def _qgis_send(method, url, headers, payload, timeout):
     try:
         status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
     except _net.NetworkError as e:
-        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e))
+        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e)) from e
     return QgisResponse(status, reply_headers, body, url)
 
 

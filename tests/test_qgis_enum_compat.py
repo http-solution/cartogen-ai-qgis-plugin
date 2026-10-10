@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/_qgis_enum_compat.py -- the 2026-09-04 fix for
 TASK-0008 (the ~15-site unscoped-native-QGIS-enum risk flagged by the
 incomplete/mockup-code audit, see docs/MASTER_TASK_REGISTRY.md and

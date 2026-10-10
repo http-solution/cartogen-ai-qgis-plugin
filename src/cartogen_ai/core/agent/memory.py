@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Spatial Memory Manager for Cartogen AI.
 Provides project-bound long-term spatial memory, sidecar SQLite database persistence,
 and global user memory (via QgsSettings).
 """
 
+import contextlib
 import os
 import json
 import sqlite3
@@ -59,13 +59,11 @@ def _stable_details(details):
     """The same operation arguments always render the same text: a stringified dict is re-rendered with its keys sorted. The captured
     prompts differed between runs only in the key order of {'output_name': ..., 'distance': ...}, which breaks a cached prompt prefix.
     Anything that is not a plain dict literal is returned unchanged."""
-    try:
+    with contextlib.suppress(Exception):
         import ast
         value = ast.literal_eval(details) if isinstance(details, str) else details
         if isinstance(value, dict):
             return "{" + ", ".join(f"{k!r}: {value[k]!r}" for k in sorted(value, key=str)) + "}"
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return details
 
 
@@ -325,7 +323,7 @@ class SpatialMemoryManager:
         usage = {k[len("usage:"):]: v for k, v in glob_notes.items() if k.startswith("usage:")}
         other_notes = {
             k: v for k, v in glob_notes.items()
-            if not (k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:"))
+            if not (k.startswith(("pref:", "rule:", "usage:")))
         }
 
         lines = ["## \U0001f9e0 SPATIAL MEMORY CONTEXT"]

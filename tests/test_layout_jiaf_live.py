@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A real layout built while a JIAF-support result field is visible contains the statement (issue 229, J16)."""
 import os
 import unittest

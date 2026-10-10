@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """fetch_dem: download elevation for an area from the Copernicus DEM GLO-30 open dataset.
 
 2026-10-09 cost investigation, scenario 4 (terrain study): no tool could obtain a DEM, so the model improvised with scripts. Source chosen
@@ -45,12 +44,12 @@ def tile_name(lat_floor, lon_floor):
     """Copernicus tile id for the 1-degree cell whose south-west corner is (lat_floor, lon_floor). Pure."""
     ns = "N" if lat_floor >= 0 else "S"
     ew = "E" if lon_floor >= 0 else "W"
-    return "Copernicus_DSM_COG_10_%s%02d_00_%s%03d_00_DEM" % (ns, abs(int(lat_floor)), ew, abs(int(lon_floor)))
+    return f"Copernicus_DSM_COG_10_{ns}{abs(int(lat_floor)):02d}_00_{ew}{abs(int(lon_floor)):03d}_00_DEM"
 
 
 def tile_url(lat_floor, lon_floor, base=None):
     name = tile_name(lat_floor, lon_floor)
-    return "%s/%s/%s.tif" % ((base or TILE_BASE).rstrip("/"), name, name)
+    return "{}/{}/{}.tif".format((base or TILE_BASE).rstrip("/"), name, name)
 
 
 def bbox_from_centre(lat, lon, radius_km):
@@ -74,8 +73,8 @@ def validate_bbox(west, south, east, north):
 def tiles_for_bbox(west, south, east, north):
     """The (lat_floor, lon_floor) of every 1-degree tile touching the box. A box edge exactly on a tile edge does not pull in the next
     tile. Pure."""
-    lats = range(int(math.floor(south)), int(math.ceil(north)))
-    lons = range(int(math.floor(west)), int(math.ceil(east)))
+    lats = range(math.floor(south), math.ceil(north))
+    lons = range(math.floor(west), math.ceil(east))
     return [(la, lo) for la in lats for lo in lons]
 
 

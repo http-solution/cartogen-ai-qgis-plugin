@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Clipping the road network to what a service area can reach is EXACT (real QGIS).
 
 BUG-2026-09-25-2: routing builds a graph from every road in the layer (about 0.6-1 ms per road; 331 s
@@ -39,7 +38,7 @@ def _grid(crs_id, n, only_rows=None, name="roads"):
     wrong clip can't be told from a right one). Each line has a `speed` attribute (30..90 km/h).
     `only_rows` keeps just the first rows/columns: a network covering only one corner."""
     xf = _xf(crs_id)
-    lyr = QgsVectorLayer("LineString?crs=%s" % crs_id, name, "memory")
+    lyr = QgsVectorLayer(f"LineString?crs={crs_id}", name, "memory")
     lyr.dataProvider().addAttributes([QgsField("speed", QMetaType.Type.Double)])
     lyr.updateFields()
     step = SPAN / n
@@ -61,7 +60,7 @@ def _grid(crs_id, n, only_rows=None, name="roads"):
 
 def _origins(crs_id, lonlats, name="origin"):
     xf = _xf(crs_id)
-    lyr = QgsVectorLayer("Point?crs=%s&field=id:int" % crs_id, name, "memory")
+    lyr = QgsVectorLayer(f"Point?crs={crs_id}&field=id:int", name, "memory")
     feats = []
     for lon, lat in lonlats:
         f = QgsFeature(lyr.fields())
@@ -99,8 +98,7 @@ class TestClippingIsExact(unittest.TestCase):
         """The service-area lines as a sorted list of rounded WKT: identical means identical geometry."""
         self.assertTrue(result.get("success"), result)
         lines = [QgsProject.instance().mapLayersByName(n)[0] for n in result["layers_created"] if "_lines_" in n]
-        wkts = sorted(f.geometry().asWkt(6) for lyr in lines for f in lyr.getFeatures())
-        return wkts
+        return sorted(f.geometry().asWkt(6) for lyr in lines for f in lyr.getFeatures())
 
     def run_both(self, **kw):
         """(clipped result, full-network result) for the same request. BACKGROUND_MIN_FEATURES is lowered
@@ -128,7 +126,7 @@ class TestClippingIsExact(unittest.TestCase):
                     self.assertTrue(a, "empty service area")
                     self.assertEqual(a, b)
                     info = clipped.get("network_clipping")
-                    self.assertIsNotNone(info, "the clip should have applied on a 20 km network with a %d m reach" % reach)
+                    self.assertIsNotNone(info, f"the clip should have applied on a 20 km network with a {reach} m reach")
                     self.assertLess(info["roads_routed_max"], info["roads_full"])
 
     def test_origin_layer_in_another_crs_than_the_network(self):

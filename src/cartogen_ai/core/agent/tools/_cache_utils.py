@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Small shared in-memory TTL cache for repeated identical external lookups
 within a plugin session (geocoding, OSM, HDX, geoBoundaries). Mirrors the
@@ -8,6 +7,7 @@ Plugin-process-lifetime scoping, same as every other module-global cache in
 this codebase -- resets naturally on plugin reload/QGIS restart.
 """
 
+import contextlib
 import time
 
 
@@ -31,10 +31,8 @@ class TTLCache:
     def _fire_evict(self, key, value):
         if self._on_evict is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._on_evict(key, value)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
     def get(self, key):
         entry = self._store.get(key)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Requests the plugin can answer from the open project alone, with no model call.
 
 Why: a plain "List the layers" went to the model provider and, in the 2026-10-10 hand test, took 13 API calls (the user's count),

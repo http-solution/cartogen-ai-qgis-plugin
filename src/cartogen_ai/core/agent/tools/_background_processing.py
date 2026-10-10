@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Run a QGIS Processing algorithm on a worker thread while the GUI keeps responding.
 
 The problem (live-reported 2026-09-25, BUG-2026-09-25-2): tools run on QGIS's GUI thread, and
@@ -23,6 +22,7 @@ Deliberately conservative:
     running thread) and the call returns anyway after `abandon_after_s`.
   * Failure messages from the algorithm are surfaced, not just "failed".
 """
+import contextlib
 import threading
 import time
 
@@ -64,7 +64,7 @@ if QGIS_AVAILABLE:
             self.errors = []
             self.no_route_count = 0
 
-        def reportError(self, error, fatalError=False):  # noqa: N802 -- Qt override
+        def reportError(self, error, fatalError=False):
             # rc7 smoke test F15: ~130 "There is no route from start point ... to end point ..." lines were logged at
             # CRITICAL for facilities the road network never reaches (islands, disconnected clusters). That is a normal
             # result, not a failure: count it (see no_route_count) instead of raising it to CRITICAL, and let every
@@ -82,7 +82,7 @@ if QGIS_AVAILABLE:
 # Rc20 audit A16: they used to stay referenced for the life of the process, so every abandoned analysis leaked its task, routing
 # context and (large) parameter layers forever. An entry is now released as soon as its task reports a terminal state
 # (see _abandon / release_finished_abandoned).
-_ABANDONED = []
+_ABANDONED: list = []
 
 
 def _task_is_done(task):
@@ -107,11 +107,10 @@ def _abandon(entry):
     """Keep `entry` alive until its task finishes, then let it go (also swept on every later run)."""
     _ABANDONED.append(entry)
     task = entry[0]
-    try:
+    # the sweep at the start of the next run still releases it
+    with contextlib.suppress(Exception):
         task.taskCompleted.connect(release_finished_abandoned)
         task.taskTerminated.connect(release_finished_abandoned)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass   # the sweep at the start of the next run still releases it
 
 
 def _on_gui_thread():

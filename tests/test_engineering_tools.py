@@ -81,15 +81,15 @@ class TestEngineeringHydrologyTools(unittest.TestCase):
         self.assertTrue(result["design_inputs"]["intensity_source"].startswith("Local authority"))
 
     def test_rational_calculation_rejects_uncited_or_wrong_duration_intensity(self):
-        base = dict(
-            area_km2=0.25,
-            flow_length_km=0.8,
-            upstream_elevation_m=850,
-            outlet_elevation_m=810,
-            return_period_years=20,
-            rainfall_intensity_mm_h=60,
-            runoff_coefficient=0.5,
-        )
+        base = {
+            "area_km2": 0.25,
+            "flow_length_km": 0.8,
+            "upstream_elevation_m": 850,
+            "outlet_elevation_m": 810,
+            "return_period_years": 20,
+            "rainfall_intensity_mm_h": 60,
+            "runoff_coefficient": 0.5,
+        }
         self.assertIn("error", calculate_rational_watershed_peak_flow(
             **base, intensity_duration_minutes=15, intensity_source=""
         ))
@@ -155,9 +155,9 @@ class TestEngineeringAdjustments(unittest.TestCase):
         length_m, drop = 1200.0, 60.0
         from cartogen_ai.core.agent.tools.engineering_tools import kirpich_tc_minutes
         tc = kirpich_tc_minutes(length_m, drop / length_m)
-        common = dict(flow_length_km=1.2, upstream_elevation_m=910, outlet_elevation_m=850, return_period_years=20,
-                      rainfall_intensity_mm_h=55, intensity_duration_minutes=tc, intensity_source="Cited IDF",
-                      runoff_coefficient=0.4)
+        common = {"flow_length_km": 1.2, "upstream_elevation_m": 910, "outlet_elevation_m": 850, "return_period_years": 20,
+                      "rainfall_intensity_mm_h": 55, "intensity_duration_minutes": tc, "intensity_source": "Cited IDF",
+                      "runoff_coefficient": 0.4}
         small = calculate_rational_watershed_peak_flow(area_km2=0.2, **common)
         mid = calculate_rational_watershed_peak_flow(area_km2=0.6, **common)
         large = calculate_rational_watershed_peak_flow(area_km2=0.9, **common)

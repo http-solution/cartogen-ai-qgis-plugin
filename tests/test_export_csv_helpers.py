@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """CSV export helpers (rc7 smoke test F13): UTF-8 BOM for Excel, X/Y columns for point layers."""
+import pathlib
 import csv
 import os
 import tempfile
@@ -18,10 +18,10 @@ class TestCsvHelpers(unittest.TestCase):
         return path
 
     def test_bom_is_added_once(self):
-        path = self._tmp("name\nصنعاء\n".encode("utf-8"))
+        path = self._tmp("name\n\u0635\u0646\u0639\u0627\u0621\n".encode())
         self.assertIsNone(et._ensure_utf8_bom(path))
         self.assertIsNone(et._ensure_utf8_bom(path))
-        raw = open(path, "rb").read()
+        raw = pathlib.Path(path).read_bytes()
         self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))
         self.assertFalse(raw.startswith(b"\xef\xbb\xbf\xef\xbb\xbf"))
         self.assertIn("صنعاء", raw.decode("utf-8-sig"))

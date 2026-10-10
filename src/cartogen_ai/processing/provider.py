@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Native QGIS Processing Provider and Algorithms for Cartogen AI.
 Exposes optimal hub siting and multi-band service area calculations to QGIS Processing.
@@ -34,18 +33,18 @@ try:
     QGIS_PROCESSING_AVAILABLE = True
 except ImportError:
     QGIS_PROCESSING_AVAILABLE = False
-    class QgsProcessing:
+    class QgsProcessing:  # type: ignore[no-redef]
         TypeVectorPoint = 0
         TypeVectorLine = 1
-    class QgsProcessingProvider:
+    class QgsProcessingProvider:  # type: ignore[no-redef]
         pass
-    class QgsProcessingAlgorithm:
+    class QgsProcessingAlgorithm:  # type: ignore[no-redef]
         pass
-    class QCoreApplication:
+    class QCoreApplication:  # type: ignore[no-redef]
         @staticmethod
         def translate(context, string):
             return string
-    class QIcon:
+    class QIcon:  # type: ignore[no-redef]
         pass
 
 
@@ -73,6 +72,107 @@ def child_travel_cost(strategy_index, cost):
     in HOURS (the repo's own calculate_service_area reports hours), so seconds are converted. Before #156 (audit F20) the seconds
     were passed through unchanged, which made every 'Fastest' service area 3,600 times too large."""
     return float(cost) / 3600.0 if int(strategy_index) == 1 else float(cost)
+
+
+def _read_demand_points(demand_source, cand_crs, context, feedback):
+    """The demand layer's single-point features as QgsPointXY in the candidates' CRS (raises QgsProcessingException when none)."""
+    # #139 / #142 (audit F03, F06): demand points are read as plain points IN THE CANDIDATES' CRS. A demand layer in another
+    # CRS used to be measured as if its numbers were in the candidates' CRS (EPSG:3857 metres read as degrees gave ~18
+    # million metres for a 557 m gap), and a candidate geometry was asked for hasGeometry(), which a QgsGeometry does not have.
+    # Multipart points have no single location, so they are skipped with a warning, never guessed at.
+    demand_crs = demand_source.sourceCrs()
+    to_cand_crs = None
+    if demand_crs.isValid() and cand_crs.isValid() and demand_crs != cand_crs:
+        to_cand_crs = QgsCoordinateTransform(demand_crs, cand_crs, context.transformContext())
+
+    demand_points = []
+    skipped_demand = 0
+    for f in demand_source.getFeatures():
+        if not f.hasGeometry() or f.geometry().isEmpty():
+            continue
+        geom = f.geometry()
+        if geom.isMultipart():
+            skipped_demand += 1
+            continue
+        pt = QgsPointXY(geom.asPoint())
+        if to_cand_crs is not None:
+            try:
+                pt = to_cand_crs.transform(pt)
+            except Exception as e:
+                raise QgsProcessingException(
+                    f"Could not transform a demand point from {demand_crs.authid()} to {cand_crs.authid()}: {e}") from e
+        demand_points.append(pt)
+    if skipped_demand:
+        feedback.pushWarning(f"{skipped_demand} multipart demand feature(s) skipped: only single-point features are supported.")
+    if not demand_points:
+        raise QgsProcessingException("Demand source contains no valid single-point features")
+    return demand_points
+
+
+def _score_candidates(cand_features, demand_points, da, max_dist, feedback):
+    """(scored candidates, cancelled, multipart candidates skipped): each candidate's mean/max distance to the demand points."""
+    scored_candidates = []
+    cancelled = False
+    total_cands = len(cand_features)
+    skipped_candidates = 0
+
+    for idx, cand_feat in enumerate(cand_features):
+        if feedback.isCanceled():
+            cancelled = True
+            break
+        cand_geom = cand_feat.geometry()
+        if not cand_feat.hasGeometry() or cand_geom.isEmpty():
+            continue
+        if cand_geom.isMultipart():
+            skipped_candidates += 1
+            continue
+
+        pt = QgsPointXY(cand_geom.asPoint())
+        distances = []
+        for start in range(0, len(demand_points), _CANCEL_CHECK_EVERY):
+            if feedback.isCanceled():
+                cancelled = True
+                break
+            distances.extend(da.measureLine(pt, dp) for dp in demand_points[start:start + _CANCEL_CHECK_EVERY])
+        if cancelled:
+            break    # this candidate's distances are incomplete, so it is not ranked
+        avg_dist = sum(distances) / len(distances) if distances else 0.0
+        max_d = max(distances) if distances else 0.0
+
+        cand_data = {
+            "feat": cand_feat,
+            "avg_dist": avg_dist,
+            "max_dist": max_d,
+        }
+        if max_dist > 0.0:
+            served = sum(1 for d in distances if d <= max_dist)
+            cand_data["served"] = served
+            cand_data["pct"] = (served / len(distances) * 100.0) if distances else 0.0
+
+        scored_candidates.append(cand_data)
+        feedback.setProgress(int((idx + 1) / total_cands * 50))
+    return scored_candidates, cancelled, skipped_candidates
+
+
+def _service_area_params(network_layer, pt, strategy_idx, default_speed, child_cost, speed_field, direction_field, direction_values):
+    """Parameters for one native:serviceareafrompoint run from the facility point `pt` (already in the network's CRS)."""
+    params = {
+        "INPUT": network_layer,
+        "STRATEGY": strategy_idx,
+        "DEFAULT_SPEED": default_speed,
+        "TOLERANCE": 0,
+        "START_POINT": f"{pt.x()},{pt.y()}",
+        "TRAVEL_COST2": child_cost,
+        "OUTPUT_LINES": "memory:",
+    }
+    if speed_field:
+        params["SPEED_FIELD"] = speed_field
+    if direction_field:
+        params["DIRECTION_FIELD"] = direction_field
+        for key, value in direction_values.items():
+            if value:
+                params[key] = value
+    return params
 
 
 class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
@@ -174,37 +274,8 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
         if sink is None:
             raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 
-        # #139 / #142 (audit F03, F06): demand points are read as plain points IN THE CANDIDATES' CRS. A demand layer in another
-        # CRS used to be measured as if its numbers were in the candidates' CRS (EPSG:3857 metres read as degrees gave ~18
-        # million metres for a 557 m gap), and a candidate geometry was asked for hasGeometry(), which a QgsGeometry does not have.
-        # Multipart points have no single location, so they are skipped with a warning, never guessed at.
         cand_crs = candidates_source.sourceCrs()
-        demand_crs = demand_source.sourceCrs()
-        to_cand_crs = None
-        if demand_crs.isValid() and cand_crs.isValid() and demand_crs != cand_crs:
-            to_cand_crs = QgsCoordinateTransform(demand_crs, cand_crs, context.transformContext())
-
-        demand_points = []
-        skipped_demand = 0
-        for f in demand_source.getFeatures():
-            if not f.hasGeometry() or f.geometry().isEmpty():
-                continue
-            geom = f.geometry()
-            if geom.isMultipart():
-                skipped_demand += 1
-                continue
-            pt = QgsPointXY(geom.asPoint())
-            if to_cand_crs is not None:
-                try:
-                    pt = to_cand_crs.transform(pt)
-                except Exception as e:
-                    raise QgsProcessingException(
-                        f"Could not transform a demand point from {demand_crs.authid()} to {cand_crs.authid()}: {e}")
-            demand_points.append(pt)
-        if skipped_demand:
-            feedback.pushWarning(f"{skipped_demand} multipart demand feature(s) skipped: only single-point features are supported.")
-        if not demand_points:
-            raise QgsProcessingException("Demand source contains no valid single-point features")
+        demand_points = _read_demand_points(demand_source, cand_crs, context, feedback)
 
         # Geodesic distance calculation setup
         da = QgsDistanceArea()
@@ -212,50 +283,11 @@ class OptimalHubSitingAlgorithm(QgsProcessingAlgorithm):
         project_ellipsoid = context.project().ellipsoid() if context.project() else "WGS84"
         da.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
 
-        scored_candidates = []
-        cancelled = False
         cand_features = list(candidates_source.getFeatures())
         too_many = pair_limit_error(len(cand_features), len(demand_points))     # featureCount() can be -1 for some sources
         if too_many:
             raise QgsProcessingException(too_many)
-        total_cands = len(cand_features)
-        skipped_candidates = 0
-
-        for idx, cand_feat in enumerate(cand_features):
-            if feedback.isCanceled():
-                cancelled = True
-                break
-            cand_geom = cand_feat.geometry()
-            if not cand_feat.hasGeometry() or cand_geom.isEmpty():
-                continue
-            if cand_geom.isMultipart():
-                skipped_candidates += 1
-                continue
-
-            pt = QgsPointXY(cand_geom.asPoint())
-            distances = []
-            for start in range(0, len(demand_points), _CANCEL_CHECK_EVERY):
-                if feedback.isCanceled():
-                    cancelled = True
-                    break
-                distances.extend(da.measureLine(pt, dp) for dp in demand_points[start:start + _CANCEL_CHECK_EVERY])
-            if cancelled:
-                break    # this candidate's distances are incomplete, so it is not ranked
-            avg_dist = sum(distances) / len(distances) if distances else 0.0
-            max_d = max(distances) if distances else 0.0
-
-            cand_data = {
-                "feat": cand_feat,
-                "avg_dist": avg_dist,
-                "max_dist": max_d,
-            }
-            if max_dist > 0.0:
-                served = sum(1 for d in distances if d <= max_dist)
-                cand_data["served"] = served
-                cand_data["pct"] = (served / len(distances) * 100.0) if distances else 0.0
-
-            scored_candidates.append(cand_data)
-            feedback.setProgress(int((idx + 1) / total_cands * 50))
+        scored_candidates, cancelled, skipped_candidates = _score_candidates(cand_features, demand_points, da, max_dist, feedback)
 
         scored_candidates.sort(key=lambda item: item["avg_dist"])
 
@@ -454,22 +486,8 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
                 except Exception as e:
                     failures.append((idx, f"could not transform the facility to {net_crs.authid()}: {e}"))
                     continue
-            params = {
-                "INPUT": network_layer,
-                "STRATEGY": strategy_idx,
-                "DEFAULT_SPEED": default_speed,
-                "TOLERANCE": 0,
-                "START_POINT": f"{pt.x()},{pt.y()}",
-                "TRAVEL_COST2": child_cost,
-                "OUTPUT_LINES": "memory:",
-            }
-            if speed_field:
-                params["SPEED_FIELD"] = speed_field
-            if direction_field:
-                params["DIRECTION_FIELD"] = direction_field
-                for key, value in direction_values.items():
-                    if value:
-                        params[key] = value
+            params = _service_area_params(network_layer, pt, strategy_idx, default_speed, child_cost,
+                                          speed_field, direction_field, direction_values)
 
             try:
                 out = processing.run("native:serviceareafrompoint", params, context=context, feedback=feedback)
@@ -496,7 +514,7 @@ class CalculateServiceAreaAlgorithm(QgsProcessingAlgorithm):
             for line_feat in lines_layer.getFeatures():
                 new_feat = QgsFeature(sink_fields)
                 new_feat.setGeometry(line_feat.geometry())
-                new_feat.setAttributes(list(line_feat.attributes()) + [feat.id()])
+                new_feat.setAttributes([*list(line_feat.attributes()), feat.id()])
                 if not sink.addFeature(new_feat, QgsFeatureSink.Flag.FastInsert):
                     raise QgsProcessingException(self.writeFeatureError(sink, parameters, self.OUTPUT_LINES))
             reached += 1

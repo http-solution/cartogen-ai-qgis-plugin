@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Issue 232: finish the map step when the model ends a turn without making the look call a tool handed it."""
 import json
 import unittest

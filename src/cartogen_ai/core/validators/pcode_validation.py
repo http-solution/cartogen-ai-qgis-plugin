@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 P-code depth validation for Cartogen AI.
 

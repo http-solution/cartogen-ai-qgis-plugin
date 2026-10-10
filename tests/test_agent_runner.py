@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from typing import ClassVar
 import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.prompts import build_system_prompt
@@ -175,7 +175,7 @@ class TestToolStepCallback(unittest.TestCase):
         self.assertEqual(steps, [("get_layers", "running", None), ("get_layers", "done", None)])
 
     def test_fires_running_then_failed_on_tool_error(self):
-        final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
+        _final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
         self.assertEqual(steps, [
             ("get_layers", "running", None),
             ("get_layers", "failed", "Layer 'X' not found"),
@@ -250,7 +250,7 @@ class TestPacingAndCompaction(unittest.TestCase):
         return client, mock_sleep
 
     def test_no_pacing_delay_below_threshold_paces_above_it(self):
-        client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
+        _client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
         # PACING_THRESHOLD_ITERATIONS=3 -> iterations 0,1,2 get no delay; every iteration from 3
         # up to MAX_ITERATIONS-1 does -- a small/typical turn never reaches this at all.
         expected_pacing_calls = agent_mod.MAX_ITERATIONS - agent_mod.PACING_THRESHOLD_ITERATIONS
@@ -1070,7 +1070,7 @@ class TestEgressGateWiring(unittest.TestCase):
         with self._fake_qgis(layers, raise_on_layers),              patch.object(lineage, "QGIS_AVAILABLE", True),              patch.object(egress_gate, "read_mode", return_value=mode),              patch.object(egress_gate, "read_strict", return_value=strict):
             return agent._egress_gate_decision(tool, args)
 
-    LAYERS = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
+    LAYERS: ClassVar = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
 
     def test_cloud_provider_and_a_sensitive_layer_is_blocked(self):
         res = self._decide("https://api.openai.com/v1/chat/completions", self.LAYERS)
@@ -1114,7 +1114,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_a_note_with_coordinates_is_refused_and_not_stored(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory(
                 "service_area_analysis", "Computed 1-hour service area around 44.036028, 15.970136.")
         self.assertIn("error", res)
@@ -1124,7 +1124,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_the_same_guard_applies_to_global_memory(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_global_memory("home_base", "4902068.0, 1799912.0")
         self.assertIn("error", res)
         manager.store_global_note.assert_not_called()
@@ -1133,7 +1133,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
         task_tools = self._tools()
         manager = MagicMock()
         manager.store_project_note.return_value = {"success": True}
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory("style", "User prefers hospitals shown in red.")
         self.assertEqual(res, {"success": True})
         manager.store_project_note.assert_called_once()

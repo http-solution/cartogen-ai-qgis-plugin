@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4a: recording the group's decisions and producing the FINAL figures
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md, sections 2, 4 and 5).
 
@@ -21,6 +20,7 @@ Four things are kept apart, in the result rows, the CSV and the layer fields: th
 STATUS (no_flag / flags_closed_in_bulk / decided / pending_flagged, and for severity preliminary_accepted / decided / pending_flagged /
 incomplete_coverage / no_severity_data), the FINAL result, and the JUSTIFICATION with who decided and when.
 """
+import contextlib
 import csv
 import datetime
 import json
@@ -63,13 +63,11 @@ def load_decisions():
     empty = {"pin": {}, "severity": {}}
     if not QGIS_AVAILABLE:
         return empty
-    try:
+    with contextlib.suppress(Exception):
         raw, ok = QgsProject.instance().readEntry(SCOPE, KEY, "")
         if ok and raw:
             data = json.loads(raw)
             return {"pin": dict(data.get("pin", {})), "severity": dict(data.get("severity", {}))}
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return empty
 
 
@@ -138,7 +136,7 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     """Apply the recorded decisions to an `analyze` result. Returns (rows, summary). Pure."""
     expected = analysis["expected_sectors"]
     by_unit = {_row_key(u): u for u in units}
-    bulk = set(int(x) for x in bulk_accepted_flags or ())
+    bulk = {int(x) for x in bulk_accepted_flags or ()}
     issues, rows = [], []
     final_total = provisional_total = published_total = 0.0
     published_differs = published_undocumented = 0
@@ -398,7 +396,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
         "source_discrepancies": [dict(d, note="Stored value preserved; nothing was corrected.")
                                  for d in run["analysis"]["stored_comparison"]["pin_mismatch"][:_CAP]],
         **summary,
-        "total_note": ("PROVISIONAL: %d flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN." % summary["pending_pin_units"]
+        "total_note": (f"PROVISIONAL: {summary['pending_pin_units']} flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN."
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
         "severity_note": "Intersectoral severity is per unit only; there is no national severity and no PiN per severity phase.",
         "pending_units_shown": [{"unit": r["admin2_code"], "pin_flags": r["pin_flags_fired"], "severity_flags": r["severity_flags_fired"]}
@@ -453,7 +451,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
                 rank = r["final_pin_rank"]
                 vals = [r["final_pin"], r["final_severity"], (rank if isinstance(rank, int) else (4 if rank == "other" else None)),
                         PIN_STATUS_CODE.get(r["final_pin_status"]), SEV_STATUS_CODE.get(r["final_severity_status"])]
-                for i, v in zip(idx, vals):
+                for i, v in zip(idx, vals, strict=False):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names

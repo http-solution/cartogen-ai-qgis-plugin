@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for the Intelligent Representation Planner and representation tools."""
 
 import unittest
@@ -50,13 +49,13 @@ class TestRepresentationProfiler(unittest.TestCase):
         feat1.geometry.return_value.isEmpty.return_value = False
         feat1.geometry.return_value.boundingBox.return_value = MagicMock()
         data1 = {"facility_name": "Clinic A", "bed_count": 25, "occupancy_rate": 0.75}
-        feat1.__getitem__.side_effect = lambda k: data1.get(k)
+        feat1.__getitem__.side_effect = data1.get
 
         feat2 = MagicMock()
         feat2.geometry.return_value.isEmpty.return_value = False
         feat2.geometry.return_value.boundingBox.return_value = MagicMock()
         data2 = {"facility_name": "Clinic B", "bed_count": 80, "occupancy_rate": 0.92}
-        feat2.__getitem__.side_effect = lambda k: data2.get(k)
+        feat2.__getitem__.side_effect = data2.get
 
         mock_layer.getFeatures.return_value = [feat1, feat2]
 

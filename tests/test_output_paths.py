@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc22 smoke test N3/N8/N9: a relative output_path is anchored to the project folder, never the process working directory."""
 import os
 import unittest

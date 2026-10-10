@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Native QgsTask / Async Runner for Cartogen AI.
 Executes non-blocking background LLM requests while keeping the QGIS GUI fully responsive.
@@ -20,7 +19,7 @@ try:
 except ImportError:
     QGIS_TASK_AVAILABLE = False
     _TASK_CAN_CANCEL = None
-    class QgsTask:
+    class QgsTask:  # type: ignore[no-redef]
         pass
 
 
@@ -116,7 +115,7 @@ class AgentQgsTask(QgsTask):
                 traceback.print_exc()
 
 
-_main_thread_invoker = None
+_INVOKER = {"obj": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _get_main_thread_invoker():
@@ -126,14 +125,13 @@ def _get_main_thread_invoker():
     binding does not offer; the broad except then called the widget callback directly on the WORKER thread. A queued signal is the
     supported way to cross threads. Create it first from the main thread (run_agent_task does); it is also moved there explicitly.
     Returns None when Qt is not available."""
-    global _main_thread_invoker
-    if _main_thread_invoker is not None:
-        return _main_thread_invoker
+    if _INVOKER["obj"] is not None:
+        return _INVOKER["obj"]
     if not QGIS_TASK_AVAILABLE:
         return None
     try:
         from qgis.PyQt.QtCore import QObject, Qt, pyqtSignal
-        queued = getattr(getattr(Qt, "ConnectionType", Qt), "QueuedConnection")
+        queued = getattr(Qt, "ConnectionType", Qt).QueuedConnection
 
         class _Invoker(QObject):
             call = pyqtSignal(object)
@@ -152,7 +150,7 @@ def _get_main_thread_invoker():
         app = QgsApplication.instance()
         if app is not None:
             invoker.moveToThread(app.thread())
-        _main_thread_invoker = invoker
+        _INVOKER["obj"] = invoker
         return invoker
     except Exception as e:
         print(f"[TaskRunner] could not create the main-thread invoker: {e}")

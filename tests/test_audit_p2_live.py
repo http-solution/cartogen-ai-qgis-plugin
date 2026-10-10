@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS checks for rc20 audit P2 fixes A11 (projected-foot DEM z-factor) and A12 (RFC 7946 GeoJSON export). Written without
 hand-testing; the Docker QGIS run is the only execution evidence."""
 import json

@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Agent Task & Memory Tools for Cartogen AI.
 Exposes tool functions allowing the LLM to manage task plans, preview safety checks, and memory.
 """
 
-from typing import List
 from .registry import register_tool
 from ..coordinates import contains_coordinate_pair
 
@@ -16,15 +14,13 @@ _MEMORY_COORDINATE_REFUSAL = (
 )
 
 # References to active agent instance components will be bound dynamically or via runtime lookup
-_TASK_MANAGER = None
-_MEMORY_MANAGER = None
+_BOUND = {"task_manager": None, "memory_manager": None}   # holder rather than globals (ruff PLW0603)
 
 
 def bind_agent_context(task_manager, memory_manager):
     """Binds active TaskManager and MemoryManager instances to tool handlers."""
-    global _TASK_MANAGER, _MEMORY_MANAGER
-    _TASK_MANAGER = task_manager
-    _MEMORY_MANAGER = memory_manager
+    _BOUND["task_manager"] = task_manager
+    _BOUND["memory_manager"] = memory_manager
 
 
 def get_memory_manager():
@@ -35,43 +31,43 @@ def get_memory_manager():
     their own SpatialMemoryManager() (which would start with an empty cache
     and only see whatever's on disk, not what this session actually holds
     in memory this turn -- see memory.py's persist-opt-in gating, point F6)."""
-    return _MEMORY_MANAGER
+    return _BOUND["memory_manager"]
 
 
 @register_tool("create_plan", "Create a multi-step execution plan for complex spatial tasks.", {"type": "object", "properties": {"title": {"type": "string"}, "task_descriptions": {"type": "array", "items": {"type": "string"}}}, "required": ["title", "task_descriptions"]})
-def create_plan(title: str, task_descriptions: List[str]):
-    if _TASK_MANAGER is None:
+def create_plan(title: str, task_descriptions: list[str]):
+    if _BOUND["task_manager"] is None:
         return {"error": "Task manager not initialized."}
-    return _TASK_MANAGER.create_plan(title, task_descriptions)
+    return _BOUND["task_manager"].create_plan(title, task_descriptions)
 
 
 @register_tool("set_task_preview", "Set a task to PREVIEW_READY state before applying destructive spatial edits.", {"type": "object", "properties": {"task_id": {"type": "string"}, "code_snippet": {"type": "string"}, "rationale": {"type": "string"}, "is_destructive": {"type": "boolean"}}, "required": ["task_id", "code_snippet"]})
 def set_task_preview(task_id: str, code_snippet: str, rationale: str = "", is_destructive: bool = True):
-    if _TASK_MANAGER is None:
+    if _BOUND["task_manager"] is None:
         return {"error": "Task manager not initialized."}
-    return _TASK_MANAGER.set_task_preview(task_id, code_snippet, rationale, is_destructive)
+    return _BOUND["task_manager"].set_task_preview(task_id, code_snippet, rationale, is_destructive)
 
 
 @register_tool("update_task", "Update status of a task in current plan (TODO, IN_PROGRESS, PREVIEW_READY, CONFIRMED, DONE, FAILED).", {"type": "object", "properties": {"task_id": {"type": "string"}, "status": {"type": "string"}, "result": {"type": "string"}, "rationale": {"type": "string"}, "code_snippet": {"type": "string"}}, "required": ["task_id", "status"]})
 def update_task(task_id: str, status: str, result: str = "", rationale: str = "", code_snippet: str = ""):
-    if _TASK_MANAGER is None:
+    if _BOUND["task_manager"] is None:
         return {"error": "Task manager not initialized."}
-    return _TASK_MANAGER.update_task(task_id, status, result, rationale, code_snippet)
+    return _BOUND["task_manager"].update_task(task_id, status, result, rationale, code_snippet)
 
 
 @register_tool("store_project_memory", "Store persistent key-value note for current project. Only when the user asked you to remember something; never store coordinates or data values.", {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]})
 def store_project_memory(key: str, value: str):
-    if _MEMORY_MANAGER is None:
+    if _BOUND["memory_manager"] is None:
         return {"error": "Memory manager not initialized."}
     if contains_coordinate_pair(key) or contains_coordinate_pair(value):
         return {"error": _MEMORY_COORDINATE_REFUSAL}
-    return _MEMORY_MANAGER.store_project_note(key, value)
+    return _BOUND["memory_manager"].store_project_note(key, value)
 
 
 @register_tool("store_global_memory", "Store persistent global preference/note across sessions.", {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]})
 def store_global_memory(key: str, value: str):
-    if _MEMORY_MANAGER is None:
+    if _BOUND["memory_manager"] is None:
         return {"error": "Memory manager not initialized."}
     if contains_coordinate_pair(key) or contains_coordinate_pair(value):
         return {"error": _MEMORY_COORDINATE_REFUSAL}
-    return _MEMORY_MANAGER.store_global_note(key, value)
+    return _BOUND["memory_manager"].store_global_note(key, value)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The allow-list for run_allowlisted_processing_algorithm (point 19's
 "larger question" -- docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md
 -- a real Tier 2 slice of the tiered allow-list model the proposal

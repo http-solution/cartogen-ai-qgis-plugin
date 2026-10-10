@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Weighted survey indicators per area, with small-cell suppression (H6, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -82,9 +81,9 @@ def wilson_interval(p, n_eff, z):
 def weighted_mean_interval(values, weights, z, design_effect=1.0):
     """(mean, low, high, n_eff) for a weighted mean, using the weighted variance and Kish n_eff / design_effect. Pure."""
     total = sum(weights)
-    mean = sum(v * w for v, w in zip(values, weights)) / total
+    mean = sum(v * w for v, w in zip(values, weights, strict=False)) / total
     n_eff = kish_effective_n(weights) / design_effect
-    var = sum(w * (v - mean) ** 2 for v, w in zip(values, weights)) / total
+    var = sum(w * (v - mean) ** 2 for v, w in zip(values, weights, strict=False)) / total
     if n_eff <= 1:
         return (mean, None, None, n_eff)
     half = z * math.sqrt(var / n_eff)

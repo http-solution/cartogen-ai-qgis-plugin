@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Critical-link (bottleneck) screening on a road network (H9, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
 What it measures: for a set of origins and destinations, how much origin-to-destination demand has its SHORTEST path through each road
@@ -124,6 +123,91 @@ def _style(layer, bounds):
     layer.triggerRepaint()
 
 
+def _weighted_features(layer, weight_field):
+    """(feature, weight) pairs with a geometry and a weight above zero, plus the count skipped for an unusable weight."""
+    items, skipped = [], 0
+    for f in layer.getFeatures():
+        if not f.hasGeometry() or f.geometry().isEmpty():
+            continue
+        w = _weight(f, weight_field)
+        if w is None:
+            skipped += 1
+        elif w > 0:
+            items.append((f, w))
+    return items, skipped
+
+
+def _snap_destinations(graph, dest_items, destinations, network, ellipsoid, max_snap_m):
+    """Snap destinations to the nearest graph vertex, measured in metres (ellipsoidal) so max_snap_m means the same on any CRS."""
+    from . import logistics_tools as lt
+    index = QgsSpatialIndex()
+    pts = []
+    for v in range(graph.vertexCount()):
+        p = graph.vertex(v).point()
+        pts.append(p)
+        feat = QgsFeature(v)
+        feat.setGeometry(QgsGeometry.fromPointXY(p))
+        index.addFeature(feat)
+    area = QgsDistanceArea()
+    area.setSourceCrs(network.crs(), QgsProject.instance().transformContext())
+    area.setEllipsoid(ellipsoid)
+    dest_weight_at, snapped_far, max_snap_seen = {}, 0, 0.0
+    for f, w in dest_items:
+        xy = lt._point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network)
+        best = None
+        for v in index.nearestNeighbor(QgsPointXY(xy), 4):
+            d = area.measureLine(QgsPointXY(xy), pts[v])
+            if best is None or d < best[0]:
+                best = (d, v)
+        if best is None or best[0] > max_snap_m:
+            snapped_far += 1
+            continue
+        max_snap_seen = max(max_snap_seen, best[0])
+        dest_weight_at[best[1]] = dest_weight_at.get(best[1], 0.0) + w
+    return pts, area, dest_weight_at, snapped_far, max_snap_seen
+
+
+def _sum_edge_loads(graph, usable, tied, dest_weight_at, started, time_budget_s):
+    from qgis.analysis import QgsGraphAnalyzer
+    n = graph.vertexCount()
+    load_by_edge, origins_done, reached_total, unreached_total, stopped = {}, 0, 0.0, 0.0, False
+    for (_feat, o_weight), t in zip(usable, tied, strict=False):
+        if time.monotonic() - started > time_budget_s:
+            stopped = True
+            break
+        start = graph.findVertex(t) if t is not None else -1
+        if start < 0:
+            continue
+        tree, costs = QgsGraphAnalyzer.dijkstra(graph, start, 0)
+        parents = [(-1 if tree[v] < 0 else graph.edge(tree[v]).fromVertex()) for v in range(n)]
+        loads, reached, unreached = accumulate_tree_load(parents, list(costs), dest_weight_at)
+        for v, load in loads.items():
+            if load > 0:
+                k = edge_key(parents[v], v)
+                load_by_edge[k] = load_by_edge.get(k, 0.0) + load * o_weight
+        reached_total += reached * o_weight
+        unreached_total += unreached * o_weight
+        origins_done += 1
+    return load_by_edge, origins_done, reached_total, unreached_total, stopped
+
+
+def _build_load_layer(network, output_layer_name, load_by_edge, pts):
+    layer = QgsVectorLayer(f"LineString?crs={network.crs().authid()}", output_layer_name or "critical_links", "memory")
+    layer.dataProvider().addAttributes([QgsField("load", QVariant.Double), QgsField("share", QVariant.Double)])
+    layer.updateFields()
+    total = max(load_by_edge.values()) if load_by_edge else 0.0
+    feats = []
+    for (a, b), load in load_by_edge.items():
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromPolylineXY([pts[a], pts[b]]))
+        f.setAttribute("load", float(load))
+        f.setAttribute("share", float(load / total) if total else 0.0)
+        feats.append(f)
+    layer.dataProvider().addFeatures(feats)
+    layer.updateExtents()
+    return layer, total
+
+
 @register_tool(
     "analyze_critical_links",
     "Screen a road network for bottlenecks: how much origin-to-destination demand has its shortest path through each road segment. A "
@@ -201,35 +285,19 @@ def analyze_critical_links(road_network_layer, origins_layer, destinations_layer
         return {"error": field_error}
 
     started = time.monotonic()
-    origin_feats = [f for f in origins.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
-    origin_skipped_weight = 0
-    usable = []
-    for f in origin_feats:
-        w = _weight(f, origin_weight_field)
-        if w is None:
-            origin_skipped_weight += 1
-        elif w > 0:
-            usable.append((f, w))
+    usable, origin_skipped_weight = _weighted_features(origins, origin_weight_field)
     if not usable:
         return {"error": f"'{origins_layer}' has no usable origin (needs a point and, with a weight field, a non-negative number above zero)."}
     origins_left_out = max(0, len(usable) - max_origins)
     usable = usable[:max_origins]
-    dest_items, dest_skipped_weight = [], 0
-    for f in destinations.getFeatures():
-        if not f.hasGeometry() or f.geometry().isEmpty():
-            continue
-        w = _weight(f, destination_weight_field)
-        if w is None:
-            dest_skipped_weight += 1
-        elif w > 0:
-            dest_items.append((f, w))
+    dest_items, dest_skipped_weight = _weighted_features(destinations, destination_weight_field)
     if not dest_items:
         return {"error": f"'{destinations_layer or origins_layer}' has no usable destination."}
     if len(dest_items) > MAX_DESTINATIONS:
         return {"error": f"{len(dest_items):,} destinations is more than the {MAX_DESTINATIONS:,} this screening accepts; filter or aggregate them first."}
 
     try:
-        from qgis.analysis import (QgsGraphAnalyzer, QgsGraphBuilder, QgsNetworkDistanceStrategy, QgsNetworkSpeedStrategy,
+        from qgis.analysis import (QgsGraphBuilder, QgsNetworkDistanceStrategy, QgsNetworkSpeedStrategy,
                                    QgsVectorLayerDirector)
         ellipsoid = lt._network_context().ellipsoid()
         direction_idx = network.fields().indexOf(direction_field) if direction_field else -1
@@ -251,68 +319,17 @@ def analyze_critical_links(road_network_layer, origins_layer, destinations_layer
     if n == 0:
         return {"error": "The road network produced an empty graph."}
 
-    # Snap destinations to the nearest graph vertex, measured in metres (ellipsoidal) so max_snap_m means the same on any CRS.
-    index = QgsSpatialIndex()
-    pts = []
-    for v in range(n):
-        p = graph.vertex(v).point()
-        pts.append(p)
-        feat = QgsFeature(v)
-        feat.setGeometry(QgsGeometry.fromPointXY(p))
-        index.addFeature(feat)
-    area = QgsDistanceArea()
-    area.setSourceCrs(network.crs(), QgsProject.instance().transformContext())
-    area.setEllipsoid(ellipsoid)
-    dest_weight_at, snapped_far, max_snap_seen = {}, 0, 0.0
-    for f, w in dest_items:
-        xy = lt._point_xy_in_network_crs(f.geometry().asPoint(), destinations.crs(), network)
-        best = None
-        for v in index.nearestNeighbor(QgsPointXY(xy), 4):
-            d = area.measureLine(QgsPointXY(xy), pts[v])
-            if best is None or d < best[0]:
-                best = (d, v)
-        if best is None or best[0] > max_snap_m:
-            snapped_far += 1
-            continue
-        max_snap_seen = max(max_snap_seen, best[0])
-        dest_weight_at[best[1]] = dest_weight_at.get(best[1], 0.0) + w
+    pts, area, dest_weight_at, snapped_far, max_snap_seen = _snap_destinations(
+        graph, dest_items, destinations, network, ellipsoid, max_snap_m)
     if not dest_weight_at:
         return {"error": f"No destination is within {max_snap_m:g} m of the road network, so there is nothing to route to."}
 
-    load_by_edge, origins_done, reached_total, unreached_total, stopped = {}, 0, 0.0, 0.0, False
-    for (feat, o_weight), t in zip(usable, tied):
-        if time.monotonic() - started > time_budget_s:
-            stopped = True
-            break
-        start = graph.findVertex(t) if t is not None else -1
-        if start < 0:
-            continue
-        tree, costs = QgsGraphAnalyzer.dijkstra(graph, start, 0)
-        parents = [(-1 if tree[v] < 0 else graph.edge(tree[v]).fromVertex()) for v in range(n)]
-        loads, reached, unreached = accumulate_tree_load(parents, list(costs), dest_weight_at)
-        for v, load in loads.items():
-            if load > 0:
-                k = edge_key(parents[v], v)
-                load_by_edge[k] = load_by_edge.get(k, 0.0) + load * o_weight
-        reached_total += reached * o_weight
-        unreached_total += unreached * o_weight
-        origins_done += 1
+    load_by_edge, origins_done, reached_total, unreached_total, stopped = _sum_edge_loads(
+        graph, usable, tied, dest_weight_at, started, time_budget_s)
     if origins_done == 0:
         return {"error": "No origin could be tied into the road network, or the time budget ended before the first origin."}
 
-    layer = QgsVectorLayer(f"LineString?crs={network.crs().authid()}", output_layer_name or "critical_links", "memory")
-    layer.dataProvider().addAttributes([QgsField("load", QVariant.Double), QgsField("share", QVariant.Double)])
-    layer.updateFields()
-    total = max(load_by_edge.values()) if load_by_edge else 0.0
-    feats = []
-    for (a, b), load in load_by_edge.items():
-        f = QgsFeature(layer.fields())
-        f.setGeometry(QgsGeometry.fromPolylineXY([pts[a], pts[b]]))
-        f.setAttribute("load", float(load))
-        f.setAttribute("share", float(load / total) if total else 0.0)
-        feats.append(f)
-    layer.dataProvider().addFeatures(feats)
-    layer.updateExtents()
+    layer, total = _build_load_layer(network, output_layer_name, load_by_edge, pts)
     bounds = classify_loads(list(load_by_edge.values()))
     name = output_layer_name or "critical_links"
     if bounds:

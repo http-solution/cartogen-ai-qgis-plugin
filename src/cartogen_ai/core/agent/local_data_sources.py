@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Offer to download a request's base data once, locally, instead of fetching it live.
 
 Why this exists (live-reported 2026-09-24/25, "Health facilities beyond one hour's travel"):
@@ -191,7 +190,7 @@ def _source_line(src, country=None):
     # No country known yet (Geofabrik's index isn't cached): the search still works without it.
     url = src["url"].format(country=(country or "").replace(" ", "%20"))
     url = url.replace("%20%20", "%20").replace("q=%20", "q=")
-    return "- **%s**: %s (%s, %s): %s" % (src["name"], src["what"], src["format"], src["license"], url)
+    return "- **{}**: {} ({}, {}): {}".format(src["name"], src["what"], src["format"], src["license"], url)
 
 
 def question_text(themes, country=None):
@@ -199,7 +198,7 @@ def question_text(themes, country=None):
     labels = [THEME_LABELS.get(t, t) for t in themes]
     auto = [t for t in themes if any(s.get("auto") for s in SOURCES.get(t, []))]
     lines = [
-        "This request needs **%s**, and this project doesn't have %s yet." % (
+        "This request needs **{}**, and this project doesn't have {} yet.".format(
             " and ".join(labels), "it" if len(labels) == 1 else "them"),
         "",
         "I can **download the data once** into the project and work from local files: better "
@@ -209,9 +208,9 @@ def question_text(themes, country=None):
     ]
     if auto:
         lines.append("If you choose download, I'll get the OpenStreetMap extract for this area "
-                     "from Geofabrik (%s), tell you its size first if it's large, save it in "
-                     "the project's data folder and add the layers." % ", ".join(
-                         THEME_LABELS[t] for t in auto))
+                     "from Geofabrik ({}), tell you its size first if it's large, save it in "
+                     "the project's data folder and add the layers.".format(", ".join(
+                         THEME_LABELS[t] for t in auto)))
         lines.append("")
     lines.append("Other sources with downloadable versions, if you'd rather load your own:")
     for t in themes:
@@ -228,7 +227,7 @@ def all_sources_markdown(country=None):
     data' answer."""
     out = []
     for theme, srcs in SOURCES.items():
-        out.append("**%s**" % THEME_LABELS[theme].capitalize())
+        out.append(f"**{THEME_LABELS[theme].capitalize()}**")
         out.extend(_source_line(s, country) for s in srcs)
         out.append("")
     return "\n".join(out).rstrip()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live check that a tool returning a LIST reaches the model as that list, through the real CartogenAi._execute_tool path.
 
 rc15 hand test (2026-10-06): get_layers and get_attributes both came back as "Execution failed unexpectedly." because the #138

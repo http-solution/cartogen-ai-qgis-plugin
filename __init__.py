@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  CartogenAi
@@ -90,7 +89,7 @@ def _bootstrap_namespace():
         # Scoped eviction leaves modules that are not ours alone. If what resolved still comes from somewhere else (a stale
         # copy cached from another location -- cause 3 in the header), fall through to the unconditional eviction below.
         from ._module_ownership import _under
-        core_file = getattr(core, "__file__", None) or (list(getattr(core, "__path__", []) or [""])[0])
+        core_file = getattr(core, "__file__", None) or (next(iter(getattr(core, "__path__", []) or [""])))
         if not _under(core_file, _PKG_DIR):
             raise ImportError("cartogen_ai.core resolved outside this plugin's package directory")
         return "resolved-normally"

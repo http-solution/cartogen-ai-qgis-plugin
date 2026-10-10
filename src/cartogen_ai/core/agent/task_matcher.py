@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Match a user request to a task in the Humanitarian Mapping Task Register,
 work out what information is still missing, and describe what the answer
 should turn into.
@@ -12,6 +11,7 @@ Nothing here raises. A failure to match is a normal outcome, reported as an
 empty match list, and the caller falls through to today's unmodified
 behaviour.
 """
+import contextlib
 import os
 import re
 
@@ -24,9 +24,7 @@ AMBIGUITY_MARGIN = 0.08
 MAX_CANDIDATES = 5
 
 _WORD = re.compile(r"[a-z][a-z\-]{2,}")
-_STOP = frozenset("""and or the a an of for to in on with by from at into over under across per
-that this these those please can you i we need want show make give help me my our it is are was
-were be been being do does did how what which where when who why all any some""".split())
+_STOP = frozenset(["and", "or", "the", "a", "an", "of", "for", "to", "in", "on", "with", "by", "from", "at", "into", "over", "under", "across", "per", "that", "this", "these", "those", "please", "can", "you", "i", "we", "need", "want", "show", "make", "give", "help", "me", "my", "our", "it", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "how", "what", "which", "where", "when", "who", "why", "all", "any", "some"])
 
 # Query words that carry no discriminating power inside this register: nearly
 # every task contains them, so they inflate every score equally.
@@ -195,11 +193,9 @@ def _known_tool_names():
     names = set()
     for e in reg.load():
         names.update(e.get("tools") or [])
-    try:
+    with contextlib.suppress(Exception):
         from .tools.registry import TOOL_REGISTRY
         names.update(TOOL_REGISTRY)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return names
 
 
@@ -411,14 +407,14 @@ def clarify_question(entry, missing):
     """
     if not entry or not missing:
         return ""
-    lines = ["To do this well I need a bit more: **%s**" % entry["text"], ""]
+    lines = ["To do this well I need a bit more: **{}**".format(entry["text"]), ""]
     for s in missing:
-        lines.append("- %s" % reg.SLOT_QUESTIONS.get(s, s))
+        lines.append(f"- {reg.SLOT_QUESTIONS.get(s, s)}")
     lines.append("")
     stated = defaults(missing)
     if stated:
         lines.append("If you'd rather I just proceed, I'll use: "
-                     + "; ".join("%s = %s" % (k, v) for k, v in stated.items()) + ".")
+                     + "; ".join(f"{k} = {v}" for k, v in stated.items()) + ".")
     return "\n".join(lines)
 
 
@@ -452,9 +448,9 @@ def task_directive(entry, filled=None, query=None):
     if not entry:
         return ""
     parts = [
-        "Recognised task %s (%s): %s." % (entry["id"], entry["cname"], entry["text"]),
-        "Deliver: %s." % reg.OUTPUT_INTENT.get(output_override(query) or entry["out"],
-                                              entry["out"]),
+        "Recognised task {} ({}): {}.".format(entry["id"], entry["cname"], entry["text"]),
+        "Deliver: {}.".format(reg.OUTPUT_INTENT.get(output_override(query) or entry["out"],
+                                              entry["out"])),
     ]
     tools = list(entry.get("tools") or [])
     # A tool the user named leads the chain: "Run extract_features_from_imagery on loaded raster smoke_image" matched a task whose chain starts
@@ -464,11 +460,9 @@ def task_directive(entry, filled=None, query=None):
         tools = named + [t for t in tools if t not in named]
     # A data source the request names (OpenStreetMap/Overpass, HDX) leads the chain and a local-file loader goes last unless a file is
     # named: 6.02 "Map hospitals and clinics" otherwise opened with add_layer_from_path for an Overpass request (2026-10-09).
-    try:
+    with contextlib.suppress(Exception):
         from .capabilities import lead_tools_for_task
         tools = lead_tools_for_task(tools, query)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output
     # actually needs, or the model is told to deliver an HTML dashboard while
@@ -477,9 +471,9 @@ def task_directive(entry, filled=None, query=None):
         if t not in tools:
             tools.append(t)
     if tools:
-        parts.append("Prefer these tools, in order: %s." % ", ".join(tools))
+        parts.append("Prefer these tools, in order: {}.".format(", ".join(tools)))
     if filled:
-        parts.append("Given: " + "; ".join("%s = %s" % (k, v) for k, v in filled.items()) + ".")
+        parts.append("Given: " + "; ".join(f"{k} = {v}" for k, v in filled.items()) + ".")
     return " ".join(parts)
 
 
@@ -539,8 +533,7 @@ def attachment_plan(entry, attachments):
             "name": os.path.basename(path or ""),
             "kind": kind,
             "tool": file_io.reader_for(kind, (entry or {}).get("text", "")) if kind else None,
-            "line": line or "%s -- unrecognised file type, sent as plain text"
-                            % os.path.basename(path or ""),
+            "line": line or "{} -- unrecognised file type, sent as plain text".format(os.path.basename(path or "")),
             "accepted": bool(kind) and (not acc or kind in acc),
         })
     return out
@@ -556,7 +549,7 @@ def compose_user_message(query, filled=None, plan=None):
     """
     parts = [(query or "").strip()]
     if filled:
-        parts.append("Given: " + "; ".join("%s = %s" % (k, v)
+        parts.append("Given: " + "; ".join(f"{k} = {v}"
                                            for k, v in sorted(filled.items())) + ".")
     if plan:
         lines = ["Attached files:"]
@@ -586,25 +579,23 @@ def reasoning(entry, score, filled, plan, query=None):
     if not entry:
         return ["No register task matched -- sending the request unchanged."]
     lines = [
-        "Matched task %s in section %s (%s), confidence %.2f."
-        % (entry["id"], entry["cat"], entry["cname"], score),
+        "Matched task {} in section {} ({}), confidence {:.2f}.".format(entry["id"], entry["cat"], entry["cname"], score),
     ]
     over = output_override(query)
     if over and over != entry["out"]:
-        lines.append("You asked for %s %s, so that overrides the task's usual %s output."
-                     % (_indefinite_article(over), over, entry["out"]))
-    lines.append("Deliverable: %s." % expected_output(entry, query))
+        lines.append("You asked for {} {}, so that overrides the task's usual {} output.".format(_indefinite_article(over), over, entry["out"]))
+    lines.append(f"Deliverable: {expected_output(entry, query)}.")
     if filled:
         lines.append("Assumed, because you did not specify: "
-                     + "; ".join("%s = %s" % (k, v) for k, v in sorted(filled.items())) + ".")
+                     + "; ".join(f"{k} = {v}" for k, v in sorted(filled.items())) + ".")
     for p in plan or []:
         if p["accepted"]:
-            lines.append("Attachment %s will be read as %s." % (p["name"], p["kind"]))
+            lines.append("Attachment {} will be read as {}.".format(p["name"], p["kind"]))
         else:
-            lines.append("Attachment %s is not a file type this task uses -- "
-                         "it will be passed as plain text." % p["name"])
+            lines.append("Attachment {} is not a file type this task uses -- "
+                         "it will be passed as plain text.".format(p["name"]))
     if entry.get("tools"):
-        lines.append("Tool order suggested to the model: %s." % ", ".join(entry["tools"]))
+        lines.append("Tool order suggested to the model: {}.".format(", ".join(entry["tools"])))
     return lines
 
 
@@ -629,7 +620,7 @@ def slot_context_from_map(map_context):
         active = map_context.get("active_layer")
         # map_context reports the string "None" when nothing is active.
         if active and active != "None":
-            ctx["aoi"] = "the current canvas extent (active layer: %s)" % active
+            ctx["aoi"] = f"the current canvas extent (active layer: {active})"
         else:
             ctx["aoi"] = "the current canvas extent"
     return ctx

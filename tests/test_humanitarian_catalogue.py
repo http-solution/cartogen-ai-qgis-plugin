@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """docs/HUMANITARIAN_TOOLS_CATALOGUE.md must only name tools that exist, and must list every tool added for the humanitarian workflows."""
 import os
 import re

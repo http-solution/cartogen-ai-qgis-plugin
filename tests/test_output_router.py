@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/output_router.py -- the step that checks the answer came
 back in the shape the task promised, and asks once when it did not."""
 import unittest

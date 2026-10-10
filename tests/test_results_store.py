@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F06: analysis outputs are memory layers and vanish on Save + Reopen. The pure parts of the per-project
 results GeoPackage; the real write/reopen round trip is in tests/test_rc9_live.py."""
 import os

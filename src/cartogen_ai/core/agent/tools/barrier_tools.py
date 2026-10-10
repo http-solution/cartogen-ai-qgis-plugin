@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Road barriers for the routing tools (H1, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -38,7 +37,7 @@ MODES = ("block", "penalise")
 def utm_epsg(lon, lat):
     """EPSG code of the UTM zone containing (lon, lat) in degrees. Pure. Polar caps (beyond 84N / 80S) fall back to the
     nearest zone, where UTM is poor; callers cannot do better without a polar CRS, which is out of scope here."""
-    zone = int(math.floor((lon + 180.0) / 6.0)) % 60 + 1
+    zone = math.floor((lon + 180.0) / 6.0) % 60 + 1
     return (32600 if lat >= 0 else 32700) + zone
 
 

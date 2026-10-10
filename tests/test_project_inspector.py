@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for core/services/project_inspector.py -- IMPLEMENTATION_TRACKER.md §1.5, option (b)."""
 import unittest
 from unittest.mock import MagicMock, patch
