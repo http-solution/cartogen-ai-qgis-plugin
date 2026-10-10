@@ -45,7 +45,7 @@ def _temporary_layer_names(project):
     for layer in project.mapLayers().values():
         try:
             is_memory = layer.providerType() == "memory" or (hasattr(layer, "isTemporary") and layer.isTemporary())
-        except Exception:
+        except Exception:  # nosec B112 (best-effort: skip this item)
             continue
         if is_memory:
             names.append(layer.name())

@@ -684,7 +684,7 @@ def _auto_label_admin(layer):
     try:
         from .output_style import style_auto_labels
         style_auto_labels(layer)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         from qgis.core import QgsFillSymbol
@@ -693,7 +693,7 @@ def _auto_label_admin(layer):
         layer.triggerRepaint()
         from .styling_tools import auto_arrange_layer_order
         auto_arrange_layer_order()
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -1642,7 +1642,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
         try:
             from .output_style import style_continuous_raster
             style_continuous_raster(layer, "population")   # zero cells transparent, heavy-tailed warm ramp
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass   # styling is cosmetic: never fail the fetch over it
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
         for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):

@@ -87,7 +87,7 @@ def _profile_base_dir():
             base = QgsApplication.qgisSettingsDirPath()
             if base:
                 return os.path.join(base, "cartogen_ai")
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     return os.path.join(os.path.expanduser("~"), ".cartogen_ai")
 
@@ -115,7 +115,7 @@ def mark_onboarding_completed():
         return
     try:
         QgsSettings().setValue(ONBOARDING_COMPLETED_KEY, True)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 

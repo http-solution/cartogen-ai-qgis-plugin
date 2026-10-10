@@ -33,7 +33,7 @@ class TTLCache:
             return
         try:
             self._on_evict(key, value)
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
 
     def get(self, key):

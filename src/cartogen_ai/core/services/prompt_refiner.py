@@ -332,7 +332,7 @@ def analyze_request(query, context=None, attachments=None):
             from ..agent import capabilities
             if capabilities.is_multi_step(query):
                 directive = capabilities.workflow_directive(query)
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         user_message = tmatch.compose_user_message(query, filled, plan)
         return {

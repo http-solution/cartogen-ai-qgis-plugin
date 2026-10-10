@@ -160,7 +160,7 @@ def _remote_size(url):
             size = int(r.headers.get("Content-Length") or 0)
         if size:
             return size
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
@@ -173,7 +173,7 @@ def _remote_size(url):
             # A server that ignored the Range header answers 200 with the whole body's length.
             if getattr(r, "status", 200) == 200:
                 return int(r.headers.get("Content-Length") or 0)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return 0
 

@@ -214,7 +214,7 @@ class ClaudeClient(BaseAiProvider):
         if self._status_callback:
             try:
                 self._status_callback(text)
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
 
     def complete(self, messages, tools=None, max_tokens=None):

@@ -68,7 +68,7 @@ def load_decisions():
         if ok and raw:
             data = json.loads(raw)
             return {"pin": dict(data.get("pin", {})), "severity": dict(data.get("severity", {}))}
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return empty
 

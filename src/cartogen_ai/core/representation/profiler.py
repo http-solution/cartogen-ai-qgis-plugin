@@ -175,7 +175,7 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
                 overall_area = w * h
                 if overall_area <= 0:
                     return "extreme", 1.0
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
     # Count pairwise overlaps
@@ -191,7 +191,7 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
                     res = b1.intersects(b2)
                     if isinstance(res, bool) and res:
                         overlap_count += 1
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
 
     overlap_ratio = (overlap_count / max(1, total_pairs))
@@ -230,7 +230,7 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
         try:
             crs = layer.crs().authid()
             is_geo = layer.crs().isGeographic()
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
 
     # 1. Raster Layer

@@ -67,7 +67,7 @@ def log_info(message: str, tag: str = TAG) -> None:
         try:
             QgsMessageLog.logMessage(message, tag, Qgis.Info)
             return
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     print(f"[{tag}] {message}", file=sys.stdout)
 
@@ -79,7 +79,7 @@ def log_warning(message: str, tag: str = TAG) -> None:
         try:
             QgsMessageLog.logMessage(message, tag, Qgis.Warning)
             return
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     print(f"[{tag}] WARNING: {message}", file=sys.stderr)
 
@@ -91,7 +91,7 @@ def log_error(message: str, tag: str = TAG) -> None:
         try:
             QgsMessageLog.logMessage(message, tag, Qgis.Critical)
             return
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
 
@@ -184,7 +184,7 @@ def enable_diagnostic_logging(duration_seconds: int = _DEFAULT_DIAGNOSTIC_DURATI
         return
     try:
         QgsSettings().setValue(_DIAGNOSTIC_SETTING, time.time() + duration_seconds)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -194,7 +194,7 @@ def disable_diagnostic_logging() -> None:
         return
     try:
         QgsSettings().remove(_DIAGNOSTIC_SETTING)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 

@@ -397,7 +397,7 @@ class CartogenAi:
                                                  "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
                                                  "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
                       tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         trace = self._api_trace()
         if trace is not None:
@@ -529,7 +529,7 @@ class CartogenAi:
         try:
             self.task_manager.clear_plan()
             self.task_manager.plan_history = []
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         self._recent_tools = ((), 0)
         self._grounding_texts = []
@@ -916,7 +916,7 @@ class CartogenAi:
             if tool_step_callback is not None:
                 try:
                     tool_step_callback(tool, "running", None)
-                except Exception:
+                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                     pass
             started = time.monotonic()
             result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
@@ -934,7 +934,7 @@ class CartogenAi:
             if tool_step_callback is not None:
                 try:
                     tool_step_callback(tool, "failed" if failed else "done", tool_results.error_of(result))
-                except Exception:
+                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                     pass
             self._remember_grounding(json.dumps(result, default=str))
             results.append(result)
@@ -1557,7 +1557,7 @@ class CartogenAi:
             total = sum(len(t) for t in texts)
             while total > self._GROUNDING_TOTAL_CHARS and len(texts) > 1:
                 total -= len(texts.pop(0))
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
 
     def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
@@ -1569,7 +1569,7 @@ class CartogenAi:
         try:
             pending += [t.get("pending_tool") for t in self.task_manager.tasks
                         if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         failed = []
         for i, (name, is_error, _msg) in enumerate(turn_tool_log):
@@ -1888,7 +1888,7 @@ class CartogenAi:
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "running", None)
-                    except Exception:
+                    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                         pass
                 _tool_start = time.monotonic()
                 if name == "run_steps":
@@ -1930,7 +1930,7 @@ class CartogenAi:
                 if tool_step_callback is not None:
                     try:
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
-                    except Exception:
+                    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                         pass
                 try:
                     serialized = json.dumps(tool_result, default=str)

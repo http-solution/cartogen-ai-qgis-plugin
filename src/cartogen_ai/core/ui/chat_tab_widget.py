@@ -838,7 +838,7 @@ class ChatTabWidget(QWidget):
                         zoom_to_layer(layers[0].name())
                     elif iface and iface.mapCanvas():
                         iface.mapCanvas().zoomToFullExtent()
-                except Exception:
+                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                     pass
             return
 
@@ -969,7 +969,7 @@ class ChatTabWidget(QWidget):
                     from qgis.utils import iface
                     if iface and iface.mapCanvas():
                         iface.mapCanvas().refresh()
-                except Exception:
+                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                     pass
             else:
                 err = res.get("error", "Failed to apply representation")
@@ -1917,7 +1917,7 @@ class ChatTabWidget(QWidget):
         try:
             from qgis.core import QgsProject
             has_layers = bool(QgsProject.instance().mapLayers())
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
 
         instruction = output_router.followup_instruction(

@@ -236,7 +236,7 @@ class CartogenAi:
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
             project_session.retire_plugin()      # tasks started before this point must not call back into the destroyed UI (#167)
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
         # old one outlived the plugin.
@@ -255,7 +255,7 @@ class CartogenAi:
         if self._first_use_timer is not None:
             try:
                 self._first_use_timer.stop()
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
             self._first_use_timer = None
 

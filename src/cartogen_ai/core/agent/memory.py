@@ -64,7 +64,7 @@ def _stable_details(details):
         value = ast.literal_eval(details) if isinstance(details, str) else details
         if isinstance(value, dict):
             return "{" + ", ".join(f"{k!r}: {value[k]!r}" for k in sorted(value, key=str)) + "}"
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return details
 

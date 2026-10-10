@@ -183,7 +183,7 @@ class CartogenAccountDialog(QDialog):
         try:
             if client:
                 client.logout()
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         CredentialManager.clear_account_session()
         self.client = None

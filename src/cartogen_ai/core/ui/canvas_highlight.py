@@ -29,17 +29,17 @@ def _discard_highlight(highlight):
     failure below still leaves the item invisible."""
     try:
         highlight.hide()
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         scene = highlight.scene()
         if scene is not None:
             scene.removeItem(highlight)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         highlight.deleteLater()
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 

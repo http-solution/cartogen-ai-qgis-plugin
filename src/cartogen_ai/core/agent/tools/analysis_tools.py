@@ -89,7 +89,7 @@ def _parse_date(value):
     if hasattr(value, "toPyDate"):
         try:
             return value.toPyDate()
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
     s = str(value).strip()
     if not s:

@@ -254,6 +254,6 @@ class ChatInputController:
                 agent.conversation_history.append(assistant_entry)
                 if hasattr(agent, "_trim_history"):
                     agent._trim_history()
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         return content

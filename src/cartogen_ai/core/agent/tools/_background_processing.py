@@ -110,7 +110,7 @@ def _abandon(entry):
     try:
         task.taskCompleted.connect(release_finished_abandoned)
         task.taskTerminated.connect(release_finished_abandoned)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass   # the sweep at the start of the next run still releases it
 
 

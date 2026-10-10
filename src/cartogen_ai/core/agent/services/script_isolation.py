@@ -36,7 +36,7 @@ Known, documented limitations (not silently claimed as fixed):
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 (fixed argv list, no shell)
 import sys
 import tempfile
 import threading
@@ -445,7 +445,7 @@ def _detach_vector_layer(layer):
     try:
         if layer.renderer() is not None:
             copy.setRenderer(layer.renderer().clone())
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass            # the data matters more than the symbology
     return copy
 
@@ -622,7 +622,7 @@ class _IsolationWorker:
             }
         env = _build_worker_environment()
         try:
-            self._proc = subprocess.Popen(
+            self._proc = subprocess.Popen(  # nosec B603 (fixed argv list, no shell, no user input in the command)
                 [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -685,7 +685,7 @@ class _IsolationWorker:
         try:
             self._proc.kill()
             self._proc.wait(timeout=5)
-        except Exception:
+        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
         self._proc = None
 

@@ -59,7 +59,7 @@ def vector_signature(provider, source, feature_count, wkb_samples):
         return f"src:{source}" if source else None
     if not wkb_samples:
         return None
-    digest = hashlib.sha1("|".join(sorted(wkb_samples)).encode("utf-8")).hexdigest()
+    digest = hashlib.sha1("|".join(sorted(wkb_samples)).encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"mem:{feature_count}:{digest}"
 
 

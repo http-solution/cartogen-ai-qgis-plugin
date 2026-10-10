@@ -140,11 +140,11 @@ def _soften_graticule(grid):
     try:
         from qgis.core import QgsLineSymbol
         grid.setLineSymbol(QgsLineSymbol.createSimple({"color": "110,110,110,110", "width": "0.12"}))
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         grid.setAnnotationPrecision(0)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     # rc18 hand test N8: the right-hand annotations are drawn outside the map frame, in the gap before the legend panel, and were
     # clipped by it ("3540" cut to "354"). Left and bottom carry the coordinates; the right (and top) copies are only duplicates.
@@ -154,7 +154,7 @@ def _soften_graticule(grid):
         side = getattr(_Grid, "BorderSide", _Grid)
         for border in ("Right", "Top"):
             grid.setAnnotationDisplay(display.HideAll, getattr(side, border))
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     try:
         from qgis.core import QgsTextFormat
@@ -163,7 +163,7 @@ def _soften_graticule(grid):
         from qgis.PyQt.QtGui import QColor
         fmt.setColor(QColor(90, 90, 90))
         grid.setAnnotationTextFormat(fmt)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -217,7 +217,7 @@ def _visible_layer_field_names():
             layer = node.layer()
             if layer is not None and node.isVisible() and hasattr(layer, "fields"):
                 names.extend(f.name() for f in layer.fields())
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
     return names
 
@@ -349,7 +349,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                 # fallback instead. A single point is not null, only zero-size, and is the case padded here.
                 if _padded != _b and not map_extent.isNull():
                     map_extent = QgsRectangle(*_padded)
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass  # best-effort: keep the layer's own extent rather than fail the layout
             canvas.setExtent(map_extent)
             canvas.refresh()
@@ -684,7 +684,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         if pending_layout is not None and not committed and layout_manager is not None:
             try:
                 layout_manager.removeLayout(pending_layout)
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
 
 
@@ -886,7 +886,7 @@ def _restore_atlas(atlas, map_item, previous):
             atlas.setFilenameExpression(expression)
         map_item.setAtlasDriven(driven)
         atlas.setEnabled(enabled)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
 
 
@@ -925,7 +925,7 @@ def list_layout_items(layout_name: str):
         if hasattr(item, "text"):
             try:
                 entry["text"] = item.text()
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
         items.append(entry)
     return {"success": True, "layout_name": layout_name, "items": items}

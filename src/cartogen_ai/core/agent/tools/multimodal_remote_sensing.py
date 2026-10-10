@@ -172,7 +172,7 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str, ali
                 made = QgsProject.instance().mapLayersByName(result["layer_name"])
                 if made:
                     result["styled"] = style_diverging_raster(made[-1])
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
         return result
     except Exception as e:

@@ -83,12 +83,12 @@ def draw_indices(count, n, seed):
     """n distinct indices out of range(count), reproducible for a given seed (all of them when n >= count). Pure."""
     if n >= count:
         return list(range(count))
-    return sorted(random.Random(seed).sample(range(count), n))
+    return sorted(random.Random(seed).sample(range(count), n))  # nosec B311 (seeded sampling for reproducibility, not security)
 
 
 def stratum_seed(seed, stratum):
     """A per-stratum seed derived from the master seed, so adding a stratum does not reshuffle the others. Pure."""
-    return random.Random(f"{seed}|{stratum}").randrange(2 ** 31)
+    return random.Random(f"{seed}|{stratum}").randrange(2 ** 31)  # nosec B311 (seeded sampling for reproducibility, not security)
 
 
 def design_text(confidence, margin_of_error, expected_proportion, design_effect, nonresponse_rate, seed):
@@ -259,7 +259,7 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
             chosen = [(f"unit:{candidates[i][0]}", candidates[i][1]) for i in picks]
             source = "candidate unit"
         else:
-            pts = _random_points_in(groups[key]["geom"], needed, random.Random(rng_seed))
+            pts = _random_points_in(groups[key]["geom"], needed, random.Random(rng_seed))  # nosec B311 (seeded sampling for reproducibility, not security)
             chosen = [("random", p) for p in pts]
             source = "random point"
         for n, (_origin, pt) in enumerate(chosen, 1):

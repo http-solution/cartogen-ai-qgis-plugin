@@ -130,7 +130,7 @@ class OpenAIClient(ModelChainMixin, BaseAiProvider):
         if self._status_callback:
             try:
                 self._status_callback(text)
-            except Exception:
+            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
                 pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):

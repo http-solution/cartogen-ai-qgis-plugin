@@ -274,7 +274,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         styled = style_algorithm_output(new_layer, alg_id)
         if styled:
             result["styled_as"] = styled
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass   # a result with the default look beats a failed tool call
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()

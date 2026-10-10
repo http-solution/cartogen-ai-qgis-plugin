@@ -49,5 +49,5 @@ def report(text):
         return
     try:
         fn(text)
-    except Exception:
+    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
         pass
