@@ -10,7 +10,7 @@ _SPEC = importlib.util.spec_from_file_location(
 own = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(own)
 
-OURS = os.path.join(os.sep, "plugins", "cartogen-ai", "src", "cartogen_ai")
+OURS = os.path.join(os.sep, "plugins", "cartogen_ai_plugin", "src", "cartogen_ai")
 OTHER = os.path.join(os.sep, "site-packages", "cartogen_ai")
 
 

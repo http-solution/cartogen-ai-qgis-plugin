@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.join(QgsApplication.pkgDataPath(), "python", "plugins
 from processing.core.Processing import Processing  # noqa: E402
 Processing.initialize()
 sys.path.insert(0, PLUG)
-importlib.import_module("cartogen-ai")               # the installed plugin's own bootstrap
+importlib.import_module("cartogen_ai_plugin")               # the installed plugin's own bootstrap
 import cartogen_ai  # noqa: E402
 
 
@@ -48,7 +48,7 @@ def show(path):
 
 
 print("QGIS", Qgis.QGIS_VERSION.split("-")[0], "| plugin loaded from:", show(list(cartogen_ai.__path__)[0]))
-with open(os.path.join(PLUG, "cartogen-ai", "metadata.txt"), encoding="utf-8") as f:
+with open(os.path.join(PLUG, "cartogen_ai_plugin", "metadata.txt"), encoding="utf-8") as f:
     print("plugin version:", next(ln.split("=", 1)[1].strip() for ln in f if ln.startswith("version=")))
 
 import cartogen_ai.core.agent.agent_orchestrator as agent_mod  # noqa: E402

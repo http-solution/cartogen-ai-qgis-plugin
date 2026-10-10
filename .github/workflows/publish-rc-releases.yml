@@ -50,7 +50,7 @@ jobs:
           import sys, zipfile
           names = zipfile.ZipFile(sys.argv[1]).namelist()
           tops = {n.split("/")[0] for n in names}
-          assert tops == {"cartogen-ai"}, tops
+          assert tops == {"cartogen_ai_plugin"}, tops
           print(len(names), "files; top-level:", tops)
           PY
             sha256sum "$ZIP" | tee "dist/SHA256-${VERSION}.txt"

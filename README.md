@@ -94,6 +94,7 @@ Built on rc24. GitHub Actions runs on every push; **not hand-tested** in desktop
 - Providers limited to tested ones: Settings and the quick switcher now offer OpenRouter, Google Gemini, Ollama (local) and the Cartogen API entry only. OpenAI and Claude are no longer listed or run, because they were not tested. A provider saved by an earlier version (for example OpenAI) falls back to OpenRouter and its saved key and settings are left untouched. The Cartogen API entry is a stub: no hosted gateway is deployed yet, so it cannot be used until one exists.
 - Plugin-directory fixes: metadata.txt now parses (no percent sign), gives the project email and GitHub homepage, states requirements and the data sent to a cloud provider, and the package leaves out hidden git files, sample data and binary documents.
 - Opt-in API trace and local layer list: A Settings checkbox (off by default) records every model request and reply to a local file for diagnosing call counts. 'List the layers' is answered in the dock with no model call.
+- Plugin folder renamed: Plugin folder renamed: the zip's top-level folder is now cartogen_ai_plugin (a valid Python identifier, which plugins.qgis.org requires) instead of cartogen-ai. If you installed rc24 or earlier, delete the old cartogen-ai folder from your profile's plugins directory, otherwise two copies load.
 - Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.
 
 ## What's new in 1.16.0-rc24
@@ -307,14 +308,14 @@ them as issues.
 > invalid module name, so QGIS fails with
 > `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-cartogen-ai-v1'`
 > (seen live on QGIS 4.2.2 with an earlier release candidate). The release asset built by
-> `plugin_upload.py` always uses the folder `cartogen-ai`. If you already installed the source
-> zip, delete its folder from your profile's `python/plugins/` directory and install the asset.
+> `plugin_upload.py` always uses the folder `cartogen_ai_plugin`. If you already installed the source
+> zip, or an older release that used the folder `cartogen-ai` (rc24 and earlier), delete that folder from your profile's `python/plugins/` directory and install the asset.
 
 **From source** (development):
-1. Copy this repository into your QGIS profile's plugin folder as `cartogen-ai` (the same
+1. Copy this repository into your QGIS profile's plugin folder as `cartogen_ai_plugin` (the same
    folder name the release zip uses), e.g.
-   `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\cartogen-ai` on Windows.
-   Don't name it `cartogen_ai`: that folder would shadow the `cartogen_ai` namespace package
+   `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\cartogen_ai_plugin` on Windows.
+   Don't name it exactly `cartogen_ai`: that folder would shadow the `cartogen_ai` namespace package
    under `src/` and break every `cartogen_ai.core` import (see `plugin_upload.py`'s
    `PACKAGE_DIR` comment). Don't include dots in the name either, for the reason above.
 2. Restart QGIS, or use the Plugin Reloader plugin.

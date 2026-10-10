@@ -57,7 +57,11 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
         """The zip's single top-level folder becomes the installed plugin
         directory. Naming it `cartogen_ai` would shadow the namespace package
         the plugin imports from."""
-        self.assertEqual(self.pu.PACKAGE_DIR, "cartogen-ai")
+        self.assertEqual(self.pu.PACKAGE_DIR, "cartogen_ai_plugin")
+        # plugins.qgis.org requires the top-level folder to be a valid Python identifier, and it must
+        # not be the importable name "cartogen_ai" itself (would shadow src/cartogen_ai).
+        self.assertTrue(self.pu.PACKAGE_DIR.isidentifier())
+        self.assertNotEqual(self.pu.PACKAGE_DIR, "cartogen_ai")
 
     def test_staging_files_dropped_in_the_repo_root_never_ship(self):
         import fnmatch

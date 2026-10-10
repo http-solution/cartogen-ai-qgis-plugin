@@ -93,7 +93,7 @@ jobs:
           python plugin_upload.py
           test -f cartogen_ai.zip
           test -f dist/cartogen_ai_v*.zip
-          python -c "import zipfile, os; z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist(); assert any('cartogen-ai/metadata.txt' in n for n in names); assert any('cartogen-ai/src/cartogen_ai/core/agent/agent_orchestrator.py' in n for n in names); size_mb = os.path.getsize('cartogen_ai.zip') / (1024*1024); assert size_mb < 20.0, f'Package exceeds 20MB limit: {size_mb}MB'; print(f'Release ZIP verified: {len(names)} files, {size_mb:.2f}MB')"
+          python -c "import zipfile, os; z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist(); assert any('cartogen_ai_plugin/metadata.txt' in n for n in names); assert any('cartogen_ai_plugin/src/cartogen_ai/core/agent/agent_orchestrator.py' in n for n in names); size_mb = os.path.getsize('cartogen_ai.zip') / (1024*1024); assert size_mb < 20.0, f'Package exceeds 20MB limit: {size_mb}MB'; print(f'Release ZIP verified: {len(names)} files, {size_mb:.2f}MB')"
 
   qgis-live-tests:
     # P1 fix, 2026-09-20 audit: no job in this workflow ever ran inside a real
@@ -298,7 +298,7 @@ jobs:
           python3 -c "import zipfile; zipfile.ZipFile('cartogen_ai.zip').extractall('/tmp/cartogen_ai_smoke')"
           python3 -c "
           import sys, os
-          plugin_root = '/tmp/cartogen_ai_smoke/cartogen-ai'
+          plugin_root = '/tmp/cartogen_ai_smoke/cartogen_ai_plugin'
           sys.path.insert(0, plugin_root)
           sys.path.insert(0, os.path.join(plugin_root, 'src'))
           from qgis.core import QgsApplication

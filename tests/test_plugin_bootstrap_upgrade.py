@@ -16,7 +16,7 @@ import tempfile
 import unittest
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_PLUGIN = "cartogen-ai"
+_PLUGIN = "cartogen_ai_plugin"
 
 
 def _write(path, text):
