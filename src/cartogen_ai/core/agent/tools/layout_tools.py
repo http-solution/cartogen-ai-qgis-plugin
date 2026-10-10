@@ -6,6 +6,7 @@ Generates automated QgsPrintLayout compositions with title, map item, legend, sc
 import contextlib
 import math
 import os
+from types import SimpleNamespace
 from .registry import register_tool
 from ._paths import resolve_output_path
 
@@ -212,6 +213,234 @@ def _visible_layer_field_names():
     return names
 
 
+def _page_geometry(page_orientation):
+    """Item positions in mm for the two-column layout (map left, legend/scalebar/summary column right, or stacked
+    below the map in portrait). Split out of create_print_layout unchanged; the comments record the live checks."""
+    INFO_ROW_H = 6
+    INFO_ROW_GAP = 2
+
+    portrait = str(page_orientation).lower() == "portrait"
+    _page_width, page_height = (210, 297) if portrait else (297, 210)
+    if portrait:
+        map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
+        col_x, col_w = 15, 180
+        info_y, info_h = map_y + map_h + 2, INFO_ROW_H
+        # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
+        # fund a realistic body_h below -- still ample for the handful of
+        # categories a humanitarian export's legend typically carries.
+        legend_y, legend_h = info_y + info_h + 4, 35
+        scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
+        # Footer pinned to a FIXED distance from the page bottom, not
+        # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
+        # (real QgsLayoutExporter.exportToImage PNG, visually inspected):
+        # QgsLayoutItemLabel does not clip content to its own box, so the
+        # old body_h=6 (roughly one line) meant ANY body_text longer than
+        # that silently overflowed down and visually overlapped the
+        # safety-critical disclaimer footer -- exactly the multi-line
+        # "bullets/findings" usage this tool's own schema description
+        # encourages. Pinning the footer here first, then giving body_h
+        # whatever real room remains above it (instead of a tiny
+        # hardcoded constant), fixes both: the footer always sits at the
+        # same predictable page position regardless of body_text length,
+        # and body gets a realistic multi-line budget. Does not fully
+        # eliminate overflow for an extreme body_text (the label still
+        # doesn't clip) -- see BUG-2026-09-11-1 for that residual caveat.
+        footer_h = 8
+        footer_margin = 6
+        footer_y = page_height - footer_h - footer_margin
+        body_y = scalebar_y + scalebar_h + 4
+        body_h = max(6, footer_y - body_y - 4)
+        north_x, north_y = 175, scalebar_y
+        title_w = 180
+    else:
+        map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (INFO_ROW_H + INFO_ROW_GAP)
+        col_x, col_w = 195, 95
+        legend_y, legend_h = map_y, 88
+        # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
+        # standing disclaimer footer below, without touching any of the
+        # map/legend/scalebar/title numbers confirmed against a live
+        # full-Yemen export.
+        body_y, body_h = legend_y + legend_h + 4, 78
+        info_y, info_h = map_y + map_h + 2, INFO_ROW_H
+        scalebar_y, scalebar_h = info_y + info_h + 3, 12
+        north_x, north_y = map_x + map_w - 12, scalebar_y
+        title_w = col_x + col_w - map_x
+        # Landscape's footer position is still derived from body_y+body_h
+        # (unlike portrait's fixed pinning above) -- body_h=78 here is
+        # generous enough that this has been live-confirmed not to
+        # collide (2026-09-05 real chat-driven session), so left as-is
+        # rather than changing a path that's already been verified live.
+        footer_y = body_y + body_h + 2
+        footer_h = max(4, min(8, page_height - footer_y - 2))
+    return SimpleNamespace(
+        map_x=map_x, map_y=map_y, map_w=map_w, map_h=map_h, col_x=col_x, col_w=col_w, title_w=title_w,
+        info_y=info_y, info_h=info_h, legend_y=legend_y, legend_h=legend_h, scalebar_y=scalebar_y,
+        scalebar_h=scalebar_h, body_y=body_y, body_h=body_h, north_x=north_x, north_y=north_y,
+        footer_y=footer_y, footer_h=footer_h)
+
+
+def _add_info_label(layout, map_item, g):
+    """CRS/datum + representative-fraction scale label; returns a warning string or None."""
+    info_warning = None
+    try:
+        map_crs = map_item.crs()
+        crs_text = f"{map_crs.authid()} ({map_crs.description()})" if map_crs and map_crs.isValid() else "CRS unknown"
+        scale_text = _format_scale_denominator(map_item.scale())
+        info_label = QgsLayoutItemLabel(layout)
+        info_label.setText(f"{crs_text}   |   Scale {scale_text}")
+        layout.addLayoutItem(info_label)
+        info_label.setId("MAP_INFO")
+        info_label.attemptMove(QgsLayoutPoint(g.map_x, g.info_y, LAYOUT_MM))
+        info_label.attemptResize(QgsLayoutSize(g.map_w, g.info_h, LAYOUT_MM))
+    except Exception as e:
+        info_warning = f"Could not add the CRS/scale info label to this layout: {e}"
+    return info_warning
+
+
+def _add_graticule(map_item):
+    """Coordinate graticule; best-effort, returns a warning string or None."""
+    grid_warning = None
+    try:
+        grid_extent = map_item.extent()
+        raw_interval = max(grid_extent.width(), grid_extent.height()) / 4.0
+        interval = _nice_interval(raw_interval)
+        grid = QgsLayoutItemMapGrid("Graticule", map_item)
+        grid.setIntervalX(interval)
+        grid.setIntervalY(interval)
+        grid.setEnabled(True)
+        grid.setAnnotationEnabled(True)
+        map_item.grids().addGrid(grid)
+        _soften_graticule(grid)
+    except Exception as e:
+        grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
+    return grid_warning
+
+
+def _add_inset_map(layout, map_item, g):
+    """Locator/inset map; best-effort, returns a warning string or None."""
+    inset_warning = None
+    try:
+        main_extent = map_item.extent()
+        cx, cy = main_extent.center().x(), main_extent.center().y()
+        zoom_factor = 6.0
+        half_w = main_extent.width() * zoom_factor / 2.0
+        half_h = main_extent.height() * zoom_factor / 2.0
+        inset_extent = QgsRectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+
+        inset_size = 32
+        inset_map = QgsLayoutItemMap(layout)
+        inset_map.setRect(20, 20, 20, 20)
+        inset_map.setExtent(inset_extent)
+        if map_item.crs() and map_item.crs().isValid():
+            inset_map.setCrs(map_item.crs())
+        layout.addLayoutItem(inset_map)
+        inset_map.setId("INSET_MAP")
+        inset_map.attemptMove(QgsLayoutPoint(g.map_x + 2, g.map_y + 2, LAYOUT_MM))
+        inset_map.attemptResize(QgsLayoutSize(inset_size, inset_size, LAYOUT_MM))
+        inset_map.setFrameEnabled(True)
+
+        overview = QgsLayoutItemMapOverview("Locator", inset_map)
+        overview.setLinkedMap(map_item)
+        inset_map.overviews().addOverview(overview)
+    except Exception as e:
+        inset_warning = f"Could not add a locator/inset map to this layout: {e}"
+    return inset_warning
+
+
+def _add_north_arrow(layout, map_item, g):
+    north_arrow = QgsLayoutItemPicture(layout)
+    svg_paths = QgsApplication.svgPaths()
+    default_arrow_path = ""
+    if svg_paths:
+        candidate = os.path.join(svg_paths[0], "arrows", "NorthArrow_02.svg")
+        if os.path.exists(candidate):
+            default_arrow_path = candidate
+
+    if default_arrow_path:
+        # No setMode()/ModeRaster on QgsLayoutItemPicture -- that call
+        # doesn't exist on this class. setPicturePath()'s format arg
+        # defaults to FormatUnknown, which auto-detects SVG vs. raster
+        # from the file extension, so a single-arg call is correct here.
+        north_arrow.setPicturePath(default_arrow_path)
+        layout.addLayoutItem(north_arrow)
+        north_arrow.setId("NORTH_ARROW")
+        north_arrow.attemptMove(QgsLayoutPoint(g.north_x, g.north_y, LAYOUT_MM))
+        north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
+        # GitHub #165: an unlinked arrow stays at 0 degrees on a rotated map and points the wrong way. Linking it makes the
+        # picture follow the map's rotation (grid north). Best-effort: a QGIS build without the call keeps the old behaviour.
+        try:
+            north_arrow.setLinkedMap(map_item)
+        except Exception as e:
+            print(f"[layout_tools] could not link the north arrow to the map: {e}")
+
+
+def _add_report_fields(res_msg, style_report, warnings):
+    if style_report.get("legend_layers") is not None:
+        res_msg["legend_layers"] = style_report.get("legend_layers", [])
+    if style_report.get("classification"):
+        res_msg["classification"] = style_report["classification"]
+    if style_report.get("warnings"):
+        res_msg["style_warnings"] = style_report["warnings"]
+    for key, text in warnings.items():
+        if text:
+            res_msg[key] = text
+
+
+def _export_layout(layout, output_path, dpi):
+    """Exports by file extension; returns an error dict, or None on success."""
+    ext = os.path.splitext(output_path)[1].lower()
+    exporter = QgsLayoutExporter(layout)
+    if ext == ".pdf":
+        pdf_settings = QgsLayoutExporter.PdfExportSettings()
+        pdf_settings.dpi = dpi
+        result = exporter.exportToPdf(output_path, pdf_settings)
+    elif ext in (".png", ".jpg", ".jpeg"):
+        image_settings = QgsLayoutExporter.ImageExportSettings()
+        image_settings.dpi = dpi
+        result = exporter.exportToImage(output_path, image_settings)
+    else:
+        return {"error": f"Unsupported output_path extension '{ext}' -- use .pdf, .png, .jpg, or .jpeg."}
+    if result != QgsLayoutExporter.ExportResult.Success:
+        return {"error": f"Export to '{output_path}' failed (QgsLayoutExporter result code {result})."}
+    return None
+
+
+def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
+    """Template-specific inputs (sitrep / access_map) plus the JIAF disclosure line.
+    Returns (template, body_text, zoom_to_layer, sitrep_args, sitrep_warning)."""
+    sitrep_warning = None
+    sitrep_args = None
+    if template == "sitrep":
+        # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
+        # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
+        from . import layout_style
+        visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+        if not zoom_to_layer:
+            zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+        if not layout_style.sitrep_has_content(body_text, key_figures, sources):
+            sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing handling note. "
+                              "Do not fill it with unverified content: pass the figures from the analysis results.")
+        # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
+        # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
+        sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible))
+        body_text = "sitrep"
+    if template == "access_map":
+        from . import layout_style
+        visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+        if not zoom_to_layer:
+            zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+        if not body_text:
+            body_text = layout_style.access_reading_guide(visible)
+    jiaf_note = None
+    if template != "sitrep":
+        jiaf_note = jiaf_layout_note(_visible_layer_field_names())
+        if jiaf_note and jiaf_note not in (body_text or ""):
+            # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
+            # method and not endorsed by OCHA or the IASC. Added by the code whenever such a layer is visible, not left to the model.
+            body_text = (body_text + "\n" if body_text else "") + jiaf_note
+    return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
+
+
 @register_tool(
     "create_print_layout",
     "Create a map print layout composition with title, legend, scalebar, north arrow, and an "
@@ -267,36 +496,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
     try:
         requested = str(template or "").lower()
         template = requested if requested in ("access_map", "sitrep") else "standard"
-        sitrep_warning = None
-        sitrep_args = None
-        if template == "sitrep":
-            # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
-            # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
-            from . import layout_style
-            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
-            if not zoom_to_layer:
-                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
-            if not layout_style.sitrep_has_content(body_text, key_figures, sources):
-                sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing handling note. "
-                                  "Do not fill it with unverified content: pass the figures from the analysis results.")
-            # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
-            # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
-            sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible))
-            body_text = "sitrep"
-        if template == "access_map":
-            from . import layout_style
-            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
-            if not zoom_to_layer:
-                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
-            if not body_text:
-                body_text = layout_style.access_reading_guide(visible)
-        jiaf_note = None
-        if template != "sitrep":
-            jiaf_note = jiaf_layout_note(_visible_layer_field_names())
-            if jiaf_note and jiaf_note not in (body_text or ""):
-                # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
-                # method and not endorsed by OCHA or the IASC. Added by the code whenever such a layer is visible, not left to the model.
-                body_text = (body_text + "\n" if body_text else "") + jiaf_note
+        template, body_text, zoom_to_layer, sitrep_args, sitrep_warning = _prepare_template(
+            template, body_text, zoom_to_layer, key_figures, sources)
         target_layer = None
         if zoom_to_layer:
             target_layer = _find_layer_by_name(zoom_to_layer)
@@ -375,62 +576,12 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # (Phase 3, 2026-09-19) -- carved out of map_h in both orientations rather than
         # touching any already-live-verified footer/body position (BUG-2026-09-11-1's
         # footer-overlap history is exactly the failure mode this avoids repeating).
-        INFO_ROW_H = 6
-        INFO_ROW_GAP = 2
-
-        portrait = page_orientation.lower() == "portrait"
-        _page_width, page_height = (210, 297) if portrait else (297, 210)
-        if portrait:
-            map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
-            col_x, col_w = 15, 180
-            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
-            # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
-            # fund a realistic body_h below -- still ample for the handful of
-            # categories a humanitarian export's legend typically carries.
-            legend_y, legend_h = info_y + info_h + 4, 35
-            scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
-            # Footer pinned to a FIXED distance from the page bottom, not
-            # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
-            # (real QgsLayoutExporter.exportToImage PNG, visually inspected):
-            # QgsLayoutItemLabel does not clip content to its own box, so the
-            # old body_h=6 (roughly one line) meant ANY body_text longer than
-            # that silently overflowed down and visually overlapped the
-            # safety-critical disclaimer footer -- exactly the multi-line
-            # "bullets/findings" usage this tool's own schema description
-            # encourages. Pinning the footer here first, then giving body_h
-            # whatever real room remains above it (instead of a tiny
-            # hardcoded constant), fixes both: the footer always sits at the
-            # same predictable page position regardless of body_text length,
-            # and body gets a realistic multi-line budget. Does not fully
-            # eliminate overflow for an extreme body_text (the label still
-            # doesn't clip) -- see BUG-2026-09-11-1 for that residual caveat.
-            footer_h = 8
-            footer_margin = 6
-            footer_y = page_height - footer_h - footer_margin
-            body_y = scalebar_y + scalebar_h + 4
-            body_h = max(6, footer_y - body_y - 4)
-            north_x, north_y = 175, scalebar_y
-            title_w = 180
-        else:
-            map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (INFO_ROW_H + INFO_ROW_GAP)
-            col_x, col_w = 195, 95
-            legend_y, legend_h = map_y, 88
-            # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
-            # standing disclaimer footer below, without touching any of the
-            # map/legend/scalebar/title numbers confirmed against a live
-            # full-Yemen export.
-            body_y, body_h = legend_y + legend_h + 4, 78
-            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
-            scalebar_y, scalebar_h = info_y + info_h + 3, 12
-            north_x, north_y = map_x + map_w - 12, scalebar_y
-            title_w = col_x + col_w - map_x
-            # Landscape's footer position is still derived from body_y+body_h
-            # (unlike portrait's fixed pinning above) -- body_h=78 here is
-            # generous enough that this has been live-confirmed not to
-            # collide (2026-09-05 real chat-driven session), so left as-is
-            # rather than changing a path that's already been verified live.
-            footer_y = body_y + body_h + 2
-            footer_h = max(4, min(8, page_height - footer_y - 2))
+        g = _page_geometry(page_orientation)
+        map_x, map_y, map_w, map_h = g.map_x, g.map_y, g.map_w, g.map_h
+        col_x, col_w, title_w = g.col_x, g.col_w, g.title_w
+        legend_y, legend_h = g.legend_y, g.legend_h
+        scalebar_y, scalebar_h, body_y, body_h = g.scalebar_y, g.scalebar_h, g.body_y, g.body_h
+        footer_y, footer_h = g.footer_y, g.footer_h
 
         map_item.attemptMove(QgsLayoutPoint(map_x, map_y, LAYOUT_MM))
         map_item.attemptResize(QgsLayoutSize(map_w, map_h, LAYOUT_MM))
@@ -482,19 +633,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # scale() (set after setExtent() above, so this reflects the actual rendered
         # extent) rather than the source layer's CRS, since the map item may be
         # reprojecting on render.
-        info_warning = None
-        try:
-            map_crs = map_item.crs()
-            crs_text = f"{map_crs.authid()} ({map_crs.description()})" if map_crs and map_crs.isValid() else "CRS unknown"
-            scale_text = _format_scale_denominator(map_item.scale())
-            info_label = QgsLayoutItemLabel(layout)
-            info_label.setText(f"{crs_text}   |   Scale {scale_text}")
-            layout.addLayoutItem(info_label)
-            info_label.setId("MAP_INFO")
-            info_label.attemptMove(QgsLayoutPoint(map_x, info_y, LAYOUT_MM))
-            info_label.attemptResize(QgsLayoutSize(map_w, info_h, LAYOUT_MM))
-        except Exception as e:
-            info_warning = f"Could not add the CRS/scale info label to this layout: {e}"
+        info_warning = _add_info_label(layout, map_item, g)
 
         # Coordinate graticule -- OCHA/humanitarian map standards call for a coordinate
         # grid for tactical navigation, which the layout previously had no way to show.
@@ -504,20 +643,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # mismatch on some QGIS version degrades to "no grid" rather than failing the
         # whole layout, consistent with this file's existing method is None guards
         # elsewhere for the same class of cross-version risk.
-        grid_warning = None
-        try:
-            grid_extent = map_item.extent()
-            raw_interval = max(grid_extent.width(), grid_extent.height()) / 4.0
-            interval = _nice_interval(raw_interval)
-            grid = QgsLayoutItemMapGrid("Graticule", map_item)
-            grid.setIntervalX(interval)
-            grid.setIntervalY(interval)
-            grid.setEnabled(True)
-            grid.setAnnotationEnabled(True)
-            map_item.grids().addGrid(grid)
-            _soften_graticule(grid)
-        except Exception as e:
-            grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
+        grid_warning = _add_graticule(map_item)
 
         # Locator/inset map -- shows where the main map sits within a wider surrounding
         # area, an OCHA-standard element the layout previously had no way to show. Zoomed
@@ -526,59 +652,10 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # works on any project. Placed in the map's own top-left corner (the north arrow
         # already occupies the top-right in both orientations) via a QgsLayoutItemMapOverview
         # linked back to the main map, which draws the "you are here" outline automatically.
-        inset_warning = None
-        if include_inset_map:
-            try:
-                main_extent = map_item.extent()
-                cx, cy = main_extent.center().x(), main_extent.center().y()
-                zoom_factor = 6.0
-                half_w = main_extent.width() * zoom_factor / 2.0
-                half_h = main_extent.height() * zoom_factor / 2.0
-                inset_extent = QgsRectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h)
-
-                inset_size = 32
-                inset_map = QgsLayoutItemMap(layout)
-                inset_map.setRect(20, 20, 20, 20)
-                inset_map.setExtent(inset_extent)
-                if map_item.crs() and map_item.crs().isValid():
-                    inset_map.setCrs(map_item.crs())
-                layout.addLayoutItem(inset_map)
-                inset_map.setId("INSET_MAP")
-                inset_map.attemptMove(QgsLayoutPoint(map_x + 2, map_y + 2, LAYOUT_MM))
-                inset_map.attemptResize(QgsLayoutSize(inset_size, inset_size, LAYOUT_MM))
-                inset_map.setFrameEnabled(True)
-
-                overview = QgsLayoutItemMapOverview("Locator", inset_map)
-                overview.setLinkedMap(map_item)
-                inset_map.overviews().addOverview(overview)
-            except Exception as e:
-                inset_warning = f"Could not add a locator/inset map to this layout: {e}"
+        inset_warning = _add_inset_map(layout, map_item, g) if include_inset_map else None
 
         # North Arrow Picture Item
-        north_arrow = QgsLayoutItemPicture(layout)
-        svg_paths = QgsApplication.svgPaths()
-        default_arrow_path = ""
-        if svg_paths:
-            candidate = os.path.join(svg_paths[0], "arrows", "NorthArrow_02.svg")
-            if os.path.exists(candidate):
-                default_arrow_path = candidate
-
-        if default_arrow_path:
-            # No setMode()/ModeRaster on QgsLayoutItemPicture -- that call
-            # doesn't exist on this class. setPicturePath()'s format arg
-            # defaults to FormatUnknown, which auto-detects SVG vs. raster
-            # from the file extension, so a single-arg call is correct here.
-            north_arrow.setPicturePath(default_arrow_path)
-            layout.addLayoutItem(north_arrow)
-            north_arrow.setId("NORTH_ARROW")
-            north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
-            north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
-            # GitHub #165: an unlinked arrow stays at 0 degrees on a rotated map and points the wrong way. Linking it makes the
-            # picture follow the map's rotation (grid north). Best-effort: a QGIS build without the call keeps the old behaviour.
-            try:
-                north_arrow.setLinkedMap(map_item)
-            except Exception as e:
-                print(f"[layout_tools] could not link the north arrow to the map: {e}")
+        _add_north_arrow(layout, map_item, g)
 
         # Optional summary/sitrep panel -- placed below the legend, same
         # column width, so long lines wrap within the page instead of
@@ -591,7 +668,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             body_label = QgsLayoutItemLabel(layout)
             if sitrep_args is not None:
                 from . import layout_style
-                body_label.setText(layout_style.sitrep_body(*sitrep_args, max_chars=_text_budget(col_w, body_h)))
+                summary, figures, srcs, guide = sitrep_args
+                body_label.setText(layout_style.sitrep_body(summary, figures, srcs, guide, max_chars=_text_budget(col_w, body_h)))
             else:
                 body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)
@@ -623,20 +701,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             style_report = {"warnings": [f"layout styling failed: {style_error}"]}
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template}
-        if style_report.get("legend_layers") is not None:
-            res_msg["legend_layers"] = style_report.get("legend_layers", [])
-        if style_report.get("classification"):
-            res_msg["classification"] = style_report["classification"]
-        if style_report.get("warnings"):
-            res_msg["style_warnings"] = style_report["warnings"]
-        if sitrep_warning:
-            res_msg["sitrep_warning"] = sitrep_warning
-        if info_warning:
-            res_msg["info_label_warning"] = info_warning
-        if grid_warning:
-            res_msg["grid_warning"] = grid_warning
-        if inset_warning:
-            res_msg["inset_warning"] = inset_warning
+        _add_report_fields(res_msg, style_report, {
+            "sitrep_warning": sitrep_warning, "info_label_warning": info_warning,
+            "grid_warning": grid_warning, "inset_warning": inset_warning})
 
         def commit():
             """Swap the finished layout in for any same-name one."""
@@ -646,21 +713,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             layout.setName(layout_name)
 
         if output_path:
-            ext = os.path.splitext(output_path)[1].lower()
-            exporter = QgsLayoutExporter(layout)
-            if ext == ".pdf":
-                pdf_settings = QgsLayoutExporter.PdfExportSettings()
-                pdf_settings.dpi = dpi
-                result = exporter.exportToPdf(output_path, pdf_settings)
-            elif ext in (".png", ".jpg", ".jpeg"):
-                image_settings = QgsLayoutExporter.ImageExportSettings()
-                image_settings.dpi = dpi
-                result = exporter.exportToImage(output_path, image_settings)
-            else:
-                return {"error": f"Unsupported output_path extension '{ext}' -- use .pdf, .png, .jpg, or .jpeg."}
-
-            if result != QgsLayoutExporter.ExportResult.Success:
-                return {"error": f"Export to '{output_path}' failed (QgsLayoutExporter result code {result})."}
+            export_error = _export_layout(layout, output_path, dpi)
+            if export_error:
+                return export_error
             res_msg["output_path"] = output_path
             res_msg["dpi"] = dpi
 
