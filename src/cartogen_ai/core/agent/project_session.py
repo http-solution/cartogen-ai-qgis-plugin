@@ -13,21 +13,21 @@ and have not been exercised in a live QGIS session.
 import threading
 
 _lock = threading.Lock()
-_generation = 0
+# Mutable holder rather than module globals: no `global` statement is needed to bump a counter (ruff PLW0603).
+_counters = {"generation": 0, "epoch": 0}
 
 
 def current():
     """The current project-session generation."""
     with _lock:
-        return _generation
+        return _counters["generation"]
 
 
 def invalidate():
     """The active project changed (cleared, read, plugin unloaded): every turn that captured an earlier generation is now stale."""
-    global _generation
     with _lock:
-        _generation += 1
-        return _generation
+        _counters["generation"] += 1
+        return _counters["generation"]
 
 
 def is_stale(captured):
@@ -38,21 +38,19 @@ def is_stale(captured):
 # The plugin epoch is a second counter that only changes when the plugin is UNLOADED (audit F31, #167). project_session.invalidate()
 # also fires on every project switch, where a task's completion callback still has UI state to reset (re-enable Send, hide the spinner)
 # and must run; after an unload the widgets the callback touches are gone, and it must not run at all.
-_epoch = 0
 
 
 def plugin_epoch():
     """The current plugin load epoch; a task captures it when it is created."""
     with _lock:
-        return _epoch
+        return _counters["epoch"]
 
 
 def retire_plugin():
     """The plugin is being unloaded: every task created under an earlier epoch must not call back into the (destroyed) UI."""
-    global _epoch
     with _lock:
-        _epoch += 1
-        return _epoch
+        _counters["epoch"] += 1
+        return _counters["epoch"]
 
 
 def plugin_retired(captured):

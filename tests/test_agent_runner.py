@@ -1113,7 +1113,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_a_note_with_coordinates_is_refused_and_not_stored(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory(
                 "service_area_analysis", "Computed 1-hour service area around 44.036028, 15.970136.")
         self.assertIn("error", res)
@@ -1123,7 +1123,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_the_same_guard_applies_to_global_memory(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_global_memory("home_base", "4902068.0, 1799912.0")
         self.assertIn("error", res)
         manager.store_global_note.assert_not_called()
@@ -1132,7 +1132,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
         task_tools = self._tools()
         manager = MagicMock()
         manager.store_project_note.return_value = {"success": True}
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory("style", "User prefers hospitals shown in red.")
         self.assertEqual(res, {"success": True})
         manager.store_project_note.assert_called_once()

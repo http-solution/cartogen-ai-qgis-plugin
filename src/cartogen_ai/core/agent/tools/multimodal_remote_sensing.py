@@ -23,7 +23,7 @@ except ImportError:
 # tracks a "session" boundary here, so this resets naturally on plugin reload/QGIS restart.
 _STAC_CACHE = {}
 _STAC_CACHE_TTL_SECONDS = 600
-_STAC_REQUEST_COUNT = 0
+_STAC_QUOTA = {"count": 0}   # holder rather than a global (ruff PLW0603)
 _STAC_MAX_REQUESTS = 20
 
 
@@ -31,8 +31,6 @@ _STAC_MAX_REQUESTS = 20
 def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, limit: int = 5):
     """Queries STAC Earth Search API (Element 84 / Sentinel-2). Cached and quota-guarded to
     avoid burning API quota via repeated agent-loop queries within the same plugin session."""
-    global _STAC_REQUEST_COUNT
-
     if len(bbox) != 4:
         return {"error": "bbox must be list of 4 numbers [west, south, east, north]"}
 
@@ -44,7 +42,7 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
             return {**cached_result, "cached": True}
         del _STAC_CACHE[cache_key]
 
-    if _STAC_REQUEST_COUNT >= _STAC_MAX_REQUESTS:
+    if _STAC_QUOTA["count"] >= _STAC_MAX_REQUESTS:
         return {
             "error": f"STAC query quota exceeded for this session (max {_STAC_MAX_REQUESTS}). "
             "Reload the plugin to reset, or reuse an earlier search."
@@ -61,7 +59,7 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
     try:
         data_bytes = json.dumps(payload).encode("utf-8")
         req = _net_build_request(url, data=data_bytes, headers={"Content-Type": "application/json", "User-Agent": "QGIS-AI-Assistant"})
-        _STAC_REQUEST_COUNT += 1
+        _STAC_QUOTA["count"] += 1
         with _qgis_urlopen(req, timeout=15) as response:
             res = json.loads(response.read().decode())
             features = res.get("features", [])

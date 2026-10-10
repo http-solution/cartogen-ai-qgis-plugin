@@ -32,21 +32,20 @@ SCHEMA_DISCLOSURE = (
     "information in a layer's name."
 )
 
-_policy_provider = None
+_POLICY = {"provider": None}   # holder rather than a global (ruff PLW0603)
 
 
 def set_policy_provider(provider):
     """provider: a zero-argument callable returning (mode, provider_is_local, strict), or None to clear."""
-    global _policy_provider
-    _policy_provider = provider
+    _POLICY["provider"] = provider
 
 
 def current_policy():
     """(mode, provider_is_local, strict); the gate-off default when no provider is registered or it fails."""
-    if _policy_provider is None:
+    if _POLICY["provider"] is None:
         return egress_gate.MODE_OFF, True, False
     try:
-        mode, is_local, strict = _policy_provider()
+        mode, is_local, strict = _POLICY["provider"]()
         return mode, bool(is_local), bool(strict)
     except Exception:
         # A privacy rule that silently fails open is worse than one that over-hides: if the policy cannot be read,

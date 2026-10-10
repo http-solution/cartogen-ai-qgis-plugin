@@ -158,7 +158,7 @@ def startup_state_fields(read_setting):
 
 
 _DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging_until"
-_diagnostic_warning_shown = False
+_diagnostic_state = {"warning_shown": False}   # holder rather than a global (ruff PLW0603)
 _DEFAULT_DIAGNOSTIC_DURATION_SECONDS = 3600  # 1 hour
 
 
@@ -214,8 +214,7 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
     even in this explicit debugging mode."""
     if not _diagnostic_logging_enabled():
         return
-    global _diagnostic_warning_shown
-    if not _diagnostic_warning_shown:
+    if not _diagnostic_state["warning_shown"]:
         log_warning(
             "Verbose diagnostic logging is ON -- raw prompt/response/tool "
             "content may now be logged locally to QgsMessageLog, which can "
@@ -224,5 +223,5 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
             "disable_diagnostic_logging() to end it immediately instead.",
             tag=tag,
         )
-        _diagnostic_warning_shown = True
+        _diagnostic_state["warning_shown"] = True
     log_info(f"[DIAGNOSTIC] {message}", tag=tag)

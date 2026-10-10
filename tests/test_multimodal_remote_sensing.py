@@ -35,7 +35,7 @@ class TestStacCacheAndQuota(unittest.TestCase):
     def setUp(self):
         # Module-global cache/counter persist across tests in the same process -- reset before each.
         mrs._STAC_CACHE.clear()
-        mrs._STAC_REQUEST_COUNT = 0
+        mrs._STAC_QUOTA["count"] = 0
 
     @patch("urllib.request.urlopen")
     def test_second_identical_query_is_served_from_cache(self, mock_urlopen):
@@ -59,7 +59,7 @@ class TestStacCacheAndQuota(unittest.TestCase):
     @patch("urllib.request.urlopen")
     def test_quota_exceeded_returns_error_without_calling_api(self, mock_urlopen):
         mock_urlopen.return_value = _mock_stac_response()
-        mrs._STAC_REQUEST_COUNT = mrs._STAC_MAX_REQUESTS
+        mrs._STAC_QUOTA["count"] = mrs._STAC_MAX_REQUESTS
         res = mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31")
         self.assertIn("error", res)
         self.assertIn("quota", res["error"].lower())
@@ -68,7 +68,7 @@ class TestStacCacheAndQuota(unittest.TestCase):
     def test_invalid_bbox_rejected_before_touching_cache_or_quota(self):
         res = mrs.search_stac_satellite_imagery([1, 2, 3], "2026-01-01", "2026-01-31")
         self.assertIn("error", res)
-        self.assertEqual(mrs._STAC_REQUEST_COUNT, 0)
+        self.assertEqual(mrs._STAC_QUOTA["count"], 0)
 
     @patch("urllib.request.urlopen")
     def test_request_sets_a_timeout(self, mock_urlopen):

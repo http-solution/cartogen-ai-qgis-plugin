@@ -54,13 +54,13 @@ class TestRegisterIntegrity(unittest.TestCase):
 
     def test_missing_data_file_degrades_instead_of_raising(self):
         real = reg._data_path
-        reg._DATA = None
+        reg._cache["data"] = None
         reg._data_path = lambda: "/nonexistent/task_register.json"
         try:
             self.assertEqual(reg.load(), [])
         finally:
             reg._data_path = real
-            reg._DATA = None
+            reg._cache["data"] = None
             reg.load()
 
 

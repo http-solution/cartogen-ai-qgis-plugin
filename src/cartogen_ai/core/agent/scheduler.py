@@ -8,6 +8,8 @@ Windows Task Scheduler) -- see docs/archive/CARTOGEN_AI_PRD.md 5.1/5.3 for why a
 headless trigger was scoped out of this pass.
 """
 
+import functools
+
 try:
     from qgis.PyQt.QtCore import QTimer, QObject, pyqtSignal
     QGIS_AVAILABLE = True
@@ -114,11 +116,7 @@ class WorkflowScheduler(QObject):
         return [{"preset_name": name, **meta} for name, meta in self._meta.items()]
 
 
-_scheduler = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_scheduler():
-    global _scheduler
-    if _scheduler is None:
-        _scheduler = WorkflowScheduler()
-    return _scheduler
+    """The one process-wide scheduler, created on first use."""
+    return WorkflowScheduler()

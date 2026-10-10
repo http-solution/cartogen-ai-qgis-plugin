@@ -71,8 +71,8 @@ SLOT_DEFAULTS = {
     "runoff_coefficient": (None, "ask"),
 }
 
-_DATA = None
-_BY_ID = None
+# Cache holder (see project_session.py): "data" is the loaded register, "by_id" its index; both None until load() runs.
+_cache = {"data": None, "by_id": None}
 
 
 def _data_path():
@@ -85,22 +85,22 @@ def load():
     Degrades to an empty register rather than raising -- a missing or corrupt
     data file must not stop the plugin loading.
     """
-    global _DATA, _BY_ID
-    if _DATA is not None:
-        return _DATA
+    if _cache["data"] is not None:
+        return _cache["data"]
     try:
         with open(_data_path(), encoding="utf-8") as fh:
-            _DATA = json.load(fh)
+            data = json.load(fh)
     except Exception as e:  # pragma: no cover - diagnostic path
         print(f"[TaskRegister] could not load task_register.json: {e}")
-        _DATA = []
-    _BY_ID = {e["id"]: e for e in _DATA}
-    return _DATA
+        data = []
+    _cache["data"] = data
+    _cache["by_id"] = {e["id"]: e for e in data}
+    return data
 
 
 def by_id(task_id):
     load()
-    return (_BY_ID or {}).get(task_id)
+    return (_cache["by_id"] or {}).get(task_id)
 
 
 def categories():
@@ -109,7 +109,7 @@ def categories():
     for e in load():
         if e["cat"] not in seen:
             seen.add(e["cat"])
-            out.append((e["cat"], e["cname"], sum(1 for x in _DATA if x["cat"] == e["cat"])))
+            out.append((e["cat"], e["cname"], sum(1 for x in _cache["data"] if x["cat"] == e["cat"])))
     return out
 
 
