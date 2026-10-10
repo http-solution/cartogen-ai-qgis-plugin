@@ -35,16 +35,16 @@ what's new/available stays easy to find without having to go looking for it.
 ## First-time setup
 
 1. Click **Settings** in the dock header (top right, next to the provider dropdown).
-2. Pick a provider from the dropdown: **OpenRouter**, **Gemini**, **Ollama**, **OpenAI**,
-   or **Claude**.
+2. Pick a provider from the dropdown: **OpenRouter**, **Gemini** or **Ollama**. (OpenAI and
+   Claude were removed from the list in rc25 because they were never tested; a provider saved
+   by an older version falls back to OpenRouter. The Cartogen API entry in Settings is a stub
+   until a hosted gateway exists.)
 3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
    key needed). The key field auto-fetches that provider's live model list when you
    tab out of it. Get a key from the provider you picked:
    - OpenRouter (has a genuinely free tier covering many models — a good default if you
      don't already have a key with another provider): https://openrouter.ai/keys
    - Google Gemini: https://aistudio.google.com/apikey
-   - OpenAI: https://platform.openai.com/api-keys
-   - Anthropic Claude: https://console.anthropic.com/settings/keys
 4. Pick a model, or leave it on **Auto** — the agent then routes simple requests to a
    cheaper/faster model and complex multi-step requests to a stronger one
    automatically, based on the request's wording and length. (Ollama always uses
@@ -106,7 +106,7 @@ do the matching, and the register itself is never sent to the model.
 
 **Where it goes.** Once matched, the request text -- and any layer/attribute data a
 tool call surfaces to the model -- is sent to whichever provider you selected in
-Settings (OpenRouter, Gemini, OpenAI, or Claude), over that provider's own API, using
+Settings (OpenRouter or Gemini), over that provider's own API, using
 your own key. Ollama is the exception: it runs entirely on your machine, so nothing
 leaves it. Settings shows each cloud provider's Data Processing Addendum link as a
 starting point, but confirming a lawful basis and transfer mechanism for the data you
