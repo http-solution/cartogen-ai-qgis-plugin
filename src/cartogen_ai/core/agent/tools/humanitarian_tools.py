@@ -1992,6 +1992,44 @@ def _style_named_point_layer(layer):
     layer.setLabelsEnabled(True)
 
 
+def _crs_question_response(decision, project_crs):
+    """The reply that asks the user which CRS their coordinates are in (nothing is placed until they answer)."""
+    return {
+        "success": False, "needs_user_input": True, "placed": False,
+        "question": (f"Which coordinate system are these numbers in? You did not say, and the project CRS is "
+                     f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
+                     f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
+        "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
+        # rc15 hand test (B1, 2026-10-06): after the user answered "EPSG:3857" the model made no further tool call and
+        # pasted a PyQGIS script for the user to run, so nothing was placed. The refusal said what to ask but not what
+        # to do with the answer; without crs_stated_by_user=True this tool refuses again, so the retry must be spelled out.
+        "next_step": ("When the user replies with a CRS, call add_point_layer again with the same layer_name and points, "
+                      "crs set to their answer and crs_stated_by_user=true. Do not give the user a script to run."),
+    }
+
+
+def _build_point_feature(layer, field_names, pt, lon, lat):
+    """(feature, coding/temporal warnings) for one requested point of add_point_layer."""
+    feat = QgsFeature(layer.fields())
+    feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
+    feat.setAttribute("name", _clip_to_field_width(layer, "name", str(pt.get("name", ""))))
+    feat.setAttribute("description",
+                       _clip_to_field_width(layer, "description", str(pt.get("description", ""))))
+    # Older layers created before these fields existed won't have them --
+    # skip rather than raise, matching the reused-existing-layer path above.
+    for field_name in (
+        "category", "event_type", "sub_event_type", "hazard_type", "contamination_status",
+        "event_start", "event_end", "last_verified",
+    ):
+        if field_name in field_names and pt.get(field_name) is not None:
+            feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(pt[field_name])))
+    point_warnings = _validate_incident_coding(
+        pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
+    )
+    point_warnings = point_warnings + _validate_incident_temporal(pt.get("event_start"), pt.get("event_end"))
+    return feat, point_warnings
+
+
 @register_tool(
     "add_point_layer",
     "Create a new point layer (or append to an existing one with the same name) from a LIST of real, "
@@ -2068,18 +2106,7 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
     project_crs = QgsProject.instance().crs().authid()
     decision = _coords.crs_decision(crs, crs_stated_by_user, project_crs)
     if decision and decision[0] == "ask":
-        return {
-            "success": False, "needs_user_input": True, "placed": False,
-            "question": (f"Which coordinate system are these numbers in? You did not say, and the project CRS is "
-                         f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
-                         f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
-            "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
-            # rc15 hand test (B1, 2026-10-06): after the user answered "EPSG:3857" the model made no further tool call and
-            # pasted a PyQGIS script for the user to run, so nothing was placed. The refusal said what to ask but not what
-            # to do with the answer; without crs_stated_by_user=True this tool refuses again, so the retry must be spelled out.
-            "next_step": ("When the user replies with a CRS, call add_point_layer again with the same layer_name and points, "
-                          "crs set to their answer and crs_stated_by_user=true. Do not give the user a script to run."),
-        }
+        return _crs_question_response(decision, project_crs)
     crs_assumed = decision[1] if decision and decision[0] == "assumed" else None
 
     # Coordinates are converted here, in code -- never by the model. The rc7 smoke test
@@ -2153,23 +2180,7 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
             errors.append(f"Point {i}: {e}")
             continue
 
-        feat = QgsFeature(layer.fields())
-        feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
-        feat.setAttribute("name", _clip_to_field_width(layer, "name", str(pt.get("name", ""))))
-        feat.setAttribute("description",
-                           _clip_to_field_width(layer, "description", str(pt.get("description", ""))))
-        # Older layers created before these fields existed won't have them --
-        # skip rather than raise, matching the reused-existing-layer path above.
-        for field_name in (
-            "category", "event_type", "sub_event_type", "hazard_type", "contamination_status",
-            "event_start", "event_end", "last_verified",
-        ):
-            if field_name in field_names and pt.get(field_name) is not None:
-                feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(pt[field_name])))
-        point_warnings = _validate_incident_coding(
-            pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
-        )
-        point_warnings = point_warnings + _validate_incident_temporal(pt.get("event_start"), pt.get("event_end"))
+        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
         if point_warnings:
             data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
         if layer.addFeature(feat):

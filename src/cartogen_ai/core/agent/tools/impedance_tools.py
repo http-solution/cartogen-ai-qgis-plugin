@@ -99,6 +99,43 @@ def _slope_penalty(dem_layer, start_point, end_point, segment_length, vertical_f
     return max(_MIN_SLOPE_PENALTY, 1.0 - slope_ratio * _SLOPE_PENALTY_COEFFICIENT)
 
 
+def _base_speed_kmh(feat, highway_field):
+    """The free-flow speed for a segment's OSM highway class (the default when the value is empty or unknown)."""
+    highway_val = feat.attribute(highway_field)
+    if not highway_val:
+        return _DEFAULT_BASE_SPEED_KMH
+    return _HIGHWAY_BASE_SPEED_KMH.get(str(highway_val).strip().lower(), _DEFAULT_BASE_SPEED_KMH)
+
+
+def _surface_penalty(feat, surface_field):
+    """The speed multiplier for a segment's surface class (the default when the value is empty or unknown)."""
+    surface_val = feat.attribute(surface_field)
+    if not surface_val:
+        return _DEFAULT_SURFACE_PENALTY
+    return _SURFACE_PENALTY.get(str(surface_val).strip().lower(), _DEFAULT_SURFACE_PENALTY)
+
+
+def _damage_multiplier(feat, damage_field):
+    """(passability multiplier clamped to 0..1, True when the value was numeric; fully passable 1.0 when it was not)."""
+    raw = feat.attribute(damage_field)
+    try:
+        return max(0.0, min(1.0, float(raw))), True
+    except (TypeError, ValueError):
+        return 1.0, False
+
+
+def _segment_slope_penalty(dem, geom, to_dem, length_m, vertical_factor):
+    """The slope penalty of one road segment from the DEM at its end points (1.0 when it has no usable polyline)."""
+    polyline = geom.asPolyline() if not geom.isMultipart() else (geom.asMultiPolyline()[0] if geom.asMultiPolyline() else None)
+    if not polyline or len(polyline) < 2:
+        return 1.0
+    start_pt, end_pt = polyline[0], polyline[-1]
+    if to_dem is not None:
+        start_pt, end_pt = to_dem.transform(QgsPointXY(start_pt)), to_dem.transform(QgsPointXY(end_pt))
+    length = length_m.measureLength(geom)
+    return _slope_penalty(dem, start_pt, end_pt, length, vertical_factor)
+
+
 @register_tool(
     "build_composite_impedance_field",
     "Builds a single blended per-segment speed field on a road network layer -- combining OSM "
@@ -179,38 +216,18 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
                 if geom is None or geom.isEmpty():
                     continue
 
-                base_speed = _DEFAULT_BASE_SPEED_KMH
-                if has_highway:
-                    highway_val = feat.attribute(highway_field)
-                    if highway_val:
-                        base_speed = _HIGHWAY_BASE_SPEED_KMH.get(str(highway_val).strip().lower(), _DEFAULT_BASE_SPEED_KMH)
-
-                surface_penalty = _DEFAULT_SURFACE_PENALTY
-                if has_surface:
-                    surface_val = feat.attribute(surface_field)
-                    if surface_val:
-                        surface_penalty = _SURFACE_PENALTY.get(str(surface_val).strip().lower(), _DEFAULT_SURFACE_PENALTY)
-
+                base_speed = _base_speed_kmh(feat, highway_field) if has_highway else _DEFAULT_BASE_SPEED_KMH
+                surface_penalty = _surface_penalty(feat, surface_field) if has_surface else _DEFAULT_SURFACE_PENALTY
                 damage_multiplier = 1.0
                 if has_damage:
-                    raw = feat.attribute(damage_field)
-                    try:
-                        damage_multiplier = max(0.0, min(1.0, float(raw)))
-                    except (TypeError, ValueError):
+                    damage_multiplier, was_numeric = _damage_multiplier(feat, damage_field)
+                    if not was_numeric:
                         non_numeric_damage_count += 1
-                        damage_multiplier = 1.0
-
                 slope_penalty = 1.0
                 if dem is not None:
-                    polyline = geom.asPolyline() if not geom.isMultipart() else (geom.asMultiPolyline()[0] if geom.asMultiPolyline() else None)
-                    if polyline and len(polyline) >= 2:
-                        start_pt, end_pt = polyline[0], polyline[-1]
-                        if to_dem is not None:
-                            start_pt, end_pt = to_dem.transform(QgsPointXY(start_pt)), to_dem.transform(QgsPointXY(end_pt))
-                        length = length_m.measureLength(geom)
-                        slope_penalty = _slope_penalty(dem, start_pt, end_pt, length, vertical_factor)
-                        if slope_penalty != 1.0:
-                            sampled_slope_count += 1
+                    slope_penalty = _segment_slope_penalty(dem, geom, to_dem, length_m, vertical_factor)
+                    if slope_penalty != 1.0:
+                        sampled_slope_count += 1
 
                 # Audit F19 (#155): passability 0 used to be clamped to the 0.1 km/h floor, so routing could still cross a
                 # "closed" road. It now writes the closed sentinel, which the routing tools remove from the network.
