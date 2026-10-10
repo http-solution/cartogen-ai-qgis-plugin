@@ -13,7 +13,13 @@ try:
     QT_AVAILABLE = True
 except ImportError:
     QT_AVAILABLE = False
-    PLAN_RESULT_PROMPT_CHARS = 160
+
+    class QObject:
+        pass
+
+MAX_PLAN_HISTORY = 5
+
+PLAN_RESULT_PROMPT_CHARS = 160
 
 
 def _clip_result(result, limit=PLAN_RESULT_PROMPT_CHARS):
@@ -22,12 +28,6 @@ def _clip_result(result, limit=PLAN_RESULT_PROMPT_CHARS):
     if len(text) <= limit:
         return text
     return f"{text[:limit].rstrip()}... [{len(text) - limit} more characters in the tool result]"
-
-
-class QObject:
-        pass
-
-MAX_PLAN_HISTORY = 5
 
 
 def _now_iso() -> str:

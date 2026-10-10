@@ -344,3 +344,19 @@ class TestPlanResultInPrompt(unittest.TestCase):
         tm.create_plan("Plan", ["Step one"])
         tm.update_task(tm.tasks[0]["id"], "DONE", "3 layers listed")
         self.assertIn("3 layers listed", tm.get_formatted_task_context())
+
+
+class TestModuleLevelHelpersAreUnconditional(unittest.TestCase):
+    """PR #254's first CI run: a helper placed inside the `except ImportError:` fallback of task_manager.py was defined only when QGIS was
+    missing, so every real QGIS import failed with a NameError while the offline suite (no QGIS) passed. Names the module needs in both
+    environments must be defined at module level, outside any try/except."""
+
+    def test_the_clip_helper_and_its_limit_are_top_level(self):
+        import ast
+        import inspect
+        from cartogen_ai.core.agent import task_manager
+        tree = ast.parse(inspect.getsource(task_manager))
+        top_level = {t.id for n in tree.body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+        top_level |= {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+        self.assertIn("PLAN_RESULT_PROMPT_CHARS", top_level)
+        self.assertIn("_clip_result", top_level)
