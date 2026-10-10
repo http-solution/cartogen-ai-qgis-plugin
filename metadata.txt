@@ -10,6 +10,7 @@ qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
 version=1.16.0-rc24
 author=Alaa Alshoubaki
+email=info@cartogenai.com
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free. REQUIREMENTS: QGIS 4.2 or later (Qt 6); an internet connection and an API key for one cloud model provider (OpenRouter, Gemini, Claude or OpenAI), or a local Ollama server. With a cloud provider, your prompts and the project data the agent reads to answer them are sent to that provider (see SECURITY.md in the repository for what is protected and how). PYTHON PACKAGES: requests, numpy and GDAL come with QGIS. Optional packages for document attachments, web search, charts and web dashboards (pypdf, python-docx, openpyxl, pandas, pdfplumber, matplotlib, folium, ddgs) are installed through the qpip plugin (a declared plugin dependency) or with pip install -r requirements.txt. The optional imagery feature extraction also needs ultralytics (AGPL-3.0 licence) and downloads a model file the first time it is used.
 
@@ -1318,7 +1319,7 @@ v1.4.1 (2026-08-21):
 # Tags are comma separated with spaces allowed
 tags=python,ai,agent,openrouter,spatial,cartogen
 
-homepage=https://cartogenai.com
+homepage=https://github.com/http-solution/cartogen-ai-qgis-plugin
 category=Plugins
 icon=icon.png
 # experimental flag

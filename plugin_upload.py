@@ -45,6 +45,10 @@ EXCLUDE_DIRS = {
     # Tool caches. A build from a working checkout shipped .ruff_cache/ and src/cartogen_ai_core.egg-info/ (21 junk files) in the
     # rc17 zip rebuilt by hand on 2026-10-06; a clean CI checkout has neither, so the published zips were not affected.
     ".ruff_cache", ".mypy_cache",
+    # Sample data for the live-test runbook (rasters, GeoPackage, QGIS project, Word and PDF tables). The QGIS plugin directory says "don't
+    # include binaries", the files do nothing inside an installed plugin, and the runbook (docs/RELEASE_LIVE_TEST_SCENARIOS.md) copies them
+    # from the repository checkout, not from the installed plugin.
+    "release_smoke_assets",
     # setuptools output: a stale second copy of the plugin (build/lib/cartogen_ai) rode into the 2026-10-03 audited zip.
     "build",
     # Brand assets (guidelines HTML, SVG lockups) have no function inside an
@@ -96,7 +100,8 @@ EXCLUDE_DIRS = {
 # shipping a plugin whose agent has nothing to call. Verified: adding "tools" to
 # EXCLUDE_DIRS took the zip from 63 source files to 44.
 EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
-EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
+# Binary documents and data. Their only users in this repository are tests and the runbook, which read them from the checkout.
+EXCLUDE_EXTS = {".pyc", ".zip", ".tmp", ".docx", ".pdf", ".tif", ".tiff", ".gpkg", ".qgz"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
 # plugin and shouldn't ship in the release package.
 #
