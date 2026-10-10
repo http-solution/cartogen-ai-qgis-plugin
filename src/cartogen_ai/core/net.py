@@ -113,7 +113,7 @@ def _qgis_urlopen(req, timeout, _redirects_left=5):
         qreq.setTransferTimeout(int(timeout * 1000))
     try:
         qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
-                          _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
+                          _enum(QNetworkRequest, "RedirectPolicy", "ManualRedirectPolicy"))
     except (AttributeError, TypeError):
         pass
     method = req.get_method()
@@ -149,7 +149,7 @@ def _qgis_urlopen(req, timeout, _redirects_left=5):
         raise urllib.error.HTTPError(url, status, reply.errorString(), _Headers(headers), io.BytesIO(content))
     if err == _enum(QgsBlockingNetworkRequest, "ErrorCode", "TimeoutError"):
         raise urllib.error.URLError(socket.timeout("timed out"))
-    raise urllib.error.URLError(reply.errorString() or "network error")
+    raise urllib.error.URLError(f"{reply.errorString() or 'network error'} (HTTP status {status or 'none'}, url {url})")
 
 
 def _urllib_open(req, timeout):
