@@ -85,6 +85,45 @@ class TestBackgroundWork(unittest.TestCase):
     def test_zonal_statistics_large_layer_background_path(self):
         self._check(250)
 
+    def test_generic_raster_operation_goes_through_the_background_runner(self):
+        """#221: _run_raster_and_add used to call processing.run on the GUI thread; it now uses the task runner."""
+        from unittest import mock
+        from cartogen_ai.core.agent.tools import _background_processing as bg
+        from cartogen_ai.core.agent.tools import raster_tools
+        self._raster()
+        src = QgsProject.instance().mapLayersByName("r")[0].source()
+        real = bg.run_algorithm
+        with mock.patch.object(bg, "run_algorithm", wraps=real) as spy:
+            res = raster_tools._run_raster_and_add("gdal:slope", {"INPUT": src, "BAND": 1, "SCALE": 1, "AS_PERCENT": False,
+                                                                   "COMPUTE_EDGES": False, "ZEVENBERGEN": False}, "slope_bg")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(spy.call_count, 1)
+        self.assertTrue(QgsProject.instance().mapLayersByName("slope_bg"))
+
+    def test_allowlisted_algorithm_goes_through_the_background_runner_and_returns_a_layer(self):
+        from unittest import mock
+        from cartogen_ai.core.agent.tools import _background_processing as bg
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import run_allowlisted_processing_algorithm
+        zones = self._zones(4)
+        real = bg.run_algorithm
+        with mock.patch.object(bg, "run_algorithm", wraps=real) as spy:
+            res = run_allowlisted_processing_algorithm(
+                "native:buffer", {"INPUT": zones.name(), "DISTANCE": 0.5, "SEGMENTS": 5, "END_CAP_STYLE": 0, "JOIN_STYLE": 0,
+                                  "MITER_LIMIT": 2, "DISSOLVE": False}, "buffered_bg")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(spy.call_count, 1)
+
+    def test_a_selection_algorithm_stays_synchronous(self):
+        from unittest import mock
+        from cartogen_ai.core.agent.tools import _background_processing as bg
+        from cartogen_ai.core.agent.tools import processing_allowlist_tools as pat
+        from cartogen_ai.core.agent.tools._processing_allowlist import MUTATES_INPUT_ALGORITHM_IDS
+        alg = sorted(MUTATES_INPUT_ALGORITHM_IDS)[0]
+        with mock.patch.object(bg, "run_algorithm") as spy, mock.patch.object(pat.processing, "run", return_value={}) as plain:
+            pat._run_allowlisted(alg, {})
+        spy.assert_not_called()
+        plain.assert_called_once()
+
     def test_run_callable_returns_the_result_and_keeps_the_event_loop_alive(self):
         from qgis.PyQt.QtCore import QTimer
         from cartogen_ai.core.agent.tools import _background_processing as bg

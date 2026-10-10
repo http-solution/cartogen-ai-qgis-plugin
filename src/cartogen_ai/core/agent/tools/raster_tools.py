@@ -10,6 +10,7 @@ import tempfile
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
+from . import _background_processing as _bg
 from ...logger import log_warning, log_error
 
 
@@ -198,13 +199,28 @@ def _index_expression():
     return "numpy.where((A.astype(float)+B)==0, 0, (A.astype(float)-B)/(A.astype(float)+B))"
 
 
+def _run_in_background(alg, params):
+    """processing.run(alg, params) without freezing QGIS (rc20 audit A14, #221).
+
+    A raster operation on a large grid ran on the GUI thread and showed "Not Responding" with no way to stop. A Processing
+    algorithm is thread-safe in QGIS's own task runner, so it goes through _background_processing.run_algorithm, which keeps the
+    window alive and honours Stop. Outside a real GUI thread (tests, the kill-switch setting) it is exactly processing.run."""
+    context = None
+    if _bg.can_run_in_background():
+        from qgis.core import QgsProcessingContext
+        context = QgsProcessingContext()
+        context.setProject(QgsProject.instance())
+    return _bg.run_algorithm(alg, params, context, fallback=lambda a, p, context=None: processing.run(a, p),
+                             label=alg.split(":")[-1])
+
+
 def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     try:
         out_path = _temp_raster_path()
         params[output_key] = out_path
-        processing.run(alg, params)
+        _run_in_background(alg, params)
         if not os.path.exists(out_path):
             return {"error": f"{alg} failed to produce output at {out_path}"}
         new_layer = QgsRasterLayer(out_path, new_name)
@@ -212,6 +228,8 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
             return {"error": f"Generated raster layer is invalid: {out_path}"}
         QgsProject.instance().addMapLayer(new_layer)
         return {"success": True, "layer_name": new_name}
+    except _bg.AnalysisCancelled:
+        return {"error": "Stopped before the raster operation finished. Nothing was added to the project.", "cancelled": True}
     except Exception as e:
         return {"error": f"{alg} failed: {e}"}
 

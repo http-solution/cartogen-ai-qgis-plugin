@@ -33,6 +33,43 @@ class TestLocalFilePath(unittest.TestCase):
         self.assertEqual(local_file_path(path + "|layername=roads"), path)
 
 
+class TestLockUncopyableLayers(unittest.TestCase):
+    """#220 (audit A06): layers with no file to copy are locked read-only in the scratch project. Pure, with fakes."""
+
+    class _Layer:
+        def __init__(self, can_lock=True):
+            self.read_only = False
+            self._can_lock = can_lock
+
+        def providerType(self):      # noqa: N802 -- QGIS API name
+            return "postgres"
+
+        def setReadOnly(self, value):  # noqa: N802
+            if not self._can_lock:
+                raise RuntimeError("no")
+            self.read_only = value
+
+    class _Project:
+        def __init__(self, layers):
+            self._layers = layers
+
+        def mapLayers(self):   # noqa: N802
+            return dict(self._layers)
+
+    def test_unhandled_layers_are_locked_and_handled_ones_are_not(self):
+        from cartogen_ai.core.agent.services.script_isolation import _lock_uncopyable_layers
+        db, copied = self._Layer(), self._Layer()
+        locked = _lock_uncopyable_layers(self._Project({"db": db, "copied": copied}), {"copied"})
+        self.assertEqual(locked, ["db"])
+        self.assertTrue(db.read_only)
+        self.assertFalse(copied.read_only)
+
+    def test_a_layer_that_rejects_the_flag_does_not_stop_the_others(self):
+        from cartogen_ai.core.agent.services.script_isolation import _lock_uncopyable_layers
+        bad, good = self._Layer(can_lock=False), self._Layer()
+        self.assertEqual(_lock_uncopyable_layers(self._Project({"bad": bad, "good": good}), set()), ["good"])
+
+
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
 class TestScratchProjectIsReadOnlyCopy(unittest.TestCase):
     def setUp(self):
@@ -73,6 +110,26 @@ class TestScratchProjectIsReadOnlyCopy(unittest.TestCase):
 
         reopened = QgsVectorLayer(user_file, "check", "ogr")
         self.assertEqual(reopened.featureCount(), 3)
+
+    def test_a_layer_with_no_file_to_copy_cannot_be_edited_in_the_scratch_project(self):
+        """#220: a /vsimem/ source stands in for a database layer (an OGR layer that local_file_path does not treat as a file)."""
+        from osgeo import gdal
+        from cartogen_ai.core.agent.services import script_isolation as si
+        name = "/vsimem/cartogen_no_copy.geojson"
+        gdal.FileFromMemBuffer(name, b'{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":1},'
+                                     b'"geometry":{"type":"Point","coordinates":[1,1]}}]}')
+        self.addCleanup(gdal.Unlink, name)
+        live = QgsVectorLayer(name, "no_copy", "ogr")
+        self.assertTrue(live.isValid())
+        QgsProject.instance().addMapLayer(live)
+        work = tempfile.mkdtemp(prefix="cartogen_ro_work_")
+        self.addCleanup(shutil.rmtree, work, True)
+        scratch_path, _ids = si._build_scratch_project(work)
+        scratch = QgsProject()
+        scratch.read(scratch_path)
+        layer = scratch.mapLayersByName("no_copy")[0]
+        self.assertTrue(layer.readOnly())
+        self.assertFalse(layer.startEditing())
 
 
 if __name__ == "__main__":
