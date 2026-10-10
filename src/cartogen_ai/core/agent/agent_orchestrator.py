@@ -20,11 +20,11 @@ try:
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    class QThread:
+    class QThread:  # type: ignore[no-redef]
         @staticmethod
         def currentThread():
             return None
-    class QgsSettings:
+    class QgsSettings:  # type: ignore[no-redef]
         def value(self, k, default=""): return default
         def setValue(self, k, v): pass
 

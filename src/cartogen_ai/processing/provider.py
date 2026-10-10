@@ -33,18 +33,18 @@ try:
     QGIS_PROCESSING_AVAILABLE = True
 except ImportError:
     QGIS_PROCESSING_AVAILABLE = False
-    class QgsProcessing:
+    class QgsProcessing:  # type: ignore[no-redef]
         TypeVectorPoint = 0
         TypeVectorLine = 1
-    class QgsProcessingProvider:
+    class QgsProcessingProvider:  # type: ignore[no-redef]
         pass
-    class QgsProcessingAlgorithm:
+    class QgsProcessingAlgorithm:  # type: ignore[no-redef]
         pass
-    class QCoreApplication:
+    class QCoreApplication:  # type: ignore[no-redef]
         @staticmethod
         def translate(context, string):
             return string
-    class QIcon:
+    class QIcon:  # type: ignore[no-redef]
         pass
 
 

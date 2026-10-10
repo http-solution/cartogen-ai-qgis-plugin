@@ -151,7 +151,7 @@ def build_refinement_messages(query: str, profile: str) -> list:
     ]
 
 
-def parse_refinement_response(raw_content) -> dict:
+def parse_refinement_response(raw_content) -> dict | None:
     """Defensive parsing matching agent_orchestrator.py's _real_execute_tool pattern
     (json.loads wrapped in try/except, degrading rather than raising).
     Returns None for anything that isn't a complete, well-shaped response --

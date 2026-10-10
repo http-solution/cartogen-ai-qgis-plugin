@@ -21,6 +21,7 @@ The OCHA worksheet is read TABLE-AWARE when the workbook has its Excel tables (`
 pocket of need + Admin 3 / Admin 2 / Admin 1 P-code), so a pocket of need in the same Admin 2 is a separate unit. Without the tables (a CSV, a copy that lost
 them) the header-row search is used instead.
 """
+from typing import Any
 import contextlib
 import json
 import os
@@ -65,7 +66,7 @@ VALIDATION_BLOCKERS = {
     ],
 }
 # One adapter per supported layout, with what each has actually been checked against. Only the Yemen layouts are validated; Annex 4 is NOT.
-ADAPTERS = {
+ADAPTERS: dict[str, dict[str, Any]] = {
     "ocha_worksheet": {"status": "validated on OCHA's official example workbook (6 units, flags and severity compared with its cached values) and on the supplied Yemen 2026 worksheet",
                        "evidence": ("example: every cached PiN flag, severity flag, preliminary severity and preliminary PiN reproduced (tests/test_jiaf_worksheet_adapter.py, "
                                     "local-only: the workbook is not committed); Yemen: 333 admin-2 units read, preliminary severity matches the stored column in 333/333")},
@@ -652,7 +653,7 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
     units, fmt, notes = loaded
 
     issues, summary = validate_units(units)
-    stored = {}
+    stored: dict = {}
     for u in units:
         for k, v in u["stored"].items():
             if k != "evidence" and not _blank(v):

@@ -19,7 +19,7 @@ try:
 except ImportError:
     QGIS_TASK_AVAILABLE = False
     _TASK_CAN_CANCEL = None
-    class QgsTask:
+    class QgsTask:  # type: ignore[no-redef]
         pass
 
 

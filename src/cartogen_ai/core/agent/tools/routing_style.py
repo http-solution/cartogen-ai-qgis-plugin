@@ -1,3 +1,4 @@
+from typing import Any
 """How routing and reach results look on the map (visualization round 2, 2026-10-01).
 
 Three rules, each an answer to something that read badly before:
@@ -37,11 +38,11 @@ REACH_GROUP_PREFIX = "Reach figures"
 
 # Facilities by access class. "within" is blue, not the road teal or a green: blue beside red survives red-green colour weakness
 # (owner palette verdict, rc11 smoke test S10). "beyond" is drawn above "within" (higher rendering pass) and larger.
-ACCESS_STYLES = {
+ACCESS_STYLES: dict[str, dict[str, Any]] = {
     "within": {"color": "#1d6fa5", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "within reach", "colour_name": "blue"},  # nosec B105 (dict key "pass" is a draw-order, not a password)
     "beyond": {"color": "#d62828", "outline": "#ffffff", "size": "3.8", "pass": 1, "label": "beyond reach", "colour_name": "red"},  # nosec B105 (dict key "pass" is a draw-order, not a password)
 }
-ACCESS_OTHER = {"color": "#8d99ae", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "unknown"}  # nosec B105 (dict key "pass" is a draw-order, not a password)
+ACCESS_OTHER: dict[str, Any] = {"color": "#8d99ae", "outline": "#ffffff", "size": "2.6", "pass": 0, "label": "unknown"}  # nosec B105 (dict key "pass" is a draw-order, not a password)
 
 
 # ---------------------------------------------------------------- pure --

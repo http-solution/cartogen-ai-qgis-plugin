@@ -790,7 +790,9 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         # The export reconfigures the layout's atlas; remember what it was and put it back afterwards (audit F28, #164).
         previous_atlas = (atlas.enabled(), atlas.coverageLayer(), atlas.filenameExpression(),
                           map_item.atlasDriven() if hasattr(map_item, "atlasDriven") else False)
-        used_names, overwritten, renamed_pages = set(), [], 0
+        used_names: set = set()
+        overwritten: list = []
+        renamed_pages = 0
         atlas.setCoverageLayer(coverage_layer)
         atlas.setEnabled(True)
         # QgsExpression field-reference syntax -- a bare field name in
@@ -816,7 +818,7 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         # BOTH formats identically, confirmed live -- used uniformly here
         # rather than branching between a static atlas-aware call for PDF
         # and a manual loop only for images.
-        output_files = []
+        output_files: list = []
         atlas.beginRender()
         try:
             has_feature = atlas.first()

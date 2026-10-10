@@ -142,7 +142,7 @@ def _classify_field_semantics(name: str, values: list[Any], field_type_name: str
     )
 
 
-def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
+def _estimate_spatial_density_and_overlap(layer: Any) -> tuple[str, float]:
     """Samples bounding boxes of up to 250 features to estimate point/polygon crowding and overlap ratio."""
     if not hasattr(layer, "getFeatures"):
         return "medium", 0.0
@@ -190,7 +190,7 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
 
     overlap_ratio = (overlap_count / max(1, total_pairs))
 
-    total_count = 0
+    total_count: float = 0
     if hasattr(layer, "featureCount"):
         cnt = layer.featureCount()
         if isinstance(cnt, (int, float)):
@@ -276,7 +276,7 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
     if hasattr(layer, "fields") and hasattr(layer, "getFeatures"):
         field_names = [f.name() for f in layer.fields()]
         field_types = {f.name(): f.typeName() for f in layer.fields()}
-        values_per_field = {fn: [] for fn in field_names}
+        values_per_field: dict[str, list] = {fn: [] for fn in field_names}
 
         for i, feat in enumerate(layer.getFeatures()):
             if i >= 300:

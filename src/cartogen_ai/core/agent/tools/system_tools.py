@@ -3,6 +3,7 @@ System & External Integration Tools for Cartogen AI.
 (Web Search, Geocoding, PyQGIS Dynamic Execution)
 """
 
+from typing import Any
 import ast
 import builtins as _builtins_module
 from .registry import register_tool
@@ -614,7 +615,7 @@ def execute_pyqgis_script(script: str):
     # in-process, same as before isolation existed: this still exercises
     # _validate_script_safety and the _SAFE_BUILTINS defense-in-depth layer,
     # which is what this repo's ~40 execute_pyqgis_script tests actually verify.
-    local_env = {}
+    local_env: dict[str, Any] = {}
     local_env['__builtins__'] = _SAFE_BUILTINS
     # __name__ is a normal module global CPython's class-statement machinery
     # reads implicitly (for __qualname__/__module__), not a builtin -- without

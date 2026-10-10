@@ -1,3 +1,4 @@
+from typing import Any
 """
 Core Exception Hierarchy for Cartogen AI.
 
@@ -17,7 +18,7 @@ class CartogenError(Exception):
 
     def to_dict(self) -> dict:
         """Returns a standardized dictionary for tool return envelopes."""
-        res = {"error": self.user_message}
+        res: dict[str, Any] = {"error": self.user_message}
         if self.details:
             res["details"] = self.details
         return res
@@ -27,7 +28,7 @@ class ApiError(CartogenError):
     """Raised when external LLM providers or remote spatial APIs return unrecoverable errors."""
 
     def __init__(self, message: str, provider: str | None = None, status_code: int | None = None, user_message: str | None = None):
-        details = {}
+        details: dict[str, Any] = {}
         if provider:
             details["provider"] = provider
         if status_code is not None:

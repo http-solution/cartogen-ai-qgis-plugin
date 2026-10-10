@@ -9,22 +9,22 @@ from ...core.proxy import get_qgis_proxy_dict
 from ...core import net as _net
 
 try:
-    import requests
+    import requests  # type: ignore[import-untyped]
     HTTPError = requests.exceptions.HTTPError
     RequestException = requests.exceptions.RequestException
     ConnectionError_ = requests.exceptions.ConnectionError
     Timeout_ = requests.exceptions.Timeout
 except (ImportError, AttributeError):
     requests = None
-    class HTTPError(Exception):
+    class HTTPError(Exception):  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             super().__init__(*args)
             self.response = kwargs.get("response")
-    class RequestException(Exception):
+    class RequestException(Exception):  # type: ignore[no-redef]
         pass
-    class ConnectionError_(RequestException):
+    class ConnectionError_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
-    class Timeout_(RequestException):
+    class Timeout_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
 
 # Status codes worth retrying: 429 (rate limited) and the common transient

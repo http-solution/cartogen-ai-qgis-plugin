@@ -15,7 +15,7 @@ try:
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    class QObject:
+    class QObject:  # type: ignore[no-redef]
         pass
     def pyqtSignal(*args, **kwargs):
         return None

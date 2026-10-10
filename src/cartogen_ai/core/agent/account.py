@@ -10,7 +10,7 @@ messages. The caller owns the client instance for the duration of the session.
 
 from urllib.parse import urlsplit, urlunsplit
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 
 DEFAULT_ACCOUNT_BASE_URL = "http://localhost:3000"

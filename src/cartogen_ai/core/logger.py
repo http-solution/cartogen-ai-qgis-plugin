@@ -48,7 +48,7 @@ try:
     QGIS_LOG_AVAILABLE = True
 except ImportError:
     QGIS_LOG_AVAILABLE = False
-    class Qgis:
+    class Qgis:  # type: ignore[no-redef]
         Info = 0
         Warning = 1
         Critical = 2

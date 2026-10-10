@@ -111,7 +111,7 @@ def _attach_timestamps(history, previous_entries, user_ts=None) -> list:
     than once (a real but rare case: relative order between duplicates of
     the same (role, content) pair is preserved by construction, since new
     entries are always appended, never inserted)."""
-    pending = {}
+    pending: dict = {}
     for entry in previous_entries:
         key = (entry.get("role"), entry.get("content"))
         pending.setdefault(key, []).append(entry.get("ts"))

@@ -21,7 +21,7 @@ except ImportError:
 # Plugin-process-lifetime cache + quota guard for STAC queries -- same module-global
 # scoping already used elsewhere in this codebase (e.g. TOOL_REGISTRY). Nothing formal
 # tracks a "session" boundary here, so this resets naturally on plugin reload/QGIS restart.
-_STAC_CACHE = {}
+_STAC_CACHE: dict = {}
 _STAC_CACHE_TTL_SECONDS = 600
 _STAC_QUOTA = {"count": 0}   # holder rather than a global (ruff PLW0603)
 _STAC_MAX_REQUESTS = 20

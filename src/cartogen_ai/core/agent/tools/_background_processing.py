@@ -82,7 +82,7 @@ if QGIS_AVAILABLE:
 # Rc20 audit A16: they used to stay referenced for the life of the process, so every abandoned analysis leaked its task, routing
 # context and (large) parameter layers forever. An entry is now released as soon as its task reports a terminal state
 # (see _abandon / release_finished_abandoned).
-_ABANDONED = []
+_ABANDONED: list = []
 
 
 def _task_is_done(task):

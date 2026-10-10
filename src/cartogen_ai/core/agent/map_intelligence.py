@@ -450,7 +450,7 @@ def configure_intelligent_labels(
 
 def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> list[dict[str, Any]]:
     """Evaluates canvas readability and structural correctness after layer generation."""
-    findings = []
+    findings: list = []
     if not QGIS_AVAILABLE or not layer:
         return findings
 

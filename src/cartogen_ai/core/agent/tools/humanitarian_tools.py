@@ -369,22 +369,22 @@ def ingest_osm_features_network_phase(
         with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
                                 backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
             res_json = json.loads(response.read().decode("utf-8"))
-    except Exception as e:
+    except Exception as fetch_error:
         # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
         # not be reported as "overloaded, try later".
-        if isinstance(e, urllib.error.HTTPError):
-            transient = e.code in (429, 502, 503, 504)
+        if isinstance(fetch_error, urllib.error.HTTPError):
+            transient = fetch_error.code in (429, 502, 503, 504)
         else:
-            transient = isinstance(e, (TimeoutError, urllib.error.URLError))
+            transient = isinstance(fetch_error, (TimeoutError, urllib.error.URLError))
         if transient:
             return {"error": (
-                f"The OpenStreetMap Overpass server is overloaded right now ({e}); tried "
+                f"The OpenStreetMap Overpass server is overloaded right now ({fetch_error}); tried "
                 f"{_OVERPASS_RETRIES + 1} times with waits in between. Don't call ingest_osm_features "
                 "again in this turn, and don't try to rebuild the data another way (e.g. geocoding "
                 "places one by one). Tell the user the OSM download is temporarily unavailable and "
                 "suggest trying again in a few minutes, or loading their own layer instead."
             ), "retryable_later": True}
-        return {"error": f"Overpass API request failed: {e}"}
+        return {"error": f"Overpass API request failed: {fetch_error}"}
 
     elements = res_json.get("elements", [])
 

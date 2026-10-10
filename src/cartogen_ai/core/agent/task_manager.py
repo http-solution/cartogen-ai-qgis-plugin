@@ -12,7 +12,7 @@ try:
 except ImportError:
     QT_AVAILABLE = False
 
-    class QObject:
+    class QObject:  # type: ignore[no-redef]
         pass
 
 MAX_PLAN_HISTORY = 5
