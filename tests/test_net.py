@@ -93,9 +93,8 @@ class TestProviderTransport(unittest.TestCase):
             raise net.NetworkError("refused", timed_out=len(calls) == 1)
 
         with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), patch.object(net, "request", side_effect=fake), \
-                patch.object(self.base.time, "sleep"):
-            with self.assertRaises(self.base.RequestException):
-                self.base.get_with_retry("https://x/", {}, 5, max_retries=1)
+                patch.object(self.base.time, "sleep"), self.assertRaises(self.base.RequestException):
+            self.base.get_with_retry("https://x/", {}, 5, max_retries=1)
         self.assertEqual(len(calls), 2)
 
     def test_503_then_200_retries(self):

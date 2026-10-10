@@ -1,3 +1,4 @@
+import urllib.error
 import unittest
 from unittest.mock import patch, MagicMock
 import cartogen_ai.core.agent.agent_orchestrator as agent_mod
@@ -856,7 +857,7 @@ class TestNewTools(unittest.TestCase):
 
         vt._is_safe_url = fake_is_safe_url
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(urllib.error.URLError):
                 vt._prefetch_url_to_temp(f"http://127.0.0.1:{srv.server_address[1]}/start")
         finally:
             vt._is_safe_url = original_is_safe_url
@@ -899,7 +900,7 @@ class TestNewTools(unittest.TestCase):
         original_is_safe_url = vt._is_safe_url
         vt._is_safe_url = lambda url: None
         try:
-            with self.assertRaises(Exception):
+            with self.assertRaises(ValueError):
                 vt._prefetch_url_to_temp(f"http://127.0.0.1:{srv.server_address[1]}/big")
         finally:
             vt._MAX_DOWNLOAD_BYTES = original_cap

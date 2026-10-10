@@ -20,7 +20,7 @@ class TestMetadataParsesLikeTheDirectory(unittest.TestCase):
     def test_every_value_reads_with_the_default_configparser(self):
         parser = configparser.ConfigParser()          # default BasicInterpolation, as the server uses
         parser.read(PATH, encoding="utf-8")
-        for key, _value in parser["general"].items():      # iterating applies the interpolation to every value
+        for _key, _value in parser["general"].items():      # iterating applies the interpolation to every value
             pass
         self.assertIn("version", parser["general"])
 

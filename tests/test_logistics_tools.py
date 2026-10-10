@@ -664,7 +664,7 @@ class TestCalculateServiceAreaMultiBand(_LineNetworkMixin, unittest.TestCase):
             if alg_id == "native:convexhull":
                 # INPUT is whichever lines_layer was just passed in -- find its band.
                 lines_layer = params["INPUT"]
-                for band, (ll, hl) in pairs.items():
+                for _band, (ll, hl) in pairs.items():
                     if ll is lines_layer:
                         return {"OUTPUT": hl}
                 raise AssertionError("unmatched lines_layer")
@@ -1417,7 +1417,7 @@ class TestOptimalHubSitingWithMockedLayers(unittest.TestCase):
         # on average than the one at (100,100).
         demand_layer = MagicMock()
         demand_feats = []
-        for coord in [(1, 1), (2, 2), (3, 3)]:
+        for _coord in [(1, 1), (2, 2), (3, 3)]:
             f = MagicMock()
             g = MagicMock()
             g.isEmpty.return_value = False

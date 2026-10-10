@@ -49,7 +49,7 @@ def load_fixture():
 def spawn_child(proj_path):
     out = os.path.join(work, "child_out.json")
     t = time.perf_counter()
-    r = subprocess.run([sys.executable, CHILD, proj_path, out], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, CHILD, proj_path, out], capture_output=True, text=True, check=False)
     wall = time.perf_counter() - t
     if r.returncode != 0:
         print("CHILD FAILED:", r.returncode, r.stderr[-800:])

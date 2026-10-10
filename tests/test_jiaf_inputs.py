@@ -161,7 +161,7 @@ class TestSetup(unittest.TestCase):
             {"sector": "health", "pin_aligned": False}, {"sector": "nutrition", "severity_alignment": "adapted"},
             {"sector": "mystery"}, {"sector": "wash", "severity_alignment": "weird"}])
         self.assertEqual(len(errors), 4)
-        _c, a, errors = ji.validate_setup(dict(self.OK), [{"sector": "health", "pin_aligned": False, "pin_explanation": "counts all affected"}])
+        _c, _a, errors = ji.validate_setup(dict(self.OK), [{"sector": "health", "pin_aligned": False, "pin_explanation": "counts all affected"}])
         self.assertEqual(errors, [])
 
     def test_hct_flag_must_be_boolean(self):

@@ -1,6 +1,7 @@
 """Runs each pre-built chain end to end in real QGIS with its slots filled, calling the real tool functions through the same
 reference resolution run_steps uses. fetch_dem reads synthetic tiles from a local range-capable server (the real bucket is not used in
 CI). Proves tool order, argument names and result fields; says nothing about whether a model follows the skeleton."""
+import contextlib
 import copy
 import functools
 import http.server
@@ -33,11 +34,9 @@ class TestChainsLive(unittest.TestCase):
     def setUp(self):
         from tests.test_chat_widget_live import _boot_qgis
         _boot_qgis()
-        try:
+        with contextlib.suppress(Exception):
             from processing.core.Processing import Processing
             Processing.initialize()
-        except Exception:
-            pass
         QgsProject.instance().clear()
         self.addCleanup(QgsProject.instance().clear)
         import cartogen_ai.core.agent.tools  # noqa: F401  (registers every tool)

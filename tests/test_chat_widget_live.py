@@ -286,7 +286,7 @@ class TestChatWidgetLive(unittest.TestCase):
                       "the composed prompt must carry the answer forward, not just the original text")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "the merged, now-answerable request must actually reach the agent")
 
@@ -347,7 +347,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0, "must not have sent anything while awaiting the reply")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         self.assertFalse(ct._awaiting_preview_reply)
         self.assertEqual(agent.client.calls, 1, "a confirming reply must be what actually dispatches the call")
@@ -380,7 +380,7 @@ class TestChatWidgetLive(unittest.TestCase):
             "quoted back inside it afterward")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         log_after = self._chat_text(ct)
         occurrences = log_after.count("map health facilities")
@@ -417,7 +417,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self._reply(ct, "map health facilities")
         self.assertTrue(ct._awaiting_preview_reply)
         self._reply(ct, "just show me clinics instead")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "an unrecognized reply must dispatch exactly once, with no contract "
                          "follow-up -- the whole point is opting OUT of the register's "
@@ -435,7 +435,7 @@ class TestChatWidgetLive(unittest.TestCase):
             self._reply(ct, "map health facilities")
             self.assertTrue(ct._awaiting_preview_reply)
             self._reply(ct, reply)
-            _pump(until=lambda: agent.client.calls >= 1)
+            _pump(until=lambda agent=agent: agent.client.calls >= 1)
             self.assertEqual(agent.client.calls, 1, reply)
             sent = agent.conversation_history[0]["content"]
             self.assertIn("health facilities", sent.lower(), f"{reply!r} must run the original request, but the model got {sent!r}")
@@ -577,7 +577,7 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self._reply(ct, "build me a dashboard of displacement by district")
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         self.assertEqual(agent.client.calls, 1,
@@ -900,7 +900,7 @@ class TestChatWidgetLive(unittest.TestCase):
         task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen", "new_field": "severity"}
 
         ct._dispatch_message("calculate severity", None)
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         log = self._chat_text(ct)

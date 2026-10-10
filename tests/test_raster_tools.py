@@ -613,18 +613,18 @@ class TestEstimatePopulationExposureEstimateFields(unittest.TestCase):
         vector.fields.return_value.count.return_value = 1
         vector.fields.return_value.__getitem__.return_value.name.return_value = "name"
 
-        with patch.dict(sys.modules, {"qgis.analysis": fake_zonal_module}):
-            with patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True), \
-                 patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True) as mock_wkb, \
-                 patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name") as mock_find:
-                mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
-                mock_find.side_effect = {population_raster_layer: raster, "districts": vector}.get
-                with patch("cartogen_ai.core.agent.tools.raster_tools._zonal_sums_detached",
-                           return_value={7: 1000}) as detached, \
-                     patch("cartogen_ai.core.agent.tools.raster_tools._overlapping_zone_count", return_value=0):
-                    result = estimate_population_exposure(population_raster_layer, "districts")
-                self.detached_called_with = detached.call_args
-                return result
+        with patch.dict(sys.modules, {"qgis.analysis": fake_zonal_module}), \
+                patch("cartogen_ai.core.agent.tools.raster_tools.QGIS_AVAILABLE", True), \
+                patch("cartogen_ai.core.agent.tools.raster_tools.QgsWkbTypes", create=True) as mock_wkb, \
+                patch("cartogen_ai.core.agent.tools.raster_tools._find_layer_by_name") as mock_find:
+            mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
+            mock_find.side_effect = {population_raster_layer: raster, "districts": vector}.get
+            with patch("cartogen_ai.core.agent.tools.raster_tools._zonal_sums_detached",
+                       return_value={7: 1000}) as detached, \
+                    patch("cartogen_ai.core.agent.tools.raster_tools._overlapping_zone_count", return_value=0):
+                result = estimate_population_exposure(population_raster_layer, "districts")
+            self.detached_called_with = detached.call_args
+            return result
 
     def test_worldpop_named_raster_gets_source_and_year(self):
         res = self._run("YEM_population_2020")

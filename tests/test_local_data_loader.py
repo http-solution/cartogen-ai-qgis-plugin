@@ -73,15 +73,13 @@ class TestDownload(_TmpDir):
         mock_open.assert_called_once()
 
     def test_an_error_page_is_not_kept_as_the_extract(self):
-        with patch("urllib.request.urlopen", return_value=_response(b"<html>error</html>")):
-            with self.assertRaises(ValueError):
-                ldl.download_extract(REGION, self.dir)
+        with patch("urllib.request.urlopen", return_value=_response(b"<html>error</html>")), self.assertRaises(ValueError):
+            ldl.download_extract(REGION, self.dir)
         self.assertEqual(os.listdir(self.dir), [])
 
     def test_cancelling_stops_and_leaves_no_zip(self):
-        with patch("urllib.request.urlopen", return_value=_response(_zip_bytes())):
-            with self.assertRaises(InterruptedError):
-                ldl.download_extract(REGION, self.dir, is_cancelled=lambda: True)
+        with patch("urllib.request.urlopen", return_value=_response(_zip_bytes())), self.assertRaises(InterruptedError):
+            ldl.download_extract(REGION, self.dir, is_cancelled=lambda: True)
         self.assertFalse(any(n.endswith(".zip") for n in os.listdir(self.dir)))
 
 

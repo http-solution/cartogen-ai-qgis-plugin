@@ -1,5 +1,6 @@
 """Live-QGIS checks of split_lines_by_zones and generate_contours against geometry with known answers. Written without
 hand-testing; the Docker QGIS run is the only execution evidence."""
+import contextlib
 import os
 import tempfile
 import unittest
@@ -19,11 +20,9 @@ except ImportError:
 def _boot():
     from tests.test_chat_widget_live import _boot_qgis
     _boot_qgis()
-    try:
+    with contextlib.suppress(Exception):
         from processing.core.Processing import Processing
         Processing.initialize()
-    except Exception:
-        pass
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS + gdal + numpy")

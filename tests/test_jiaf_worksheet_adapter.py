@@ -160,7 +160,7 @@ class TestWorkbookRead(unittest.TestCase):
         pins["CCCM"] = 0
         pins["Education"] = 0
         grid = pin_grid([row(pins=pins, pop=1000), row(pocket="IDP camp", pins=pins, pop=1000)], flags=False)
-        grid = [["A title row above the table"]] + grid  # the table does not start at A1
+        grid = [["A title row above the table"], *grid]  # the table does not start at A1
         for r in grid:
             ws.append(r)
         ws.add_table(Table(displayName="tblPiNAnalysis", ref=f"A2:{openpyxl.utils.get_column_letter(len(grid[1]))}{len(grid)}"))

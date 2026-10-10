@@ -268,7 +268,7 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
     def test_per_point_coding_warnings_are_collected_with_point_index(self, mock_project, mock_feature_cls, mock_geom, mock_point):
         layer = MagicMock()
         layer.fields.return_value = [
-            MagicMock(name=lambda: n) for n in
+            MagicMock(name=lambda n=n: n) for n in
             ("name", "description", "category", "event_type", "sub_event_type", "hazard_type", "contamination_status")
         ]
         for f, n in zip(layer.fields.return_value, ("name", "description", "category", "event_type", "sub_event_type", "hazard_type", "contamination_status"), strict=False):
@@ -299,7 +299,7 @@ class TestAddPointLayerCodingFields(unittest.TestCase):
             "hazard_type", "contamination_status", "event_start", "event_end", "last_verified",
         )
         layer = MagicMock()
-        layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
+        layer.fields.return_value = [MagicMock(name=lambda n=n: n) for n in field_names]
         for f, n in zip(layer.fields.return_value, field_names, strict=False):
             f.name.return_value = n
         layer.addFeature.return_value = True
@@ -363,7 +363,7 @@ class TestStylingFailureDoesNotBlockNewLayerCreation(unittest.TestCase):
         new_layer = MagicMock()
         new_layer.isValid.return_value = True
         new_layer.addFeature.return_value = True
-        new_layer.fields.return_value = [MagicMock(name=lambda: n) for n in field_names]
+        new_layer.fields.return_value = [MagicMock(name=lambda n=n: n) for n in field_names]
         for f, n in zip(new_layer.fields.return_value, field_names, strict=False):
             f.name.return_value = n
         mock_vector_layer_cls.return_value = new_layer

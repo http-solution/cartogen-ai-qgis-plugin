@@ -552,7 +552,7 @@ class TestSimplifyLatex(unittest.TestCase):
 
     def test_the_observed_fragments(self):
         self.assertEqual(self.f(r"area $\le$ 3,000 $\text{km}^2$"), "area ≤ 3,000 km²")
-        self.assertEqual(self.f(r"3 $\times$ 4"), "3 × 4")
+        self.assertEqual(self.f(r"3 $\times$ 4"), "3 \u00d7 4")
 
     def test_powers_and_percent(self):
         self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")

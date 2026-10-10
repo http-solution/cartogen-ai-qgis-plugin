@@ -26,7 +26,7 @@ class TestExclusionsCannotSwallowRealSource(unittest.TestCase):
     def setUp(self):
         self.pu = _load()
         self.src_dirs = set()
-        for r, d, _f in os.walk(os.path.join(ROOT, "src")):
+        for _r, d, _f in os.walk(os.path.join(ROOT, "src")):
             d[:] = [x for x in d if x != "__pycache__"]
             for x in d:
                 self.src_dirs.add(x)
@@ -103,7 +103,7 @@ class TestZonalStatisticsImportModule(unittest.TestCase):
     def test_no_module_imports_it_from_qgis_core(self):
         import re
         bad = []
-        for r, d, files in os.walk(os.path.join(ROOT, "src")):
+        for r, _d, files in os.walk(os.path.join(ROOT, "src")):
             for name in files:
                 if name.endswith(".py"):
                     text = pathlib.Path(os.path.join(r, name)).read_text(encoding="utf-8")

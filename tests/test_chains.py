@@ -45,11 +45,13 @@ class TestChains(unittest.TestCase):
         self.assertIn("Known-good chain", text)
         start = text.index('{"steps"')
         depth = 0
-        for i, ch in enumerate(text[start:], start):
+        end = start
+        for ch in text[start:]:
             depth += (ch == "{") - (ch == "}")
             if depth == 0:
                 break
-        self.assertEqual(len(json.loads(text[start:i + 1])["steps"]), 3)
+            end += 1
+        self.assertEqual(len(json.loads(text[start:end + 1])["steps"]), 3)
         self.assertNotIn("Known-good chain", cap.workflow_directive(SCEN["districts"]))
 
     def test_the_router_offers_the_chains_tools(self):

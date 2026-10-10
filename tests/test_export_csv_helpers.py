@@ -18,7 +18,7 @@ class TestCsvHelpers(unittest.TestCase):
         return path
 
     def test_bom_is_added_once(self):
-        path = self._tmp("name\nصنعاء\n".encode())
+        path = self._tmp("name\n\u0635\u0646\u0639\u0627\u0621\n".encode())
         self.assertIsNone(et._ensure_utf8_bom(path))
         self.assertIsNone(et._ensure_utf8_bom(path))
         raw = pathlib.Path(path).read_bytes()

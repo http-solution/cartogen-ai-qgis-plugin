@@ -77,7 +77,7 @@ class TestApplyNetworkBarriers(unittest.TestCase):
         self.assertEqual(_speeds(roads, "barrier_speed")[0], 30.0)
 
     def test_a_barrier_in_another_crs_lands_in_the_same_place(self):
-        roads, res = self._run(_barrier_point("EPSG:3857"), buffer_m=50, speed_field="speed")
+        _roads, res = self._run(_barrier_point("EPSG:3857"), buffer_m=50, speed_field="speed")
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["segments_affected"], 1)
 
