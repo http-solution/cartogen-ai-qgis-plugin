@@ -1490,7 +1490,7 @@ class ChatTabWidget(QWidget):
             )
         if region:
             size = region.get("size_bytes") or 0
-            size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
+            size_text = f"{round(size / 1e6)} MB" if size else "of unknown size"
             lines.append("The OpenStreetMap extract for **{}** is **{}**.".format(region["name"], size_text))
         lines.append(
             f"[\U0001F4E5 Download local data](cartogen://action/{download_id})  "
@@ -1530,7 +1530,7 @@ class ChatTabWidget(QWidget):
             "ai", "Downloading the OpenStreetMap extract for **{}** ({}) from Geofabrik. This "
                   "runs in the background; press Stop to cancel.".format(
                       region["name"],
-                      "%d MB" % round(region["size_bytes"] / 1e6) if region.get("size_bytes") else "size unknown"))
+                      f"{round(region['size_bytes'] / 1e6)} MB" if region.get("size_bytes") else "size unknown"))
         self._set_local_data_busy(True)
 
         def work(is_cancelled):

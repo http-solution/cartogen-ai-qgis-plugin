@@ -396,7 +396,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
         "source_discrepancies": [dict(d, note="Stored value preserved; nothing was corrected.")
                                  for d in run["analysis"]["stored_comparison"]["pin_mismatch"][:_CAP]],
         **summary,
-        "total_note": ("PROVISIONAL: %d flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN." % summary["pending_pin_units"]
+        "total_note": (f"PROVISIONAL: {summary['pending_pin_units']} flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN."
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
         "severity_note": "Intersectoral severity is per unit only; there is no national severity and no PiN per severity phase.",
         "pending_units_shown": [{"unit": r["admin2_code"], "pin_flags": r["pin_flags_fired"], "severity_flags": r["severity_flags_fired"]}

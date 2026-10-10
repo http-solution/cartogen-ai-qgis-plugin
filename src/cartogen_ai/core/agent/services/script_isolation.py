@@ -618,7 +618,7 @@ class _IsolationWorker:
             }
         env = _build_worker_environment()
         try:
-            self._proc = subprocess.Popen(  # nosec B603 (fixed argv list, no shell, no user input in the command)
+            self._proc = subprocess.Popen(  # noqa: S603  # nosec B603 (fixed argv list, no shell, no user input in the command)
                 [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

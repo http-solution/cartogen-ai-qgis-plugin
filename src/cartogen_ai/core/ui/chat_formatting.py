@@ -981,7 +981,7 @@ def format_send_error(err) -> str:
     def has(*needles):
         for n in needles:
             if isinstance(n, int):
-                if re.search(r"(?<!\d)%d(?!\d)" % n, text):
+                if re.search(rf"(?<!\d){n}(?!\d)", text):
                     return True
             elif n in lower:
                 return True

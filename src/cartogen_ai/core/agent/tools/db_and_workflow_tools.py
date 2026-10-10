@@ -83,7 +83,7 @@ def build_query_table(sql_query: str, key_column: str = "_cg_id") -> str:
     unique key (a query layer needs one). Pure. #151: the old code used `uri.setSql("(...)")`, which is a feature FILTER on a
     table that was never named, not a query-layer definition."""
     inner = sql_query.strip().rstrip(";").strip()
-    return f"(SELECT row_number() OVER () AS {key_column}, * FROM ({inner}) AS _cg_q)"  # nosec B608 (user SQL is wrapped, and read-only mode is enforced separately)
+    return f"(SELECT row_number() OVER () AS {key_column}, * FROM ({inner}) AS _cg_q)"  # noqa: S608  # nosec B608 (user SQL is wrapped, and read-only mode is enforced separately)
 
 
 @register_tool("execute_read_only_sql", "Execute a read-only SQL query against a named PostGIS connection or active project layers.", {"type": "object", "properties": {"connection_name": {"type": "string"}, "sql_query": {"type": "string"}, "geometry_column": {"type": "string", "description": "Name of the geometry column in the query result; omit for a non-spatial result table."}}, "required": ["sql_query"]})

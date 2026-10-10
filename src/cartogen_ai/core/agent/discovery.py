@@ -84,7 +84,7 @@ def utm_for_fact(fact):
     box = (fact or {}).get("extent_wgs84")
     if not box:
         return None
-    return "EPSG:%d" % utm_epsg_for((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+    return f"EPSG:{utm_epsg_for((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)}"
 
 
 def chain_report(chain, facts, query):

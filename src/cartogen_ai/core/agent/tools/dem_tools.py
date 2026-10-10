@@ -44,7 +44,7 @@ def tile_name(lat_floor, lon_floor):
     """Copernicus tile id for the 1-degree cell whose south-west corner is (lat_floor, lon_floor). Pure."""
     ns = "N" if lat_floor >= 0 else "S"
     ew = "E" if lon_floor >= 0 else "W"
-    return "Copernicus_DSM_COG_10_%s%02d_00_%s%03d_00_DEM" % (ns, abs(int(lat_floor)), ew, abs(int(lon_floor)))
+    return f"Copernicus_DSM_COG_10_{ns}{abs(int(lat_floor)):02d}_00_{ew}{abs(int(lon_floor)):03d}_00_DEM"
 
 
 def tile_url(lat_floor, lon_floor, base=None):

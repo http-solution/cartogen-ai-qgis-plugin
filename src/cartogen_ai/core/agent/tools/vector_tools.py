@@ -2285,7 +2285,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         index = QgsSpatialIndex(admin_layer.getFeatures())
         admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
 
-    rng = random.Random(seed)  # nosec B311 (seeded sampling for reproducibility, not security)
+    rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
     unmatched_count = 0
 

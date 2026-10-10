@@ -227,7 +227,7 @@ class CredentialManager:
             "settings. Two documented causes:"
         ]
         for i, item in enumerate(status["known_causes"], start=1):
-            lines.append("%d. %s\n   Fix: %s" % (i, item["cause"], item["fix"]))
+            lines.append(f"{i}. {item['cause']}\n   Fix: {item['fix']}")
         return "\n\n".join(lines)
 
     @staticmethod
