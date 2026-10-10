@@ -81,6 +81,13 @@ class TestExecuteReadOnlySqlOnPostgis(unittest.TestCase):
         self.assertTrue(out.get("success"), out)
         self.assertEqual(out["feature_count"], 2)
 
+    def test_the_result_layer_cannot_be_edited(self):
+        """#151: the result is a query view; it must refuse editing instead of writing back through a writable connection."""
+        out = self._run(f"SELECT id, label FROM {SCHEMA}.facts")
+        layer = QgsProject.instance().mapLayersByName(out["layer_name"])[0]
+        self.assertTrue(layer.readOnly())
+        self.assertFalse(layer.startEditing())
+
     def test_the_tool_leaves_the_users_connection_writable(self):
         """The first CI run showed the read-only setting staying on a pooled connection that everything else shares."""
         self._run(f"SELECT id FROM {SCHEMA}.facts")
