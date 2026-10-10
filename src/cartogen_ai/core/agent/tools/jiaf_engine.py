@@ -300,6 +300,27 @@ def rank_of_value(ranked, value):
     return "other"
 
 
+def _compare_stored_flags(u, pf, sf, flag_check):
+    """Adds one unit's worksheet-cached flag columns (when the file has them) to `flag_check`, compared with the recomputed flags."""
+    for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
+        for n, was in (got or {}).items():
+            key = str(n)
+            mine = flags.get(n) if isinstance(n, int) else flags.get(6)
+            if mine is None:
+                continue
+            if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
+                part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
+                fired = bool(part and part["fired"])
+            else:
+                fired = bool(mine["fired"])
+            c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
+            c["compared"] += 1
+            if fired == was:
+                c["agree"] += 1
+            else:
+                c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+
+
 def analyze(units, previous_units=None, overrides=None):
     """The full preliminary analysis of validated units (see validate_units). Returns a dict with per-unit rows and totals."""
     settings = merge_settings(overrides)
@@ -364,23 +385,7 @@ def analyze(units, previous_units=None, overrides=None):
                 totals["units_without_worksheet_preliminary_pin"] += 1
             else:
                 totals["worksheet_preliminary_pin"] += gated
-        for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
-            for n, was in (got or {}).items():
-                key = str(n)
-                mine = flags.get(n) if isinstance(n, int) else flags.get(6)
-                if mine is None:
-                    continue
-                if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
-                    part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
-                    fired = bool(part and part["fired"])
-                else:
-                    fired = bool(mine["fired"])
-                c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
-                c["compared"] += 1
-                if fired == was:
-                    c["agree"] += 1
-                else:
-                    c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+        _compare_stored_flags(u, pf, sf, flag_check)
         if psev is not None:
             sev_dist[psev] = sev_dist.get(psev, 0) + 1
         if psev == 5 or sf[1]["fired"]:

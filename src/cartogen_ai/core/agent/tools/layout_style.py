@@ -369,97 +369,109 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         except Exception as exc:
             warnings.append(f"{name}: {type(exc).__name__}: {exc}")
 
-    def item(item_id):
-        return layout.itemById(item_id)
-
-    def title():
-        label = item("TITLE")
-        bg_hex, fg_hex = resolve_masthead(_configured_masthead())
-        label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
-        label.setBackgroundEnabled(True)
-        label.setBackgroundColor(QColor(bg_hex))
-        label.setMarginX(3.0)
-        label.setMarginY(1.0)
-        label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
-
-    def map_frame():
-        _frame(item("MAP_MAIN"), FRAME_MM["map"], layout_mm)
-        inset = item("INSET_MAP")
-        if inset is not None:
-            _frame(inset, FRAME_MM["panel"], layout_mm)
-
-    def info():
-        label = item("MAP_INFO")
-        if label is None:
-            return
-        label.setText(info_text(label.text(), today))
-        label.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["muted"]))
-
-    def body():
-        label = item("BODY_TEXT")
-        if label is None:
-            return
-        label.setTextFormat(text_format(TYPE_SCALE["panel"], PALETTE["text"]))
-        _panel(label, layout_mm)
-        label.setMarginX(2.0)
-        label.setMarginY(1.5)
-        with contextlib.suppress(Exception):  # size the panel to its text instead of leaving a page-tall empty box (#129)
-            size = label.rect()
-            needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
-            if needed < size.height():
-                label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
-
-    def footer():
-        label = item("FOOTER")
-        label.setText(footer_text(label.text(), levels))
-        label.setTextFormat(text_format(TYPE_SCALE["footer"], PALETTE["muted"], italic=True))
-
-    def legend():
-        leg = item("LEGEND")
-        # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
-        # showed a DeprecationWarning per layout); setSyncMode(Manual) is its replacement, with the old call as the fallback.
-        try:
-            from qgis.core import Qgis
-            leg.setSyncMode(Qgis.LegendSyncMode.Manual)
-        except Exception:
-            leg.setAutoUpdateModel(False)
-        root = leg.model().rootGroup()
-        root.removeAllChildren()
-        legend_ids = ids
-        map_item = item("MAP_MAIN")
-        if template != "access_map" and map_item is not None:
-            on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
-            if on_map:                      # never an empty legend because every extent test said "elsewhere"
-                legend_ids = on_map
-        chosen["ids"] = legend_ids
-        for layer_id in legend_ids:
-            root.addLayer(by_id[layer_id])
-        # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
-        # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
-        # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
-        leg.setLegendFilterByMapEnabled(template != "access_map")
-        leg.setTitle("Legend")
-        _panel(leg, layout_mm)
-
-    def legend_fonts():
-        leg = item("LEGEND")
-        style_cls = _legend_style_class()
-        for style_name, size, bold in (("Title", TYPE_SCALE["legend_title"], True), ("Group", TYPE_SCALE["legend_item"] + 1, True),
-                                       ("Subgroup", TYPE_SCALE["legend_item"] + 0.5, True),
-                                       ("SymbolLabel", TYPE_SCALE["legend_item"], False)):
-            member = getattr(getattr(style_cls, "Style", style_cls), style_name, None)
-            if member is not None:
-                leg.rstyle(member).setTextFormat(text_format(size, PALETTE["text"], bold=bold))
-
-    def scalebar():
-        bar = item("SCALEBAR")
-        bar.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["text"]))
-
-    for name, fn in (("title", title), ("map frame", map_frame), ("info row", info), ("body panel", body),
-                     ("footer", footer), ("legend", legend), ("legend fonts", legend_fonts), ("scale bar", scalebar)):
+    for name, fn in (
+            ("title", lambda: _style_title(layout)),
+            ("map frame", lambda: _style_map_frame(layout, layout_mm)),
+            ("info row", lambda: _style_info(layout, today)),
+            ("body panel", lambda: _style_body(layout, layout_mm)),
+            ("footer", lambda: _style_footer(layout, levels)),
+            ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
+            ("legend fonts", lambda: _style_legend_fonts(layout)),
+            ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
             "classification": classification_prefix(levels).strip(" -")}
+
+
+def _style_title(layout):
+    label = layout.itemById("TITLE")
+    bg_hex, fg_hex = resolve_masthead(_configured_masthead())
+    label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
+    label.setBackgroundEnabled(True)
+    label.setBackgroundColor(QColor(bg_hex))
+    label.setMarginX(3.0)
+    label.setMarginY(1.0)
+    label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
+
+
+def _style_map_frame(layout, layout_mm):
+    _frame(layout.itemById("MAP_MAIN"), FRAME_MM["map"], layout_mm)
+    inset = layout.itemById("INSET_MAP")
+    if inset is not None:
+        _frame(inset, FRAME_MM["panel"], layout_mm)
+
+
+def _style_info(layout, today):
+    label = layout.itemById("MAP_INFO")
+    if label is None:
+        return
+    label.setText(info_text(label.text(), today))
+    label.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["muted"]))
+
+
+def _style_body(layout, layout_mm):
+    label = layout.itemById("BODY_TEXT")
+    if label is None:
+        return
+    label.setTextFormat(text_format(TYPE_SCALE["panel"], PALETTE["text"]))
+    _panel(label, layout_mm)
+    label.setMarginX(2.0)
+    label.setMarginY(1.5)
+    with contextlib.suppress(Exception):  # size the panel to its text instead of leaving a page-tall empty box (#129)
+        size = label.rect()
+        needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
+        if needed < size.height():
+            label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
+
+
+def _style_footer(layout, levels):
+    label = layout.itemById("FOOTER")
+    label.setText(footer_text(label.text(), levels))
+    label.setTextFormat(text_format(TYPE_SCALE["footer"], PALETTE["muted"], italic=True))
+
+
+def _style_legend(layout, layout_mm, ids, by_id, template, chosen):
+    leg = layout.itemById("LEGEND")
+    # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
+    # showed a DeprecationWarning per layout); setSyncMode(Manual) is its replacement, with the old call as the fallback.
+    try:
+        from qgis.core import Qgis
+        leg.setSyncMode(Qgis.LegendSyncMode.Manual)
+    except Exception:
+        leg.setAutoUpdateModel(False)
+    root = leg.model().rootGroup()
+    root.removeAllChildren()
+    legend_ids = ids
+    map_item = layout.itemById("MAP_MAIN")
+    if template != "access_map" and map_item is not None:
+        on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
+        if on_map:                      # never an empty legend because every extent test said "elsewhere"
+            legend_ids = on_map
+    chosen["ids"] = legend_ids
+    for layer_id in legend_ids:
+        root.addLayer(by_id[layer_id])
+    # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
+    # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
+    # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
+    leg.setLegendFilterByMapEnabled(template != "access_map")
+    leg.setTitle("Legend")
+    _panel(leg, layout_mm)
+
+
+def _style_legend_fonts(layout):
+    leg = layout.itemById("LEGEND")
+    style_cls = _legend_style_class()
+    for style_name, size, bold in (("Title", TYPE_SCALE["legend_title"], True), ("Group", TYPE_SCALE["legend_item"] + 1, True),
+                                   ("Subgroup", TYPE_SCALE["legend_item"] + 0.5, True),
+                                   ("SymbolLabel", TYPE_SCALE["legend_item"], False)):
+        member = getattr(getattr(style_cls, "Style", style_cls), style_name, None)
+        if member is not None:
+            leg.rstyle(member).setTextFormat(text_format(size, PALETTE["text"], bold=bold))
+
+
+def _style_scalebar(layout):
+    bar = layout.itemById("SCALEBAR")
+    bar.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["text"]))
 
 
 def _legend_style_class():
