@@ -11,7 +11,8 @@ Limits, found by the first CI runs of tests/test_net_live.py and stated rather t
   * QgsNetworkAccessManager sets its own User-Agent ("Mozilla/5.0 QGIS/<version>/<os>") and overwrites the one a caller passes.
   * It also applies QGIS's own network timeout (Settings > Options > Network, default 60 s) in place of the per-call `timeout`,
     so a call that asked for 15 s can wait longer. A caller that needs a short, exact timeout uses `stream=True`.
-  * A redirect with a relative Location fails inside QGIS ("Protocol "" is unknown"), so redirects are resolved here.
+  * A redirect with a relative Location fails inside QGIS ("Protocol "" is unknown"; CI run of 2026-10-10, and neither a manual
+    redirect policy nor re-resolving the target could intercept it), so that one case is retried once through urllib.
 Two deliberate limits on the buffered path:
   * QgsBlockingNetworkRequest returns the whole reply in memory, so a request whose body is large (a Geofabrik extract, a model
     checkpoint) must use `stream=True`, which stays on urllib and streams to disk. That path still honours the QGIS proxy.
@@ -24,7 +25,6 @@ Only http and https URLs are opened; file:, ftp: and custom schemes are refused 
 import io
 import socket
 import urllib.error
-import urllib.parse
 import urllib.request
 
 try:
@@ -104,7 +104,7 @@ def _enum(owner, group, name):
     return getattr(scoped, name) if scoped is not None and hasattr(scoped, name) else getattr(owner, name)
 
 
-def _qgis_urlopen(req, timeout, _redirects_left=5):
+def _qgis_urlopen(req, timeout):
     url = req.full_url
     qreq = QNetworkRequest(QUrl(url))
     for key, value in req.header_items():
@@ -113,7 +113,7 @@ def _qgis_urlopen(req, timeout, _redirects_left=5):
         qreq.setTransferTimeout(int(timeout * 1000))
     try:
         qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
-                          _enum(QNetworkRequest, "RedirectPolicy", "ManualRedirectPolicy"))
+                          _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
     except (AttributeError, TypeError):
         pass
     method = req.get_method()
@@ -138,12 +138,6 @@ def _qgis_urlopen(req, timeout, _redirects_left=5):
     ok = _enum(QgsBlockingNetworkRequest, "ErrorCode", "NoError")
     if err == ok:
         return Response(content, status or 200, headers, url)
-    location = dict((k.lower(), v) for k, v in headers).get("location")
-    if status in (301, 302, 303, 307, 308) and location and method in ("GET", "HEAD") and _redirects_left > 0:
-        target = urllib.parse.urljoin(url, location)
-        _check_scheme(target)
-        follow = urllib.request.Request(target, headers=dict(req.header_items()), method=method)
-        return _qgis_urlopen(follow, timeout, _redirects_left - 1)
     if status >= 400:
         # Same exception urllib raises, with the body readable from it as callers expect.
         raise urllib.error.HTTPError(url, status, reply.errorString(), _Headers(headers), io.BytesIO(content))
@@ -176,5 +170,10 @@ def urlopen(request, timeout=30, stream=False):
         return _urllib_open(request, timeout)
     _check_scheme(req.full_url)
     if QGIS_NETWORK_AVAILABLE and not stream:
-        return _qgis_urlopen(req, timeout)
+        try:
+            return _qgis_urlopen(req, timeout)
+        except urllib.error.URLError as e:
+            if 'Protocol ""' not in str(e.reason):
+                raise
+            return _urllib_open(req, timeout)
     return _urllib_open(req, timeout)
