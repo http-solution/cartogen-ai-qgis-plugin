@@ -74,10 +74,10 @@ feature, read the `model_call` lines (tag `Agent`) in the Log Messages panel ins
 The inputs are already prepared under this repository's `docs/release_smoke_assets/`; do not ask the
 chat agent to invent them. After installing the candidate through **Plugins → Manage and Install
 Plugins → Install from ZIP**, copy the entire `docs/release_smoke_assets/` folder from this
-repository (or from the installed plugin if the candidate includes it) to a writable location such
+repository checkout (the plugin package does NOT contain it: sample data was removed from the package for the QGIS plugin directory; clone the repository or download that folder from GitHub) to a writable location such
 as `C:\Cartogen-AI-Smoke\<version>\` or
 `~/Cartogen-AI-Smoke/<version>/`. Keep its `inputs/`, `outputs/`, `screenshots/`, and `logs/`
-subfolders together. Never write test output inside the installed plugin folder. Call the copied
+subfolders together (create `outputs/`, `screenshots/` and `logs/` if your copy lacks them). Never write test output inside the installed plugin folder. Call the copied
 folder `TEST_ROOT`: substitute its full absolute path for every `<test-output>` below. In chat,
 replace the placeholder before sending the prompt; do not send angle-bracket placeholders
 literally. Restart QGIS,

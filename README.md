@@ -469,4 +469,4 @@ For bugs, use the
 [GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues); for questions and
 ideas, use [Discussions](https://github.com/http-solution/cartogen-ai-qgis-plugin/discussions). Security problems go through
 [private vulnerability reporting](https://github.com/http-solution/cartogen-ai-qgis-plugin/security/advisories/new), not a public issue
-(see [SECURITY.md](SECURITY.md)). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+(see [SECURITY.md](SECURITY.md)). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). General contact: info@cartogenai.com.

@@ -10,8 +10,9 @@ qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
 version=1.16.0-rc24
 author=Alaa Alshoubaki
+email=info@cartogenai.com
 
-about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
+about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free. REQUIREMENTS: QGIS 4.2 or later (Qt 6); an internet connection and an API key for one cloud model provider (OpenRouter, Gemini, Claude or OpenAI), or a local Ollama server. With a cloud provider, your prompts and the project data the agent reads to answer them are sent to that provider (see SECURITY.md in the repository for what is protected and how). PYTHON PACKAGES: requests, numpy and GDAL come with QGIS. Optional packages for document attachments, web search, charts and web dashboards (pypdf, python-docx, openpyxl, pandas, pdfplumber, matplotlib, folium, ddgs) are installed through the qpip plugin (a declared plugin dependency) or with pip install -r requirements.txt. The optional imagery feature extraction also needs ultralytics (AGPL-3.0 licence) and downloads a model file the first time it is used.
 
 tracker=https://github.com/http-solution/cartogen-ai-qgis-plugin/issues
 repository=https://github.com/http-solution/cartogen-ai-qgis-plugin
@@ -91,7 +92,7 @@ v1.16.0-rc18 (2026-10-06):
     - Fix: after you click Apply edit on a confirmation card, a request with more than one step ("write the score, then style the layer") resumes once, up to three times per request. Before, it stopped after the confirmed step.
     - Fix: a short follow-up such as "EPSG:3857" keeps the tools the previous turn used (at most six, for two turns), so the CRS question can finally be answered with the point being placed (the rc16 retry could not work because the tool was not in the turn's tool list).
     - Fix: the reply guard no longer reads metres as millions ("886.49 m" was footnoted as general knowledge), and no longer deletes a table whose rows are found in the tool results just because an unrelated call failed.
-    - Fix: task matching. A request that names a tool is only matched to a task that uses it; a weak cross-section tie (under 25% keyword coverage) and a single shared word in a long request give no directive; a request that names a loaded layer is not asked "Which facility or service type?"; hub, depot, site and similar words answer that question. The register's own task descriptions match as often as before (453 and 466 of 748, pinned by a test).
+    - Fix: task matching. A request that names a tool is only matched to a task that uses it; a weak cross-section tie (under 25 percent keyword coverage) and a single shared word in a long request give no directive; a request that names a loaded layer is not asked "Which facility or service type?"; hub, depot, site and similar words answer that question. The register's own task descriptions match as often as before (453 and 466 of 748, pinned by a test).
     - Fix: exporting over a non-empty file the plugin did not write (or one changed since) now asks for confirmation (export_to_csv, export_layer). Hub siting, allocation, route stops and travel-time origins label results with the layer's name field instead of the GeoPackage id. save_project lists temporary layers that come back empty. Raster colour ramps keep their range after a save. buffer_analysis accepts output_name.
     - Fix: extract_features_from_imagery downloads its model checkpoint on a background thread (QGIS no longer stops responding for the download), removes a partial file after a failure and retries once, and never prints the signed download URL. Web searches for the latest or current thing carry today's date; script-sandbox "Algorithm not found" errors name the real tools; the agent is nudged once when a tool you named is still not called after four other calls.
     - New: plain-language styling: colour words such as "dark red" or "pale yellow" are accepted, and everyday phrasing reaches the matching style tool (routing only; readability is measured in the run sheet, not claimed).
@@ -326,7 +327,7 @@ v1.5.7-rc1 (2026-09-19):
     - Implemented ellipsoidal geodetic distance measurement (QgsDistanceArea) for geographic CRS in
       hub siting, allocation, and delivery route analysis. Fixed 'NONE' ellipsoid string fallback bug.
     - Optimized Gemini API token economy: deterministic alphabetical tool tie-breaking enabling
-      Gemini 2.5+ implicit prefix caching (up to 90% prompt discount), Rule 5 attribute redundancy
+      Gemini 2.5+ implicit prefix caching (up to 90 percent prompt discount), Rule 5 attribute redundancy
       narrowing, and dynamic max token budget scaling.
     - Added Claude and OpenRouter prompt caching with tail-message cache-control breakpoints.
     - Added custom exception hierarchy (cartogen_ai.core.exceptions) and structured logging
@@ -334,7 +335,7 @@ v1.5.7-rc1 (2026-09-19):
     - Integrated QGIS Network Access Manager proxy settings (get_qgis_proxy_dict) into HTTP sessions.
     - Added create_shaded_relief combining hypsometric tinting with hillshade via Multiply blend mode and opacity validation.
     - Added Shapefile preflight laundering with collision-loop disambiguation and DBF 10-char warnings.
-    - 100% centralized settings and layer properties into infrastructure.settings_keys with graceful provider import decoupling.
+    - 100 percent centralized settings and layer properties into infrastructure.settings_keys with graceful provider import decoupling.
     - Improved cartography defaults: ColorBrewer CVD-safe BrBG ramps, text buffer halos (0.8mm),
       obstacle placement priority, and StdDev/Pretty/Logarithmic classification modes.
     - Added GeoPackage database style persistence, UTF-8 shapefile encoding fallback, and SpatiaLite
@@ -565,7 +566,7 @@ v1.15.0 (2026-09-13):
     Gemini prompt caching, direct request ("implement gemini caching, check the
     documentation"), following a real report of ~168K tokens for one 6-call print-layout turn.
     Researched Google's current Gemini API docs before writing any code: implicit caching is
-    automatic and free for Gemini 2.5+/3.x models -- no client code needed to trigger it, ~90%
+    automatic and free for Gemini 2.5+/3.x models -- no client code needed to trigger it, ~90 percent
     discount on cache hits -- as long as the cached content is a stable prefix above a per-model
     minimum (2,048-4,096 tokens). Confirmed this plugin's system prompt/tools already meet both
     requirements (computed once before agent.py's tool-calling loop, never rebuilt mid-turn), so
@@ -607,7 +608,7 @@ v1.14.1 (2026-09-13):
 v1.14.0 (2026-09-13):
     Prompt modularization release, follow-up to v1.13.1's tool-router token fix. The remaining
     ~8,149-token base system prompt was investigated (not assumed): it contains no JSON schemas
-    at all, 100% plain-English prose -- 47 numbered behavioral rules always sent in full
+    at all, 100 percent plain-English prose -- 47 numbered behavioral rules always sent in full
     regardless of what the request needed. Categorized all 47 rules into three tiers: 16 CORE
     rules (task/memory mechanics, the destructive-action gate, anti-fabrication, output
     structure) always included; a 10-rule SENSITIVE cluster (protection-sensitive data handling,
@@ -625,9 +626,9 @@ v1.14.0 (2026-09-13):
     its original number permanently (20 cross-references by number exist across the 47 rules),
     and the full/unfiltered prompt is verified byte-identical to the pre-modularization content.
     No new agent tools; 169 tools unchanged. Measured effect: a real agent.run("hi") call's full
-    payload dropped from ~9,316 tokens (v1.13.1's number) to ~3,184 tokens -- ~84% below the
+    payload dropped from ~9,316 tokens (v1.13.1's number) to ~3,184 tokens -- ~84 percent below the
     original ~22,959-token report that started this whole thread. Real GIS requests save
-    15-30% depending on domain. Live-verified against real QGIS 4.2.2 for a plain "hi", an
+    15-30 percent depending on domain. Live-verified against real QGIS 4.2.2 for a plain "hi", an
     export request, a humanitarian-logistics request, and a print-layout request, plus a spot
     check across 7 realistic humanitarian-flavored queries confirming the sensitive cluster
     fires on every one. Full suite: 1506 tests, 0 failures. See CHANGELOG.md's [1.14.0] entry
@@ -1318,7 +1319,7 @@ v1.4.1 (2026-08-21):
 # Tags are comma separated with spaces allowed
 tags=python,ai,agent,openrouter,spatial,cartogen
 
-homepage=https://cartogenai.com
+homepage=https://github.com/http-solution/cartogen-ai-qgis-plugin
 category=Plugins
 icon=icon.png
 # experimental flag
