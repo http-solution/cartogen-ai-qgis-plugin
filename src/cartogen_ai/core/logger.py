@@ -65,7 +65,7 @@ def log_info(message: str, tag: str = TAG) -> None:
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Info)
+            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Info)
             return
         except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
@@ -77,7 +77,7 @@ def log_warning(message: str, tag: str = TAG) -> None:
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Warning)
+            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Warning)
             return
         except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass
@@ -89,7 +89,7 @@ def log_error(message: str, tag: str = TAG) -> None:
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Critical)
+            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Critical)
             return
         except Exception:  # nosec B110 (best-effort: failure is non-fatal)
             pass

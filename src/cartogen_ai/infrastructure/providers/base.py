@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 # If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
 # extract them so requests calls don't bypass user network configurations.
 from ...core.proxy import get_qgis_proxy_dict
+from ...core import net as _net
 
 try:
     import requests
@@ -21,9 +22,9 @@ except (ImportError, AttributeError):
             self.response = kwargs.get("response", None)
     class RequestException(Exception):
         pass
-    class ConnectionError_(Exception):
+    class ConnectionError_(RequestException):
         pass
-    class Timeout_(Exception):
+    class Timeout_(RequestException):
         pass
 
 # Status codes worth retrying: 429 (rate limited) and the common transient
@@ -93,10 +94,55 @@ def _request_with_retry(send, timeout, max_retries):
     raise last_exc
 
 
-def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES):
+class QgisResponse:
+    """The slice of requests.Response the provider clients use, over a reply from QGIS's network stack (task #71 phase 2):
+    status_code, text, content, headers, json(), raise_for_status()."""
+
+    def __init__(self, status, headers, body, url):
+        self.status_code = status
+        self.headers = _net._Headers(headers)
+        self.content = body
+        self.url = url
+        self.reason = ""
+
+    @property
+    def text(self):
+        return self.content.decode("utf-8", "replace")
+
+    @property
+    def ok(self):
+        return self.status_code < 400
+
+    def json(self):
+        import json as _json
+        return _json.loads(self.content.decode("utf-8"))
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise HTTPError(f"{self.status_code} Error for url: {self.url}", response=self)
+
+
+def _use_qgis_network(local):
+    """Hosted providers go through QGIS's network stack when it exists, so QGIS proxy, authentication and SSL settings apply.
+    `local` (Ollama) stays on requests: a local model can take minutes to answer, and QGIS applies its own network timeout
+    (default 60 s) instead of the per-call one, so routing it through QGIS would cut long generations short."""
+    return _net.QGIS_NETWORK_AVAILABLE and not local
+
+
+def _qgis_send(method, url, headers, payload, timeout):
+    try:
+        status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
+    except _net.NetworkError as e:
+        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e))
+    return QgisResponse(status, reply_headers, body, url)
+
+
+def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES, local=False):
     """Shared HTTP POST for every provider's raw requests-based client -- see
     _request_with_retry for the retry behavior. Drop-in replacement for a bare
-    requests.post(...) call."""
+    requests.post(...) call. `local=True` keeps a local server (Ollama) on requests, see _use_qgis_network."""
+    if _use_qgis_network(local):
+        return _request_with_retry(lambda: _qgis_send("POST", url, headers, payload_json, timeout), timeout, max_retries)
     if requests is None:
         raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()
@@ -106,13 +152,15 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
     )
 
 
-def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
+def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES, local=False):
     """API-002, 2026-09-14 audit: every provider's list_models() used a bare requests.get(...)
     with no retry at all -- unlike the chat-completion path, which has had post_with_retry's
     resilience since 2026-09-12. A transient network hiccup or a 429 while just listing models
     (e.g. populating the settings dialog's model dropdown) used to fail outright with no retry,
     inconsistent with every other HTTP call this codebase makes. Same retry/backoff behavior as
     post_with_retry, just for GET -- drop-in replacement for a bare requests.get(...) call."""
+    if _use_qgis_network(local):
+        return _request_with_retry(lambda: _qgis_send("GET", url, headers, None, timeout), timeout, max_retries)
     if requests is None:
         raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()

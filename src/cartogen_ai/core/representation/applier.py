@@ -91,7 +91,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
             from qgis.PyQt.QtGui import QColor
             heatmap_renderer = QgsHeatmapRenderer()
             heatmap_renderer.setRadius(12.0)
-            heatmap_renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+            heatmap_renderer.setRadiusUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
 
             # CRITICAL: Stop 0.0 MUST have alpha = 0 (100% transparent) so
             # zero-density areas do not blot out the basemap with solid dark purple!

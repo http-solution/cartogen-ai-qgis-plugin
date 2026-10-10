@@ -583,7 +583,7 @@ def print_map(output_path=None):
             h_mm = max(100.0, (c_h / 96.0) * 25.4)
 
             writer = QPdfWriter(output_path)
-            writer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Millimeter))
+            writer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Unit.Millimeter))
             writer.setResolution(300)
 
             painter = QPainter(writer)

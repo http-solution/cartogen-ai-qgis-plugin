@@ -84,7 +84,7 @@ class TestLineComponentSymbology(unittest.TestCase):
         self, mock_line_symbol_layer_cls, mock_line_symbol_cls,
         mock_renderer_cls, mock_wkb, mock_unit_types, mock_qcolor_cls, mock_qt,
     ):
-        mock_wkb.LineGeometry = "LINE"
+        mock_wkb.GeometryType.LineGeometry = "LINE"
         mock_qcolor_cls.return_value.isValid.return_value = True
         layer = MagicMock()  # a real MagicMock instance -- isinstance(layer, MagicMock) is trivially True
         layer.geometryType.return_value = "LINE"
@@ -108,8 +108,8 @@ class TestLineComponentSymbology(unittest.TestCase):
     def test_non_polygon_non_line_geometry_still_declines(self, mock_wkb):
         """Point geometry (or anything else) is untouched by this engine -- only the
         LineGeometry branch is new here; polygon and point behavior must stay as before."""
-        mock_wkb.LineGeometry = "LINE"
-        mock_wkb.PolygonGeometry = "POLY"
+        mock_wkb.GeometryType.LineGeometry = "LINE"
+        mock_wkb.GeometryType.PolygonGeometry = "POLY"
         layer = MagicMock()
         layer.geometryType.return_value = "POINT"
 
