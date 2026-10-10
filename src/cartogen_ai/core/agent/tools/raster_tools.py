@@ -203,8 +203,12 @@ def _run_in_background(alg, params):
     """processing.run(alg, params) without freezing QGIS (rc20 audit A14, #221).
 
     A raster operation on a large grid ran on the GUI thread and showed "Not Responding" with no way to stop. A Processing
-    algorithm is thread-safe in QGIS's own task runner, so it goes through _background_processing.run_algorithm, which keeps the
-    window alive and honours Stop. Outside a real GUI thread (tests, the kill-switch setting) it is exactly processing.run."""
+    native algorithm is thread-safe in QGIS's own task runner, so it goes through _background_processing.run_algorithm, which keeps
+    the window alive and honours Stop. The raster tools mostly use gdal: algorithms, which are Python-implemented and crashed CI when
+    run on a worker thread (see is_thread_safe_algorithm), so those stay synchronous. Outside a real GUI thread (tests, the kill-switch
+    setting) it is exactly processing.run."""
+    if not _bg.is_thread_safe_algorithm(alg):
+        return processing.run(alg, params)
     context = None
     if _bg.can_run_in_background():
         from qgis.core import QgsProcessingContext

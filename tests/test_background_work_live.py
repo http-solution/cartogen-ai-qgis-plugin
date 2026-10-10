@@ -85,20 +85,20 @@ class TestBackgroundWork(unittest.TestCase):
     def test_zonal_statistics_large_layer_background_path(self):
         self._check(250)
 
-    def test_generic_raster_operation_goes_through_the_background_runner(self):
-        """#221: _run_raster_and_add used to call processing.run on the GUI thread; it now uses the task runner."""
+    def test_a_gdal_raster_operation_stays_synchronous(self):
+        """#221: gdal: algorithms are Python-implemented and crashed the CI live job when run on a worker thread (PR #249, #251),
+        so they must not go through the background runner. The operation itself must still work."""
         from unittest import mock
         from cartogen_ai.core.agent.tools import _background_processing as bg
         from cartogen_ai.core.agent.tools import raster_tools
         self._raster()
         src = QgsProject.instance().mapLayersByName("r")[0].source()
-        real = bg.run_algorithm
-        with mock.patch.object(bg, "run_algorithm", wraps=real) as spy:
+        with mock.patch.object(bg, "run_algorithm", wraps=bg.run_algorithm) as spy:
             res = raster_tools._run_raster_and_add("gdal:slope", {"INPUT": src, "BAND": 1, "SCALE": 1, "AS_PERCENT": False,
-                                                                   "COMPUTE_EDGES": False, "ZEVENBERGEN": False}, "slope_bg")
+                                                                   "COMPUTE_EDGES": False, "ZEVENBERGEN": False}, "slope_sync")
         self.assertTrue(res.get("success"), res)
-        self.assertEqual(spy.call_count, 1)
-        self.assertTrue(QgsProject.instance().mapLayersByName("slope_bg"))
+        spy.assert_not_called()                          # ... and the task runner was not used
+        self.assertTrue(QgsProject.instance().mapLayersByName("slope_sync"))
 
     def test_allowlisted_algorithm_goes_through_the_background_runner_and_returns_a_layer(self):
         from unittest import mock

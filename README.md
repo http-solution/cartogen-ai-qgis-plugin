@@ -93,9 +93,9 @@ Built on rc23. GitHub Actions ran green on the merged heads (Ubuntu, Windows, th
 
 - Replies checked against tool results: A reply is footnoted when it names an identifier no tool returned (District_4), gives a total, mean or preliminary figure that matches no tool result, or says a style was applied when no styling call succeeded (#228). These are wording checks, not a fix for the model inventing values.
 - Guessed file paths: After two 'file not found' errors in a row the agent is told once to stop guessing and use a path you gave or a tool returned, or ask you (#231).
-- Less freezing: Raster tools and approved Processing algorithms now run in the background with Stop available (except ones that change your own layer); contours, task-grid statistics and some logistics steps still run on the main thread (#221).
+- Less freezing: Approved native Processing algorithms (buffer, clip and the like) now run in the background with Stop available, except ones that change your own layer. The raster tools use GDAL algorithms, which crashed the CI job when run on a worker thread, so they and contours, task-grid statistics and some logistics steps still run on the main thread (#221 is only partly done).
 - Safer scripts and SQL: Database and web layers are read-only inside the script worker (#220), and the result layer of execute_read_only_sql cannot be edited (#151). A read-only database role is still the real guarantee for SQL.
-- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model. The new background raster test crashed once in CI and passed on re-run; the cause is unknown.
+- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.
 
 ## What's new in 1.16.0-rc23
 
