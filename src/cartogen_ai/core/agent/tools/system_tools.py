@@ -624,7 +624,7 @@ def execute_pyqgis_script(script: str):
     local_env['__name__'] = 'execute_pyqgis_script'
 
     try:
-        exec(script, local_env)  # nosec B102 (runs only in the restricted script sandbox)
+        exec(script, local_env)  # nosec B102 (in-process fallback used only when qgis is not importable, i.e. unit tests; inside QGIS the script runs in the isolated worker above; builtins are restricted here too)
         if 'run' not in local_env:
             return {"error": "Script must define a 'run()' function."}
 

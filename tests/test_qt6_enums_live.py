@@ -25,6 +25,7 @@ NAMES = [
     ("QgsPalLayerSettings", "Placement.OrderedPositionsAroundPoint"), ("QgsPalLayerSettings", "Placement.Curved"),
     ("QgsPalLayerSettings", "Placement.Horizontal"), ("QgsLabelObstacleSettings", "ObstacleType.PolygonBoundary"),
     ("QgsLayoutExporter", "ExportResult.Success"),
+    ("Qgis", "LabelLinePlacementFlag.AboveLine"), ("Qgis", "LabelLinePlacementFlag.MapOrientation"),
 ]
 
 
