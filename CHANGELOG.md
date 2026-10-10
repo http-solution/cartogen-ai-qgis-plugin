@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc28](#v1-16-0-rc28) | 2026-10-10 | **Release candidate 28 for 1.16.0.** No breaking changes. Warning when a pre-rc25 `cartogen-ai` install is still present; documentation and Qt6 name tidy-up. Not hand-tested. |
 | [1.16.0-rc27](#v1-16-0-rc27) | 2026-10-10 | **Release candidate 27 for 1.16.0.** No breaking changes. AI provider requests go through QGIS's network stack (proxy, authentication, SSL); Qt6 enum names scoped. Not hand-tested; the provider path is CI-tested against a local server only. |
 | [1.16.0-rc26](#v1-16-0-rc26) | 2026-10-10 | **Release candidate 26 for 1.16.0.** No breaking changes. Data-fetch requests go through QGIS's network stack (proxy, authentication, SSL); directory security-scan fixes. Not hand-tested. |
 | [1.16.0-rc25](#v1-16-0-rc25) | 2026-10-10 | **Release candidate 25 for 1.16.0.** No breaking changes. Only tested providers (OpenRouter, Gemini, Ollama, Cartogen API stub) are offered; OpenAI and Claude are no longer listed or run; plugin-directory packaging fixes; opt-in API trace; local layer list. Not hand-tested. |
@@ -68,6 +69,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc28"></a>
+## [1.16.0-rc28] — 2026-10-10 — Release candidate 28 for 1.16.0: old-install warning, documentation and Qt6 tidy-up
+
+No breaking changes; QGIS 4.2+. Everything after the rc27 build:
+
+- Warning about an old install: If an install from rc24 or earlier (folder cartogen-ai) is still present next to this one, the plugin now shows a warning when it starts, because both copies would otherwise load together. Delete the old folder and restart QGIS.
+- Documentation and Qt6 tidy-up: The README and user guide no longer tell users to pick OpenAI or Claude, which have not been offered since rc25. The label line-placement flags use their scoped Qgis names, and CI confirms they and the QVariant field types exist in QGIS 4.2.2.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the new network path.
 
 <a id="v1-16-0-rc27"></a>
 ## [1.16.0-rc27] — 2026-10-10 — Release candidate 27 for 1.16.0: AI provider requests through QGIS, Qt6 enum names
