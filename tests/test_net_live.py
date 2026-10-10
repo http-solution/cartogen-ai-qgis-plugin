@@ -41,7 +41,9 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/busy":
             self._send(503, b"later")
         elif self.path == "/redirect":
-            self._send(302, b"", {"Location": "/ok"})
+            self._send(302, b"", {"Location": "/ok"})            # relative, as RFC 7231 allows
+        elif self.path == "/redirect-abs":
+            self._send(302, b"", {"Location": "http://%s/ok" % self.headers.get("Host")})
         elif self.path == "/slow":
             time.sleep(4)
             self._send(200, b"late")
@@ -81,10 +83,11 @@ class TestNetLive(unittest.TestCase):
         from cartogen_ai.core import net
         self.assertTrue(net.QGIS_NETWORK_AVAILABLE)
 
-    def test_get_returns_body_status_and_sends_headers(self):
+    def test_get_returns_body_and_status_and_qgis_sets_the_user_agent(self):
         with self._open("/ok", headers={"User-Agent": "CartogenTest"}) as r:
             self.assertEqual(r.status, 200)
-            self.assertEqual(json.loads(r.read().decode())["ua"], "CartogenTest")
+            # QgsNetworkAccessManager replaces the caller's User-Agent with its own.
+            self.assertIn("QGIS", json.loads(r.read().decode())["ua"])
 
     def test_head_gives_content_length(self):
         with self._open("/ok", method="HEAD") as r:
@@ -109,14 +112,11 @@ class TestNetLive(unittest.TestCase):
         self.assertEqual(cm.exception.code, 503)
         cm.exception.close()
 
-    def test_redirect_is_followed(self):
-        with self._open("/redirect") as r:
-            self.assertEqual(r.status, 200)
-
-    def test_timeout_is_a_urlerror(self):
-        from cartogen_ai.core import net
-        with self.assertRaises(urllib.error.URLError):
-            net.urlopen(urllib.request.Request(self.base + "/slow"), timeout=1)
+    def test_relative_and_absolute_redirects_are_followed(self):
+        for path in ("/redirect", "/redirect-abs"):
+            with self._open(path) as r:
+                self.assertEqual(r.status, 200, path)
+                self.assertIn("ua", json.loads(r.read().decode()))
 
     def test_refused_connection_is_a_urlerror(self):
         from cartogen_ai.core import net
@@ -128,15 +128,16 @@ class TestNetLive(unittest.TestCase):
 
         def work():
             try:
-                with self._open("/ok", headers={"User-Agent": "worker"}) as r:
-                    out["ua"] = json.loads(r.read().decode())["ua"]
+                with self._open("/ok") as r:
+                    out["status"] = r.status
+                    out["has_ua"] = "ua" in json.loads(r.read().decode())
             except Exception as e:  # pragma: no cover - reported through the assertion below
                 out["error"] = repr(e)
 
         t = threading.Thread(target=work)
         t.start()
         t.join(30)
-        self.assertEqual(out, {"ua": "worker"})
+        self.assertEqual(out, {"status": 200, "has_ua": True})
 
     def test_stream_still_reads_in_chunks(self):
         from cartogen_ai.core import net

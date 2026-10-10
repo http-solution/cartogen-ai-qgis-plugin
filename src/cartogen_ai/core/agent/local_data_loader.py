@@ -195,7 +195,8 @@ def probe_connectivity():
     start = time.monotonic()
     try:
         req = urllib.request.Request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
-        with _qgis_urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S):
+        # stream=True (urllib): QGIS applies its own 60 s network timeout, and this probe must give up in a few seconds.
+        with _qgis_urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S, stream=True):
             pass
     except Exception:
         return False
