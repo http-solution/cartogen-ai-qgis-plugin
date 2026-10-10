@@ -109,3 +109,19 @@ The owner supplied a "Gemini API deep optimisation" guide on 2026-10-10. Its arc
 8. **Prompt delimiters:** the plugin's system prompt is Markdown with numbered rules. Moving the new rule packs to tagged blocks (`<rules>`, `<project_data>`) is cheap and worth doing while the packs are built, but it is a style change, not a saving, and needs the benchmark to confirm no regression.
 
 Added to the order of work: **Phase 0 (before Phase 1):** check the Gemini compatibility endpoint's supported fields and measure the cached-token count on a real run, so Track B4 is designed on evidence.
+
+## 9. What the captured requests show (owner's AI Studio export, 2026-10-10)
+
+The owner exported 20 requests as `ai_studio_code*.txt`. Each file holds **only the `systemInstruction`**: no messages, no tool definitions, no model replies. So this section measures the system prompt only and **does not explain the 13 calls** (the loop itself still needs the Agent log lines or a capture that includes `contents`).
+
+Facts from the 20 files:
+- They are 9 distinct prompts; identical prompts come in groups of 2 or 3 (the rounds of one request, as expected: the prompt is built once per request).
+- Files 7 to 19 are exactly 13 calls in six groups that repeat the same three prompt shapes (31,943 / 27,985 / 26,157 characters of rules) twice, so that stretch is six separate requests, not one loop. Treat "13 calls for one request" as unproven until the messages are seen.
+- The rule text already varies by request: 38 to 47 of the 56 rules are sent depending on the tools offered (so the rule-pack idea in Track B3 is partly in place). The rule part is 26,000 to 33,700 characters (about 6,500 to 8,400 tokens); the map-context tail adds 1,600 to 4,200.
+- Because the rule set differs per request, the prefix is not shared between requests, so implicit caching can only help within one request's rounds.
+- The tail carried things that change on almost every run and mean nothing to the model: `preferred_provider: gemini (used in 36/37 recent sessions)`, `tool:update_task: used 68 times` and the same counters in a different order, a layer id (`output_f680...`), and the arguments of recent operations with their keys in a different order. Two requests that were otherwise identical therefore never matched byte for byte.
+- One prompt carried the whole result of an earlier severity-index call inside the "ACTIVE TASK PLAN" section (about 2,000 characters, including district names and values), resent to the provider on every round.
+
+Fixed in this change (small, safe, tested offline): the model-facing memory context no longer includes usage counters or learned-preference counts (the Memory panel still shows them) and renders operation arguments with sorted keys; a task result in the plan section is clipped to 160 characters with a note (the full result stays on the task and in the conversation).
+
+Not fixed, now in the plan: the per-request variation of the rule set (use a few fixed rule packs so the prefix repeats), the 40-tool schema block (Track B1/B2), and the model-driven `update_task` rounds (Track C1).

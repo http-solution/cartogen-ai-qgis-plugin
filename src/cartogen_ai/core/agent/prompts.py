@@ -824,7 +824,7 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
 
     if memory_manager is not None:
         try:
-            mem_ctx = memory_manager.get_formatted_memory_context()
+            mem_ctx = memory_manager.get_formatted_memory_context(for_model=True)
             if mem_ctx:
                 prompt_parts.append("\n" + mem_ctx)
         except Exception as e:

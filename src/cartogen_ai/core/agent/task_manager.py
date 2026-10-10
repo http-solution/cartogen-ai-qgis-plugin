@@ -13,7 +13,18 @@ try:
     QT_AVAILABLE = True
 except ImportError:
     QT_AVAILABLE = False
-    class QObject:
+    PLAN_RESULT_PROMPT_CHARS = 160
+
+
+def _clip_result(result, limit=PLAN_RESULT_PROMPT_CHARS):
+    """A task result shortened for the system prompt: `limit` characters, with a marker saying how much was left out. Pure."""
+    text = str(result)
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}... [{len(text) - limit} more characters in the tool result]"
+
+
+class QObject:
         pass
 
 MAX_PLAN_HISTORY = 5
@@ -215,7 +226,9 @@ class AgentTaskManager(QObject):
             elif task["status"] == "FAILED":
                 icon = "🔴"
 
-            res_str = f" → {task['result']}" if task["result"] else ""
+            # The full result is already in the conversation as the tool's own message; repeating it here sent every returned value to the
+            # provider again on each round (the 2026-10-10 captured prompt carried a whole severity result, about 2,000 characters).
+            res_str = f" → {_clip_result(task['result'])}" if task["result"] else ""
             lines.append(f"{task['id']}. [{icon} {task['status']}] {task['description']}{res_str}")
             # Real live bug, 2026-09-16: a user confirmed a destructive-action gate
             # (field_calculator etc.) by replying "Confirm" in chat; the model had no
