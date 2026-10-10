@@ -284,7 +284,7 @@ repository is tier-gated.
 
 **From the release zip** (recommended). The current build is the
 [1.16.0-rc24 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc24); the release
-also carries a `SHA256-1.16.0-rc24.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+also carries a `SHA256.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
