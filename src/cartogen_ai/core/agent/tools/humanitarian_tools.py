@@ -2111,7 +2111,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
             return {"error": f"Unknown crs '{crs}'. Use a code such as \"EPSG:3857\"."}
         _xf = QgsCoordinateTransform(src, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
 
-        def transform(x, y):
+        def transform(x, y):  # noqa: F811 (None default above, real function only for a projected CRS)
             pt = _xf.transform(QgsPointXY(x, y))
             return pt.x(), pt.y()
 

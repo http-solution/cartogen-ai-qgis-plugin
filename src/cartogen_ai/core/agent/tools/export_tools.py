@@ -1124,7 +1124,7 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
                     ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                 )
 
-                def style_function(feat, _cmap=colormap, _field=color_field):
+                def style_function(feat, _cmap=colormap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
                     val = feat["properties"].get(_field)
                     return {
                         "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
@@ -1527,7 +1527,7 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
                         ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                     )
 
-                    def style_function(feat, _cmap=cmap, _field=color_field):
+                    def style_function(feat, _cmap=cmap, _field=color_field):  # noqa: F811 (None default above, real function only when there is a colour field)
                         val = feat["properties"].get(_field)
                         return {
                             "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
