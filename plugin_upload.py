@@ -117,6 +117,10 @@ EXCLUDE_FILES = {
     # A git WORKTREE has a .git FILE (a pointer to a path on the builder's machine), not a directory, so the ".git" directory
     # exclusion above does not catch it; it must never ship.
     ".git",
+    # Hidden repository files. The QGIS plugin directory's guidance is that a package carries none, they do nothing inside an installed
+    # plugin, and a rejected upload costs a round trip. (.gitkeep only holds empty folders open in git; the live-test runbook tells the
+    # tester to create outputs/, screenshots/ and logs/ when they are missing.)
+    ".gitattributes", ".gitignore", ".gitkeep",
     "API open router.txt", "CLAUDE.md",
     # Leftover stub from consolidating this repo out of the old dual-tree
     # setup -- see the file's own docstring. Not git-tracked; safe to delete
@@ -170,9 +174,27 @@ def get_plugin_version(script_dir):
     return "0.1.0"
 
 
+def check_metadata_parses(script_dir):
+    """Refuses to package a metadata.txt that the QGIS plugin directory would reject.
+
+    2026-10-10: plugins.qgis.org answered "Errors parsing cartogen-ai/metadata.txt. '%' must be followed by '%' or '('" because it reads the
+    file with Python's ConfigParser (default interpolation) and an old changelog block said "25% keyword coverage". Desktop QGIS did not
+    mind, so nothing caught it. Reading every value the same way here makes the build fail instead of the upload."""
+    import configparser
+    parser = configparser.ConfigParser()
+    parser.read(os.path.join(script_dir, "metadata.txt"), encoding="utf-8")
+    try:
+        for _key, _value in parser["general"].items():
+            pass
+    except (configparser.Error, KeyError) as e:
+        raise SystemExit(f"[Release] metadata.txt would be rejected by plugins.qgis.org: {e}\n"
+                         "Write 'percent' instead of '%' (and check the [general] section).")
+
+
 def package_plugin():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     version = get_plugin_version(script_dir)
+    check_metadata_parses(script_dir)
 
     dist_dir = os.path.join(script_dir, "dist")
     os.makedirs(dist_dir, exist_ok=True)

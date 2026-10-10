@@ -77,7 +77,7 @@ Plugins → Install from ZIP**, copy the entire `docs/release_smoke_assets/` fol
 repository (or from the installed plugin if the candidate includes it) to a writable location such
 as `C:\Cartogen-AI-Smoke\<version>\` or
 `~/Cartogen-AI-Smoke/<version>/`. Keep its `inputs/`, `outputs/`, `screenshots/`, and `logs/`
-subfolders together. Never write test output inside the installed plugin folder. Call the copied
+subfolders together (create `outputs/`, `screenshots/` and `logs/` if the copy from the installed plugin lacks them: empty folders are not packaged). Never write test output inside the installed plugin folder. Call the copied
 folder `TEST_ROOT`: substitute its full absolute path for every `<test-output>` below. In chat,
 replace the placeholder before sending the prompt; do not send angle-bracket placeholders
 literally. Restart QGIS,

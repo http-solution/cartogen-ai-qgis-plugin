@@ -120,7 +120,7 @@ in them (e.g. `QgisAiAgent`) even after a rebrand — they're accurate to what w
 
 When you change `version=` in `metadata.txt`, update ALL of these in the same change -- `tests/test_release_docs_in_sync.py` fails until they agree:
 
-1. `metadata.txt`: prepend a `changelog=` block for the new version (never edit older blocks).
+1. `metadata.txt`: prepend a `changelog=` block for the new version (never edit older blocks). **Never write the `%` symbol anywhere in this file; write "percent"** -- plugins.qgis.org parses it with Python's ConfigParser and rejects the upload (`tests/test_metadata_parses.py` and `plugin_upload.py` both check; 2026-10-10 the directory refused rc24 because of a "25% keyword coverage" in an old block, which was reworded to "25 percent" -- the one exception to "never edit older blocks").
 2. `CHANGELOG.md`: a new row in the "Recent releases" table and a new `## [version]` section with its `<a id="v...">` anchor.
 3. `src/cartogen_ai/core/release_notes.py`: `WHATS_NEW_VERSION`, `NEW_MARK_VERSIONS`, `WHATS_NEW_ITEMS` (shown in the plugin's Help dialog), any new tool in `HUMANITARIAN_WORKFLOWS` with its `TOOL_NEW_IN` entry.
 4. `README.md`: the version line, the status line, a new "What's new in <version>" section (keep the previous one below it), and the humanitarian table -- regenerate it from `release_notes.render_readme_table()`.
