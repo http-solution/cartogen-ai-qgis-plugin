@@ -11,6 +11,7 @@ central directory and DBF headers, not assumed from docs): the shapefile members
 gis_osm_<layer>_free_1.*; roads carry fclass/oneway/maxspeed; pois and pois_a carry fclass; and
 99 of the 201 hospitals are building outlines in pois_a, which is why both files are read.
 """
+import contextlib
 import json
 import os
 import time
@@ -154,15 +155,13 @@ def _remote_size(url):
     A HEAD request first. The rc10 smoke test (2026-10-01) offered the Yemen extract as "of unknown size" where rc7 said
     103 MB: the HEAD either failed or carried no Content-Length (the cause was not captured). A one-byte ranged GET is the
     standard second way to learn the total -- its Content-Range header ends in the full size -- so try it before giving up."""
-    try:
+    with contextlib.suppress(Exception):
         req = urllib.request.Request(url, method="HEAD", headers=_UA)
         with urlopen_with_retry(req, timeout=30) as r:
             size = int(r.headers.get("Content-Length") or 0)
         if size:
             return size
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
         # stream=True: a server that ignores Range sends the whole body, and only the headers are read here.
         with urlopen_with_retry(req, timeout=30, stream=True) as r:
@@ -174,8 +173,6 @@ def _remote_size(url):
             # A server that ignored the Range header answers 200 with the whole body's length.
             if getattr(r, "status", 200) == 200:
                 return int(r.headers.get("Content-Length") or 0)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return 0
 
 

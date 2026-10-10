@@ -16,6 +16,7 @@ Positions and sizes are NOT touched: the geometry carries a documented history o
 live-verified, so this module only changes how items look. Every item is styled independently and best-effort: a failure
 is reported as a warning and the layout is still produced.
 """
+import contextlib
 import datetime
 
 from .routing_style import ACCESS_STYLES
@@ -402,13 +403,11 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         _panel(label, layout_mm)
         label.setMarginX(2.0)
         label.setMarginY(1.5)
-        try:   # size the panel to its text instead of leaving a page-tall empty box (#129)
+        with contextlib.suppress(Exception):  # size the panel to its text instead of leaving a page-tall empty box (#129)
             size = label.rect()
             needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
             if needed < size.height():
                 label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
     def footer():
         label = item("FOOTER")

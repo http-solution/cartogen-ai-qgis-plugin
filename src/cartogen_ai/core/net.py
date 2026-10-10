@@ -181,13 +181,11 @@ def request(method, url, headers=None, data=None, timeout=30):
 def _urllib_open(req, timeout):
     """The single audited urllib call: the scheme was checked by the caller, and the proxy QGIS is configured with is used."""
     handlers = []
-    try:
+    with contextlib.suppress(Exception):
         from .proxy import get_qgis_proxy_dict
         proxies = get_qgis_proxy_dict()
         if proxies:
             handlers.append(urllib.request.ProxyHandler(proxies))
-    except Exception:  # nosec B110 (best-effort: no proxy configured is the normal case)
-        pass
     if handlers:
         return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
     return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 (scheme checked above)

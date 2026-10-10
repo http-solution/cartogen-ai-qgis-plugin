@@ -386,7 +386,7 @@ class CartogenAi:
     def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None,
                            response=None, error=None):
         """Builds, stores and logs one call record. Never raises: measurement must not break a turn."""
-        try:
+        with contextlib.suppress(Exception):
             client = getattr(self, "client", None)
             record = call_metrics.new_record(
                 turn_id, call_index, model or getattr(client, "model", None), type(client).__name__, tools, messages, started)
@@ -397,8 +397,6 @@ class CartogenAi:
                                                  "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
                                                  "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
                       tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         trace = self._api_trace()
         if trace is not None:
             client = getattr(self, "client", None)
@@ -526,11 +524,9 @@ class CartogenAi:
         reloaded, so a plan or a pending "Apply" from the earlier project resurfaced in a fresh project's chat and a plain "Yes"
         resumed the old request (an INFORM styling plan in the JIAF project; a print layout from an earlier fragment instead of the
         requested export). Called from reload_chat_history, i.e. on every project switch."""
-        try:
+        with contextlib.suppress(Exception):
             self.task_manager.clear_plan()
             self.task_manager.plan_history = []
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         self._recent_tools = ((), 0)
         self._grounding_texts = []
         self._last_tool_call = None
@@ -913,10 +909,8 @@ class CartogenAi:
                                                 stopped=f"Step {index} ({tool}): {problem}")
             log_event("tool_call", tag="Agent", tool=tool, status="running", correlation_id=correlation_id, provider=provider_name)
             if tool_step_callback is not None:
-                try:
+                with contextlib.suppress(Exception):
                     tool_step_callback(tool, "running", None)
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
             started = time.monotonic()
             result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
             failed = tool_results.is_error(result)
@@ -931,10 +925,8 @@ class CartogenAi:
                       duration_ms=int((time.monotonic() - started) * 1000), correlation_id=correlation_id, provider=provider_name,
                       **({"error_class": tool_results.error_class_of(result), "error": True} if failed else {}))
             if tool_step_callback is not None:
-                try:
+                with contextlib.suppress(Exception):
                     tool_step_callback(tool, "failed" if failed else "done", tool_results.error_of(result))
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
             self._remember_grounding(json.dumps(result, default=str))
             results.append(result)
             not_run = status in response_guard.NOT_RUN_STATUSES
@@ -1539,15 +1531,13 @@ class CartogenAi:
 
     def _remember_grounding(self, text):
         """Keeps `text` as evidence for the claim check, newest last, within a fixed total size. Never raises."""
-        try:
+        with contextlib.suppress(Exception):
             # setdefault, not a bare attribute: tests (and any subclass) build agents without running __init__.
             texts = self.__dict__.setdefault("_grounding_texts", [])
             texts.append(str(text)[:self._GROUNDING_PER_ITEM_CHARS])
             total = sum(len(t) for t in texts)
             while total > self._GROUNDING_TOTAL_CHARS and len(texts) > 1:
                 total -= len(texts.pop(0))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
     def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
         """Appends a visible warning when the final answer contains a data table but a call this
@@ -1555,11 +1545,9 @@ class CartogenAi:
         the table cannot have come from that call. Also counts a gate task still awaiting
         Confirm from an earlier turn. See services/response_guard.py (rc7 smoke test F03)."""
         pending = list(turn_pending)
-        try:
+        with contextlib.suppress(Exception):
             pending += [t.get("pending_tool") for t in self.task_manager.tasks
                         if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         failed = []
         for i, (name, is_error, _msg) in enumerate(turn_tool_log):
             if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
@@ -1875,10 +1863,8 @@ class CartogenAi:
                 log_event("tool_call", tag="Agent", tool=name, status="running",
                            correlation_id=correlation_id, provider=provider_name)
                 if tool_step_callback is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         tool_step_callback(name, "running", None)
-                    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                        pass
                 _tool_start = time.monotonic()
                 if name == "run_steps":
                     tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
@@ -1917,10 +1903,8 @@ class CartogenAi:
                                duration_ms=_duration_ms, correlation_id=correlation_id,
                                provider=provider_name)
                 if tool_step_callback is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
-                    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                        pass
                 try:
                     serialized = json.dumps(tool_result, default=str)
                 except Exception as e:

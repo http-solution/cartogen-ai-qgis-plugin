@@ -1,3 +1,4 @@
+import contextlib
 import json
 from .base import (
     BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, get_with_retry,
@@ -61,10 +62,8 @@ class OllamaClient(BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
     def complete(self, messages, tools=None, max_tokens=None):
         self._emit_status(f"Using Ollama: {self.model}")

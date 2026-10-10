@@ -4,6 +4,7 @@ Interacts with STAC Satellite APIs (Earth Search / Sentinel STAC),
 performs visual canvas inspections, and calculates temporal layer change detection.
 """
 
+import contextlib
 import json
 import time
 import urllib.request
@@ -166,14 +167,12 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str, ali
         if isinstance(result, dict) and result.get("success") and align_note:
             result["alignment"] = align_note
         if isinstance(result, dict) and result.get("success"):
-            try:
+            with contextlib.suppress(Exception):
                 from qgis.core import QgsProject
                 from .humanitarian_style import style_diverging_raster
                 made = QgsProject.instance().mapLayersByName(result["layer_name"])
                 if made:
                     result["styled"] = style_diverging_raster(made[-1])
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         return result
     except Exception as e:
         return {"error": f"calculate_raster_change_detection failed: {e}"}

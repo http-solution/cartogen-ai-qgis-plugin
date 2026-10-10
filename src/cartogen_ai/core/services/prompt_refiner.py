@@ -13,6 +13,7 @@ any tool -- it calls client.complete(messages, tools=None, ...), the same
 method every provider client already implements, with no tools passed.
 """
 
+import contextlib
 import json
 
 try:
@@ -327,12 +328,10 @@ def analyze_request(query, context=None, attachments=None):
         filled = tmatch.defaults(missing)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)
-        try:        # a request that names three or more distinct steps is a workflow: one matched task would mislead it
+        with contextlib.suppress(Exception):  # a request that names three or more distinct steps is a workflow: one matched task would mislead it
             from ..agent import capabilities
             if capabilities.is_multi_step(query):
                 directive = capabilities.workflow_directive(query)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         user_message = tmatch.compose_user_message(query, filled, plan)
         return {
             "task":       entry,

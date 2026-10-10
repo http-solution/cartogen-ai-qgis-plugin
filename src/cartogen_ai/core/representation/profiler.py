@@ -164,7 +164,7 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
         return "low", 0.0
 
     # Calculate overall extent area
-    try:
+    with contextlib.suppress(Exception):
         layer_extent = layer.extent() if hasattr(layer, "extent") else None
         if layer_extent and hasattr(layer_extent, "width") and hasattr(layer_extent, "height"):
             w = layer_extent.width()
@@ -173,8 +173,6 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
                 overall_area = w * h
                 if overall_area <= 0:
                     return "extreme", 1.0
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
     # Count pairwise overlaps
     overlap_count = 0
@@ -184,13 +182,11 @@ def _estimate_spatial_density_and_overlap(layer: Any) -> (str, float):
         for j in range(i + 1, sample_limit):
             total_pairs += 1
             b1, b2 = features[i], features[j]
-            try:
+            with contextlib.suppress(Exception):
                 if hasattr(b1, "intersects"):
                     res = b1.intersects(b2)
                     if isinstance(res, bool) and res:
                         overlap_count += 1
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
     overlap_ratio = (overlap_count / max(1, total_pairs))
 
@@ -225,11 +221,9 @@ def profile_layer(layer: Any) -> LayerSemanticProfile:
     crs = "EPSG:4326"
     is_geo = True
     if hasattr(layer, "crs"):
-        try:
+        with contextlib.suppress(Exception):
             crs = layer.crs().authid()
             is_geo = layer.crs().isGeographic()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
     # 1. Raster Layer
     if (

@@ -678,20 +678,16 @@ def _auto_label_admin(layer):
     the TOP of the layer tree, hiding the roads and facilities under it. A pale fill with a grey outline, then the usual
     points > lines > polygons order, keeps the analysis visible. Best-effort cosmetics; never raises. Not re-run in a real
     QGIS session from the sandbox."""
-    try:
+    with contextlib.suppress(Exception):
         from .output_style import style_auto_labels
         style_auto_labels(layer)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsFillSymbol
         layer.renderer().setSymbol(QgsFillSymbol.createSimple({
             "color": "238,234,224,70", "outline_color": "107,107,107,255", "outline_width": "0.4"}))
         layer.triggerRepaint()
         from .styling_tools import auto_arrange_layer_order
         auto_arrange_layer_order()
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
@@ -1626,11 +1622,10 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer = QgsRasterLayer(local_path, layer_name)
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
-        try:
+        # styling is cosmetic: never fail the fetch over it
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(layer, "population")   # zero cells transparent, heavy-tailed warm ramp
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass   # styling is cosmetic: never fail the fetch over it
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
         for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
             if fetch_result.get(key) is not None:

@@ -903,10 +903,9 @@ QPushButton#settingsCancelButton {{
                 result = entry["list_fn"](key_text)
             except Exception as e:
                 result = {"error": f"Unexpected error: {e}"}
-            try:
+            # dialog was closed/deleted before the fetch finished -- nothing to update
+            with contextlib.suppress(RuntimeError):
                 self.modelsFetchedSignal.emit(provider_value, result)
-            except RuntimeError:
-                pass  # dialog was closed/deleted before the fetch finished -- nothing to update
 
         threading.Thread(target=worker, daemon=True).start()
 

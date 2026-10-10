@@ -1038,14 +1038,12 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
 
         QgsProject.instance().addMapLayer(layer)
         if layer.isSpatial():
-            try:
+            with contextlib.suppress(Exception):
                 from .output_style import style_points_default
                 if layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
                     style_points_default(layer)   # one consistent point look instead of a random default colour
                     from .output_style import style_auto_labels
                     style_auto_labels(layer)      # facility names when the layer is small enough to read
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         result = {
             "success": True,
             "layer_name": layer.name(),
@@ -1111,10 +1109,8 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     settings = QgsPalLayerSettings()
     text_format = QgsTextFormat()
     if QFont is not None:
-        try:
+        with contextlib.suppress(Exception):
             text_format.setFont(QFont("Source Sans 3", int(font_size)))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     text_format.setColor(QColor("#1C1C1E"))
     text_format.setSize(font_size)
 
@@ -1708,7 +1704,8 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
     # Cardinality check: if the join field isn't unique on the join-layer side, the join will
     # duplicate features on the target side -- warn rather than silently producing surprise duplicates.
     cardinality_warning = None
-    try:
+    # best-effort; don't block the join if the cardinality check itself fails
+    with contextlib.suppress(Exception):
         join_idx = b.fields().indexOf(join_field)
         total_features = b.featureCount()
         unique_count = len(b.uniqueValues(join_idx))
@@ -1718,8 +1715,6 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
                 f"values across {total_features} features) -- this join may duplicate features on "
                 f"'{target_layer}' (1-to-many), not a clean 1-to-1 join."
             )
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass  # best-effort; don't block the join if the cardinality check itself fails
 
     res = _run_and_add(
         "native:joinattributestable",

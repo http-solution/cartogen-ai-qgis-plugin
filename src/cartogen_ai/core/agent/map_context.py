@@ -1,3 +1,4 @@
+import contextlib
 """
 Proactive Map Context Summary for Cartogen AI.
 Builds a lightweight snapshot of the current project/canvas so the agent has
@@ -54,12 +55,10 @@ def get_map_context_summary() -> dict:
                 "feature_count": feature_count,
                 "fields": fields,
             }
-            try:
+            with contextlib.suppress(Exception):
                 # F21: one rule for what the cloud model may see about a layer (models/model_view.py).
                 from ..models import model_view, sensitivity
                 entry = model_view.apply_to_layer_entry(entry, sensitivity.get_layer_sensitivity(layer).get("level"))
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
             layers.append(entry)
 
         active_layer = iface.activeLayer() if iface else None

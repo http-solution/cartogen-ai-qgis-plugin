@@ -246,12 +246,10 @@ class CartogenAi:
 
     def unload(self):
         print("[CartogenAi] unload()")
-        try:
+        with contextlib.suppress(Exception):
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
             project_session.retire_plugin()      # tasks started before this point must not call back into the destroyed UI (#167)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
         # old one outlived the plugin.
         if self.translator is not None:
@@ -267,18 +265,14 @@ class CartogenAi:
         except Exception as e:
             print(f"[CartogenAi] isolation worker shutdown failed: {e}")
         if self._first_use_timer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._first_use_timer.stop()
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
             self._first_use_timer = None
 
-        try:
+        with contextlib.suppress(TypeError, RuntimeError):
             project = QgsProject.instance()
             project.readProject.disconnect(self._on_project_changed)
             project.cleared.disconnect(self._on_project_changed)
-        except (TypeError, RuntimeError):
-            pass
 
         try:
             from cartogen_ai.core.agent.scheduler import get_scheduler

@@ -2,6 +2,7 @@
 Raster & Remote Sensing Processing Tools for Cartogen AI.
 """
 
+import contextlib
 import math
 import os
 import re
@@ -393,13 +394,11 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
     if isinstance(res, dict) and res.get("success"):
         res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized], strict=False))
         # HX1b: an ordered, opaque low-to-high surface under the vectors instead of QGIS's grey stretch (best effort)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             made = QgsProject.instance().mapLayersByName("weighted_overlay")
             if made:
                 res["styled"] = style_continuous_raster(made[-1], "surface")
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     return res
 
 
@@ -689,12 +688,11 @@ def zonal_statistics(raster_layer, vector_layer):
     try:
         _zonal_stats_into_layer(ras, vec)
         result = {"success": True, "message": f"Zonal statistics added to '{vector_layer}' (fields prefixed zs_)."}
-        try:
+        # the hint is a convenience; the statistics are already written
+        with contextlib.suppress(Exception):
             if vec.fields().indexOf("zs_mean") >= 0:
                 from .humanitarian_style import measure_hint
                 result["map_looks"] = [measure_hint(vector_layer, "zs_mean", "The mean raster value per area")]
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass  # the hint is a convenience; the statistics are already written
         return result
     except Exception as e:
         from . import _background_processing as _bg
@@ -955,11 +953,9 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
         if not raster_layer.isValid():
             return {"error": "Generated interpolation raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(raster_layer, "surface")
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         return {"success": True, "layer_name": result_name, "method": method, "cell_size": resolved_cell_size}
     except Exception as e:
         return {"error": f"interpolate_surface failed: {e}"}

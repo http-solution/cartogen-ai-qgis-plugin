@@ -8,6 +8,7 @@ What this does and does not do: it proposes bindings (a layer the request names,
 derived from a layer's extent, and says plainly when a slot has no candidate. It never invents data, never picks between several equally
 good layers (it lists them and the model must ask), and a derived UTM zone is a suggestion for the model to pass on, not a rule.
 Not verified against a real model."""
+import contextlib
 import re
 
 from .tools.corridor_tools import utm_epsg_for
@@ -41,14 +42,12 @@ def gather_facts(_unused=None):
                         fields=[(f.name(), bool(f.isNumeric())) for f in layer.fields()])
         else:
             continue
-        try:
+        with contextlib.suppress(Exception):
             rect = layer.extent()
             if layer.crs() != wgs84 and not rect.isNull():
                 rect = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance()).transformBoundingBox(rect)
             if not rect.isNull():       # isEmpty() is also true for a one-point layer (zero width and height)
                 fact["extent_wgs84"] = (rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum())
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         facts[layer.name()] = fact
     return facts
 

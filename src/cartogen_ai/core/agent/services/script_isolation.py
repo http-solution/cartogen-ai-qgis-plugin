@@ -32,6 +32,7 @@ Known, documented limitations (not silently claimed as fixed):
   no iface/canvas/selection access, so the realistic pattern is "read some layers, add a new
   computed one" or "add features to an existing memory layer this turn already created").
 """
+import contextlib
 import json
 import os
 import shutil
@@ -441,11 +442,10 @@ def _detach_vector_layer(layer):
     if not ok:
         raise RuntimeError("could not copy the features")
     copy.updateExtents()
-    try:
+    # the data matters more than the symbology
+    with contextlib.suppress(Exception):
         if layer.renderer() is not None:
             copy.setRenderer(layer.renderer().clone())
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass            # the data matters more than the symbology
     return copy
 
 
@@ -678,11 +678,9 @@ class _IsolationWorker:
     def _kill(self):
         if self._proc is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._proc.kill()
             self._proc.wait(timeout=5)
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         self._proc = None
 
     def _kill_and_drain_stderr(self):

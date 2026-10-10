@@ -22,6 +22,7 @@ Deliberately conservative:
     running thread) and the call returns anyway after `abandon_after_s`.
   * Failure messages from the algorithm are surfaced, not just "failed".
 """
+import contextlib
 import threading
 import time
 
@@ -106,11 +107,10 @@ def _abandon(entry):
     """Keep `entry` alive until its task finishes, then let it go (also swept on every later run)."""
     _ABANDONED.append(entry)
     task = entry[0]
-    try:
+    # the sweep at the start of the next run still releases it
+    with contextlib.suppress(Exception):
         task.taskCompleted.connect(release_finished_abandoned)
         task.taskTerminated.connect(release_finished_abandoned)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass   # the sweep at the start of the next run still releases it
 
 
 def _on_gui_thread():

@@ -1,3 +1,4 @@
+import contextlib
 """How a long-running tool learns that the user pressed Stop, and how it reports progress.
 
 Why this exists (2026-09-25): agent.run() is given a `should_stop` callable (the running QgsTask's
@@ -46,7 +47,5 @@ def report(text):
     fn = _state["status"]
     if fn is None:
         return
-    try:
+    with contextlib.suppress(Exception):
         fn(text)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass

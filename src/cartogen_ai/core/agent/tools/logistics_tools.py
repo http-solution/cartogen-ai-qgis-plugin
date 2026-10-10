@@ -27,6 +27,7 @@ unverified-live caveat, plus its own: the intermediate merge/dissolve/
 intersect steps have not been run against a real QGIS session either.
 """
 
+import contextlib
 import datetime
 import time
 from .registry import register_tool
@@ -306,11 +307,9 @@ def _usable_speed_share(values):
     total = usable = 0
     for value in values:
         total += 1
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             if value is not None and float(value) > 0:
                 usable += 1
-        except (TypeError, ValueError):
-            pass
     return ((usable / total) if total else 0.0), usable, total
 
 
@@ -561,12 +560,10 @@ def _network_direction_speed_params(network, speed_field=None, direction_field=N
             # Geofabrik shapefile extracts encode one-way as F (forward) / T (towards, i.e. backward) / B (both), not OSM's
             # yes / -1 / no. With the OSM defaults nothing matched, every road counted as two-way and one-way streets were
             # silently ignored (rc11 smoke test: the Yemen roads layer held F and B). Detected from the layer's own values.
-            try:
+            with contextlib.suppress(Exception):
                 seen = _direction_values_present(network.uniqueValues(dir_idx))
                 if seen and seen <= {"F", "T", "B"}:
                     value_forward, value_backward, value_both = "F", "T", "B"
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         extra["DIRECTION_FIELD"] = direction_field
         extra["VALUE_FORWARD"] = value_forward
         extra["VALUE_BACKWARD"] = value_backward
@@ -634,10 +631,8 @@ def is_plugin_result(layer):
 
 
 def mark_plugin_result(layer):
-    try:
+    with contextlib.suppress(Exception):
         layer.setCustomProperty(_RESULT_OWNER_KEY, "1")
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def set_aside_user_layers(name, project=None):
@@ -723,11 +718,9 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
                                 "note": replacement_note(name, changes)}
         project.removeMapLayer(stale.id())
     if params is not None:
-        try:
+        with contextlib.suppress(Exception):
             import json as _json
             new_layer.setCustomProperty(_RESULT_PARAMS_KEY, _json.dumps(params, sort_keys=True, default=str))
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     mark_plugin_result(new_layer)
     if set_aside:
         note = set_aside_note(set_aside)
@@ -740,11 +733,9 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     else:
         project.addMapLayer(new_layer, False)   # the caller puts the layer in a group itself
     # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
-    try:
+    with contextlib.suppress(Exception):
         from ..results_store import persist_layer
         persist_layer(new_layer, tool="analysis")
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return replaced
 
 
@@ -2817,11 +2808,9 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         for f in figures.values():
             for key in ("_reach", "_within"):
                 lyr = f.get(key)
-                try:
+                with contextlib.suppress(Exception):
                     if lyr is not None and QgsProject.instance().layerTreeRoot().findLayer(lyr.id()) is None:
                         QgsProject.instance().layerTreeRoot().addLayer(lyr)
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
 
     head = figures[headline]
     reachable_population = head["reachable_population"]

@@ -6,6 +6,7 @@ distribution-analysis approach already used in styling_tools.py's
 apply_graduated_style (mean/variance/skewness computed by hand there too).
 """
 
+import contextlib
 import datetime
 import os
 from .registry import register_tool
@@ -87,17 +88,13 @@ def _parse_date(value):
     if isinstance(value, datetime.date):
         return value
     if hasattr(value, "toPyDate"):
-        try:
+        with contextlib.suppress(Exception):
             return value.toPyDate()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     s = str(value).strip()
     if not s:
         return None
-    try:
+    with contextlib.suppress(ValueError):
         return datetime.date.fromisoformat(s[:10])
-    except ValueError:
-        pass
     for fmt in ("%Y/%m/%d", "%d-%m-%Y", "%m/%d/%Y", "%d/%m/%Y"):
         try:
             return datetime.datetime.strptime(s, fmt).date()

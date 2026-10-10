@@ -101,11 +101,9 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
             return final
         except Exception as e:
             last = e
-            try:
+            with contextlib.suppress(OSError):
                 if os.path.isfile(tmp):
                     os.remove(tmp)
-            except OSError:
-                pass
     raise last or RuntimeError("download failed")
 
 

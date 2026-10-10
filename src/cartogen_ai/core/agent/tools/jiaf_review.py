@@ -20,6 +20,7 @@ Four things are kept apart, in the result rows, the CSV and the layer fields: th
 STATUS (no_flag / flags_closed_in_bulk / decided / pending_flagged, and for severity preliminary_accepted / decided / pending_flagged /
 incomplete_coverage / no_severity_data), the FINAL result, and the JUSTIFICATION with who decided and when.
 """
+import contextlib
 import csv
 import datetime
 import json
@@ -62,13 +63,11 @@ def load_decisions():
     empty = {"pin": {}, "severity": {}}
     if not QGIS_AVAILABLE:
         return empty
-    try:
+    with contextlib.suppress(Exception):
         raw, ok = QgsProject.instance().readEntry(SCOPE, KEY, "")
         if ok and raw:
             data = json.loads(raw)
             return {"pin": dict(data.get("pin", {})), "severity": dict(data.get("severity", {}))}
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return empty
 
 

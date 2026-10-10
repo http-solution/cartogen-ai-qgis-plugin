@@ -3,6 +3,7 @@ Print Layout Composition Tools for Cartogen AI.
 Generates automated QgsPrintLayout compositions with title, map item, legend, scalebar, and north arrow.
 """
 
+import contextlib
 import math
 import os
 from .registry import register_tool
@@ -136,34 +137,26 @@ def _soften_graticule(grid):
     '4880000.000' that ran over the CRS/scale row under the map and off the left and right page edges. Each step is
     best-effort and independent (the API differs a little between QGIS versions): a failed one keeps that default and the
     graticule itself is still added. Not re-run in a real QGIS session from the sandbox."""
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsLineSymbol
         grid.setLineSymbol(QgsLineSymbol.createSimple({"color": "110,110,110,110", "width": "0.12"}))
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         grid.setAnnotationPrecision(0)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     # rc18 hand test N8: the right-hand annotations are drawn outside the map frame, in the gap before the legend panel, and were
     # clipped by it ("3540" cut to "354"). Left and bottom carry the coordinates; the right (and top) copies are only duplicates.
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsLayoutItemMapGrid as _Grid
         display = getattr(_Grid, "DisplayMode", _Grid)
         side = getattr(_Grid, "BorderSide", _Grid)
         for border in ("Right", "Top"):
             grid.setAnnotationDisplay(display.HideAll, getattr(side, border))
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsTextFormat
         fmt = QgsTextFormat()
         fmt.setSize(6)
         from qgis.PyQt.QtGui import QColor
         fmt.setColor(QColor(90, 90, 90))
         grid.setAnnotationTextFormat(fmt)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def _nice_interval(raw):
@@ -210,14 +203,12 @@ def jiaf_layout_note(field_names):
 def _visible_layer_field_names():
     """Field names of every visible vector layer in the project (main thread)."""
     names = []
-    try:
+    with contextlib.suppress(Exception):
         root = QgsProject.instance().layerTreeRoot()
         for node in root.findLayers():
             layer = node.layer()
             if layer is not None and node.isVisible() and hasattr(layer, "fields"):
                 names.extend(f.name() for f in layer.fields())
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
     return names
 
 
@@ -341,15 +332,14 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
             if map_extent is None:
                 return {"error": f"Could not transform '{target_layer.name()}' from {target_layer.crs().authid()} into the map CRS, so the layout was not created."}
-            try:
+            # best-effort: keep the layer's own extent rather than fail the layout
+            with contextlib.suppress(Exception):
                 _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
                 _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
                 # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
                 # fallback instead. A single point is not null, only zero-size, and is the case padded here.
                 if _padded != _b and not map_extent.isNull():
                     map_extent = QgsRectangle(*_padded)
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass  # best-effort: keep the layer's own extent rather than fail the layout
             canvas.setExtent(map_extent)
             canvas.refresh()
         map_item = QgsLayoutItemMap(layout)
@@ -681,10 +671,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         return {"error": f"create_print_layout failed: {e}"}
     finally:
         if pending_layout is not None and not committed and layout_manager is not None:
-            try:
+            with contextlib.suppress(Exception):
                 layout_manager.removeLayout(pending_layout)
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
 
 
 @register_tool(
@@ -879,14 +867,12 @@ def _restore_atlas(atlas, map_item, previous):
     """Put the layout's atlas settings back as they were before an export. Best effort: a failure leaves the export's
     settings in place rather than failing an export that already succeeded."""
     enabled, layer, expression, driven = previous
-    try:
+    with contextlib.suppress(Exception):
         atlas.setCoverageLayer(layer)
         if expression:
             atlas.setFilenameExpression(expression)
         map_item.setAtlasDriven(driven)
         atlas.setEnabled(enabled)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 @register_tool(
@@ -922,10 +908,8 @@ def list_layout_items(layout_name: str):
             continue
         entry = {"id": item_id, "type": type(item).__name__}
         if hasattr(item, "text"):
-            try:
+            with contextlib.suppress(Exception):
                 entry["text"] = item.text()
-            except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                pass
         items.append(entry)
     return {"success": True, "layout_name": layout_name, "items": items}
 

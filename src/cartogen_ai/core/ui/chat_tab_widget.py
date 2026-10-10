@@ -25,6 +25,7 @@ refinementFetchedSignal) stay defined on the parent CartogenAiDockWidget, not he
 emitted from dock-header code (open_settings) and the two dialogs above. This widget
 reaches them via self._dock, the same pattern those dialogs use too."""
 
+import contextlib
 import os
 import threading
 
@@ -678,13 +679,11 @@ class ChatTabWidget(QWidget):
             # The two delayed calls below can fire after the dock (and so the browser) was destroyed -- on QGIS shutdown,
             # plugin unload, or in CI when a test tears its window down. An uncaught RuntimeError inside a Qt slot aborts the
             # whole process under PyQt6 (seen: "Aborted (core dumped)" in the live job once the panel opened at startup).
-            try:
+            with contextlib.suppress(RuntimeError):
                 self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
                 sb = self.chat_browser.verticalScrollBar()
                 if sb:
                     sb.setValue(sb.maximum())
-            except RuntimeError:
-                pass
 
         self._follow_bottom = True        # a new message was added: show it, and keep following until the user scrolls up
         _do_scroll()
@@ -701,12 +700,10 @@ class ChatTabWidget(QWidget):
         from qgis.PyQt.QtCore import QTimer
 
         def _update():
-            try:
+            with contextlib.suppress(RuntimeError):
                 sb = self.chat_browser.verticalScrollBar()
                 if sb:
                     self._follow_bottom = (sb.maximum() - sb.value()) < 24
-            except RuntimeError:
-                pass
         QTimer.singleShot(0, _update)     # the slider moves after the signal, so read its position afterwards
 
     def _on_scrollbar_range_changed(self, min_val, max_val):
@@ -827,7 +824,7 @@ class ChatTabWidget(QWidget):
                 if self._dock and res.get("success"):
                     self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
             else:
-                try:
+                with contextlib.suppress(Exception):
                     from qgis.utils import iface
                     from qgis.core import QgsProject
                     layers = list(QgsProject.instance().mapLayers().values())
@@ -837,8 +834,6 @@ class ChatTabWidget(QWidget):
                         zoom_to_layer(layers[0].name())
                     elif iface and iface.mapCanvas():
                         iface.mapCanvas().zoomToFullExtent()
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -964,12 +959,10 @@ class ChatTabWidget(QWidget):
                 self._dock.receiveMessageSignal.emit(
                     "ai", f"🎨 **Applied Representation:** Configured `{rep_id}` on `{layer_name}`."
                 )
-                try:
+                with contextlib.suppress(Exception):
                     from qgis.utils import iface
                     if iface and iface.mapCanvas():
                         iface.mapCanvas().refresh()
-                except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-                    pass
             else:
                 err = res.get("error", "Failed to apply representation")
                 self._dock.receiveMessageSignal.emit("ai", f"❌ **Style Error:** {err}")
@@ -1651,10 +1644,9 @@ class ChatTabWidget(QWidget):
 
         def worker():
             result = refine(text, profile, client)
-            try:
+            # widget was closed/deleted before the call finished
+            with contextlib.suppress(RuntimeError):
                 self._dock.refinementFetchedSignal.emit(text, result)
-            except RuntimeError:
-                pass  # widget was closed/deleted before the call finished
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1912,11 +1904,9 @@ class ChatTabWidget(QWidget):
             return
 
         has_layers = None
-        try:
+        with contextlib.suppress(Exception):
             from qgis.core import QgsProject
             has_layers = bool(QgsProject.instance().mapLayers())
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
 
         instruction = output_router.followup_instruction(
             contract, executed, already_retried=self._contract_followup_used,

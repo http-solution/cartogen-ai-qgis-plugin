@@ -5,6 +5,7 @@ Routes diagnostic, warning, and error messages to QgsMessageLog when running ins
 falling back gracefully to standard Python logging / sys.stderr in headless or test environments.
 """
 
+import contextlib
 import re
 import sys
 import time
@@ -60,11 +61,9 @@ def log_info(message: str, tag: str = TAG) -> None:
     """Logs an informational message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Info)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] {message}", file=sys.stdout)
 
 
@@ -72,11 +71,9 @@ def log_warning(message: str, tag: str = TAG) -> None:
     """Logs a warning message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Warning)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] WARNING: {message}", file=sys.stderr)
 
 
@@ -84,11 +81,9 @@ def log_error(message: str, tag: str = TAG) -> None:
     """Logs an error message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):
             QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Critical)
             return
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
 
 
@@ -178,20 +173,16 @@ def enable_diagnostic_logging(duration_seconds: int = _DEFAULT_DIAGNOSTIC_DURATI
     when actively debugging; there is no Settings UI toggle for it by design."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().setValue(_DIAGNOSTIC_SETTING, time.time() + duration_seconds)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def disable_diagnostic_logging() -> None:
     """Ends diagnostic logging immediately, without waiting for it to expire."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().remove(_DIAGNOSTIC_SETTING)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 
 def _diagnostic_logging_enabled() -> bool:

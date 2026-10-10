@@ -13,6 +13,7 @@ test_chat_widget_live.py calls read_and_analyze_file/attachment_disclosure_note 
 by name (via chat_tab_widget.py's thin delegators), so those two stay reachable there.
 """
 
+import contextlib
 import os
 import threading
 import traceback
@@ -242,7 +243,7 @@ class ChatInputController:
                 "The current model did not return any analysis. "
                 "Vision support depends on the model; try a vision-capable model in Settings."
             )
-        try:
+        with contextlib.suppress(Exception):
             user_entry = {"role": "user", "content": f"[Attached image: {name}]"}
             assistant_entry = {"role": "assistant", "content": content}
             if hasattr(agent, "_append_history"):
@@ -252,6 +253,4 @@ class ChatInputController:
                 agent.conversation_history.append(assistant_entry)
                 if hasattr(agent, "_trim_history"):
                     agent._trim_history()
-        except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-            pass
         return content

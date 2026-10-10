@@ -4,6 +4,7 @@ dock_widget.py during the tab-widget split (docs/archive/DOCK_WIDGET_SPLIT_PLAN_
 specifically so chat_tab_widget.py doesn't have to import it back from dock_widget.py,
 which would be circular now that dock_widget.py imports ChatTabWidget."""
 
+import contextlib
 from qgis.PyQt.QtWidgets import QApplication
 
 from .chat_formatting import derive_bubble_colors
@@ -25,7 +26,7 @@ def _detect_theme_mode():
     to the palette-luminance path, and that path itself defaults to "light" if there's truly
     no QApplication to read (matches extract_theme_palette()'s own None-on-no-QApplication
     behavior elsewhere in this file)."""
-    try:
+    with contextlib.suppress(ImportError):
         from qgis.core import QgsApplication
         qgis_app = QgsApplication.instance()
         if qgis_app is not None:
@@ -34,8 +35,6 @@ def _detect_theme_mode():
                 return "dark"
             if theme_name == "Blend of Gray":
                 return "light"
-    except ImportError:
-        pass
 
     app = QApplication.instance()
     if app is None:

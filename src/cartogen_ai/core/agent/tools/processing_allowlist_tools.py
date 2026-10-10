@@ -17,6 +17,7 @@ sandbox in any way -- this is a new, narrower, safer path offered as a
 preference, not a replacement.
 """
 
+import contextlib
 from .registry import register_tool
 from . import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
@@ -266,13 +267,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             layer_node.setItemVisibilityChecked(False)
 
     result = {"success": True, "alg_id": alg_id, "layer_name": layer_name, "visible": caller_named_it}
-    try:
+    # a result with the default look beats a failed tool call
+    with contextlib.suppress(Exception):
         from .output_style import style_algorithm_output
         styled = style_algorithm_output(new_layer, alg_id)
         if styled:
             result["styled_as"] = styled
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass   # a result with the default look beats a failed tool call
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()
         result["feature_count"] = count

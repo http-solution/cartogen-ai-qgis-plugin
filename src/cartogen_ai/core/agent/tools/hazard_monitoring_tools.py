@@ -21,6 +21,7 @@ otherwise a 5-minute schedule would litter the project with duplicate layers wit
 This is new behavior humanitarian_tools.py's one-shot fetch tools don't need.
 """
 
+import contextlib
 import csv
 import io
 import json
@@ -65,11 +66,9 @@ def _style_hazard(layer, kind):
     """A readable default look for a newly created hazard layer (alert-level colours for GDACS, one small dot for fires,
     category colours for EONET) instead of QGIS's random single colour. Only on creation, so a re-fetch that replaces the
     features keeps whatever styling the user has since applied. Cosmetic; never raises."""
-    try:
+    with contextlib.suppress(Exception):
         from .humanitarian_style import style_hazard_layer
         style_hazard_layer(layer, kind)
-    except Exception:  # nosec B110 (best-effort: failure is non-fatal)
-        pass
 
 def _stamp_fetched_at(layer):
     layer.setCustomProperty(FETCHED_AT_PROPERTY_KEY, datetime.now(timezone.utc).isoformat())
