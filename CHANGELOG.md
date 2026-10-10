@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc24](#v1-16-0-rc24) | 2026-10-10 | **Release candidate 24 for 1.16.0.** No breaking changes. Reply checks for invented identifiers, figures and style claims; a guessed-file-path guard; raster and Processing runs in the background; read-only database layers for the script worker and SQL results. Not hand-tested. |
 | [1.16.0-rc23](#v1-16-0-rc23) | 2026-10-09 | **Release candidate 23 for 1.16.0.** No breaking changes. Cost measurement and limits, capability-based routing, a request queue, split_lines_by_zones / generate_contours / fetch_dem, run_steps with 11 vetted chains, an opt-in evidence folder, and fixes from the rc22 hand test; CI green on the merged head, not hand-tested. |
 | [1.16.0-rc22](#v1-16-0-rc22) | 2026-10-07 | **Release candidate 22 for 1.16.0.** No breaking changes. Fixes from the rc20 architectural audit (results never overwrite your layers, stale-turn and egress-lineage fixes, equalisation/slope/GeoJSON/CRS corrections, read-only script copies, first background work); verified locally in QGIS 4.2.2, not by hand. |
 | [1.16.0-rc21](#v1-16-0-rc21) | 2026-10-07 | **Release candidate 21 for 1.16.0.** No breaking changes. Fixes from the rc20 hand test: out-of-range manual class breaks rejected, north arrow follows a rotated map, a stray pasted fragment can no longer make the agent change anything; verified locally in QGIS 4.2.2, not by hand. |
@@ -64,6 +65,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc24"></a>
+## [1.16.0-rc24] — 2026-10-10 — Release candidate 24 for 1.16.0: reply checks, path guard, background raster runs, read-only database layers
+
+No breaking changes; QGIS 4.2+. Everything after the rc23 build:
+
+- Replies checked against tool results: A reply is footnoted when it names an identifier no tool returned (District_4), gives a total, mean or preliminary figure that matches no tool result, or says a style was applied when no styling call succeeded (#228). These are wording checks, not a fix for the model inventing values.
+- Guessed file paths: After two 'file not found' errors in a row the agent is told once to stop guessing and use a path you gave or a tool returned, or ask you (#231).
+- Less freezing: Raster tools and approved Processing algorithms now run in the background with Stop available (except ones that change your own layer); contours, task-grid statistics and some logistics steps still run on the main thread (#221).
+- Safer scripts and SQL: Database and web layers are read-only inside the script worker (#220), and the result layer of execute_read_only_sql cannot be edited (#151). A read-only database role is still the real guarantee for SQL.
+- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model. The new background raster test crashed once in CI and passed on re-run; the cause is unknown.
 
 <a id="v1-16-0-rc23"></a>
 ## [1.16.0-rc23] — 2026-10-09 — Release candidate 23 for 1.16.0: cost measurement, routing, new tools, chains and hand-test fixes

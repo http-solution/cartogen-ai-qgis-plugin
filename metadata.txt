@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc23
+version=1.16.0-rc24
 author=Alaa Alshoubaki
 
 about=Cartogen AI is a spatial agent for QGIS: describe what you want in plain language, and it plans the steps, calls the right tools, and executes real operations against your open project -- every step inspectable, not just suggested. Powered by OpenRouter, Gemini, Claude, OpenAI, or a local Ollama model. No expensive API key strictly required -- get a free OpenRouter key at openrouter.ai, or run Ollama locally for free.
@@ -22,7 +22,15 @@ license=GNU GPL v2
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=v1.16.0-rc23 (2026-10-09):
+changelog=v1.16.0-rc24 (2026-10-10):
+    Release candidate 24 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds checks on replies, a guessed-path guard, background raster runs and read-only database layers.
+    - Replies checked against tool results: A reply is footnoted when it names an identifier no tool returned (District_4), gives a total, mean or preliminary figure that matches no tool result, or says a style was applied when no styling call succeeded (#228). These are wording checks, not a fix for the model inventing values.
+    - Guessed file paths: After two 'file not found' errors in a row the agent is told once to stop guessing and use a path you gave or a tool returned, or ask you (#231).
+    - Less freezing: Raster tools and approved Processing algorithms now run in the background with Stop available (except ones that change your own layer); contours, task-grid statistics and some logistics steps still run on the main thread (#221).
+    - Safer scripts and SQL: Database and web layers are read-only inside the script worker (#220), and the result layer of execute_read_only_sql cannot be edited (#151). A read-only database role is still the real guarantee for SQL.
+    - Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model. The new background raster test crashed once in CI and passed on re-run; the cause is unknown.
+
+v1.16.0-rc23 (2026-10-09):
     Release candidate 23 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds cost measurement, routing, new tools, multi-step chains and an evidence folder, and fixes from the hand test of rc22.
     - Cost: every model call is measured (provider-reported input, cached and output tokens, latency, tools offered; estimates are labelled and kept apart) and each reply's footer shows what the request used. A loop guard stops a turn that repeats an identical call, fails three times in a row or makes no progress, and says what was done. A per-turn token budget (default 450,000, a provisional figure taken from the rc22 hand-test logs; 0 = no limit; Settings) stops a request BEFORE a call that would pass it and reports what finished.
     - Routing: the tools a request needs are chosen from the data sources and actions it names (OpenStreetMap, HDX, buffer, clip, slope, contours and so on) instead of weak word matches, with find_tools for a step the offered list did not cover. A task that names one hazard (drought, extreme heat) only matches when the request names it. Several separate requests pasted together are shown as a queue and run one at a time after you confirm.

@@ -9,18 +9,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc23"
-NEW_MARK_VERSIONS = ("1.16.0-rc22", "1.16.0-rc23")
+WHATS_NEW_VERSION = "1.16.0-rc24"
+NEW_MARK_VERSIONS = ("1.16.0-rc23", "1.16.0-rc24")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Cost", "Every request now shows what it used, a loop guard stops a stuck request, and a per-turn token budget (default 450,000, provisional; 0 = no limit) stops one before it overspends."),
-    ("Better tool choice", "Tools are chosen from the data sources and actions your request names, several pasted requests run as a confirmed queue, and a task naming one hazard only matches when you name it."),
-    ("New tools", "split_lines_by_zones (passable length and longest passable segment), generate_contours, and fetch_dem (Copernicus 30 m DEM, a surface model; add the Copernicus notice yourself when you publish)."),
-    ("Fewer round trips", "run_steps and eleven vetted chains let one model step do a known sequence; every chain is checked against your project first and stops at the first error or confirmation."),
-    ("Evidence", "Optional (Settings): a folder per request with the real calls, results, timings, written files with hashes, and a screenshot. It holds raw values."),
-    ("Fixes", "Relative output paths land in your project folder, rasters export as GeoTIFF, layouts follow canvas rotation, 'Yes, proceed.' works at the preview, and JIAF layouts carry the not-endorsed statement."),
-    ("Not hand-tested", "CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model yet."),
+    ('Replies checked against tool results', 'A reply is footnoted when it names an identifier no tool returned (District_4), gives a total, mean or preliminary figure that matches no tool result, or says a style was applied when no styling call succeeded (#228). These are wording checks, not a fix for the model inventing values.'),
+    ('Guessed file paths', "After two 'file not found' errors in a row the agent is told once to stop guessing and use a path you gave or a tool returned, or ask you (#231)."),
+    ('Less freezing', 'Raster tools and approved Processing algorithms now run in the background with Stop available (except ones that change your own layer); contours, task-grid statistics and some logistics steps still run on the main thread (#221).'),
+    ('Safer scripts and SQL', 'Database and web layers are read-only inside the script worker (#220), and the result layer of execute_read_only_sql cannot be edited (#151). A read-only database role is still the real guarantee for SQL.'),
+    ('Not hand-tested', 'CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model. The new background raster test crashed once in CI and passed on re-run; the cause is unknown.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
