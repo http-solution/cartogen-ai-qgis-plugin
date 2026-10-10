@@ -9,16 +9,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc25"
-NEW_MARK_VERSIONS = ("1.16.0-rc24", "1.16.0-rc25")
+WHATS_NEW_VERSION = "1.16.0-rc26"
+NEW_MARK_VERSIONS = ("1.16.0-rc25", "1.16.0-rc26")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Providers limited to tested ones', 'Settings and the quick switcher now offer OpenRouter, Google Gemini, Ollama (local) and the Cartogen API entry only. OpenAI and Claude are no longer listed or run, because they were not tested. A provider saved by an earlier version (for example OpenAI) falls back to OpenRouter and its saved key and settings are left untouched. The Cartogen API entry is a stub: no hosted gateway is deployed yet, so it cannot be used until one exists.'),
-    ('Plugin-directory fixes', 'metadata.txt now parses (no percent sign), gives the project email and GitHub homepage, states requirements and the data sent to a cloud provider, and the package leaves out hidden git files, sample data and binary documents.'),
-    ('Opt-in API trace and local layer list', "A Settings checkbox (off by default) records every model request and reply to a local file for diagnosing call counts. 'List the layers' is answered in the dock with no model call."),
-    ('Plugin folder renamed', "Plugin folder renamed: the zip's top-level folder is now cartogen_ai_plugin (a valid Python identifier, which plugins.qgis.org requires) instead of cartogen-ai. If you installed rc24 or earlier, delete the old cartogen-ai folder from your profile's plugins directory, otherwise two copies load."),
-    ('Not hand-tested', 'CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.'),
+    ('Network requests use QGIS', "Data-fetch tools (OpenStreetMap, HDX, hazard feeds, STAC and the like) now send their requests through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply. QGIS sets the User-Agent and applies its own network timeout (Settings > Options > Network, default 60 seconds) on these calls. Large downloads (Geofabrik extracts, model checkpoints) are still streamed with urllib, using the QGIS proxy. The AI provider clients still use the requests library; moving them is planned (#71)."),
+    ('Security scan fixes', "Short-key hashes are marked as non-security, a failed restore of the database session's read-only mode is now logged, and the reviewed best-effort handlers carry a reason, so the plugin-directory security scan reports far fewer findings."),
+    ('Not hand-tested', 'CI is green, including the new live network tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

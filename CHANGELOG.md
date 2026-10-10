@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc26](#v1-16-0-rc26) | 2026-10-10 | **Release candidate 26 for 1.16.0.** No breaking changes. Data-fetch requests go through QGIS's network stack (proxy, authentication, SSL); directory security-scan fixes. Not hand-tested. |
 | [1.16.0-rc25](#v1-16-0-rc25) | 2026-10-10 | **Release candidate 25 for 1.16.0.** No breaking changes. Only tested providers (OpenRouter, Gemini, Ollama, Cartogen API stub) are offered; OpenAI and Claude are no longer listed or run; plugin-directory packaging fixes; opt-in API trace; local layer list. Not hand-tested. |
 | [1.16.0-rc24](#v1-16-0-rc24) | 2026-10-10 | **Release candidate 24 for 1.16.0.** No breaking changes. Reply checks for invented identifiers, figures and style claims; a guessed-file-path guard; raster and Processing runs in the background; read-only database layers for the script worker and SQL results. Not hand-tested. |
 | [1.16.0-rc23](#v1-16-0-rc23) | 2026-10-09 | **Release candidate 23 for 1.16.0.** No breaking changes. Cost measurement and limits, capability-based routing, a request queue, split_lines_by_zones / generate_contours / fetch_dem, run_steps with 11 vetted chains, an opt-in evidence folder, and fixes from the rc22 hand test; CI green on the merged head, not hand-tested. |
@@ -66,6 +67,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc26"></a>
+## [1.16.0-rc26] — 2026-10-10 — Release candidate 26 for 1.16.0: QGIS network stack for data fetches, security-scan fixes
+
+No breaking changes; QGIS 4.2+. Everything after the rc25 build:
+
+- Network requests use QGIS: Data-fetch tools (OpenStreetMap, HDX, hazard feeds, STAC and the like) now send their requests through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply. QGIS sets the User-Agent and applies its own network timeout (Settings > Options > Network, default 60 seconds) on these calls. Large downloads (Geofabrik extracts, model checkpoints) are still streamed with urllib, using the QGIS proxy. The AI provider clients still use the requests library; moving them is planned (#71).
+- Security scan fixes: Short-key hashes are marked as non-security, a failed restore of the database session's read-only mode is now logged, and the reviewed best-effort handlers carry a reason, so the plugin-directory security scan reports far fewer findings.
+- Not hand-tested: CI is green, including the new live network tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model.
 
 <a id="v1-16-0-rc25"></a>
 ## [1.16.0-rc25] — 2026-10-10 — Release candidate 25 for 1.16.0: tested providers only, plugin-directory fixes
