@@ -16,6 +16,7 @@ import json
 import os
 import time
 import urllib.request
+from ..net import urlopen as _qgis_urlopen
 import zipfile
 
 from .coordinates import interpret_request_pair
@@ -164,7 +165,8 @@ def _remote_size(url):
         pass
     try:
         req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
-        with urlopen_with_retry(req, timeout=30) as r:
+        # stream=True: a server that ignores Range sends the whole body, and only the headers are read here.
+        with urlopen_with_retry(req, timeout=30, stream=True) as r:
             content_range = r.headers.get("Content-Range") or ""
             if "/" in content_range:
                 total = content_range.rsplit("/", 1)[1].strip()
@@ -193,7 +195,7 @@ def probe_connectivity():
     start = time.monotonic()
     try:
         req = urllib.request.Request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
-        with urllib.request.urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S):
+        with _qgis_urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S):
             pass
     except Exception:
         return False
@@ -220,7 +222,7 @@ def download_extract(region, dest_dir, progress=None, is_cancelled=None):
         return path
     part = path + ".part"
     req = urllib.request.Request(region["shp_url"], headers=_UA)
-    with urlopen_with_retry(req, timeout=60) as r, open(part, "wb") as f:
+    with urlopen_with_retry(req, timeout=60, stream=True) as r, open(part, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0) or region.get("size_bytes") or 0
         done = 0
         while True:

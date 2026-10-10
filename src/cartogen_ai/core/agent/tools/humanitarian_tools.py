@@ -9,6 +9,7 @@ import re
 import json
 import math
 import urllib.request
+from ...net import urlopen as _qgis_urlopen
 import urllib.parse
 import urllib.error
 from datetime import date
@@ -86,7 +87,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
             results = data.get("result", {}).get("results", [])
             output = []
@@ -112,7 +113,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
 def _fts_request(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-    with urllib.request.urlopen(req, timeout=15) as response:
+    with _qgis_urlopen(req, timeout=15) as response:
         return json.loads(response.read().decode())
 
 
@@ -253,7 +254,7 @@ def fetch_osm_features(key: str, value: str, bbox: list):
         # 30s, not the usual 15s -- the query itself requests a 25s server-side
         # budget ([timeout:25] above), so a client timeout below that would abort
         # legitimate slow-but-still-running queries before the server's own limit.
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             res_json = json.loads(response.read().decode())
             elements = res_json.get("elements", [])
             nodes = [el for el in elements if el.get("type") == "node"]
@@ -631,7 +632,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode())
         # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
         # (2026-09-13): json.loads succeeding doesn't guarantee a dict.
@@ -764,7 +765,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
 
     try:
         req = urllib.request.Request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=20) as response:
+        with _qgis_urlopen(req, timeout=20) as response:
             data = json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
@@ -1048,7 +1049,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     else:
         try:
             req = urllib.request.Request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with _qgis_urlopen(req, timeout=30) as response:
                 links_text = response.read().decode()
         except Exception as e:
             return {"error": f"Failed to fetch building footprints dataset index: {e}"}
@@ -1459,7 +1460,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
     try:
         list_url = f"https://hub.worldpop.org/rest/data/pop/wpgp?iso3={iso3}"
         req = urllib.request.Request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with _qgis_urlopen(req, timeout=30) as response:
             listing = json.loads(response.read().decode())
         datasets = listing.get("data", [])
         if not datasets:
