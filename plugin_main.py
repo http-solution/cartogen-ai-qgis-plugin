@@ -91,8 +91,22 @@ class CartogenAi:
     def tr(self, message):
         return QCoreApplication.translate("CartogenAi", message)
 
+    def _warn_about_old_copy(self):
+        """Tell the user once per session when a pre-rc25 install ("cartogen-ai") still sits beside this one. Never raises."""
+        try:
+            from ._module_ownership import legacy_copies
+            old = legacy_copies(self.plugin_dir)
+            if old:
+                message = (self.tr("An older Cartogen AI install is still present (%s). Two copies load together; "
+                                   "uninstall or delete the old folder and restart QGIS.") % os.path.basename(old[0]))
+                print(f"[CartogenAi] WARNING: {message}")
+                self.iface.messageBar().pushWarning("Cartogen AI", message)
+        except Exception as e:
+            print(f"[CartogenAi] old-copy check skipped: {type(e).__name__}")
+
     def initGui(self):
         print("[CartogenAi] initGui()")
+        self._warn_about_old_copy()
         # icon.svg -- a copy of branding/cartogen-mark.svg, the actual brand mark, not the flat
         # icon.png this replaced. Deliberately copied to the plugin ROOT rather than referencing
         # branding/ directly: plugin_upload.py's EXCLUDE_DIRS excludes the whole branding/

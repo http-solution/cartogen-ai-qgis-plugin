@@ -70,3 +70,18 @@ class TestClaimedModuleNames(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLegacyCopies(unittest.TestCase):
+    def test_finds_an_old_named_sibling_with_metadata_only(self):
+        import tempfile
+        legacy_copies = own.legacy_copies
+        with tempfile.TemporaryDirectory() as root:
+            new = os.path.join(root, "cartogen_ai_plugin")
+            old = os.path.join(root, "cartogen-ai")
+            os.makedirs(new)
+            os.makedirs(old)
+            self.assertEqual(legacy_copies(new), [])            # no metadata.txt: a leftover empty folder is not a copy
+            open(os.path.join(old, "metadata.txt"), "w").close()
+            self.assertEqual(legacy_copies(new), [old])
+            self.assertEqual(legacy_copies(old), [])            # the old folder itself is not "another" copy

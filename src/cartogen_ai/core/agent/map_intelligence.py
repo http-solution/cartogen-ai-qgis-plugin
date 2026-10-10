@@ -24,7 +24,7 @@ try:
         QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,
         QgsVectorLayerSimpleLabeling, QgsUnitTypes, QgsLabelObstacleSettings,
-        QgsLayerTreeLayer,
+        QgsLayerTreeLayer, Qgis,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -419,7 +419,7 @@ def configure_intelligent_labels(
         settings.obstacleSettings().setIsObstacle(True)
     elif geom == QgsWkbTypes.GeometryType.LineGeometry:
         settings.placement = QgsPalLayerSettings.Placement.Curved
-        settings.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.MapOrientation
+        settings.placementFlags = Qgis.LabelLinePlacementFlag.AboveLine | Qgis.LabelLinePlacementFlag.MapOrientation
     elif geom == QgsWkbTypes.GeometryType.PolygonGeometry:
         settings.placement = QgsPalLayerSettings.Placement.Horizontal
         settings.fitInPolygonOnly = True

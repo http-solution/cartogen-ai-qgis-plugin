@@ -10,6 +10,23 @@ Stdlib only, so it can be imported by __init__.py before anything else and teste
 import os
 
 
+LEGACY_FOLDER_NAMES = ("cartogen-ai",)   # the folder rc24 and earlier were installed in (renamed in rc25 for plugins.qgis.org)
+
+
+def legacy_copies(plugin_dir):
+    """Paths of an old-named copy of this plugin sitting beside `plugin_dir` (same plugins directory), or [].
+
+    rc25 renamed the install folder from "cartogen-ai" to "cartogen_ai_plugin", so a user upgrading by installing the new zip over
+    rc24 or earlier gets BOTH folders, and QGIS loads both. Pure: stdlib only."""
+    parent = os.path.dirname(os.path.abspath(plugin_dir))
+    found = []
+    for name in LEGACY_FOLDER_NAMES:
+        candidate = os.path.join(parent, name)
+        if os.path.normcase(candidate) != os.path.normcase(os.path.abspath(plugin_dir)) and os.path.isfile(os.path.join(candidate, "metadata.txt")):
+            found.append(candidate)
+    return found
+
+
 def _under(path, directory):
     try:
         norm_path = os.path.normcase(os.path.abspath(path))

@@ -25,6 +25,7 @@ NAMES = [
     ("QgsPalLayerSettings", "Placement.OrderedPositionsAroundPoint"), ("QgsPalLayerSettings", "Placement.Curved"),
     ("QgsPalLayerSettings", "Placement.Horizontal"), ("QgsLabelObstacleSettings", "ObstacleType.PolygonBoundary"),
     ("QgsLayoutExporter", "ExportResult.Success"),
+    ("Qgis", "LabelLinePlacementFlag.AboveLine"), ("Qgis", "LabelLinePlacementFlag.MapOrientation"),
 ]
 
 
@@ -36,6 +37,14 @@ class TestScopedEnumsResolve(unittest.TestCase):
             for part in path.split("."):
                 self.assertTrue(hasattr(obj, part), f"{owner}.{path}: no '{part}'")
                 obj = getattr(obj, part)
+
+    def test_flat_qvariant_field_types_still_exist(self):
+        """28 call sites build QgsField(name, QVariant.Double/Int/String/...). The directory's checker did not flag them, but
+        PyQt6 dropped QVariant.Type, so confirm QGIS 4.2's qgis.PyQt still provides them (they are not Qt6-clean if this fails)."""
+        from qgis.PyQt.QtCore import QVariant
+        for name in ("Double", "Int", "String", "LongLong", "Bool", "Date", "DateTime"):
+            self.assertTrue(hasattr(QVariant, name), f"QVariant.{name} missing on this QGIS")
+        qc.QgsField("x", QVariant.Double)
 
     def test_qt_names(self):
         self.assertTrue(hasattr(Qt.PenJoinStyle, "RoundJoin"))

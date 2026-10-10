@@ -43,7 +43,7 @@ black-box answer.
 
 ## What it does
 
-- **Multi-provider**: OpenRouter, Google Gemini, OpenAI, Anthropic Claude, or a local
+- **Multi-provider**: OpenRouter, Google Gemini, or a local
   Ollama server — switch anytime, bring your own API key (OpenRouter has a free tier;
   Ollama is free and fully local).
 - **Native QGIS Processing Provider**: Registered under `QgsApplication.processingRegistry()`
@@ -78,7 +78,7 @@ black-box answer.
 - **File attachments**: PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be
   loaded as full real layers (not just a preview) with automatic point-geometry
   detection for coordinate columns.
-- **Native web search grounding** on Gemini and OpenAI, with automatic model fallback
+- **Native web search grounding** on Gemini, with automatic model fallback
   if a configured model is retired.
 - **Stop button**: cancel an in-progress request instead of waiting it out.
 - **Security-conscious by design** — see [SECURITY.md](SECURITY.md) for the full
@@ -365,8 +365,6 @@ OSGeo4W Shell), then reopen QGIS.
    local Ollama server — no key needed). Get a key from the provider you picked:
    - OpenRouter (has a genuinely free tier): https://openrouter.ai/keys
    - Google Gemini: https://aistudio.google.com/apikey
-   - OpenAI: https://platform.openai.com/api-keys
-   - Anthropic Claude: https://console.anthropic.com/settings/keys
    - Ollama needs no key — just a local server endpoint URL.
 3. Type a request, e.g. *"List all layers in the project"* or *"Calculate the area for
    the active layer"*. See the in-app **Help** tab for more examples, or
@@ -478,7 +476,7 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 208 tools across the domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 208 tools across the domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
 - `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.
