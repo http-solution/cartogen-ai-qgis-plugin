@@ -126,7 +126,7 @@ class TestClippingIsExact(unittest.TestCase):
                     self.assertTrue(a, "empty service area")
                     self.assertEqual(a, b)
                     info = clipped.get("network_clipping")
-                    self.assertIsNotNone(info, "the clip should have applied on a 20 km network with a %d m reach" % reach)
+                    self.assertIsNotNone(info, f"the clip should have applied on a 20 km network with a {reach} m reach")
                     self.assertLess(info["roads_routed_max"], info["roads_full"])
 
     def test_origin_layer_in_another_crs_than_the_network(self):

@@ -48,16 +48,15 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"livetest"], False)
+    if _APP_HOLDER["app"] is None:
+        _APP_HOLDER["app"] = QgsApplication([b"livetest"], False)
         QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+        _APP_HOLDER["app"].initQgis()
+    return _APP_HOLDER["app"]
 
 
 def _pump(ms=4000, until=None):
@@ -81,7 +80,7 @@ def _pump(ms=4000, until=None):
     loop.exec()
     timer.stop()
     if until is not None:
-        assert until(), "condition never became true within %dms" % ms
+        assert until(), f"condition never became true within {ms}ms"
 
 
 class _FakeClient:
@@ -561,8 +560,7 @@ class TestChatWidgetLive(unittest.TestCase):
         _pump(500)  # let the follow-up's on_complete/chat emit finish landing
 
         self.assertEqual(agent.client.calls, 2,
-                         "expected exactly one follow-up call (2 total), got %d -- either the "
-                         "contract check never fired, or it looped" % agent.client.calls)
+                         f"expected exactly one follow-up call (2 total), got {agent.client.calls} -- either the contract check never fired, or it looped")
         log = self._chat_text(ct)
         self.assertIn("generate_html_dashboard", log,
                       "the follow-up instruction must name the missing renderer")
@@ -1069,7 +1067,7 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
         for i in range(40):
-            ct.chat_browser.append("line %d<br><br><br>" % i)
+            ct.chat_browser.append(f"line {i}<br><br><br>")
         QApplication.processEvents()
         sb = ct.chat_browser.verticalScrollBar()
         self.assertGreater(sb.maximum(), 0)
@@ -1081,7 +1079,7 @@ class TestChatWidgetLive(unittest.TestCase):
         sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum.value)   # the signal takes an int
         QApplication.processEvents()
         for i in range(20):
-            ct.chat_browser.append("more %d<br><br><br>" % i)
+            ct.chat_browser.append(f"more {i}<br><br><br>")
         QApplication.processEvents()
         self.assertEqual(sb.value(), 0, "document growth pulled a scrolled-up user back to the bottom")
         # a new message always brings the view back to the end

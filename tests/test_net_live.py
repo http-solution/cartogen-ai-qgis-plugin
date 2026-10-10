@@ -71,7 +71,7 @@ class TestNetLive(unittest.TestCase):
         from tests.test_chat_widget_live import _boot_qgis
         _boot_qgis()
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-        cls.base = "http://127.0.0.1:%d" % cls.server.server_address[1]
+        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod

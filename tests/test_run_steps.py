@@ -57,7 +57,7 @@ class _Scripted:
 
 
 def _call(i, name, args):
-    return {"id": "c%d" % i, "function": {"name": name, "arguments": json.dumps(args)}}
+    return {"id": f"c{i}", "function": {"name": name, "arguments": json.dumps(args)}}
 
 
 def _tools(*names):

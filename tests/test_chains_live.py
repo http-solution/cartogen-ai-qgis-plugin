@@ -177,7 +177,7 @@ class TestChainsLive(unittest.TestCase):
         self.addCleanup(server.shutdown)
         from cartogen_ai.core.agent.tools import dem_tools
         old = dem_tools.TILE_BASE
-        dem_tools.TILE_BASE = "http://127.0.0.1:%d" % server.server_address[1]
+        dem_tools.TILE_BASE = f"http://127.0.0.1:{server.server_address[1]}"
         self.addCleanup(lambda: setattr(dem_tools, "TILE_BASE", old))
         self._vector("Polygon((45.2 15.2,45.6 15.2,45.6 15.6,45.2 15.6,45.2 15.2))", "aoi")
 

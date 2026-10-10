@@ -150,5 +150,5 @@ check("default model", agent._auto_default_model == "gpt-5.6", agent._auto_defau
 for q, expect, sent, err in out:
     check(f"{q[:44]!r} -> {expect}", err is None and sent[:1] == [expect], err or sent[:1])
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

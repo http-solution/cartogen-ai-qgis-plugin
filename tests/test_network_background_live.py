@@ -153,7 +153,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         gaps = [b - a for a, b in itertools.pairwise(ticks)]
         # measured on the real 39,017-road network: 293 ticks in 18.5 s, worst gap 77 ms (timer 50 ms).
         # A synchronous run gives ~0 ticks (that is the freeze). Generous bounds for slow CI machines.
-        self.assertGreater(len(ticks), 0.4 * duration / 0.05, "ticks=%d duration=%.1fs" % (len(ticks), duration))
+        self.assertGreater(len(ticks), 0.4 * duration / 0.05, f"ticks={len(ticks)} duration={duration:.1f}s")
         self.assertLess(max(gaps), 0.5, "worst UI gap %.0f ms" % (max(gaps) * 1000))
 
     def test_the_synchronous_path_is_what_freezes(self):
@@ -172,7 +172,7 @@ class TestBackgroundNetworkAnalysis(unittest.TestCase):
         duration = time.monotonic() - started
         timer.stop()
         self.assertGreater(duration, 1.0)
-        self.assertLess(len(ticks), 0.2 * duration / 0.05, "ticks=%d duration=%.1fs" % (len(ticks), duration))
+        self.assertLess(len(ticks), 0.2 * duration / 0.05, f"ticks={len(ticks)} duration={duration:.1f}s")
 
     # -------------------------------------------------------------------------------------- Stop --
 

@@ -27,7 +27,7 @@ class _LoopingClient:
     def complete(self, messages, tools=None, max_tokens=None):
         self.calls += 1
         return {"message": {"role": "assistant", "content": None, "tool_calls": [
-            {"id": "c%d" % self.calls, "function": {"name": "get_layers", "arguments": "{}"}}]},
+            {"id": f"c{self.calls}", "function": {"name": "get_layers", "arguments": "{}"}}]},
             "usage": {"input_tokens": 100, "output_tokens": 50}}
 
 

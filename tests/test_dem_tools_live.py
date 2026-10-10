@@ -38,7 +38,7 @@ class _RangeHandler(http.server.SimpleHTTPRequestHandler):
             fh.seek(start)
             body = fh.read(end - start + 1)
         self.send_response(206)
-        self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
@@ -82,7 +82,7 @@ class TestFetchDemLive(unittest.TestCase):
         from cartogen_ai.core.agent.tools import dem_tools
         self.mod = dem_tools
         self.old_base = dem_tools.TILE_BASE
-        dem_tools.TILE_BASE = "http://127.0.0.1:%d" % self.server.server_address[1]
+        dem_tools.TILE_BASE = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.addCleanup(lambda: setattr(dem_tools, "TILE_BASE", self.old_base))
 
     def test_window_across_two_tiles_with_a_missing_neighbour(self):

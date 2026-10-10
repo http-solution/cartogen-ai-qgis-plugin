@@ -97,19 +97,19 @@ for key, value in next(iter(tm["matrix"].values())).items():
     costs[key] = hours
     straight[key] = da.measureLine(QgsPointXY(olon_lat.x(), olon_lat.y()), QgsPointXY(p.x(), p.y()))
 print("facilities:", fac.featureCount(), "| with a route:", len(costs))
-check("a route cost for most facilities", len(costs) >= 0.5 * fac.featureCount(), "%d of %d" % (len(costs), fac.featureCount()))
+check("a route cost for most facilities", len(costs) >= 0.5 * fac.featureCount(), f"{len(costs)} of {fac.featureCount()}")
 
 # route length implied by hours x 50 km/h, vs the straight line to the same facility
 ratios = sorted(costs[k] * 50000.0 / straight[k] for k in costs if straight[k] > 500)
 if ratios:
-    print("route length / straight line: min %.2f  median %.2f  max %.2f  (n=%d)" % (ratios[0], ratios[len(ratios) // 2], ratios[-1], len(ratios)))
+    print(f"route length / straight line: min {ratios[0]:.2f}  median {ratios[len(ratios) // 2]:.2f}  max {ratios[-1]:.2f}  (n={len(ratios)})")
 check("no route is shorter than the straight line (units are real)", ratios and ratios[0] >= 0.95, "min ratio %.2f" % (ratios[0] if ratios else -1))
 check("typical road/straight-line ratio is plausible (1.0 to 2.5)", ratios and 1.0 <= ratios[len(ratios) // 2] <= 2.5, "median %.2f" % (ratios[len(ratios) // 2] if ratios else -1))
 
 within = sorted(k for k, h in costs.items() if h <= 1.0)
 beyond = sorted(k for k, h in costs.items() if h > 1.0)
-print("within one hour: %d | beyond one hour: %d" % (len(within), len(beyond)))
-check("the one-hour split is meaningful (some inside, some beyond)", within and beyond, "%d inside / %d beyond" % (len(within), len(beyond)))
+print(f"within one hour: {len(within)} | beyond one hour: {len(beyond)}")
+check("the one-hour split is meaningful (some inside, some beyond)", within and beyond, f"{len(within)} inside / {len(beyond)} beyond")
 if beyond:
     far = max(costs[k] for k in beyond)
     print(f"farthest facility by road: {far:.1f} hours")
@@ -131,5 +131,5 @@ if sa.get("layers_created"):
     # 1 hour at 50 km/h is 50 km of road: the reach must be 10-50 km away in a straight line
     check("1-hour reach extends 10-50 km (50 km of road at 50 km/h)", 10000 <= farthest <= 50500, "%.1f km" % (farthest / 1000))
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

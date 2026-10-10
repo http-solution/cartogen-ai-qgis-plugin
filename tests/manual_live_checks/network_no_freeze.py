@@ -77,11 +77,11 @@ res = lt.travel_time_matrix("Origin Location", fac_name, roads_name, strategy="f
 elapsed = time.monotonic() - t0
 timer.stop()
 cancel_signal.end()
-print("returned after %.1f s (Stop was due at 30 s); GUI ticks: %d, worst gap %.0f ms" % (elapsed, len(ticks), max(gaps()) * 1000 if gaps() else -1))
+print(f"returned after {elapsed:.1f} s (Stop was due at 30 s); GUI ticks: {len(ticks)}, worst gap {max(gaps()) * 1000 if gaps() else -1:.0f} ms")
 print("progress messages:", len(statuses), "| last:", statuses[-1] if statuses else None)
 check("Stop ended the analysis promptly", res.get("cancelled") and 30 <= elapsed < 40, f"{elapsed:.1f} s")
 check("the GUI kept ticking the whole time (no freeze)", len(ticks) > 0.8 * elapsed / 0.1 and max(gaps()) < 1.0,
-      "%d ticks in %.0f s, worst gap %.0f ms" % (len(ticks), elapsed, max(gaps()) * 1000))
+      f"{len(ticks)} ticks in {elapsed:.0f} s, worst gap {max(gaps()) * 1000:.0f} ms")
 check("progress was reported to the user", len(statuses) >= 2 and "press Stop" in statuses[0], statuses[:1])
 check("nothing was added to the project by the stopped run", not [n for n in QgsProject.instance().mapLayers().values()
                                                                     if "service_area" in n.name()])
@@ -97,10 +97,10 @@ sa = lt.calculate_service_area("Origin Location", roads_name, 1, strategy="faste
 elapsed = time.monotonic() - t0
 timer.stop()
 cancel_signal.end()
-print("finished in %.0f s; GUI ticks: %d, worst gap %.0f ms; progress messages: %d" % (elapsed, len(ticks), max(gaps()) * 1000 if gaps() else -1, len(statuses)))
+print(f"finished in {elapsed:.0f} s; GUI ticks: {len(ticks)}, worst gap {max(gaps()) * 1000 if gaps() else -1:.0f} ms; progress messages: {len(statuses)}")
 check("service area completed", sa.get("success") and sa.get("travel_cost_unit") == "hours", sa.get("error") or sa.get("travel_cost_unit"))
 check("the GUI kept ticking the whole time (no freeze)", len(ticks) > 0.8 * elapsed / 0.1 and max(gaps()) < 1.0,
-      "%d ticks in %.0f s, worst gap %.0f ms" % (len(ticks), elapsed, max(gaps()) * 1000))
+      f"{len(ticks)} ticks in {elapsed:.0f} s, worst gap {max(gaps()) * 1000:.0f} ms")
 if sa.get("layers_created"):
     wgs = QgsCoordinateReferenceSystem("EPSG:4326")
     da = QgsDistanceArea()
@@ -112,5 +112,5 @@ if sa.get("layers_created"):
     far = max(da.measureLine(o, to_w.transform(QgsPointXY(v.x(), v.y()))) for ft in hull.getFeatures() for v in ft.geometry().vertices())
     check("same 1-hour reach as the synchronous run (46.4 km)", abs(far / 1000 - 46.4) < 0.5, "%.1f km" % (far / 1000))
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

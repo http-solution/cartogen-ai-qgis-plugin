@@ -26,16 +26,15 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"plugintest"], False)
+    if _APP_HOLDER["app"] is None:
+        _APP_HOLDER["app"] = QgsApplication([b"plugintest"], False)
         QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+        _APP_HOLDER["app"].initQgis()
+    return _APP_HOLDER["app"]
 
 
 def _pump(ms=200):

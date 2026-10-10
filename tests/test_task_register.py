@@ -301,7 +301,7 @@ class TestSlotsAreAnswerable(unittest.TestCase):
         blocked = sum(1 for e in self.data
                       if tm.unresolvable(tm.missing_slots(e, e["text"], ctx)))
         self.assertLess(blocked, len(self.data) * 0.15,
-                        "%d of %d tasks would stop and ask" % (blocked, len(self.data)))
+                        f"{blocked} of {len(self.data)} tasks would stop and ask")
 
 
 class TestEveryContractIsCoherent(unittest.TestCase):
@@ -343,7 +343,7 @@ class TestEveryContractIsCoherent(unittest.TestCase):
     def test_no_directive_is_too_long_to_ride_alongside_the_system_prompt(self):
         for e in self.data:
             d = tm.task_directive(e, {}, e["text"])
-            self.assertLess(len(d), 600, "%s directive is %d chars" % (e["id"], len(d)))
+            self.assertLess(len(d), 600, f"{e['id']} directive is {len(d)} chars")
 
     def test_the_matcher_still_finds_every_task_from_its_own_title(self):
         """Self-retrieval. Not a claim about real user phrasing -- it is the

@@ -77,7 +77,7 @@ for label, (lon, lat), kw in CASES:
     a = wkts(clipped)
     drop_service_areas()
     info = clipped.get("network_clipping") or {}
-    print("clipped: %.1f s, routed over %s of %s roads, %d line features" % (t_clip, info.get("roads_routed_max"), info.get("roads_full"), len(a)))
+    print(f"clipped: {t_clip:.1f} s, routed over {info.get('roads_routed_max')} of {info.get('roads_full')} roads, {len(a)} line features")
 
     t = time.time()
     with patch.object(lt, "_clip_network_to_reach", side_effect=lambda n, c, r: (n, {"applied": False})):
@@ -85,11 +85,11 @@ for label, (lon, lat), kw in CASES:
     t_full = time.time() - t
     b = wkts(full)
     drop_service_areas()
-    print("full:    %.1f s over all roads, %d line features" % (t_full, len(b)))
+    print(f"full:    {t_full:.1f} s over all roads, {len(b)} line features")
     check(f"{label}: identical geometry", clipped.get("success") and full.get("success") and a == b and len(a) > 0,
-          "%d features each" % len(a))
+          f"{len(a)} features each")
     check(f"{label}: faster ({t_full / max(t_clip, 0.1):.0f}x)", t_clip < t_full, f"{t_clip:.1f} s vs {t_full:.1f} s")
     check(f"{label}: the clip was applied", bool(info), info.get("roads_routed_max"))
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)
