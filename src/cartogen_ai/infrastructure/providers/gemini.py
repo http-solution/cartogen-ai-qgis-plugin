@@ -129,6 +129,17 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
 FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"]
 
 
+def validate_tool_choice(tool_choice):
+    """The OpenAI-style tool_choice values this client will send: "auto", "none", "required", or a named function
+    {"type": "function", "function": {"name": ...}}. Anything else is a programming error and raises ValueError. Pure."""
+    if tool_choice in ("auto", "none", "required"):
+        return tool_choice
+    if (isinstance(tool_choice, dict) and tool_choice.get("type") == "function"
+            and isinstance(tool_choice.get("function"), dict) and tool_choice["function"].get("name")):
+        return tool_choice
+    raise ValueError(f"unsupported tool_choice: {tool_choice!r}")
+
+
 class GeminiClient(ModelChainMixin, BaseAiProvider):
     def __init__(self, api_key, model="gemini-flash-latest", status_callback=None):
         self.api_key = api_key
@@ -151,7 +162,7 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
             except Exception:
                 pass
 
-    def _post(self, messages, tools, model_id, max_tokens=None):
+    def _post(self, messages, tools, model_id, max_tokens=None, tool_choice=None, extra_body=None):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -159,15 +170,29 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
         payload = {"model": model_id, "messages": messages, "max_tokens": max_tokens or DEFAULT_MAX_TOKENS}
         if tools:
             payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = validate_tool_choice(tool_choice)
+        if extra_body:
+            # Merged into the JSON body exactly as given. The OpenAI Python client's `extra_body=` does the same merge, so the caller
+            # supplies the wire shape; which shape Google's endpoint accepts ({"google": {...}} directly or nested one level more) is
+            # what tools/diagnose_gemini_endpoint.py checks with a real key. Keys already set above cannot be overridden.
+            for key, value in dict(extra_body).items():
+                payload.setdefault(key, value)
         return post_with_retry(self.base_url, headers, json.dumps(payload), timeout=60)
 
-    def complete(self, messages, tools=None, max_tokens=None):
+    def complete(self, messages, tools=None, max_tokens=None, tool_choice=None, extra_body=None):
+        """`tool_choice` and `extra_body` are optional and unused by the agent loop today (the default request is unchanged).
+        tool_choice="none" is meant to force a text-only turn, which is how a loop that keeps asking for "one more tool call" would be
+        stopped; whether this endpoint honours it is NOT confirmed by the project -- run tools/diagnose_gemini_endpoint.py."""
         chain = self._model_chain()
         for idx, model_id in enumerate(chain):
             self._model = model_id
             self._emit_status(f"Using Gemini: {model_id}")
             try:
-                response = self._post(messages, tools, model_id, max_tokens=max_tokens)
+                # The extra keywords are passed only when used, so the default call keeps its original shape (tests and subclasses
+                # that replace _post with the four-argument form keep working).
+                extras = {k: v for k, v in (("tool_choice", tool_choice), ("extra_body", extra_body)) if v is not None}
+                response = self._post(messages, tools, model_id, max_tokens=max_tokens, **extras)
                 if response.status_code == 404:
                     # Model retired, renamed, or gated off this account -- try the next
                     # one in the chain instead of failing outright on a single bad ID.

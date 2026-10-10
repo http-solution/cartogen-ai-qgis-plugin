@@ -291,3 +291,72 @@ class TestProjectMemoryPersistenceOptIn(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMemoryContextForModel(unittest.TestCase):
+    """2026-10-10 captured prompts: usage counters and learned-preference counts changed on almost every run and meant nothing to the
+    model; they broke prompt-prefix caching. The Memory panel still shows them (for_model=False)."""
+
+    def _memory(self):
+        from cartogen_ai.core.agent.memory import SpatialMemoryManager
+        m = SpatialMemoryManager()
+        m.store_global_note("pref:preferred_provider", "gemini (used in 36/37 recent sessions)")
+        m.store_global_note("usage:tool:update_task", "68")
+        m.store_global_note("rule:1", "Never use red for water.")
+        m.log_spatial_action("buffer_analysis", "{'output_name': 'b', 'distance': 500, 'layer_name': 'p'}")
+        return m
+
+    def test_the_memory_panel_still_shows_counters(self):
+        ctx = self._memory().get_formatted_memory_context()
+        self.assertIn("Usage Patterns", ctx)
+        self.assertIn("Learned Preferences", ctx)
+
+    def test_the_model_prompt_leaves_counters_out_but_keeps_rules_and_operations(self):
+        ctx = self._memory().get_formatted_memory_context(for_model=True)
+        self.assertNotIn("Usage Patterns", ctx)
+        self.assertNotIn("Learned Preferences", ctx)
+        self.assertNotIn("recent sessions", ctx)
+        self.assertIn("Never use red for water.", ctx)
+        self.assertIn("buffer_analysis", ctx)
+
+    def test_operation_arguments_render_the_same_whatever_their_key_order(self):
+        from cartogen_ai.core.agent.memory import _stable_details
+        a = _stable_details("{'output_name': 'b', 'distance': 500, 'layer_name': 'p'}")
+        b = _stable_details("{'layer_name': 'p', 'distance': 500, 'output_name': 'b'}")
+        self.assertEqual(a, b)
+        self.assertEqual(_stable_details("not a dict"), "not a dict")
+
+
+class TestPlanResultInPrompt(unittest.TestCase):
+    def test_a_long_task_result_is_clipped_in_the_prompt_but_kept_on_the_task(self):
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["Step one"])
+        task_id = tm.tasks[0]["id"]
+        long_result = "x" * 2000
+        tm.update_task(task_id, "DONE", long_result)
+        prompt = tm.get_formatted_task_context()
+        self.assertIn("more characters in the tool result", prompt)
+        self.assertLess(len(prompt), 600)
+        self.assertEqual(tm.tasks[0]["result"], long_result)
+
+    def test_a_short_result_is_shown_whole(self):
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["Step one"])
+        tm.update_task(tm.tasks[0]["id"], "DONE", "3 layers listed")
+        self.assertIn("3 layers listed", tm.get_formatted_task_context())
+
+
+class TestModuleLevelHelpersAreUnconditional(unittest.TestCase):
+    """PR #254's first CI run: a helper placed inside the `except ImportError:` fallback of task_manager.py was defined only when QGIS was
+    missing, so every real QGIS import failed with a NameError while the offline suite (no QGIS) passed. Names the module needs in both
+    environments must be defined at module level, outside any try/except."""
+
+    def test_the_clip_helper_and_its_limit_are_top_level(self):
+        import ast
+        import inspect
+        from cartogen_ai.core.agent import task_manager
+        tree = ast.parse(inspect.getsource(task_manager))
+        top_level = {t.id for n in tree.body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+        top_level |= {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+        self.assertIn("PLAN_RESULT_PROMPT_CHARS", top_level)
+        self.assertIn("_clip_result", top_level)

@@ -1301,6 +1301,22 @@ def _geofabrik_fixture(folder):
                                          ["20", "hospital", "Outline Hospital"])]),
     }
 
+    def test_list_layers_is_answered_locally_without_calling_the_model(self):
+        """2026-10-10 hand test: 'List the layers' took 13 API calls. It is a read of the open project and must not reach the
+        model at all."""
+        from qgis.core import QgsProject, QgsVectorLayer
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        QgsProject.instance().addMapLayer(QgsVectorLayer("Point?crs=EPSG:4326&field=name:string", "local_list_probe", "memory"))
+        agent = _FakeAgent(script=[])               # an empty script: any model call would fail the turn
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        self._reply(ct, "List the layers in the project.")
+        text = self._chat_text(ct)
+        self.assertIn("local_list_probe", text)
+        self.assertIn("No model was called", text)
+        self.assertEqual(agent.conversation_history, [])        # the agent never saw the request
+
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
 class TestLocalDataOfferLive(unittest.TestCase):

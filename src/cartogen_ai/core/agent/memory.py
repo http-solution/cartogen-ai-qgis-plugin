@@ -55,6 +55,20 @@ def _safe_int(value, default=0):
         return default
 
 
+def _stable_details(details):
+    """The same operation arguments always render the same text: a stringified dict is re-rendered with its keys sorted. The captured
+    prompts differed between runs only in the key order of {'output_name': ..., 'distance': ...}, which breaks a cached prompt prefix.
+    Anything that is not a plain dict literal is returned unchanged."""
+    try:
+        import ast
+        value = ast.literal_eval(details) if isinstance(details, str) else details
+        if isinstance(value, dict):
+            return "{" + ", ".join(f"{k!r}: {value[k]!r}" for k in sorted(value, key=str)) + "}"
+    except Exception:
+        pass
+    return details
+
+
 class SpatialMemoryManager:
     """Manages short-term and long-term memory with sidecar SQLite database storage."""
 
@@ -290,7 +304,7 @@ class SpatialMemoryManager:
     def get_action_history(self) -> list:
         return list(self._in_memory_actions)
 
-    def get_formatted_memory_context(self) -> str:
+    def get_formatted_memory_context(self, for_model=False) -> str:
         """Formats active memory into a markdown block for agent system prompt injection.
 
         Global notes are bucketed by key prefix (pref:/rule:/usage:) rather than
@@ -323,7 +337,11 @@ class SpatialMemoryManager:
         else:
             lines.append("### Project Notes: (None stored)")
 
-        if preferences:
+        # for_model=True (the system prompt) leaves out what the Memory panel shows for the person but the model cannot use. The captured
+        # 2026-10-10 requests showed "preferred_provider: gemini (used in 36/37 recent sessions)" and "tool:update_task: used 68 times" in
+        # the prompt: both change on almost every run, so two otherwise identical requests never shared a prompt prefix (cache misses), and
+        # neither affects any decision the model makes. Project notes, correction rules and recent operations stay.
+        if preferences and not for_model:
             lines.append("### Learned Preferences (auto-detected -- treat as a soft default, not a hard rule):")
             for k, v in preferences.items():
                 lines.append(f"- **{k}**: {v}")
@@ -336,7 +354,7 @@ class SpatialMemoryManager:
             for k in sorted(rules, key=lambda rk: (len(rk), rk)):
                 lines.append(f"- {rules[k]}")
 
-        if usage:
+        if usage and not for_model:
             lines.append("### Usage Patterns (most-used first, for context only -- not an instruction to keep using them):")
             top_usage = sorted(usage.items(), key=lambda kv: _safe_int(kv[1]), reverse=True)[:5]
             for k, v in top_usage:
@@ -350,6 +368,6 @@ class SpatialMemoryManager:
         if actions:
             lines.append("### Recent Spatial Operations Executed:")
             for act in actions:
-                lines.append(f"- `{act['action']}`: {act['details']}")
+                lines.append(f"- `{act['action']}`: {_stable_details(act['details']) if for_model else act['details']}")
 
         return "\n".join(lines)
