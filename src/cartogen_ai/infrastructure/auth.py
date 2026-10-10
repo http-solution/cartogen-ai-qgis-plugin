@@ -12,7 +12,7 @@ except ImportError:
 
 from ..core.logger import log_warning
 from .settings_keys import (
-    SETTINGS_PROVIDER, SETTINGS_API_KEY, fallback_credential_key, auth_id_setting_key,
+    SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, fallback_credential_key, auth_id_setting_key,
 )
 
 
@@ -348,7 +348,7 @@ class CredentialManager:
         try:
             settings = QgsSettings()
             if provider is None:
-                provider = settings.value(SETTINGS_PROVIDER, "openrouter")
+                provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
             if provider == "ollama":
                 return None
             if CredentialManager.get_credential(provider):

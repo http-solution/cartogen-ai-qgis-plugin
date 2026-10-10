@@ -54,7 +54,7 @@ from ..services import learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
-    SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
+    SETTINGS_PROVIDER, normalize_provider, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED,
@@ -241,7 +241,7 @@ class CartogenAi:
 
         from ...infrastructure.auth import CredentialManager
         settings = QgsSettings()
-        provider_name = settings.value(SETTINGS_PROVIDER, "openrouter")
+        provider_name = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
         key = CredentialManager.get_credential(provider_name)
 
         # When a model setting is the "auto" sentinel, use the provider's normal

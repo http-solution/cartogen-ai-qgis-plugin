@@ -21,17 +21,19 @@ PLUGIN_NAME = "cartogen_ai"
 # happened to be called. Confirmed live: v1.4.3 was built from a scratch
 # directory and shipped with a top-level folder "_tmp_v143_build", so QGIS
 # installed it as a SECOND, separately-named plugin sitting alongside the
-# existing "cartogen-ai" install instead of replacing it. Two copies of the
+# existing install instead of replacing it. Two copies of the
 # same plugin then load in one session, each inserting its own src/ onto
 # sys.path, and whichever loads first wins the cartogen_ai namespace for both.
 #
-# MUST NOT be "cartogen_ai". The plugins directory is on sys.path, so a folder
-# with that exact name is a REGULAR package (it has __init__.py) that contains
-# no core/ -- it would beat the PEP-420 namespace package under src/ at any
-# sys.path position and produce "No module named 'cartogen_ai.core'". The
-# hyphen is deliberate: it cannot be imported as a top-level Python name, so it
-# cannot shadow anything. See __init__.py's _bootstrap_namespace().
-PACKAGE_DIR = "cartogen-ai"
+# MUST be a valid Python identifier (letters, digits, underscores, not starting with a digit):
+# plugins.qgis.org rejects any other top-level name (2026-10-10: the old "cartogen-ai" was refused),
+# and QGIS imports the folder by this name. MUST NOT be exactly "cartogen_ai": the plugins directory
+# is on sys.path, so a folder with that name is a REGULAR package (it has __init__.py) that contains
+# no core/ -- it would beat the PEP-420 namespace package under src/ at any sys.path position and
+# produce "No module named 'cartogen_ai.core'". See __init__.py's _bootstrap_namespace().
+# Upgrade note: an install made from a release before rc25 lives in a folder named "cartogen-ai";
+# the new folder installs beside it, so users must remove the old one (README, Installation).
+PACKAGE_DIR = "cartogen_ai_plugin"
 
 if PACKAGE_DIR == "cartogen_ai":
     raise SystemExit(

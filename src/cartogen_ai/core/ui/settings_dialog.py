@@ -30,6 +30,8 @@ from ...infrastructure.settings_keys import (
     SETTINGS_API_TRACE_ENABLED,
     SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
+    ENABLED_PROVIDERS,
+    normalize_provider,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
     SETTINGS_OLLAMA_MODEL,
@@ -77,7 +79,7 @@ def _extract_theme_palette():
 # Single source of truth for every provider's UI row and behavior. Adding a
 # new provider means adding one entry here (plus a provider client + list_models
 # function) -- not another block of near-duplicate widget code.
-PROVIDERS = [
+_ALL_PROVIDERS = [
     {
         "value": "openrouter", "provider_label": "OpenRouter (Hosted)", "pill_label": "OpenRouter",
         "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
@@ -169,6 +171,9 @@ PROVIDERS = [
     },
 ]
 
+# Only the providers this build enables (settings_keys.ENABLED_PROVIDERS); the rest stay defined above.
+PROVIDERS = [e for e in _ALL_PROVIDERS if e["value"] in ENABLED_PROVIDERS]
+
 
 
 class CartogenAiSettingsDialog(QDialog):
@@ -256,8 +261,7 @@ class CartogenAiSettingsDialog(QDialog):
 
         layout.addWidget(self._section_header("01", "Where your prompts go"))
 
-        current_provider = self.settings.value(PROVIDER_KEY, "openrouter")
-        self._active_provider = current_provider if any(e["value"] == current_provider for e in PROVIDERS) else PROVIDERS[0]["value"]
+        self._active_provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))
 
         # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
         # a row of pills instead of a QComboBox -- every connection (including Ollama's

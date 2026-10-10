@@ -1656,16 +1656,22 @@ class TestNewTools(unittest.TestCase):
             return CartogenAi()
 
     def test_auto_model_routing_is_default_for_fresh_install(self):
-        # Nothing saved for claude_model yet -- must default to auto-routing
+        # Nothing saved for gemini_model yet -- must default to auto-routing
         # instead of silently pinning to the fixed model forever (B4).
-        agent = self._agent_with_fake_settings("claude", saved_model_value=None)
-        self.assertEqual(agent._auto_model_provider, "claude")
-        self.assertEqual(agent.client.model, "claude-opus-5")
+        agent = self._agent_with_fake_settings("gemini", saved_model_value=None)
+        self.assertEqual(agent._auto_model_provider, "gemini")
+        self.assertEqual(agent.client.model, "gemini-flash-latest")
 
     def test_explicit_model_choice_is_not_overridden_by_auto_default(self):
-        agent = self._agent_with_fake_settings("claude", saved_model_value="claude-sonnet-5")
+        agent = self._agent_with_fake_settings("gemini", saved_model_value="gemini-2.5-pro")
         self.assertIsNone(agent._auto_model_provider)
-        self.assertEqual(agent.client.model, "claude-sonnet-5")
+        self.assertEqual(agent.client.model, "gemini-2.5-pro")
+
+    def test_disabled_saved_provider_falls_back_to_openrouter(self):
+        # A saved "openai"/"claude" from an earlier version must not run an untested client.
+        for stale in ("openai", "claude"):
+            agent = self._agent_with_fake_settings(stale, saved_model_value=None)
+            self.assertEqual(type(agent.client).__name__, "OpenRouterClient")
 
     def test_ollama_does_not_default_to_auto(self):
         # Ollama intentionally opts out (default_to_auto=False) -- local
