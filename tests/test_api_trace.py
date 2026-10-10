@@ -52,7 +52,7 @@ class TestRecording(_Base):
         self.trace.record("t2", 0, "P", "m", [{"role": "system", "content": SYSTEM + "more"}, {"role": "user", "content": "y"}], TOOLS)
         files = os.listdir(os.path.join(self.dir, "system_instructions"))
         self.assertEqual(len(files), 2)
-        hashes = {l["system_instruction"]["sha256_12"] for l in self.lines()}
+        hashes = {rec["system_instruction"]["sha256_12"] for rec in self.lines()}
         self.assertEqual({h + ".txt" for h in hashes}, set(files))
 
     def test_secrets_are_redacted_and_images_are_not_stored(self):
@@ -144,11 +144,11 @@ class TestOrchestratorWritesTheTrace(_Base):
     def test_every_model_call_of_a_run_is_recorded_with_its_reply_when_on(self):
         self._run(True)
         lines = self.lines()
-        self.assertEqual([l["call_index"] for l in lines], [0, 1])
+        self.assertEqual([rec["call_index"] for rec in lines], [0, 1])
         self.assertEqual(lines[0]["response"]["tool_calls"][0]["name"], "get_layers")
         self.assertEqual(lines[1]["response"]["content"], "3 layers")
         self.assertEqual(lines[1]["usage"]["input_tokens"], 80)
-        self.assertEqual(len({l["turn_id"] for l in lines}), 1)
+        self.assertEqual(len({rec["turn_id"] for rec in lines}), 1)
         self.assertTrue(any(m["role"] == "tool" for m in lines[1]["messages"]))        # the second request carries the tool result
 
     def test_nothing_is_written_when_off(self):
