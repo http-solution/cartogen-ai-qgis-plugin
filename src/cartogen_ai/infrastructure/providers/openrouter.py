@@ -4,7 +4,7 @@ import time
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError, RequestException,
 )
 from ...core.agent.model_selector import filter_chat_model_ids
@@ -175,7 +175,7 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
                 except HTTPError as e:
                     return {
                         "ok": False,
-                        "error": format_http_error("HTTP error", e),
+                        "error": format_http_error("HTTP error", e, key_note=key_in_use_note("openrouter", self.api_key)),
                         "model": model_id,
                     }
                 except RequestException as e:

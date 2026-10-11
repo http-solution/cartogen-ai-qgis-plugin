@@ -324,6 +324,19 @@ class TestNetLive(unittest.TestCase):
         with self.assertRaises(net.NetworkError):
             net.request("POST", f"{self.base}/hop-307-loop", headers={"Authorization": "Bearer k"}, data="{}", timeout=5)
 
+    def test_credential_lookup_records_which_source_supplied_the_key(self):
+        """A refused key can then be reported with its source (session memory, saved credentials or an old plaintext setting)."""
+        from qgis.core import QgsSettings
+        from cartogen_ai.infrastructure.auth import CredentialManager
+        provider = "unit-test-provider"
+        self.addCleanup(CredentialManager._session_credentials.pop, provider, None)
+        self.addCleanup(CredentialManager._last_source.pop, provider, None)
+        from cartogen_ai.infrastructure.settings_keys import auth_id_setting_key
+        QgsSettings().remove(auth_id_setting_key(provider))
+        CredentialManager._session_credentials[provider] = "k" * 12
+        self.assertEqual(CredentialManager.get_credential(provider), "k" * 12)
+        self.assertEqual(CredentialManager.last_credential_source(provider), "session_memory")
+
     def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
             with self._stream(path) as r:

@@ -113,7 +113,9 @@ _ALL_PROVIDERS = [
         # stable -- these snapshot IDs get gated off per-account ahead of doc removal, so
         # don't re-add a bare Pro snapshot ID here without live verification against an
         # actual key. gemini-3.1-pro-preview is the current confirmed-working Pro tier.
-        "extra_seed_models": ["gemini-3.1-pro-preview"],
+        # gemini-3.8-flash is the model Google names as the replacement for the retired gemini-2.5-flash (2026-10-11). The Pro model
+        # has no free-tier quota (limit 0): it needs billing enabled on the key's Google project.
+        "extra_seed_models": ["gemini-3.8-flash", "gemini-3.1-pro-preview"],
         "key_default": "", "list_fn": _list_gemini,
         "key_placeholder": "AIza...",
         "key_help_url": "https://aistudio.google.com/apikey",

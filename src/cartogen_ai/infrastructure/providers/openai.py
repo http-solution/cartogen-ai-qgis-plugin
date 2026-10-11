@@ -3,7 +3,7 @@ import json
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception, freshen_query,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception, freshen_query,
     HTTPError,
 )
 from ...core.agent.model_selector import filter_chat_model_ids
@@ -162,7 +162,7 @@ class OpenAIClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("OpenAI API error", e)}
+                return {"error": format_http_error("OpenAI API error", e, key_note=key_in_use_note("openai", self.api_key))}
             except Exception as e:
                 return {"error": format_request_exception("OpenAI API request failed", e)}
 

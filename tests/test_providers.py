@@ -267,6 +267,129 @@ class TestListModels(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("404", result["error"])
 
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_client_tries_the_next_model_when_one_is_refused_with_403(self, mock_post):
+        # 2026-10-11 report: stuck on gemini-3.1-pro-preview. A 403 can be a per-model gate (preview/"-latest" models, billing tier)
+        # while a stable model is open; only a 404 used to move on.
+        refused = MagicMock()
+        refused.status_code = 403
+        working = MagicMock()
+        working.status_code = 200
+        working.raise_for_status.return_value = None
+        working.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+        mock_post.side_effect = [refused, working]
+        statuses = []
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro-preview", status_callback=statuses.append)
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertEqual(result["message"]["content"], "hi")
+        self.assertEqual(result["model"], client.models[1])
+        self.assertTrue(any("refused (403)" in s for s in statuses))
+
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_client_reports_the_models_it_tried_when_every_one_is_refused(self, mock_post):
+        import requests
+        refused = MagicMock()
+        refused.status_code = 403
+        refused.text = ""
+        refused.content = b""
+        refused.headers = {}
+        refused.raise_for_status.side_effect = requests.exceptions.HTTPError(response=refused)
+        mock_post.return_value = refused
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro-preview")
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertIn("403", result["error"])
+        self.assertIn("gemini-3.1-pro-preview", result["error"])
+        self.assertIn("None of them worked", result["error"])
+        self.assertEqual(mock_post.call_count, len(client.models))
+
+    QUOTA_BODY = (
+        '[{"error": {"code": 429, "message": "You exceeded your current quota.\\n* Quota exceeded for metric: '
+        'generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-3.1-pro\\nPlease retry in 11h27m.", '
+        '"status": "RESOURCE_EXHAUSTED", "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": '
+        '[{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaDimensions": {"model": "gemini-3.1-pro", "location": "global"}}]}, '
+        '{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "41274s"}]}}]'
+    )
+
+    @patch("cartogen_ai.infrastructure.providers.base.time.sleep")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_a_zero_quota_429_is_not_retried_and_moves_to_the_next_model(self, mock_post, mock_sleep):
+        # 2026-10-11 report: the free tier has limit 0 for gemini-3.1-pro; the 10+20+30 s backoff made the chat look stuck.
+        no_quota = MagicMock()
+        no_quota.status_code = 429
+        no_quota.text = self.QUOTA_BODY
+        working = MagicMock()
+        working.status_code = 200
+        working.raise_for_status.return_value = None
+        working.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+        mock_post.side_effect = [no_quota, working]
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro")
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertEqual(result["message"]["content"], "hi")
+        mock_sleep.assert_not_called()
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_a_google_quota_error_is_summarised_not_dumped(self):
+        import requests
+        e = requests.exceptions.HTTPError()
+        e.response = MagicMock(status_code=429, text=self.QUOTA_BODY)
+        msg = format_http_error("Gemini API error", e)
+        self.assertIn("free tier has no quota at all for gemini-3.1-pro", msg)
+        self.assertIn("11 h", msg)
+        self.assertNotIn("RESOURCE_EXHAUSTED", msg)
+        self.assertLess(len(msg), 400)
+
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_error_lists_what_every_model_answered(self, mock_post):
+        # 2026-10-11 report: "all returned 404" with three real models listed. Say what each one actually answered.
+        def reply(status, text, headers=None):
+            r = MagicMock()
+            r.status_code = status
+            r.text = text
+            r.content = text.encode()
+            r.headers = headers or {}
+            return r
+        mock_post.side_effect = [
+            reply(403, '{"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "Permission denied on resource project."}}'),
+            reply(404, '{"error": {"code": 404, "status": "NOT_FOUND", "message": "models/gemini-3.6-flash is not found for API version v1beta"}}'),
+            reply(404, "<html>Not Found</html>", {"Server": "nginx", "Content-Type": "text/html"}),
+        ]
+        key = "AIzaSy" + "Q" * 29 + "wxyz"
+        client = gemini_mod.GeminiClient(api_key=key, model="gemini-flash-latest")
+        error = client.complete([{"role": "user", "content": "hello"}])["error"]
+        self.assertIn("gemini-flash-latest: 403 PERMISSION_DENIED Permission denied on resource project.", error)
+        self.assertIn("gemini-3.8-flash: 404 NOT_FOUND models/gemini-3.6-flash is not found", error)
+        self.assertIn("gemini-3.7-flash: 404 No provider reason code in the reply (server: nginx; content-type: text/html", error)
+        self.assertIn("ending wxyz", error)
+        self.assertNotIn(key, error)
+
+    def test_a_key_like_string_in_a_provider_message_is_blanked(self):
+        from cartogen_ai.infrastructure.providers.base import reply_summary
+        r = MagicMock(status_code=400, text='{"error": {"status": "INVALID_ARGUMENT", "message": "key ' + "A" * 40 + ' is bad"}}')
+        out = reply_summary(r)
+        self.assertIn("[redacted]", out)
+        self.assertNotIn("A" * 40, out)
+
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_a_denied_project_stops_the_chain_and_says_what_google_said(self, mock_post):
+        # 2026-10-11 report: 403 "Your project has been denied access" came back for every model; trying the rest only repeats it.
+        import requests
+        denied = MagicMock()
+        denied.status_code = 403
+        denied.text = '{"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "Your project has been denied access. Please contact support."}}'
+        denied.content = denied.text.encode()
+        denied.headers = {}
+        denied.raise_for_status.side_effect = requests.exceptions.HTTPError(response=denied)
+        mock_post.return_value = denied
+        client = gemini_mod.GeminiClient(api_key="k" * 53, model="gemini-flash-latest")
+        error = client.complete([{"role": "user", "content": "hello"}])["error"]
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertIn("Google says: 403 PERMISSION_DENIED Your project has been denied access", error)
+        self.assertIn("53 characters", error)
+
+    def test_the_fallback_chain_no_longer_ends_in_the_retired_model(self):
+        self.assertNotIn("gemini-2.5-flash", gemini_mod.FALLBACK_MODELS)
+        self.assertIn("gemini-3.8-flash", gemini_mod.FALLBACK_MODELS)
+
     def test_openai_client_keeps_configured_model_first_in_chain(self):
         client = openai_mod.OpenAIClient(api_key="dummy", model="some-custom-model")
         self.assertEqual(client.models[0], "some-custom-model")
@@ -500,6 +623,46 @@ class TestFormatHttpErrorRedaction(unittest.TestCase):
         self.assertNotIn("sk-abc", msg)
         self.assertNotIn("AIza", msg)
         self.assertNotIn("Provider reason", msg)
+
+    def test_a_403_without_a_reason_code_describes_the_reply_instead_of_showing_it(self):
+        # An HTML or empty 403 usually comes from a proxy or firewall, not from the provider. The server software, content type and
+        # size say so; the body itself stays withheld.
+        e = self._http_error(403, "<html><body>Access denied by policy for token sk-live-123</body></html>")
+        e.response.headers = {"Server": "ZSCALER", "Content-Type": "text/html"}
+        e.response.content = e.response.text.encode()
+        msg = format_http_error("Gemini API error", e)
+        self.assertIn("body 71 bytes", msg)
+        self.assertIn("No provider reason code", msg)
+        self.assertIn("server: ZSCALER", msg)
+        self.assertIn("content-type: text/html", msg)
+        self.assertNotIn("sk-live", msg)
+        self.assertNotIn("Access denied", msg)
+
+    def test_an_empty_403_body_is_reported_as_empty(self):
+        e = self._http_error(403, "")
+        e.response.headers = {}
+        e.response.content = b""
+        self.assertIn("empty body", format_http_error("Gemini API error", e))
+
+    def test_a_refused_key_is_described_without_being_shown(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        key = "AIzaSy" + "X" * 29 + "wxyz"
+        e = self._http_error(403, "")
+        e.response.headers = {}
+        e.response.content = b""
+        msg = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", key))
+        self.assertIn("39 characters", msg)
+        self.assertIn("ending wxyz", msg)
+        self.assertNotIn(key, msg)
+        self.assertNotIn("AIzaSy", msg)
+
+    def test_a_key_with_a_stray_line_break_is_called_out(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        self.assertIn("line break", key_in_use_note("gemini", "abcd1234\n"))
+
+    def test_a_request_with_no_key_says_so(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        self.assertIn("no API key", key_in_use_note("gemini", ""))
 
     def test_non_auth_status_still_passes_the_real_body_through(self):
         # A 429 quota-exceeded message, or a 400 malformed-request detail, is genuinely
