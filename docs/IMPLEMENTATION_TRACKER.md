@@ -1692,6 +1692,13 @@ Keyless structured sources suggested by the owner 2026-10-11 (GDACS, NASA EONET,
 - **UCDP caution:** the example given used dataset version 22.1 and no token. From memory the UCDP API now asks for an access token and
   serves newer dataset versions, and its data is yearly-validated, not real time. Not checked: this sandbox has no outbound access to
   these hosts (all four returned no response), so none of the endpoint behaviour in the suggestion could be tested here either.
+- **UCDP downloads page (owner pointed to https://ucdp.uu.se/downloads/, 2026-10-11): could not be opened from this sandbox** (the
+  egress proxy refuses the host), so nothing about its current datasets, version numbers or terms was read. From memory only, to be
+  confirmed: UCDP publishes the Georeferenced Event Dataset (GED) as a yearly versioned download (CSV and other formats) and a
+  "candidate events" dataset released more often for recent months, under an open licence that requires attribution. If so, UCDP is a
+  **download-and-cache source, not a live query**: the tool would fetch a versioned file once through `core/net`, cache it locally,
+  filter by country, bounding box and date, and label results with the dataset version and its release date, saying plainly that
+  the newest events are in the candidate set and are provisional. Owner to read the page and confirm the file URLs and licence before building.
 - The suggested `requests.get` snippets must not be copied: plugin fetches go through `core/net` (QGIS network stack, task 71).
 - Sources that need no key still need terms of use recorded (attribution, rate limits) before they are called by default.
 
