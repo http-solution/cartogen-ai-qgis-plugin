@@ -1727,6 +1727,9 @@ Done in this change: the last direct `urllib` opener, `vector_tools._build_safe_
 prefetch and the humanitarian downloads, including WorldPop and OSM extracts), now goes through `core/net.stream_following`:
 QgsNetworkAccessManager for the request (QGIS proxy, authentication and SSL settings apply), redirects followed one hop at a
 time, every target vetted by `_is_safe_url` first (the SSRF protection is kept), credential headers dropped on a cross-site hop.
+**Limit found by the first CI run (2026-10-11):** a second streamed QGIS reply opened after a redirect never delivers its body (same unexplained fault
+`_qgis_stream_open` already documents), so only the first request of a download goes through QGIS's stack and a redirected hop uses urllib
+after its target is vetted. Large downloads that redirect therefore still do not get QGIS authentication on the later hop.
 Offline tests: `tests/test_net.py::TestStreamFollowing` (urllib fallback path, local server). QGIS path: new
 `tests/test_net_live.py` case, **first run in CI; not hand-tested in desktop QGIS**.
 

@@ -498,10 +498,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _stream_open_once(req, timeout):
+def _stream_open_once(req, timeout, qgis=True):
     """One streaming GET hop with redirects NOT followed: a 3xx comes back as a response whose .status is 3xx (QGIS path) or as the
-    HTTPError urllib raises for it (fallback path, same .status and .headers)."""
-    if QGIS_NETWORK_AVAILABLE:
+    HTTPError urllib raises for it (fallback path, same .status and .headers).
+
+    `qgis=False` forces urllib (with the QGIS proxy). Used for the hops AFTER a redirect: the 2026-10-11 CI run of
+    tests/test_net_live.py showed the same fault _qgis_stream_open documents, a second streamed QGIS reply opened after the first was
+    closed never delivers its body ("timed out waiting for data"), cause still unknown. So only the first request of a download uses
+    QGIS's stack; a redirected hop uses urllib, after its target has been vetted."""
+    if QGIS_NETWORK_AVAILABLE and qgis:
         try:
             return _qgis_stream_open(req, timeout, follow=False)
         except urllib.error.URLError as e:
@@ -529,8 +534,8 @@ def stream_following(request, timeout=30, check_url=None):
     fetch it. Credential headers are dropped when the target is another site, as in _qgis_send_following. GET only."""
     from urllib.parse import urljoin
     req = _as_request(request)
-    for _hop in range(_MAX_REDIRECTS + 1):
-        resp = _stream_open_once(req, timeout)
+    for hop in range(_MAX_REDIRECTS + 1):
+        resp = _stream_open_once(req, timeout, qgis=(hop == 0))
         if resp.status not in _REDIRECT_STATUSES:
             return resp
         location = resp.headers.get("Location")

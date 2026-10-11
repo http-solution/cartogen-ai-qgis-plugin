@@ -476,7 +476,8 @@ class _SafeOpener:
     Why the check is per hop (confirmed live earlier with a local redirect server): a client that follows a 3xx on its own fetches
     whatever it points at, so a URL that passed _is_safe_url at call time could 302 to the cloud metadata endpoint. Redirects are
     therefore followed by net.stream_following, one vetted hop at a time. Replaced the urllib build_opener/HTTPRedirectHandler pair
-    (QGIS directory recommendation, tracker task 71). Not verified against a real QGIS session: the CI live job covers net.py."""
+    (QGIS directory recommendation, tracker task 71). Limit: only the first request of a download uses QGIS's stack; a redirected hop
+    uses urllib after its target is vetted (see net._stream_open_once). Not verified against a real QGIS session: the CI live job covers net.py."""
 
     def open(self, req, timeout=60):
         from ... import net as _net
