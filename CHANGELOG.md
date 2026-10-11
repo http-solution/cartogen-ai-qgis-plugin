@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc29](#v1-16-0-rc29) | 2026-10-11 | **Release candidate 29 for 1.16.0.** No breaking changes. Security and code-quality audit fixes: replies cannot forge internal links, remote data is size-limited, leaner package, diagnostics in the QGIS Message Log. Not hand-tested. |
 | [1.16.0-rc28](#v1-16-0-rc28) | 2026-10-10 | **Release candidate 28 for 1.16.0.** No breaking changes. Warning when a pre-rc25 `cartogen-ai` install is still present; documentation and Qt6 name tidy-up. Not hand-tested. |
 | [1.16.0-rc27](#v1-16-0-rc27) | 2026-10-10 | **Release candidate 27 for 1.16.0.** No breaking changes. AI provider requests go through QGIS's network stack (proxy, authentication, SSL); Qt6 enum names scoped. Not hand-tested; the provider path is CI-tested against a local server only. |
 | [1.16.0-rc26](#v1-16-0-rc26) | 2026-10-10 | **Release candidate 26 for 1.16.0.** No breaking changes. Data-fetch requests go through QGIS's network stack (proxy, authentication, SSL); directory security-scan fixes. Not hand-tested. |
@@ -69,6 +70,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc29"></a>
+## [1.16.0-rc29] — 2026-10-11 — Release candidate 29 for 1.16.0: security and code-quality audit fixes
+
+No breaking changes; QGIS 4.2+. Everything after the rc28 build:
+
+- Replies can no longer forge internal links: A reply (or a layer attribute it quoted) could draw a look-alike Apply edit link that resolved a real pending confirmation, and a quote in a link address could add attributes to the link. Replies can now create only the four chip links (action, export, prompt, zoom); a quote, angle bracket or space in a link address is encoded; and a file link opens only an existing file of a type the tools write (pdf, png, html, csv and similar).
+- Limits on remote data: Data fetches no longer read an unbounded answer into memory. JSON and CSV answers are capped at 64 MB, downloads at 1.5 GB, and a gzip tile or zip member that would expand past 256 MB is refused instead of inflated.
+- Smaller, cleaner package: The release zip no longer carries hidden files (a build once included a 92 KB .coverage file) or about 70 internal development documents; only the README, user guide, tools reference, humanitarian catalogue and screenshots ship (206 files instead of 288).
+- Diagnostics in the QGIS Message Log: Startup, unload and error messages that were printed to the Python console now go to the QGIS Message Log, with the same redaction as every other log line and no exception text.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the QGIS network path.
 
 <a id="v1-16-0-rc28"></a>
 ## [1.16.0-rc28] — 2026-10-10 — Release candidate 28 for 1.16.0: old-install warning, documentation and Qt6 tidy-up
