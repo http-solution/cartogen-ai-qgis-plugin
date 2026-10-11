@@ -1774,6 +1774,14 @@ CREATE operation, registered in the router, dispatch and docs (210 tools).
 - UCDP data is preliminary and weeks old; every result says so and names the dataset's newest event date. UCDP's JSON API is not used
   (it needs a token). Not yet in `metadata.txt` / CHANGELOG / in-plugin "what's new": do that with the next version bump (CONTRIBUTING §8).
 
+### 1.23 Chunked unsupervised classification (#222 / audit A15), built 2026-10-11
+
+`raster_numpy.classify_in_blocks` / `classify_raster_file`: first pass reads row blocks (about 4,000,000 values each) and draws a proportional random
+sample of valid cells; centres are fitted on that sample (`fit_centers`, factored out of `kmeans`); second pass assigns every cell and writes the
+block to the output GeoTIFF. Replaces the whole-raster read and the 25M-cell / 60M-value refusal with a 400M-cell time limit. Offline tests cover the
+block logic (`tests/test_raster_numpy.py`); a GDAL multi-block live test is in `tests/test_raster_numpy_live.py` (first CI run). **Not measured:** run time
+and peak memory on a real large raster; no mid-run cancel in this tool. See `docs/OPEN_ISSUES_STATUS_2026-10-11.md` for the issue list.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

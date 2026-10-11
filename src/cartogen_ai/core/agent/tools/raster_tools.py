@@ -736,7 +736,7 @@ def raster_clip(raster_layer, mask_layer):
     )
 
 
-@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells or 60 million cell-band values (clip first or use fewer bands).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
+@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, but a raster over 400 million cells is refused (clip it first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
 def unsupervised_classification(layer_name, num_classes, seed=0):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -751,14 +751,8 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         return {"error": problem}
     k = int(num_classes)
     try:
-        values, valid, info = raster_numpy.read_bands(ras.source())
-        pixels = values[valid]
-        if len(pixels) < k:
-            return {"error": f"Only {len(pixels)} valid cells, fewer than the {k} classes requested."}
-        labels, _centres = raster_numpy.kmeans(pixels, k, seed=int(seed))
-        classified = raster_numpy._np().zeros(valid.shape, dtype="uint8")
-        classified[valid] = (labels + 1).astype("uint8")
-        path = raster_numpy.write_single_band(classified, info, nodata=0)
+        # GitHub #222 (audit A15): rows are read and classified a block at a time, so memory no longer limits the raster size.
+        path, info, valid_cells = raster_numpy.classify_raster_file(ras.source(), k, seed=int(seed))
         new_layer = QgsRasterLayer(path, f"{layer_name}_classified")
         if not new_layer.isValid():
             return {"error": "The classified raster could not be loaded."}
@@ -766,7 +760,7 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         from .humanitarian_style import style_classified_raster
         styled = style_classified_raster(new_layer, k)
         return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "styled": styled, "bands_used": info["bands_used"],
-                "valid_cells": int(valid.sum()), "seed": int(seed),
+                "valid_cells": int(valid_cells), "seed": int(seed),
                 "note": "Classes are statistical clusters of the band values, not land-cover categories; name them from knowledge of the area."}
     except ValueError as e:
         return {"error": f"unsupervised_classification: {e}"}
