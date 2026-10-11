@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc33 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc34 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc33 pre-release** build (rc20 to rc33 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc34 pre-release** build (rc20 to rc34 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc34
+
+Built on rc33. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc34` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- A refused Gemini request now explains itself: When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown.
+- Retired Gemini model replaced: Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash.
+- No more waiting on a model your plan cannot use: A quota of zero (the free tier has none for the Pro models) is returned at once instead of after a minute of retries, and the plugin moves to the next model. A model refused with 403 is also skipped. When Google denies the whole project, the plugin stops and shows Google's message instead of trying every model. A Google quota error is shown as one sentence (model, free tier, limit, retry time) instead of a screenful of JSON.
+- Log lines keep their host names: The redirect and refusal log lines had lost their host fields to the logger's allow-list; host names (never paths, keys or bodies) are now logged.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run against Google. Which key and project Google accepts remains the user's to check in Google AI Studio.
 
 ## What's new in 1.16.0-rc33
 
@@ -337,7 +347,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc32 or 1.16.0-rc33 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc33 or 1.16.0-rc34 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
@@ -364,7 +374,7 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc33 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc33); the release
+[1.16.0-rc34 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc34); the release
 also carries a `SHA256.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
