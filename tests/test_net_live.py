@@ -71,10 +71,15 @@ class _Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self._send(200, b"x" * 321)
 
+    seen = []     # (path, Authorization, body length) of every POST the server received, to explain a failure
+
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n)
-        if self.path == "/chat":
+        type(self).seen.append((self.path, self.headers.get("Authorization"), len(body)))
+        if self.path.startswith("/hop-"):
+            self._send(int(self.path[5:]), b"", {"Location": "/chat"})
+        elif self.path == "/chat":
             self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
                                         "body": json.loads(body.decode())}).encode(), {"Content-Type": "application/json"})
         else:
@@ -260,6 +265,25 @@ class TestNetLive(unittest.TestCase):
         settings.setValue(SETTINGS_HOSTED_VIA_QGIS_NETWORK, False)
         self.assertFalse(base._qgis_network_enabled())
         self.assertFalse(base._use_qgis_network(False), "off means requests, even inside QGIS")
+
+    def test_a_post_keeps_its_key_and_body_across_a_307_or_308_redirect(self):
+        """2026-10-11 field report: Gemini answered 403 to the QGIS-stack POST. QgsBlockingNetworkRequest follows a redirect by building
+        a new QNetworkRequest from the target URL alone (src/core/network/qgsblockingnetworkrequest.cpp, replyFinished), which would drop
+        Authorization and Content-Type and re-send a body that was already read. A hosted-AI call that is redirected once (a proxy, a
+        gateway) would then reach the provider without its key. This pins what must hold: the key and the whole body arrive."""
+        from cartogen_ai.core import net
+        payload = json.dumps({"model": "m", "messages": [{"role": "user", "content": "hi"}]})
+        for code in (307, 308):
+            with self.subTest(redirect=code):
+                _Handler.seen.clear()
+                status, _headers, body = net.request(
+                    "POST", f"{self.base}/hop-{code}", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                    data=payload, timeout=10)
+                note = f"server saw {_Handler.seen}"
+                self.assertEqual(status, 200, note)
+                echoed = json.loads(body.decode())
+                self.assertEqual(echoed["auth"], "Bearer k", note)
+                self.assertEqual(echoed["body"]["model"], "m", note)
 
     def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
