@@ -749,6 +749,22 @@ class ChatTabWidget(QWidget):
         """See chat_view_presenter.ChatViewPresenter.clear_plan."""
         self.presenter.clear_plan()
 
+    @staticmethod
+    def _open_external_link(url):
+        """Opens an http(s) link, or a file: link to an existing tool-output file, with the desktop's default program. Returns True when
+        the URL used one of those schemes (opened or deliberately refused), so the caller stops. Any other file is never launched: the
+        path came from a reply, and opening it with the default program would run whatever it is."""
+        scheme = url.scheme()
+        if scheme not in ("http", "https", "file"):
+            return False
+        if scheme == "file":
+            from .chat_formatting import is_openable_output_file
+            if not is_openable_output_file(url.toLocalFile()):
+                return True
+        from qgis.PyQt.QtGui import QDesktopServices
+        QDesktopServices.openUrl(url)
+        return True
+
     def _on_step_anchor_clicked(self, url):
         """Handles clicks on this app's own internal "cartogen://" anchors -- the
         Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
@@ -762,10 +778,7 @@ class ChatTabWidget(QWidget):
         all share the scheme. Ignores anything that isn't "cartogen", so real markdown
         links in AI responses (opened via setOpenExternalLinks(True), untouched by this
         handler) are unaffected."""
-        # Handle standard external schemes via QDesktopServices
-        if url.scheme() in ("http", "https", "file"):
-            from qgis.PyQt.QtGui import QDesktopServices
-            QDesktopServices.openUrl(url)
+        if self._open_external_link(url):
             return
         if url.scheme() != "cartogen":
             return
@@ -777,26 +790,17 @@ class ChatTabWidget(QWidget):
                 host = path_parts[0]
                 path = "/" + "/".join(path_parts[1:])
 
-        if host == "starter":
-            self._on_starter_prompt_clicked(url)
-            return
-        if host == "refine":
-            self._on_refinement_card_clicked(url)
-            return
-        if host in ("confirm", "cancel"):
-            self._on_safety_gate_link_clicked(url)
+        simple = {
+            "starter": self._on_starter_prompt_clicked, "refine": self._on_refinement_card_clicked,
+            "confirm": self._on_safety_gate_link_clicked, "cancel": self._on_safety_gate_link_clicked,
+            "task": self._on_plan_task_clicked, "action": self._on_chat_action_clicked,
+            "export": self._on_export_action_clicked,
+        }
+        if host in simple:
+            simple[host](url)
             return
         if host == "clearplan":
             self._clear_plan()
-            return
-        if host == "task":
-            self._on_plan_task_clicked(url)
-            return
-        if host == "action":
-            self._on_chat_action_clicked(url)
-            return
-        if host == "export":
-            self._on_export_action_clicked(url)
             return
         if host == "prompt":
             import urllib.parse
