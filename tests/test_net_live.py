@@ -36,6 +36,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/ok":
             self._send(200, json.dumps({"ua": self.headers.get("User-Agent")}).encode(), {"Content-Type": "application/json"})
+        elif self.path == "/chat":
+            self._send(200, json.dumps({"method": "GET", "auth": self.headers.get("Authorization")}).encode(), {"Content-Type": "application/json"})
         elif self.path == "/missing":
             self._send(404, b"no such thing")
         elif self.path == "/unauthorized":
@@ -78,8 +80,15 @@ class _Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n)
         type(self).seen.append((self.path, self.headers.get("Authorization"), len(body)))
-        if self.path.startswith("/hop-"):
+        if self.path == "/hop-307-loop":
+            self._send(307, b"", {"Location": "http://{}/hop-307-loop".format(self.headers.get("Host"))})
+        elif self.path.startswith("/hop-"):
             self._send(int(self.path[5:]), b"", {"Location": "http://{}/chat".format(self.headers.get("Host"))})
+        elif self.path.startswith("/hopr-"):
+            self._send(int(self.path[6:]), b"", {"Location": "/chat"})                       # relative target
+        elif self.path.startswith("/hopx-"):
+            port = self.headers.get("Host").split(":")[1]
+            self._send(int(self.path[6:]), b"", {"Location": f"http://localhost:{port}/chat"})   # same machine, different site name
         elif self.path == "/chat":
             self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
                                         "body": json.loads(body.decode())}).encode(), {"Content-Type": "application/json"})
@@ -285,6 +294,35 @@ class TestNetLive(unittest.TestCase):
                 echoed = json.loads(body.decode())
                 self.assertEqual(echoed["auth"], "Bearer k", note)
                 self.assertEqual(echoed["body"]["model"], "m", note)
+
+    def test_a_relative_redirect_of_a_post_is_followed_with_its_key(self):
+        from cartogen_ai.core import net
+        _Handler.seen.clear()
+        status, _h, body = net.request("POST", f"{self.base}/hopr-307", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200, f"server saw {_Handler.seen}")
+        self.assertEqual(json.loads(body.decode())["auth"], "Bearer k")
+
+    def test_a_redirect_to_another_site_does_not_carry_the_key(self):
+        """Same rule as requests and curl: credentials stay with the site they were given to."""
+        from cartogen_ai.core import net
+        _Handler.seen.clear()
+        status, _h, body = net.request("POST", f"{self.base}/hopx-307", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200, f"server saw {_Handler.seen}")
+        self.assertIsNone(json.loads(body.decode())["auth"], "the key must not follow a redirect to a different host name")
+
+    def test_a_302_turns_a_post_into_a_get_without_a_body(self):
+        from cartogen_ai.core import net
+        status, _h, body = net.request("POST", f"{self.base}/hop-302", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body.decode())["method"], "GET")
+
+    def test_a_redirect_loop_ends_with_an_error_not_a_hang(self):
+        from cartogen_ai.core import net
+        with self.assertRaises(net.NetworkError):
+            net.request("POST", f"{self.base}/hop-307-loop", headers={"Authorization": "Bearer k"}, data="{}", timeout=5)
 
     def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
