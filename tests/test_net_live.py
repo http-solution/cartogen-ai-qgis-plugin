@@ -6,6 +6,7 @@ import os
 import threading
 import time
 import unittest
+from typing import ClassVar
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -71,7 +72,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self._send(200, b"x" * 321)
 
-    seen = []     # (path, Authorization, body length) of every POST the server received, to explain a failure
+    seen: ClassVar[list] = []     # (path, Authorization, body length) of every POST the server received, to explain a failure
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
