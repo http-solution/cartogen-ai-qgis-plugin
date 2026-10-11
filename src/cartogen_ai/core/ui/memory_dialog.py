@@ -12,6 +12,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from .chat_formatting import render_markdown
+from .dialog_messages import push_dialog_message
 from .theme import theme_colors
 from ..logger import log_event
 
@@ -132,12 +133,12 @@ class CartogenAiMemoryDialog(QDialog):
                 chat_info=chat_persistence.describe_retention(MAX_HISTORY_MESSAGES))
             ok = data_export.write_export_document(document, output_path)
         except Exception as e:
-            QMessageBox.warning(self, "Export My Data", f"Export failed: {e}")
+            push_dialog_message(self, "Export My Data", f"Export failed: {e}", "warning")
             return
         if ok:
-            QMessageBox.information(self, "Export My Data", f"Exported to:\n{output_path}")
+            push_dialog_message(self, "Export My Data", f"Exported to: {output_path}", "success")
         else:
-            QMessageBox.warning(self, "Export My Data", f"Failed to write export file to:\n{output_path}")
+            push_dialog_message(self, "Export My Data", f"Failed to write export file to: {output_path}", "warning")
 
     def _clear_saved_chat_clicked(self):
         from ..agent import chat_persistence
@@ -153,11 +154,11 @@ class CartogenAiMemoryDialog(QDialog):
             return
         result = chat_persistence.clear_saved_chat_history()
         if result.get("success"):
-            QMessageBox.information(
+            push_dialog_message(
                 self, "Clear Saved Chat",
-                f"Deleted {result.get('removed', 0)} saved messages from this project. Save the project to keep the change.")
+                f"Deleted {result.get('removed', 0)} saved messages from this project. Save the project to keep the change.", "success")
         else:
-            QMessageBox.warning(self, "Clear Saved Chat", "Could not delete the saved conversation.")
+            push_dialog_message(self, "Clear Saved Chat", "Could not delete the saved conversation.", "warning")
 
     def _clear_project_memory_clicked(self):
         agent = self._agent_provider() if self._agent_provider else None

@@ -38,6 +38,7 @@ from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 from . import _background_processing as _bg
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (
@@ -1526,6 +1527,7 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
             if not _geom_usable(hull) or hull.type() != QgsWkbTypes.GeometryType.PolygonGeometry:
                 return None
         layer = QgsVectorLayer(f"Polygon?crs={lines_layer.crs().authid()}", "service_area_hull", "memory")
+        require_valid_layer(layer)
         provider = layer.dataProvider()
         feat = QgsFeature()
         feat.setGeometry(hull)
@@ -1975,6 +1977,7 @@ def _merge_band_hulls(band_hulls, output_name):
         return None
     crs = band_hulls[0][1].crs()
     merged = QgsVectorLayer(f"Polygon?crs={crs.authid()}", output_name, "memory")
+    require_valid_layer(merged)
     merged.dataProvider().addAttributes([QgsField("travel_cost_band", QVariant.Double)])
     merged.updateFields()
     feats = []
@@ -2138,6 +2141,7 @@ def _cost_graded_roads(network, origin_xy, strategy, default_speed, speed_field,
         network, origin_xy, strategy, default_speed, speed_field, direction_field,
         value_forward, value_backward, value_both, ellipsoid)
     layer = QgsVectorLayer(f"LineString?crs={network.crs().authid()}", name, "memory")
+    require_valid_layer(layer)
     layer.dataProvider().addAttributes([QgsField("travel_cost", QVariant.Double)])
     layer.updateFields()
     seen = {}
@@ -2432,6 +2436,7 @@ def _concave_reach_polygon(line_layers, ratio, name):
     if hull is None or hull.isNull() or hull.isEmpty() or QgsWkbTypes.geometryType(hull.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
         raise RuntimeError("no concave-hull polygon could be built (too few reached roads, or GEOS older than 3.11)")
     layer = QgsVectorLayer(f"Polygon?crs={line_layers[0].crs().authid()}", name, "memory")
+    require_valid_layer(layer)
     feat = QgsFeature()
     feat.setGeometry(hull)
     layer.dataProvider().addFeatures([feat])
@@ -2644,6 +2649,7 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         classes = _classify_by_distance(distances, snap)
 
         out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
+        require_valid_layer(out)
         provider = out.dataProvider()
         provider.addAttributes([*list(facilities.fields()), QgsField("access_class", QVariant.String), QgsField("dist_to_reach_m", QVariant.Double)])
         out.updateFields()

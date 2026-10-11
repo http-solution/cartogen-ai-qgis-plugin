@@ -21,6 +21,7 @@ Pure logic is unit tested offline; the layer work needs QGIS (tests/test_critica
 import time
 
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsDistanceArea, QgsFeature, QgsField, QgsGeometry, QgsPointXY, QgsProject, QgsSpatialIndex,
@@ -193,6 +194,7 @@ def _sum_edge_loads(graph, usable, tied, dest_weight_at, started, time_budget_s)
 
 def _build_load_layer(network, output_layer_name, load_by_edge, pts):
     layer = QgsVectorLayer(f"LineString?crs={network.crs().authid()}", output_layer_name or "critical_links", "memory")
+    require_valid_layer(layer)
     layer.dataProvider().addAttributes([QgsField("load", QVariant.Double), QgsField("share", QVariant.Double)])
     layer.updateFields()
     total = max(load_by_edge.values()) if load_by_edge else 0.0

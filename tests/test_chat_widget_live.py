@@ -1163,6 +1163,25 @@ class TestChatWidgetLive(unittest.TestCase):
             dialog._clear_saved_chat_clicked()
         self.assertEqual(cp.load_chat_transcript(), [])
 
+    def test_dialog_message_bar_shows_notices_inside_the_dialog_without_a_modal_box(self):
+        """PyQGIS cookbook (communicating): notices go in a QgsMessageBar, which can sit inside our own dialog. Warnings stay until
+        dismissed, a second notice replaces the first, and no QMessageBox is opened."""
+        from unittest.mock import patch
+        from qgis.PyQt.QtWidgets import QDialog, QMessageBox, QVBoxLayout, QLabel
+        from cartogen_ai.core.ui.dialog_messages import push_dialog_message
+
+        dialog = QDialog()
+        self.addCleanup(dialog.close)
+        QVBoxLayout(dialog).addWidget(QLabel("content"))
+        with patch.object(QMessageBox, "warning") as warning, patch.object(QMessageBox, "information") as info:
+            bar = push_dialog_message(dialog, "Export", "Failed", "warning")
+            self.assertIs(dialog.layout().itemAt(0).widget(), bar, "the bar sits above the dialog's content")
+            self.assertEqual(len(bar.items()), 1)
+            self.assertIs(push_dialog_message(dialog, "Export", "Done", "success"), bar, "one bar per dialog, reused")
+            self.assertEqual(len(bar.items()), 1, "a new notice replaces the old one")
+        warning.assert_not_called()
+        info.assert_not_called()
+
     def test_memory_button_opens_a_dialog(self):
         """The header's Memory button (dock_widget.py's open_memory) must exist and use
         the "notes" icon -- confirms icons.py's new template renders without raising."""

@@ -20,6 +20,7 @@ import random
 import statistics
 
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsPointXY,
@@ -297,6 +298,7 @@ def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, po
 
     out = QgsVectorLayer(f"Point?crs={strata.crs().authid()}&field=sample_id:string&field=stratum:string&field=source:string",
                          output_layer_name, "memory")
+    require_valid_layer(out)
     feats = _draw_sample_features(out, rows, groups, unit_points, units, seed, warnings)
     out.dataProvider().addFeatures(feats)
     out.updateExtents()

@@ -18,6 +18,7 @@ import os
 import tempfile
 
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsGeometry,
@@ -141,6 +142,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
     """Sum of a raster over each cell through native:zonalstatisticsfb. Returns a list, or raises."""
     import processing
     zones = QgsVectorLayer(f"Polygon?crs={metric.authid()}&field=i:integer", "zones", "memory")
+    require_valid_layer(zones)
     feats = []
     for i, g in enumerate(cells_metric):
         f = QgsFeature(zones.fields())
@@ -250,6 +252,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
 
     out = QgsVectorLayer("Polygon?crs=EPSG:4326&field=task_id:string&field=area_km2:double&field=value:double&field=priority:string",
                          output_layer_name, "memory")
+    require_valid_layer(out)
     to_wgs = _transform(metric, wgs)
     features, geojson = [], []
     for (cell, piece), value, klass in zip(kept, values, classes, strict=False):

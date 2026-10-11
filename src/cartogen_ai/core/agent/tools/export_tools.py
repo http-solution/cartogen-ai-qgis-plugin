@@ -15,6 +15,7 @@ from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 import contextlib
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (
@@ -1953,6 +1954,7 @@ def _build_capped_simplified_layer(layer, max_features, total, tolerance):
         f"{QgsWkbTypes.displayString(layer.wkbType())}?crs={layer.crs().authid()}",
         layer.name(), "memory",
     )
+    require_valid_layer(mem_layer)
     mem_provider = mem_layer.dataProvider()
     mem_provider.addAttributes(layer.fields())
     mem_layer.updateFields()

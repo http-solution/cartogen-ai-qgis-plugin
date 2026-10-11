@@ -43,7 +43,9 @@ def routable_network(network, speed_field):
             "Reopen some roads, or run apply_network_barriers / build_composite_impedance_field again with a smaller area.")
     from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
     geometry = QgsWkbTypes.displayString(network.wkbType())
+    from ._layer_checks import require_valid_layer
     scratch = QgsVectorLayer(f"{geometry}?crs={network.crs().authid()}", f"{network.name()}_open_roads", "memory")
+    require_valid_layer(scratch)
     provider = scratch.dataProvider()
     provider.addAttributes(list(network.fields()))
     scratch.updateFields()

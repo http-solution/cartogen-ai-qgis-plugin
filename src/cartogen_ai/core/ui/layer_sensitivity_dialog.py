@@ -34,6 +34,7 @@ from ..agent.tools.sensitivity_tools import (
 from ..models.sensitivity import SENSITIVITY_LEVELS
 from ..models import egress_gate as _egress
 from ..models.model_view import SCHEMA_DISCLOSURE
+from .dialog_messages import push_dialog_message
 
 
 class LayerSensitivityDialog(QDialog):
@@ -134,10 +135,11 @@ class LayerSensitivityDialog(QDialog):
         # instead of silently picking one.
         matches = QgsProject.instance().mapLayersByName(name)
         if len(matches) > 1:
-            QMessageBox.warning(
+            push_dialog_message(
                 self, "Layer Data Sensitivity",
                 f"'{name}' matches {len(matches)} layers in this project -- rename the "
                 "duplicates in the Layers panel first so this can act on the right one.",
+                "warning",
             )
             return
         level = self.level_combo.currentText()
@@ -173,11 +175,11 @@ class LayerSensitivityDialog(QDialog):
         # what actually earns that confirmation for a loosening change.
         result = _set_layer_sensitivity(name, level, reason, confirmed=True)
         if result.get("error"):
-            QMessageBox.warning(self, "Layer Data Sensitivity", f"Failed: {result['error']}")
+            push_dialog_message(self, "Layer Data Sensitivity", f"Failed: {result['error']}", "warning")
             return
         self.reason_edit.clear()
         self._on_layer_changed()
         # rc7 smoke test F15: a successful change used to give no feedback at all, so the operator
         # could not tell whether the click had applied anything.
-        QMessageBox.information(
-            self, "Layer Data Sensitivity", f"'{name}' is now tagged {level}.")
+        push_dialog_message(
+            self, "Layer Data Sensitivity", f"'{name}' is now tagged {level}.", "success")

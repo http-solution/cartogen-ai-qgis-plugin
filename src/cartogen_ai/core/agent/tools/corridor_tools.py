@@ -9,6 +9,7 @@ import os
 
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum  # noqa: F401  (kept for sibling modules' symmetry)
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (
@@ -142,6 +143,7 @@ def split_lines_by_zones(line_layer, zone_layer, output_name=None):
 
         out_name = output_name or f"{line_layer}_by_zones"
         result_layer = QgsVectorLayer(f"LineString?crs={lines_layer.crs().authid()}", out_name, "memory")
+        require_valid_layer(result_layer)
         provider = result_layer.dataProvider()
         provider.addAttributes([QgsField("status", QVariant.String), QgsField("length_km", QVariant.Double), QgsField("segment", QVariant.Int)])
         result_layer.updateFields()

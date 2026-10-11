@@ -3,13 +3,14 @@ from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
+    QLineEdit, QPushButton, QVBoxLayout,
 )
 from qgis.core import QgsSettings
 
 from ..agent.account import CartogenAccountClient, DEFAULT_ACCOUNT_BASE_URL
 from ...infrastructure.auth import CredentialManager
 from ..agent.qgis_compat import enum_member
+from .dialog_messages import push_dialog_message
 from ...infrastructure.settings_keys import SETTINGS_ACCOUNT_BASE_URL as ACCOUNT_URL_KEY
 
 
@@ -197,4 +198,4 @@ class CartogenAccountDialog(QDialog):
             self._show_error(str(error))
 
     def _show_error(self, message):
-        QMessageBox.warning(self, "Cartogen AI account", message)
+        push_dialog_message(self, "Cartogen AI account", message, "warning")

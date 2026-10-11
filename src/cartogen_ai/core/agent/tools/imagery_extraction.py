@@ -28,6 +28,7 @@ from .registry import register_tool
 from ... import net as _net
 import contextlib
 from ...net import build_request as _net_build_request
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -378,6 +379,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     project_ellipsoid = QgsProject.instance().ellipsoid()
     distance_area.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
     out_layer = QgsVectorLayer(f"Polygon?crs={crs}", out_name, "memory")
+    require_valid_layer(out_layer)
     provider = out_layer.dataProvider()
     provider.addAttributes([QgsField("confidence", QVariant.Double)])
     out_layer.updateFields()
