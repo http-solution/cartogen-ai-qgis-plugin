@@ -164,6 +164,30 @@ EXCLUDE_FILES = {
 # path). Confirmed live: _register_page.html and _reg_compact.json shipped in a
 # build before this pattern existed. Nothing the plugin needs starts with an
 # underscore at the repo root, so the pattern is safe to be broad.
+# User-facing documentation is the only part of docs/ that ships. The rest (dated smoke reports, triage notes, scope studies, audits,
+# trackers, the archive) is project history: 3+ MB of it did nothing inside an installed plugin, and it made the package look like a
+# repository dump. Nothing at runtime reads docs/ (the in-plugin Help comes from core/release_notes.py). Everything under images/ ships
+# because the README and the user guide embed those screenshots.
+SHIPPED_DOCS = {"README.md", "USER_GUIDE.md", "TOOLS_REFERENCE.md", "HUMANITARIAN_TOOLS_CATALOGUE.md"}
+SHIPPED_DOCS_DIRS = {"images"}
+
+
+def is_hidden(name):
+    """Dotfiles and dot-directories never ship (the plugin directory asks for none). A by-hand build from a working checkout once
+    carried a 92 KB .coverage file that the enumerated lists above did not name, so this is a rule, not another list entry."""
+    return name.startswith(".")
+
+
+def docs_entry_ships(rel_path):
+    """True when a path relative to the repository root is allowed to ship. Only paths under docs/ are restricted."""
+    parts = rel_path.replace("\\", "/").split("/")
+    if parts[0] != "docs" or len(parts) == 1:
+        return True
+    if len(parts) == 2:
+        return parts[1] in SHIPPED_DOCS
+    return parts[1] in SHIPPED_DOCS_DIRS
+
+
 EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py",
                          "*.bak", "*.bak-*", "*.orig", "*.rej",
                          "_*.json", "_*.html", "_*.tgz", "_*.tar.gz")
@@ -212,13 +236,15 @@ def package_plugin():
 
     with zipfile.ZipFile(versioned_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(script_dir):
-            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS and not d.endswith(".egg-info")]
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS and not d.endswith(".egg-info") and not is_hidden(d)]
             if root == script_dir:
                 dirs[:] = [d for d in dirs if d not in EXCLUDE_ROOT_ONLY_DIRS]
 
             for file in files:
                 if (
-                    file in EXCLUDE_FILES
+                    is_hidden(file)
+                    or not docs_entry_ships(os.path.relpath(os.path.join(root, file), script_dir))
+                    or file in EXCLUDE_FILES
                     or any(file.endswith(ext) for ext in EXCLUDE_EXTS)
                     or any(fnmatch.fnmatch(file, pat) for pat in EXCLUDE_FILE_PATTERNS)
                 ):
