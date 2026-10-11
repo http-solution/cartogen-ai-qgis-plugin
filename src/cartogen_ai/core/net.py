@@ -540,6 +540,14 @@ def stream_following(request, timeout=30, check_url=None):
             return resp
         location = resp.headers.get("Location")
         resp.close()
+        if not location and hop == 0 and QGIS_NETWORK_AVAILABLE:
+            # The status line can arrive before the other headers on a streamed QGIS reply (the rc30 CI run saw a bare 302; the first run of
+            # the redirect live test on the rc35 branch saw it again, one run in two). Ask once more through urllib, which reads the headers whole.
+            resp = _stream_open_once(req, timeout, qgis=False)
+            if resp.status not in _REDIRECT_STATUSES:
+                return resp
+            location = resp.headers.get("Location")
+            resp.close()
         if not location:
             raise urllib.error.URLError(f"HTTP {resp.status} redirect without a Location header")
         target = urljoin(req.full_url, location)
