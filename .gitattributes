@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The live-test fixtures are checksummed byte for byte (docs/FULL_LIVE_TEST_rc34_INPUTS.sha256). Without this, a Windows checkout
+# turns the LF in text fixtures (smoke_*.csv, *.aux.xml) into CRLF and every checksum fails (seen on the windows CI job).
+docs/release_smoke_assets/inputs/** -text
