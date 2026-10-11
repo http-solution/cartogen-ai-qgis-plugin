@@ -426,6 +426,8 @@ def _detach_vector_layer(layer):
     from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
     geometry = QgsWkbTypes.displayString(layer.wkbType()) if layer.isSpatial() else "none"
     copy = QgsVectorLayer(geometry, layer.name(), "memory")
+    if not copy.isValid():
+        raise RuntimeError("could not create the memory copy of the layer")
     if layer.isSpatial():
         copy.setCrs(layer.crs())
     provider = copy.dataProvider()

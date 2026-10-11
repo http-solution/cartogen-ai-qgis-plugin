@@ -440,6 +440,9 @@ def _write_scores_to_layer(layer, rows, scored_results, output_field):
     if not provider.changeAttributeValues(updates):
         return f"Could not write scores into '{output_field}'."
     layer.updateFields()
+    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
+    # colours until the canvas was next refreshed.
+    layer.triggerRepaint()
     return None
 
 
@@ -487,6 +490,9 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
     if not provider.changeAttributeValues(updates):
         return f"Could not write presence-gap status into '{output_field}'."
     layer.updateFields()
+    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
+    # colours until the canvas was next refreshed.
+    layer.triggerRepaint()
     return None
 
 
@@ -694,6 +700,9 @@ def _write_population_to_layer(layer, rows, unit_results, output_field):
     if not provider.changeAttributeValues(updates):
         return f"Could not write population into '{output_field}'."
     layer.updateFields()
+    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
+    # colours until the canvas was next refreshed.
+    layer.triggerRepaint()
     return None
 
 
@@ -877,6 +886,9 @@ def _write_damage_severity_to_layer(layer, rows, unit_results, output_field):
     if not provider.changeAttributeValues(updates):
         return f"Could not write scores into '{output_field}'."
     layer.updateFields()
+    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
+    # colours until the canvas was next refreshed.
+    layer.triggerRepaint()
     return None
 
 
