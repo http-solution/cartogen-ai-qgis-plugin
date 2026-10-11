@@ -108,6 +108,9 @@ _SAFE_EVENT_FIELDS = {
     # results. est_* are character-count estimates; input/cached/output tokens are provider-reported (or absent).
     "call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens", "tool_count", "tool_calls", "outcome",
     "est_system_tokens", "est_tools_tokens", "est_history_tokens", "est_user_tokens", "tool_names",
+    # network (core/net.py, providers/base.py): host NAMES, never a path, query, header or body. The first rc32/rc33 versions of the
+    # http_redirect and provider_auth_refused lines lost these fields because they were missing here (2026-10-11 field log).
+    "sender", "host", "qgis_proxy", "from_host", "to_host", "other_site", "key_source", "key_length",
 }
 
 

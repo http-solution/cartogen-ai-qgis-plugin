@@ -521,6 +521,26 @@ class TestFormatHttpErrorRedaction(unittest.TestCase):
         e.response.content = b""
         self.assertIn("empty body", format_http_error("Gemini API error", e))
 
+    def test_a_refused_key_is_described_without_being_shown(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        key = "AIzaSy" + "X" * 29 + "wxyz"
+        e = self._http_error(403, "")
+        e.response.headers = {}
+        e.response.content = b""
+        msg = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", key))
+        self.assertIn("39 characters", msg)
+        self.assertIn("ending wxyz", msg)
+        self.assertNotIn(key, msg)
+        self.assertNotIn("AIzaSy", msg)
+
+    def test_a_key_with_a_stray_line_break_is_called_out(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        self.assertIn("line break", key_in_use_note("gemini", "abcd1234\n"))
+
+    def test_a_request_with_no_key_says_so(self):
+        from cartogen_ai.infrastructure.providers.base import key_in_use_note
+        self.assertIn("no API key", key_in_use_note("gemini", ""))
+
     def test_non_auth_status_still_passes_the_real_body_through(self):
         # A 429 quota-exceeded message, or a 400 malformed-request detail, is genuinely
         # useful for debugging and isn't credential-bearing -- must not be redacted too.

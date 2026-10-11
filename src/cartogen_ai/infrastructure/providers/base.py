@@ -237,7 +237,32 @@ def _unrecognised_reply_note(response):
     return " No provider reason code in the reply (" + "; ".join(facts) + ")."
 
 
-def format_http_error(prefix, e):
+_KEY_SOURCE_LABELS = {
+    "auth_store": "QGIS's saved credentials",
+    "session_memory": "memory for this session only (not saved)",
+    "legacy_settings": "an old plaintext setting from an earlier version",
+}
+
+
+def key_in_use_note(provider, api_key):
+    """Which key a refused request carried, described without revealing it: where it was found, its length and its last four
+    characters (what Google AI Studio and OpenAI show next to a key), plus a warning when it holds a space or line break. Lets a
+    user see that the key sent is not the one they just entered. Never the whole key."""
+    key = str(api_key or "")
+    if not key:
+        return " The request carried no API key."
+    try:
+        from ..auth import CredentialManager
+        source = CredentialManager.last_credential_source(provider)
+    except Exception:
+        source = ""
+    note = f" Key sent: {len(key)} characters, ending {key[-4:]}, from {_KEY_SOURCE_LABELS.get(source, 'an unknown source')}."
+    if any(c.isspace() for c in key) or not key.isascii():
+        note += " It contains a space, line break or non-ASCII character, which providers reject."
+    return note
+
+
+def format_http_error(prefix, e, key_note=""):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
 
@@ -256,7 +281,7 @@ def format_http_error(prefix, e):
         reasons = _auth_reason_codes(e.response)
         reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else _unrecognised_reply_note(e.response)
         return (
-            f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note} "
+            f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note}{key_note} "
             "(Response body withheld: some providers echo part of the submitted key back "
             "in this specific error.)"
         )

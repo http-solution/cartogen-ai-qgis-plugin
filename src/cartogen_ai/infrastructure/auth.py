@@ -359,6 +359,20 @@ class CredentialManager:
             return None
         return cls._MISSING_KEY_MESSAGE
 
+    # provider -> where get_credential last found its key: "auth_store" (QGIS's encrypted store), "session_memory" or "legacy_settings"
+    # (a plaintext value an earlier version wrote). Lets an auth failure say which source was used (a 2026-10-11 report: a refused key
+    # that the user believed was the one just entered).
+    _last_source: ClassVar[dict] = {}
+
+    @staticmethod
+    def last_credential_source(provider: str) -> str:
+        return CredentialManager._last_source.get(provider, "")
+
+    @staticmethod
+    def _found(provider: str, source: str, value):
+        CredentialManager._last_source[provider] = source
+        return value
+
     @staticmethod
     def get_credential(provider: str) -> str:
         """Retrieves API key from QgsAuthManager or fallback QgsSettings."""
@@ -377,7 +391,9 @@ class CredentialManager:
                     if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
                         pwd = config.config("password")
                         if pwd:
-                            return pwd
+                            return CredentialManager._found(provider, "auth_store", pwd)
+                    else:
+                        log_warning("QgsAuthManager could not load the saved key (master password not entered?); trying other sources", tag="CredentialManager")
             except Exception as e:
                 log_warning(f"QgsAuthManager load failed: {e}", tag="CredentialManager")
 
@@ -385,7 +401,7 @@ class CredentialManager:
         # path) -- checked before plaintext QgsSettings since it's always the more
         # recently saved value when both exist.
         if provider in CredentialManager._session_credentials:
-            return CredentialManager._session_credentials[provider]
+            return CredentialManager._found(provider, "session_memory", CredentialManager._session_credentials[provider])
 
         # Fallback to QgsSettings — same mapping save_credential writes to.
         fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(
@@ -393,7 +409,7 @@ class CredentialManager:
         )
         value = settings.value(fallback_setting, "")
         if value:
-            return value
+            return CredentialManager._found(provider, "legacy_settings", value)
 
         # Recovery path: earlier versions of this file wrote OpenRouter/Ollama keys to
         # cartogen_ai/{provider}_key (a name get_credential never read back from), so a
@@ -403,7 +419,7 @@ class CredentialManager:
         if stray_key != fallback_setting:
             value = settings.value(stray_key, "")
             if value:
-                return value
+                return CredentialManager._found(provider, "legacy_settings", value)
 
         # Second recovery path, Ollama-specific: before the settings-centralization pass
         # (LEGACY_SETTINGS_KEYS moved "ollama" from the literal "cartogen_ai/ollama_url"

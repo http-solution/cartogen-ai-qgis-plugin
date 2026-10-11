@@ -4,7 +4,7 @@ from .base import (
     freshen_query,
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError,
 )
 from ...core.agent.model_selector import filter_chat_model_ids
@@ -209,7 +209,7 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("Gemini API error", e)}
+                return {"error": format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))}
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}
 
