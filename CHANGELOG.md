@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc33](#v1-16-0-rc33) | 2026-10-11 | **Release candidate 33 for 1.16.0.** No breaking changes. AI requests keep their key across redirects, redirects logged. Not hand-tested. |
 | [1.16.0-rc32](#v1-16-0-rc32) | 2026-10-11 | **Release candidate 32 for 1.16.0.** No breaking changes. Refusal reasons shown, switch back to the previous request sender, refusals logged. Not hand-tested. |
 | [1.16.0-rc31](#v1-16-0-rc31) | 2026-10-11 | **Release candidate 31 for 1.16.0.** No breaking changes. Metadata category removed, temporary layers checked, notices shown inside dialogs, redraw after field writes. Not hand-tested. |
 | [1.16.0-rc30](#v1-16-0-rc30) | 2026-10-11 | **Release candidate 30 for 1.16.0.** No breaking changes. Large downloads and the account client use QGIS's network stack; the script fallback fails closed; the directory's upload rules are tested. Not hand-tested. |
@@ -73,6 +74,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc33"></a>
+## [1.16.0-rc33] — 2026-10-11 — Release candidate 33 for 1.16.0: AI requests keep their key across redirects
+
+No breaking changes; QGIS 4.2+. Everything after the rc32 build:
+
+- AI requests keep their API key when a server redirects them: If anything between QGIS and a provider (a proxy, firewall or gateway) answered an AI request with a redirect, QGIS's own sender repeated the request without the Authorization header, so the provider refused it with 403. This was reproduced in QGIS 4.2.2 with a local test server. Requests that carry a body or a key now follow redirects inside the plugin: the same method, headers and body on a 307 or 308, a plain GET on 301, 302 and 303, the key kept on the same site and dropped for another, relative targets resolved, at most 5 hops.
+- Redirects are logged without secrets: Each redirect writes a log line with the two host names and the status, never the path, key or body, so a later refusal shows whether a redirect was involved.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS or run against Google, and it has not been confirmed that a redirect is what caused the reported Gemini 403. The reason code and the sender switch added in rc32 remain for that case.
 
 <a id="v1-16-0-rc32"></a>
 ## [1.16.0-rc32] — 2026-10-11 — Release candidate 32 for 1.16.0: AI request refusals explained, sender switch

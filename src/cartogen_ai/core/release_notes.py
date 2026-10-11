@@ -8,15 +8,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc32"
-NEW_MARK_VERSIONS = ("1.16.0-rc31", "1.16.0-rc32")
+WHATS_NEW_VERSION = "1.16.0-rc33"
+NEW_MARK_VERSIONS = ("1.16.0-rc32", "1.16.0-rc33")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A refused AI request now says why', "When Google, OpenAI or another provider answers 401 or 403, the chat message now includes the provider's own short reason code (for example PERMISSION_DENIED, API_KEY_INVALID or SERVICE_DISABLED). The rest of the response is still hidden, because some providers echo part of the key back, and only values that look like a plain code name are shown."),
-    ('Switch back to the previous request sender', "A Gemini key that worked in a test outside QGIS was refused with 403 when the plugin sent the same kind of request through QGIS's network stack. The cause has not been found. Setting cartogen_ai/hosted_requests_via_qgis to false in QGIS's advanced settings sends hosted AI requests (Gemini, OpenAI, Claude, OpenRouter) the way versions before rc28 did. It is on by default."),
-    ('Refusals are logged without secrets', 'A 401 or 403 on the QGIS path now writes a log line with the host and whether a QGIS proxy is set, never the key, the headers or the response body.'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and it has not been confirmed that the switch fixes the Gemini 403.'),
+    ('AI requests keep their API key when a server redirects them', "If anything between QGIS and a provider (a proxy, firewall or gateway) answered an AI request with a redirect, QGIS's own sender repeated the request without the Authorization header, so the provider refused it with 403. This was reproduced in QGIS 4.2.2 with a local test server. Requests that carry a body or a key now follow redirects inside the plugin: the same method, headers and body on a 307 or 308, a plain GET on 301, 302 and 303, the key kept on the same site and dropped for another, relative targets resolved, at most 5 hops."),
+    ('Redirects are logged without secrets', 'Each redirect writes a log line with the two host names and the status, never the path, key or body, so a later refusal shows whether a redirect was involved.'),
+    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS or run against Google, and it has not been confirmed that a redirect is what caused the reported Gemini 403. The reason code and the sender switch added in rc32 remain for that case.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
