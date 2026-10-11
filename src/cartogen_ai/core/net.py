@@ -12,6 +12,10 @@ Limits, found by the first CI runs of tests/test_net_live.py and stated rather t
     so a call that asked for 15 s can wait longer. A caller that needs a short, exact timeout uses `stream=True`.
   * A redirect with a relative Location fails inside QGIS ("Protocol "" is unknown"; CI run of 2026-10-10, and neither a manual
     redirect policy nor re-resolving the target could intercept it), so that one case is retried once through urllib.
+  * A request with a body or a credential header (every hosted-AI call) does NOT go through QgsBlockingNetworkRequest: that class
+    follows a redirect with a brand-new request, which loses the Authorization header (reproduced in QGIS 4.2.2, 2026-10-11, see
+    test_a_post_keeps_its_key_and_body_across_a_307_or_308_redirect). Those requests use QgsNetworkAccessManager directly and follow
+    redirects in _qgis_send_following: the credential stays on the same site and is dropped for another one.
 Two deliberate limits on the buffered path:
   * QgsBlockingNetworkRequest returns the whole reply in memory, so a request whose body is large (a Geofabrik extract, a model
     checkpoint) must use `stream=True`, which stays on urllib and streams to disk. That path still honours the QGIS proxy.
@@ -155,7 +159,7 @@ def _enum(owner, group, name):
 Reply = collections.namedtuple("Reply", "ok status headers body error timed_out")
 
 
-def _qgis_send(method, url, header_items, data, timeout):
+def _qgis_send_blocking(method, url, header_items, data, timeout):
     """One request through QgsBlockingNetworkRequest. Never raises for an HTTP error status: the caller decides."""
     qreq = QNetworkRequest(QUrl(url))
     has_content_type = False
@@ -191,6 +195,115 @@ def _qgis_send(method, url, header_items, data, timeout):
         error=reply.errorString() or "network error",
         timed_out=(err == _enum(QgsBlockingNetworkRequest, "ErrorCode", "TimeoutError")),
     )
+
+
+# Headers that carry a credential: dropped when a redirect leaves the original site (what requests and curl do), kept on the same site.
+_CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie", "x-api-key", "api-key", "x-goog-api-key"})
+_REDIRECT_CODES = (301, 302, 303, 307, 308)
+_MAX_REDIRECTS = 5
+
+
+def _origin(url):
+    from urllib.parse import urlsplit
+    parts = urlsplit(url)
+    default = {"http": 80, "https": 443}.get(parts.scheme.lower())
+    return parts.scheme.lower(), (parts.hostname or "").lower(), parts.port or default
+
+
+def _needs_own_redirects(method, header_items):
+    """A request with a body or a credential must follow redirects here, not inside QgsBlockingNetworkRequest.
+
+    Found 2026-10-11 by tests/test_net_live.py in QGIS 4.2.2: QgsBlockingNetworkRequest follows a redirect by building a NEW
+    QNetworkRequest from the target URL alone (qgsblockingnetworkrequest.cpp, replyFinished), so the Authorization header is lost: a
+    hosted-AI call redirected once (a proxy, a gateway) reached the provider with no key and drew a 403. Plain keyless GETs are fine
+    there and keep QGIS's cache and its main-thread handling."""
+    return method == "POST" or any(str(k).lower() in _CREDENTIAL_HEADERS for k, _v in header_items)
+
+
+def _qgis_hop(method, url, header_items, data, timeout):
+    """One request through QgsNetworkAccessManager, redirects NOT followed. Pumps the event loop on the calling thread (each thread has
+    its own manager), as _StreamResponse does. Never raises for an HTTP status."""
+    nam = QgsNetworkAccessManager.instance()
+    qreq = QNetworkRequest(QUrl(url))
+    has_content_type = False
+    for key, value in header_items:
+        has_content_type = has_content_type or str(key).lower() == "content-type"
+        qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+    if timeout and hasattr(qreq, "setTransferTimeout"):
+        qreq.setTransferTimeout(int(timeout * 1000))
+    with contextlib.suppress(AttributeError, TypeError):
+        qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
+                          _enum(QNetworkRequest, "RedirectPolicy", "ManualRedirectPolicy"))
+        qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "CacheLoadControlAttribute"),
+                          _enum(QNetworkRequest, "CacheLoadControl", "PreferCache" if method in ("GET", "HEAD") else "AlwaysNetwork"))
+    if method == "POST" and not has_content_type:
+        qreq.setRawHeader(QByteArray(b"Content-Type"), QByteArray(b"application/x-www-form-urlencoded"))
+    if method == "GET":
+        reply = nam.get(qreq)
+    elif method == "HEAD":
+        reply = nam.head(qreq)
+    elif method == "POST":
+        reply = nam.post(qreq, QByteArray(data or b""))
+    else:
+        raise urllib.error.URLError(f"unsupported method: {method}")
+    loop = QEventLoop()
+    guard = QTimer()
+    guard.setSingleShot(True)
+    guard.timeout.connect(reply.abort)         # backstop for a transfer timeout that never fires; the reply then finishes as aborted
+    reply.finished.connect(loop.quit)
+    if timeout:
+        guard.start(int(timeout * 1000) + 5000)
+    if not reply.isFinished():
+        loop.exec()
+    guard.stop()
+    reply.finished.disconnect(loop.quit)
+    status = reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute"))
+    headers = [(bytes(n).decode("latin-1"), bytes(reply.rawHeader(n)).decode("latin-1")) for n in reply.rawHeaderList()]
+    error = reply.error()
+    result = Reply(
+        ok=(error == _enum(QNetworkReply, "NetworkError", "NoError")),
+        status=int(status) if status is not None else 0,
+        headers=headers,
+        body=bytes(reply.readAll()),
+        error=reply.errorString() or "network error",
+        timed_out=error in (_enum(QNetworkReply, "NetworkError", "TimeoutError"), _enum(QNetworkReply, "NetworkError", "OperationCanceledError")),
+    )
+    reply.deleteLater()
+    return result
+
+
+def _qgis_send_following(method, url, header_items, data, timeout):
+    """_qgis_hop plus redirects, done the way requests and curl do them: the same method, headers and body on a 307 or 308, a GET without
+    body on 301, 302 and 303, and credential headers dropped when the target is a different site."""
+    from urllib.parse import urljoin
+    headers = [(str(k), str(v)) for k, v in header_items]
+    for _hop in range(_MAX_REDIRECTS + 1):
+        reply = _qgis_hop(method, url, headers, data, timeout)
+        location = next((v for k, v in reply.headers if k.lower() == "location"), None)
+        if reply.status not in _REDIRECT_CODES or not location:
+            return reply
+        target = urljoin(url, location)
+        _check_scheme(target)
+        other_site = _origin(target) != _origin(url)
+        if other_site:
+            headers = [(k, v) for k, v in headers if k.lower() not in _CREDENTIAL_HEADERS]
+        # Metadata only (no URL path, query, header or body): a later 401/403 report can then say whether a redirect was in the way.
+        from .logger import log_event
+        log_event("http_redirect", tag="Net", status=reply.status, from_host=_origin(url)[1], to_host=_origin(target)[1],
+                  other_site=other_site)
+        if reply.status in (301, 302, 303) and method == "POST":
+            method, data = "GET", None
+            headers = [(k, v) for k, v in headers if k.lower() not in ("content-type", "content-length")]
+        url = target
+    return Reply(ok=False, status=0, headers=[], body=b"", error=f"too many redirects (more than {_MAX_REDIRECTS})", timed_out=False)
+
+
+def _qgis_send(method, url, header_items, data, timeout):
+    """One request through QGIS's network stack. Never raises for an HTTP error status: the caller decides."""
+    header_items = list(header_items)
+    if _needs_own_redirects(method, header_items):
+        return _qgis_send_following(method, url, header_items, data, timeout)
+    return _qgis_send_blocking(method, url, header_items, data, timeout)
 
 
 def _qgis_urlopen(req, timeout):

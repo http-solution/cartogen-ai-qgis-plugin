@@ -6,6 +6,7 @@ import os
 import threading
 import time
 import unittest
+from typing import ClassVar
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +36,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/ok":
             self._send(200, json.dumps({"ua": self.headers.get("User-Agent")}).encode(), {"Content-Type": "application/json"})
+        elif self.path == "/chat":
+            self._send(200, json.dumps({"method": "GET", "auth": self.headers.get("Authorization")}).encode(), {"Content-Type": "application/json"})
         elif self.path == "/missing":
             self._send(404, b"no such thing")
         elif self.path == "/unauthorized":
@@ -71,10 +74,22 @@ class _Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self._send(200, b"x" * 321)
 
+    seen: ClassVar[list] = []     # (path, Authorization, body length) of every POST the server received, to explain a failure
+
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n)
-        if self.path == "/chat":
+        type(self).seen.append((self.path, self.headers.get("Authorization"), len(body)))
+        if self.path == "/hop-307-loop":
+            self._send(307, b"", {"Location": "http://{}/hop-307-loop".format(self.headers.get("Host"))})
+        elif self.path.startswith("/hop-"):
+            self._send(int(self.path[5:]), b"", {"Location": "http://{}/chat".format(self.headers.get("Host"))})
+        elif self.path.startswith("/hopr-"):
+            self._send(int(self.path[6:]), b"", {"Location": "/chat"})                       # relative target
+        elif self.path.startswith("/hopx-"):
+            port = self.headers.get("Host").split(":")[1]
+            self._send(int(self.path[6:]), b"", {"Location": f"http://localhost:{port}/chat"})   # same machine, different site name
+        elif self.path == "/chat":
             self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
                                         "body": json.loads(body.decode())}).encode(), {"Content-Type": "application/json"})
         else:
@@ -260,6 +275,54 @@ class TestNetLive(unittest.TestCase):
         settings.setValue(SETTINGS_HOSTED_VIA_QGIS_NETWORK, False)
         self.assertFalse(base._qgis_network_enabled())
         self.assertFalse(base._use_qgis_network(False), "off means requests, even inside QGIS")
+
+    def test_a_post_keeps_its_key_and_body_across_a_307_or_308_redirect(self):
+        """2026-10-11 field report: Gemini answered 403 to the QGIS-stack POST. QgsBlockingNetworkRequest follows a redirect by building
+        a new QNetworkRequest from the target URL alone (src/core/network/qgsblockingnetworkrequest.cpp, replyFinished), which would drop
+        Authorization and Content-Type and re-send a body that was already read. A hosted-AI call that is redirected once (a proxy, a
+        gateway) would then reach the provider without its key. This pins what must hold: the key and the whole body arrive."""
+        from cartogen_ai.core import net
+        payload = json.dumps({"model": "m", "messages": [{"role": "user", "content": "hi"}]})
+        for code in (307, 308):
+            with self.subTest(redirect=code):
+                _Handler.seen.clear()
+                status, _headers, body = net.request(
+                    "POST", f"{self.base}/hop-{code}", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                    data=payload, timeout=10)
+                note = f"server saw {_Handler.seen}"
+                self.assertEqual(status, 200, note)
+                echoed = json.loads(body.decode())
+                self.assertEqual(echoed["auth"], "Bearer k", note)
+                self.assertEqual(echoed["body"]["model"], "m", note)
+
+    def test_a_relative_redirect_of_a_post_is_followed_with_its_key(self):
+        from cartogen_ai.core import net
+        _Handler.seen.clear()
+        status, _h, body = net.request("POST", f"{self.base}/hopr-307", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200, f"server saw {_Handler.seen}")
+        self.assertEqual(json.loads(body.decode())["auth"], "Bearer k")
+
+    def test_a_redirect_to_another_site_does_not_carry_the_key(self):
+        """Same rule as requests and curl: credentials stay with the site they were given to."""
+        from cartogen_ai.core import net
+        _Handler.seen.clear()
+        status, _h, body = net.request("POST", f"{self.base}/hopx-307", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200, f"server saw {_Handler.seen}")
+        self.assertIsNone(json.loads(body.decode())["auth"], "the key must not follow a redirect to a different host name")
+
+    def test_a_302_turns_a_post_into_a_get_without_a_body(self):
+        from cartogen_ai.core import net
+        status, _h, body = net.request("POST", f"{self.base}/hop-302", headers={"Authorization": "Bearer k", "Content-Type": "application/json"},
+                                       data=json.dumps({"model": "m"}), timeout=10)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body.decode())["method"], "GET")
+
+    def test_a_redirect_loop_ends_with_an_error_not_a_hang(self):
+        from cartogen_ai.core import net
+        with self.assertRaises(net.NetworkError):
+            net.request("POST", f"{self.base}/hop-307-loop", headers={"Authorization": "Bearer k"}, data="{}", timeout=5)
 
     def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
