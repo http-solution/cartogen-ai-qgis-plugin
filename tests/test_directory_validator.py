@@ -9,7 +9,6 @@ import configparser
 import importlib.util
 import io
 import os
-import re
 import unittest
 import zipfile
 
