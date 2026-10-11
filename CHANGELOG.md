@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc31](#v1-16-0-rc31) | 2026-10-11 | **Release candidate 31 for 1.16.0.** No breaking changes. Metadata category removed, temporary layers checked, notices shown inside dialogs, redraw after field writes. Not hand-tested. |
 | [1.16.0-rc30](#v1-16-0-rc30) | 2026-10-11 | **Release candidate 30 for 1.16.0.** No breaking changes. Large downloads and the account client use QGIS's network stack; the script fallback fails closed; the directory's upload rules are tested. Not hand-tested. |
 | [1.16.0-rc29](#v1-16-0-rc29) | 2026-10-11 | **Release candidate 29 for 1.16.0.** No breaking changes. Security and code-quality audit fixes: replies cannot forge internal links, remote data is size-limited, leaner package, diagnostics in the QGIS Message Log. Not hand-tested. |
 | [1.16.0-rc28](#v1-16-0-rc28) | 2026-10-10 | **Release candidate 28 for 1.16.0.** No breaking changes. Warning when a pre-rc25 `cartogen-ai` install is still present; documentation and Qt6 name tidy-up. Not hand-tested. |
@@ -71,6 +72,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc31"></a>
+## [1.16.0-rc31] — 2026-10-11 — Release candidate 31 for 1.16.0: aligned with the QGIS 4.2 developer cookbook
+
+No breaking changes; QGIS 4.2+. Everything after the rc30 build:
+
+- Metadata matches the QGIS plugin rules: The metadata declared a menu category (Plugins) that the QGIS developer documentation does not allow; it is removed, and the plugin stays in the default Plugins menu.
+- Clearer error when QGIS cannot create a temporary layer: 18 places that create a temporary layer now check that QGIS actually created it and report a readable error, instead of failing a line later with a confusing message about a missing data provider.
+- Notices appear inside the dialog: Results such as 'exported', 'deleted' and 'failed' in the Memory, Layer Data Sensitivity and account dialogs now show in a message bar inside the dialog instead of a pop-up box. Questions that need an answer, and the warning when an API key is kept for this session only, still use a pop-up.
+- Styled layers redraw after score fields are written: After the severity, presence-gap, population and index tools write a field into a layer, the layer is redrawn, so a layer styled on that field no longer shows the old colours until the next refresh.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and the new message bar has been checked only by an automated test, not by eye.
 
 <a id="v1-16-0-rc30"></a>
 ## [1.16.0-rc30] — 2026-10-11 — Release candidate 30 for 1.16.0: QGIS network stack for downloads, directory-readiness

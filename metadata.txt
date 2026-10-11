@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc30
+version=1.16.0-rc31
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,15 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc30 (2026-10-11):
+changelog=v1.16.0-rc31 (2026-10-11):
+    Release candidate 31 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Aligns the plugin with the QGIS 4.2 developer cookbook: metadata category, checked temporary layers, in-dialog notices and redraw after field writes.
+    - Metadata matches the QGIS plugin rules: The metadata declared a menu category (Plugins) that the QGIS developer documentation does not allow; it is removed, and the plugin stays in the default Plugins menu.
+    - Clearer error when QGIS cannot create a temporary layer: 18 places that create a temporary layer now check that QGIS actually created it and report a readable error, instead of failing a line later with a confusing message about a missing data provider.
+    - Notices appear inside the dialog: Results such as 'exported', 'deleted' and 'failed' in the Memory, Layer Data Sensitivity and account dialogs now show in a message bar inside the dialog instead of a pop-up box. Questions that need an answer, and the warning when an API key is kept for this session only, still use a pop-up.
+    - Styled layers redraw after score fields are written: After the severity, presence-gap, population and index tools write a field into a layer, the layer is redrawn, so a layer styled on that field no longer shows the old colours until the next refresh.
+    - Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and the new message bar has been checked only by an automated test, not by eye.
+
+v1.16.0-rc30 (2026-10-11):
     Release candidate 30 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Moves large downloads and the account client onto QGIS's network stack, makes the script fallback fail closed, and adds the directory's upload rules as a test.
     - Large downloads and the account client use QGIS's network stack: Geofabrik extracts, model checkpoints and other large downloads are now read through QGIS's network stack, in chunks, so QGIS proxy, authentication and SSL settings apply, progress and cancel still work, and a download cut short is reported as an error instead of leaving a smaller file. The Cartogen account client does the same. Three things still use Python's own HTTP code: a download that answers with a redirect (it is retried through urllib with the QGIS proxy; following the redirect through QGIS failed in testing and the cause was not found), the check that every redirect of a fetched URL is safe (QGIS follows redirects without letting the plugin look at each step), and Ollama (a local server whose answers can take longer than QGIS's 60 second network timeout).
     - Scripts do not run without isolation: If QGIS cannot be loaded, the script tool now refuses to run a script instead of running it in the plugin's own process.
