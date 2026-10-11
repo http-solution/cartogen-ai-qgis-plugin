@@ -18,6 +18,7 @@ import math
 import statistics
 
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import QgsFeature, QgsProject, QgsVectorLayer
@@ -238,6 +239,7 @@ def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="p
     if output_table_name and shown:
         table = QgsVectorLayer("None?field=group:string&field=respondents:integer&field=estimate:double&field=ci_low:double"
                                "&field=ci_high:double&field=effective_n:double", output_table_name, "memory")
+        require_valid_layer(table)
         feats = []
         for g in shown:
             f = QgsFeature(table.fields())

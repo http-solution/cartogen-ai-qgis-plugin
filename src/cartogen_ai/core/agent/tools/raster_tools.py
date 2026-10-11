@@ -12,6 +12,7 @@ from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
 from . import _background_processing as _bg
 from ...logger import log_warning, log_error
+from ._layer_checks import require_valid_layer
 
 
 try:
@@ -639,6 +640,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
 
     scratch = QgsVectorLayer(f"{QgsWkbTypes.displayString(polygon_layer.wkbType()) or 'Polygon'}?crs={polygon_layer.crs().authid()}"
                              "&field=src_fid:integer", "zonal_input", "memory")
+    require_valid_layer(scratch)
     copies = []
     for feat in polygon_layer.getFeatures():
         copy = QgsFeature(scratch.fields())
@@ -1493,6 +1495,7 @@ def _add_exposure_layer(vector, zones, keys, layer_name):
                 n += 1
             name = f"{name} ({n})"
         layer = QgsVectorLayer(f"Polygon?crs={vector.crs().authid()}", name, "memory")
+        require_valid_layer(layer)
         provider = layer.dataProvider()
         provider.addAttributes([QgsField("zone", QVariant.String), QgsField("feature_id", QVariant.LongLong),
                                 QgsField("pop_estimate", QVariant.Double)])

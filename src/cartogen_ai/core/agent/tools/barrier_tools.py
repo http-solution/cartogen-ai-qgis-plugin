@@ -20,6 +20,7 @@ import math
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from ._network_closure import CLOSED_SPEED_KMH
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsSpatialIndex)
@@ -150,6 +151,7 @@ def _affected_layer(network, hit, mode, speed_field, name):
                 QgsProject.instance().removeMapLayer(old.id())
         out = QgsVectorLayer(f"{QgsWkbTypes.displayString(network.wkbType())}?crs={network.crs().authid()}"
                              f"&field=source_id:integer&field={speed_field}:double", name, "memory")
+        require_valid_layer(out)
         feats = []
         for fid in sorted(hit):
             src = network.getFeature(fid)

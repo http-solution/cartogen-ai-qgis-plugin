@@ -30,6 +30,7 @@ from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 import contextlib
 from ...net import build_request as _net_build_request
+from ._layer_checks import require_valid_layer
 
 
 def _find_layer_by_name(name):
@@ -2275,6 +2276,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     out_name = output_layer_name or f"{layer_name}_obfuscated"
     crs = layer.crs().authid()
     new_layer = QgsVectorLayer(f"Point?crs={crs}", out_name, "memory")
+    require_valid_layer(new_layer)
     provider = new_layer.dataProvider()
     provider.addAttributes(layer.fields())
     new_layer.updateFields()
