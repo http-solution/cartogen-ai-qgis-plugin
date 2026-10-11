@@ -6,8 +6,6 @@ from .base import (
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
     extract_openai_style_usage, format_http_error, format_request_exception,
     HTTPError, RequestException,
-    requests,  # noqa: F401 -- see providers/gemini.py's identical import for why this
-    # stays: tests patch cartogen_ai.infrastructure.providers.openrouter.requests.get.
 )
 from ...core.agent.model_selector import filter_chat_model_ids
 

@@ -48,6 +48,23 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/slow":
             time.sleep(4)
             self._send(200, b"late")
+        elif self.path == "/big":
+            self._send(200, bytes(range(256)) * 12288)                      # 3 MiB with a known pattern
+        elif self.path == "/stall":
+            self.send_response(200)
+            self.send_header("Content-Length", "10")
+            self.end_headers()
+            self.wfile.flush()
+            time.sleep(5)                                                   # headers now, body only after the client gave up
+            with __import__("contextlib").suppress(OSError):
+                self.wfile.write(b"0123456789")
+        elif self.path == "/cut":
+            self.send_response(200)
+            self.send_header("Content-Length", "1000")
+            self.end_headers()
+            self.wfile.write(b"x" * 100)                                    # promises 1000, sends 100, hangs up
+            self.wfile.flush()
+            self.close_connection = True
         else:
             self._send(500, b"?")
 
@@ -170,6 +187,73 @@ class TestNetLive(unittest.TestCase):
         with net.urlopen(urllib.request.Request(self.base + "/ok"), timeout=5, stream=True) as r:
             self.assertEqual(r.status, 200)
             self.assertTrue(r.read(4))
+
+    # --- streamed downloads (the QGIS-native incremental path that replaced urllib for large bodies) ---
+
+    def _stream(self, path, timeout=10):
+        from cartogen_ai.core import net
+        return net.urlopen(urllib.request.Request(self.base + path), timeout=timeout, stream=True)
+
+    def test_stream_reads_a_large_body_in_chunks_with_headers(self):
+        expected = bytes(range(256)) * 12288
+        got = bytearray()
+        with self._stream("/big") as r:
+            self.assertEqual(r.status, 200)
+            self.assertEqual(r.headers.get("Content-Length"), str(len(expected)))
+            while True:
+                chunk = r.read(65536)
+                if not chunk:
+                    break
+                got.extend(chunk)
+        self.assertEqual(bytes(got), expected)
+
+    def test_stream_read_all_returns_everything(self):
+        with self._stream("/big") as r:
+            self.assertEqual(len(r.read()), 3 * 1024 * 1024)
+
+    def test_stream_404_is_an_httperror_with_a_body(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self._stream("/missing")
+        self.assertEqual(cm.exception.code, 404)
+        self.assertEqual(cm.exception.read(), b"no such thing")
+        cm.exception.close()
+
+    def test_stream_refused_connection_is_a_urlerror(self):
+        from cartogen_ai.core import net
+        with self.assertRaises(urllib.error.URLError):
+            net.urlopen(urllib.request.Request("http://127.0.0.1:9/"), timeout=3, stream=True)
+
+    def test_stream_idle_timeout_is_enforced_exactly(self):
+        started = time.monotonic()
+        with self._stream("/stall", timeout=1) as r, self.assertRaises(OSError):
+            r.read(10)
+        self.assertLess(time.monotonic() - started, 4.5)    # the server sleeps 5 s; QGIS's own timeout is longer than that
+
+    def test_stream_cut_short_is_an_error_not_a_short_file(self):
+        with self._stream("/cut") as r, self.assertRaises(OSError):
+            while r.read(50):
+                pass
+
+    def test_stream_works_on_a_worker_thread(self):
+        out = {}
+
+        def work():
+            try:
+                with self._stream("/big") as r:
+                    out["n"] = len(r.read())
+            except Exception as e:  # pragma: no cover - reported through the assertion below
+                out["error"] = repr(e)
+
+        t = threading.Thread(target=work)
+        t.start()
+        t.join(60)
+        self.assertEqual(out, {"n": 3 * 1024 * 1024})
+
+    def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
+        for path in ("/redirect-abs", "/redirect"):
+            with self._stream(path) as r:
+                self.assertEqual(r.status, 200, path)
+                self.assertIn("ua", json.loads(r.read().decode()))
 
 
 if __name__ == "__main__":

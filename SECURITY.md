@@ -264,11 +264,22 @@ and capped at `_MAX_DOWNLOAD_BYTES` (200MB) rather than read in one unbounded
 `response.read()` call.
 
 ### 4. Credential storage
-`agent/auth.py` — API keys go through `QgsAuthManager` (encrypted) first; if that's
-unavailable, `save_credential` falls back to plaintext `QgsSettings` and flags it
-(`CredentialManager.used_plaintext_fallback`) so `ui/settings_dialog.py` can warn the
-user instead of it happening silently. No credential value is ever written to a log
-or console print — only exception messages are, and only in `except` blocks.
+`infrastructure/auth.py` — API keys go through `QgsAuthManager` (encrypted). If it is unavailable or refuses the save, the key is held in
+this process's memory for the session only (`CredentialManager.used_session_only_fallback`, shown as a warning in Settings) and is never
+written to disk in plaintext. Keys saved in plaintext by versions before that policy are only read and migrated, never written again.
+Logs carry no credential value and, since 2026-10-11, no exception text either: diagnostics use `log_event` (event name and exception
+class only), and `core/logger.py` redacts key-shaped strings from anything else it is given.
+
+### 4a. Network access (2026-10-11)
+
+Outbound HTTP follows the plugin directory's guidance to use QGIS's network stack, so the proxy, authentication and SSL settings a user configured in QGIS apply:
+
+- Data-fetch tools, hosted AI providers (OpenRouter, Gemini, the Cartogen API entry), the Cartogen account client and large streamed downloads use `QgsNetworkAccessManager` / `QgsBlockingNetworkRequest` (`core/net.py`). Streamed downloads read the reply incrementally, so progress, cancellation and an exact idle timeout still work; a transfer that is cut short is an error, not a shorter file. A download that answers with a redirect is retried through urllib (with the QGIS proxy): following the redirect by hand through QGIS left the second reply without a body in CI and the cause was not found.
+- Remote answers are size-limited (`read_capped`, `gunzip_capped`, `zip_member_capped`).
+- Two paths deliberately stay on Python's HTTP libraries, for reasons that are not about convenience:
+  1. **The SSRF-guarded opener** (section 3). It validates every redirect hop against the private/loopback/metadata address rules before following it. QGIS's blocking request follows redirects internally and offers no per-hop hook, so using it here would let a redirect reach an address the guard would have refused. It still uses the QGIS proxy settings.
+  2. **Ollama.** It is a local server (loopback) that can take minutes to answer. QGIS applies its own transfer timeout (Settings > Options > Network, default 60 seconds) to every request and overrides a caller's, which would cut off a long local generation, and a local address should not be sent through a corporate proxy.
+- Outside QGIS (the unit tests) the same code falls back to `urllib`/`requests`.
 
 ### 5. Destructive-action confirmation gate
 `agent/agent.py` — `remove_layer`, `load_project`, `field_calculator`, `calculate_area`, and

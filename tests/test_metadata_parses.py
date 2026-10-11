@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(ROOT, "metadata.txt")
 
 # What the directory's upload check needs in [general] (docs.qgis.org "Plugin metadata"). The email is the project address the owner chose to
-# publish (info@cartogenai.com, 2026-10-10), not a personal one; the homepage must be a page describing usage, which for this plugin is the
+# publish (cartogenai@gmail.com, changed from info@cartogenai.com on 2026-10-11 at the owner's instruction); the homepage must be a page describing usage, which for this plugin is the
 # README in the repository.
 REQUIRED = ("name", "qgisMinimumVersion", "description", "about", "version", "author", "email", "homepage", "tracker", "repository")
 
@@ -40,7 +40,7 @@ class TestMetadataParsesLikeTheDirectory(unittest.TestCase):
         parser = configparser.ConfigParser()
         parser.read(PATH, encoding="utf-8")
         self.assertEqual(parser["general"]["homepage"], "https://github.com/http-solution/cartogen-ai-qgis-plugin")
-        self.assertEqual(parser["general"]["email"], "info@cartogenai.com")
+        self.assertEqual(parser["general"]["email"], "cartogenai@gmail.com")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@ QGIS runtime path.
 import os
 import sys
 
+# execute_pyqgis_script has an in-process fallback for when QGIS cannot be imported; it is off unless asked for, and the unit tests
+# (which run without QGIS) are the only thing that ask.
+os.environ.setdefault("CARTOGEN_ALLOW_UNISOLATED_SCRIPTS", "1")
+
 _SRC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)

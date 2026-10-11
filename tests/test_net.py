@@ -21,10 +21,28 @@ class TestNet(unittest.TestCase):
             self.assertEqual(net.urlopen(urllib.request.Request("https://example.org/a"), timeout=5), "resp")
         self.assertEqual(m.call_args.kwargs["timeout"], 5)
 
-    def test_stream_stays_on_urllib_even_with_qgis(self):
+    def test_stream_uses_the_incremental_qgis_reader_not_the_buffered_one_when_qgis_is_there(self):
         with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
                 patch.object(net, "_qgis_urlopen", side_effect=AssertionError("buffered path used")), \
+                patch.object(net, "_qgis_stream_open", create=True, return_value="stream") as opener, \
+                patch("urllib.request.urlopen", side_effect=AssertionError("urllib used")):
+            self.assertEqual(net.urlopen(urllib.request.Request("https://example.org/big"), timeout=5, stream=True), "stream")
+        self.assertEqual(opener.call_args.args[1], 5)
+
+    def test_stream_falls_back_to_urllib_only_for_the_relative_redirect_case(self):
+        err = urllib.error.URLError('Protocol "" is unknown')
+        with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
+                patch.object(net, "_qgis_stream_open", create=True, side_effect=err), \
                 patch("urllib.request.urlopen", return_value="resp"):
+            self.assertEqual(net.urlopen(urllib.request.Request("https://example.org/big"), timeout=5, stream=True), "resp")
+        with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
+                patch.object(net, "_qgis_stream_open", create=True, side_effect=urllib.error.URLError("refused")), \
+                patch("urllib.request.urlopen", side_effect=AssertionError("urllib used")), \
+                self.assertRaises(urllib.error.URLError):
+            net.urlopen(urllib.request.Request("https://example.org/big"), timeout=5, stream=True)
+
+    def test_stream_without_qgis_stays_on_urllib(self):
+        with patch.object(net, "QGIS_NETWORK_AVAILABLE", False), patch("urllib.request.urlopen", return_value="resp"):
             self.assertEqual(net.urlopen(urllib.request.Request("https://example.org/big"), timeout=5, stream=True), "resp")
 
     def test_non_url_is_left_to_urllib(self):

@@ -2008,3 +2008,25 @@ class TestSearchWebPrefersDdgs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUnisolatedScriptsFailClosed(unittest.TestCase):
+    """2026-10-11 audit: without QGIS the script tool used to exec model-written code in-process unconditionally. It now needs an
+    explicit opt-in, so a broken QGIS import in a real install refuses instead of running unisolated."""
+
+    def test_refuses_without_the_opt_in(self):
+        import os
+        from unittest.mock import patch
+        from cartogen_ai.core.agent.tools import system_tools
+        with patch.dict(os.environ, {system_tools.UNISOLATED_SCRIPTS_ENV: "0"}):
+            res = system_tools.execute_pyqgis_script("def run():\n    return 1\n")
+        self.assertIn("error", res)
+        self.assertIn("isolation is unavailable", res["error"])
+
+    def test_runs_with_the_opt_in(self):
+        import os
+        from unittest.mock import patch
+        from cartogen_ai.core.agent.tools import system_tools
+        with patch.dict(os.environ, {system_tools.UNISOLATED_SCRIPTS_ENV: "1"}):
+            res = system_tools.execute_pyqgis_script("def run():\n    return 1\n")
+        self.assertEqual(res.get("result"), 1)

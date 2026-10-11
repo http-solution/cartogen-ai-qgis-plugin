@@ -8,9 +8,12 @@ Passwords and session credentials never enter logs, settings text, or return
 messages. The caller owns the client instance for the duration of the session.
 """
 
+import json
 from urllib.parse import urlsplit, urlunsplit
 
 import requests  # type: ignore[import-untyped]
+
+from .. import net
 
 
 DEFAULT_ACCOUNT_BASE_URL = "http://localhost:3000"
@@ -45,29 +48,76 @@ class CartogenAccountClient:
 
     def __init__(self, base_url=DEFAULT_ACCOUNT_BASE_URL, session=None, timeout=15, session_cookie=None):
         self.base_url = normalize_account_base_url(base_url)
-        self.session = session or requests.Session()
+        # Inside QGIS the requests go through QGIS's network stack (proxy, authentication, SSL settings) and the session cookie is kept
+        # here; outside QGIS (the unit tests) or with an injected session the requests library is used, as before.
+        self._use_qgis = session is None and net.QGIS_NETWORK_AVAILABLE
+        self._cookies = {}
+        self.session = None if self._use_qgis else (session or requests.Session())
         if session_cookie:
-            self.session.cookies.set("cartogen_session", session_cookie, path="/")
+            if self._use_qgis:
+                self._cookies["cartogen_session"] = session_cookie
+            else:
+                self.session.cookies.set("cartogen_session", session_cookie, path="/")
         self.timeout = timeout
 
     def session_cookie(self):
         """Returns the opaque service session cookie for encrypted persistence."""
+        if self._use_qgis:
+            return self._cookies.get("cartogen_session", "")
         return self.session.cookies.get("cartogen_session", "")
+
+    def _remember_cookies(self, header_pairs):
+        """Applies the Set-Cookie headers of a reply to the cookie store (QGIS path). Only the name=value pair matters here; a cookie
+        that is emptied or expired by the service is dropped."""
+        for name, value in header_pairs:
+            if name.lower() != "set-cookie":
+                continue
+            for line in str(value).split("\n"):
+                pair, *attrs = [part.strip() for part in line.split(";")]
+                if "=" not in pair:
+                    continue
+                key, val = pair.split("=", 1)
+                expired = any(a.lower() == "max-age=0" for a in attrs) or not val
+                if expired:
+                    self._cookies.pop(key, None)
+                else:
+                    self._cookies[key] = val
+
+    def _send_qgis(self, method, path, headers, kwargs):
+        data = json.dumps(kwargs["json"]).encode("utf-8") if "json" in kwargs else None
+        if self._cookies:
+            headers = {**headers, "Cookie": "; ".join(f"{k}={v}" for k, v in self._cookies.items())}
+        try:
+            status, reply_headers, raw = net.request(method, self.base_url + path, headers, data, kwargs.get("timeout", self.timeout))
+        except net.NetworkError as e:
+            # Raised as RuntimeError so the account dialog shows one safe message; the cause (a host name, no credentials) is kept.
+            raise RuntimeError("The Cartogen account service could not be reached.") from e
+        self._remember_cookies(reply_headers)
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except ValueError:
+            body = {}
+        return status, (body if isinstance(body, dict) else {})
 
     def _request(self, method, path, **kwargs):
         kwargs.setdefault("timeout", self.timeout)
         headers = {"Accept": "application/json", **kwargs.pop("headers", {})}
         if "json" in kwargs:
             headers.setdefault("Content-Type", "application/json")
-        response = self.session.request(method, self.base_url + path, headers=headers, **kwargs)
-        try:
-            body = response.json()
-        except ValueError:
-            body = {}
-        if not response.ok:
-            message = body.get("error") or body.get("message") or f"Cartogen account request failed ({response.status_code})"
+        if self._use_qgis:
+            status, body = self._send_qgis(method, path, headers, kwargs)
+            ok = status < 400
+        else:
+            response = self.session.request(method, self.base_url + path, headers=headers, **kwargs)
+            try:
+                body = response.json()
+            except ValueError:
+                body = {}
+            status, ok = response.status_code, response.ok
+        if not ok:
+            message = body.get("error") or body.get("message") or f"Cartogen account request failed ({status})"
             error = RuntimeError(message)
-            error.status_code = response.status_code
+            error.status_code = status
             raise error
         return body
 
@@ -100,7 +150,10 @@ class CartogenAccountClient:
 
     def logout(self):
         self._request("POST", "/auth/logout", json={})
-        self.session.cookies.clear()
+        if self._use_qgis:
+            self._cookies.clear()
+        else:
+            self.session.cookies.clear()
         return {"status": "signed_out"}
 
     def registration_status(self):
