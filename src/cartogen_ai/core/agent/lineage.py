@@ -13,6 +13,7 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 from ...infrastructure.settings_keys import PROJECT_PROPERTY_LINEAGE
+from ..logger import log_event
 
 LINEAGE_PROPERTY_KEY = PROJECT_PROPERTY_LINEAGE
 
@@ -97,7 +98,7 @@ def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list |
         layer.setCustomProperty(LINEAGE_PROPERTY_KEY, json.dumps(history))
         return True
     except Exception as e:
-        print(f"[LineageEngine] Failed to tag layer lineage: {e}")
+        log_event("failed_to_tag_layer_lineage", tag="LineageEngine", error_class=type(e).__name__, error=True)
         return False
 
 
@@ -111,5 +112,5 @@ def get_layer_lineage(layer) -> list:
         if isinstance(raw, str) and raw.strip():
             return json.loads(raw)
     except Exception as e:
-        print(f"[LineageEngine] Failed to read layer lineage: {e}")
+        log_event("failed_to_read_layer_lineage", tag="LineageEngine", error_class=type(e).__name__, error=True)
     return []

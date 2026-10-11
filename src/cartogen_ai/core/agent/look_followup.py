@@ -16,13 +16,11 @@ def wants_map(query):
 
 
 def _hints_from(result):
-    out = []
     if not isinstance(result, dict):
-        return out
-    for hint in ([result.get("map_look")] if result.get("map_look") else []) + list(result.get("map_looks") or []):
-        if isinstance(hint, dict) and hint.get("tool") == "apply_humanitarian_look" and isinstance(hint.get("args"), dict):
-            out.append(dict(hint["args"]))
-    return out
+        return []
+    hints = ([result.get("map_look")] if result.get("map_look") else []) + list(result.get("map_looks") or [])
+    return [dict(h["args"]) for h in hints
+            if isinstance(h, dict) and h.get("tool") == "apply_humanitarian_look" and isinstance(h.get("args"), dict)]
 
 
 def _ok(result):

@@ -22,6 +22,7 @@ from .coordinates import interpret_request_pair
 from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region
 from .tools._urllib_retry import urlopen_with_retry
 from ..net import build_request as _net_build_request
+from ..net import read_capped as _read_capped
 
 try:
     from qgis.core import (
@@ -128,7 +129,7 @@ def load_index(cache_dir):
     if not _fresh(path, INDEX_MAX_AGE_S):
         os.makedirs(cache_dir, exist_ok=True)
         with urlopen_with_retry(_net_build_request(GEOFABRIK_INDEX_URL, headers=_UA), timeout=60) as r:
-            body = r.read()
+            body = _read_capped(r)
         json.loads(body)  # don't cache a truncated or error page
         with open(path, "wb") as f:
             f.write(body)

@@ -72,17 +72,50 @@ exclude = [
 
 [tool.ruff.lint]
 # The standard this repository is held to (rc28 audit): pycodestyle, pyflakes, bugbear, comprehensions, simplify, return,
-# pie, pylint errors/warnings, ruff-specific, bandit (S) and pyupgrade. Complexity is capped at 25 (McCabe).
-select = ["E", "F", "W", "B", "C4", "C90", "SIM", "RET", "PIE", "PLE", "PLW", "RUF", "S", "UP"]
-ignore = ["E501"]  # line length handled flexibly for descriptive strings
+# pie, pylint errors/warnings, ruff-specific, bandit (S), pyupgrade, PEP 8 naming (N), perflint (PERF), builtin shadowing (A),
+# implicit string concatenation (ISC), import conventions (ICN) and no print() in shipped code (T20: use core/logger.py).
+# Complexity is capped at 25 (McCabe).
+select = ["E", "F", "W", "B", "C4", "C90", "SIM", "RET", "PIE", "PLE", "PLW", "RUF", "S", "UP",
+          "N", "PERF", "A", "ISC", "ICN", "T20"]
+ignore = [
+    "E501",     # line length handled flexibly for descriptive strings
+    "PERF203",  # try/except per item is deliberate (one bad feature must not abort the batch); Python 3.10 target
+]
+
+[tool.ruff.lint.flake8-import-conventions]
+# Replaces ruff's default alias table (which newer releases extend with datetime -> dt): `import datetime` is the stdlib's own
+# spelling and is used throughout; only the scientific-stack aliases are enforced.
+aliases = { numpy = "np", matplotlib = "mpl", "matplotlib.pyplot" = "plt", pandas = "pd", scipy = "sp" }
+
+[tool.ruff.lint.pep8-naming]
+# Names that are dictated by Qt, QGIS or the `requests` API and cannot follow PEP 8: method overrides called by the framework
+# (event handlers, QgsProcessingAlgorithm and provider hooks, QgsTask/feedback callbacks), Qt signal attributes, the
+# pyqtSignal/pyqtSlot fallback stubs used when Qt is absent, and the requests exception names mirrored by the offline stubs.
+extend-ignore-names = [
+    "classFactory", "initGui", "initProcessing", "unload",
+    "currentThread", "setValue", "pyqtSignal", "pyqtSlot", "reportError", "isCanceled", "keyPressEvent", "resizeEvent",
+    "createInstance", "displayName", "groupId", "shortHelpString", "initAlgorithm", "processAlgorithm", "longName",
+    "loadAlgorithms", "fatalError",
+    "sendRequested", "receiveMessageSignal", "statusSignal", "usageSignal", "planUpdatedSignal", "toolStepSignal",
+    "refinementFetchedSignal", "modelsFetchedSignal",
+    "RequestException", "ConnectionError_", "Timeout_",
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25
 
 [tool.ruff.lint.per-file-ignores]
 # Tests assert, write to fake /tmp paths, use seeded random data, build SQL strings to feed the read-only guard, and call
-# subprocess/urllib against local servers: the security rules (S) are for shipped code, not for test code.
-"tests/**" = ["S101", "S108", "S310", "S311", "S603", "S608"]
+# subprocess/urllib against local servers: the security rules (S) are for shipped code, not for test code. Fakes mirror the
+# Qt/QGIS camelCase API and unittest's setUp names, print from CI helper scripts, and import numpy lazily under its own name.
+# The slope/intercept regression in raster_tools.py uses the textbook X/Y and s-prefixed sums-of-products names.
+"src/cartogen_ai/core/agent/tools/raster_tools.py" = ["N806"]
+"__init__.py" = ["N999", "T201"]  # runs before the package is importable, so it cannot use core/logger.py; folder name is the repo's
+"docs/**" = ["T201", "N803", "N806"]  # command-line helper scripts and a prototype that print their results
+"tools/**" = ["T201"]
+"plugin_upload.py" = ["T201"]  # command-line release builder
+"src/cartogen_ai/core/logger.py" = ["T201"]  # the stdout/stderr fallback sink when QgsMessageLog is unavailable
+"tests/**" = ["N802", "A002", "A006", "T201", "ICN001", "PERF102", "S101", "S108", "S310", "S311", "S603", "S608"]
 
 [tool.mypy]
 python_version = "3.10"

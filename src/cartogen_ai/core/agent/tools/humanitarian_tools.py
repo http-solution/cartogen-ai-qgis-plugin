@@ -30,6 +30,9 @@ from .. import coordinates as _coords
 from .vector_tools import _is_safe_url, _build_safe_opener
 import contextlib
 from ...net import build_request as _net_build_request
+from ...net import (
+    MAX_DOWNLOAD_BYTES, gunzip_capped as _gunzip_capped, read_capped as _read_capped, zip_member_capped as _zip_member_capped,
+)
 
 def _cleanup_cached_local_path(key, value):
     """TTLCache on_evict callback (SEC-004, 2026-09-14 audit): several of this file's cached
@@ -87,7 +90,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
             results = data.get("result", {}).get("results", [])
             output = []
             for item in results:
@@ -113,7 +116,7 @@ def search_hdx_datasets(query: str, limit: int = 5):
 def _fts_request(url):
     req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
     with _qgis_urlopen(req, timeout=15) as response:
-        return json.loads(response.read().decode())
+        return json.loads(_read_capped(response).decode())
 
 
 @register_tool(
@@ -254,7 +257,7 @@ def fetch_osm_features(key: str, value: str, bbox: list):
         # budget ([timeout:25] above), so a client timeout below that would abort
         # legitimate slow-but-still-running queries before the server's own limit.
         with _qgis_urlopen(req, timeout=30) as response:
-            res_json = json.loads(response.read().decode())
+            res_json = json.loads(_read_capped(response).decode())
             elements = res_json.get("elements", [])
             nodes = [el for el in elements if el.get("type") == "node"]
 
@@ -368,7 +371,7 @@ def ingest_osm_features_network_phase(
         )
         with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
                                 backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
-            res_json = json.loads(response.read().decode("utf-8"))
+            res_json = json.loads(_read_capped(response).decode("utf-8"))
     except Exception as fetch_error:
         # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
         # not be reported as "overloaded, try later".
@@ -630,7 +633,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
         # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
         # (2026-09-13): json.loads succeeding doesn't guarantee a dict.
         if not isinstance(data, dict):
@@ -654,7 +657,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
             return too_big
         req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
-            geojson_bytes = response2.read()
+            geojson_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
 
         import os
         import tempfile
@@ -759,7 +762,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     try:
         req = _net_build_request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=20) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return {
@@ -803,7 +806,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     try:
         req2 = _net_build_request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
-            zip_bytes = response2.read()
+            zip_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
     except Exception as e:
         return {"error": f"Failed to download '{zip_url}': {e}"}
 
@@ -819,7 +822,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         available = [n for n in z.namelist() if n.lower().endswith(".geojson") and "admin" in n.lower()]
         return {"error": f"'{member_name}' not found in the COD-AB boundaries zip for {iso3}. Available admin-level files: {available}"}
 
-    geojson_bytes = z.read(member_name)
+    geojson_bytes = _zip_member_capped(z, member_name)
 
     pcode_field = None
     try:
@@ -1041,7 +1044,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
         try:
             req = _net_build_request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
             with _qgis_urlopen(req, timeout=30) as response:
-                links_text = response.read().decode()
+                links_text = _read_capped(response).decode()
         except Exception as e:
             return {"error": f"Failed to fetch building footprints dataset index: {e}"}
         _LOOKUP_CACHE.set(cache_key, {"links_text": links_text})
@@ -1080,7 +1083,6 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     if too_big:
         return too_big
 
-    import gzip
     features = []
     truncated = False
     for row in matching_rows:
@@ -1101,12 +1103,12 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
             try:
                 req = _net_build_request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
                 with _build_safe_opener().open(req, timeout=60) as response:
-                    gz_bytes = response.read()
+                    gz_bytes = _read_capped(response)
             except Exception as e:
                 return {"error": f"Failed to download tile '{row['QuadKey']}': {e}"}
 
             try:
-                tile_text = gzip.decompress(gz_bytes).decode("utf-8")
+                tile_text = _gunzip_capped(gz_bytes).decode("utf-8")
             except OSError as e:
                 return {"error": f"Tile '{row['QuadKey']}' did not decompress as gzip: {e}"}
             _LOOKUP_CACHE.set(tile_cache_key, tile_text)
@@ -1446,7 +1448,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
         list_url = f"https://hub.worldpop.org/rest/data/pop/wpgp?iso3={iso3}"
         req = _net_build_request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
-            listing = json.loads(response.read().decode())
+            listing = json.loads(_read_capped(response).decode())
         datasets = listing.get("data", [])
         if not datasets:
             return {"error": f"No WorldPop population datasets found for '{iso3}' -- check the ISO3 code is correct."}
@@ -1565,7 +1567,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
 
         req2 = _net_build_request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=300) as response2:
-            raster_bytes = response2.read()
+            raster_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
 
         fd, tmp_path = tempfile.mkstemp(suffix=".tif")
         with os.fdopen(fd, "wb") as f:
@@ -1890,7 +1892,7 @@ def add_incident_point(
         try:
             _style_incident_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new Incidents layer: {e}")
+            log_event("failed_to_style_new_incidents_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     feat = QgsFeature(layer.fields())
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
@@ -2158,7 +2160,7 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
         try:
             _style_named_point_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new '{layer_name}' layer: {e}")
+            log_event("failed_to_style_new_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     field_names = [f.name() for f in layer.fields()]
     added = 0

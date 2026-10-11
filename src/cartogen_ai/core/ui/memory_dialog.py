@@ -13,6 +13,7 @@ from qgis.PyQt.QtWidgets import (
 
 from .chat_formatting import render_markdown
 from .theme import theme_colors
+from ..logger import log_event
 
 
 class CartogenAiMemoryDialog(QDialog):
@@ -192,7 +193,7 @@ class CartogenAiMemoryDialog(QDialog):
         try:
             notes = memory_manager.get_global_notes()
         except Exception as e:
-            print(f"[MemoryDialog] Failed to read global notes for learned-items combo: {e}")
+            log_event("failed_to_read_global_notes_for_learned_items_combo", tag="MemoryDialog", error_class=type(e).__name__, error=True)
             return
         learned = {
             k: v for k, v in notes.items()

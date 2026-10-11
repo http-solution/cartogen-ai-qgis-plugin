@@ -274,8 +274,7 @@ def count_ranges(values, colours, classes=5, unit=""):
         return out
     k = max(1, min(classes, len(set(positives))))
     cuts = [positives[0]]
-    for i in range(1, k):
-        cuts.append(_nice(positives[min(len(positives) - 1, int(len(positives) * i / k))]))
+    cuts.extend(_nice(positives[min(len(positives) - 1, int(len(positives) * i / k))]) for i in range(1, k))
     cuts.append(positives[-1])
     # strictly increasing limits only
     edges = [cuts[0]]

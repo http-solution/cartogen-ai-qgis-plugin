@@ -40,7 +40,7 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 
-class AnalysisCancelled(Exception):
+class AnalysisCancelledError(Exception):
     """The user pressed Stop while the analysis was running."""
 
 
@@ -148,7 +148,7 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
     """processing.run(algorithm_id, params, context=context), without freezing the GUI.
 
     `fallback(algorithm_id, params, context=context)` is the plain synchronous call, used whenever
-    background execution isn't possible or wanted. Raises AnalysisCancelled on Stop, and
+    background execution isn't possible or wanted. Raises AnalysisCancelledError on Stop, and
     RuntimeError (with the algorithm's own message) if it fails -- like processing.run raises.
     Returns the same results dict as processing.run, with output layers as QgsMapLayer objects."""
     if not use_background or not can_run_in_background():
@@ -202,11 +202,11 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
         _abandon((task, algorithm, feedback, context, params))
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="abandoned",
                   duration_ms=int(elapsed * 1000))
-        raise AnalysisCancelled("Stopped; the analysis is still winding down in the background.")
+        raise AnalysisCancelledError("Stopped; the analysis is still winding down in the background.")
     if state["cancelled_at"] is not None:
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="cancelled",
                   duration_ms=int(elapsed * 1000))
-        raise AnalysisCancelled("Stopped by the user.")
+        raise AnalysisCancelledError("Stopped by the user.")
     if not state["ok"]:
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="failed",
                   duration_ms=int(elapsed * 1000), error=True)
@@ -235,7 +235,7 @@ def run_callable(fn, label="Analysis", use_background=True, poll_ms=100, status_
 
     Do NOT pass a callable that reads or writes QgsMapLayer/QgsProject objects: those are only safe on the GUI thread (use
     run_algorithm for Processing algorithms, which QGIS itself makes thread-safe). Returns fn's result; re-raises its exception;
-    raises AnalysisCancelled on Stop. Outside a real GUI thread (tests, the kill-switch setting) it simply calls fn()."""
+    raises AnalysisCancelledError on Stop. Outside a real GUI thread (tests, the kill-switch setting) it simply calls fn()."""
     if not use_background or not can_run_in_background():
         return fn()
 
@@ -279,9 +279,9 @@ def run_callable(fn, label="Analysis", use_background=True, poll_ms=100, status_
     elapsed_ms = int((time.monotonic() - started) * 1000)
     if state["cancelled_at"] is not None and not state["done"]:
         log_event("background_callable", tag="Tools", tool=label, status="abandoned", duration_ms=elapsed_ms)
-        raise AnalysisCancelled("Stopped; the work is still winding down in the background.")
+        raise AnalysisCancelledError("Stopped; the work is still winding down in the background.")
     if state["cancelled_at"] is not None:
-        raise AnalysisCancelled("Stopped by the user.")
+        raise AnalysisCancelledError("Stopped by the user.")
     if state["error"] is not None:
         log_event("background_callable", tag="Tools", tool=label, status="failed", duration_ms=elapsed_ms, error=True)
         raise state["error"]

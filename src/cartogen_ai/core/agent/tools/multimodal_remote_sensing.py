@@ -10,6 +10,7 @@ import time
 from ...net import urlopen as _qgis_urlopen
 from .registry import register_tool
 from ...net import build_request as _net_build_request
+from ...net import read_capped as _read_capped
 
 try:
     from qgis.utils import iface
@@ -61,7 +62,7 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
         req = _net_build_request(url, data=data_bytes, headers={"Content-Type": "application/json", "User-Agent": "QGIS-AI-Assistant"})
         _STAC_QUOTA["count"] += 1
         with _qgis_urlopen(req, timeout=15) as response:
-            res = json.loads(response.read().decode())
+            res = json.loads(_read_capped(response).decode())
             features = res.get("features", [])
 
             results = []

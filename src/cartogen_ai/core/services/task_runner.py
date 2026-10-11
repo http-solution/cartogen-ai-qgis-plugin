@@ -111,7 +111,7 @@ class AgentQgsTask(QgsTask):
                     err_msg = str(self.error) if self.error else "Task failed or was cancelled."
                     self.on_complete(None, err_msg)
             except Exception as e:
-                print(f"[TaskRunner] AgentQgsTask.finished()'s on_complete callback raised: {e}")
+                log_event("agentqgstask_finished_s_on_complete_callback_raised", tag="TaskRunner", error_class=type(e).__name__, error=True)
                 traceback.print_exc()
 
 
@@ -153,7 +153,7 @@ def _get_main_thread_invoker():
         _INVOKER["obj"] = invoker
         return invoker
     except Exception as e:
-        print(f"[TaskRunner] could not create the main-thread invoker: {e}")
+        log_event("could_not_create_the_main_thread_invoker", tag="TaskRunner", error_class=type(e).__name__, error=True)
         return None
 
 
@@ -171,7 +171,7 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
             QgsApplication.taskManager().addTask(task)
             return task
         except Exception as e:
-            print(f"[TaskRunner] QgsTask dispatch failed, falling back to python thread: {e}")
+            log_event("qgstask_dispatch_failed_falling_back_to_python_thread", tag="TaskRunner", error_class=type(e).__name__, error=True)
 
     # Fallback thread for non-QGIS environments. Previously had no
     # cancellation mechanism at all -- dock_widget.py's Stop button calls
@@ -261,7 +261,7 @@ class FunctionQgsTask(QgsTask):
             else:
                 self.on_done(None, self.error or InterruptedError("Cancelled"))
         except Exception as e:
-            print(f"[TaskRunner] FunctionQgsTask.finished()'s on_done callback raised: {e}")
+            log_event("functionqgstask_finished_s_on_done_callback_raised", tag="TaskRunner", error_class=type(e).__name__, error=True)
             traceback.print_exc()
 
 

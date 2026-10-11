@@ -250,8 +250,8 @@ class TestBelowFloorMatchesDoNotInjectAWrongDirective(unittest.TestCase):
     LIVE_REPORT_QUERIES = (
         "Apply a color ramp to the raster layer.",
         "Only create the layer, do not add styling yet.",
-        "Run a read-only PyQGIS script that lists the current project "
-        "layer names and geometry types.",
+        ("Run a read-only PyQGIS script that lists the current project "
+        "layer names and geometry types."),
         "Create a print layout with the current map view.",
         "Run a PyQGIS script that writes a file outside the project directory.",
     )

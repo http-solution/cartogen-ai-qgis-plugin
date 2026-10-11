@@ -129,8 +129,8 @@ def save_onboarding_profile(role, role_other, experience, style):
     lines = [
         "# Cartogen AI -- Your Profile",
         "",
-        "This file is read by Cartogen AI to tailor its tone and detail level to how you work. "
-        "Edit it directly at any time, or update it via Settings -> Edit My Profile in QGIS.",
+        ("This file is read by Cartogen AI to tailor its tone and detail level to how you work. "
+        "Edit it directly at any time, or update it via Settings -> Edit My Profile in QGIS."),
         "",
         f"- **Role:** {role_label}",
     ]

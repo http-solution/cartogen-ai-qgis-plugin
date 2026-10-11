@@ -276,7 +276,7 @@ def overwrite_preview(tool_name, arguments, path):
     return None
 
 
-def _export_raster_layer(layer, layer_name, format, output_path, confirmed):
+def _export_raster_layer(layer, layer_name, format, output_path, confirmed):  # noqa: A002 -- `format` is the tool's model-facing argument name
     """GeoTIFF copy of a raster layer (rc22 smoke H4/D5: slope and other results are temporary files and the model, asked to export
     one, called the vector exporter on it and failed). Only GeoTIFF is offered; other formats get a plain error."""
     if str(format or "").lower() not in ("tif", "tiff", "geotiff", "gtiff", "gpkg", "geopackage", ""):
@@ -309,7 +309,7 @@ def _export_raster_layer(layer, layer_name, format, output_path, confirmed):
 
 
 @register_tool("export_layer", "Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
-def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):
+def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):  # noqa: A002 -- `format` is the tool's model-facing argument name
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
@@ -728,8 +728,7 @@ def generate_spatial_report(title, insights, source_layers=None):
                 lines.append(f"- **{entry['layer']}**: no tracked lineage -- loaded directly, not created/modified by an agent tool.")
             else:
                 lines.append(f"- **{entry['layer']}**:")
-                for h in entry["history"]:
-                    lines.append(f"  - {_format_lineage_entry(h)}")
+                lines.extend(f"  - {_format_lineage_entry(h)}" for h in entry["history"])
         report += "\n\n" + "\n".join(lines)
 
     return {"message": "Report generated successfully.", "report": report}
@@ -1142,8 +1141,8 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
         if style_function:
             gj_kwargs["style_function"] = style_function
         if _should_cluster(features):
-            MarkerCluster = _pinned_marker_cluster()
-            target = MarkerCluster(name=name).add_to(m)
+            marker_cluster = _pinned_marker_cluster()
+            target = marker_cluster(name=name).add_to(m)
             warnings.append(
                 f"'{name}': {len(features):,} points are drawn as clusters that split as you zoom in "
                 "(the page loads the Leaflet.markercluster library from a CDN)."
@@ -1467,8 +1466,8 @@ def _add_temporal_overlay(folium, m, layer, popup, warnings, acc):
         # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
         # its opacity, which a cluster would still count, so the page script rebuilds this cluster
         # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
-        MarkerCluster = _pinned_marker_cluster()
-        cluster = MarkerCluster(name=name).add_to(m)
+        marker_cluster = _pinned_marker_cluster()
+        cluster = marker_cluster(name=name).add_to(m)
         gj.add_to(cluster)
         acc.cluster_js_vars.append(cluster.get_name())
         warnings.append(

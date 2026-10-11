@@ -36,6 +36,7 @@ from .theme import extract_theme_palette
 from .dock_constants import PROVIDER_CHOICES
 from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
+from ..logger import log_event
 
 
 class CartogenAiDockWidget(QDockWidget):
@@ -223,7 +224,7 @@ class CartogenAiDockWidget(QDockWidget):
             try:
                 self._agent_provider()
             except Exception as e:
-                print(f"[DockWidget] Agent refresh after provider switch failed: {e}")
+                log_event("agent_refresh_after_provider_switch_failed", tag="DockWidget", error_class=type(e).__name__, error=True)
         self.receiveMessageSignal.emit("ai", f"🔀 Switched active provider to **{provider_label}**.")
 
     def open_memory(self):
@@ -258,4 +259,4 @@ class CartogenAiDockWidget(QDockWidget):
                 try:
                     self._agent_provider()
                 except Exception as e:
-                    print(f"[DockWidget] Agent refresh after settings save failed: {e}")
+                    log_event("agent_refresh_after_settings_save_failed", tag="DockWidget", error_class=type(e).__name__, error=True)

@@ -1,6 +1,7 @@
 """
 Authentication and Credential Security Manager for Cartogen AI.
-Uses QGIS native QgsAuthManager (encrypted keyring storage) with fallback to QgsSettings.
+Uses QGIS native QgsAuthManager (encrypted keyring storage). When it is unavailable a key is held in this process's memory only for
+the session; a new key is never written to QgsSettings in plaintext (older plaintext keys are only read and migrated, see below).
 """
 
 from typing import ClassVar
@@ -11,7 +12,7 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-from ..core.logger import log_warning
+from ..core.logger import log_event, log_warning
 from .settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, fallback_credential_key, auth_id_setting_key,
 )
@@ -222,9 +223,9 @@ class CredentialManager:
         if not status.get("disabled"):
             return ""
         lines = [
-            "This isn't something Cartogen AI's own installer can fix -- it only installs "
+            ("This isn't something Cartogen AI's own installer can fix -- it only installs "
             "Python packages (via qpip), never QGIS's native Qt/QCA libraries or its "
-            "settings. Two documented causes:"
+            "settings. Two documented causes:")
         ]
         for i, item in enumerate(status["known_causes"], start=1):
             lines.append(f"{i}. {item['cause']}\n   Fix: {item['fix']}")
@@ -270,7 +271,7 @@ class CredentialManager:
             settings.setValue(setting, config.id())
             return True
         except Exception as e:
-            print(f"[CredentialManager] secure account session save failed: {e}")
+            log_event("secure_account_session_save_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
             return False
 
     @staticmethod
@@ -289,7 +290,7 @@ class CredentialManager:
             if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
                 return config.config("password") or ""
         except Exception as e:
-            print(f"[CredentialManager] secure account session load failed: {e}")
+            log_event("secure_account_session_load_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
         return ""
 
     @staticmethod
@@ -307,7 +308,7 @@ class CredentialManager:
                     remove_fn(auth_id)
             settings.remove(setting)
         except Exception as e:
-            print(f"[CredentialManager] secure account session delete failed: {e}")
+            log_event("secure_account_session_delete_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
 
     _MISSING_KEY_MESSAGE = (
         "**No API key configured for the selected provider.** Open **Settings** "

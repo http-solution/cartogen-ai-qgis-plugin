@@ -47,7 +47,7 @@ def _render_table(rows, text_color, border_color, row_border_color):
             for c in cells
         )
         trs.append(f"<tr>{tds}</tr>")
-    return f'<table style="border-collapse:collapse;margin:6px 0;">' f"<tr>{th}</tr>{''.join(trs)}</table>"
+    return f'<table style="border-collapse:collapse;margin:6px 0;"><tr>{th}</tr>{"".join(trs)}</table>'
 
 
 # Extensions this project's own tools actually produce as output_path results (print
@@ -63,6 +63,23 @@ _OUTPUT_FILE_EXTENSIONS = (
 )
 # The drive letter must not be the tail of a word: in "https://host/x/preview.jpg" the "s:/" of "https://" used to start a "path" that ran
 # to ".jpg", so a STAC thumbnail link became a broken file link (rc18 hand test N4, 2026-10-06).
+_MODEL_CHIP_PREFIXES = ("cartogen://action/", "cartogen://export/", "cartogen://prompt/", "cartogen://zoom/")
+
+
+def _safe_link_url(url):
+    """Makes a URL from model text safe to put inside href="...": a quote, angle bracket or space in it could end the attribute and add
+    its own (style=, or more), which the markdown link pattern allowed. Percent-encoding keeps the link working."""
+    return url.replace('"', "%22").replace("'", "%27").replace("<", "%3C").replace(">", "%3E").replace(" ", "%20")
+
+
+def is_openable_output_file(path):
+    """True for an existing local file whose extension is one a tool writes (the same list the path linkifier uses). The chat opens a
+    file: link with the desktop's default program, so a link the model wrote for a path that is not such a file must do nothing."""
+    import os
+    ext = os.path.splitext(str(path))[1].lstrip(".").lower()
+    return ext in _OUTPUT_FILE_EXTENSIONS and os.path.isfile(path)
+
+
 _OUTPUT_PATH_RE = re.compile(
     r'(?<![A-Za-z0-9])[A-Za-z]:[\\/](?![\\/])(?:[^\s<>"\']+[\\/])*[^\s<>"\']+\.(?:' + "|".join(_OUTPUT_FILE_EXTENSIONS) + r')\b'
 )
@@ -275,6 +292,12 @@ def render_markdown(text, colors=None):
     # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
     def _style_link(m):
         label, url = m.group(1), m.group(2).strip()
+        url = _safe_link_url(url)
+        if url.startswith("cartogen://") and not url.startswith(_MODEL_CHIP_PREFIXES):
+            # Model text may only produce the four chip kinds. cartogen://confirm|cancel|task|clearplan|steps|refine|starter belong
+            # to cards the app itself draws; a model reply (or a layer attribute it echoed) must not be able to paint a look-alike
+            # "Apply edit" link that resolves a real pending confirmation (2026-10-11 audit).
+            return label
         if (url.startswith(("cartogen://action/", "cartogen://export/", "cartogen://prompt/", "cartogen://zoom/"))):
             if url.startswith("cartogen://prompt/"):
                 raw_prompt = url[len("cartogen://prompt/"):]
@@ -696,9 +719,9 @@ def summarize_tool_result(result, limit=400):
         parts.append(str(result["message"]))
     elif result.get("success") is True:
         parts.append("completed")
-    for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated"):
-        if result.get(key) not in (None, ""):
-            parts.append(f"{key.replace('_', ' ')}: {result[key]}")
+    parts.extend(f"{key.replace('_', ' ')}: {result[key]}"
+                 for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated")
+                 if result.get(key) not in (None, ""))
     if result.get("egress_override_note"):
         parts.append(str(result["egress_override_note"]))
     text = "; ".join(parts) or "completed"
@@ -925,9 +948,9 @@ def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
             f'&nbsp;<a href="{href}">Details&nbsp;&#9662;</a></div>'
         )
     lines = [
-        f'<div style="font-size:11px;color:{color};margin:2px 0;">'
+        (f'<div style="font-size:11px;color:{color};margin:2px 0;">'
         f'&#128295;&nbsp;{n} tool call{plural}'
-        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>'
+        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>')
     ]
     for s in steps:
         icon = _STEP_STATUS.get(s["status"], _STEP_STATUS["done"])["icon"]

@@ -216,7 +216,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys)
         output = _run_allowlisted(alg_id, resolved_params)
-    except _bg.AnalysisCancelled:
+    except _bg.AnalysisCancelledError:
         return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}

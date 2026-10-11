@@ -71,8 +71,5 @@ def claimed_module_names(modules, package_dir):
         children = {os.path.splitext(entry)[0] for entry in os.listdir(package_dir) if not entry.startswith("__")}
     except OSError:
         children = set()
-    claimed = []
-    for name in list(modules):
-        if name == "cartogen_ai" or (name.startswith("cartogen_ai.") and name.split(".")[1] in children):
-            claimed.append(name)
-    return claimed
+    return [name for name in list(modules)
+            if name == "cartogen_ai" or (name.startswith("cartogen_ai.") and name.split(".")[1] in children)]

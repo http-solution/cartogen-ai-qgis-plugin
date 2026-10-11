@@ -290,8 +290,8 @@ _OUTPUT_OVERRIDE = [
     # "report" as a NOUN names a deliverable ("write a report", "a situation report", "report on ..."); as a VERB it only asks for the answer
     # ("Report the model used and the detection count", "report each ID"). rc18 hand test R3/N5 (2026-10-06): the verb form forced an
     # MD-file deliverable, and after a failed run a follow-up turn demanded generate_spatial_report that nobody asked for.
-    ("report",    r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
-                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b"),
+    ("report",    (r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
+                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b")),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
     # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
     # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested
@@ -408,8 +408,7 @@ def clarify_question(entry, missing):
     if not entry or not missing:
         return ""
     lines = ["To do this well I need a bit more: **{}**".format(entry["text"]), ""]
-    for s in missing:
-        lines.append(f"- {reg.SLOT_QUESTIONS.get(s, s)}")
+    lines.extend(f"- {reg.SLOT_QUESTIONS.get(s, s)}" for s in missing)
     lines.append("")
     stated = defaults(missing)
     if stated:
@@ -488,7 +487,7 @@ def output_contract(entry, query=None):
         return None
     explicit = output_override(query)
     kind = explicit or entry["out"]
-    RENDER = {
+    render_tools = {
         "layer":     ["apply_categorized_style", "zoom_to_layer"],
         "layout":    ["create_print_layout", "print_map"],
         "dashboard": ["generate_html_dashboard"],
@@ -506,8 +505,8 @@ def output_contract(entry, query=None):
         # not a request for one (rc7 smoke test F10: an unrequested CSV export was forced).
         "explicit": explicit is not None,
         "intent": reg.OUTPUT_INTENT.get(kind, kind),
-        "render": [t for t in RENDER.get(kind, []) if t in entry.get("tools", [])]
-                  or RENDER.get(kind, []),
+        "render": [t for t in render_tools.get(kind, []) if t in entry.get("tools", [])]
+                  or render_tools.get(kind, []),
     }
 
 
@@ -553,8 +552,7 @@ def compose_user_message(query, filled=None, plan=None):
                                            for k, v in sorted(filled.items())) + ".")
     if plan:
         lines = ["Attached files:"]
-        for p in plan:
-            lines.append("- " + p["line"])
+        lines.extend("- " + p["line"] for p in plan)
         parts.append("\n".join(lines))
     return "\n\n".join(p for p in parts if p)
 

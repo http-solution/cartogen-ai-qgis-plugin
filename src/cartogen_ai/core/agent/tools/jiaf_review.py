@@ -217,9 +217,8 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
                      "severity_evidence_basis": sd.get("evidence_basis") if sd else None, "severity_evidence": sev_evidence,
                      "severity_decided_by": sd.get("decided_by") if sd else None, "severity_decision_date": sd.get("date") if sd else None})
     for kind in ("pin", "severity"):
-        for uid in decisions[kind]:
-            if uid not in by_unit:
-                issues.append({"unit": uid, "problem": f"a {kind} decision is recorded for a unit that is not in this file; it is ignored"})
+        issues.extend({"unit": uid, "problem": f"a {kind} decision is recorded for a unit that is not in this file; it is ignored"}
+                      for uid in decisions[kind] if uid not in by_unit)
     pending_pin = counts["pin_status"].get("pending_flagged", 0)
     pending_sev = counts["severity_status"].get("pending_flagged", 0)
     incomplete_sev = counts["severity_status"].get("incomplete_coverage", 0)

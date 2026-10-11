@@ -355,9 +355,7 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
     levels = []
     try:
         from ...models import sensitivity
-        for e in entries:
-            if e["visible"]:
-                levels.append(sensitivity.get_layer_sensitivity(e["layer"]).get("level"))
+        levels.extend(sensitivity.get_layer_sensitivity(e["layer"]).get("level") for e in entries if e["visible"])
     except Exception as exc:
         warnings.append(f"sensitivity lookup failed: {exc}")
 

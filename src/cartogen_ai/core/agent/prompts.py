@@ -51,6 +51,7 @@ select, and as build_system_prompt()'s own behavior when active_tool_names isn't
 import re
 
 from .tools import TOOLS_SCHEMA
+from ..logger import log_event
 
 _TOOL_NAMES = {t.get("function", {}).get("name", "") for t in TOOLS_SCHEMA}
 
@@ -827,7 +828,7 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
             if mem_ctx:
                 prompt_parts.append("\n" + mem_ctx)
         except Exception as e:
-            print(f"[Prompts] Failed to format memory context: {e}")
+            log_event("failed_to_format_memory_context", tag="Prompts", error_class=type(e).__name__, error=True)
 
     if task_manager is not None:
         try:
@@ -835,6 +836,6 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
             if task_ctx:
                 prompt_parts.append("\n" + task_ctx)
         except Exception as e:
-            print(f"[Prompts] Failed to format task context: {e}")
+            log_event("failed_to_format_task_context", tag="Prompts", error_class=type(e).__name__, error=True)
 
     return "\n".join(prompt_parts)

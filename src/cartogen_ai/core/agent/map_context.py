@@ -1,4 +1,5 @@
 import contextlib
+from ..logger import log_event
 """
 Proactive Map Context Summary for Cartogen AI.
 Builds a lightweight snapshot of the current project/canvas so the agent has
@@ -73,7 +74,7 @@ def get_map_context_summary() -> dict:
             "truncated": len(all_layers) > MAX_LAYERS,
         }
     except Exception as e:
-        print(f"[MapContext] Failed to build map context summary: {e}")
+        log_event("failed_to_build_map_context_summary", tag="MapContext", error_class=type(e).__name__, error=True)
         return {}
 
 

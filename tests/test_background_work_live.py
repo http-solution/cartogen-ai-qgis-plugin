@@ -147,7 +147,7 @@ class TestBackgroundWork(unittest.TestCase):
         from cartogen_ai.core.agent.tools import _background_processing as bg
         token = cancel_signal.begin(should_stop=lambda: True)
         try:
-            with self.assertRaises(bg.AnalysisCancelled):
+            with self.assertRaises(bg.AnalysisCancelledError):
                 bg.run_callable(lambda: time.sleep(3), label="t")
         finally:
             cancel_signal.end(token)

@@ -169,9 +169,7 @@ def _service_area_params(network_layer, pt, strategy_idx, default_speed, child_c
         params["SPEED_FIELD"] = speed_field
     if direction_field:
         params["DIRECTION_FIELD"] = direction_field
-        for key, value in direction_values.items():
-            if value:
-                params[key] = value
+        params.update({key: value for key, value in direction_values.items() if value})
     return params
 
 

@@ -48,8 +48,8 @@ class TestExecuteReadOnlySqlOnPostgis(unittest.TestCase):
             f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE",
             f"CREATE SCHEMA {SCHEMA}",
             f"CREATE TABLE {SCHEMA}.places (id integer PRIMARY KEY, name text, geom geometry(Point, 4326))",
-            f"INSERT INTO {SCHEMA}.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(44.0,15.0),4326)),"
-            f"(2,'b',ST_SetSRID(ST_MakePoint(44.1,15.1),4326)),(3,'c',ST_SetSRID(ST_MakePoint(44.2,15.2),4326))",
+            (f"INSERT INTO {SCHEMA}.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(44.0,15.0),4326)),"
+            f"(2,'b',ST_SetSRID(ST_MakePoint(44.1,15.1),4326)),(3,'c',ST_SetSRID(ST_MakePoint(44.2,15.2),4326))"),
             f"CREATE TABLE {SCHEMA}.facts (id integer PRIMARY KEY, label text)",
             f"INSERT INTO {SCHEMA}.facts VALUES (1,'x'),(2,'y')",
             f"CREATE SEQUENCE {SCHEMA}.seq1",

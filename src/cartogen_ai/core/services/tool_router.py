@@ -384,7 +384,7 @@ class ToolRouter:
                     always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
-        _FALLBACK_TOOL = "execute_pyqgis_script"
+        fallback_tool = "execute_pyqgis_script"
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
         # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool
@@ -471,12 +471,12 @@ class ToolRouter:
         # create_plan/etc.'s synthetic 1000 in `other_scores`).
         other_scores = [
             score for score, tool in scored_tools
-            if tool.get("function", {}).get("name") not in always_include | {_FALLBACK_TOOL}
+            if tool.get("function", {}).get("name") not in always_include | {fallback_tool}
         ]
         nothing_else_matched = not other_scores or max(other_scores) <= 0
         if nothing_else_matched:
             scored_tools = [
-                (1000, tool) if tool.get("function", {}).get("name") == _FALLBACK_TOOL else (score, tool)
+                (1000, tool) if tool.get("function", {}).get("name") == fallback_tool else (score, tool)
                 for score, tool in scored_tools
             ]
 
