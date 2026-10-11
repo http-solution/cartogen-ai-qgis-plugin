@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc34](#v1-16-0-rc34) | 2026-10-11 | **Release candidate 34 for 1.16.0.** No breaking changes. Refused Gemini requests explain themselves, retired fallback model replaced, no waiting on unusable models. Not hand-tested. |
 | [1.16.0-rc33](#v1-16-0-rc33) | 2026-10-11 | **Release candidate 33 for 1.16.0.** No breaking changes. AI requests keep their key across redirects, redirects logged. Not hand-tested. |
 | [1.16.0-rc32](#v1-16-0-rc32) | 2026-10-11 | **Release candidate 32 for 1.16.0.** No breaking changes. Refusal reasons shown, switch back to the previous request sender, refusals logged. Not hand-tested. |
 | [1.16.0-rc31](#v1-16-0-rc31) | 2026-10-11 | **Release candidate 31 for 1.16.0.** No breaking changes. Metadata category removed, temporary layers checked, notices shown inside dialogs, redraw after field writes. Not hand-tested. |
@@ -74,6 +75,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc34"></a>
+## [1.16.0-rc34] — 2026-10-11 — Release candidate 34 for 1.16.0: refused Gemini requests explain themselves
+
+No breaking changes; QGIS 4.2+. Everything after the rc33 build:
+
+- A refused Gemini request now explains itself: When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown.
+- Retired Gemini model replaced: Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash.
+- No more waiting on a model your plan cannot use: A quota of zero (the free tier has none for the Pro models) is returned at once instead of after a minute of retries, and the plugin moves to the next model. A model refused with 403 is also skipped. When Google denies the whole project, the plugin stops and shows Google's message instead of trying every model. A Google quota error is shown as one sentence (model, free tier, limit, retry time) instead of a screenful of JSON.
+- Log lines keep their host names: The redirect and refusal log lines had lost their host fields to the logger's allow-list; host names (never paths, keys or bodies) are now logged.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run against Google. Which key and project Google accepts remains the user's to check in Google AI Studio.
 
 <a id="v1-16-0-rc33"></a>
 ## [1.16.0-rc33] — 2026-10-11 — Release candidate 33 for 1.16.0: AI requests keep their key across redirects

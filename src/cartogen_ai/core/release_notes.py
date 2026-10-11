@@ -8,14 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc33"
-NEW_MARK_VERSIONS = ("1.16.0-rc32", "1.16.0-rc33")
+WHATS_NEW_VERSION = "1.16.0-rc34"
+NEW_MARK_VERSIONS = ("1.16.0-rc33", "1.16.0-rc34")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('AI requests keep their API key when a server redirects them', "If anything between QGIS and a provider (a proxy, firewall or gateway) answered an AI request with a redirect, QGIS's own sender repeated the request without the Authorization header, so the provider refused it with 403. This was reproduced in QGIS 4.2.2 with a local test server. Requests that carry a body or a key now follow redirects inside the plugin: the same method, headers and body on a 307 or 308, a plain GET on 301, 302 and 303, the key kept on the same site and dropped for another, relative targets resolved, at most 5 hops."),
-    ('Redirects are logged without secrets', 'Each redirect writes a log line with the two host names and the status, never the path, key or body, so a later refusal shows whether a redirect was involved.'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS or run against Google, and it has not been confirmed that a redirect is what caused the reported Gemini 403. The reason code and the sender switch added in rc32 remain for that case.'),
+    ('A refused Gemini request now explains itself', "When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown."),
+    ('Retired Gemini model replaced', "Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash."),
+    ('No more waiting on a model your plan cannot use', "A quota of zero (the free tier has none for the Pro models) is returned at once instead of after a minute of retries, and the plugin moves to the next model. A model refused with 403 is also skipped. When Google denies the whole project, the plugin stops and shows Google's message instead of trying every model. A Google quota error is shown as one sentence (model, free tier, limit, retry time) instead of a screenful of JSON."),
+    ('Log lines keep their host names', "The redirect and refusal log lines had lost their host fields to the logger's allow-list; host names (never paths, keys or bodies) are now logged."),
+    ('Not hand-tested', "CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run against Google. Which key and project Google accepts remains the user's to check in Google AI Studio."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
