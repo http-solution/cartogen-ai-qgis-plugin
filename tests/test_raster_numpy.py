@@ -122,3 +122,66 @@ class TestAllowlistNoLongerOffersMissingIds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(np is None, "numpy not installed")
+class TestBlockedClassification(unittest.TestCase):
+    """GitHub #222 / audit A15: classify_in_blocks never holds more than a block, and matches the in-memory result in kind."""
+
+    def _raster(self, rows=60, cols=40):
+        rng = np.random.RandomState(1)
+        arr = np.zeros((rows, cols, 2), dtype=np.float32)
+        arr[: rows // 2] = rng.normal([0, 0], 0.05, (rows // 2, cols, 2))
+        arr[rows // 2:] = rng.normal([10, 10], 0.05, (rows - rows // 2, cols, 2))
+        valid = np.ones((rows, cols), dtype=bool)
+        if rows > 10:
+            valid[5, 5] = False
+            valid[rows - 3, 7] = False
+        return arr, valid
+
+    def _run(self, arr, valid, k=2, block_rows=7):
+        out = np.zeros(valid.shape, dtype=np.uint8)
+        peak = []
+
+        def read_block(row0, n):
+            peak.append(n)
+            return arr[row0:row0 + n], valid[row0:row0 + n]
+
+        def write_block(row0, block):
+            out[row0:row0 + block.shape[0]] = block
+        res = rn.classify_in_blocks(read_block, write_block, arr.shape[0], arr.shape[1], arr.shape[2], k, seed=0, block_rows=block_rows)
+        return res, out, peak
+
+    def test_two_clusters_are_found_and_invalid_cells_stay_zero(self):
+        arr, valid = self._raster()
+        res, out, _peak = self._run(arr, valid)
+        self.assertEqual(res["valid_cells"], int(valid.sum()))
+        self.assertTrue((out[~valid] == 0).all())
+        top, bottom = set(np.unique(out[:30][valid[:30]])), set(np.unique(out[30:][valid[30:]]))
+        self.assertEqual(len(top), 1)
+        self.assertEqual(len(bottom), 1)
+        self.assertNotEqual(top, bottom)
+        self.assertTrue(set(np.unique(out[valid])) <= {1, 2})
+
+    def test_no_block_is_larger_than_requested(self):
+        arr, valid = self._raster()
+        _res, _out, peak = self._run(arr, valid, block_rows=7)
+        self.assertLessEqual(max(peak), 7)
+        self.assertGreater(len(peak), 2 * (60 // 7))            # read twice: a sampling pass and an assignment pass
+
+    def test_same_seed_same_result(self):
+        arr, valid = self._raster()
+        self.assertTrue((self._run(arr, valid)[1] == self._run(arr, valid)[1]).all())
+
+    def test_fewer_valid_cells_than_classes_is_a_plain_error(self):
+        arr, valid = self._raster(rows=4, cols=4)
+        valid[:] = False
+        valid[0, 0] = True
+        with self.assertRaisesRegex(ValueError, "fewer than the 2 classes"):
+            self._run(arr, valid, k=2, block_rows=2)
+
+    def test_default_block_size_is_derived_from_the_value_budget(self):
+        arr, valid = self._raster(rows=10, cols=10)
+        seen = []
+        rn.classify_in_blocks(lambda r, n: (seen.append(n) or (arr[r:r + n], valid[r:r + n])), lambda r, b: None, 10, 10, 2, 2)
+        self.assertEqual(seen[0], 10)                              # 4M values per block holds a 10 x 10 x 2 raster whole

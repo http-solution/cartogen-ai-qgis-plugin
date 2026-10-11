@@ -76,6 +76,24 @@ class TestNumpyRasterTools(unittest.TestCase):
         classes = {int(block.value(r, c)) for r in range(10) for c in range(10)}
         self.assertEqual(classes, {1, 2})
 
+    def test_classification_in_several_blocks_matches_the_cluster_layout(self):
+        # #222: a tiny block size forces the row-block path through real GDAL reads and writes (4 rows per block here).
+        from unittest.mock import patch
+        from cartogen_ai.core.agent.tools import raster_numpy
+        from cartogen_ai.core.agent.tools.raster_tools import unsupervised_classification
+        data = numpy.zeros((30, 10, 2), dtype="float32")
+        data[15:, :, :] = 100.0
+        self._add("blocks", data)
+        with patch.object(raster_numpy, "BLOCK_VALUES", 80):
+            res = unsupervised_classification("blocks", 2, seed=1)
+        self.assertTrue(res.get("success"), res)
+        out = QgsProject.instance().mapLayersByName("blocks_classified")[0]
+        block = out.dataProvider().block(1, out.extent(), 10, 30)
+        top = {int(block.value(r, c)) for r in range(15) for c in range(10)}
+        bottom = {int(block.value(r, c)) for r in range(15, 30) for c in range(10)}
+        self.assertEqual((len(top), len(bottom)), (1, 1))
+        self.assertNotEqual(top, bottom)
+
     def test_pansharp_algorithm_exists_with_the_parameter_names_the_tool_uses(self):
         alg = QgsApplication.processingRegistry().algorithmById("gdal:pansharp")
         self.assertIsNotNone(alg)
