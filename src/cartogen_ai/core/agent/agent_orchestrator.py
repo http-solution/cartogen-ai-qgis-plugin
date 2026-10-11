@@ -1637,6 +1637,17 @@ class CartogenAi:
                 offered.add(wanted)
         return active_tools
 
+    @staticmethod
+    def _begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id):
+        """A read-only turn (web search, inspection) never "changes" anything, so a stall there is not a loop: ask for the answer once,
+        with no tools offered. Returns (guard_stop, active_tools): (None, []) when wrapping up, else both unchanged."""
+        if not (guard_stop and guard.can_wrap_up()):
+            return guard_stop, active_tools
+        guard.release_for_wrap_up()
+        log_event("turn_guard_stop", tag="Agent", status="wrap_up", count=iteration_index + 1, correlation_id=correlation_id)
+        messages.append({"role": "user", "content": loop_guard.WRAP_UP_NUDGE})
+        return None, []
+
     def _end_of_round_nudges(self, messages, user_query, turn_tool_log, nudged):
         """Each course-correction fires at most once per turn (tracked in `nudged`)."""
         candidates = (
@@ -1922,6 +1933,7 @@ class CartogenAi:
                 })
 
             guard_stop = guard.end_round() or guard.stop
+            guard_stop, active_tools = self._begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id)
             if guard_stop:
                 final_text = guard.partial_report(guard_stop)
                 log_event("turn_guard_stop", tag="Agent", status=guard_stop["reason"], count=iteration_index + 1,

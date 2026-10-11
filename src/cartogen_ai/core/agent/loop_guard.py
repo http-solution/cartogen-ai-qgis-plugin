@@ -42,6 +42,7 @@ class LoopGuard:
         self._round_progress = False
         self.done = []          # tool names that succeeded, in order
         self.failed = []        # (tool name, short error)
+        self._wrapped_up = False
         self.stop = None        # {"reason", "detail"} once triggered
 
     def record_call(self, name, arguments, is_error, error_text="", operation_type=None):
@@ -78,6 +79,18 @@ class LoopGuard:
                          "detail": f"{self._rounds_without_progress} rounds in a row changed nothing (no layer, field or file was created or modified)"}
         return self.stop
 
+    def can_wrap_up(self):
+        """True when the stop is a no-progress stall that gathered results: the model was reading, not stuck, so it should be asked to
+        answer from them once instead of being cut off. Reported live 2026-10-11: 'check the internet for incidents' ran six
+        successful search_web rounds, never changes a layer, and was stopped as 'NOT complete' with nothing summarised."""
+        return bool(self.stop and self.stop["reason"] == "no_progress" and self.done and not self._wrapped_up)
+
+    def release_for_wrap_up(self):
+        """Clear a stall stop so the turn can run one tool-less answer round. A second stall is final."""
+        self._wrapped_up = True
+        self.stop = None
+        self._rounds_without_progress = 0
+
     def partial_report(self, stop=None):
         """Plain-language stop message that says what was done and what was not. Starts with '[Agent stopped]' so it cannot read as success."""
         stop = stop or self.stop or {"reason": "stopped", "detail": "the request was stopped"}
@@ -98,6 +111,12 @@ def budget_exceeded(turn_tokens, budget, next_call_estimate=None):
     if not budget:
         return False
     return (turn_tokens + (next_call_estimate or 0)) > budget
+
+
+WRAP_UP_NUDGE = (
+    "You have gathered what you can with the tools. Do not call any more tools. Answer the user's request now from the results above: "
+    "state what you found, name the sources (titles or URLs) you actually received, and say plainly what you could not find or "
+    "verify. Do not invent anything the results do not show.")
 
 
 # rc22 hand test J13 (#231): the model made 20 calls on file paths it had invented, then hit the tool limit. With the exact
