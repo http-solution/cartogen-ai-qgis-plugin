@@ -179,6 +179,7 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
         tool_choice="none" is meant to force a text-only turn, which is how a loop that keeps asking for "one more tool call" would be
         stopped; whether this endpoint honours it is NOT confirmed by the project -- run tools/diagnose_gemini_endpoint.py."""
         chain = self._model_chain()
+        refused = []     # models that answered 403: tried, then skipped
         for idx, model_id in enumerate(chain):
             self._model = model_id
             self._emit_status(f"Using Gemini: {model_id}")
@@ -193,6 +194,14 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     next_idx = idx + 1
                     if next_idx < len(chain):
                         self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
+                    continue
+                if response.status_code == 403 and idx + 1 < len(chain):
+                    # A 403 can be about the MODEL, not the key: preview and "-latest" models are gated per account or billing tier
+                    # while a stable one (gemini-2.5-flash) is open, and the model list shows all of them either way. The chain stops
+                    # at a 404 only, which left a user stuck on a refused preview model with working alternatives behind it
+                    # (2026-10-11 report). If every model refuses, the error below says so and the key is the likelier cause.
+                    refused.append(model_id)
+                    self._emit_status(f"{model_id} was refused (403), trying {chain[idx + 1]}...")
                     continue
                 response.raise_for_status()
                 data = response.json()
@@ -209,7 +218,10 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))}
+                message = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))
+                if refused:
+                    message += f" Models refused before this one: [{', '.join(refused)}]; none of them worked, so the key or its project is the likelier cause."
+                return {"error": message}
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}
 

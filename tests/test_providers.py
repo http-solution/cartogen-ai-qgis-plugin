@@ -267,6 +267,41 @@ class TestListModels(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("404", result["error"])
 
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_client_tries_the_next_model_when_one_is_refused_with_403(self, mock_post):
+        # 2026-10-11 report: stuck on gemini-3.1-pro-preview. A 403 can be a per-model gate (preview/"-latest" models, billing tier)
+        # while a stable model is open; only a 404 used to move on.
+        refused = MagicMock()
+        refused.status_code = 403
+        working = MagicMock()
+        working.status_code = 200
+        working.raise_for_status.return_value = None
+        working.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+        mock_post.side_effect = [refused, working]
+        statuses = []
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro-preview", status_callback=statuses.append)
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertEqual(result["message"]["content"], "hi")
+        self.assertEqual(result["model"], client.models[1])
+        self.assertTrue(any("refused (403)" in s for s in statuses))
+
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_client_reports_the_models_it_tried_when_every_one_is_refused(self, mock_post):
+        import requests
+        refused = MagicMock()
+        refused.status_code = 403
+        refused.text = ""
+        refused.content = b""
+        refused.headers = {}
+        refused.raise_for_status.side_effect = requests.exceptions.HTTPError(response=refused)
+        mock_post.return_value = refused
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro-preview")
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertIn("403", result["error"])
+        self.assertIn("gemini-3.1-pro-preview", result["error"])
+        self.assertIn("none of them worked", result["error"])
+        self.assertEqual(mock_post.call_count, len(client.models))
+
     def test_openai_client_keeps_configured_model_first_in_chain(self):
         client = openai_mod.OpenAIClient(api_key="dummy", model="some-custom-model")
         self.assertEqual(client.models[0], "some-custom-model")
