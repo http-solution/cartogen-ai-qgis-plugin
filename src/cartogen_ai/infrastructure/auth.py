@@ -1,6 +1,7 @@
 """
 Authentication and Credential Security Manager for Cartogen AI.
-Uses QGIS native QgsAuthManager (encrypted keyring storage) with fallback to QgsSettings.
+Uses QGIS native QgsAuthManager (encrypted keyring storage). When it is unavailable a key is held in this process's memory only for
+the session; a new key is never written to QgsSettings in plaintext (older plaintext keys are only read and migrated, see below).
 """
 
 from typing import ClassVar
@@ -11,11 +12,10 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-from ..core.logger import log_warning
+from ..core.logger import log_event, log_warning
 from .settings_keys import (
     SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, fallback_credential_key, auth_id_setting_key,
 )
-from ..core.logger import log_event
 
 
 def _store_auth_config(auth_mgr, config, had_existing_id):
