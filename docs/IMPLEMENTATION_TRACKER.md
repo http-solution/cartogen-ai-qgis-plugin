@@ -1665,6 +1665,12 @@ Intended scope (to be confirmed by the owner before building):
 - Social media: only through an official API the user has credentials for; no scraping. Treat posts as unverified signals.
 - Results that name a place can be turned into a points layer with the source fields kept, so the map shows provenance.
 
+Known limit of one source (owner note, 2026-10-11): GDACS disaster alerts are global only, with no country or region query. The
+feed has to be fetched whole and filtered locally (by the alert's country or coordinates against the user's area of interest), so a
+regional search cannot rely on GDACS for coverage or for "nothing found" answers. Each source needs its coverage recorded (global,
+regional, country) so the reply can say which sources could and could not answer for the area asked. Not verified against the live
+GDACS feed from this sandbox.
+
 Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
 social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
 Do not call this shipped in release notes until it exists and has been tested against the live services.
