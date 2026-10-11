@@ -1645,6 +1645,30 @@ they work in (SECURITY.md §7 updated); users who explicitly left the old defaul
 opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
 possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
 
+### 1.19 Advanced web search and filtering results against reliable sources (planned, added 2026-10-11)
+
+**Status: not built. Roadmap item requested by the owner.** Nothing below exists in the code yet.
+
+Why: a live chat on 2026-10-11 ("check the social media and internet for incidents") made six `search_web` calls and returned no
+usable answer. `search_web` (`core/agent/tools/system_tools.py`) is a thin wrapper over the `ddgs` package: general web results
+only, no date filter, no source ranking, no way to tell an agency report from a forum post, and it returned "No results found"
+for some queries. The stall guard now asks the model to summarise after a read-only stall (`loop_guard.WRAP_UP_NUDGE`), but that
+does not make the results trustworthy.
+
+Intended scope (to be confirmed by the owner before building):
+- A source allowlist with a reliability tier per source (for example UN and agency feeds such as ReliefWeb, GDACS, OCHA, ACLED,
+  USGS, national met and health agencies, then established news, then everything else), kept in a data file and editable in Settings.
+- Search that queries those sources' APIs or feeds directly where they exist, instead of general web search, with a date window and
+  a place filter.
+- Every returned item carries source, tier, publication date and URL; items outside the allowlist are dropped or clearly marked
+  unverified, and the reply names which sources were and were not reachable.
+- Social media: only through an official API the user has credentials for; no scraping. Treat posts as unverified signals.
+- Results that name a place can be turned into a points layer with the source fields kept, so the map shows provenance.
+
+Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
+social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
+Do not call this shipped in release notes until it exists and has been tested against the live services.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);
