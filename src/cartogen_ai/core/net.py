@@ -28,9 +28,9 @@ import urllib.request
 import contextlib
 
 try:
-    from qgis.core import QgsBlockingNetworkRequest, QgsNetworkAccessManager  # noqa: F401
-    from qgis.PyQt.QtCore import QByteArray, QUrl
-    from qgis.PyQt.QtNetwork import QNetworkRequest
+    from qgis.core import QgsBlockingNetworkRequest, QgsNetworkAccessManager
+    from qgis.PyQt.QtCore import QByteArray, QEventLoop, QTimer, QUrl
+    from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
     QGIS_NETWORK_AVAILABLE = True
 except ImportError:  # no QGIS: unit tests, the isolation worker
     QGIS_NETWORK_AVAILABLE = False
@@ -206,6 +206,136 @@ def _qgis_urlopen(req, timeout):
     raise urllib.error.URLError(f"{r.error} (HTTP status {r.status or 'none'}, url {url})")
 
 
+class _StreamResponse:
+    """The body of a QNetworkReply, read incrementally on the thread that opened it (QgsNetworkAccessManager hands each thread its own
+    manager, so the reply must be pumped there). Keeps the large-download behaviour of the old urllib path -- chunked reads, progress,
+    cancellation between chunks -- while the request itself goes through QGIS's network stack (proxy, authentication, SSL settings).
+
+    `timeout` is an idle limit: how long a wait for more data may last. QGIS applies its own transfer timeout to the request as well,
+    so a stall can end sooner than this, never later."""
+
+    READ_BUFFER = 1024 * 1024    # Qt stops reading the socket while this much is unread, so a big file never piles up in memory
+
+    def __init__(self, reply, timeout, url):
+        self._reply = reply
+        self._timeout_ms = int(max(timeout or 30, 0.1) * 1000)
+        self._url = url
+        reply.setReadBufferSize(self.READ_BUFFER)
+        self.status = self.code = 0
+        self.headers = _Headers([])
+
+    def _wait(self, until):
+        """Runs the event loop until `until()` is true, the reply finishes, or the idle timeout passes with no new data."""
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        self._reply.readyRead.connect(loop.quit)
+        self._reply.finished.connect(loop.quit)
+        self._reply.metaDataChanged.connect(loop.quit)
+        try:
+            while not until() and not self._reply.isFinished():
+                seen = self._reply.bytesAvailable()
+                timer.start(self._timeout_ms)
+                loop.exec()
+                if not self._reply.isFinished() and self._reply.bytesAvailable() == seen and not until():
+                    self._reply.abort()
+                    raise TimeoutError("timed out waiting for data")
+        finally:
+            timer.stop()
+            self._reply.readyRead.disconnect(loop.quit)
+            self._reply.finished.disconnect(loop.quit)
+            self._reply.metaDataChanged.disconnect(loop.quit)
+
+    def _read_headers(self):
+        self._wait(lambda: self._reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute")) is not None
+                   or self._reply.bytesAvailable() > 0)
+        status = self._reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute"))
+        self.status = self.code = int(status) if status is not None else 0
+        self.headers = _Headers([(bytes(n).decode("latin-1"), bytes(self._reply.rawHeader(n)).decode("latin-1"))
+                                 for n in self._reply.rawHeaderList()])
+
+    def read(self, amt=-1):
+        if amt is None or amt < 0:
+            # Everything: drain as it arrives, because Qt stops reading the socket while READ_BUFFER bytes are waiting unread.
+            chunks = []
+            while True:
+                self._wait(lambda: self._reply.bytesAvailable() > 0)
+                data = bytes(self._reply.readAll())
+                if not data and self._reply.isFinished():
+                    self._raise_if_cut_short()
+                    return b"".join(chunks)
+                chunks.append(data)
+        want = min(amt, self.READ_BUFFER)
+        self._wait(lambda: self._reply.bytesAvailable() >= want)
+        data = bytes(self._reply.read(min(amt, self._reply.bytesAvailable())))
+        if not data and amt > 0 and self._reply.isFinished():
+            self._raise_if_cut_short()
+        return data
+
+    def _raise_if_cut_short(self):
+        """A transfer that ended in an error after the status line must not look like a complete, shorter file (urllib raised
+        IncompleteRead for this)."""
+        reason = self.failure()
+        if reason and self.status < 400:
+            raise OSError(f"the download was cut short: {reason}")
+
+    def failure(self):
+        """The reply's error as a URLError reason, or None when it ended cleanly."""
+        if self._reply.error() == _enum(QNetworkReply, "NetworkError", "NoError"):
+            return None
+        return self._reply.errorString() or "network error"
+
+    def getcode(self):
+        return self.status
+
+    def geturl(self):
+        return self._url
+
+    def info(self):
+        return self.headers
+
+    def close(self):
+        reply, self._reply = self._reply, None
+        if reply is not None:
+            reply.abort()
+            reply.deleteLater()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
+def _qgis_stream_open(req, timeout):
+    """GET through QgsNetworkAccessManager and return a _StreamResponse once the status line and headers are in."""
+    url = req.full_url
+    qreq = QNetworkRequest(QUrl(url))
+    for key, value in req.header_items():
+        qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+    with contextlib.suppress(AttributeError, TypeError):
+        qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
+                          _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
+    reply = QgsNetworkAccessManager.instance().get(qreq)
+    resp = _StreamResponse(reply, timeout, url)
+    try:
+        resp._read_headers()
+    except TimeoutError:
+        resp.close()
+        raise urllib.error.URLError(TimeoutError("timed out")) from None
+    if resp.status >= 400:
+        body = resp.read()
+        resp.close()
+        raise urllib.error.HTTPError(url, resp.status, f"HTTP {resp.status}", resp.headers, io.BytesIO(body))
+    reason = resp.failure()
+    if reason and resp.status == 0:
+        resp.close()
+        raise urllib.error.URLError(reason)
+    return resp
+
+
 class NetworkError(Exception):
     """No HTTP answer at all (DNS failure, refused connection, timeout). `timed_out` tells the two kinds apart."""
 
@@ -247,9 +377,9 @@ def urlopen(request, timeout=30, stream=False):
         # Not a URL at all (e.g. a bare word). Let urllib raise its own error for it, as before.
         return _urllib_open(request, timeout)
     _check_scheme(req.full_url)
-    if QGIS_NETWORK_AVAILABLE and not stream:
+    if QGIS_NETWORK_AVAILABLE:
         try:
-            return _qgis_urlopen(req, timeout)
+            return _qgis_stream_open(req, timeout) if stream else _qgis_urlopen(req, timeout)
         except urllib.error.URLError as e:
             if 'Protocol ""' not in str(e.reason):
                 raise
