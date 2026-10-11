@@ -106,17 +106,17 @@ class TestAccountClientThroughQgis(unittest.TestCase):
 
     def test_http_error_status_becomes_a_safe_runtime_error_with_the_status(self):
         client = self._client()
-        with patch('cartogen_ai.core.agent.account.net.request', return_value=(401, [], b'{"error": "Invalid credentials"}')):
-            with self.assertRaisesRegex(RuntimeError, 'Invalid credentials') as cm:
-                client.login('p@example.test', 'wrong')
+        with patch('cartogen_ai.core.agent.account.net.request', return_value=(401, [], b'{"error": "Invalid credentials"}')), \
+                self.assertRaisesRegex(RuntimeError, 'Invalid credentials') as cm:
+            client.login('p@example.test', 'wrong')
         self.assertEqual(cm.exception.status_code, 401)
 
     def test_no_answer_becomes_one_safe_message(self):
         from cartogen_ai.core import net
         client = self._client()
-        with patch('cartogen_ai.core.agent.account.net.request', side_effect=net.NetworkError('refused')):
-            with self.assertRaisesRegex(RuntimeError, 'could not be reached') as cm:
-                client.login('p@example.test', 'pw-never-printed')
+        with patch('cartogen_ai.core.agent.account.net.request', side_effect=net.NetworkError('refused')), \
+                self.assertRaisesRegex(RuntimeError, 'could not be reached') as cm:
+            client.login('p@example.test', 'pw-never-printed')
         self.assertNotIn('pw-never-printed', str(cm.exception))
 
 
