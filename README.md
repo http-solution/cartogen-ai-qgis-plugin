@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc34 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc35 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc34 pre-release** build (rc20 to rc34 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc35 pre-release** build (rc20 to rc35 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -50,7 +50,7 @@ black-box answer.
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **208 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **210 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
@@ -86,6 +86,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc35
+
+Built on rc34. Offline tests and mypy pass locally; the data fetches of the two new tools were run against the live services; **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc35` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Research requests end with an answer: A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn.
+- Two new tools: earthquakes and conflict events: fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.
+- URL downloads use the QGIS network stack: Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site.
+- Licence notice says GPL version 2 only: The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest.
+- Not hand-tested: The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.
 
 ## What's new in 1.16.0-rc34
 
@@ -347,7 +357,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc33 or 1.16.0-rc34 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc34 or 1.16.0-rc35 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
 | Workflow | Tools |
 |---|---|
@@ -356,7 +366,7 @@ Tools marked **new** were added in 1.16.0-rc33 or 1.16.0-rc34 and have been test
 | **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers`, `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk`, `analyze_critical_links` |
 | **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend`, `import_jiaf_inputs`, `record_jiaf_setup`, `get_jiaf_setup`, `compute_jiaf_preliminary`, `record_jiaf_decisions`, `get_jiaf_decisions`, `finalize_jiaf_results`, `compute_jiaf_patterns` |
 | **5. Allocation and prioritisation** | `calculate_mcda_ranking`, `fetch_fts_funding_data`, `generate_sector_coverage_report`, `weighted_overlay_analysis`, `calculate_allocation_envelope` |
-| **6. Anticipatory action** | `evaluate_forecast_trigger`, `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
+| **6. Anticipatory action** | `evaluate_forecast_trigger`, `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_usgs_earthquakes` (**new**), `fetch_ucdp_conflict_events` (**new**), `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
 | **Data quality and governance** | `check_pcode_uniqueness`, `check_pcode_hierarchy`, `validate_schema`, `list_schema_contracts`, `get_dataset_status`, `set_dataset_status`, `advance_dataset_status`, `get_provenance_record`, `write_provenance_sidecar`, `set_layer_sensitivity`, `get_layer_sensitivity`, `generate_map_product_qa_checklist` |
 | **Reporting and products** | `generate_chart`, `generate_html_dashboard`, `generate_temporal_dashboard`, `generate_spatial_report`, `generate_report`, `apply_humanitarian_look` |
 | **Engineering hydrology** | `parse_dms_location`, `assess_watershed_hydrology_request`, `calculate_rational_watershed_peak_flow` |
@@ -374,7 +384,7 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc34 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc34); the release
+[1.16.0-rc35 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc35); the release
 also carries a `SHA256.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
@@ -445,7 +455,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 208 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 210 tools, auto-generated from the live registry |
 
 ### Security & compliance
 
@@ -541,7 +551,7 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 208 tools across the domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 210 tools across the domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
 - `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.

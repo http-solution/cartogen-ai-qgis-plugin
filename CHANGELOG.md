@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc35](#v1-16-0-rc35) | 2026-10-11 | **Release candidate 35 for 1.16.0.** No breaking changes. Research requests end with an answer, earthquake and conflict-event tools, URL downloads through QGIS networking. Not hand-tested. |
 | [1.16.0-rc34](#v1-16-0-rc34) | 2026-10-11 | **Release candidate 34 for 1.16.0.** No breaking changes. Refused Gemini requests explain themselves, retired fallback model replaced, no waiting on unusable models. Not hand-tested. |
 | [1.16.0-rc33](#v1-16-0-rc33) | 2026-10-11 | **Release candidate 33 for 1.16.0.** No breaking changes. AI requests keep their key across redirects, redirects logged. Not hand-tested. |
 | [1.16.0-rc32](#v1-16-0-rc32) | 2026-10-11 | **Release candidate 32 for 1.16.0.** No breaking changes. Refusal reasons shown, switch back to the previous request sender, refusals logged. Not hand-tested. |
@@ -75,6 +76,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc35"></a>
+## [1.16.0-rc35] — 2026-10-11 — Release candidate 35 for 1.16.0: research requests end with an answer, two new data tools
+
+No breaking changes; QGIS 4.2+. Everything after the rc34 build:
+
+- Research requests end with an answer: A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn.
+- Two new tools: earthquakes and conflict events: fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.
+- URL downloads use the QGIS network stack: Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site.
+- Licence notice says GPL version 2 only: The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest.
+- Not hand-tested: The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.
 
 <a id="v1-16-0-rc34"></a>
 ## [1.16.0-rc34] — 2026-10-11 — Release candidate 34 for 1.16.0: refused Gemini requests explain themselves

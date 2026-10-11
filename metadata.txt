@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc34
+version=1.16.0-rc35
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,15 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc34 (2026-10-11):
+changelog=v1.16.0-rc35 (2026-10-11):
+    Release candidate 35 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Research requests now end with an answer, adds USGS earthquake and UCDP conflict-event tools, and moves URL downloads onto QGIS's network stack.
+    - Research requests end with an answer: A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn.
+    - Two new tools: earthquakes and conflict events: fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.
+    - URL downloads use the QGIS network stack: Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site.
+    - Licence notice says GPL version 2 only: The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest.
+    - Not hand-tested: The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.
+
+v1.16.0-rc34 (2026-10-11):
     Release candidate 34 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Makes a refused Gemini request explain itself, replaces the retired fallback model, and stops waiting on models the plan cannot use.
     - A refused Gemini request now explains itself: When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown.
     - Retired Gemini model replaced: Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash.

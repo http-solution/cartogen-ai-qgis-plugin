@@ -97,6 +97,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
+    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events",
     "ingest_osm_features", "extract_features_from_imagery",
 })
 
@@ -1260,6 +1261,36 @@ class CartogenAi:
             self._log_tool_success(name, filtered_args, res)
             return res
 
+        if name == "fetch_usgs_earthquakes":
+            from .tools.event_data_tools import (
+                fetch_usgs_earthquakes_network_phase, add_usgs_earthquakes_layer_main_thread_phase,
+            )
+            fetch_result = fetch_usgs_earthquakes_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("days", 7),
+                filtered_args.get("min_magnitude", 4.5), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_usgs_earthquakes_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "USGS Earthquakes")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_ucdp_conflict_events":
+            from .tools.event_data_tools import (
+                fetch_ucdp_conflict_events_network_phase, add_ucdp_conflict_events_layer_main_thread_phase,
+            )
+            fetch_result = fetch_ucdp_conflict_events_network_phase(
+                filtered_args.get("country"), filtered_args.get("bbox"), filtered_args.get("start_date"),
+                filtered_args.get("end_date"), filtered_args.get("min_deaths", 0), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_ucdp_conflict_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "UCDP Conflict Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
         if name == "fetch_gdacs_disaster_alerts":
             from .tools.hazard_monitoring_tools import (
                 fetch_gdacs_disaster_alerts_network_phase, add_gdacs_disaster_alerts_layer_main_thread_phase,
@@ -1637,6 +1668,17 @@ class CartogenAi:
                 offered.add(wanted)
         return active_tools
 
+    @staticmethod
+    def _begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id):
+        """A read-only turn (web search, inspection) never "changes" anything, so a stall there is not a loop: ask for the answer once,
+        with no tools offered. Returns (guard_stop, active_tools): (None, []) when wrapping up, else both unchanged."""
+        if not (guard_stop and guard.can_wrap_up()):
+            return guard_stop, active_tools
+        guard.release_for_wrap_up()
+        log_event("turn_guard_stop", tag="Agent", status="wrap_up", count=iteration_index + 1, correlation_id=correlation_id)
+        messages.append({"role": "user", "content": loop_guard.WRAP_UP_NUDGE})
+        return None, []
+
     def _end_of_round_nudges(self, messages, user_query, turn_tool_log, nudged):
         """Each course-correction fires at most once per turn (tracked in `nudged`)."""
         candidates = (
@@ -1922,6 +1964,7 @@ class CartogenAi:
                 })
 
             guard_stop = guard.end_round() or guard.stop
+            guard_stop, active_tools = self._begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id)
             if guard_stop:
                 final_text = guard.partial_report(guard_stop)
                 log_event("turn_guard_stop", tag="Agent", status=guard_stop["reason"], count=iteration_index + 1,

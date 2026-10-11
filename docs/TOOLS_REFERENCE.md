@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (208 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (210 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1802,6 +1802,34 @@ Convert a user-supplied latitude/longitude in degrees-minutes-seconds (DMS) to a
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location` | string | yes | DMS latitude and longitude, including N/S and E/W hemispheres. |
+
+## event_data_tools
+
+### `fetch_ucdp_conflict_events` _(two-phase)_
+
+Fetch organised-violence events (state-based conflict, non-state conflict, one-sided violence against civilians) from UCDP, the Uppsala Conflict Data Program's Candidate Events dataset, filtered by country name, bounding box and dates, and load them as a point layer with deaths (best, low, high estimates), conflict name, location precision and event clarity. Free, no API key; downloaded from ucdp.uu.se and cached for 12 hours. NOT live: candidate data is preliminary and lags real time by weeks, so always state the dataset's latest event date. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat]. Dates are 'YYYY-MM-DD'. Re-running REPLACES the layer's features. Cite UCDP (CC BY 4.0).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `country` | string | no | Country name or part of it, e.g. 'Yemen' or 'Sudan'. Omit for all countries. |
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `start_date` | string | no | Earliest event date, 'YYYY-MM-DD'. |
+| `end_date` | string | no | Latest event date, 'YYYY-MM-DD'. |
+| `min_deaths` | integer | no | Only events with at least this many deaths (UCDP best estimate). Defaults to 0. |
+| `max_events` | integer | no | Most events to load (newest first). Defaults to 1000, at most 5000. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'UCDP Conflict Events'. |
+
+### `fetch_usgs_earthquakes` _(two-phase)_
+
+Fetch recent earthquakes from the USGS (United States Geological Survey) for an optional bounding box and load them as a point layer coloured by magnitude band, with magnitude, depth, time, alert level, tsunami flag and a link per event. Free, no API key. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_eonet_events. Defaults: last 7 days, magnitude 4.5 or more, up to 1000 events. Re-running REPLACES the layer's features, so it is safe to schedule.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage. |
+| `days` | integer | no | How many days back (1 to 365). Defaults to 7. |
+| `min_magnitude` | number | no | Smallest magnitude to include. Defaults to 4.5. |
+| `max_events` | integer | no | Most events to return (newest first). Defaults to 1000, at most 5000. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'USGS Earthquakes'. |
 
 ## hazard_monitoring_tools
 

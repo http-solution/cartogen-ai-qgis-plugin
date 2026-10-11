@@ -8,16 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc34"
-NEW_MARK_VERSIONS = ("1.16.0-rc33", "1.16.0-rc34")
+WHATS_NEW_VERSION = "1.16.0-rc35"
+NEW_MARK_VERSIONS = ("1.16.0-rc34", "1.16.0-rc35")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A refused Gemini request now explains itself', "When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown."),
-    ('Retired Gemini model replaced', "Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash."),
-    ('No more waiting on a model your plan cannot use', "A quota of zero (the free tier has none for the Pro models) is returned at once instead of after a minute of retries, and the plugin moves to the next model. A model refused with 403 is also skipped. When Google denies the whole project, the plugin stops and shows Google's message instead of trying every model. A Google quota error is shown as one sentence (model, free tier, limit, retry time) instead of a screenful of JSON."),
-    ('Log lines keep their host names', "The redirect and refusal log lines had lost their host fields to the logger's allow-list; host names (never paths, keys or bodies) are now logged."),
-    ('Not hand-tested', "CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run against Google. Which key and project Google accepts remains the user's to check in Google AI Studio."),
+    ('Research requests end with an answer', "A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn."),
+    ('Two new tools: earthquakes and conflict events', 'fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.'),
+    ('URL downloads use the QGIS network stack', "Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site."),
+    ('Licence notice says GPL version 2 only', "The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest."),
+    ('Not hand-tested', 'The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
@@ -83,6 +83,8 @@ HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
   ['evaluate_forecast_trigger',
    'fetch_gdacs_disaster_alerts',
    'fetch_nasa_eonet_events',
+   'fetch_usgs_earthquakes',
+   'fetch_ucdp_conflict_events',
    'fetch_nasa_active_fires',
    'generate_situation_dashboard',
    'run_monitoring_workflow',
@@ -132,7 +134,9 @@ TOOL_NEW_IN = {'aggregate_survey_indicator': '1.16.0-rc12',
  'record_jiaf_decisions': '1.16.0-rc14',
  'get_jiaf_decisions': '1.16.0-rc14',
  'finalize_jiaf_results': '1.16.0-rc14',
- 'compute_jiaf_patterns': '1.16.0-rc14'}
+ 'compute_jiaf_patterns': '1.16.0-rc14',
+ 'fetch_usgs_earthquakes': '1.16.0-rc35',
+ 'fetch_ucdp_conflict_events': '1.16.0-rc35'}
 
 
 def tool_is_new(name):

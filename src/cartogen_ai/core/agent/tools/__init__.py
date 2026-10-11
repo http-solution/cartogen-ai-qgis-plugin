@@ -39,6 +39,7 @@ from . import processing_allowlist_tools
 from . import impedance_tools
 from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
+from . import event_data_tools
 from . import representation_tools
 from . import map_tools
 from . import project_tidy_tools
@@ -73,6 +74,7 @@ __all__ = [
     "db_and_workflow_tools",
     "dem_tools",
     "engineering_tools",
+    "event_data_tools",
     "export_tools",
     "get_tool_registry",
     "get_tools_schema",

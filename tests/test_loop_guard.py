@@ -153,3 +153,26 @@ class TestMissingFileNudge(unittest.TestCase):
     def test_other_errors_do_not_count(self):
         log = [("calculate_area", True, "Field x missing"), ("calculate_area", True, "Field y missing")]
         self.assertIsNone(lg.missing_file_nudge(log))
+
+
+class TestWrapUp(unittest.TestCase):
+    def _stalled(self, ok=True):
+        g = lg.LoopGuard()
+        for i in range(6):
+            g.record_call("search_web", {"query": f"q{i}"}, not ok, "No results" if not ok else "", "READ")
+            g.end_round()
+        return g
+
+    def test_read_only_research_stall_is_asked_to_answer_once(self):
+        g = self._stalled()
+        self.assertEqual(g.stop["reason"], "no_progress")
+        self.assertTrue(g.can_wrap_up())
+        g.release_for_wrap_up()
+        self.assertIsNone(g.stop)
+        for _ in range(6):
+            g.end_round()
+        self.assertEqual(g.stop["reason"], "no_progress")
+        self.assertFalse(g.can_wrap_up())          # a second stall is final
+
+    def test_nothing_gathered_is_not_wrapped_up(self):
+        self.assertFalse(self._stalled(ok=False).can_wrap_up())

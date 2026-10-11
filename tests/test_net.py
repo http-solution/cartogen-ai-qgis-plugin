@@ -172,3 +172,48 @@ class TestSizeCeilings(unittest.TestCase):
             self.assertEqual(net.zip_member_capped(z, "small.geojson", limit=1024), b"{}")
             with self.assertRaises(net.ResponseTooLargeError):
                 net.zip_member_capped(z, "big.geojson", limit=1024 * 1024)
+
+
+class TestStreamFollowing(unittest.TestCase):
+    """net.stream_following vets every redirect target before it is requested (urllib fallback path; the QGIS path is covered by
+    tests/test_net_live.py in CI)."""
+
+    def _server(self, routes):
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                status, location, body = routes.get(self.path, (404, None, b"missing"))
+                self.send_response(status)
+                if location:
+                    self.send_header("Location", location)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        return f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def test_follows_a_relative_redirect(self):
+        base = self._server({"/a": (302, "/b", b""), "/b": (200, None, b"ok")})
+        with net.stream_following(base + "/a", timeout=5) as r:
+            self.assertEqual(r.read(), b"ok")
+
+    def test_refuses_a_target_the_check_rejects(self):
+        base = self._server({"/a": (302, "/secret", b""), "/secret": (200, None, b"internal")})
+        with self.assertRaises(net.urllib.error.URLError) as cm:
+            net.stream_following(base + "/a", timeout=5, check_url=lambda u: "non-public" if "secret" in u else None)
+        self.assertIn("Redirect blocked", str(cm.exception))
+
+    def test_a_redirect_loop_ends(self):
+        base = self._server({"/a": (302, "/a", b"")})
+        with self.assertRaises(net.urllib.error.URLError) as cm:
+            net.stream_following(base + "/a", timeout=5)
+        self.assertIn("too many redirects", str(cm.exception))

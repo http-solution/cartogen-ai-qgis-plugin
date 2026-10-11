@@ -1645,6 +1645,135 @@ they work in (SECURITY.md §7 updated); users who explicitly left the old defaul
 opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
 possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
 
+### 1.19 Advanced web search and filtering results against reliable sources (planned, added 2026-10-11)
+
+**Status: not built. Roadmap item requested by the owner.** Nothing below exists in the code yet.
+
+Why: a live chat on 2026-10-11 ("check the social media and internet for incidents") made six `search_web` calls and returned no
+usable answer. `search_web` (`core/agent/tools/system_tools.py`) is a thin wrapper over the `ddgs` package: general web results
+only, no date filter, no source ranking, no way to tell an agency report from a forum post, and it returned "No results found"
+for some queries. The stall guard now asks the model to summarise after a read-only stall (`loop_guard.WRAP_UP_NUDGE`), but that
+does not make the results trustworthy.
+
+Intended scope (to be confirmed by the owner before building):
+- A source allowlist with a reliability tier per source (for example UN and agency feeds such as ReliefWeb, GDACS, OCHA, ACLED,
+  USGS, national met and health agencies, then established news, then everything else), kept in a data file and editable in Settings.
+- Search that queries those sources' APIs or feeds directly where they exist, instead of general web search, with a date window and
+  a place filter.
+- Every returned item carries source, tier, publication date and URL; items outside the allowlist are dropped or clearly marked
+  unverified, and the reply names which sources were and were not reachable.
+- Social media: only through an official API the user has credentials for; no scraping. Treat posts as unverified signals.
+- Results that name a place can be turned into a points layer with the source fields kept, so the map shows provenance.
+
+Known limit of one source (owner note, 2026-10-11): GDACS disaster alerts are global only, with no country or region query. The
+feed has to be fetched whole and filtered locally (by the alert's country or coordinates against the user's area of interest), so a
+regional search cannot rely on GDACS for coverage or for "nothing found" answers. Each source needs its coverage recorded (global,
+regional, country) so the reply can say which sources could and could not answer for the area asked. Not verified against the live
+GDACS feed from this sandbox.
+
+Source list supplied by the owner 2026-10-11 (verification and incident tracking). None of the access notes below was checked from
+this sandbox; confirm each before building:
+- Fact-checkers: Reuters Fact Check, AFP Fact Check, Full Fact; aggregators Duke Reporters' Lab (database of fact-checkers) and the
+  IFCN signatory list. Mostly web pages or RSS, not structured APIs: usable as a "was this claim fact-checked" lookup by link or RSS,
+  not as an incident feed.
+- Incident trackers: ACLED (API, key and terms required), Liveuamap (map site; machine access is likely a paid API, to be confirmed).
+- OSINT collectives and tools: Bellingcat, OSINT Combine, InVID/WeVerify. These are methods and browser tools for a person, not data
+  sources; the plugin can point to them but not call them.
+Design consequence: the "reliable sources" list must say, per source, what it provides (incidents, fact-checks, methods), how it is
+reached (API, RSS, page), and what coverage it has (global, regional, country); only sources with structured access can be filtered
+automatically.
+
+Keyless structured sources suggested by the owner 2026-10-11 (GDACS, NASA EONET, USGS earthquakes, UCDP). Checked against the code:
+- **Already built:** `fetch_gdacs_disaster_alerts` (bbox and country filter, applied locally after the fetch), `fetch_nasa_eonet_events`,
+  `fetch_nasa_active_fires` (needs a FIRMS key) and `generate_situation_dashboard` in `tools/hazard_monitoring_tools.py`. So GDACS
+  and EONET need no new work for this item beyond making `search_web`-style requests use them.
+- **Not built:** USGS earthquakes (FDSN event API, GeoJSON, takes a bounding box, time window and minimum magnitude: the simplest
+  addition, same pattern as the EONET tool) and UCDP conflict events.
+- **UCDP caution:** the example given used dataset version 22.1 and no token. From memory the UCDP API now asks for an access token and
+  serves newer dataset versions, and its data is yearly-validated, not real time. Not checked: this sandbox has no outbound access to
+  these hosts (all four returned no response), so none of the endpoint behaviour in the suggestion could be tested here either.
+- **UCDP downloads page (owner pointed to https://ucdp.uu.se/downloads/, 2026-10-11): could not be opened from this sandbox** (the
+  egress proxy refuses the host), so nothing about its current datasets, version numbers or terms was read. From memory only, to be
+  confirmed: UCDP publishes the Georeferenced Event Dataset (GED) as a yearly versioned download (CSV and other formats) and a
+  "candidate events" dataset released more often for recent months, under an open licence that requires attribution. If so, UCDP is a
+  **download-and-cache source, not a live query**: the tool would fetch a versioned file once through `core/net`, cache it locally,
+  filter by country, bounding box and date, and label results with the dataset version and its release date, saying plainly that
+  the newest events are in the candidate set and are provisional. Owner to read the page and confirm the file URLs and licence before building.
+- **Live check 2026-10-11 (after the owner opened network access; this replaces the "unverified" notes above where they conflict):**
+  - USGS `earthquake.usgs.gov/fdsnws/event/1/query?format=geojson` answered 200 with GeoJSON, no key. NASA EONET `/api/v3/events`
+    answered 200, no key.
+  - **GDACS: the suggested URL is wrong.** `.../geteventlist/MAP?alertlevel=red` answered 400 `{"message":"Eventtype is required."}`.
+    The existing tool uses `.../geteventlist/SEARCH`; any change must keep using that and be tested against the live feed.
+  - **UCDP API needs a token.** `ucdpapi.pcr.uu.se/api/gedevents/25.1` answered 401 "API token required. Add header:
+    x-ucdp-access-token". The suggestion that it needs no key is wrong. A token is a credential, so it would go through the
+    Auth Manager like the other keys (HX4).
+  - **UCDP downloads need no token** (https://ucdp.uu.se/downloads/, licence CC BY 4.0, cite the publications listed with each
+    dataset): GED global version 26.1 yearly (`/downloads/ged/ged261-csv.zip`, codebook `ged261.pdf`) and the Candidate Events
+    dataset, monthly (`/downloads/candidateged/GEDEvent_v26_0_8.csv`, 1.4 MB, 1,806 rows dated 2026-01-01 to 2026-08-31, last
+    modified 2026-09-20). Columns include `latitude`, `longitude`, `country`, `adm_1`, `date_start`, `type_of_violence`, `best`, `high`,
+    `low`, `conflict_name`, `where_prec`, `event_clarity`. File names change with each release (`v26_0_7`, `v26_0_8`, ...), so the
+    tool must read the page for the current link, not hard-code one. The candidate data lags by weeks: not live.
+  - ReliefWeb API `v1` is decommissioned (HTTP 410); v2 would need checking, and it asks for a registered application name.
+- The suggested `requests.get` snippets must not be copied: plugin fetches go through `core/net` (QGIS network stack, task 71).
+- Sources that need no key still need terms of use recorded (attribution, rate limits) before they are called by default.
+
+Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
+social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
+Do not call this shipped in release notes until it exists and has been tested against the live services.
+
+### 1.20 Remaining requests/urllib calls moved to QGIS's network stack (task 71, 2026-10-11)
+
+Done in this change: the last direct `urllib` opener, `vector_tools._build_safe_opener()` (used by `add_layer_from_path` URL
+prefetch and the humanitarian downloads, including WorldPop and OSM extracts), now goes through `core/net.stream_following`:
+QgsNetworkAccessManager for the request (QGIS proxy, authentication and SSL settings apply), redirects followed one hop at a
+time, every target vetted by `_is_safe_url` first (the SSRF protection is kept), credential headers dropped on a cross-site hop.
+**Limit found by the first CI run (2026-10-11):** a second streamed QGIS reply opened after a redirect never delivers its body (same unexplained fault
+`_qgis_stream_open` already documents), so only the first request of a download goes through QGIS's stack and a redirected hop uses urllib
+after its target is vetted. Large downloads that redirect therefore still do not get QGIS authentication on the later hop.
+Offline tests: `tests/test_net.py::TestStreamFollowing` (urllib fallback path, local server). QGIS path: new
+`tests/test_net_live.py` case, **first run in CI; not hand-tested in desktop QGIS**.
+
+Deliberately left, with the reason:
+- `providers/base.py` still imports `requests`: it is the fallback when `QGIS_NETWORK_AVAILABLE` is false (unit tests, no QGIS) and
+  the path for a local Ollama server (`local=True`), which should not go through a proxy. Switch `cartogen_ai/hosted_requests_via_qgis`
+  turns the hosted-AI QGIS path off.
+- `search_web` uses the third-party `ddgs` package, which makes its own HTTP calls (not proxy-aware). Replaced by task 72 (tracker 1.19).
+- `urllib.parse` imports are string handling, not network calls.
+
+### 1.21 API-cost optimisation: measured request size and what is left (2026-10-11)
+
+Measured offline (no model call; ~4 characters per token, so approximate), on rc34 code:
+- All 208 tool schemas together: ~60,600 tokens. The router sends 9 to 40 per request: ~1,100 tokens for "hello", ~4,000 for a
+  precise request ("buffer the hubs by 500 m", 15 tools), ~15,500 for a broad one ("show a service area for hospitals", 40 tools; the
+  failed incident search sent 39 tools, ~15,400, although it needed one).
+- System prompt: ~9,600 tokens. Its stable part is the first 99.9% (the layer list is last), so provider prefix caching can hit.
+- Every model round re-sends system prompt + tool schemas + history, so one broad request of 6 rounds is roughly 150,000 input tokens
+  before history. Largest schemas: generate_temporal_dashboard, compute_jiaf_preliminary, add_point_layer, create_print_layout
+  (3,400-5,400 characters each).
+
+Already in place: automatic model choice (cost saver), 429 backoff, router with top_k 40, loop guard, per-turn token budget, local-data
+offer. Not done, and each needs a real model to verify (none is available in this sandbox, so none was changed):
+1. Lower top_k or send fewer schemas for research-only requests (saves up to ~10,000 tokens per round; risk: a missing tool).
+2. Shorten the ten largest tool descriptions (saves ~15,000 characters, ~3,700 tokens per request when they are all selected).
+3. Measure billed cost per provider, and prompt-cache hit rates (Gemini 6 of 23 calls seen earlier).
+4. Drop tool schemas from later rounds once the model has chosen its tools (risk: it cannot call a tool it needs next).
+Recommendation: do 3 first, so the others are judged on numbers, then 1 behind a setting.
+
+### 1.22 USGS earthquake and UCDP conflict-event tools (built 2026-10-11, not yet released)
+
+`tools/event_data_tools.py`: `fetch_usgs_earthquakes` (FDSN GeoJSON; bbox, days, minimum magnitude; layer coloured by magnitude band) and
+`fetch_ucdp_conflict_events` (UCDP Candidate Events CSV read from ucdp.uu.se/downloads: the newest file is found on the page each time,
+cached 12 hours, filtered by country, bbox, dates and deaths; layer coloured by type of violence). Two-phase like the EONET tool,
+CREATE operation, registered in the router, dispatch and docs (210 tools).
+- **Verified:** both network phases were run against the live services from this session (21 earthquakes in a Mediterranean box, 60 days,
+  M3+; 49 Sudan events since 2026-06-01 from `GEDEvent_v26_0_8.csv`, newest 2026-08-31) and offline tests cover parsing, filters and
+  dispatch (`tests/test_event_data_tools.py`).
+- **Not verified:** the layer phase and styling in a running QGIS session (no CI live test written yet; add one to
+  `tests/test_hazard_monitoring_tools*` style when the next live pass is done), and model behaviour (does the router pick these tools for
+  "earthquakes near X" or "conflict in Sudan").
+- UCDP data is preliminary and weeks old; every result says so and names the dataset's newest event date. UCDP's JSON API is not used
+  (it needs a token). Not yet in `metadata.txt` / CHANGELOG / in-plugin "what's new": do that with the next version bump (CONTRIBUTING §8).
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

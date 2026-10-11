@@ -156,6 +156,16 @@ class TestNetLive(unittest.TestCase):
                 self.assertEqual(r.status, 200, path)
                 self.assertIn("ua", json.loads(r.read().decode()))
 
+    def test_stream_following_vets_each_redirect_target_on_the_qgis_path(self):
+        # Replaces urllib's build_opener for LLM-named URLs (tracker task 71). Not run outside QGIS: CI live job only.
+        from cartogen_ai.core import net
+        with net.stream_following(self.base + "/redirect", timeout=10) as r:
+            self.assertEqual(r.status, 200)
+            self.assertIn("ua", json.loads(r.read().decode()))
+        with self.assertRaises(urllib.error.URLError) as cm:
+            net.stream_following(self.base + "/redirect", timeout=10, check_url=lambda u: "non-public" if u.endswith("/ok") else None)
+        self.assertIn("Redirect blocked", str(cm.exception))
+
     def test_refused_connection_is_a_urlerror(self):
         from cartogen_ai.core import net
         with self.assertRaises(urllib.error.URLError):
