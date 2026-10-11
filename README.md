@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc29 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc30 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc29 pre-release** build (rc20 to rc29 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc30 pre-release** build (rc20 to rc30 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc30
+
+Built on rc29. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc30` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Large downloads and the account client use QGIS's network stack: Geofabrik extracts, model checkpoints and other large downloads are now read through QGIS's network stack, in chunks, so QGIS proxy, authentication and SSL settings apply, progress and cancel still work, and a download cut short is reported as an error instead of leaving a smaller file. The Cartogen account client does the same. Three things still use Python's own HTTP code: a download that answers with a redirect (it is retried through urllib with the QGIS proxy; following the redirect through QGIS failed in testing and the cause was not found), the check that every redirect of a fetched URL is safe (QGIS follows redirects without letting the plugin look at each step), and Ollama (a local server whose answers can take longer than QGIS's 60 second network timeout).
+- Scripts do not run without isolation: If QGIS cannot be loaded, the script tool now refuses to run a script instead of running it in the plugin's own process.
+- Directory checks reproduced: The plugin directory's own upload rules are now an automated test against the built zip, and the code passes the pyflakes checks (unused re-exports and conditional redefinitions removed).
+- Contact address: The project contact address is now cartogenai@gmail.com.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS, and the new download path has not been run against Geofabrik or any real service.
 
 ## What's new in 1.16.0-rc29
 
@@ -300,8 +310,10 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc28 or 1.16.0-rc29 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+Tools marked **new** were added in 1.16.0-rc29 or 1.16.0-rc30 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
 
+| Workflow | Tools |
+|---|---|
 | **1. Rapid crisis and base mapping** | `search_hdx_datasets`, `fetch_hdx_admin_boundaries`, `fetch_geoboundaries`, `fetch_osm_features`, `ingest_osm_features`, `fetch_building_footprints`, `search_stac_satellite_imagery`, `calculate_raster_change_detection`, `calculate_damage_exposure_severity`, `extract_features_from_imagery`, `add_incident_point`, `add_point_layer`, `generate_mapping_task_grid`, `import_humanitarian_table` |
 | **2. MSNA and field data** | `design_sampling_frame`, `fetch_worldpop_population`, `estimate_population_exposure`, `load_tabular_data_as_layer`, `extract_pdf_tables`, `extract_word_tables`, `aggregate_data`, `aggregate_survey_indicator` |
 | **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers`, `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk`, `analyze_critical_links` |
@@ -325,7 +337,7 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc29 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc29); the release
+[1.16.0-rc30 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc30); the release
 also carries a `SHA256.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.

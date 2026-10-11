@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc30](#v1-16-0-rc30) | 2026-10-11 | **Release candidate 30 for 1.16.0.** No breaking changes. Large downloads and the account client use QGIS's network stack; the script fallback fails closed; the directory's upload rules are tested. Not hand-tested. |
 | [1.16.0-rc29](#v1-16-0-rc29) | 2026-10-11 | **Release candidate 29 for 1.16.0.** No breaking changes. Security and code-quality audit fixes: replies cannot forge internal links, remote data is size-limited, leaner package, diagnostics in the QGIS Message Log. Not hand-tested. |
 | [1.16.0-rc28](#v1-16-0-rc28) | 2026-10-10 | **Release candidate 28 for 1.16.0.** No breaking changes. Warning when a pre-rc25 `cartogen-ai` install is still present; documentation and Qt6 name tidy-up. Not hand-tested. |
 | [1.16.0-rc27](#v1-16-0-rc27) | 2026-10-10 | **Release candidate 27 for 1.16.0.** No breaking changes. AI provider requests go through QGIS's network stack (proxy, authentication, SSL); Qt6 enum names scoped. Not hand-tested; the provider path is CI-tested against a local server only. |
@@ -70,6 +71,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc30"></a>
+## [1.16.0-rc30] — 2026-10-11 — Release candidate 30 for 1.16.0: QGIS network stack for downloads, directory-readiness
+
+No breaking changes; QGIS 4.2+. Everything after the rc29 build:
+
+- Large downloads and the account client use QGIS's network stack: Geofabrik extracts, model checkpoints and other large downloads are now read through QGIS's network stack, in chunks, so QGIS proxy, authentication and SSL settings apply, progress and cancel still work, and a download cut short is reported as an error instead of leaving a smaller file. The Cartogen account client does the same. Three things still use Python's own HTTP code: a download that answers with a redirect (it is retried through urllib with the QGIS proxy; following the redirect through QGIS failed in testing and the cause was not found), the check that every redirect of a fetched URL is safe (QGIS follows redirects without letting the plugin look at each step), and Ollama (a local server whose answers can take longer than QGIS's 60 second network timeout).
+- Scripts do not run without isolation: If QGIS cannot be loaded, the script tool now refuses to run a script instead of running it in the plugin's own process.
+- Directory checks reproduced: The plugin directory's own upload rules are now an automated test against the built zip, and the code passes the pyflakes checks (unused re-exports and conditional redefinitions removed).
+- Contact address: The project contact address is now cartogenai@gmail.com.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS, and the new download path has not been run against Geofabrik or any real service.
 
 <a id="v1-16-0-rc29"></a>
 ## [1.16.0-rc29] — 2026-10-11 — Release candidate 29 for 1.16.0: security and code-quality audit fixes
