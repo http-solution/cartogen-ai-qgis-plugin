@@ -264,11 +264,11 @@ and capped at `_MAX_DOWNLOAD_BYTES` (200MB) rather than read in one unbounded
 `response.read()` call.
 
 ### 4. Credential storage
-`agent/auth.py` — API keys go through `QgsAuthManager` (encrypted) first; if that's
-unavailable, `save_credential` falls back to plaintext `QgsSettings` and flags it
-(`CredentialManager.used_plaintext_fallback`) so `ui/settings_dialog.py` can warn the
-user instead of it happening silently. No credential value is ever written to a log
-or console print — only exception messages are, and only in `except` blocks.
+`infrastructure/auth.py` — API keys go through `QgsAuthManager` (encrypted). If it is unavailable or refuses the save, the key is held in
+this process's memory for the session only (`CredentialManager.used_session_only_fallback`, shown as a warning in Settings) and is never
+written to disk in plaintext. Keys saved in plaintext by versions before that policy are only read and migrated, never written again.
+Logs carry no credential value and, since 2026-10-11, no exception text either: diagnostics use `log_event` (event name and exception
+class only), and `core/logger.py` redacts key-shaped strings from anything else it is given.
 
 ### 4a. Network access (2026-10-11)
 
