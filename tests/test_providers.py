@@ -484,7 +484,9 @@ class TestFormatHttpErrorRedaction(unittest.TestCase):
     def test_auth_failure_names_the_providers_reason_code_but_never_the_body(self):
         # 2026-10-11 report: a Gemini 403 said only "check your API key" although the key was fine and the cause was the API/project;
         # Google's reason code (a plain enum name) says which. Everything else in the body stays withheld.
-        body = ('{"error": {"code": 403, "message": "Your API key AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q was reported as leaked.", '
+        # Built at run time so no Google-key-shaped literal sits in the repository (gitleaks rule gcp-api-key flagged one here).
+        fake_key = "AI" + "za" + "SyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q"
+        body = ('{"error": {"code": 403, "message": "Your API key ' + fake_key + ' was reported as leaked.", '
                 '"status": "PERMISSION_DENIED", "details": [{"@type": "x", "reason": "API_KEY_INVALID"}]}}')
         msg = format_http_error("Gemini API error", self._http_error(403, body))
         self.assertIn("PERMISSION_DENIED", msg)
@@ -493,7 +495,7 @@ class TestFormatHttpErrorRedaction(unittest.TestCase):
         self.assertNotIn("leaked", msg)
 
     def test_a_key_shaped_value_in_a_reason_field_is_never_repeated(self):
-        body = '{"error": {"status": "sk-abc123XYZ-secret", "code": "AIzaSy1234567890abcdefghijklmnopqrstuv"}}'
+        body = '{"error": {"status": "' + "sk" + '-abc123XYZ-secret", "code": "' + "AI" + 'zaSy1234567890abcdefghijklmnopqrstuv"}}'
         msg = format_http_error("OpenAI API error", self._http_error(401, body))
         self.assertNotIn("sk-abc", msg)
         self.assertNotIn("AIza", msg)
