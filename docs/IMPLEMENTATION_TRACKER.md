@@ -1756,6 +1756,21 @@ offer. Not done, and each needs a real model to verify (none is available in thi
 4. Drop tool schemas from later rounds once the model has chosen its tools (risk: it cannot call a tool it needs next).
 Recommendation: do 3 first, so the others are judged on numbers, then 1 behind a setting.
 
+### 1.22 USGS earthquake and UCDP conflict-event tools (built 2026-10-11, not yet released)
+
+`tools/event_data_tools.py`: `fetch_usgs_earthquakes` (FDSN GeoJSON; bbox, days, minimum magnitude; layer coloured by magnitude band) and
+`fetch_ucdp_conflict_events` (UCDP Candidate Events CSV read from ucdp.uu.se/downloads: the newest file is found on the page each time,
+cached 12 hours, filtered by country, bbox, dates and deaths; layer coloured by type of violence). Two-phase like the EONET tool,
+CREATE operation, registered in the router, dispatch and docs (210 tools).
+- **Verified:** both network phases were run against the live services from this session (21 earthquakes in a Mediterranean box, 60 days,
+  M3+; 49 Sudan events since 2026-06-01 from `GEDEvent_v26_0_8.csv`, newest 2026-08-31) and offline tests cover parsing, filters and
+  dispatch (`tests/test_event_data_tools.py`).
+- **Not verified:** the layer phase and styling in a running QGIS session (no CI live test written yet; add one to
+  `tests/test_hazard_monitoring_tools*` style when the next live pass is done), and model behaviour (does the router pick these tools for
+  "earthquakes near X" or "conflict in Sudan").
+- UCDP data is preliminary and weeks old; every result says so and names the dataset's newest event date. UCDP's JSON API is not used
+  (it needs a token). Not yet in `metadata.txt` / CHANGELOG / in-plugin "what's new": do that with the next version bump (CONTRIBUTING §8).
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

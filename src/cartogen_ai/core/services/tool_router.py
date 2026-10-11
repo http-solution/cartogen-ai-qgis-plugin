@@ -199,6 +199,13 @@ _TOOL_ALIASES = {
         "current hazard", "natural incident", "live incident", "ongoing hazard",
         "what hazards", "hazard incident", "hazard", "incident",
     ],
+    "fetch_usgs_earthquakes": [
+        "earthquake", "quake", "seismic", "magnitude", "tremor", "aftershock", "usgs",
+    ],
+    "fetch_ucdp_conflict_events": [
+        "conflict event", "armed conflict", "political violence", "organised violence", "organized violence", "ucdp",
+        "fatalities", "battle", "killed in", "violence against civilians", "conflict", "war",
+    ],
     "fetch_nasa_active_fires": [
         "active fire", "live fire", "fire detection", "current wildfire",
         "wildfire location", "fire alert", "wildfire",

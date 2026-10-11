@@ -97,6 +97,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
+    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events",
     "ingest_osm_features", "extract_features_from_imagery",
 })
 
@@ -1256,6 +1257,36 @@ class CartogenAi:
             res = self._run_current_turn_on_main_thread(
                 lambda a: add_nasa_eonet_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA EONET Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_usgs_earthquakes":
+            from .tools.event_data_tools import (
+                fetch_usgs_earthquakes_network_phase, add_usgs_earthquakes_layer_main_thread_phase,
+            )
+            fetch_result = fetch_usgs_earthquakes_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("days", 7),
+                filtered_args.get("min_magnitude", 4.5), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_usgs_earthquakes_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "USGS Earthquakes")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_ucdp_conflict_events":
+            from .tools.event_data_tools import (
+                fetch_ucdp_conflict_events_network_phase, add_ucdp_conflict_events_layer_main_thread_phase,
+            )
+            fetch_result = fetch_ucdp_conflict_events_network_phase(
+                filtered_args.get("country"), filtered_args.get("bbox"), filtered_args.get("start_date"),
+                filtered_args.get("end_date"), filtered_args.get("min_deaths", 0), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_ucdp_conflict_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "UCDP Conflict Events")},
             )
             self._log_tool_success(name, filtered_args, res)
             return res
