@@ -8,14 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc28"
-NEW_MARK_VERSIONS = ("1.16.0-rc27", "1.16.0-rc28")
+WHATS_NEW_VERSION = "1.16.0-rc29"
+NEW_MARK_VERSIONS = ("1.16.0-rc28", "1.16.0-rc29")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Warning about an old install', 'If an install from rc24 or earlier (folder cartogen-ai) is still present next to this one, the plugin now shows a warning when it starts, because both copies would otherwise load together. Delete the old folder and restart QGIS.'),
-    ('Documentation and Qt6 tidy-up', 'The README and user guide no longer tell users to pick OpenAI or Claude, which have not been offered since rc25. The label line-placement flags use their scoped Qgis names, and CI confirms they and the QVariant field types exist in QGIS 4.2.2.'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the new network path.'),
+    ('Replies can no longer forge internal links', 'A reply (or a layer attribute it quoted) could draw a look-alike Apply edit link that resolved a real pending confirmation, and a quote in a link address could add attributes to the link. Replies can now create only the four chip links (action, export, prompt, zoom); a quote, angle bracket or space in a link address is encoded; and a file link opens only an existing file of a type the tools write (pdf, png, html, csv and similar).'),
+    ('Limits on remote data', 'Data fetches no longer read an unbounded answer into memory. JSON and CSV answers are capped at 64 MB, downloads at 1.5 GB, and a gzip tile or zip member that would expand past 256 MB is refused instead of inflated.'),
+    ('Smaller, cleaner package', 'The release zip no longer carries hidden files (a build once included a 92 KB .coverage file) or about 70 internal development documents; only the README, user guide, tools reference, humanitarian catalogue and screenshots ship (206 files instead of 288).'),
+    ('Diagnostics in the QGIS Message Log', 'Startup, unload and error messages that were printed to the Python console now go to the QGIS Message Log, with the same redaction as every other log line and no exception text.'),
+    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the QGIS network path.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
