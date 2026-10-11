@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc31
+version=1.16.0-rc32
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,14 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc31 (2026-10-11):
+changelog=v1.16.0-rc32 (2026-10-11):
+    Release candidate 32 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Shows the provider's reason when an AI request is refused, adds a switch back to the previous request sender, and logs refusals without secrets.
+    - A refused AI request now says why: When Google, OpenAI or another provider answers 401 or 403, the chat message now includes the provider's own short reason code (for example PERMISSION_DENIED, API_KEY_INVALID or SERVICE_DISABLED). The rest of the response is still hidden, because some providers echo part of the key back, and only values that look like a plain code name are shown.
+    - Switch back to the previous request sender: A Gemini key that worked in a test outside QGIS was refused with 403 when the plugin sent the same kind of request through QGIS's network stack. The cause has not been found. Setting cartogen_ai/hosted_requests_via_qgis to false in QGIS's advanced settings sends hosted AI requests (Gemini, OpenAI, Claude, OpenRouter) the way versions before rc28 did. It is on by default.
+    - Refusals are logged without secrets: A 401 or 403 on the QGIS path now writes a log line with the host and whether a QGIS proxy is set, never the key, the headers or the response body.
+    - Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and it has not been confirmed that the switch fixes the Gemini 403.
+
+v1.16.0-rc31 (2026-10-11):
     Release candidate 31 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Aligns the plugin with the QGIS 4.2 developer cookbook: metadata category, checked temporary layers, in-dialog notices and redraw after field writes.
     - Metadata matches the QGIS plugin rules: The metadata declared a menu category (Plugins) that the QGIS developer documentation does not allow; it is removed, and the plugin stays in the default Plugins menu.
     - Clearer error when QGIS cannot create a temporary layer: 18 places that create a temporary layer now check that QGIS actually created it and report a readable error, instead of failing a line later with a confusing message about a missing data provider.
