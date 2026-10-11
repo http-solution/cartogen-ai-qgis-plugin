@@ -249,9 +249,11 @@ class TestNetLive(unittest.TestCase):
         t.join(60)
         self.assertEqual(out, {"n": 3 * 1024 * 1024})
 
-    def test_stream_absolute_redirect_is_followed(self):
-        with self._stream("/redirect-abs") as r:
-            self.assertEqual(r.status, 200)
+    def test_stream_absolute_and_relative_redirects_are_followed(self):
+        for path in ("/redirect-abs", "/redirect"):
+            with self._stream(path) as r:
+                self.assertEqual(r.status, 200, path)
+                self.assertIn("ua", json.loads(r.read().decode()))
 
 
 if __name__ == "__main__":

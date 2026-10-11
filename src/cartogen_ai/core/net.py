@@ -24,6 +24,7 @@ Only http and https URLs are opened; file:, ftp: and custom schemes are refused 
 import collections
 import io
 import urllib.error
+import urllib.parse
 import urllib.request
 import contextlib
 
@@ -309,31 +310,45 @@ class _StreamResponse:
         return False
 
 
+MAX_REDIRECTS = 10
+_REDIRECT_STATUSES = (301, 302, 303, 307, 308)
+
+
 def _qgis_stream_open(req, timeout):
-    """GET through QgsNetworkAccessManager and return a _StreamResponse once the status line and headers are in."""
+    """GET through QgsNetworkAccessManager and return a _StreamResponse once the status line and headers are in.
+
+    Redirects are followed here rather than left to Qt: a plain QgsNetworkAccessManager reply does not follow them on its own (the first
+    CI run of the stream tests got the 302 itself), and resolving Location against the current URL also covers the relative form that
+    QGIS's own redirect handling cannot (see the module docstring)."""
     url = req.full_url
-    qreq = QNetworkRequest(QUrl(url))
-    for key, value in req.header_items():
-        qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
-    with contextlib.suppress(AttributeError, TypeError):
-        qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "RedirectPolicyAttribute"),
-                          _enum(QNetworkRequest, "RedirectPolicy", "NoLessSafeRedirectPolicy"))
-    reply = QgsNetworkAccessManager.instance().get(qreq)
-    resp = _StreamResponse(reply, timeout, url)
-    try:
-        resp._read_headers()
-    except TimeoutError:
-        resp.close()
-        raise urllib.error.URLError(TimeoutError("timed out")) from None
-    if resp.status >= 400:
-        body = resp.read()
-        resp.close()
-        raise urllib.error.HTTPError(url, resp.status, f"HTTP {resp.status}", resp.headers, io.BytesIO(body))
-    reason = resp.failure()
-    if reason and resp.status == 0:
-        resp.close()
-        raise urllib.error.URLError(reason)
-    return resp
+    headers = list(req.header_items())
+    for _hop in range(MAX_REDIRECTS + 1):
+        qreq = QNetworkRequest(QUrl(url))
+        for key, value in headers:
+            qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+        reply = QgsNetworkAccessManager.instance().get(qreq)
+        resp = _StreamResponse(reply, timeout, url)
+        try:
+            resp._read_headers()
+        except TimeoutError:
+            resp.close()
+            raise urllib.error.URLError(TimeoutError("timed out")) from None
+        location = resp.headers.get("Location")
+        if resp.status in _REDIRECT_STATUSES and location:
+            resp.close()
+            url = urllib.parse.urljoin(url, location)
+            _check_scheme(url)
+            continue
+        if resp.status >= 400:
+            body = resp.read()
+            resp.close()
+            raise urllib.error.HTTPError(url, resp.status, f"HTTP {resp.status}", resp.headers, io.BytesIO(body))
+        reason = resp.failure()
+        if reason and resp.status == 0:
+            resp.close()
+            raise urllib.error.URLError(reason)
+        return resp
+    raise urllib.error.URLError(f"too many redirects (more than {MAX_REDIRECTS}) fetching {req.full_url}")
 
 
 class NetworkError(Exception):
