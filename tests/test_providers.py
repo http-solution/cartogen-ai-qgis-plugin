@@ -501,6 +501,26 @@ class TestFormatHttpErrorRedaction(unittest.TestCase):
         self.assertNotIn("AIza", msg)
         self.assertNotIn("Provider reason", msg)
 
+    def test_a_403_without_a_reason_code_describes_the_reply_instead_of_showing_it(self):
+        # An HTML or empty 403 usually comes from a proxy or firewall, not from the provider. The server software, content type and
+        # size say so; the body itself stays withheld.
+        e = self._http_error(403, "<html><body>Access denied by policy for token sk-live-123</body></html>")
+        e.response.headers = {"Server": "ZSCALER", "Content-Type": "text/html"}
+        e.response.content = e.response.text.encode()
+        msg = format_http_error("Gemini API error", e)
+        self.assertIn("body 71 bytes", msg)
+        self.assertIn("No provider reason code", msg)
+        self.assertIn("server: ZSCALER", msg)
+        self.assertIn("content-type: text/html", msg)
+        self.assertNotIn("sk-live", msg)
+        self.assertNotIn("Access denied", msg)
+
+    def test_an_empty_403_body_is_reported_as_empty(self):
+        e = self._http_error(403, "")
+        e.response.headers = {}
+        e.response.content = b""
+        self.assertIn("empty body", format_http_error("Gemini API error", e))
+
     def test_non_auth_status_still_passes_the_real_body_through(self):
         # A 429 quota-exceeded message, or a 400 malformed-request detail, is genuinely
         # useful for debugging and isn't credential-bearing -- must not be redacted too.

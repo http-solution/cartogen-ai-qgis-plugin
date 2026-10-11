@@ -213,6 +213,30 @@ def _auth_reason_codes(response):
     return codes
 
 
+def _header_value(response, name):
+    """A response header as short printable ASCII, or ''. Headers such as Server and Via name software, never a credential."""
+    try:
+        value = response.headers.get(name)
+    except Exception:
+        return ""
+    return "".join(c for c in str(value or "") if " " <= c <= "~")[:60].strip()
+
+
+def _unrecognised_reply_note(response):
+    """What a 401/403 looks like when it carries no provider reason code: the server software, content type and body size. A refusal
+    that is not the provider's own JSON error (an empty body, an HTML page) usually comes from something in between, such as a proxy or
+    firewall, and these three facts say so without showing the body. Added after a 2026-10-11 report where a 403 gave nothing to go on."""
+    try:
+        size = len(response.content if response.content is not None else b"")
+    except Exception:
+        size = -1
+    facts = [f"{label}: {value}" for label, value in
+             (("server", _header_value(response, "Server")), ("via", _header_value(response, "Via")),
+              ("content-type", _header_value(response, "Content-Type"))) if value]
+    facts.append("empty body" if size == 0 else f"body {size} bytes" if size > 0 else "body unreadable")
+    return " No provider reason code in the reply (" + "; ".join(facts) + ")."
+
+
 def format_http_error(prefix, e):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
@@ -230,7 +254,7 @@ def format_http_error(prefix, e):
     status = e.response.status_code if e.response is not None else None
     if status in (401, 403):
         reasons = _auth_reason_codes(e.response)
-        reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else ""
+        reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else _unrecognised_reply_note(e.response)
         return (
             f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note} "
             "(Response body withheld: some providers echo part of the submitted key back "
