@@ -249,7 +249,7 @@ class TestNetLive(unittest.TestCase):
         t.join(60)
         self.assertEqual(out, {"n": 3 * 1024 * 1024})
 
-    def test_stream_absolute_and_relative_redirects_are_followed(self):
+    def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
             with self._stream(path) as r:
                 self.assertEqual(r.status, 200, path)

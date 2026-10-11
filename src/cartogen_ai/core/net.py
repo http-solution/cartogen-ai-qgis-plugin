@@ -24,7 +24,6 @@ Only http and https URLs are opened; file:, ftp: and custom schemes are refused 
 import collections
 import io
 import urllib.error
-import urllib.parse
 import urllib.request
 import contextlib
 
@@ -296,22 +295,6 @@ class _StreamResponse:
     def info(self):
         return self.headers
 
-    def discard(self):
-        """Lets a reply finish and drops its body instead of aborting it. Used for a redirect: aborting a reply tears down the connection,
-        and the follow-up request queued on that connection then got no answer (CI, 2026-10-11)."""
-        reply, self._reply = self._reply, None
-        if reply is None:
-            return
-        self._reply = reply
-        try:
-            self._wait(lambda: False)
-            reply.readAll()
-        except TimeoutError:
-            pass
-        finally:
-            self._reply = None
-            reply.deleteLater()
-
     def close(self):
         reply, self._reply = self._reply, None
         if reply is not None:
@@ -326,45 +309,40 @@ class _StreamResponse:
         return False
 
 
-MAX_REDIRECTS = 10
 _REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 
 
 def _qgis_stream_open(req, timeout):
     """GET through QgsNetworkAccessManager and return a _StreamResponse once the status line and headers are in.
 
-    Redirects are followed here rather than left to Qt: a plain QgsNetworkAccessManager reply does not follow them on its own (the first
-    CI run of the stream tests got the 302 itself), and resolving Location against the current URL also covers the relative form that
-    QGIS's own redirect handling cannot (see the module docstring)."""
+    A redirect is handed to urllib instead (with the QGIS proxy, as every stream was before). A plain QgsNetworkAccessManager reply does
+    not follow redirects itself, and following one by hand (even after draining the first reply instead of aborting it) left the second
+    reply without a body in the QGIS 4.2.2 CI runs of 2026-10-11, so this is a stated limitation, not a solved one: the cause was not
+    found. Large downloads that redirect (a model checkpoint from a release page) therefore use urllib; direct ones, such as Geofabrik's,
+    use QGIS."""
     url = req.full_url
-    headers = list(req.header_items())
-    for _hop in range(MAX_REDIRECTS + 1):
-        qreq = QNetworkRequest(QUrl(url))
-        for key, value in headers:
-            qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
-        reply = QgsNetworkAccessManager.instance().get(qreq)
-        resp = _StreamResponse(reply, timeout, url)
-        try:
-            resp._read_headers()
-        except TimeoutError:
-            resp.close()
-            raise urllib.error.URLError(TimeoutError("timed out")) from None
-        location = resp.headers.get("Location")
-        if resp.status in _REDIRECT_STATUSES and location:
-            resp.discard()
-            url = urllib.parse.urljoin(url, location)
-            _check_scheme(url)
-            continue
-        if resp.status >= 400:
-            body = resp.read()
-            resp.close()
-            raise urllib.error.HTTPError(url, resp.status, f"HTTP {resp.status}", resp.headers, io.BytesIO(body))
-        reason = resp.failure()
-        if reason and resp.status == 0:
-            resp.close()
-            raise urllib.error.URLError(reason)
-        return resp
-    raise urllib.error.URLError(f"too many redirects (more than {MAX_REDIRECTS}) fetching {req.full_url}")
+    qreq = QNetworkRequest(QUrl(url))
+    for key, value in req.header_items():
+        qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+    reply = QgsNetworkAccessManager.instance().get(qreq)
+    resp = _StreamResponse(reply, timeout, url)
+    try:
+        resp._read_headers()
+    except TimeoutError:
+        resp.close()
+        raise urllib.error.URLError(TimeoutError("timed out")) from None
+    if resp.status in _REDIRECT_STATUSES and resp.headers.get("Location"):
+        resp.close()
+        return _urllib_open(req, timeout)
+    if resp.status >= 400:
+        body = resp.read()
+        resp.close()
+        raise urllib.error.HTTPError(url, resp.status, f"HTTP {resp.status}", resp.headers, io.BytesIO(body))
+    reason = resp.failure()
+    if reason and resp.status == 0:
+        resp.close()
+        raise urllib.error.URLError(reason)
+    return resp
 
 
 class NetworkError(Exception):
