@@ -249,6 +249,18 @@ class TestNetLive(unittest.TestCase):
         t.join(60)
         self.assertEqual(out, {"n": 3 * 1024 * 1024})
 
+    def test_the_hosted_request_kill_switch_reads_the_real_setting(self):
+        from qgis.core import QgsSettings
+        from cartogen_ai.infrastructure.providers import base
+        from cartogen_ai.infrastructure.settings_keys import SETTINGS_HOSTED_VIA_QGIS_NETWORK
+        settings = QgsSettings()
+        self.addCleanup(settings.remove, SETTINGS_HOSTED_VIA_QGIS_NETWORK)
+        settings.remove(SETTINGS_HOSTED_VIA_QGIS_NETWORK)
+        self.assertTrue(base._qgis_network_enabled(), "on by default")
+        settings.setValue(SETTINGS_HOSTED_VIA_QGIS_NETWORK, False)
+        self.assertFalse(base._qgis_network_enabled())
+        self.assertFalse(base._use_qgis_network(False), "off means requests, even inside QGIS")
+
     def test_stream_redirects_are_followed_through_the_urllib_fallback(self):
         for path in ("/redirect-abs", "/redirect"):
             with self._stream(path) as r:

@@ -1,0 +1,2 @@
+# Fake Google-key-shaped string in a test fixture (replaced by a run-time built value in the next commit); not a real key.
+be7d2d86a5a2a94058a2b53cd190590d949bdede:tests/test_providers.py:gcp-api-key:487

@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 # extract them so requests calls don't bypass user network configurations.
 from ...core.proxy import get_qgis_proxy_dict
 from ...core import net as _net
+from ...core.logger import log_event
 
 try:
     import requests  # type: ignore[import-untyped]
@@ -126,7 +127,17 @@ def _use_qgis_network(local):
     """Hosted providers go through QGIS's network stack when it exists, so QGIS proxy, authentication and SSL settings apply.
     `local` (Ollama) stays on requests: a local model can take minutes to answer, and QGIS applies its own network timeout
     (default 60 s) instead of the per-call one, so routing it through QGIS would cut long generations short."""
-    return _net.QGIS_NETWORK_AVAILABLE and not local
+    return _net.QGIS_NETWORK_AVAILABLE and not local and _qgis_network_enabled()
+
+
+def _qgis_network_enabled():
+    """The user-facing kill-switch for the QGIS network path (default on); a missing QGIS or an unreadable setting counts as on."""
+    try:
+        from qgis.core import QgsSettings
+        from ..settings_keys import SETTINGS_HOSTED_VIA_QGIS_NETWORK
+        return bool(QgsSettings().value(SETTINGS_HOSTED_VIA_QGIS_NETWORK, True, type=bool))
+    except Exception:
+        return True
 
 
 def _qgis_send(method, url, headers, payload, timeout):
@@ -134,6 +145,11 @@ def _qgis_send(method, url, headers, payload, timeout):
         status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
     except _net.NetworkError as e:
         raise (Timeout_ if e.timed_out else ConnectionError_)(str(e)) from e
+    if status in (401, 403):
+        # Metadata only (no key, header or body): lets a field report say which sender and proxy setup produced a refusal.
+        from urllib.parse import urlparse
+        log_event("provider_auth_refused", tag="Providers", sender="qgis", status=status, host=urlparse(url).hostname or "",
+                  qgis_proxy=bool(get_qgis_proxy_dict()), error=True)
     return QgisResponse(status, reply_headers, body, url)
 
 
@@ -170,6 +186,33 @@ def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES, local
     )
 
 
+_REASON_CODE = re.compile(r"^(?:[A-Z][A-Z_]{2,60}|[a-z]+(?:_[a-z]+){1,6})$")
+
+
+def _auth_reason_codes(response):
+    """The machine-readable reason codes in a 401/403 body (Gemini: PERMISSION_DENIED, API_KEY_INVALID, SERVICE_DISABLED; OpenAI:
+    invalid_api_key), which tell the user why the provider refused without showing the body. A 403 chat message that only said
+    'check your API key' sent a user with a disabled API and a good key looking in the wrong place (2026-10-11 report). Only values
+    shaped like an enum name (letters and underscores, no digits or hyphens) are returned, so a key echoed back in the body can
+    never pass through: API keys carry digits or hyphens."""
+    import json as _json
+    try:
+        error = _json.loads(response.text).get("error")
+    except Exception:
+        return []
+    if not isinstance(error, dict):
+        return []
+    found = [error.get("status"), error.get("code")]
+    details = error.get("details")
+    if isinstance(details, list):
+        found.extend(d.get("reason") for d in details if isinstance(d, dict))
+    codes = []
+    for value in found:
+        if isinstance(value, str) and _REASON_CODE.match(value) and value not in codes:
+            codes.append(value)
+    return codes
+
+
 def format_http_error(prefix, e):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
@@ -186,8 +229,10 @@ def format_http_error(prefix, e):
     bearing."""
     status = e.response.status_code if e.response is not None else None
     if status in (401, 403):
+        reasons = _auth_reason_codes(e.response)
+        reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else ""
         return (
-            f"{prefix} ({status}): Authentication failed -- check your API key. "
+            f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note} "
             "(Response body withheld: some providers echo part of the submitted key back "
             "in this specific error.)"
         )

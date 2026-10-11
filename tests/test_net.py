@@ -82,6 +82,21 @@ class TestProviderTransport(unittest.TestCase):
         self.assertEqual(m.call_args.args[:2], ("POST", "https://api.example.org/v1"))
         self.assertEqual(m.call_args.kwargs["data"], '{"a": 1}')
 
+    def test_the_kill_switch_sends_hosted_requests_with_requests_again(self):
+        # 2026-10-11 field report: Gemini answered 403 to the QGIS-stack request while the same key worked elsewhere. Turning
+        # cartogen_ai/hosted_requests_via_qgis off must restore the pre-rc28 sender without a new release.
+        with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
+                patch.object(self.base, "_qgis_network_enabled", return_value=False), \
+                patch.object(net, "request", side_effect=AssertionError("QGIS path used with the switch off")), \
+                patch.object(self.base, "requests") as req:
+            req.post.return_value = self.base.QgisResponse(200, [], b"{}", "u")
+            r = self.base.post_with_retry("https://api.example.org/v1", {}, "{}", 30)
+        self.assertEqual(r.status_code, 200)
+        req.post.assert_called_once()
+
+    def test_the_switch_defaults_to_on_without_qgis(self):
+        self.assertTrue(self.base._qgis_network_enabled())
+
     def test_local_provider_stays_on_requests(self):
         with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
                 patch.object(net, "request", side_effect=AssertionError("QGIS path used for a local server")), \
