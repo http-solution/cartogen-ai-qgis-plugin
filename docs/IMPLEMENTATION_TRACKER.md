@@ -1671,6 +1671,18 @@ regional search cannot rely on GDACS for coverage or for "nothing found" answers
 regional, country) so the reply can say which sources could and could not answer for the area asked. Not verified against the live
 GDACS feed from this sandbox.
 
+Source list supplied by the owner 2026-10-11 (verification and incident tracking). None of the access notes below was checked from
+this sandbox; confirm each before building:
+- Fact-checkers: Reuters Fact Check, AFP Fact Check, Full Fact; aggregators Duke Reporters' Lab (database of fact-checkers) and the
+  IFCN signatory list. Mostly web pages or RSS, not structured APIs: usable as a "was this claim fact-checked" lookup by link or RSS,
+  not as an incident feed.
+- Incident trackers: ACLED (API, key and terms required), Liveuamap (map site; machine access is likely a paid API, to be confirmed).
+- OSINT collectives and tools: Bellingcat, OSINT Combine, InVID/WeVerify. These are methods and browser tools for a person, not data
+  sources; the plugin can point to them but not call them.
+Design consequence: the "reliable sources" list must say, per source, what it provides (incidents, fact-checks, methods), how it is
+reached (API, RSS, page), and what coverage it has (global, regional, country); only sources with structured access can be filtered
+automatically.
+
 Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
 social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
 Do not call this shipped in release notes until it exists and has been tested against the live services.
@@ -1690,6 +1702,25 @@ Deliberately left, with the reason:
   turns the hosted-AI QGIS path off.
 - `search_web` uses the third-party `ddgs` package, which makes its own HTTP calls (not proxy-aware). Replaced by task 72 (tracker 1.19).
 - `urllib.parse` imports are string handling, not network calls.
+
+### 1.21 API-cost optimisation: measured request size and what is left (2026-10-11)
+
+Measured offline (no model call; ~4 characters per token, so approximate), on rc34 code:
+- All 208 tool schemas together: ~60,600 tokens. The router sends 9 to 40 per request: ~1,100 tokens for "hello", ~4,000 for a
+  precise request ("buffer the hubs by 500 m", 15 tools), ~15,500 for a broad one ("show a service area for hospitals", 40 tools; the
+  failed incident search sent 39 tools, ~15,400, although it needed one).
+- System prompt: ~9,600 tokens. Its stable part is the first 99.9% (the layer list is last), so provider prefix caching can hit.
+- Every model round re-sends system prompt + tool schemas + history, so one broad request of 6 rounds is roughly 150,000 input tokens
+  before history. Largest schemas: generate_temporal_dashboard, compute_jiaf_preliminary, add_point_layer, create_print_layout
+  (3,400-5,400 characters each).
+
+Already in place: automatic model choice (cost saver), 429 backoff, router with top_k 40, loop guard, per-turn token budget, local-data
+offer. Not done, and each needs a real model to verify (none is available in this sandbox, so none was changed):
+1. Lower top_k or send fewer schemas for research-only requests (saves up to ~10,000 tokens per round; risk: a missing tool).
+2. Shorten the ten largest tool descriptions (saves ~15,000 characters, ~3,700 tokens per request when they are all selected).
+3. Measure billed cost per provider, and prompt-cache hit rates (Gemini 6 of 23 calls seen earlier).
+4. Drop tool schemas from later rounds once the model has chosen its tools (risk: it cannot call a tool it needs next).
+Recommendation: do 3 first, so the others are judged on numbers, then 1 behind a setting.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
