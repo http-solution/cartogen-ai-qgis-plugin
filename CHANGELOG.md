@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc32](#v1-16-0-rc32) | 2026-10-11 | **Release candidate 32 for 1.16.0.** No breaking changes. Refusal reasons shown, switch back to the previous request sender, refusals logged. Not hand-tested. |
 | [1.16.0-rc31](#v1-16-0-rc31) | 2026-10-11 | **Release candidate 31 for 1.16.0.** No breaking changes. Metadata category removed, temporary layers checked, notices shown inside dialogs, redraw after field writes. Not hand-tested. |
 | [1.16.0-rc30](#v1-16-0-rc30) | 2026-10-11 | **Release candidate 30 for 1.16.0.** No breaking changes. Large downloads and the account client use QGIS's network stack; the script fallback fails closed; the directory's upload rules are tested. Not hand-tested. |
 | [1.16.0-rc29](#v1-16-0-rc29) | 2026-10-11 | **Release candidate 29 for 1.16.0.** No breaking changes. Security and code-quality audit fixes: replies cannot forge internal links, remote data is size-limited, leaner package, diagnostics in the QGIS Message Log. Not hand-tested. |
@@ -72,6 +73,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc32"></a>
+## [1.16.0-rc32] — 2026-10-11 — Release candidate 32 for 1.16.0: AI request refusals explained, sender switch
+
+No breaking changes; QGIS 4.2+. Everything after the rc31 build:
+
+- A refused AI request now says why: When Google, OpenAI or another provider answers 401 or 403, the chat message now includes the provider's own short reason code (for example PERMISSION_DENIED, API_KEY_INVALID or SERVICE_DISABLED). The rest of the response is still hidden, because some providers echo part of the key back, and only values that look like a plain code name are shown.
+- Switch back to the previous request sender: A Gemini key that worked in a test outside QGIS was refused with 403 when the plugin sent the same kind of request through QGIS's network stack. The cause has not been found. Setting cartogen_ai/hosted_requests_via_qgis to false in QGIS's advanced settings sends hosted AI requests (Gemini, OpenAI, Claude, OpenRouter) the way versions before rc28 did. It is on by default.
+- Refusals are logged without secrets: A 401 or 403 on the QGIS path now writes a log line with the host and whether a QGIS proxy is set, never the key, the headers or the response body.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and it has not been confirmed that the switch fixes the Gemini 403.
 
 <a id="v1-16-0-rc31"></a>
 ## [1.16.0-rc31] — 2026-10-11 — Release candidate 31 for 1.16.0: aligned with the QGIS 4.2 developer cookbook

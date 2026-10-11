@@ -8,16 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc31"
-NEW_MARK_VERSIONS = ("1.16.0-rc30", "1.16.0-rc31")
+WHATS_NEW_VERSION = "1.16.0-rc32"
+NEW_MARK_VERSIONS = ("1.16.0-rc31", "1.16.0-rc32")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Metadata matches the QGIS plugin rules', 'The metadata declared a menu category (Plugins) that the QGIS developer documentation does not allow; it is removed, and the plugin stays in the default Plugins menu.'),
-    ('Clearer error when QGIS cannot create a temporary layer', '18 places that create a temporary layer now check that QGIS actually created it and report a readable error, instead of failing a line later with a confusing message about a missing data provider.'),
-    ('Notices appear inside the dialog', "Results such as 'exported', 'deleted' and 'failed' in the Memory, Layer Data Sensitivity and account dialogs now show in a message bar inside the dialog instead of a pop-up box. Questions that need an answer, and the warning when an API key is kept for this session only, still use a pop-up."),
-    ('Styled layers redraw after score fields are written', 'After the severity, presence-gap, population and index tools write a field into a layer, the layer is redrawn, so a layer styled on that field no longer shows the old colours until the next refresh.'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and the new message bar has been checked only by an automated test, not by eye.'),
+    ('A refused AI request now says why', "When Google, OpenAI or another provider answers 401 or 403, the chat message now includes the provider's own short reason code (for example PERMISSION_DENIED, API_KEY_INVALID or SERVICE_DISABLED). The rest of the response is still hidden, because some providers echo part of the key back, and only values that look like a plain code name are shown."),
+    ('Switch back to the previous request sender', "A Gemini key that worked in a test outside QGIS was refused with 403 when the plugin sent the same kind of request through QGIS's network stack. The cause has not been found. Setting cartogen_ai/hosted_requests_via_qgis to false in QGIS's advanced settings sends hosted AI requests (Gemini, OpenAI, Claude, OpenRouter) the way versions before rc28 did. It is on by default."),
+    ('Refusals are logged without secrets', 'A 401 or 403 on the QGIS path now writes a log line with the host and whether a QGIS proxy is set, never the key, the headers or the response body.'),
+    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and it has not been confirmed that the switch fixes the Gemini 403.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
