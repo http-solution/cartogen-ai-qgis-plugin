@@ -6,10 +6,14 @@ System & External Integration Tools for Cartogen AI.
 from typing import Any
 import ast
 import builtins as _builtins_module
+import os
 from .registry import register_tool
 from ._cache_utils import TTLCache
 from ...net import build_request as _net_build_request
 from ...net import read_capped as _read_capped
+
+# Set to "1" (by tests/__init__.py only) to let execute_pyqgis_script run in-process when QGIS is not importable.
+UNISOLATED_SCRIPTS_ENV = "CARTOGEN_ALLOW_UNISOLATED_SCRIPTS"
 
 # execute_pyqgis_script runs model-generated code directly in the QGIS process.
 # These modules/builtins give file-system, network, process, or interpreter-escape
@@ -608,12 +612,12 @@ def execute_pyqgis_script(script: str):
             }
         return add_sandbox_hint(run_isolated_script(script))
 
-    # No live QGIS in this process (unit-test / validator-only context, e.g. this
-    # repo's plain `test` CI job) -- the isolation boundary above needs a real
-    # QgsApplication/QgsProject to isolate, which doesn't exist here anyway. Exec
-    # in-process, same as before isolation existed: this still exercises
-    # _validate_script_safety and the _SAFE_BUILTINS defense-in-depth layer,
-    # which is what this repo's ~40 execute_pyqgis_script tests actually verify.
+    # No live QGIS in this process, so the isolation boundary above has nothing to isolate. This path exists only so the unit tests can
+    # exercise _validate_script_safety and the _SAFE_BUILTINS layer without QGIS, and it fails CLOSED: it runs only when the caller has
+    # explicitly opted in (tests/__init__.py sets the variable). A broken QGIS import in a real install therefore refuses to run
+    # model-written code instead of running it unisolated (2026-10-11 audit; reviewers flagged the unconditional fallback).
+    if os.environ.get(UNISOLATED_SCRIPTS_ENV) != "1":
+        return {"error": "Script isolation is unavailable (QGIS could not be imported), so the script was not run."}
     local_env: dict[str, Any] = {}
     local_env['__builtins__'] = _SAFE_BUILTINS
     # __name__ is a normal module global CPython's class-statement machinery
