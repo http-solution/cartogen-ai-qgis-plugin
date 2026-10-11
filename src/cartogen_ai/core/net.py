@@ -12,6 +12,10 @@ Limits, found by the first CI runs of tests/test_net_live.py and stated rather t
     so a call that asked for 15 s can wait longer. A caller that needs a short, exact timeout uses `stream=True`.
   * A redirect with a relative Location fails inside QGIS ("Protocol "" is unknown"; CI run of 2026-10-10, and neither a manual
     redirect policy nor re-resolving the target could intercept it), so that one case is retried once through urllib.
+  * A request with a body or a credential header (every hosted-AI call) does NOT go through QgsBlockingNetworkRequest: that class
+    follows a redirect with a brand-new request, which loses the Authorization header (reproduced in QGIS 4.2.2, 2026-10-11, see
+    test_a_post_keeps_its_key_and_body_across_a_307_or_308_redirect). Those requests use QgsNetworkAccessManager directly and follow
+    redirects in _qgis_send_following: the credential stays on the same site and is dropped for another one.
 Two deliberate limits on the buffered path:
   * QgsBlockingNetworkRequest returns the whole reply in memory, so a request whose body is large (a Geofabrik extract, a model
     checkpoint) must use `stream=True`, which stays on urllib and streams to disk. That path still honours the QGIS proxy.
@@ -280,8 +284,13 @@ def _qgis_send_following(method, url, header_items, data, timeout):
             return reply
         target = urljoin(url, location)
         _check_scheme(target)
-        if _origin(target) != _origin(url):
+        other_site = _origin(target) != _origin(url)
+        if other_site:
             headers = [(k, v) for k, v in headers if k.lower() not in _CREDENTIAL_HEADERS]
+        # Metadata only (no URL path, query, header or body): a later 401/403 report can then say whether a redirect was in the way.
+        from .logger import log_event
+        log_event("http_redirect", tag="Net", status=reply.status, from_host=_origin(url)[1], to_host=_origin(target)[1],
+                  other_site=other_site)
         if reply.status in (301, 302, 303) and method == "POST":
             method, data = "GET", None
             headers = [(k, v) for k, v in headers if k.lower() not in ("content-type", "content-length")]
