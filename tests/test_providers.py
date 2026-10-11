@@ -143,7 +143,7 @@ class TestListModels(unittest.TestCase):
     """Each list_models() is tested against a mocked response matching that
     provider's real, WebFetch-verified schema -- no live network calls."""
 
-    @patch("cartogen_ai.infrastructure.providers.openrouter.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_openrouter_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "data": [{"id": "openrouter/free"}, {"id": "openai/gpt-oss-20b:free"}]
@@ -152,7 +152,7 @@ class TestListModels(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertIn("openrouter/free", result["models"])
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_openai_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({"data": [{"id": "gpt-5.6-sol"}, {"id": "text-embedding-3-large"}]})
         result = openai_mod.list_models("dummy")
@@ -160,7 +160,7 @@ class TestListModels(unittest.TestCase):
         self.assertIn("gpt-5.6-sol", result["models"])
         self.assertNotIn("text-embedding-3-large", result["models"])
 
-    @patch("cartogen_ai.infrastructure.providers.claude.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_claude_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "data": [{"type": "model", "id": "claude-opus-5"}, {"type": "model", "id": "claude-haiku-4-5"}]
@@ -169,7 +169,7 @@ class TestListModels(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertIn("claude-opus-5", result["models"])
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_gemini_list_models_strips_prefix_and_filters(self, mock_get):
         mock_get.return_value = _mock_get_response({
             "models": [
@@ -183,7 +183,7 @@ class TestListModels(unittest.TestCase):
         self.assertNotIn("models/gemini-flash-latest", result["models"])
         self.assertNotIn("embedding-001", result["models"])
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_grounded_search_extracts_text_and_sources(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -201,7 +201,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["text"], "It rained yesterday.")
         self.assertEqual(result["sources"], [{"title": "Example", "url": "https://example.com"}])
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_grounded_search_handles_empty_candidates(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -210,7 +210,7 @@ class TestListModels(unittest.TestCase):
         result = gemini_mod.grounded_search("dummy-key", "query")
         self.assertIn("error", result)
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_gemini_list_models_uses_header_auth_not_query_param(self, mock_get):
         # docs/archive/ENGINEERING_PRODUCT_UX_REVIEW_2026-08-20.md SS2.3: query-string
         # credentials are more likely to end up in server/proxy access logs than
@@ -222,7 +222,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(kwargs.get("headers", {}).get("x-goog-api-key"), "dummy-key")
         self.assertNotIn("params", kwargs)
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_grounded_search_uses_header_auth_not_query_param(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -241,7 +241,7 @@ class TestListModels(unittest.TestCase):
         client2 = gemini_mod.GeminiClient(api_key="dummy", model=gemini_mod.FALLBACK_MODELS[0])
         self.assertEqual(client2.models.count(gemini_mod.FALLBACK_MODELS[0]), 1)
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_client_falls_back_on_404(self, mock_post):
         dead_model_resp = MagicMock()
         dead_model_resp.status_code = 404
@@ -256,7 +256,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["message"]["content"], "hi")
         self.assertEqual(result["model"], client.models[1])
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_client_returns_clear_error_when_all_models_404(self, mock_post):
         dead_resp = MagicMock()
         dead_resp.status_code = 404
@@ -275,7 +275,7 @@ class TestListModels(unittest.TestCase):
         client2 = openai_mod.OpenAIClient(api_key="dummy", model=openai_mod.FALLBACK_MODELS[0])
         self.assertEqual(client2.models.count(openai_mod.FALLBACK_MODELS[0]), 1)
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_openai_client_falls_back_on_404(self, mock_post):
         dead_model_resp = MagicMock()
         dead_model_resp.status_code = 404
@@ -290,7 +290,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["message"]["content"], "hi")
         self.assertEqual(result["model"], client.models[1])
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_openai_client_returns_clear_error_when_all_models_404(self, mock_post):
         dead_resp = MagicMock()
         dead_resp.status_code = 404
@@ -301,7 +301,7 @@ class TestListModels(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("404", result["error"])
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_openai_grounded_search_extracts_text_and_sources(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -322,7 +322,7 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(result["text"], "It rained yesterday.")
         self.assertEqual(result["sources"], [{"title": "Example", "url": "https://example.com"}])
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_openai_grounded_search_handles_empty_choices(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -332,14 +332,14 @@ class TestListModels(unittest.TestCase):
         result = openai_mod.grounded_search("dummy-key", "query")
         self.assertIn("error", result)
 
-    @patch("cartogen_ai.infrastructure.providers.ollama.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_ollama_list_models(self, mock_get):
         mock_get.return_value = _mock_get_response({"models": [{"name": "llama3.1:latest"}]})
         result = ollama_mod.list_models("http://localhost:11434/v1/chat/completions")
         self.assertTrue(result["success"])
         self.assertIn("llama3.1:latest", result["models"])
 
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_list_models_http_error_returns_error_dict(self, mock_get):
         import requests
         http_error = requests.exceptions.HTTPError()
@@ -360,7 +360,7 @@ class TestListModelsRetriesLikeChatCompletion(unittest.TestCase):
     get_with_retry works in isolation (already covered by TestRetryWithBackoff)."""
 
     @patch("cartogen_ai.infrastructure.providers.base.time.sleep")
-    @patch("cartogen_ai.infrastructure.providers.openai.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_openai_list_models_retries_on_transient_503_then_succeeds(self, mock_get, mock_sleep):
         # get_with_retry inspects response.status_code itself to decide whether to retry --
         # it never calls raise_for_status() on the intermediate (retried-away) response, only
@@ -376,7 +376,7 @@ class TestListModelsRetriesLikeChatCompletion(unittest.TestCase):
         self.assertIn("gpt-5.6-sol", result["models"])
 
     @patch("cartogen_ai.infrastructure.providers.base.time.sleep")
-    @patch("cartogen_ai.infrastructure.providers.claude.requests.get")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.get")
     def test_claude_list_models_retries_on_connection_error_then_succeeds(self, mock_get, mock_sleep):
         import requests as requests_mod
         succeeding = _mock_get_response({"data": [{"type": "model", "id": "claude-opus-5"}]})
@@ -976,7 +976,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
     the cache is a module-level singleton shared across the whole test run,
     so a reused query would silently hit an earlier test's cached result."""
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_second_identical_call_is_served_from_cache(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -991,7 +991,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
         self.assertTrue(second.get("cached"))
         self.assertEqual(second["text"], "answer")
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_cache_key_is_case_and_whitespace_insensitive(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None
@@ -1003,7 +1003,7 @@ class TestGroundedSearchCaching(unittest.TestCase):
 
         self.assertEqual(mock_post.call_count, 1)
 
-    @patch("cartogen_ai.infrastructure.providers.gemini.requests.post")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
     def test_gemini_error_response_is_not_cached(self, mock_post):
         resp = MagicMock()
         resp.raise_for_status.return_value = None

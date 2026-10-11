@@ -2032,6 +2032,16 @@ def _build_point_feature(layer, field_names, pt, lon, lat):
     return feat, point_warnings
 
 
+def _wgs84_transformer(source_crs):
+    """A function (x, y) -> (lon, lat) from a projected CRS, using QGIS's own transform."""
+    xf = QgsCoordinateTransform(source_crs, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
+
+    def transform(x, y):
+        pt = xf.transform(QgsPointXY(x, y))
+        return pt.x(), pt.y()
+    return transform
+
+
 @register_tool(
     "add_point_layer",
     "Create a new point layer (or append to an existing one with the same name) from a LIST of real, "
@@ -2120,11 +2130,7 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
         src = QgsCoordinateReferenceSystem(source_crs)
         if not src.isValid():
             return {"error": f"Unknown crs '{crs}'. Use a code such as \"EPSG:3857\"."}
-        _xf = QgsCoordinateTransform(src, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
-
-        def transform(x, y):
-            pt = _xf.transform(QgsPointXY(x, y))
-            return pt.x(), pt.y()
+        transform = _wgs84_transformer(src)
 
     existing = QgsProject.instance().mapLayersByName(layer_name)
     if not existing and len(points) == 1:

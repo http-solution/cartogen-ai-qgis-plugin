@@ -993,6 +993,19 @@ MARKERCLUSTER_VERSION = "1.5.3"
 _MARKERCLUSTER_CDN = f"https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/{MARKERCLUSTER_VERSION}/"
 
 
+def _choropleth_style(colormap, field):
+    """folium style_function colouring a polygon by a numeric property; non-numeric values are grey."""
+    def style_function(feat):
+        val = feat["properties"].get(field)
+        return {
+            "fillColor": colormap(val) if isinstance(val, (int, float)) else "#999999",
+            "color": "black",
+            "weight": 1,
+            "fillOpacity": 0.6,
+        }
+    return style_function
+
+
 def _pinned_marker_cluster():
     """folium's MarkerCluster class, with its CDN URLs set to MARKERCLUSTER_VERSION."""
     from folium.plugins import MarkerCluster
@@ -1124,14 +1137,7 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
                     ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                 )
 
-                def style_function(feat, _cmap=colormap, _field=color_field):
-                    val = feat["properties"].get(_field)
-                    return {
-                        "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
-                        "color": "black",
-                        "weight": 1,
-                        "fillOpacity": 0.6,
-                    }
+                style_function = _choropleth_style(colormap, color_field)
             else:
                 warnings.append(f"'{name}': color_field '{color_field}' has no numeric values -- rendered without choropleth coloring.")
 
@@ -1399,12 +1405,7 @@ def _add_static_overlay(folium, m, layer, popup):
                 ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
             )
 
-            def style_function(feat, _cmap=cmap, _field=color_field):
-                val = feat["properties"].get(_field)
-                return {
-                    "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
-                    "color": "black", "weight": 1, "fillOpacity": 0.6,
-                }
+            style_function = _choropleth_style(cmap, color_field)
     gj_kwargs = {"name": name}
     if popup is not None:
         gj_kwargs["popup"] = popup

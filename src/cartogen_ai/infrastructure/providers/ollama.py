@@ -4,8 +4,6 @@ from .base import (
     BaseAiProvider, DEFAULT_MAX_TOKENS, post_with_retry, get_with_retry,
     format_http_error, format_request_exception,
     HTTPError, RequestException,
-    requests,  # noqa: F401 -- see providers/gemini.py's identical import for why this
-    # stays: tests patch cartogen_ai.infrastructure.providers.ollama.requests.get.
 )
 
 
