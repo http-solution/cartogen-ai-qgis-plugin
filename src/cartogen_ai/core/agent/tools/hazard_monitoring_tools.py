@@ -42,6 +42,7 @@ from ...models.confidence import set_layer_confidence
 # to be re-run on a recurring schedule (see module docstring).
 from ._urllib_retry import urlopen_with_retry
 from ...net import build_request as _net_build_request
+from ...net import read_capped as _read_capped
 
 try:
     from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
@@ -214,7 +215,7 @@ def fetch_nasa_active_fires_network_phase(bbox, days=1, min_confidence="nominal"
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
-            csv_text = response.read().decode()
+            csv_text = _read_capped(response).decode()
     except Exception as e:
         return {"error": f"NASA FIRMS API request failed: {e}"}
 
@@ -374,7 +375,7 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
     except Exception as e:
         return {"error": f"NASA EONET API request failed: {e}"}
     # A real live crash traced this exact shape (2026-09-13): the request/decode above
@@ -538,7 +539,7 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
     try:
         req = _net_build_request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
     except Exception as e:
         return {"error": f"GDACS API request failed: {e}"}
     # See fetch_nasa_eonet_events_network_phase's identical comment above -- same real

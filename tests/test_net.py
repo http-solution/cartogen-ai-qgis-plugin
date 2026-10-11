@@ -102,3 +102,40 @@ class TestProviderTransport(unittest.TestCase):
         with patch.object(net, "QGIS_NETWORK_AVAILABLE", True), patch.object(net, "request", side_effect=seq), \
                 patch.object(self.base.time, "sleep"):
             self.assertEqual(self.base.get_with_retry("https://x/", {}, 5).status_code, 200)
+
+
+class TestSizeCeilings(unittest.TestCase):
+    """2026-10-11 audit: remote answers were read with an unbounded .read(), and gzip/zip data was expanded without a ceiling,
+    so one hostile or broken data service could exhaust memory. The helpers refuse instead of holding it all."""
+
+    def test_read_capped_returns_a_body_within_the_limit(self):
+        self.assertEqual(net.read_capped(io.BytesIO(b"abc"), limit=3), b"abc")
+
+    def test_read_capped_refuses_one_byte_over(self):
+        with self.assertRaises(net.ResponseTooLargeError):
+            net.read_capped(io.BytesIO(b"abcd"), limit=3)
+
+    def test_gunzip_capped_expands_normal_data(self):
+        import gzip
+        self.assertEqual(net.gunzip_capped(gzip.compress(b"x" * 1000), limit=2000), b"x" * 1000)
+
+    def test_gunzip_capped_refuses_a_bomb_without_inflating_it(self):
+        import gzip
+        bomb = gzip.compress(b"\0" * (5 * 1024 * 1024))   # ~5 KB on the wire, 5 MB expanded
+        with self.assertRaises(net.ResponseTooLargeError):
+            net.gunzip_capped(bomb, limit=1024 * 1024)
+
+    def test_gunzip_capped_reports_a_non_gzip_body_as_oserror(self):
+        with self.assertRaises(OSError):
+            net.gunzip_capped(b"<html>not gzip</html>")
+
+    def test_zip_member_capped_checks_the_declared_size_first(self):
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("big.geojson", b"\0" * (2 * 1024 * 1024))
+            z.writestr("small.geojson", b"{}")
+        with zipfile.ZipFile(io.BytesIO(buf.getvalue())) as z:
+            self.assertEqual(net.zip_member_capped(z, "small.geojson", limit=1024), b"{}")
+            with self.assertRaises(net.ResponseTooLargeError):
+                net.zip_member_capped(z, "big.geojson", limit=1024 * 1024)

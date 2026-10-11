@@ -52,7 +52,7 @@ class TestGeoBoundariesAsksBeforeDownloading(unittest.TestCase):
 
         class _Resp:
             def __init__(self, body): self.body = body
-            def read(self): return self.body
+            def read(self, amt=-1): return self.body
             def __enter__(self): return self
             def __exit__(self, *a): return False
 

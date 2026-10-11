@@ -37,6 +37,45 @@ except ImportError:  # no QGIS: unit tests, the isolation worker
 
 ALLOWED_SCHEMES = ("http", "https")
 
+# Ceilings on what one remote answer may make this process hold in memory. A data service that is hostile, hijacked or just
+# wrong could otherwise answer a small query with gigabytes (or a gzip/zip that expands to gigabytes) and take QGIS down with
+# it. Generous for the real sources (a WorldPop country raster is the largest at a few hundred MB), tight enough to stop that.
+MAX_TEXT_BYTES = 64 * 1024 * 1024          # JSON / CSV / listings
+MAX_DOWNLOAD_BYTES = 1536 * 1024 * 1024    # a raster or boundary file kept in memory before it is written to disk
+MAX_EXPANDED_BYTES = 256 * 1024 * 1024     # what a gzip tile or zip member may expand to
+
+
+class ResponseTooLargeError(OSError):
+    """A remote answer, or what it expands to, is bigger than the ceiling for that kind of data."""
+
+
+def read_capped(response, limit=MAX_TEXT_BYTES):
+    """response.read(), refusing a body larger than `limit` bytes instead of holding it all."""
+    data = response.read(limit + 1)
+    if len(data) > limit:
+        raise ResponseTooLargeError(f"the remote answer is larger than the {limit // (1024 * 1024)} MB this tool accepts")
+    return data
+
+
+def gunzip_capped(data, limit=MAX_EXPANDED_BYTES):
+    """gzip.decompress with a ceiling on the expanded size (a gzip bomb is a few KB that expands to gigabytes)."""
+    import zlib
+    inflater = zlib.decompressobj(wbits=31)   # 31 = gzip container
+    try:
+        out = inflater.decompress(data, limit + 1)
+    except zlib.error as e:
+        raise OSError(f"not a valid gzip stream: {e}") from e
+    if len(out) > limit or inflater.unconsumed_tail:
+        raise ResponseTooLargeError(f"the gzip data expands to more than {limit // (1024 * 1024)} MB")
+    return out
+
+
+def zip_member_capped(archive, name, limit=MAX_EXPANDED_BYTES):
+    """ZipFile.read(name), refusing a member whose declared size is above `limit` (checked before anything is inflated)."""
+    if archive.getinfo(name).file_size > limit:
+        raise ResponseTooLargeError(f"'{name}' in the archive expands to more than {limit // (1024 * 1024)} MB")
+    return archive.read(name)
+
 
 def _check_scheme(url):
     if url.split(":", 1)[0].lower() not in ALLOWED_SCHEMES:

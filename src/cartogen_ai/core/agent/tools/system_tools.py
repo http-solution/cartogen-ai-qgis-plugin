@@ -9,6 +9,7 @@ import builtins as _builtins_module
 from .registry import register_tool
 from ._cache_utils import TTLCache
 from ...net import build_request as _net_build_request
+from ...net import read_capped as _read_capped
 
 # execute_pyqgis_script runs model-generated code directly in the QGIS process.
 # These modules/builtins give file-system, network, process, or interpreter-escape
@@ -501,7 +502,7 @@ def _geocode_one(location_name: str):
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
             if data:
                 result = {
                     "location": data[0]['display_name'],

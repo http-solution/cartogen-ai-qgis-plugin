@@ -936,7 +936,7 @@ class TestNewTools(unittest.TestCase):
         loopback/private/metadata address must be refused, not silently fetched."""
         import json as _json
         mock_urlopen.return_value = MagicMock(
-            __enter__=lambda s: MagicMock(read=lambda: _json.dumps(
+            __enter__=lambda s: MagicMock(read=lambda *_: _json.dumps(
                 {"gjDownloadURL": "http://169.254.169.254/latest/meta-data/", "boundaryName": "Fake"}
             ).encode()),
             __exit__=lambda *a: False,
@@ -955,7 +955,7 @@ class TestNewTools(unittest.TestCase):
         the malicious-URL code path this test exercises."""
         import json as _json
         mock_urlopen.return_value = MagicMock(
-            __enter__=lambda s: MagicMock(read=lambda: _json.dumps({
+            __enter__=lambda s: MagicMock(read=lambda *_: _json.dumps({
                 "result": {"resources": [
                     {"format": "geojson", "url": "http://127.0.0.1:9/internal.geojson.zip"},
                 ]}
@@ -980,7 +980,7 @@ class TestNewTools(unittest.TestCase):
             f"RepublicofYemen,{qk},http://169.254.169.254/tile.csv.gz,1KB,2026-01-01\n"
         )
         mock_urlopen.return_value = MagicMock(
-            __enter__=lambda s: MagicMock(read=lambda: links_csv.encode("utf-8")),
+            __enter__=lambda s: MagicMock(read=lambda *_: links_csv.encode("utf-8")),
             __exit__=lambda *a: False,
         )
         with patch(
