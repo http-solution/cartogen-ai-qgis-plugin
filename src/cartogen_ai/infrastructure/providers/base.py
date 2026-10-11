@@ -170,6 +170,33 @@ def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES, local
     )
 
 
+_REASON_CODE = re.compile(r"^(?:[A-Z][A-Z_]{2,60}|[a-z]+(?:_[a-z]+){1,6})$")
+
+
+def _auth_reason_codes(response):
+    """The machine-readable reason codes in a 401/403 body (Gemini: PERMISSION_DENIED, API_KEY_INVALID, SERVICE_DISABLED; OpenAI:
+    invalid_api_key), which tell the user why the provider refused without showing the body. A 403 chat message that only said
+    'check your API key' sent a user with a disabled API and a good key looking in the wrong place (2026-10-11 report). Only values
+    shaped like an enum name (letters and underscores, no digits or hyphens) are returned, so a key echoed back in the body can
+    never pass through: API keys carry digits or hyphens."""
+    import json as _json
+    try:
+        error = _json.loads(response.text).get("error")
+    except Exception:
+        return []
+    if not isinstance(error, dict):
+        return []
+    found = [error.get("status"), error.get("code")]
+    details = error.get("details")
+    if isinstance(details, list):
+        found.extend(d.get("reason") for d in details if isinstance(d, dict))
+    codes = []
+    for value in found:
+        if isinstance(value, str) and _REASON_CODE.match(value) and value not in codes:
+            codes.append(value)
+    return codes
+
+
 def format_http_error(prefix, e):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
@@ -186,8 +213,10 @@ def format_http_error(prefix, e):
     bearing."""
     status = e.response.status_code if e.response is not None else None
     if status in (401, 403):
+        reasons = _auth_reason_codes(e.response)
+        reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else ""
         return (
-            f"{prefix} ({status}): Authentication failed -- check your API key. "
+            f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note} "
             "(Response body withheld: some providers echo part of the submitted key back "
             "in this specific error.)"
         )
