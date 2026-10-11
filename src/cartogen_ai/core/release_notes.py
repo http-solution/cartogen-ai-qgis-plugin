@@ -8,16 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc29"
-NEW_MARK_VERSIONS = ("1.16.0-rc28", "1.16.0-rc29")
+WHATS_NEW_VERSION = "1.16.0-rc30"
+NEW_MARK_VERSIONS = ("1.16.0-rc29", "1.16.0-rc30")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Replies can no longer forge internal links', 'A reply (or a layer attribute it quoted) could draw a look-alike Apply edit link that resolved a real pending confirmation, and a quote in a link address could add attributes to the link. Replies can now create only the four chip links (action, export, prompt, zoom); a quote, angle bracket or space in a link address is encoded; and a file link opens only an existing file of a type the tools write (pdf, png, html, csv and similar).'),
-    ('Limits on remote data', 'Data fetches no longer read an unbounded answer into memory. JSON and CSV answers are capped at 64 MB, downloads at 1.5 GB, and a gzip tile or zip member that would expand past 256 MB is refused instead of inflated.'),
-    ('Smaller, cleaner package', 'The release zip no longer carries hidden files (a build once included a 92 KB .coverage file) or about 70 internal development documents; only the README, user guide, tools reference, humanitarian catalogue and screenshots ship (206 files instead of 288).'),
-    ('Diagnostics in the QGIS Message Log', 'Startup, unload and error messages that were printed to the Python console now go to the QGIS Message Log, with the same redaction as every other log line and no exception text.'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the QGIS network path.'),
+    ("Large downloads and the account client use QGIS's network stack", "Geofabrik extracts, model checkpoints and other large downloads are now read through QGIS's network stack, in chunks, so QGIS proxy, authentication and SSL settings apply, progress and cancel still work, and a download cut short is reported as an error instead of leaving a smaller file. The Cartogen account client does the same. Three things still use Python's own HTTP code: a download that answers with a redirect (it is retried through urllib with the QGIS proxy; following the redirect through QGIS failed in testing and the cause was not found), the check that every redirect of a fetched URL is safe (QGIS follows redirects without letting the plugin look at each step), and Ollama (a local server whose answers can take longer than QGIS's 60 second network timeout)."),
+    ('Scripts do not run without isolation', "If QGIS cannot be loaded, the script tool now refuses to run a script instead of running it in the plugin's own process."),
+    ('Directory checks reproduced', "The plugin directory's own upload rules are now an automated test against the built zip, and the code passes the pyflakes checks (unused re-exports and conditional redefinitions removed)."),
+    ('Contact address', 'The project contact address is now cartogenai@gmail.com.'),
+    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS, and the new download path has not been run against Geofabrik or any real service.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

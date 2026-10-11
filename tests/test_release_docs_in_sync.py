@@ -46,6 +46,10 @@ class TestReleaseDocsInSync(unittest.TestCase):
         rows = [line for line in self.readme.splitlines() if line.startswith("| **")]
         self.assertEqual(rows, rn.render_readme_table(), "README table differs from core/release_notes.py (run render_readme_table())")
 
+    def test_readme_humanitarian_table_keeps_its_header_row(self):
+        """The rc29 regeneration replaced the table with bare rows and dropped its header and separator, so GitHub showed plain text."""
+        self.assertIn("\n| Workflow | Tools |\n|---|---|\n| **1.", self.readme)
+
     def test_listed_tools_are_registered_and_marks_use_known_versions(self):
         listed = {t for _title, tools in rn.HUMANITARIAN_WORKFLOWS for t in tools}
         self.assertEqual(sorted(t for t in listed if t not in TOOL_REGISTRY), [])

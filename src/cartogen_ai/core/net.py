@@ -331,7 +331,9 @@ def _qgis_stream_open(req, timeout):
     except TimeoutError:
         resp.close()
         raise urllib.error.URLError(TimeoutError("timed out")) from None
-    if resp.status in _REDIRECT_STATUSES and resp.headers.get("Location"):
+    # Status alone decides, not the Location header: the 2026-10-11 rc30 CI run returned the bare 302 to the caller on one run (the same
+    # code passed on the run before), i.e. the headers were not all in yet when they were read. urllib re-requests and follows it properly.
+    if resp.status in _REDIRECT_STATUSES:
         resp.close()
         return _urllib_open(req, timeout)
     if resp.status >= 400:
