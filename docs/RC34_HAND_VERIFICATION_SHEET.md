@@ -2,6 +2,8 @@
 
 Zip: `cartogen_ai_v1.16.0-rc34.zip` from the `cartogen-ai-v1.16.0-rc34` pre-release. Check it against `SHA256.txt` on the release page before installing. Use a **fresh QGIS 4.2 profile** and the rc22 fixtures (`docs/release_smoke_assets/inputs`).
 
+This sheet covers only what changed since rc24. For a **complete** hand test (every category, all input files, every output path and screenshot rule) follow `docs/FULL_LIVE_TEST_rc34.md` and its helper `tools/live_test_pack.py`; this sheet's rows are included there as `RC34-*`.
+
 None of what is in this sheet has been hand-tested. CI was green on every build from rc25 to rc34, including the live checks in QGIS 4.2.2 against a local test server, but no real model provider or API key has been used through the QGIS network path by anyone except the field reports quoted below. Mark each row **PASS / FAIL / NOT RUN**; for a FAIL write what you saw and keep a screenshot.
 
 **Data and destination.** Every prompt goes to the model provider you configured, together with what the agent reads to answer it (layer and field names, counts, tool results, which can include coordinates). Run these rows only on the synthetic fixtures, with a provider you are authorised to send them to, and write the provider and model at the top of your results. If an egress card names a layer you did not expect, cancel it and report it. Nothing here authorises sending real or sensitive data anywhere. See `docs/RELEASE_LIVE_TEST_SCENARIOS.md`, section 1a.
