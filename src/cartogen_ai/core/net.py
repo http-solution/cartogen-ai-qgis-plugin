@@ -296,6 +296,22 @@ class _StreamResponse:
     def info(self):
         return self.headers
 
+    def discard(self):
+        """Lets a reply finish and drops its body instead of aborting it. Used for a redirect: aborting a reply tears down the connection,
+        and the follow-up request queued on that connection then got no answer (CI, 2026-10-11)."""
+        reply, self._reply = self._reply, None
+        if reply is None:
+            return
+        self._reply = reply
+        try:
+            self._wait(lambda: False)
+            reply.readAll()
+        except TimeoutError:
+            pass
+        finally:
+            self._reply = None
+            reply.deleteLater()
+
     def close(self):
         reply, self._reply = self._reply, None
         if reply is not None:
@@ -335,7 +351,7 @@ def _qgis_stream_open(req, timeout):
             raise urllib.error.URLError(TimeoutError("timed out")) from None
         location = resp.headers.get("Location")
         if resp.status in _REDIRECT_STATUSES and location:
-            resp.close()
+            resp.discard()
             url = urllib.parse.urljoin(url, location)
             _check_scheme(url)
             continue
