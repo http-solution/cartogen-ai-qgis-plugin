@@ -1683,6 +1683,18 @@ Design consequence: the "reliable sources" list must say, per source, what it pr
 reached (API, RSS, page), and what coverage it has (global, regional, country); only sources with structured access can be filtered
 automatically.
 
+Keyless structured sources suggested by the owner 2026-10-11 (GDACS, NASA EONET, USGS earthquakes, UCDP). Checked against the code:
+- **Already built:** `fetch_gdacs_disaster_alerts` (bbox and country filter, applied locally after the fetch), `fetch_nasa_eonet_events`,
+  `fetch_nasa_active_fires` (needs a FIRMS key) and `generate_situation_dashboard` in `tools/hazard_monitoring_tools.py`. So GDACS
+  and EONET need no new work for this item beyond making `search_web`-style requests use them.
+- **Not built:** USGS earthquakes (FDSN event API, GeoJSON, takes a bounding box, time window and minimum magnitude: the simplest
+  addition, same pattern as the EONET tool) and UCDP conflict events.
+- **UCDP caution:** the example given used dataset version 22.1 and no token. From memory the UCDP API now asks for an access token and
+  serves newer dataset versions, and its data is yearly-validated, not real time. Not checked: this sandbox has no outbound access to
+  these hosts (all four returned no response), so none of the endpoint behaviour in the suggestion could be tested here either.
+- The suggested `requests.get` snippets must not be copied: plugin fetches go through `core/net` (QGIS network stack, task 71).
+- Sources that need no key still need terms of use recorded (attribution, rate limits) before they are called by default.
+
 Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
 social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
 Do not call this shipped in release notes until it exists and has been tested against the live services.
