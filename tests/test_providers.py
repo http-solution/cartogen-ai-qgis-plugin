@@ -357,8 +357,8 @@ class TestListModels(unittest.TestCase):
         client = gemini_mod.GeminiClient(api_key=key, model="gemini-flash-latest")
         error = client.complete([{"role": "user", "content": "hello"}])["error"]
         self.assertIn("gemini-flash-latest: 403 PERMISSION_DENIED Permission denied on resource project.", error)
-        self.assertIn("gemini-3.6-flash: 404 NOT_FOUND models/gemini-3.6-flash is not found", error)
-        self.assertIn("gemini-2.5-flash: 404 No provider reason code in the reply (server: nginx; content-type: text/html", error)
+        self.assertIn("gemini-3.8-flash: 404 NOT_FOUND models/gemini-3.6-flash is not found", error)
+        self.assertIn("gemini-3.7-flash: 404 No provider reason code in the reply (server: nginx; content-type: text/html", error)
         self.assertIn("ending wxyz", error)
         self.assertNotIn(key, error)
 
@@ -368,6 +368,27 @@ class TestListModels(unittest.TestCase):
         out = reply_summary(r)
         self.assertIn("[redacted]", out)
         self.assertNotIn("A" * 40, out)
+
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_a_denied_project_stops_the_chain_and_says_what_google_said(self, mock_post):
+        # 2026-10-11 report: 403 "Your project has been denied access" came back for every model; trying the rest only repeats it.
+        import requests
+        denied = MagicMock()
+        denied.status_code = 403
+        denied.text = '{"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "Your project has been denied access. Please contact support."}}'
+        denied.content = denied.text.encode()
+        denied.headers = {}
+        denied.raise_for_status.side_effect = requests.exceptions.HTTPError(response=denied)
+        mock_post.return_value = denied
+        client = gemini_mod.GeminiClient(api_key="k" * 53, model="gemini-flash-latest")
+        error = client.complete([{"role": "user", "content": "hello"}])["error"]
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertIn("Google says: 403 PERMISSION_DENIED Your project has been denied access", error)
+        self.assertIn("53 characters", error)
+
+    def test_the_fallback_chain_no_longer_ends_in_the_retired_model(self):
+        self.assertNotIn("gemini-2.5-flash", gemini_mod.FALLBACK_MODELS)
+        self.assertIn("gemini-3.8-flash", gemini_mod.FALLBACK_MODELS)
 
     def test_openai_client_keeps_configured_model_first_in_chain(self):
         client = openai_mod.OpenAIClient(api_key="dummy", model="some-custom-model")

@@ -308,7 +308,7 @@ def _quota_summary(response):
     what = ", ".join(models) or "this model"
     if free_tier and zero:
         return (f"the free tier has no quota at all for {what} (limit 0), so it needs a paid plan: enable billing on the key's Google "
-                f"project, or choose a Flash model such as gemini-2.5-flash.{retry}")
+                f"project, or choose a Flash model such as gemini-flash-latest.{retry}")
     return f"quota exceeded for {what}{' on the free tier' if free_tier else ''}.{retry}"
 
 

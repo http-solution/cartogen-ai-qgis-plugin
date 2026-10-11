@@ -123,7 +123,10 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
 # gate specific model IDs off for newer accounts ahead of removing them from
 # docs. Concrete IDs below are the last-verified-live fallback if the alias
 # itself ever breaks (checked against ai.google.dev/gemini-api/docs/models).
-FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"]
+# gemini-2.5-flash was the last entry until a 2026-10-11 live report: Google answers 404 "This model models/gemini-2.5-flash is no longer
+# available to new users. Please update your code to use models/gemini-3.8-flash", although the model list still shows it. Only models
+# that answered a real request belong here; check the list against a key before adding one.
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash"]
 
 
 def validate_tool_choice(tool_choice):
@@ -198,11 +201,12 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     if next_idx < len(chain):
                         self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
                     continue
-                if response.status_code == 403 and idx + 1 < len(chain):
+                if response.status_code == 403 and idx + 1 < len(chain) and "denied access" not in (getattr(response, "text", "") or ""):
                     # A 403 can be about the MODEL, not the key: preview and "-latest" models are gated per account or billing tier
-                    # while a stable one (gemini-2.5-flash) is open, and the model list shows all of them either way. The chain stops
+                    # while another one is open, and the model list shows all of them either way. The chain stops
                     # at a 404 only, which left a user stuck on a refused preview model with working alternatives behind it
                     # (2026-10-11 report). If every model refuses, the error below says so and the key is the likelier cause.
+                    # "Your project has been denied access" is not about the model: Google refused the whole project, so the chain stops.
                     refused.append(model_id)
                     attempts.append((model_id, reply_summary(response)))
                     self._emit_status(f"{model_id} was refused (403), trying {chain[idx + 1]}...")
@@ -230,6 +234,10 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                 return out
             except HTTPError as e:
                 message = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))
+                if e.response is not None and e.response.status_code in (401, 403):
+                    # Google's own explanation (for example "Your project has been denied access. Please contact support.") is what the
+                    # user needs; reply_summary blanks key-like strings, and Google's auth errors do not echo the key.
+                    message += f" Google says: {reply_summary(e.response)}."
                 if refused:
                     message += f" Models skipped before this one: [{', '.join(refused)}]."
                     if e.response is not None and e.response.status_code == 403:
