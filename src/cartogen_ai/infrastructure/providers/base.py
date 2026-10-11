@@ -312,6 +312,25 @@ def _quota_summary(response):
     return f"quota exceeded for {what}{' on the free tier' if free_tier else ''}.{retry}"
 
 
+def reply_summary(response):
+    """One short line on a provider reply that was not usable: the status plus either the provider's own error text (JSON `error.status`
+    and `error.message`, first line, long key-like strings blanked) or, when the body is not that, the server software, content type and
+    size. Used to list what every model in a fallback chain answered. Provider error text names models and quotas, not credentials; the
+    blanking is a second guard."""
+    import json as _json
+    status = getattr(response, "status_code", "?")
+    try:
+        data = _json.loads(response.text)
+        error = (data[0] if isinstance(data, list) else data).get("error", {})
+        text = f"{error.get('status', '')} {str(error.get('message', '')).splitlines()[0] if error.get('message') else ''}".strip()
+    except Exception:
+        text = ""
+    if text:
+        text = re.sub(r"[A-Za-z0-9_\-]{30,}", "[redacted]", text)[:140]
+        return f"{status} {text}"
+    return f"{status}{_unrecognised_reply_note(response).rstrip('.')}"
+
+
 def format_http_error(prefix, e, key_note=""):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.

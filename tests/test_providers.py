@@ -338,6 +338,37 @@ class TestListModels(unittest.TestCase):
         self.assertNotIn("RESOURCE_EXHAUSTED", msg)
         self.assertLess(len(msg), 400)
 
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_gemini_error_lists_what_every_model_answered(self, mock_post):
+        # 2026-10-11 report: "all returned 404" with three real models listed. Say what each one actually answered.
+        def reply(status, text, headers=None):
+            r = MagicMock()
+            r.status_code = status
+            r.text = text
+            r.content = text.encode()
+            r.headers = headers or {}
+            return r
+        mock_post.side_effect = [
+            reply(403, '{"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "Permission denied on resource project."}}'),
+            reply(404, '{"error": {"code": 404, "status": "NOT_FOUND", "message": "models/gemini-3.6-flash is not found for API version v1beta"}}'),
+            reply(404, "<html>Not Found</html>", {"Server": "nginx", "Content-Type": "text/html"}),
+        ]
+        key = "AIzaSy" + "Q" * 29 + "wxyz"
+        client = gemini_mod.GeminiClient(api_key=key, model="gemini-flash-latest")
+        error = client.complete([{"role": "user", "content": "hello"}])["error"]
+        self.assertIn("gemini-flash-latest: 403 PERMISSION_DENIED Permission denied on resource project.", error)
+        self.assertIn("gemini-3.6-flash: 404 NOT_FOUND models/gemini-3.6-flash is not found", error)
+        self.assertIn("gemini-2.5-flash: 404 No provider reason code in the reply (server: nginx; content-type: text/html", error)
+        self.assertIn("ending wxyz", error)
+        self.assertNotIn(key, error)
+
+    def test_a_key_like_string_in_a_provider_message_is_blanked(self):
+        from cartogen_ai.infrastructure.providers.base import reply_summary
+        r = MagicMock(status_code=400, text='{"error": {"status": "INVALID_ARGUMENT", "message": "key ' + "A" * 40 + ' is bad"}}')
+        out = reply_summary(r)
+        self.assertIn("[redacted]", out)
+        self.assertNotIn("A" * 40, out)
+
     def test_openai_client_keeps_configured_model_first_in_chain(self):
         client = openai_mod.OpenAIClient(api_key="dummy", model="some-custom-model")
         self.assertEqual(client.models[0], "some-custom-model")

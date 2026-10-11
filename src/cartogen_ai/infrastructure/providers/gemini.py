@@ -5,7 +5,7 @@ from .base import (
     freshen_query,
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception, reply_summary,
     HTTPError,
 )
 from ...core.agent.model_selector import filter_chat_model_ids
@@ -181,6 +181,7 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
         stopped; whether this endpoint honours it is NOT confirmed by the project -- run tools/diagnose_gemini_endpoint.py."""
         chain = self._model_chain()
         refused = []     # models that answered 403: tried, then skipped
+        attempts = []    # (model, one-line summary of its reply) for every model that could not be used
         for idx, model_id in enumerate(chain):
             self._model = model_id
             self._emit_status(f"Using Gemini: {model_id}")
@@ -192,6 +193,7 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                 if response.status_code == 404:
                     # Model retired, renamed, or gated off this account -- try the next
                     # one in the chain instead of failing outright on a single bad ID.
+                    attempts.append((model_id, reply_summary(response)))
                     next_idx = idx + 1
                     if next_idx < len(chain):
                         self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
@@ -202,12 +204,14 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     # at a 404 only, which left a user stuck on a refused preview model with working alternatives behind it
                     # (2026-10-11 report). If every model refuses, the error below says so and the key is the likelier cause.
                     refused.append(model_id)
+                    attempts.append((model_id, reply_summary(response)))
                     self._emit_status(f"{model_id} was refused (403), trying {chain[idx + 1]}...")
                     continue
                 if response.status_code == 429 and idx + 1 < len(chain) and re.search(r"limit:\s*0\b", getattr(response, "text", "") or ""):
                     # "limit: 0" is not a rate limit that will pass: the plan has no quota for this model at all (the free tier has none
                     # for the Pro models; 2026-10-11 report on gemini-3.1-pro). Waiting is pointless, the next model may be open.
                     refused.append(model_id)
+                    attempts.append((model_id, reply_summary(response)))
                     self._emit_status(f"{model_id} has no quota on this plan, trying {chain[idx + 1]}...")
                     continue
                 response.raise_for_status()
@@ -235,10 +239,12 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                 return {"error": format_request_exception("Gemini API request failed", e)}
 
         tried = ", ".join(chain)
+        what_each_said = " | ".join(f"{m}: {why}" for m, why in attempts)
         return {
             "error": (
-                f"No configured Gemini model is currently available (all returned 404). "
-                f"Models tried: [{tried}]. Open Settings and pick a different Gemini model, "
-                "or FALLBACK_MODELS in gemini.py needs updating."
+                f"No configured Gemini model is currently available. Models tried: [{tried}]. "
+                f"What each answered: {what_each_said}. "
+                f"{key_in_use_note('gemini', self.api_key).strip()} "
+                "Open Settings and pick a different Gemini model, or FALLBACK_MODELS in gemini.py needs updating."
             )
         }
