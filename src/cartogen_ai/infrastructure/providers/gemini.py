@@ -1,4 +1,5 @@
 import contextlib
+import re
 import json
 from .base import (
     freshen_query,
@@ -203,6 +204,12 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     refused.append(model_id)
                     self._emit_status(f"{model_id} was refused (403), trying {chain[idx + 1]}...")
                     continue
+                if response.status_code == 429 and idx + 1 < len(chain) and re.search(r"limit:\s*0\b", getattr(response, "text", "") or ""):
+                    # "limit: 0" is not a rate limit that will pass: the plan has no quota for this model at all (the free tier has none
+                    # for the Pro models; 2026-10-11 report on gemini-3.1-pro). Waiting is pointless, the next model may be open.
+                    refused.append(model_id)
+                    self._emit_status(f"{model_id} has no quota on this plan, trying {chain[idx + 1]}...")
+                    continue
                 response.raise_for_status()
                 data = response.json()
                 out = {"message": data["choices"][0]["message"], "model": model_id}
@@ -220,7 +227,9 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
             except HTTPError as e:
                 message = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))
                 if refused:
-                    message += f" Models refused before this one: [{', '.join(refused)}]; none of them worked, so the key or its project is the likelier cause."
+                    message += f" Models skipped before this one: [{', '.join(refused)}]."
+                    if e.response is not None and e.response.status_code == 403:
+                        message += " None of them worked, so the key or its project is the likelier cause."
                 return {"error": message}
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}

@@ -299,8 +299,44 @@ class TestListModels(unittest.TestCase):
         result = client.complete([{"role": "user", "content": "hello"}])
         self.assertIn("403", result["error"])
         self.assertIn("gemini-3.1-pro-preview", result["error"])
-        self.assertIn("none of them worked", result["error"])
+        self.assertIn("None of them worked", result["error"])
         self.assertEqual(mock_post.call_count, len(client.models))
+
+    QUOTA_BODY = (
+        '[{"error": {"code": 429, "message": "You exceeded your current quota.\\n* Quota exceeded for metric: '
+        'generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-3.1-pro\\nPlease retry in 11h27m.", '
+        '"status": "RESOURCE_EXHAUSTED", "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": '
+        '[{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaDimensions": {"model": "gemini-3.1-pro", "location": "global"}}]}, '
+        '{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "41274s"}]}}]'
+    )
+
+    @patch("cartogen_ai.infrastructure.providers.base.time.sleep")
+    @patch("cartogen_ai.infrastructure.providers.base.requests.post")
+    def test_a_zero_quota_429_is_not_retried_and_moves_to_the_next_model(self, mock_post, mock_sleep):
+        # 2026-10-11 report: the free tier has limit 0 for gemini-3.1-pro; the 10+20+30 s backoff made the chat look stuck.
+        no_quota = MagicMock()
+        no_quota.status_code = 429
+        no_quota.text = self.QUOTA_BODY
+        working = MagicMock()
+        working.status_code = 200
+        working.raise_for_status.return_value = None
+        working.json.return_value = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+        mock_post.side_effect = [no_quota, working]
+        client = gemini_mod.GeminiClient(api_key="dummy", model="gemini-3.1-pro")
+        result = client.complete([{"role": "user", "content": "hello"}])
+        self.assertEqual(result["message"]["content"], "hi")
+        mock_sleep.assert_not_called()
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_a_google_quota_error_is_summarised_not_dumped(self):
+        import requests
+        e = requests.exceptions.HTTPError()
+        e.response = MagicMock(status_code=429, text=self.QUOTA_BODY)
+        msg = format_http_error("Gemini API error", e)
+        self.assertIn("free tier has no quota at all for gemini-3.1-pro", msg)
+        self.assertIn("11 h", msg)
+        self.assertNotIn("RESOURCE_EXHAUSTED", msg)
+        self.assertLess(len(msg), 400)
 
     def test_openai_client_keeps_configured_model_first_in_chain(self):
         client = openai_mod.OpenAIClient(api_key="dummy", model="some-custom-model")

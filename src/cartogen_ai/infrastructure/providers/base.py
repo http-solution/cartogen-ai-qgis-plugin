@@ -61,6 +61,19 @@ RATE_LIMIT_MAX_RETRIES = 3
 DEFAULT_MAX_TOKENS = 8096
 
 
+def _quota_will_not_clear(response):
+    """True for a 429 that waiting a minute cannot fix: a quota of zero (the plan has no access to the model) or a retry delay the
+    provider puts at more than two minutes. The retry loop below waits 10 + 20 + 30 s before giving up, which is what made a free-tier
+    key on a Pro model look 'stuck' for a minute per attempt (2026-10-11 report: limit 0, retry in 11 h)."""
+    text = getattr(response, "text", "") or ""
+    if not isinstance(text, str):
+        return False
+    if re.search(r"limit:\s*0\b", text):
+        return True
+    delay = re.search(r'"retryDelay":\s*"(\d+(?:\.\d+)?)s"', text)
+    return bool(delay and float(delay.group(1)) > 120)
+
+
 def _request_with_retry(send, timeout, max_retries):
     """Shared retry loop behind post_with_retry/get_with_retry -- `send` is a zero-arg
     callable that performs the actual requests.post/requests.get call. A single transient
@@ -84,6 +97,8 @@ def _request_with_retry(send, timeout, max_retries):
                 continue
             raise
         if response.status_code == 429:
+            if _quota_will_not_clear(response):
+                return response
             if attempt < RATE_LIMIT_MAX_RETRIES:
                 time.sleep(RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1))
                 continue
@@ -262,6 +277,41 @@ def key_in_use_note(provider, api_key):
     return note
 
 
+def _quota_summary(response):
+    """A Google 429 (RESOURCE_EXHAUSTED) as one readable sentence, or '' when the body is not that shape. The raw body is a screenful of
+    JSON; what the user needs is the model, whether it is the free tier, whether the limit is zero (the plan has no access to the model at
+    all), and how long to wait. Quota errors carry no credential, so showing these facts is safe."""
+    import json as _json
+    try:
+        data = _json.loads(response.text)
+        error = (data[0] if isinstance(data, list) else data).get("error", {})
+        details = error.get("details", [])
+    except Exception:
+        return ""
+    if not isinstance(error, dict) or error.get("status") != "RESOURCE_EXHAUSTED" or not isinstance(details, list):
+        return ""
+    models, free_tier, retry = [], False, ""
+    for d in details:
+        if not isinstance(d, dict):
+            continue
+        for v in d.get("violations", []) if isinstance(d.get("violations"), list) else []:
+            if isinstance(v, dict):
+                free_tier = free_tier or "FreeTier" in str(v.get("quotaId", ""))
+                model = (v.get("quotaDimensions") or {}).get("model") if isinstance(v.get("quotaDimensions"), dict) else None
+                if model and model not in models:
+                    models.append(str(model)[:60])
+        delay = d.get("retryDelay")
+        if isinstance(delay, str) and delay.endswith("s") and delay[:-1].replace(".", "", 1).isdigit():
+            seconds = int(float(delay[:-1]))
+            retry = f" Google says to retry in about {seconds // 3600} h {seconds % 3600 // 60} min." if seconds >= 3600 else f" Google says to retry in about {max(seconds // 60, 1)} min."
+    zero = bool(re.search(r"limit:\s*0\b", str(error.get("message", ""))))
+    what = ", ".join(models) or "this model"
+    if free_tier and zero:
+        return (f"the free tier has no quota at all for {what} (limit 0), so it needs a paid plan: enable billing on the key's Google "
+                f"project, or choose a Flash model such as gemini-2.5-flash.{retry}")
+    return f"quota exceeded for {what}{' on the free tier' if free_tier else ''}.{retry}"
+
+
 def format_http_error(prefix, e, key_note=""):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
@@ -285,6 +335,10 @@ def format_http_error(prefix, e, key_note=""):
             "(Response body withheld: some providers echo part of the submitted key back "
             "in this specific error.)"
         )
+    if status == 429 and e.response is not None:
+        summary = _quota_summary(e.response)
+        if summary:
+            return f"{prefix} (429): {summary}"
     body = e.response.text if e.response is not None else str(e)
     return f"{prefix} ({status}): {body}"
 
