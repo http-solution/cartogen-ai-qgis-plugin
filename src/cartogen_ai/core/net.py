@@ -425,7 +425,7 @@ class _StreamResponse:
 _REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 
 
-def _qgis_stream_open(req, timeout):
+def _qgis_stream_open(req, timeout, follow=True):
     """GET through QgsNetworkAccessManager and return a _StreamResponse once the status line and headers are in.
 
     A redirect is handed to urllib instead (with the QGIS proxy, as every stream was before). A plain QgsNetworkAccessManager reply does
@@ -446,7 +446,7 @@ def _qgis_stream_open(req, timeout):
         raise urllib.error.URLError(TimeoutError("timed out")) from None
     # Status alone decides, not the Location header: the 2026-10-11 rc30 CI run returned the bare 302 to the caller on one run (the same
     # code passed on the run before), i.e. the headers were not all in yet when they were read. urllib re-requests and follows it properly.
-    if resp.status in _REDIRECT_STATUSES:
+    if resp.status in _REDIRECT_STATUSES and follow:
         resp.close()
         return _urllib_open(req, timeout)
     if resp.status >= 400:
@@ -491,6 +491,64 @@ def _urllib_open(req, timeout):
     if handlers:
         return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
     return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310  # nosec B310 (scheme checked by build_request/urlopen)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _stream_open_once(req, timeout):
+    """One streaming GET hop with redirects NOT followed: a 3xx comes back as a response whose .status is 3xx (QGIS path) or as the
+    HTTPError urllib raises for it (fallback path, same .status and .headers)."""
+    if QGIS_NETWORK_AVAILABLE:
+        try:
+            return _qgis_stream_open(req, timeout, follow=False)
+        except urllib.error.URLError as e:
+            if 'Protocol ""' not in str(e.reason):
+                raise
+    handlers = [_NoRedirect()]
+    with contextlib.suppress(Exception):
+        from .proxy import get_qgis_proxy_dict
+        proxies = get_qgis_proxy_dict()
+        if proxies:
+            handlers.append(urllib.request.ProxyHandler(proxies))
+    try:
+        return urllib.request.build_opener(*handlers).open(req, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code in _REDIRECT_STATUSES:
+            return e
+        raise
+
+
+def stream_following(request, timeout=30, check_url=None):
+    """Streaming GET that follows redirects here, one hop at a time, so every target can be vetted before it is requested.
+
+    `check_url(url)` returns a reason string to refuse a redirect target (the caller's SSRF check), or None. Used for LLM-named URLs:
+    a URL that passed the check at call time can 302 to an internal address, and a client that follows redirects on its own would
+    fetch it. Credential headers are dropped when the target is another site, as in _qgis_send_following. GET only."""
+    from urllib.parse import urljoin
+    req = _as_request(request)
+    for _hop in range(_MAX_REDIRECTS + 1):
+        resp = _stream_open_once(req, timeout)
+        if resp.status not in _REDIRECT_STATUSES:
+            return resp
+        location = resp.headers.get("Location")
+        resp.close()
+        if not location:
+            raise urllib.error.URLError(f"HTTP {resp.status} redirect without a Location header")
+        target = urljoin(req.full_url, location)
+        _check_scheme(target)
+        reason = check_url(target) if check_url else None
+        if reason:
+            raise urllib.error.URLError(f"Redirect blocked: {reason}")
+        other_site = _origin(target) != _origin(req.full_url)
+        from .logger import log_event
+        log_event("http_redirect", tag="Net", status=resp.status, from_host=_origin(req.full_url)[1], to_host=_origin(target)[1],
+                  other_site=other_site)
+        headers = {k: v for k, v in req.header_items() if not (other_site and k.lower() in _CREDENTIAL_HEADERS)}
+        req = build_request(target, headers=headers)
+    raise urllib.error.URLError(f"too many redirects (more than {_MAX_REDIRECTS})")
 
 
 def urlopen(request, timeout=30, stream=False):

@@ -1675,6 +1675,22 @@ Open decisions for the owner: which sources count as reliable, whether API keys 
 social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
 Do not call this shipped in release notes until it exists and has been tested against the live services.
 
+### 1.20 Remaining requests/urllib calls moved to QGIS's network stack (task 71, 2026-10-11)
+
+Done in this change: the last direct `urllib` opener, `vector_tools._build_safe_opener()` (used by `add_layer_from_path` URL
+prefetch and the humanitarian downloads, including WorldPop and OSM extracts), now goes through `core/net.stream_following`:
+QgsNetworkAccessManager for the request (QGIS proxy, authentication and SSL settings apply), redirects followed one hop at a
+time, every target vetted by `_is_safe_url` first (the SSRF protection is kept), credential headers dropped on a cross-site hop.
+Offline tests: `tests/test_net.py::TestStreamFollowing` (urllib fallback path, local server). QGIS path: new
+`tests/test_net_live.py` case, **first run in CI; not hand-tested in desktop QGIS**.
+
+Deliberately left, with the reason:
+- `providers/base.py` still imports `requests`: it is the fallback when `QGIS_NETWORK_AVAILABLE` is false (unit tests, no QGIS) and
+  the path for a local Ollama server (`local=True`), which should not go through a proxy. Switch `cartogen_ai/hosted_requests_via_qgis`
+  turns the hosted-AI QGIS path off.
+- `search_web` uses the third-party `ddgs` package, which makes its own HTTP calls (not proxy-aware). Replaced by task 72 (tracker 1.19).
+- `urllib.parse` imports are string handling, not network calls.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

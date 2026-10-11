@@ -469,31 +469,22 @@ def _is_safe_url(file_path):
 _MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024  # 200MB -- generous for GeoJSON/small rasters, not unbounded
 
 
-class _SafeRedirectHandler:
-    """Re-validates every redirect target against _is_safe_url before
-    following it. Confirmed live (a local redirect server) that Python's
-    default HTTPRedirectHandler follows a 3xx unconditionally: a URL that
-    passed _is_safe_url at call time can 302 to a completely different,
-    unvalidated address (e.g. the cloud metadata endpoint) and urlopen()
-    fetches it anyway -- validating file_path once, before the request, is
-    not sufficient on its own. Mixed into a real HTTPRedirectHandler at
-    build time (see _build_safe_opener) rather than subclassed directly, so
-    this stays a plain, import-light class."""
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        import urllib.error
-        unsafe_reason = _is_safe_url(newurl)
-        if unsafe_reason:
-            raise urllib.error.URLError(f"Redirect blocked: {unsafe_reason}")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+class _SafeOpener:
+    """What `_build_safe_opener().open(req, timeout=...)` returns callers: a streaming GET through QGIS's network stack (proxy,
+    authentication and SSL settings apply) that re-validates every redirect target with _is_safe_url before requesting it.
+
+    Why the check is per hop (confirmed live earlier with a local redirect server): a client that follows a 3xx on its own fetches
+    whatever it points at, so a URL that passed _is_safe_url at call time could 302 to the cloud metadata endpoint. Redirects are
+    therefore followed by net.stream_following, one vetted hop at a time. Replaced the urllib build_opener/HTTPRedirectHandler pair
+    (QGIS directory recommendation, tracker task 71). Not verified against a real QGIS session: the CI live job covers net.py."""
+
+    def open(self, req, timeout=60):
+        from ... import net as _net
+        return _net.stream_following(req, timeout=timeout, check_url=_is_safe_url)
 
 
 def _build_safe_opener():
-    import urllib.request
-
-    class _Handler(_SafeRedirectHandler, urllib.request.HTTPRedirectHandler):
-        pass
-
-    return urllib.request.build_opener(_Handler)
+    return _SafeOpener()
 
 
 def _prefetch_url_to_temp(file_path):
