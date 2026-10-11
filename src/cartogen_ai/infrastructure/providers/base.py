@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 # extract them so requests calls don't bypass user network configurations.
 from ...core.proxy import get_qgis_proxy_dict
 from ...core import net as _net
+from ...core.logger import log_event
 
 try:
     import requests  # type: ignore[import-untyped]
@@ -126,7 +127,17 @@ def _use_qgis_network(local):
     """Hosted providers go through QGIS's network stack when it exists, so QGIS proxy, authentication and SSL settings apply.
     `local` (Ollama) stays on requests: a local model can take minutes to answer, and QGIS applies its own network timeout
     (default 60 s) instead of the per-call one, so routing it through QGIS would cut long generations short."""
-    return _net.QGIS_NETWORK_AVAILABLE and not local
+    return _net.QGIS_NETWORK_AVAILABLE and not local and _qgis_network_enabled()
+
+
+def _qgis_network_enabled():
+    """The user-facing kill-switch for the QGIS network path (default on); a missing QGIS or an unreadable setting counts as on."""
+    try:
+        from qgis.core import QgsSettings
+        from ..settings_keys import SETTINGS_HOSTED_VIA_QGIS_NETWORK
+        return bool(QgsSettings().value(SETTINGS_HOSTED_VIA_QGIS_NETWORK, True, type=bool))
+    except Exception:
+        return True
 
 
 def _qgis_send(method, url, headers, payload, timeout):
@@ -134,6 +145,11 @@ def _qgis_send(method, url, headers, payload, timeout):
         status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
     except _net.NetworkError as e:
         raise (Timeout_ if e.timed_out else ConnectionError_)(str(e)) from e
+    if status in (401, 403):
+        # Metadata only (no key, header or body): lets a field report say which sender and proxy setup produced a refusal.
+        from urllib.parse import urlparse
+        log_event("provider_auth_refused", tag="Providers", sender="qgis", status=status, host=urlparse(url).hostname or "",
+                  qgis_proxy=bool(get_qgis_proxy_dict()), error=True)
     return QgisResponse(status, reply_headers, body, url)
 
 

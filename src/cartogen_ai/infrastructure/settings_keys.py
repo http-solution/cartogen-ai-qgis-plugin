@@ -104,6 +104,12 @@ def workflow_run_key(run_id: str) -> str:
 # synchronous behaviour without a new release. See core/agent/tools/_background_processing.py.
 SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_background"
 
+# Kill-switch for sending hosted-AI requests (Gemini, OpenAI, Claude, OpenRouter) through QGIS's network stack (default on). Set to
+# false in QGIS's advanced settings to send them with the Python `requests` library instead, as before 1.16.0-rc28. Added after a
+# 2026-10-11 field report of Gemini answering 403 to the QGIS-stack request while the same key worked outside QGIS. See
+# infrastructure/providers/base.py _use_qgis_network.
+SETTINGS_HOSTED_VIA_QGIS_NETWORK = "cartogen_ai/hosted_requests_via_qgis"
+
 # Size in MB above which a Geofabrik extract is offered as a choice instead of downloaded silently
 # (rc7 smoke test F22: a 103 MB extract was fetched with no question). Default 50 (owner decision
 # 2026-09-30; it was a fixed 150 before). Adjustable in QGIS's advanced settings.
