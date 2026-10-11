@@ -1699,6 +1699,21 @@ Keyless structured sources suggested by the owner 2026-10-11 (GDACS, NASA EONET,
   **download-and-cache source, not a live query**: the tool would fetch a versioned file once through `core/net`, cache it locally,
   filter by country, bounding box and date, and label results with the dataset version and its release date, saying plainly that
   the newest events are in the candidate set and are provisional. Owner to read the page and confirm the file URLs and licence before building.
+- **Live check 2026-10-11 (after the owner opened network access; this replaces the "unverified" notes above where they conflict):**
+  - USGS `earthquake.usgs.gov/fdsnws/event/1/query?format=geojson` answered 200 with GeoJSON, no key. NASA EONET `/api/v3/events`
+    answered 200, no key.
+  - **GDACS: the suggested URL is wrong.** `.../geteventlist/MAP?alertlevel=red` answered 400 `{"message":"Eventtype is required."}`.
+    The existing tool uses `.../geteventlist/SEARCH`; any change must keep using that and be tested against the live feed.
+  - **UCDP API needs a token.** `ucdpapi.pcr.uu.se/api/gedevents/25.1` answered 401 "API token required. Add header:
+    x-ucdp-access-token". The suggestion that it needs no key is wrong. A token is a credential, so it would go through the
+    Auth Manager like the other keys (HX4).
+  - **UCDP downloads need no token** (https://ucdp.uu.se/downloads/, licence CC BY 4.0, cite the publications listed with each
+    dataset): GED global version 26.1 yearly (`/downloads/ged/ged261-csv.zip`, codebook `ged261.pdf`) and the Candidate Events
+    dataset, monthly (`/downloads/candidateged/GEDEvent_v26_0_8.csv`, 1.4 MB, 1,806 rows dated 2026-01-01 to 2026-08-31, last
+    modified 2026-09-20). Columns include `latitude`, `longitude`, `country`, `adm_1`, `date_start`, `type_of_violence`, `best`, `high`,
+    `low`, `conflict_name`, `where_prec`, `event_clarity`. File names change with each release (`v26_0_7`, `v26_0_8`, ...), so the
+    tool must read the page for the current link, not hard-code one. The candidate data lags by weeks: not live.
+  - ReliefWeb API `v1` is decommissioned (HTTP 410); v2 would need checking, and it asks for a registered application name.
 - The suggested `requests.get` snippets must not be copied: plugin fetches go through `core/net` (QGIS network stack, task 71).
 - Sources that need no key still need terms of use recorded (attribution, rate limits) before they are called by default.
 
