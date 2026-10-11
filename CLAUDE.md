@@ -74,7 +74,7 @@ into `docs/archive/` in a 2026-09-12 repo-organization pass — content unchange
 
 ## QGIS development rules
 
-Before writing or changing code that touches QGIS, Qt, networking, credentials, background work, Processing or packaging, read `CONTRIBUTING.md` §9. It turns the PyQGIS Developer Cookbook and the plugins.qgis.org requirements into rules for this repo (target is QGIS 4.2.x / Qt6 only, not the 3.44 cookbook line). Its source caveat matters: the cookbook site could not be fetched when the section was written, so re-read the relevant cookbook chapter before relying on a detail.
+Before writing or changing code that touches QGIS, Qt, networking, credentials, background work, Processing or packaging, read `CONTRIBUTING.md` §9. It turns the PyQGIS Developer Cookbook and the plugins.qgis.org requirements into rules for this repo (target is QGIS 4.2.x / Qt6 only, not the 3.44 cookbook line). It cites the QGIS 4.2 cookbook source (`qgis/QGIS-Documentation`, branch `release_4.2`); the rules marked "our own" are not from it. The docs site is blocked in the cloud sandbox, so read the cookbook with a shallow sparse clone of that branch.
 
 ## Running things
 

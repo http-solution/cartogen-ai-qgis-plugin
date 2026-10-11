@@ -1364,7 +1364,7 @@ v1.4.1 (2026-08-21):
 tags=python,ai,agent,openrouter,spatial,cartogen
 
 homepage=https://github.com/http-solution/cartogen-ai-qgis-plugin
-category=Plugins
+# category is left out on purpose: the cookbook allows only Vector, Raster, Database, Mesh or Web, and this plugin sits in the default Plugins menu.
 icon=icon.png
 # experimental flag
 experimental=False
