@@ -79,7 +79,7 @@ class _Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(n)
         type(self).seen.append((self.path, self.headers.get("Authorization"), len(body)))
         if self.path.startswith("/hop-"):
-            self._send(int(self.path[5:]), b"", {"Location": "/chat"})
+            self._send(int(self.path[5:]), b"", {"Location": "http://{}/chat".format(self.headers.get("Host"))})
         elif self.path == "/chat":
             self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
                                         "body": json.loads(body.decode())}).encode(), {"Content-Type": "application/json"})
