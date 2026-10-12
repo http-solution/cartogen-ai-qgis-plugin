@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc38](#v1-16-0-rc38) | 2026-10-13 | **Release candidate 38 for 1.16.0.** No breaking changes. The Processing-algorithm tool works again (it failed on every call since rc24), no false 'step did not run' note after incident searches; rc37 hand-test results. |
 | [1.16.0-rc37](#v1-16-0-rc37) | 2026-10-12 | **Release candidate 37 for 1.16.0.** No breaking changes. New find_incident_reports tool: incident search over named reliable sources with provenance. Not hand-tested. |
 | [1.16.0-rc36](#v1-16-0-rc36) | 2026-10-12 | **Release candidate 36 for 1.16.0.** No breaking changes. QGIS stays responsive during long analyses, faster route ordering, large-raster classification in blocks, bounded chat window. Not hand-tested. |
 | [1.16.0-rc35](#v1-16-0-rc35) | 2026-10-11 | **Release candidate 35 for 1.16.0.** No breaking changes. Research requests end with an answer, earthquake and conflict-event tools, URL downloads through QGIS networking. Not hand-tested. |
@@ -78,6 +79,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc38"></a>
+## [1.16.0-rc38] — 2026-10-13 — Release candidate 38 for 1.16.0: Processing-algorithm tool fixed
+
+No breaking changes; QGIS 4.2+. Everything after the rc37 build:
+
+- Processing-algorithm tool works again: run_allowlisted_processing_algorithm failed on every call from the assistant since rc24 with "unexpected keyword argument 'params'": a code change had left the tool registered against an internal helper. Found in the rc37 hand test (a follow-up statistics step after a classification). The registration is fixed and a new test checks that every registered tool accepts the arguments it advertises.
+- No false 'step did not run' note after incident searches: After find_incident_reports added its layer the chat could still end with 'Expected styled layers ... but the step that writes it did not run', because the tool's name was not recognised as one that creates a layer. It is now.
+- rc37 hand test: rc37 was hand-tested on 2026-10-13 against Gemini in desktop QGIS 4.2: 17 of 23 rows passed, 2 were inconclusive (Stop was never exercised against a running job), 2 were not recorded and 2 optional rows were skipped. Report: docs/RC37_LIVE_TEST_REPORT_2026-10-13.md.
+- Not hand-tested: The two fixes above are checked by the offline suite and CI only; neither has been re-run in desktop QGIS. Stop during a long-running job is still unproven on real data.
 
 <a id="v1-16-0-rc37"></a>
 ## [1.16.0-rc37] — 2026-10-12 — Release candidate 37 for 1.16.0: incident search over named reliable sources
