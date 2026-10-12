@@ -36,6 +36,14 @@ class TestSatisfied(unittest.TestCase):
         self.assertTrue(router.satisfied(c, ["buffer_analysis"]))
         self.assertTrue(router.satisfied(c, ["apply_categorized_style"]))
 
+    def test_the_incident_search_tool_counts_as_putting_a_layer_on_the_canvas(self):
+        # Hand test 2026-10-12 (Yemen, last 30 days): find_incident_reports added the Incident reports layer, but its name has no
+        # layer-creating prefix, so the chat ended with "the step that writes it did not run".
+        c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"], "explicit": True}
+        self.assertTrue(router.satisfied(c, ["find_incident_reports"]))
+        self.assertIn("Delivered", router.delivery_note(c, ["find_incident_reports"]))
+        self.assertIsNone(router.followup_instruction(c, ["find_incident_reports"], has_layers=True))
+
     def test_a_layer_contract_is_not_met_by_a_read_only_turn(self):
         c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
         self.assertFalse(router.satisfied(c, ["get_layers", "get_attributes"]))

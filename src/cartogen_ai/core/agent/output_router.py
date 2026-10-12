@@ -34,6 +34,18 @@ _NO_RENDER = ("guidance", "analysis")
 MAX_FOLLOWUPS = 1
 
 
+# Tools that put a layer on the canvas. By name prefix, plus the tools whose names do not follow a prefix: find_incident_reports
+# builds the "Incident reports" layer but starts with find_, so a hand test on 2026-10-12 (Yemen, last 30 days) got the layer and
+# was still told "the step that writes it did not run".
+_LAYER_CREATOR_PREFIXES = ("add_", "create_", "fetch_", "load_", "geocode_", "interpolate_", "buffer_", "clip_", "merge_",
+                           "intersect_", "union_", "dissolve_", "spatial_join", "extract_features_from_imagery", "georeference_image")
+_LAYER_CREATOR_TOOLS = frozenset({"find_incident_reports"})
+
+
+def _creates_layer(tool):
+    return tool in _LAYER_CREATOR_TOOLS or tool.startswith(_LAYER_CREATOR_PREFIXES)
+
+
 def required_renderers(contract):
     """The tools that would satisfy this contract. Any one of them is enough."""
     if not contract:
@@ -55,11 +67,7 @@ def satisfied(contract, executed_tools):
         # A layer contract is met by anything that puts a layer on the canvas,
         # not only by the two styling tools in `render` -- styling an
         # unstyleable layer is not a failure to deliver.
-        return any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
-                                 "interpolate_", "buffer_", "clip_", "merge_",
-                                 "intersect_", "union_", "dissolve_", "spatial_join",
-                                 "extract_features_from_imagery", "georeference_image"))
-                   or t in needed for t in ran)
+        return any(_creates_layer(t) or t in needed for t in ran)
     return any(t in ran for t in needed)
 
 
@@ -83,11 +91,7 @@ def followup_instruction(contract, executed_tools, already_retried=False, has_la
     # If the deliverable is a layer and no layer creation tool was executed (or the project has no layers),
     # we must explicitly instruct the agent to CREATE the layer rather than asking it to style a non-existent layer!
     if kind == "layer":
-        ran_creator = any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
-                                        "interpolate_", "buffer_", "clip_", "merge_",
-                                        "intersect_", "union_", "dissolve_", "spatial_join",
-                                        "extract_features_from_imagery", "georeference_image"))
-                          for t in (executed_tools or []))
+        ran_creator = any(_creates_layer(t) for t in (executed_tools or []))
         has_canvas_layer = (has_layers is True) or (ran_creator and has_layers is not False)
         if not has_canvas_layer:
             return (
