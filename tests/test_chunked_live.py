@@ -46,11 +46,11 @@ class TestChunkedLive(unittest.TestCase):
         from cartogen_ai.core.agent.tools import _chunked as ch
         from cartogen_ai.core.agent.tools._background_processing import AnalysisCancelledError
         layer = _layer(3000)
-        seen = 0
+        seen = [0]
         with self.assertRaises(AnalysisCancelledError):
-            for _feat in ch.features(layer, "live test", slice_s=0.0, check_every=1, cancelled=lambda: seen >= 100):
-                seen += 1
-        self.assertTrue(100 <= seen < 3000, seen)
+            for _feat in ch.features(layer, "live test", slice_s=0.0, check_every=1, cancelled=lambda: seen[0] >= 100):
+                seen[0] += 1
+        self.assertTrue(100 <= seen[0] < 3000, seen[0])
 
 
 if __name__ == "__main__":
