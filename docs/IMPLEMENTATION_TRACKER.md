@@ -1645,9 +1645,19 @@ they work in (SECURITY.md §7 updated); users who explicitly left the old defaul
 opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
 possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
 
-### 1.19 Advanced web search and filtering results against reliable sources (planned, added 2026-10-11)
+### 1.19 Advanced web search and filtering results against reliable sources (first version built 2026-10-12)
 
-**Status: not built. Roadmap item requested by the owner.** Nothing below exists in the code yet.
+**Status: first version built** as `find_incident_reports` (`tools/incident_search_tools.py`; 211 tools). It does not search the open web: it asks a fixed table of
+sources in parallel (GDACS, USGS, NASA EONET, UCDP candidate events, ReliefWeb disasters RSS), keeps what matches the country / bbox and dates, tags every record
+with source, tier, date and link, builds a point layer (ReliefWeb has no coordinates, so those are listed), and says in every reply which sources answered, which
+failed and which were not searched. The owner's decisions are applied as: structured keyless sources only; no social media; no API keys yet. Checked live on
+2026-10-11/12: all five answer; the fact-checkers the owner named cannot be read by a program (Reuters: JavaScript wall; AFP: HTTP 403; Full Fact: 404), ReliefWeb's
+API v2 refuses an unregistered appname (so the RSS is used), ACLED needs a key. Verified: the network phases against the live services and the logic offline; **not**
+verified in a running QGIS session (live layer tests are CI-only), and not whether the model picks the tool for plain requests.
+**Still open for the owner:** register a ReliefWeb appname (gives structured fields and country filters), decide on ACLED credentials (tracker HX4), decide whether a
+fact-check lookup is worth building given that none of the named outlets allows it. The original plan text follows for the record.
+
+**Original plan (2026-10-11), not built as written:**
 
 Why: a live chat on 2026-10-11 ("check the social media and internet for incidents") made six `search_web` calls and returned no
 usable answer. `search_web` (`core/agent/tools/system_tools.py`) is a thin wrapper over the `ddgs` package: general web results

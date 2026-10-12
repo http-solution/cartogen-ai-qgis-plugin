@@ -97,7 +97,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
-    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events",
+    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events", "find_incident_reports",
     "ingest_osm_features", "extract_features_from_imagery",
 })
 
@@ -1257,6 +1257,21 @@ class CartogenAi:
             res = self._run_current_turn_on_main_thread(
                 lambda a: add_nasa_eonet_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA EONET Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "find_incident_reports":
+            from .tools.incident_search_tools import (
+                find_incident_reports_network_phase, add_incident_reports_layer_main_thread_phase,
+            )
+            fetch_result = find_incident_reports_network_phase(
+                filtered_args.get("country"), filtered_args.get("bbox"), filtered_args.get("days", 30),
+                filtered_args.get("sources"), filtered_args.get("max_reports", 200),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_incident_reports_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "Incident reports")},
             )
             self._log_tool_success(name, filtered_args, res)
             return res

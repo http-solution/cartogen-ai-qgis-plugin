@@ -144,6 +144,7 @@ TOOL_OPERATION_TYPES = {
     "fetch_gdacs_disaster_alerts": CREATE,
     "fetch_usgs_earthquakes": CREATE,
     "fetch_ucdp_conflict_events": CREATE,
+    "find_incident_reports": CREATE,
     "generate_situation_dashboard": PUBLISH,
     # Both may create a brand-new point layer, or append to an
     # already-existing one of the same name (explicit in add_point_layer's
