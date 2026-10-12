@@ -8,16 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc36"
-NEW_MARK_VERSIONS = ("1.16.0-rc35", "1.16.0-rc36")
+WHATS_NEW_VERSION = "1.16.0-rc37"
+NEW_MARK_VERSIONS = ("1.16.0-rc36", "1.16.0-rc37")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('QGIS stays responsive during long analyses', "Loops over features, pairs and pixels used to run in one unbroken stretch on QGIS's main thread, so QGIS showed Not Responding and ignored Stop. About 90 such loops in the analysis, validation, styling, export and import tools now work in slices of about 50 ms: the window repaints, Stop is heard, and progress is reported every few seconds. A Stop inside an edit rolls the edit back."),
-    ('Hub siting, allocation and delivery routes', 'The distance matrix is built in slices and the ranking, facility selection and route ordering run off the main thread. Route ordering now finds tours about 14 percent shorter on a 200-stop test and runs faster (it used to stop after 2000 trial moves). The route-risk tool merges geometry in one pass and tests incidents against a prepared buffer.'),
-    ('Large raster classification', 'unsupervised_classification reads and classifies the raster in blocks, so memory no longer limits its size; a raster over 400 million cells is refused with a clip-it-first message (it used to refuse over 25 million cells).'),
-    ('Fewer freezes elsewhere', 'geocode_batch (up to 25 lookups with pauses) no longer runs on the main thread and stops when you press Stop. Scheduled recurring workflows now skip a tick while another one or a chat request is running instead of starting a second analysis on top. The chat window removes the oldest messages once it holds more than 300 items, keeping the newest 200 (the saved conversation is untouched).'),
-    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been tried on a large real project or hand-tested in desktop QGIS. The size of the speed-up on real data has not been measured, and 300 and 200 for the chat window are estimates.'),
+    ('New tool: find_incident_reports', "Answers 'what incidents, disasters or conflict events happened in <place>' from a fixed list of named sources instead of the open web: GDACS (UN alerts), USGS earthquakes, NASA EONET, UCDP armed-conflict events and the ReliefWeb disasters feed. Every record carries its source, rating, date and link; records with a position become a map layer (ReliefWeb items have no coordinates and are listed). Every reply names the sources that answered, the ones that could not be reached and the ones not searched, so an empty result is not read as 'nothing happened'. UCDP data is preliminary and weeks old. No keys needed. The tool count is now 211."),
+    ('What it does not search', 'News outlets, fact-checkers and social media are not searched: the Reuters, AFP and Full Fact pages cannot be read by a program, Liveuamap is a paid API, ACLED needs a registered key, and social media is out of scope. The reply lists each with its reason.'),
+    ('search_web points to it', 'The general web search description now tells the assistant to use find_incident_reports for incident, disaster and conflict questions.'),
+    ('Not hand-tested', "The five sources were queried live from a development session and CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS. Whether the assistant chooses the new tool for a plain request such as 'check the internet for incidents' is not yet known."),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
