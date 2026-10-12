@@ -27,6 +27,7 @@ import json
 import os
 import re
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .table_importers import key_of, plan_join
@@ -682,7 +683,7 @@ def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=N
     if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
         return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     records = [{"key": key_of(u["admin2_code"], None), "unit": u} for u in units]
-    layer_keys = [(f.id(), key_of(f[layer_key_field], None)) for f in layer.getFeatures()]
+    layer_keys = [(f.id(), key_of(f[layer_key_field], None)) for f in _ck.features(layer, "Jiaf inputs: reading features")]
     pairs, report = plan_join(records, layer_keys)
     result["join"] = report
     if any(u["population_group"] for u in units):

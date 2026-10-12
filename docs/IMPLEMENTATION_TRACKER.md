@@ -1782,6 +1782,15 @@ block to the output GeoTIFF. Replaces the whole-raster read and the 25M-cell / 6
 block logic (`tests/test_raster_numpy.py`); a GDAL multi-block live test is in `tests/test_raster_numpy_live.py` (first CI run). **Not measured:** run time
 and peak memory on a real large raster; no mid-run cancel in this tool. See `docs/OPEN_ISSUES_STATUS_2026-10-11.md` for the issue list.
 
+### 1.24 Processing-cost audit and freeze fixes (2026-10-12)
+
+Full write-up: `docs/PROCESSING_COST_AUDIT_2026-10-12.md`; ranking tool: `tools/audit_processing_cost.py`. Built: `tools/_chunked.py` (slice long GUI-thread loops
+into about 50 ms pieces, honour Stop, report progress; used at 62 `getFeatures()` sites), hub-siting matrix in slices and its ranking / greedy / route ordering
+off the GUI thread, O(1)-per-move 2-opt (symmetric matrices), one `unaryUnion` and a prepared geometry in the route-risk tool, `geocode_batch` moved off the
+GUI thread with a test that fails for any network tool left on it, and a one-heavy-job-at-a-time gate for scheduled ticks. **Not measured on a real QGIS
+project; not hand-tested.** Open: chat window growth over a long session, Python-implemented Processing algorithms on the GUI thread, 30 remaining
+unsliced `getFeatures()` sites, pure compute in `calculate_allocation_envelope` / `compute_jiaf_patterns`, single very long C++ calls.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

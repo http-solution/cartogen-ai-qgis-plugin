@@ -38,6 +38,7 @@ from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 from . import _background_processing as _bg
+from . import _chunked as _ck
 from ._layer_checks import require_valid_layer
 
 try:
@@ -354,7 +355,7 @@ def _vet_speed_field(network, speed_field, default_speed):
 def _reachable_network_is_degenerate(lines_layer):
     """True when the reachable-network layer has no length at all (no features, only null
     geometries, or a zero-length line at the snapped start point)."""
-    for feature in lines_layer.getFeatures():
+    for feature in _ck.features(lines_layer, "Logistics: reading features"):
         geometry = feature.geometry()
         if geometry is None or geometry.isNull():
             continue
@@ -421,7 +422,7 @@ def _clip_network_to_reach(network, centre_xy, reach_m):
         used = int(clipped.featureCount())
         if used >= total * _CLIP_WORTHWHILE_FRACTION:
             return network, info
-        if not any(f.geometry().intersects(disc) for f in clipped.getFeatures()):
+        if not any(f.geometry().intersects(disc) for f in _ck.features(clipped, "Logistics: reading features")):
             return network, info
         info.update(applied=True, roads_used=used)
         return clipped, info
@@ -442,6 +443,46 @@ def _measure_distance(distance_area, geom_a, geom_b):
     if distance_area is not None:
         return distance_area.measureLine(geom_a.asPoint(), geom_b.asPoint())
     return geom_a.distance(geom_b)
+
+
+def _union_geometries(geoms):
+    """One geometry covering all of `geoms` (None when there is nothing usable), built with a single unaryUnion.
+
+    Processing-cost audit 2026-10-12: the callers combined features one at a time (`acc = acc.combine(g)`), which re-unions the growing
+    result with every new piece, so the work grows with the square of the feature count; one unaryUnion over the whole list is a single
+    GEOS pass. A single geometry is returned as it is."""
+    usable = [g for g in geoms if g is not None and not g.isEmpty()]
+    if not usable:
+        return None
+    if len(usable) == 1:
+        return usable[0]
+    return QgsGeometry.unaryUnion(usable)
+
+
+def _intersects_tester(geom):
+    """A function(other_geom) -> bool telling whether `other_geom` intersects `geom`, using GEOS's prepared geometry when available.
+
+    Testing thousands of points against one large buffer with geom.intersects() re-indexes the buffer every time; a prepared geometry
+    indexes it once. Falls back to the plain method if the engine cannot be made."""
+    try:
+        engine = QgsGeometry.createGeometryEngine(geom.constGet())
+        engine.prepareGeometry()
+        return lambda other: bool(engine.intersects(other.constGet()))
+    except Exception:
+        return geom.intersects
+
+
+def _fill_candidate_distances(candidate_distances, distance_area, candidates, names, demand_geoms, label):
+    """candidate_distances[name] = distance from that candidate to every demand point, one candidate at a time.
+
+    Processing-cost audit 2026-10-12: this candidates x demand loop (up to _MAX_HUB_SITING_PAIRS measurements, each an ellipsoidal
+    geodesic) ran in one unbroken stretch on the GUI thread. It touches QgsGeometry/QgsDistanceArea, so it cannot move to a worker; it
+    is sliced instead, handing control to Qt about every 50 ms and honouring Stop (AnalysisCancelledError)."""
+    ticker = _ck.Yielder(label, total=len(candidates) * len(demand_geoms))
+    for cand_feat, name in zip(candidates, names, strict=False):
+        geom = cand_feat.geometry()
+        candidate_distances[name] = [_measure_distance(distance_area, geom, dg) for dg in demand_geoms]
+        ticker.tick(len(demand_geoms))
 
 
 # Below this many roads a routing call takes roughly a couple of seconds (measured: about 1 ms per
@@ -815,7 +856,7 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
         return {"error": f"Layer '{demand_layer}' not found"}
 
     try:
-        demand_geoms = [f.geometry() for f in demand.getFeatures() if not f.geometry().isEmpty()]
+        demand_geoms = [f.geometry() for f in _ck.features(demand, "Logistics: reading features") if not f.geometry().isEmpty()]
         if not demand_geoms:
             return {"error": f"'{demand_layer}' has no usable point features."}
         demand_geoms = _geoms_in_crs(demand_geoms, demand.crs(), candidates.crs())
@@ -828,16 +869,17 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
 
         distance_area = _make_distance_area(candidates)
         candidate_distances = {}
-        usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
+        usable_candidates = [f for f in _ck.features(candidates, "Logistics: reading features") if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
-            candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
+        _fill_candidate_distances(candidate_distances, distance_area, usable_candidates, candidate_names, demand_geoms,
+                                  "Measuring hub distances")
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
 
-        ranked = _rank_hub_candidates(candidate_distances, max_distance)
+        # Pure Python over plain numbers: off the GUI thread, Stop honoured (audit 2026-10-12).
+        ranked = _bg.run_callable(lambda: _rank_hub_candidates(candidate_distances, max_distance), label="Ranking hub candidates")
         result = {
             "success": True,
             "candidate_count": len(ranked),
@@ -873,6 +915,8 @@ def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
             log_event("swallowed_exception", tag="Tools", tool="logistics_crs_warning",
                       error_class=type(e).__name__, error=True)
         return result
+    except _bg.AnalysisCancelledError:
+        raise
     except Exception as e:
         return {"error": f"optimal_hub_siting failed: {e}"}
 
@@ -956,7 +1000,7 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
         return {"error": f"Field '{weight_field}' not found in '{demand_layer}'"}
 
     try:
-        demand_feats = [f for f in demand.getFeatures() if not f.geometry().isEmpty()]
+        demand_feats = [f for f in _ck.features(demand, "Logistics: reading features") if not f.geometry().isEmpty()]
         if not demand_feats:
             return {"error": f"'{demand_layer}' has no usable point features."}
         demand_geoms = _geoms_in_crs([f.geometry() for f in demand_feats], demand.crs(), candidates.crs())
@@ -979,18 +1023,20 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
 
         distance_area = _make_distance_area(candidates)
         candidate_distances = {}
-        usable_candidates = [f for f in candidates.getFeatures() if not f.geometry().isEmpty()]
+        usable_candidates = [f for f in _ck.features(candidates, "Logistics: reading features") if not f.geometry().isEmpty()]
         candidate_names = unique_labels(
             [feature_label(f) for f in usable_candidates], "candidate")
-        for cand_feat, name in zip(usable_candidates, candidate_names, strict=False):
-            candidate_distances[name] = [_measure_distance(distance_area, cand_feat.geometry(), dg) for dg in demand_geoms]
+        _fill_candidate_distances(candidate_distances, distance_area, usable_candidates, candidate_names, demand_geoms,
+                                  "Measuring allocation distances")
 
         if not candidate_distances:
             return {"error": f"'{candidate_layer}' has no usable point features."}
         if num_facilities > len(candidate_distances):
             return {"error": f"num_facilities ({num_facilities}) exceeds the number of usable candidates ({len(candidate_distances)})."}
 
-        result = _greedy_p_median(candidate_distances, demand_weights, num_facilities)
+        # Greedy p-median is candidates x demand x facilities in pure Python: off the GUI thread, Stop honoured (audit 2026-10-12).
+        result = _bg.run_callable(lambda: _greedy_p_median(candidate_distances, demand_weights, num_facilities),
+                                  label="Choosing facility combination")
         result["success"] = True
         result["candidate_count"] = len(candidate_distances)
         result["demand_point_count"] = len(demand_geoms)
@@ -1015,6 +1061,8 @@ def location_allocation(candidate_layer, demand_layer, num_facilities, weight_fi
             log_event("swallowed_exception", tag="Tools", tool="logistics_crs_warning",
                       error_class=type(e).__name__, error=True)
         return result
+    except _bg.AnalysisCancelledError:
+        raise
     except Exception as e:
         return {"error": f"location_allocation failed: {e}"}
 
@@ -1046,12 +1094,47 @@ def _tsp_nearest_neighbor(distance_matrix, start_index=0):
     return tour
 
 
+def _is_symmetric(distance_matrix, tol=1e-9):
+    n = len(distance_matrix)
+    return all(abs(distance_matrix[i][j] - distance_matrix[j][i]) <= tol for i in range(n) for j in range(i + 1, n))
+
+
+# A move is judged by the four edges it changes, not by re-measuring two whole tours: the old test built a new tour list and summed it
+# twice per candidate move, O(n) each, so the 2000-move budget covered only a tenth of ONE pass over 200 stops and the cost grew as n^3
+# (processing-cost audit 2026-10-12). With the delta each move is O(1), so a full pass is n^2 cheap steps and the budget can be large.
+_TWO_OPT_FAST_MOVES = 400_000
+
+
+def _two_opt_delta_search(tour, d, max_moves):
+    n = len(tour)
+    moves = 0
+    improved = True
+    while improved and moves < max_moves:
+        improved = False
+        for i in range(1, n - 1):
+            a = tour[i - 1]
+            for j in range(i + 2, n + 1):
+                moves += 1
+                last = j == n
+                if last:
+                    delta = d[a][tour[j - 1]] - d[a][tour[i]]
+                else:
+                    delta = d[a][tour[j - 1]] + d[tour[i]][tour[j]] - d[a][tour[i]] - d[tour[j - 1]][tour[j]]
+                if delta < -1e-12:
+                    tour[i:j] = tour[i:j][::-1]
+                    improved = True
+                if moves >= max_moves:
+                    return tour
+    return tour
+
+
 def _two_opt(tour, distance_matrix, max_iterations=2000):
-    """Pure Python -- classic 2-opt local search: repeatedly tries reversing a
-    segment of the tour and keeps the reversal if it shortens the total
-    route. Standard, well-understood TSP improvement heuristic -- not a
-    guaranteed optimal solution, but reliably improves on the raw
-    nearest-neighbor tour."""
+    """Pure Python -- classic 2-opt local search: repeatedly tries reversing a segment of the tour and keeps the reversal if it shortens
+    the total route. Standard, well-understood TSP improvement heuristic -- not a guaranteed optimal solution, but reliably improves on
+    the raw nearest-neighbor tour. A symmetric matrix (straight-line distances) takes the O(1)-per-move path above; an asymmetric one
+    (one-way streets: reversing a segment changes the direction of every edge inside it) keeps the exact whole-tour comparison."""
+    if _is_symmetric(distance_matrix):
+        return _two_opt_delta_search(list(tour), distance_matrix, _TWO_OPT_FAST_MOVES)
     improved = True
     iterations = 0
     n = len(tour)
@@ -1183,7 +1266,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return network_error
 
     try:
-        feats = [f for f in layer.getFeatures() if not f.geometry().isEmpty()]
+        feats = [f for f in _ck.features(layer, "Logistics: reading features") if not f.geometry().isEmpty()]
         if len(feats) < 2:
             return {"error": f"'{stops_layer}' needs at least 2 usable point features."}
 
@@ -1218,7 +1301,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         if two_stop_route:
             tour, total_distance = [start_index, 1 - start_index], None
         else:
-            tour, total_distance = _optimize_route(distance_matrix, start_index)
+            tour, total_distance = _bg.run_callable(lambda: _optimize_route(distance_matrix, start_index), label="Ordering stops")
         ordered_names = [names[i] for i in tour]
 
         result = {
@@ -1383,7 +1466,7 @@ def _route_length_m(route_layer_name):
             return None
         area = _make_distance_area(layers[0])
         total = 0.0
-        for f in layers[0].getFeatures():
+        for f in _ck.features(layers[0], "Logistics: reading features"):
             g = f.geometry()
             if g is not None and not g.isEmpty():
                 total += area.measureLength(g) if area is not None else g.length()
@@ -1398,7 +1481,7 @@ def _route_cost_sum(route_layer_name):
         layers = QgsProject.instance().mapLayersByName(route_layer_name)
         if not layers or layers[0].fields().indexOf("cost") < 0:
             return None
-        total = sum(float(f["cost"]) for f in layers[0].getFeatures() if f["cost"] is not None)
+        total = sum(float(f["cost"]) for f in _ck.features(layers[0], "Logistics: reading features") if f["cost"] is not None)
         return total if total > 0 else None
     except Exception:
         return None
@@ -1508,7 +1591,7 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
     the convexhull stage.
     """
     try:
-        geoms = [g for g in (f.geometry() for f in lines_layer.getFeatures()) if _geom_usable(g)]
+        geoms = [g for g in (f.geometry() for f in _ck.features(lines_layer, "Logistics: reading features")) if _geom_usable(g)]
         if not geoms:
             return None
         combined = QgsGeometry.unaryUnion(geoms)
@@ -1982,7 +2065,7 @@ def _merge_band_hulls(band_hulls, output_name):
     merged.updateFields()
     feats = []
     for band, hull_layer in band_hulls:
-        for hull_feat in hull_layer.getFeatures():
+        for hull_feat in _ck.features(hull_layer, "Logistics: reading features"):
             geom = hull_feat.geometry()
             if geom is None or geom.isEmpty():
                 continue
@@ -2196,7 +2279,7 @@ def match_destination_key(x, y, candidates, tolerance):
 def _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed, speed_field,
                         direction_field, value_forward, value_backward, value_both):
     """{'matrix': {origin: {destination feature id: cost or None}}, 'unreachable_count': n} or {'error': ...}."""
-    dest_feats = [f for f in destinations.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
+    dest_feats = [f for f in _ck.features(destinations, "Logistics: reading features") if f.hasGeometry() and not f.geometry().isEmpty()]
     if not dest_feats:
         return {"error": "The destination layer has no usable point features."}
     ellipsoid = _network_context().ellipsoid()
@@ -2314,7 +2397,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         return {"error": field_error}
 
     try:
-        origin_features = [f for f in origins.getFeatures() if not f.geometry().isEmpty()]
+        origin_features = [f for f in _ck.features(origins, "Logistics: reading features") if not f.geometry().isEmpty()]
         if not origin_features:
             return {"error": f"'{origins_layer}' has no usable point features."}
 
@@ -2337,7 +2420,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             return _with_matrix_options(result, speed_field, closed_segments, direction_field)
         origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
         destination_points = []
-        for dest in destinations.getFeatures():
+        for dest in _ck.features(destinations, "Logistics: reading features"):
             if dest.hasGeometry() and not dest.geometry().isEmpty():
                 xy = _point_xy_in_network_crs(dest.geometry().asPoint(), destinations.crs(), network)
                 destination_points.append((dest.id(), xy.x(), xy.y()))
@@ -2367,7 +2450,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             dest_field = next((f for f in fields if "end" in f.lower() or "destination" in f.lower()), None)
 
             distances = {}
-            for feat in result_layer.getFeatures():
+            for feat in _ck.features(result_layer, "Logistics: reading features"):
                 dest_key = feat.attribute(dest_field) if dest_field else feat.id()
                 cost = feat.attribute(cost_field) if cost_field else None
                 # Same keys as the single-tree path: the destination's feature id, found from the end point QGIS reports.
@@ -2425,7 +2508,7 @@ def _concave_reach_polygon(line_layers, ratio, name):
     reason when QGIS/GEOS cannot produce a polygon (older GEOS lacks concave hulls)."""
     geoms = []
     for layer in line_layers:
-        for feat in layer.getFeatures():
+        for feat in _ck.features(layer, "Logistics: reading features"):
             g = feat.geometry()
             if g is not None and not g.isEmpty():
                 geoms.append(g)
@@ -2559,7 +2642,7 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
     da.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
     indexed = []
     for lyr in reached_layers:
-        feats = {f.id(): f for f in lyr.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()}
+        feats = {f.id(): f for f in _ck.features(lyr, "Logistics: reading features") if f.hasGeometry() and not f.geometry().isEmpty()}
         if not feats:
             continue
         index = _exact_spatial_index()
@@ -2640,7 +2723,7 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
                 "service_area": service}
 
     try:
-        feats = [f for f in facilities.getFeatures() if f.hasGeometry() and not f.geometry().isEmpty()]
+        feats = [f for f in _ck.features(facilities, "Logistics: reading features") if f.hasGeometry() and not f.geometry().isEmpty()]
         if not feats:
             return {"error": f"'{facility_layer}' has no usable point features."}
         _t_prep = time.monotonic()
@@ -2987,12 +3070,7 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     if buffer_distance <= 0:
         return {"error": "buffer_distance must be positive."}
 
-    route_geom = None
-    for feat in route.getFeatures():
-        g = feat.geometry()
-        if g is None or g.isEmpty():
-            continue
-        route_geom = g if route_geom is None else route_geom.combine(g)
+    route_geom = _union_geometries(f.geometry() for f in _ck.features(route, "Reading the route"))
     if route_geom is None:
         return {"error": f"'{route_layer}' has no usable geometry."}
 
@@ -3034,12 +3112,7 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
         return {"error": f"Buffer layer '{buffer_layer_name}' was created but could not be found afterward."}
     _style_risk_buffer_layer(buffer_layer)
 
-    buffer_geom = None
-    for feat in buffer_layer.getFeatures():
-        g = feat.geometry()
-        if g is None or g.isEmpty():
-            continue
-        buffer_geom = g if buffer_geom is None else buffer_geom.combine(g)
+    buffer_geom = _union_geometries(f.geometry() for f in _ck.features(buffer_layer, "Reading the route buffer"))
     if buffer_geom is None:
         return {"error": "Route buffer produced no usable geometry."}
 
@@ -3049,9 +3122,10 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
 
     matched = []
     total_weight = 0.0
-    for feat in incidents.getFeatures():
+    in_buffer = _intersects_tester(buffer_geom)
+    for feat in _ck.features(incidents, "Scoring incidents against the route"):
         geom = feat.geometry()
-        if geom is None or geom.isEmpty() or not buffer_geom.intersects(geom):
+        if geom is None or geom.isEmpty() or not in_buffer(geom):
             continue
         if cutoff_date is not None:
             d = _parse_date(feat[date_field])
@@ -3272,7 +3346,7 @@ def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=Fal
         unknown_classes = set()
         try:
             with edit_command(network, "Cartogen AI: estimate road speeds") as owns_session:
-                for feature in network.getFeatures():
+                for feature in _ck.features(network, "Logistics: reading features"):
                     existing = feature.attribute(field_idx)
                     if existing not in (None, "") and not overwrite:
                         skipped_existing += 1

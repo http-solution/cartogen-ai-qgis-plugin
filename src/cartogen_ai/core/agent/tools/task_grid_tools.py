@@ -17,6 +17,7 @@ import math
 import os
 import tempfile
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 
@@ -114,7 +115,7 @@ def _copy_transformed(geom, src, dst):
 
 
 def _aoi_union(layer):
-    geoms = [f.geometry() for f in layer.getFeatures() if f.geometry() is not None and not f.geometry().isEmpty()]
+    geoms = [f.geometry() for f in _ck.features(layer, "Task grid: reading features") if f.geometry() is not None and not f.geometry().isEmpty()]
     return QgsGeometry.unaryUnion(geoms) if geoms else None
 
 
@@ -122,7 +123,7 @@ def _point_counts(cells_metric, points_layer, metric):
     """Number of points of points_layer inside each cell geometry (metric CRS)."""
     index = QgsSpatialIndex()
     pts = {}
-    for f in points_layer.getFeatures():
+    for f in _ck.features(points_layer, "Task grid: reading features"):
         g = f.geometry()
         if g is None or g.isEmpty():
             continue
@@ -154,7 +155,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
         "INPUT": zones, "INPUT_RASTER": raster_layer, "RASTER_BAND": 1, "COLUMN_PREFIX": "t_", "STATISTICS": [1],
         "OUTPUT": "memory:"})
     out_layer = result["OUTPUT"]
-    by_i = {f["i"]: f["t_sum"] for f in out_layer.getFeatures()}
+    by_i = {f["i"]: f["t_sum"] for f in _ck.features(out_layer, "Task grid: reading features")}
     return [None if by_i.get(i) is None else float(by_i[i]) for i in range(len(cells_metric))]
 
 

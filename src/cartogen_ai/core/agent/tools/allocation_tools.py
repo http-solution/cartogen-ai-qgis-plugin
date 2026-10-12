@@ -17,6 +17,7 @@ areas above their ceiling. No rate, price or coefficient is ever supplied by thi
 Areas are identified by feature id, so duplicate names cannot merge two areas. Pure logic is unit tested offline; the layer work needs
 QGIS (tests/test_allocation_tools_live.py, written without a local QGIS).
 """
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .humanitarian_style import look_hint
@@ -215,7 +216,7 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         }
 
     rows, weights, excluded = [], [], []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Allocation: reading features"):
         label = str(feat[unit_name_field]) if unit_name_field else str(feat.id())
         w, reason = weight_for(feat[need_field], feat[population_field] if population_field else None, need_exponent, exclude_need_below,
                                   use_population=bool(population_field))
@@ -257,7 +258,7 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         try:
             with edit_command(layer, "Cartogen AI: write " + output_field) as owned:
                 idx = add_numeric_field(layer, output_field)
-                for fid in (f.id() for f in layer.getFeatures()):
+                for fid in (f.id() for f in _ck.features(layer, "Allocation: reading features")):
                     set_value(layer, fid, idx, by_id.get(fid, 0.0))
             result["output_field"] = output_field
             result["layer_name"] = layer_name

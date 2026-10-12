@@ -17,6 +17,7 @@ Pure logic is unit tested offline; the layer work needs QGIS (tests/test_survey_
 import math
 import statistics
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 
@@ -209,7 +210,7 @@ def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="p
             return {"error": f"{label} '{field}' not found in '{layer_name}'. Fields: {names}"}
 
     records = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Survey: reading features"):
         rec = {"group": feat[group_field], "value": feat[indicator_field]}
         rec["weight"] = feat[weight_field] if weight_field else None
         records.append(rec)

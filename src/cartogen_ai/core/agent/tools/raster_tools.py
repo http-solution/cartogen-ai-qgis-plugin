@@ -7,6 +7,7 @@ import math
 import os
 import re
 import tempfile
+from . import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
@@ -642,7 +643,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
                              "&field=src_fid:integer", "zonal_input", "memory")
     require_valid_layer(scratch)
     copies = []
-    for feat in polygon_layer.getFeatures():
+    for feat in _ck.features(polygon_layer, "Raster: reading features"):
         copy = QgsFeature(scratch.fields())
         copy.setGeometry(feat.geometry())
         copy.setAttributes([int(feat.id())])
@@ -658,7 +659,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
                                 label="Zonal statistics", use_background=len(copies) >= 200)
     out_layer = results["OUTPUT"]
     values = {}
-    for out_feat in out_layer.getFeatures():
+    for out_feat in _ck.features(out_layer, "Raster: reading features"):
         values[int(out_feat["src_fid"])] = [out_feat[name] if out_layer.fields().indexOf(name) >= 0 else None
                                             for name in _ZONAL_FIELDS]
 
@@ -1418,7 +1419,7 @@ def estimate_population_exposure(population_raster_layer, area_layer, output_lay
 
         name_field = vector.fields()[0].name() if vector.fields().count() > 0 else None
         zones = []
-        for feat in vector.getFeatures():
+        for feat in _ck.features(vector, "Raster: reading features"):
             label = feat.attribute(name_field) if name_field else None
             zones.append({"feature_id": feat.id(), "label": None if label in (None, "") else str(label),
                           "population": zone_sums.get(feat.id())})
@@ -1496,7 +1497,7 @@ def _add_exposure_layer(vector, zones, keys, layer_name):
         layer.updateFields()
         by_id = {z["feature_id"]: z for z in zones}
         feats = []
-        for src in vector.getFeatures():
+        for src in _ck.features(vector, "Raster: reading features"):
             z = by_id.get(src.id())
             if z is None:
                 continue
@@ -1550,7 +1551,7 @@ def _zonal_sums_detached(raster, polygon_layer):
     if not scratch.isValid():
         return None
     original_ids, copies = [], []
-    for feat in polygon_layer.getFeatures():
+    for feat in _ck.features(polygon_layer, "Raster: reading features"):
         copy = QgsFeature()
         copy.setGeometry(feat.geometry())
         copies.append(copy)
@@ -1578,7 +1579,7 @@ def _overlapping_zone_count(polygon_layer, limit=2000):
     not checked. Needs QGIS."""
     try:
         from qgis.core import QgsSpatialIndex
-        feats = {f.id(): f for f in polygon_layer.getFeatures()}
+        feats = {f.id(): f for f in _ck.features(polygon_layer, "Raster: reading features")}
         if len(feats) > limit:
             return 0
         index = QgsSpatialIndex(polygon_layer.getFeatures())

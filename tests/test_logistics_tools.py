@@ -2619,3 +2619,50 @@ class TestEstimateRoadSpeeds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTwoOptFastPath(unittest.TestCase):
+    """Processing-cost audit 2026-10-12: symmetric matrices judge a move by its four changed edges; asymmetric ones keep the exact path."""
+
+    def _matrix(self, n, seed=1, asymmetric=False):
+        import math
+        import random
+        r = random.Random(seed)
+        pts = [(r.random() * 100, r.random() * 100) for _ in range(n)]
+        d = [[math.dist(a, b) for b in pts] for a in pts]
+        if asymmetric:
+            d[0][1] += 5.0
+        return d
+
+    def test_result_is_a_permutation_keeps_the_start_and_is_never_longer(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        for n in (5, 12, 40):
+            d = self._matrix(n)
+            nn = lt._tsp_nearest_neighbor(d, 0)
+            out = lt._two_opt(list(nn), d)
+            self.assertEqual(sorted(out), list(range(n)))
+            self.assertEqual(out[0], 0)
+            self.assertLessEqual(lt._tour_length(out, d), lt._tour_length(nn, d) + 1e-9)
+
+    def test_it_reaches_a_local_optimum_that_the_old_budget_could_not_on_a_larger_set(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        d = self._matrix(120)
+        nn = lt._tsp_nearest_neighbor(d, 0)
+        fast = lt._two_opt(list(nn), d)
+        for i in range(1, 119):                              # no single segment reversal improves it any more
+            for j in range(i + 2, 120):
+                moved = fast[:i] + fast[i:j][::-1] + fast[j:]
+                self.assertGreaterEqual(lt._tour_length(moved, d), lt._tour_length(fast, d) - 1e-9)
+
+    def test_an_asymmetric_matrix_keeps_the_exact_old_path(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        d = self._matrix(30, asymmetric=True)
+        self.assertFalse(lt._is_symmetric(d))
+        out = lt._two_opt(lt._tsp_nearest_neighbor(d, 0), d)
+        self.assertEqual(sorted(out), list(range(30)))
+
+    def test_a_tiny_tour_is_returned_unchanged(self):
+        from cartogen_ai.core.agent.tools import logistics_tools as lt
+        d = self._matrix(3)
+        self.assertEqual(lt._two_opt([0, 1, 2], d), lt._two_opt([0, 1, 2], d))
+        self.assertEqual(sorted(lt._two_opt([0, 1, 2], d)), [0, 1, 2])

@@ -52,6 +52,7 @@ class WorkflowScheduler(QObject):
             super().__init__()
         self._timers = {}
         self._meta = {}
+        self._running = set()           # presets whose tick is executing right now
 
     def is_active(self, preset_name):
         return preset_name in self._timers
@@ -84,18 +85,35 @@ class WorkflowScheduler(QObject):
             meta = self._meta.get(preset_name)
             if meta is None:
                 return
-            meta["run_count"] += 1
-            try:
-                on_tick(preset_name)
-            finally:
-                if meta.get("max_runs") and meta["run_count"] >= meta["max_runs"]:
-                    self.stop(preset_name)
+            if not self._guarded_tick(preset_name, on_tick, meta):
+                return
+            if meta.get("max_runs") and meta["run_count"] >= meta["max_runs"]:
+                self.stop(preset_name)
 
         timer.timeout.connect(_fire)
         self._timers[preset_name] = timer
-        self._meta[preset_name] = {"interval_minutes": interval_minutes, "max_runs": max_runs, "run_count": 0}
+        self._meta[preset_name] = {"interval_minutes": interval_minutes, "max_runs": max_runs, "run_count": 0, "skipped": 0}
         timer.start()
         return {"success": True, "preset_name": preset_name, "interval_minutes": interval_minutes, "max_runs": max_runs}
+
+    def _guarded_tick(self, preset_name, on_tick, meta):
+        """Run one tick unless something heavy is already running; returns True when it ran.
+
+        Processing-cost audit 2026-10-12: a tick runs a whole analysis on the GUI thread, and now that long loops hand control back to
+        Qt every ~50 ms, a second timer (or the same one, if a tick outlasts its interval) can fire in the middle of the first and start
+        another analysis on top of it, or run beside a chat request. One heavy job at a time: a tick that would overlap is skipped, counted
+        in meta['skipped'], and the next interval tries again (a skipped tick does not use up max_runs)."""
+        from . import cancel_signal
+        if self._running or cancel_signal.request_active():
+            meta["skipped"] = meta.get("skipped", 0) + 1
+            return False
+        meta["run_count"] += 1
+        self._running.add(preset_name)
+        try:
+            on_tick(preset_name)
+        finally:
+            self._running.discard(preset_name)
+        return True
 
     def stop(self, preset_name):
         timer = self._timers.pop(preset_name, None)

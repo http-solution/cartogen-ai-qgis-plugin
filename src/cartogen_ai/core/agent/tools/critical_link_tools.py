@@ -20,6 +20,7 @@ Pure logic is unit tested offline; the layer work needs QGIS (tests/test_critica
 """
 import time
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 
@@ -127,7 +128,7 @@ def _style(layer, bounds):
 def _weighted_features(layer, weight_field):
     """(feature, weight) pairs with a geometry and a weight above zero, plus the count skipped for an unusable weight."""
     items, skipped = [], 0
-    for f in layer.getFeatures():
+    for f in _ck.features(layer, "Critical link: reading features"):
         if not f.hasGeometry() or f.geometry().isEmpty():
             continue
         w = _weight(f, weight_field)
