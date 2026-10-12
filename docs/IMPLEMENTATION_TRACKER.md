@@ -1800,7 +1800,7 @@ off the GUI thread, O(1)-per-move 2-opt (symmetric matrices), one `unaryUnion` a
 GUI thread with a test that fails for any network tool left on it, and a one-heavy-job-at-a-time gate for scheduled ticks. **Not measured on a real QGIS
 project; not hand-tested.** Second pass 2026-10-12: more sites sliced (validators, script snapshots, local data, styling, export, QA, imports), allocation arithmetic and JIAF pattern statistics off the GUI
 thread, chat scrollback bounded (`trim_scrollback`, 300 -> 200 items; live tests CI-only). The egress-gate scan test had to learn the new `_ck.features(` marker or it would have stopped seeing feature readers.
-Open: Python-implemented Processing algorithms on the GUI thread (a crash found when they were moved), sampling / survey compute interleaved with reads, single very long C++ calls.
+Decided 2026-10-12: Python-implemented Processing algorithms (`gdal:*`) stay on the GUI thread; a CI probe (PR #287, closed unmerged) found no crash in 0 of 60+ background attempts, so the original crash is unreproducible, but nothing proves a worker is safe. Side finding fixed 2026-10-12: live modules that wrapped `import processing` in `contextlib.suppress` only worked when `test_agent_live` ran first and added QGIS's plugins directory to `sys.path`; the shared `_boot_qgis` now adds it. Open: sampling / survey compute interleaved with reads, single very long C++ calls.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
