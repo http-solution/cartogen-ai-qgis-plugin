@@ -43,7 +43,7 @@ def prompts_page(rows, v):
     """One self-contained HTML page: every test in order, with a Copy button for the prompt. No network, no scripts beyond Copy."""
     out = ["<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
            f"<title>Cartogen AI {html.escape(v)} - tests</title>",
-           "<style>body{font:16px/1.5 system-ui,Segoe UI,Arial,sans-serif;max-width:860px;margin:24px auto;padding:0 16px;color:#1b1b1b}"
+           ("<style>body{font:16px/1.5 system-ui,Segoe UI,Arial,sans-serif;max-width:860px;margin:24px auto;padding:0 16px;color:#1b1b1b}"
            "h1{font-size:24px}h2{margin-top:36px;border-bottom:2px solid #ddd;padding-bottom:4px}"
            ".t{border:1px solid #ccc;border-radius:8px;padding:12px 14px;margin:14px 0}"
            ".id{font-weight:700}.tag{font-size:12px;border-radius:10px;padding:1px 8px;margin-left:6px;background:#e7f1ff}"
@@ -52,12 +52,12 @@ def prompts_page(rows, v):
            ".l{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#555;margin-top:8px}"
            "@media (prefers-color-scheme:dark){body{background:#161616;color:#eee}.t{border-color:#444}.box{background:#222;border-color:#444}"
            "button{background:#222;color:#eee;border-color:#888}.tag{background:#243a55}.opt{background:#333}h2{border-color:#444}.l{color:#aaa}}"
-           "</style>",
+           "</style>"),
            f"<h1>Cartogen AI {html.escape(v)}: tests</h1>",
-           "<p>Go from top to bottom. For each test: click <b>Copy</b>, paste into the Cartogen chat, send it unchanged, compare with "
+           ("<p>Go from top to bottom. For each test: click <b>Copy</b>, paste into the Cartogen chat, send it unchanged, compare with "
            "<b>What you should see</b>, save a screenshot named with the test id, and write the result in <code>4_RESULTS.csv</code> "
            "(PASS, FAIL or SKIP, and one line of notes). Tests marked <span class=tag>START HERE</span> are the ones to do if you are short on time. "
-           "Open a New Chat before each test unless it says same chat.</p>"]
+           "Open a New Chat before each test unless it says same chat.</p>")]
     group = None
     for r in rows:
         if r["group"] != group:
