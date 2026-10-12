@@ -142,6 +142,23 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
     return resolved
 
 
+def _run_allowlisted(alg_id, resolved_params):
+    """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
+
+    An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
+    GUI thread, and so do Python-implemented algorithms (gdal:, qgis:), which crashed CI on a worker thread. A native algorithm that
+    creates new data goes through QGIS's task runner, so a long one no longer shows "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
+        return processing.run(alg_id, resolved_params)
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    return _bg.run_algorithm(alg_id, resolved_params, context,
+                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1])
+
+
+# The registration decorator must sit directly on run_allowlisted_processing_algorithm. PR #249 (rc24) put _run_allowlisted between
+# the two, so the registry held the helper and every model call failed with "_run_allowlisted() got an unexpected keyword argument
+# 'params'" (found in the 2026-10-13 hand test, row RC37-F4); direct calls from tests still worked, which hid it.
 @register_tool(
     "run_allowlisted_processing_algorithm",
     "Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over "
@@ -175,20 +192,6 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
         "required": ["alg_id", "params"],
     },
 )
-def _run_allowlisted(alg_id, resolved_params):
-    """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
-
-    An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
-    GUI thread, and so do Python-implemented algorithms (gdal:, qgis:), which crashed CI on a worker thread. A native algorithm that
-    creates new data goes through QGIS's task runner, so a long one no longer shows "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
-    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
-        return processing.run(alg_id, resolved_params)
-    context = QgsProcessingContext()
-    context.setProject(QgsProject.instance())
-    return _bg.run_algorithm(alg_id, resolved_params, context,
-                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1])
-
-
 def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
