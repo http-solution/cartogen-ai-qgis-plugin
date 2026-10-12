@@ -8,15 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc37"
-NEW_MARK_VERSIONS = ("1.16.0-rc36", "1.16.0-rc37")
+WHATS_NEW_VERSION = "1.16.0-rc38"
+NEW_MARK_VERSIONS = ("1.16.0-rc37", "1.16.0-rc38")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('New tool: find_incident_reports', "Answers 'what incidents, disasters or conflict events happened in <place>' from a fixed list of named sources instead of the open web: GDACS (UN alerts), USGS earthquakes, NASA EONET, UCDP armed-conflict events and the ReliefWeb disasters feed. Every record carries its source, rating, date and link; records with a position become a map layer (ReliefWeb items have no coordinates and are listed). Every reply names the sources that answered, the ones that could not be reached and the ones not searched, so an empty result is not read as 'nothing happened'. UCDP data is preliminary and weeks old. No keys needed. The tool count is now 211."),
-    ('What it does not search', 'News outlets, fact-checkers and social media are not searched: the Reuters, AFP and Full Fact pages cannot be read by a program, Liveuamap is a paid API, ACLED needs a registered key, and social media is out of scope. The reply lists each with its reason.'),
-    ('search_web points to it', 'The general web search description now tells the assistant to use find_incident_reports for incident, disaster and conflict questions.'),
-    ('Not hand-tested', "The five sources were queried live from a development session and CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS. Whether the assistant chooses the new tool for a plain request such as 'check the internet for incidents' is not yet known."),
+    ('Processing-algorithm tool works again', 'run_allowlisted_processing_algorithm failed on every call from the assistant since rc24 with "unexpected keyword argument \'params\'": a code change had left the tool registered against an internal helper. Found in the rc37 hand test (a follow-up statistics step after a classification). The registration is fixed and a new test checks that every registered tool accepts the arguments it advertises.'),
+    ("No false 'step did not run' note after incident searches", "After find_incident_reports added its layer the chat could still end with 'Expected styled layers ... but the step that writes it did not run', because the tool's name was not recognised as one that creates a layer. It is now."),
+    ('rc37 hand test', 'rc37 was hand-tested on 2026-10-13 against Gemini in desktop QGIS 4.2: 17 of 23 rows passed, 2 were inconclusive (Stop was never exercised against a running job), 2 were not recorded and 2 optional rows were skipped. Report: docs/RC37_LIVE_TEST_REPORT_2026-10-13.md.'),
+    ('Not hand-tested', 'The two fixes above are checked by the offline suite and CI only; neither has been re-run in desktop QGIS. Stop during a long-running job is still unproven on real data.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

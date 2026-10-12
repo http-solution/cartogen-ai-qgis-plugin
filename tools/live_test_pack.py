@@ -26,6 +26,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 INPUTS = REPO / "docs" / "release_smoke_assets" / "inputs"
 ROWS = REPO / "docs" / "FULL_LIVE_TEST_rc34_ROWS.csv"
+ROWS_EXTRA = REPO / "docs" / "FULL_LIVE_TEST_rc37_ROWS.csv"     # rows for what changed after rc34; added to the run when present
 MANIFEST = REPO / "docs" / "FULL_LIVE_TEST_rc34_INPUTS.sha256"
 SUBFOLDERS = ("inputs", "outputs", "screenshots", "logs", "results")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
@@ -81,7 +82,7 @@ def prepare(root, force=False):
         (root / sub).mkdir(parents=True, exist_ok=True)
     for name in manifest:
         shutil.copy2(INPUTS / name, root / "inputs" / name)
-    rows = read_rows(ROWS)
+    rows = read_rows(ROWS) + (read_rows(ROWS_EXTRA) if ROWS_EXTRA.is_file() else [])
     fields = list(rows[0].keys())
     write_rows(root / "results" / "results.csv", rows, fields)
     filled = [dict(r, prompt_or_action=r["prompt_or_action"].replace("{TEST_ROOT}", root.as_posix())) for r in rows]
@@ -94,7 +95,7 @@ def prepare(root, force=False):
         "logs/         the exported QGIS Log Messages, and api_trace_summary.txt if you recorded the API trace.\n"
         "results/      results.csv is the file you fill in (the result column: PASS, FAIL, NOT RUN, SKIP, INCONCLUSIVE or "
         "PASS (degraded)); prompts_filled.csv has every prompt with the real paths.\n\n"
-        "Procedure: docs/FULL_LIVE_TEST_rc34.md in the repository. When you are done, or at any time: "
+        "Procedure: docs/LIVE_TEST_rc37_START_HERE.md (rc37 rows, RC37-*) and docs/FULL_LIVE_TEST_rc34.md (everything else) in the repository. When you are done, or at any time: "
         "python tools/live_test_pack.py check " + root.as_posix() + "\n", encoding="utf-8")
     print(f"Prepared {root}\n  inputs copied and verified: {len(manifest)} files\n  rows: {len(rows)} (results/results.csv)")
     return 0

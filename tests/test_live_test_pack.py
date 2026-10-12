@@ -116,3 +116,30 @@ class TestPrepareAndCheck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRc37Addendum(unittest.TestCase):
+    """The rc37 rows (docs/FULL_LIVE_TEST_rc37_ROWS.csv) ride on the rc34 pack: unique ids, same columns, and every tool they name exists."""
+
+    def test_rows_are_unique_across_both_lists_and_have_the_same_columns(self):
+        extra = pack.read_rows(pack.ROWS_EXTRA)
+        base = _rows()
+        self.assertEqual(list(extra[0]), list(base[0]))
+        ids = [r["id"] for r in base + extra]
+        self.assertEqual(len(ids), len(set(ids)))
+        for r in extra:
+            self.assertTrue(r["id"].startswith("RC37-"), r["id"])
+            self.assertTrue(r["prompt_or_action"].strip() and r["expected"].strip(), r["id"])
+            self.assertEqual(r["screenshot_file"], f"screenshots/{r['id']}.png")
+
+    def test_tools_the_rows_expect_exist_in_the_registry_names(self):
+        text = " ".join(r["expected"] for r in pack.read_rows(pack.ROWS_EXTRA))
+        src = "\n".join(p.read_text(encoding="utf-8") for p in (REPO / "src" / "cartogen_ai" / "core" / "agent" / "tools").glob("*.py"))
+        for tool in sorted(set(re.findall(r"\b(find_incident_reports|fetch_usgs_earthquakes|fetch_ucdp_conflict_events)\b", text))):
+            self.assertIn(f"def {tool}(", src, tool)
+
+    def test_prepare_includes_the_addendum(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(pack.prepare(Path(d) / "run"), 0)
+            rows = pack.read_rows(Path(d) / "run" / "results" / "results.csv")
+            self.assertEqual(len(rows), len(_rows()) + len(pack.read_rows(pack.ROWS_EXTRA)))
