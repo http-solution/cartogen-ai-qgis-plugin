@@ -14,6 +14,8 @@ routable_network() applies it: if any segment is closed it returns a scratch cop
 is never edited), and says how many were removed. The same rule applies whatever the routing strategy, because a closed road is
 closed whether the user asked for the shortest or the fastest route.
 """
+from . import _chunked as _ck
+
 CLOSED_SPEED_KMH = -1.0
 
 
@@ -31,7 +33,7 @@ def routable_network(network, speed_field):
     if not speed_field or network.fields().indexOf(speed_field) < 0:
         return network, 0, None
     closed_ids, total = set(), 0
-    for feat in network.getFeatures():
+    for feat in _ck.features(network, "Network: reading roads"):
         total += 1
         if is_closed(feat[speed_field]):
             closed_ids.add(feat.id())
@@ -50,7 +52,7 @@ def routable_network(network, speed_field):
     provider.addAttributes(list(network.fields()))
     scratch.updateFields()
     kept = []
-    for feat in network.getFeatures():
+    for feat in _ck.features(network, "Network: reading roads"):
         if feat.id() in closed_ids:
             continue
         copy = QgsFeature(scratch.fields())

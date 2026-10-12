@@ -6,6 +6,7 @@ import difflib
 import math
 import os
 import random
+from . import _chunked as _ck
 from .registry import register_tool
 
 try:
@@ -1486,7 +1487,7 @@ def field_statistics(layer_name, field):
     if field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
-    values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+    values = [float(feat[field]) for feat in _ck.features(layer, "Vector: reading features") if isinstance(feat[field], (int, float))]
     stats = _compute_field_statistics(values)
     if stats is None:
         return {"error": f"No numeric values found in field '{field}'."}
@@ -1755,7 +1756,7 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
         written = 0
         with edit_command(layer, "Cartogen AI: write field " + field_name) as owned:
             field_idx = add_numeric_field(layer, field_name)
-            for feature in layer.getFeatures():
+            for feature in _ck.features(layer, "Vector: reading features"):
                 if value_fn is not None:
                     value = value_fn(feature)
                 else:
@@ -2077,7 +2078,7 @@ def diagnose_topology(layer_name, min_area=None):
     wkt_to_fids = {}
     polygon_geoms_by_fid = {}
 
-    for feature in layer.getFeatures():
+    for feature in _ck.features(layer, "Vector: reading features"):
         geom = feature.geometry()
         if geom is None or geom.isEmpty():
             invalid_count += 1
@@ -2277,13 +2278,13 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     admin_features_by_id = None
     if method == "admin_unit_snap":
         index = QgsSpatialIndex(admin_layer.getFeatures())
-        admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
+        admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
 
     rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
     unmatched_count = 0
 
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Vector: reading features"):
         geom = feat.geometry()
         if geom is None or geom.isEmpty():
             continue

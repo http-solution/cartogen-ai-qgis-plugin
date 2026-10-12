@@ -26,6 +26,7 @@ import datetime
 import json
 import os
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import ranked_pins, rank_of_value, run_analysis
@@ -425,7 +426,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
     if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
         return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     pairs, report = plan_join([{"key": key_of(r["admin2_code"], None), "row": r} for r in rows],
-                              [(f.id(), key_of(f[layer_key_field], None)) for f in layer.getFeatures()])
+                              [(f.id(), key_of(f[layer_key_field], None)) for f in _ck.features(layer, "Jiaf review: reading features")])
     result["join"] = report
     if not write_fields or not pairs:
         return result

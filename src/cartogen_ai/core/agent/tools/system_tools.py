@@ -539,8 +539,15 @@ def geocode_batch(location_names: list):
     if len(location_names) > _GEOCODE_BATCH_MAX:
         return {"error": f"Too many locations in one batch (max {_GEOCODE_BATCH_MAX}); split into smaller batches."}
 
-    results = []
+    # Processing-cost audit 2026-10-12: up to 25 lookups with a 1 s pause between network calls (~25 s) ran on the GUI thread because this
+    # tool was missing from NETWORK_ONLY_TOOLS (agent_orchestrator.py), so QGIS showed "Not Responding" for the whole batch. It touches no
+    # QGIS object (see _geocode_one), so it now runs on the calling worker thread, and Stop ends the batch between lookups.
+    from .. import cancel_signal
+    results: list[dict] = []
     for i, name in enumerate(location_names):
+        if cancel_signal.is_cancelled():
+            return {"success": False, "error": f"Stopped by the user after {len(results)} of {len(location_names)} locations.",
+                    "results": results}
         res = _geocode_one(name)
         results.append({"location_name": name, **res})
         # Only sleep between real network calls, not cache hits, and never after the last item.

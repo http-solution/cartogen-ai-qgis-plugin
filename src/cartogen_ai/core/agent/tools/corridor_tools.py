@@ -7,6 +7,7 @@ native:difference), so these are thin, checked wrappers that add what Processing
 metadata, and a styled result."""
 import os
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum  # noqa: F401  (kept for sibling modules' symmetry)
 from ._layer_checks import require_valid_layer
@@ -83,7 +84,7 @@ def _geometries(layer, to_crs):
     if layer.crs() != to_crs:
         transform = QgsCoordinateTransform(layer.crs(), to_crs, QgsProject.instance())
     out = []
-    for feature in layer.getFeatures():
+    for feature in _ck.features(layer, "Corridor: reading features"):
         geometry = QgsGeometry(feature.geometry())
         if geometry is None or geometry.isEmpty():
             continue

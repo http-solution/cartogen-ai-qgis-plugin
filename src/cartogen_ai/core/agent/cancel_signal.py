@@ -1,4 +1,5 @@
 import contextlib
+import time
 """How a long-running tool learns that the user pressed Stop, and how it reports progress.
 
 Why this exists (2026-09-25): agent.run() is given a `should_stop` callable (the running QgsTask's
@@ -13,7 +14,7 @@ Module-level state, not passed through the tool signature: tool signatures are t
 schema, and the dispatcher calls tools by name with the model's arguments. Everything here is
 best-effort and never raises -- a broken callback must not break a tool."""
 
-_state = {"should_stop": None, "status": None}
+_state = {"should_stop": None, "status": None, "depth": 0, "since": None}
 
 
 def begin(should_stop=None, status=None):
@@ -23,6 +24,9 @@ def begin(should_stop=None, status=None):
     previous = (_state["should_stop"], _state["status"])
     _state["should_stop"] = should_stop
     _state["status"] = status
+    if _state["depth"] == 0:
+        _state["since"] = time.monotonic()
+    _state["depth"] += 1
     return previous
 
 
@@ -31,6 +35,18 @@ def end(previous=None):
     should_stop from a finished (possibly cancelled) request would abort the next tool call made
     outside any request, e.g. by a scheduled workflow."""
     _state["should_stop"], _state["status"] = previous if previous else (None, None)
+    _state["depth"] = max(0, _state["depth"] - 1)
+    if _state["depth"] == 0:
+        _state["since"] = None
+
+
+def request_active(max_age_s=1800.0):
+    """True while an agent request is running (between begin() and end()). The recurring-workflow scheduler uses it to skip a tick
+    instead of running a second analysis on top of the first. A request older than `max_age_s` is treated as not active, so a begin()
+    that was never matched by an end() cannot silence scheduled work forever."""
+    if _state["depth"] <= 0 or _state["since"] is None:
+        return False
+    return (time.monotonic() - _state["since"]) < max_age_s
 
 
 def is_cancelled():

@@ -9,6 +9,7 @@ apply_graduated_style (mean/variance/skewness computed by hand there too).
 import contextlib
 import datetime
 import os
+from . import _chunked as _ck
 from .registry import register_tool
 from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure
@@ -38,7 +39,7 @@ def _unit_labels(layer, unit_name_field):
     'name [#<fid>]', an empty one 'feature <fid>' -- the same rule estimate_population_exposure uses."""
     from .raster_tools import unique_zone_keys
     pairs = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         value = feat[unit_name_field]
         label = None if value is None else str(value).strip()
         pairs.append((feat.id(), label or None))
@@ -376,7 +377,7 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
     rows = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         row = {"unit": labels[feat.id()], "__fid__": feat.id()}
         for f in indicator_fields:
             row[f] = feat[f]
@@ -570,7 +571,7 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
         }
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in _ck.features(layer, "Analysis: reading features")]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -781,7 +782,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
         }
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in _ck.features(layer, "Analysis: reading features")]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -901,7 +902,7 @@ def _build_polygon_index(admin_layer):
     from qgis.core import QgsSpatialIndex
 
     index = QgsSpatialIndex(admin_layer.getFeatures())
-    admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
+    admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Analysis: reading features")}
     return index, admin_features_by_id
 
 
@@ -1091,14 +1092,14 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         if layer.fields().indexFromName("hzd_mean") < 0:
             return {"error": "Zonal statistics ran but no 'hzd_mean' field was created -- check hazard_intensity_raster overlaps admin_layer."}
 
-    footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in footprints.getFeatures()),
+    footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in _ck.features(footprints, "Analysis: reading features")),
                                              footprints.crs(), layer.crs())
     index, admin_features_by_id = _build_polygon_index(layer)
     building_counts, assignment_stats = _assign_points_to_polygons_indexed(index, admin_features_by_id, footprint_centroids)
 
     rows = []
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat["chg_mean"]}
         if intensity_raster is not None:
             row["hazard_intensity"] = feat["hzd_mean"]
@@ -1203,7 +1204,7 @@ def forecast_trend(layer_name, date_field, value_field, periods_ahead=3, group_b
         return {"error": "periods_ahead must be between 1 and 24."}
 
     groups = {}
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         d = _parse_date(feat[date_field])
         raw_value = feat[value_field]
         if d is None or not isinstance(raw_value, (int, float)):
@@ -1270,7 +1271,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
         return {"error": f"Field '{zone_name_field}' not found on '{zone_layer}'. Available: {[f.name() for f in zones.fields()]}"}
 
     dated_geoms = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         d = _parse_date(feat[date_field])
         geom = feat.geometry()
         if d is None or geom is None or geom.isEmpty():

@@ -75,7 +75,7 @@ import contextlib
 # main-thread PyQGIS safety. Routing these through it too would just freeze
 # the QGIS GUI for the duration of each request/render.
 NETWORK_ONLY_TOOLS = frozenset({
-    "search_web", "geocode_and_enrich", "search_hdx_datasets",
+    "search_web", "geocode_and_enrich", "geocode_batch", "search_hdx_datasets",
     "fetch_osm_features", "search_stac_satellite_imagery", "fetch_fts_funding_data",
     "generate_chart", "extract_pdf_tables", "extract_word_tables", "aggregate_data",
 })

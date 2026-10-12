@@ -18,6 +18,7 @@ import numbers
 import random
 from decimal import Decimal
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .humanitarian_style import look_hint
@@ -237,7 +238,7 @@ def calculate_mcda_ranking(layer_name, criteria, unit_name_field=None, top_k=Non
         seed = random.SystemRandom().randrange(2 ** 31)
     seed = int(seed)
     rows = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Mcda: reading features"):
         row = {"id": feat.id(), "label": str(feat[unit_name_field]) if unit_name_field else str(feat.id())}
         for c in criteria:
             row[c["field"]] = feat[c["field"]]

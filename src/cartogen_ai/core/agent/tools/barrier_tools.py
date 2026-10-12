@@ -17,6 +17,7 @@ the layer work needs real QGIS and is covered by tests/test_barrier_tools_live.p
 """
 import math
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from ._network_closure import CLOSED_SPEED_KMH
@@ -119,7 +120,7 @@ def affected_feature_ids(network, barriers, buffer_m):
     metric = _local_metric_crs(network)
     index = QgsSpatialIndex(network.getFeatures())
     hit = set()
-    for b in barriers.getFeatures():
+    for b in _ck.features(barriers, "Barrier: reading features"):
         g = b.geometry()
         if g is None or g.isEmpty():
             continue
@@ -225,7 +226,7 @@ def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode=
     try:
         with edit_command(network, "Cartogen AI: write " + output_field) as owned:
             out_idx = add_numeric_field(network, output_field)
-            for feat in network.getFeatures():
+            for feat in _ck.features(network, "Barrier: reading features"):
                 base = _DEFAULT_SPEED_KMH
                 if speed_field is not None:
                     try:

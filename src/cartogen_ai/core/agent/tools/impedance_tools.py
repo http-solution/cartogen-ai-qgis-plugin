@@ -15,6 +15,7 @@ those two tools' side, matching the strategy doc's own stated integration
 path.
 """
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from ._network_closure import CLOSED_SPEED_KMH
@@ -211,7 +212,7 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     try:
         with edit_command(network, "Cartogen AI: write " + output_field) as owned:
             out_idx = add_numeric_field(network, output_field)
-            for feat in network.getFeatures():
+            for feat in _ck.features(network, "Impedance: reading features"):
                 geom = feat.geometry()
                 if geom is None or geom.isEmpty():
                     continue

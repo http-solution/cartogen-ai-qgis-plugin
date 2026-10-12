@@ -19,6 +19,7 @@ import math
 import random
 import statistics
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 
@@ -128,7 +129,7 @@ def _random_points_in(geom, count, rng):
 def _group_strata(strata, stratum_field, population_attribute):
     """One record per stratum (polygons sharing a stratum name are merged): geometries, population and their union."""
     groups = {}
-    for f in strata.getFeatures():
+    for f in _ck.features(strata, "Sampling: reading features"):
         g = f.geometry()
         if g is None or g.isEmpty():
             continue
@@ -157,7 +158,7 @@ def _units_by_stratum(units, strata, groups):
         feat.setGeometry(entry["geom"])
         index.addFeature(feat)
         key_by_id[i] = key
-    for uf in units.getFeatures():
+    for uf in _ck.features(units, "Sampling: reading features"):
         g = uf.geometry()
         if g is None or g.isEmpty():
             continue
