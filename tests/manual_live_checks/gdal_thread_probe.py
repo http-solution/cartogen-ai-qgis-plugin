@@ -38,6 +38,13 @@ from qgis.PyQt.QtCore import QCoreApplication, QEventLoop, QTimer  # noqa: E402
 app = QgsApplication([b"gdalprobe"], gui)
 QgsApplication.setPrefixPath("/usr", True)
 app.initQgis()
+# The first CI run of this probe died here: `processing` is the QGIS Processing plugin, which lives under the QGIS data directory, not on the
+# default Python path of the docker image. (tests/test_raster_numpy_live.py imports it inside contextlib.suppress, so that failure is silent there.)
+for candidate in (os.path.join(QgsApplication.pkgDataPath(), "python", "plugins"), "/usr/share/qgis/python/plugins",
+                  "/usr/local/share/qgis/python/plugins"):
+    print("PROBE plugin path candidate", candidate, "exists" if os.path.isdir(os.path.join(candidate, "processing")) else "missing", flush=True)
+    if os.path.isdir(os.path.join(candidate, "processing")) and candidate not in sys.path:
+        sys.path.append(candidate)
 from processing.core.Processing import Processing  # noqa: E402
 Processing.initialize()
 import processing  # noqa: E402
