@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc36](#v1-16-0-rc36) | 2026-10-12 | **Release candidate 36 for 1.16.0.** No breaking changes. QGIS stays responsive during long analyses, faster route ordering, large-raster classification in blocks, bounded chat window. Not hand-tested. |
 | [1.16.0-rc35](#v1-16-0-rc35) | 2026-10-11 | **Release candidate 35 for 1.16.0.** No breaking changes. Research requests end with an answer, earthquake and conflict-event tools, URL downloads through QGIS networking. Not hand-tested. |
 | [1.16.0-rc34](#v1-16-0-rc34) | 2026-10-11 | **Release candidate 34 for 1.16.0.** No breaking changes. Refused Gemini requests explain themselves, retired fallback model replaced, no waiting on unusable models. Not hand-tested. |
 | [1.16.0-rc33](#v1-16-0-rc33) | 2026-10-11 | **Release candidate 33 for 1.16.0.** No breaking changes. AI requests keep their key across redirects, redirects logged. Not hand-tested. |
@@ -76,6 +77,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc36"></a>
+## [1.16.0-rc36] — 2026-10-12 — Release candidate 36 for 1.16.0: QGIS stays responsive during long analyses
+
+No breaking changes; QGIS 4.2+. Everything after the rc35 build:
+
+- QGIS stays responsive during long analyses: Loops over features, pairs and pixels used to run in one unbroken stretch on QGIS's main thread, so QGIS showed Not Responding and ignored Stop. About 90 such loops in the analysis, validation, styling, export and import tools now work in slices of about 50 ms: the window repaints, Stop is heard, and progress is reported every few seconds. A Stop inside an edit rolls the edit back.
+- Hub siting, allocation and delivery routes: The distance matrix is built in slices and the ranking, facility selection and route ordering run off the main thread. Route ordering now finds tours about 14 percent shorter on a 200-stop test and runs faster (it used to stop after 2000 trial moves). The route-risk tool merges geometry in one pass and tests incidents against a prepared buffer.
+- Large raster classification: unsupervised_classification reads and classifies the raster in blocks, so memory no longer limits its size; a raster over 400 million cells is refused with a clip-it-first message (it used to refuse over 25 million cells).
+- Fewer freezes elsewhere: geocode_batch (up to 25 lookups with pauses) no longer runs on the main thread and stops when you press Stop. Scheduled recurring workflows now skip a tick while another one or a chat request is running instead of starting a second analysis on top. The chat window removes the oldest messages once it holds more than 300 items, keeping the newest 200 (the saved conversation is untouched).
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been tried on a large real project or hand-tested in desktop QGIS. The size of the speed-up on real data has not been measured, and 300 and 200 for the chat window are estimates.
 
 <a id="v1-16-0-rc35"></a>
 ## [1.16.0-rc35] — 2026-10-11 — Release candidate 35 for 1.16.0: research requests end with an answer, two new data tools
