@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (210 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (211 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1104,7 +1104,7 @@ Geocode a SINGLE address/place name into lat/lon via Nominatim API. For multiple
 |---|---|---|---|
 | `location_name` | string | yes |  |
 
-### `geocode_batch`
+### `geocode_batch` _(network-only)_
 
 Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of calling geocode_and_enrich in a loop whenever more than one location needs coordinates.
 
@@ -1122,7 +1122,7 @@ Search the live web using OpenAI's dedicated web-search model for real-time, sou
 
 ### `search_web` _(network-only)_
 
-Search internet for real-time information or facts.
+Search internet for real-time information or facts. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1908,6 +1908,21 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 | `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry it. |
+
+## incident_search_tools
+
+### `find_incident_reports` _(two-phase)_
+
+Find incident and hazard reports for a country / place and a time window from a FIXED list of reliable sources, with the source, its rating and a link on every record: GDACS (UN alerts), USGS (earthquakes), NASA EONET (storms, fires, volcanoes, floods), UCDP (armed conflict events; preliminary, weeks old) and ReliefWeb (declared disasters; listed, not mapped). Records with a position are loaded as a point layer. Use this INSTEAD of search_web for 'what incidents / disasters / conflict events happened in <place>' questions. It does not search news outlets, fact-checkers or social media, and the reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof nothing happened. Free, no keys. IMPORTANT: give a country (or place name) and/or bbox [min_lon, min_lat, max_lon, max_lat]; days is 1 to 365 (default 30). Re-running REPLACES the layer's features.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `country` | string | no | Country or place name, e.g. 'Yemen' or 'Sudan'. Matched by name against each source. |
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `days` | integer | no | How many days back (1 to 365). Defaults to 30. |
+| `sources` | array[string] | no | Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb. Default: all. |
+| `max_reports` | integer | no | Most records to return (newest first). Defaults to 200, at most 500. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'Incident reports'. |
 
 ## jiaf_engine
 

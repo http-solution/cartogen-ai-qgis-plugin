@@ -202,6 +202,10 @@ _TOOL_ALIASES = {
     "fetch_usgs_earthquakes": [
         "earthquake", "quake", "seismic", "magnitude", "tremor", "aftershock", "usgs",
     ],
+    "find_incident_reports": [
+        "incident", "incidents", "incident report", "what happened", "security situation", "recent events", "reliable source",
+        "check the internet", "latest news", "disaster and conflict", "hazards and conflict", "situation in",
+    ],
     "fetch_ucdp_conflict_events": [
         "conflict event", "armed conflict", "political violence", "organised violence", "organized violence", "ucdp",
         "fatalities", "battle", "killed in", "violence against civilians", "conflict", "war",

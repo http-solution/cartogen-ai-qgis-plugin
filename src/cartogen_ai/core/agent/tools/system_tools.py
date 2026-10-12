@@ -360,7 +360,7 @@ def _validate_script_safety(script: str):
     return None
 
 
-@register_tool("search_web", "Search internet for real-time information or facts.", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
+@register_tool("search_web", "Search internet for real-time information or facts. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
 def search_web(query: str, max_results: int = 3):
     try:
         # `ddgs` first, `duckduckgo_search` as a fallback for an environment that

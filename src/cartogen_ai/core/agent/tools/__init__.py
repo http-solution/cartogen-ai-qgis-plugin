@@ -40,6 +40,7 @@ from . import impedance_tools
 from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
 from . import event_data_tools
+from . import incident_search_tools
 from . import representation_tools
 from . import map_tools
 from . import project_tidy_tools
@@ -83,6 +84,7 @@ __all__ = [
     "humanitarian_tools",
     "imagery_extraction",
     "impedance_tools",
+    "incident_search_tools",
     "jiaf_engine",
     "jiaf_inputs",
     "jiaf_patterns",

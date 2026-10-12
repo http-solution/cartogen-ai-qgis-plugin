@@ -85,6 +85,7 @@ HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
    'fetch_nasa_eonet_events',
    'fetch_usgs_earthquakes',
    'fetch_ucdp_conflict_events',
+   'find_incident_reports',
    'fetch_nasa_active_fires',
    'generate_situation_dashboard',
    'run_monitoring_workflow',
@@ -136,7 +137,8 @@ TOOL_NEW_IN = {'aggregate_survey_indicator': '1.16.0-rc12',
  'finalize_jiaf_results': '1.16.0-rc14',
  'compute_jiaf_patterns': '1.16.0-rc14',
  'fetch_usgs_earthquakes': '1.16.0-rc35',
- 'fetch_ucdp_conflict_events': '1.16.0-rc35'}
+ 'fetch_ucdp_conflict_events': '1.16.0-rc35',
+ 'find_incident_reports': '1.16.0-rc37'}
 
 
 def tool_is_new(name):
