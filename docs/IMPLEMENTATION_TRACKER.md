@@ -1788,8 +1788,9 @@ Full write-up: `docs/PROCESSING_COST_AUDIT_2026-10-12.md`; ranking tool: `tools/
 into about 50 ms pieces, honour Stop, report progress; used at 62 `getFeatures()` sites), hub-siting matrix in slices and its ranking / greedy / route ordering
 off the GUI thread, O(1)-per-move 2-opt (symmetric matrices), one `unaryUnion` and a prepared geometry in the route-risk tool, `geocode_batch` moved off the
 GUI thread with a test that fails for any network tool left on it, and a one-heavy-job-at-a-time gate for scheduled ticks. **Not measured on a real QGIS
-project; not hand-tested.** Open: chat window growth over a long session, Python-implemented Processing algorithms on the GUI thread, 30 remaining
-unsliced `getFeatures()` sites, pure compute in `calculate_allocation_envelope` / `compute_jiaf_patterns`, single very long C++ calls.
+project; not hand-tested.** Second pass 2026-10-12: more sites sliced (validators, script snapshots, local data, styling, export, QA, imports), allocation arithmetic and JIAF pattern statistics off the GUI
+thread, chat scrollback bounded (`trim_scrollback`, 300 -> 200 items; live tests CI-only). The egress-gate scan test had to learn the new `_ck.features(` marker or it would have stopped seeing feature readers.
+Open: Python-implemented Processing algorithms on the GUI thread (a crash found when they were moved), sampling / survey compute interleaved with reads, single very long C++ calls.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 

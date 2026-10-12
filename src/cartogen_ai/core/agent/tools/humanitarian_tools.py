@@ -12,6 +12,7 @@ from ...net import urlopen as _qgis_urlopen
 import urllib.parse
 import urllib.error
 from datetime import date
+from . import _chunked as _ck
 from .registry import register_tool
 from ...logger import log_event
 from ._cache_utils import TTLCache
@@ -1957,7 +1958,7 @@ def _find_point_layer_at(lon, lat):
                 continue
             if lyr.crs().authid() != "EPSG:4326" or lyr.featureCount() > _REUSE_MAX_FEATURES:
                 continue
-            for f in lyr.getFeatures():
+            for f in _ck.features(lyr, "Humanitarian: reading features"):
                 g = f.geometry()
                 if g is None or g.isEmpty():
                     continue

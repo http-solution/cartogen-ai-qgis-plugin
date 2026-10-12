@@ -14,6 +14,7 @@ apply_graduated_style without bypassing the caller. This matches rule 19's
 than adding a second, competing auto-styling path.
 """
 
+from . import _chunked as _ck
 from .registry import register_tool
 from .styling_tools import _layer_geometry_kind, _classify_values, _find_layer_by_name
 from . import styling_tools as _styling_tools
@@ -250,7 +251,7 @@ def recommend_visualization_method(layer_name, field=None, intended_message=None
     classification = None
 
     if field_present:
-        raw_values = [feat[field] for feat in layer.getFeatures() if feat[field] is not None]
+        raw_values = [feat[field] for feat in _ck.features(layer, "Cartographic advisory: reading features") if feat[field] is not None]
         numeric_values = [v for v in raw_values if isinstance(v, (int, float))]
         field_numeric = bool(raw_values) and len(numeric_values) == len(raw_values)
         if not field_numeric:

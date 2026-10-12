@@ -11,6 +11,8 @@ restyled (only layers these tools create).
 """
 import math
 
+from . import _chunked as _ck
+
 try:
     from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLineSymbol,
                            QgsMarkerSymbol, QgsPalettedRasterRenderer, QgsRasterShader, QgsRendererCategory, QgsRendererRange, QgsRuleBasedRenderer,
@@ -373,7 +375,7 @@ def _categorized(layer, field, categories, symbol_factory, default_colour=None):
 
 
 def _values(layer, field):
-    return [f[field] for f in layer.getFeatures()]
+    return [f[field] for f in _ck.features(layer, "Style: reading values")]
 
 
 def style_task_grid(layer):

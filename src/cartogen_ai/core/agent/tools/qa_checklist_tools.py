@@ -31,6 +31,7 @@ TRANSITIONS entry for "map_qa")."""
 
 import os
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
@@ -180,7 +181,7 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         try:
             has_numeric_field = any(
                 isinstance(feat.attribute(idx), (int, float))
-                for feat in layer.getFeatures()
+                for feat in _ck.features(layer, "Qa checklist: reading features")
                 for idx in range(feat.fields().count())
             )
         except Exception:

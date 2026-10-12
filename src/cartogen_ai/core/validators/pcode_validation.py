@@ -46,6 +46,13 @@ unit_name_field, etc.).
 _ADMIN2_PCODE_ALIASES = ["admin2_pcode", "adm2_pcode", "ADM2_PCODE"]
 _ADMIN1_PCODE_ALIASES = ["admin1_pcode", "adm1_pcode", "ADM1_PCODE"]
 
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py). Imported when called, not at import time:
+    the tools package imports these validators."""
+    from ..agent.tools import _chunked
+    return _chunked.features(layer, label)
+
+
 
 def _match_field(field_names_lower_map, aliases):
     """Case-insensitive match of any alias against a layer's real field
@@ -81,7 +88,7 @@ def check_pcode_uniqueness(layer, pcode_field=None):
     duplicates = {}
     null_or_empty_count = 0
     total = 0
-    for feature in layer.getFeatures():
+    for feature in _features(layer, "Validation: reading features"):
         total += 1
         value = feature.attribute(pcode_field)
         if value is None or value == "":
@@ -135,7 +142,7 @@ def check_pcode_hierarchy(layer, child_pcode_field=None, parent_pcode_field=None
     mismatches = []
     total = 0
     checked = 0
-    for feature in layer.getFeatures():
+    for feature in _features(layer, "Validation: reading features"):
         total += 1
         child_value = feature.attribute(child_pcode_field)
         parent_value = feature.attribute(parent_pcode_field)

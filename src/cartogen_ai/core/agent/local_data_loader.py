@@ -49,6 +49,12 @@ MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1
 NON_DRIVABLE_FCLASSES = ("footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "busway", "unknown")
 DRIVABLE_FILTER = "fclass NOT IN ({})".format(", ".join(f"'{c}'" for c in NON_DRIVABLE_FCLASSES))
 
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py); imported when called."""
+    from .tools import _chunked
+    return _chunked.features(layer, label)
+
+
 
 def data_dir():
     """Where downloads are kept: the project's data/00_raw/osm when the project is saved (the
@@ -320,7 +326,7 @@ def _write_health_facilities(shp, gpkg):
         if not src.isValid():
             continue
         src.setSubsetString(wanted)
-        for f in src.getFeatures():
+        for f in _features(src, "Local data: reading features"):
             geom = f.geometry()
             if geom.isEmpty():
                 continue

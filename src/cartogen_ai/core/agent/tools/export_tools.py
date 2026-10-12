@@ -7,6 +7,7 @@ import os
 import json
 import tempfile
 import datetime
+from . import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
@@ -2449,7 +2450,7 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
         return {"error": f"Field '{end_field}' not found in '{layer_name}'"}
 
     dates = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Export: reading features"):
         d = _parse_date(feat[start_field])
         if d is not None:
             dates.append(d)
