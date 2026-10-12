@@ -8,16 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc35"
-NEW_MARK_VERSIONS = ("1.16.0-rc34", "1.16.0-rc35")
+WHATS_NEW_VERSION = "1.16.0-rc36"
+NEW_MARK_VERSIONS = ("1.16.0-rc35", "1.16.0-rc36")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Research requests end with an answer', "A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn."),
-    ('Two new tools: earthquakes and conflict events', 'fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.'),
-    ('URL downloads use the QGIS network stack', "Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site."),
-    ('Licence notice says GPL version 2 only', "The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest."),
-    ('Not hand-tested', 'The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.'),
+    ('QGIS stays responsive during long analyses', "Loops over features, pairs and pixels used to run in one unbroken stretch on QGIS's main thread, so QGIS showed Not Responding and ignored Stop. About 90 such loops in the analysis, validation, styling, export and import tools now work in slices of about 50 ms: the window repaints, Stop is heard, and progress is reported every few seconds. A Stop inside an edit rolls the edit back."),
+    ('Hub siting, allocation and delivery routes', 'The distance matrix is built in slices and the ranking, facility selection and route ordering run off the main thread. Route ordering now finds tours about 14 percent shorter on a 200-stop test and runs faster (it used to stop after 2000 trial moves). The route-risk tool merges geometry in one pass and tests incidents against a prepared buffer.'),
+    ('Large raster classification', 'unsupervised_classification reads and classifies the raster in blocks, so memory no longer limits its size; a raster over 400 million cells is refused with a clip-it-first message (it used to refuse over 25 million cells).'),
+    ('Fewer freezes elsewhere', 'geocode_batch (up to 25 lookups with pauses) no longer runs on the main thread and stops when you press Stop. Scheduled recurring workflows now skip a tick while another one or a chat request is running instead of starting a second analysis on top. The chat window removes the oldest messages once it holds more than 300 items, keeping the newest 200 (the saved conversation is untouched).'),
+    ('Not hand-tested', 'CI is green, including the live checks in QGIS 4.2.2, but none of this has been tried on a large real project or hand-tested in desktop QGIS. The size of the speed-up on real data has not been measured, and 300 and 200 for the chat window are estimates.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
