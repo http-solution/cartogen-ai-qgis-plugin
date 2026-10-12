@@ -65,6 +65,13 @@ except ImportError:
     QGIS_AVAILABLE = False
     QVariant = None
 
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py). Imported when called, not at import time:
+    the tools package imports these validators."""
+    from ..agent.tools import _chunked
+    return _chunked.features(layer, label)
+
+
 
 def list_contracts():
     """Names of all available schema contracts (JSON filenames, without
@@ -144,7 +151,7 @@ def validate_layer_schema(layer, contract_name):
             allowed_set = set(allowed_values)
             bad_values = set()
             bad_count = 0
-            for feature in layer.getFeatures():
+            for feature in _features(layer, "Validation: reading features"):
                 value = feature.attribute(matched_name)
                 if value is not None and value not in allowed_set:
                     bad_values.add(value)

@@ -6,6 +6,7 @@ import contextlib
 import math
 import os
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
@@ -561,7 +562,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
     try:
-        values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+        values = [float(feat[field]) for feat in _ck.features(layer, "Styling: reading features") if isinstance(feat[field], (int, float))]
         # Computed unconditionally (cheap, pure Python) so it's available
         # below whenever breaks is None, regardless of which ramp branch
         # runs -- a cluster-color match still needs a real classification
@@ -720,7 +721,7 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         return {"error": "apply_graduated_symbol_style only supports point layers -- use apply_graduated_style for polygon choropleths."}
 
     try:
-        values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+        values = [float(feat[field]) for feat in _ck.features(layer, "Styling: reading features") if isinstance(feat[field], (int, float))]
         if len(values) < 2:
             return {"error": f"Not enough numeric values in '{field}' to build a graduated symbol style."}
 

@@ -11,6 +11,7 @@ Severity used here is the FINAL severity where a decision was recorded or the un
 """
 import math
 
+from . import _background_processing as _bg
 from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
@@ -253,7 +254,9 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
         prev_analysis = analyze(run["previous"], overrides=scope)
     decisions = load_decisions()
     rows, summary = finalize(run["units"], run["analysis"], decisions)
-    res = patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares)
+    # Pure statistics over plain dicts (correlations, distributions, group shares): off the GUI thread, Stop honoured.
+    res = _bg.run_callable(lambda: patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares),
+                           label="Computing JIAF patterns")
     counts = res.pop("_unit_counts")
     result = {"success": True, "statement": STATEMENT, "validation_blockers": VALIDATION_BLOCKERS, "units": len(rows), "format": run["format"], "decisions_used": {k: len(v) for k, v in decisions.items()},
               "pending_flagged_units": summary["pending_pin_units"], "provisional": summary["provisional"],

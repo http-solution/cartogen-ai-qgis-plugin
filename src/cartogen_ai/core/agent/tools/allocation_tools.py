@@ -17,6 +17,7 @@ areas above their ceiling. No rate, price or coefficient is ever supplied by thi
 Areas are identified by feature id, so duplicate names cannot merge two areas. Pure logic is unit tested offline; the layer work needs
 QGIS (tests/test_allocation_tools_live.py, written without a local QGIS).
 """
+from . import _background_processing as _bg
 from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
@@ -225,7 +226,9 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         else:
             rows.append({"id": feat.id(), "unit": label})
             weights.append(w)
-    out = allocate(weights, budget, max_share_per_unit, min_amount_per_unit or 0.0, rounding)
+    # Pure arithmetic on plain numbers: off the GUI thread, Stop honoured (processing-cost audit 2026-10-12).
+    out = _bg.run_callable(lambda: allocate(weights, budget, max_share_per_unit, min_amount_per_unit or 0.0, rounding),
+                           label="Calculating the allocation")
     if "error" in out:
         out["excluded_units"] = excluded
         return out

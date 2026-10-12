@@ -62,6 +62,12 @@ _JOB_TIMEOUT_SECONDS = 60
 # A crashed/never-starting worker must not hang the caller either.
 _WORKER_START_TIMEOUT_SECONDS = 30
 
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py); imported when called."""
+    from ..tools import _chunked
+    return _chunked.features(layer, label)
+
+
 
 def find_python_interpreter():
     """Locate a spawnable Python interpreter from inside a running QGIS process.
@@ -403,7 +409,7 @@ def _layer_signature(layer, skip_fields=()):
     skip = {n.lower() for n in skip_fields}
     keep = [i for i, fld in enumerate(layer.fields()) if fld.name().lower() not in skip]
     rows = []
-    for f in layer.getFeatures():
+    for f in _features(layer, "Script: snapshotting a layer"):
         geom = f.geometry()
         wkb = bytes(geom.asWkb()).hex() if geom is not None and not geom.isEmpty() else ""
         attrs = f.attributes()
@@ -435,7 +441,7 @@ def _detach_vector_layer(layer):
         raise RuntimeError("could not copy the field definitions")
     copy.updateFields()
     features = []
-    for src in layer.getFeatures():
+    for src in _features(layer, "Script: copying a layer"):
         dst = QgsFeature(copy.fields())
         dst.setGeometry(src.geometry())
         dst.setAttributes(src.attributes())

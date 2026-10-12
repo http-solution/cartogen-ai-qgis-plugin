@@ -1712,7 +1712,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
             speed_field, direction_field, extra_params, style_by_cost, (value_forward, value_backward, value_both), notes,
             _invalid_geom_check)
         served_count = 0
-        for i, feat in enumerate(facilities.getFeatures()):
+        for i, feat in enumerate(_ck.features(facilities, "Logistics: facilities")):
             if _service_area_for_facility(run, i, feat):
                 served_count += 1
 

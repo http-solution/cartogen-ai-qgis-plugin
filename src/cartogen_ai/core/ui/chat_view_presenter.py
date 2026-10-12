@@ -28,9 +28,53 @@ from .chat_formatting import (
 from .theme import theme_colors
 
 
+# Bounded scrollback (processing-cost audit 2026-10-12, not measured on a real long session): every chat message is a nested HTML table in ONE
+# QTextBrowser document, and Qt's layout of nested tables gets slower as the document grows, so a long session makes every new message and
+# every resize slower. Above SCROLLBACK_TRIM_ABOVE top-level items the oldest are removed down to SCROLLBACK_KEEP; trimming in a batch, not
+# one at a time, keeps the document from being re-laid out on every message. The full conversation is not lost: it is saved with the project
+# (Memory > Export My Data).
+SCROLLBACK_TRIM_ABOVE = 300
+SCROLLBACK_KEEP = 200
+
+
 class ChatViewPresenter:
     def __init__(self, widget):
         self.widget = widget
+
+    def trim_scrollback(self, trim_above=SCROLLBACK_TRIM_ABOVE, keep=SCROLLBACK_KEEP):
+        """Remove the oldest top-level items (message tables and the paragraphs between them) once there are more than `trim_above`,
+        keeping the newest `keep`. Returns the number of items removed. Whole items only, so no table is ever cut in half.
+
+        Cards that are edited in place (the plan card, the tool-step toggles) are tracked by character position, so every tracked block is
+        shifted by the number of characters removed, and a block that was itself removed is forgotten (it can no longer be clicked)."""
+        w = self.widget
+        doc = w.chat_browser.document()
+        frames = doc.rootFrame().childFrames()
+        if len(frames) <= trim_above:
+            return 0
+        drop = len(frames) - keep
+        cut_end = frames[drop - 1].lastPosition() + 1
+        before = doc.characterCount()
+        cursor = QTextCursor(doc)
+        cursor.setPosition(0)
+        cursor.setPosition(min(cut_end, before - 1), QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        removed_chars = before - doc.characterCount()
+        for block_id in list(w._step_blocks):
+            block = w._step_blocks[block_id]
+            if block["end"] <= removed_chars:
+                del w._step_blocks[block_id]
+            else:
+                block["start"] = max(0, block["start"] - removed_chars)
+                block["end"] -= removed_chars
+        plan = w._plan_block
+        if plan is not None:
+            if plan["end"] <= removed_chars:
+                w._plan_block = None
+            else:
+                plan["start"] = max(0, plan["start"] - removed_chars)
+                plan["end"] -= removed_chars
+        return drop
 
     def add_tool_step(self, name, status, error):
         """Live per-tool-call progress signal, fired twice per tool call (once starting, once

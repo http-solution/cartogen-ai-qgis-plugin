@@ -20,7 +20,9 @@ from cartogen_ai.core.models import egress_gate
 # entry is a claim someone has to be able to defend.
 _NOT_VALUE_BEARING = frozenset()
 
-_FEATURE_READ_MARKERS = ("getFeatures(", ".attributes()", "dataProvider().getFeatures")
+# "_ck.features(" is tools/_chunked.features, the sliced drop-in for layer.getFeatures() (processing-cost audit 2026-10-12). Without it here
+# the scan would stop seeing every tool whose loop was converted, and this safety check would pass for the wrong reason.
+_FEATURE_READ_MARKERS = ("getFeatures(", "_ck.features(", ".attributes()", "dataProvider().getFeatures")
 
 
 def _names_a_layer(properties):
@@ -51,7 +53,7 @@ class TestEveryFeatureReaderIsClassifiable(unittest.TestCase):
         readers = []
         for n, fn in TOOL_REGISTRY.items():
             try:
-                if "getFeatures(" in inspect.getsource(fn):
+                if any(m in inspect.getsource(fn) for m in ("getFeatures(", "_ck.features(")):
                     readers.append(n)
             except (OSError, TypeError):
                 continue

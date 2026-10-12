@@ -666,6 +666,7 @@ class ChatTabWidget(QWidget):
         """
 
         self.chat_browser.append(html)
+        self.presenter.trim_scrollback()
         self._scroll_to_bottom()
         self.input_edit.clear()
         self.send_btn.setEnabled(True)

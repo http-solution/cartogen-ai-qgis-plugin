@@ -10,6 +10,7 @@ never treated as exceedances. The rule logic is pure and unit tested; reading th
 """
 import datetime
 
+from . import _chunked as _ck
 from .registry import register_tool
 
 try:
@@ -223,7 +224,7 @@ def evaluate_forecast_trigger(layer_name, value_field, threshold=None, compariso
         return {"error": f"'{layer_name}' has {layer.featureCount()} rows; the limit is {_MAX_ROWS}."}
 
     keys = [k for k in (value_field, unit_field, date_field, probability_field) if k]
-    rows = [{k: feat.attribute(k) for k in keys} for feat in layer.getFeatures()]
+    rows = [{k: feat.attribute(k) for k in keys} for feat in _ck.features(layer, "Trigger: reading features")]
     result = evaluate_triggers(rows, value_field, threshold, comparison, unit_field, date_field, start,
                                lead_days, probability_field, min_probability, min_exceedances)
     result.update({

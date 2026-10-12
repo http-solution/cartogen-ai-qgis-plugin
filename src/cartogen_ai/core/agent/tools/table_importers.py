@@ -19,6 +19,7 @@ without a local QGIS).
 import os
 import re
 
+from . import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 
@@ -299,7 +300,7 @@ def _plan_layer_join(layer_name, layer_key_field, records, used):
         return None, None, None, {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     use_code = "area_code" in used
     layer_keys = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Table importers: reading features"):
         v = feat[layer_key_field]
         layer_keys.append((feat.id(), key_of(v, None) if use_code else key_of(None, v)))
     pairs, report = plan_join(records, layer_keys)
