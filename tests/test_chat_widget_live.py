@@ -56,6 +56,15 @@ def _boot_qgis():
         _APP_HOLDER["app"] = QgsApplication([b"livetest"], False)
         QgsApplication.setPrefixPath("/usr", True)
         _APP_HOLDER["app"].initQgis()
+    # QGIS's built-in `processing` package lives in its own python/plugins directory, which is not on sys.path by default.
+    # Found 2026-10-12 (gdal probe): without it every live module that wraps `import processing` in contextlib.suppress
+    # skips Processing.initialize() silently, and only passes when test_agent_live happens to run first and add the path.
+    # Doing it here makes every module independent of run order.
+    import os
+    import sys
+    plugins_dir = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
+    if os.path.isdir(plugins_dir) and plugins_dir not in sys.path:
+        sys.path.insert(0, plugins_dir)
     return _APP_HOLDER["app"]
 
 
