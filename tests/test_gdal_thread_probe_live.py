@@ -15,7 +15,8 @@ except ImportError:
 PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manual_live_checks", "gdal_thread_probe.py")
 ATTEMPTS = 4
 RUNS = [("flags", "nogui", 1), ("sync", "nogui", 2), ("bg_current", "nogui", 3), ("bg_current", "gui", 3), ("bg_cpp_feedback", "nogui", 3),
-        ("bg_cpp_feedback", "gui", 3), ("bg_poll", "nogui", 3), ("bg_keepalive", "nogui", 3)]
+        ("bg_cpp_feedback", "gui", 3), ("bg_poll", "nogui", 3), ("bg_keepalive", "nogui", 3),
+        ("sync_layer_obj", "nogui", 3), ("bg_layer_obj", "nogui", 3), ("bg_layer_obj", "gui", 3), ("bg_layer_id", "nogui", 3)]
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS")

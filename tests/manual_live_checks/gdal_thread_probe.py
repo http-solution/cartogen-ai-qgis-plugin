@@ -12,6 +12,11 @@ variants:  flags            print the algorithm's flags (is FlagNoThreading set?
            bg_cpp_feedback  the same with a plain C++ QgsProcessingFeedback (tests: is the Python feedback subclass called from the worker the crash?)
            bg_poll          the same as bg_cpp_feedback but waits by polling processEvents instead of a nested QEventLoop.exec
            bg_keepalive     bg_cpp_feedback, and every object the task touches is kept alive in a module list until exit (tests a premature free)
+           bg_layer_obj     the cartogen path with INPUT given as a QgsRasterLayer OBJECT that lives in the project (what the raster tools pass)
+           bg_layer_id      the same with INPUT given as the layer's id string
+           sync_layer_obj   control: a project layer object, run on the calling thread
+(The first two runs of this probe passed a FILE PATH as INPUT and never crashed; the layer variants test the next suspect: a main-thread-owned
+QgsRasterLayer read from the worker.)
 """
 import faulthandler
 import os
@@ -31,7 +36,7 @@ if gui:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from qgis.core import (  # noqa: E402
-    QgsApplication, QgsProcessingAlgorithm, QgsProcessingAlgRunnerTask, QgsProcessingContext, QgsProcessingFeedback, QgsProject,
+    QgsRasterLayer, QgsApplication, QgsProcessingAlgorithm, QgsProcessingAlgRunnerTask, QgsProcessingContext, QgsProcessingFeedback, QgsProject,
 )
 from qgis.PyQt.QtCore import QCoreApplication, QEventLoop, QTimer  # noqa: E402
 
@@ -73,6 +78,15 @@ dem = make_dem(os.path.join(tmp, "dem.tif"))
 def params(i):
     return {"INPUT": dem, "BAND": 1, "SCALE": 1.0, "AS_PERCENT": False, "COMPUTE_EDGES": False, "ZEVENBERG": False, "TRIG": False,
             "OUTPUT": os.path.join(tmp, f"slope_{i}.tif")}
+
+
+def layer_params(i, mode):
+    layer = QgsRasterLayer(dem, "dem")
+    assert layer.isValid()
+    QgsProject.instance().addMapLayer(layer)
+    p = params(i)
+    p["INPUT"] = layer if mode == "obj" else layer.id()
+    return p
 
 
 def make_context():
@@ -136,6 +150,16 @@ for i in range(repeats):
     elif variant in ("bg_cpp_feedback", "bg_poll", "bg_keepalive"):
         st = run_task(i, QgsProcessingFeedback(), "poll" if variant == "bg_poll" else "loop", keep=(variant == "bg_keepalive"))
         outcome = f"ok={st['ok']} done={st['done']}"
+    elif variant in ("bg_layer_obj", "bg_layer_id", "sync_layer_obj"):
+        mode = "id" if variant == "bg_layer_id" else "obj"
+        lp = layer_params(i, mode)
+        if variant == "sync_layer_obj":
+            res = processing.run("gdal:slope", lp, context=make_context())
+        else:
+            from cartogen_ai.core.agent.tools import _background_processing as bg
+            res = bg.run_algorithm("gdal:slope", lp, make_context(),
+                                   fallback=lambda a, p, context=None: processing.run(a, p, context=context))
+        outcome = f"ok={os.path.exists(res['OUTPUT'])}"
     else:
         print("PROBE unknown variant", variant)
         sys.exit(2)
