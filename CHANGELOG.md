@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc37](#v1-16-0-rc37) | 2026-10-12 | **Release candidate 37 for 1.16.0.** No breaking changes. New find_incident_reports tool: incident search over named reliable sources with provenance. Not hand-tested. |
 | [1.16.0-rc36](#v1-16-0-rc36) | 2026-10-12 | **Release candidate 36 for 1.16.0.** No breaking changes. QGIS stays responsive during long analyses, faster route ordering, large-raster classification in blocks, bounded chat window. Not hand-tested. |
 | [1.16.0-rc35](#v1-16-0-rc35) | 2026-10-11 | **Release candidate 35 for 1.16.0.** No breaking changes. Research requests end with an answer, earthquake and conflict-event tools, URL downloads through QGIS networking. Not hand-tested. |
 | [1.16.0-rc34](#v1-16-0-rc34) | 2026-10-11 | **Release candidate 34 for 1.16.0.** No breaking changes. Refused Gemini requests explain themselves, retired fallback model replaced, no waiting on unusable models. Not hand-tested. |
@@ -77,6 +78,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc37"></a>
+## [1.16.0-rc37] — 2026-10-12 — Release candidate 37 for 1.16.0: incident search over named reliable sources
+
+No breaking changes; QGIS 4.2+. Everything after the rc36 build:
+
+- New tool: find_incident_reports: Answers 'what incidents, disasters or conflict events happened in <place>' from a fixed list of named sources instead of the open web: GDACS (UN alerts), USGS earthquakes, NASA EONET, UCDP armed-conflict events and the ReliefWeb disasters feed. Every record carries its source, rating, date and link; records with a position become a map layer (ReliefWeb items have no coordinates and are listed). Every reply names the sources that answered, the ones that could not be reached and the ones not searched, so an empty result is not read as 'nothing happened'. UCDP data is preliminary and weeks old. No keys needed. The tool count is now 211.
+- What it does not search: News outlets, fact-checkers and social media are not searched: the Reuters, AFP and Full Fact pages cannot be read by a program, Liveuamap is a paid API, ACLED needs a registered key, and social media is out of scope. The reply lists each with its reason.
+- search_web points to it: The general web search description now tells the assistant to use find_incident_reports for incident, disaster and conflict questions.
+- Not hand-tested: The five sources were queried live from a development session and CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS. Whether the assistant chooses the new tool for a plain request such as 'check the internet for incidents' is not yet known.
 
 <a id="v1-16-0-rc36"></a>
 ## [1.16.0-rc36] — 2026-10-12 — Release candidate 36 for 1.16.0: QGIS stays responsive during long analyses
