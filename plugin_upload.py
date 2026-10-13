@@ -100,7 +100,9 @@ EXCLUDE_DIRS = {
 # and a bare-name exclusion drops all 19 of those modules from the release zip,
 # shipping a plugin whose agent has nothing to call. Verified: adding "tools" to
 # EXCLUDE_DIRS took the zip from 63 source files to 44.
-EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
+# site/ is the documentation-site generator, theme and authored pages (GitHub Pages); like tools/ it has no caller inside an installed
+# plugin. Root-only for the same reason as tools/ above.
+EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools", "site"}
 # Binary documents and data. Their only users in this repository are tests and the runbook, which read them from the checkout.
 EXCLUDE_EXTS = {".pyc", ".zip", ".tmp", ".docx", ".pdf", ".tif", ".tiff", ".gpkg", ".qgz"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
