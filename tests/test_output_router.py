@@ -44,6 +44,16 @@ class TestSatisfied(unittest.TestCase):
         self.assertIn("Delivered", router.delivery_note(c, ["find_incident_reports"]))
         self.assertIsNone(router.followup_instruction(c, ["find_incident_reports"], has_layers=True))
 
+    def test_the_missing_layer_nudge_never_tells_the_model_to_invent_data(self):
+        # RC37-A1 hand test: the old wording asked for a "representative sample dataset" and the model put invented incidents on the map.
+        c = {"kind": "layer", "render": ["apply_categorized_style"], "explicit": True}
+        text = router.followup_instruction(c, ["get_layers"], has_layers=False)
+        self.assertIsNotNone(text)
+        low = text.lower()
+        for bad in ("representative sample", "sample dataset", "generate an operational"):
+            self.assertNotIn(bad, low)
+        self.assertIn("do not invent", low)
+
     def test_a_layer_contract_is_not_met_by_a_read_only_turn(self):
         c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}
         self.assertFalse(router.satisfied(c, ["get_layers", "get_attributes"]))
