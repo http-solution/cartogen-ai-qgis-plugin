@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc39](#v1-16-0-rc39) | 2026-10-13 | **Release candidate 39 for 1.16.0.** No breaking changes. The assistant no longer invents records to fill an empty map layer (found in the rc37 hand test). Not hand-tested. |
 | [1.16.0-rc38](#v1-16-0-rc38) | 2026-10-13 | **Release candidate 38 for 1.16.0.** No breaking changes. The Processing-algorithm tool works again (it failed on every call since rc24), no false 'step did not run' note after incident searches; rc37 hand-test results. |
 | [1.16.0-rc37](#v1-16-0-rc37) | 2026-10-12 | **Release candidate 37 for 1.16.0.** No breaking changes. New find_incident_reports tool: incident search over named reliable sources with provenance. Not hand-tested. |
 | [1.16.0-rc36](#v1-16-0-rc36) | 2026-10-12 | **Release candidate 36 for 1.16.0.** No breaking changes. QGIS stays responsive during long analyses, faster route ordering, large-raster classification in blocks, bounded chat window. Not hand-tested. |
@@ -79,6 +80,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc39"></a>
+## [1.16.0-rc39] — 2026-10-13 — Release candidate 39 for 1.16.0: no invented records
+
+No breaking changes; QGIS 4.2+. Everything after the rc38 build:
+
+- No invented records to fill an empty layer: When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns.
+- Hand-test result for rc37, corrected: Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).
+- Live-test bundle: The live-test bundle (tools/build_live_test_bundle.py) takes its version from metadata.txt, and its rows no longer name a version.
+- Not hand-tested: The fix is checked by the offline suite and CI only. Nothing stops the model from adding made-up points by another route (for example add_point_layer with coordinates it invented); this release only removes the wording that asked for it.
 
 <a id="v1-16-0-rc38"></a>
 ## [1.16.0-rc38] — 2026-10-13 — Release candidate 38 for 1.16.0: Processing-algorithm tool fixed

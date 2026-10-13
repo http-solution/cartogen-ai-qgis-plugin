@@ -1,4 +1,4 @@
-CARTOGEN AI rc37 - LIVE TEST
+CARTOGEN AI {VERSION} - LIVE TEST
 ============================
 You do NOT need Python or any command line. Follow the 8 steps in order.
 Time: about 1 to 2 hours for everything. If you only have 30 minutes, do the

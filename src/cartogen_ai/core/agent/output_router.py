@@ -94,14 +94,18 @@ def followup_instruction(contract, executed_tools, already_retried=False, has_la
         ran_creator = any(_creates_layer(t) for t in (executed_tools or []))
         has_canvas_layer = (has_layers is True) or (ran_creator and has_layers is not False)
         if not has_canvas_layer:
+            # This text used to end "...generate an operational/representative sample dataset on the canvas...". Hand test 2026-10-12
+            # (RC37-A1, "check the internet for recent incidents near Amman"): after every source returned nothing the model put four
+            # invented incidents on the map as a "planning baseline". Inventing records is never the fix for "no data": say what was
+            # searched and found, and leave the layer empty or absent.
             return (
                 "The deliverable for this task is a layer on the QGIS canvas, and no layer has been created yet. "
-                "Call an appropriate layer creation tool now (such as add_point_layer, add_vector_layer, "
-                "geocode_and_enrich, fetch_osm_features, fetch_gdacs_disaster_alerts, or execute_pyqgis_script) "
-                "to create and display the requested spatial layer on the canvas. If real-time or live external feeds "
-                "are unavailable, generate an operational/representative sample dataset on the canvas with appropriate "
-                "attributes and coordinates so the user has the requested spatial layer. Do not answer in prose alone "
-                "without creating the layer."
+                "If real data exists: Call an appropriate layer creation tool now (such as add_point_layer, add_vector_layer, "
+                "geocode_and_enrich, fetch_osm_features, fetch_gdacs_disaster_alerts, fetch_usgs_earthquakes, "
+                "find_incident_reports or execute_pyqgis_script) to create and display it. "
+                "If every source returned nothing, or a feed is unavailable, do NOT invent, sample, simulate or illustrate records "
+                "to fill the layer: tell the user plainly which sources you tried and what each returned, and that no layer was "
+                "made because there was nothing real to show."
             )
 
     writer = file_io.writer_for(kind) or (needed[0] if needed else "apply_categorized_style")

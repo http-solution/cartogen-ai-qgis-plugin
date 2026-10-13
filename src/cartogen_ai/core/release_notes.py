@@ -8,15 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc38"
-NEW_MARK_VERSIONS = ("1.16.0-rc37", "1.16.0-rc38")
+WHATS_NEW_VERSION = "1.16.0-rc39"
+NEW_MARK_VERSIONS = ("1.16.0-rc38", "1.16.0-rc39")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Processing-algorithm tool works again', 'run_allowlisted_processing_algorithm failed on every call from the assistant since rc24 with "unexpected keyword argument \'params\'": a code change had left the tool registered against an internal helper. Found in the rc37 hand test (a follow-up statistics step after a classification). The registration is fixed and a new test checks that every registered tool accepts the arguments it advertises.'),
-    ("No false 'step did not run' note after incident searches", "After find_incident_reports added its layer the chat could still end with 'Expected styled layers ... but the step that writes it did not run', because the tool's name was not recognised as one that creates a layer. It is now."),
-    ('rc37 hand test', 'rc37 was hand-tested on 2026-10-13 against Gemini in desktop QGIS 4.2: 17 of 23 rows passed, 2 were inconclusive (Stop was never exercised against a running job), 2 were not recorded and 2 optional rows were skipped. Report: docs/RC37_LIVE_TEST_REPORT_2026-10-13.md.'),
-    ('Not hand-tested', 'The two fixes above are checked by the offline suite and CI only; neither has been re-run in desktop QGIS. Stop during a long-running job is still unproven on real data.'),
+    ('No invented records to fill an empty layer', "When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns."),
+    ('Hand-test result for rc37, corrected', 'Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).'),
+    ('Live-test bundle', 'The live-test bundle (tools/build_live_test_bundle.py) takes its version from metadata.txt, and its rows no longer name a version.'),
+    ('Not hand-tested', 'The fix is checked by the offline suite and CI only. Nothing stops the model from adding made-up points by another route (for example add_point_layer with coordinates it invented); this release only removes the wording that asked for it.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

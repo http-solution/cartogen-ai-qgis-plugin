@@ -106,9 +106,9 @@ def main():
     missing = [str(p.relative_to(REPO)) for p in extras if not p.is_file()]
     if missing:
         raise SystemExit("missing documents: " + ", ".join(missing))
-    rows = read_rows()
+    rows = [{k: x.replace("{VERSION}", v) for k, x in r.items()} for r in read_rows()]
     digest = hashlib.sha256(plugin_zip.read_bytes()).hexdigest()
-    readme = (DOCS / "LIVE_TEST_rc37_README.txt").read_text(encoding="utf-8").replace("\r\n", "\n").replace("\n", "\r\n")
+    readme = (DOCS / "LIVE_TEST_rc37_README.txt").read_text(encoding="utf-8").replace("{VERSION}", v).replace("\r\n", "\n").replace("\n", "\r\n")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(f"{top}/README_FIRST.txt", readme)
         z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
@@ -120,7 +120,10 @@ def main():
         z.writestr(f"{top}/4_RESULTS.csv", results_sheet(rows))
         z.writestr(f"{top}/screenshots/PUT_SCREENSHOTS_HERE.txt", "Save one screenshot per test here, named with the test id, e.g. RC37-N1.png\r\n")
         for p in extras:
-            z.write(p, f"{top}/extras/docs/{p.name}")
+            if p.name == "FULL_LIVE_TEST_rc37_ROWS.csv":
+                z.writestr(f"{top}/extras/docs/{p.name}", p.read_bytes().decode("utf-8").replace("{VERSION}", v))
+            else:
+                z.write(p, f"{top}/extras/docs/{p.name}")
         z.write(REPO / "tools" / "live_test_pack.py", f"{top}/extras/tools/live_test_pack.py")
         for p in sorted((DOCS / "release_smoke_assets" / "inputs").iterdir()):
             if p.is_file():
