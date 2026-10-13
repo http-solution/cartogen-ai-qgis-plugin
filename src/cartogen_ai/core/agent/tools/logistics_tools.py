@@ -1213,6 +1213,27 @@ def _straight_line_crs_note(stops_layer, layer, distance_area):
     return note
 
 
+def _collect_stops(layer, additional_stops_layers):
+    """(geometries, features, merged layer names, error dict or None) for optimize_delivery_route: the stops layer's usable features,
+    then those of every additional layer reprojected into `layer`'s CRS. The depot is often a different layer from the stops
+    ("start at Hub_A and visit the five points"); the model used to build one merged layer with several slow scripts first (rc37
+    hand test F3: 9 calls for a 5-stop route)."""
+    feats = [f for f in _ck.features(layer, "Logistics: reading features") if not f.geometry().isEmpty()]
+    geoms = [f.geometry() for f in feats]
+    merged = []
+    if isinstance(additional_stops_layers, str):
+        additional_stops_layers = [additional_stops_layers]
+    for extra_name in additional_stops_layers or []:
+        extra = _find_layer_by_name(extra_name)
+        if extra is None:
+            return [], [], [], {"error": f"Layer '{extra_name}' (additional_stops_layers) not found"}
+        extra_feats = [f for f in _ck.features(extra, "Logistics: reading features") if not f.geometry().isEmpty()]
+        geoms += _geoms_in_crs([f.geometry() for f in extra_feats], extra.crs(), layer.crs())
+        feats += extra_feats
+        merged.append(extra_name)
+    return geoms, feats, merged, None
+
+
 @register_tool(
     "optimize_delivery_route",
     "Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order "
@@ -1225,11 +1246,13 @@ def _straight_line_crs_note(stops_layer, layer, distance_area):
     "and to build an actual road-snapped route line, added to the project and safe to render as a "
     "real route. speed_field/direction_field (same meaning as calculate_service_area's) only "
     "affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP "
-    "solver with vehicle capacity/time-window constraints.",
+    "solver with vehicle capacity/time-window constraints. If the start (a hub, depot) and the stops "
+    "are in DIFFERENT point layers, name the others in additional_stops_layers -- do not write a script to merge them first.",
     {
         "type": "object",
         "properties": {
             "stops_layer": {"type": "string", "description": "Point layer of stops to visit."},
+            "additional_stops_layers": {"type": "array", "items": {"type": "string"}, "description": "Optional other point layers whose features are added to the stops (for example the depot layer when the stops are in another one). They are reprojected into stops_layer's CRS, and start_stop_name can name a stop from any of them."},
             "start_stop_name": {"type": "string", "description": "Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature."},
             "road_network_layer": {"type": "string", "description": "Optional line layer representing the road/path network. When given, visiting order uses real road-network distance (not straight-line) and a road-snapped route line is built and added to the project -- required before the output may be rendered as a route on a map."},
             "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects ordering when road_network_layer is given."},
@@ -1246,7 +1269,7 @@ def _straight_line_crs_note(stops_layer, layer, distance_area):
 def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_layer=None,
                              speed_field=None, direction_field=None,
                              value_forward="yes", value_backward="-1", value_both="no",
-                             strategy="shortest", default_speed=50):
+                             strategy="shortest", default_speed=50, additional_stops_layers=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if strategy not in ("shortest", "fastest"):
@@ -1266,13 +1289,12 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         return network_error
 
     try:
-        feats = [f for f in _ck.features(layer, "Logistics: reading features") if not f.geometry().isEmpty()]
-        if len(feats) < 2:
+        geoms, feats, merged_layers, stops_error = _collect_stops(layer, additional_stops_layers)
+        if stops_error:
+            return stops_error
+        if len(geoms) < 2:
             return {"error": f"'{stops_layer}' needs at least 2 usable point features."}
-
-        has_name_field = feats[0].fields().count() > 0
-        names = unique_labels([feature_label(f) if has_name_field else None for f in feats], "stop")
-        geoms = [f.geometry() for f in feats]
+        names = unique_labels([feature_label(f) if f.fields().count() > 0 else None for f in feats], "stop")
 
         start_index = 0
         if start_stop_name is not None:
@@ -1308,6 +1330,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             "success": True,
             "stops_layer": stops_layer,
             "stop_count": n,
+            **({"additional_stops_layers": merged_layers} if merged_layers else {}),
             "route_order": ordered_names,
             "network_aware_ordering": network_aware,
             **_closed_note(closed_segments),

@@ -49,7 +49,7 @@ from . import api_trace, evidence, look_followup, step_runner, tool_operations, 
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
-from ..services import learning, response_guard
+from ..services import coordinate_provenance, learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
@@ -853,16 +853,33 @@ class CartogenAi:
         if calls is not None:
             calls.append((name, args if isinstance(args, dict) else {}, result))
 
+    def _check_point_provenance(self, name, arguments, result):
+        """Flags point positions the model typed that appear in neither the user's words nor any earlier tool result (see
+        services/coordinate_provenance.py). Adds a note to the result the model reads and counts them for the final reply.
+        Runs before this call's own result enters the grounding text, so a call cannot ground itself. Never raises."""
+        try:
+            if name not in coordinate_provenance.TOOLS or not isinstance(result, dict):
+                return result
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            total, bad = coordinate_provenance.check_call(name, args, result, "\n".join(getattr(self, "_grounding_texts", [])))
+            if bad:
+                self._turn_unverified_points = getattr(self, "_turn_unverified_points", 0) + len(bad)
+                result["unverified_coordinates"] = [{"x": p[0], "y": p[1], "label": p[2]} for p in bad[:10]]
+                result["coordinate_provenance_note"] = coordinate_provenance.result_note(total, bad)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="point_provenance", error_class=type(e).__name__, error=True)
+        return result
+
     def _exec_recorded(self, name, arguments):
         """_execute_tool, plus an evidence entry (real arguments, result, timing, layers created) when evidence is on."""
         recorder = getattr(self, "_evidence", None)
         if recorder is None:
-            result = self._execute_tool(name, arguments)
+            result = self._check_point_provenance(name, arguments, self._execute_tool(name, arguments))
             self._note_turn_call(name, arguments, result)
             return result
         before = self._run_on_main_thread(self._layer_names, None)
         started = time.monotonic()
-        result = self._execute_tool(name, arguments)
+        result = self._check_point_provenance(name, arguments, self._execute_tool(name, arguments))
         elapsed = (time.monotonic() - started) * 1000
         self._note_turn_call(name, arguments, result)
         try:
@@ -1586,6 +1603,7 @@ class CartogenAi:
         # #228 (T3): a styling claim needs a styling call that succeeded in this turn.
         final_text = response_guard.apply_unconfirmed_style_note(
             final_text, turn_tool_log, "\n".join(getattr(self, "_grounding_texts", [])))
+        final_text = coordinate_provenance.apply_final_note(final_text, getattr(self, "_turn_unverified_points", 0))
         if pending:
             # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
             final_text = response_guard.strip_confirmation_prose(final_text)
@@ -1823,6 +1841,7 @@ class CartogenAi:
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
         self._turn_calls = []
+        self._turn_unverified_points = 0
         look_nudged = False
         # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
         # have not since succeeded -- feeds response_guard's unbacked-data warning below.
