@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc38
+version=1.16.0-rc39
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,14 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc38 (2026-10-13):
+changelog=v1.16.0-rc39 (2026-10-13):
+    Release candidate 39 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. The assistant no longer invents records to fill an empty map layer.
+    - No invented records to fill an empty layer: When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns.
+    - Hand-test result for rc37, corrected: Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).
+    - Live-test bundle: The live-test bundle (tools/build_live_test_bundle.py) takes its version from metadata.txt, and its rows no longer name a version.
+    - Not hand-tested: The fix is checked by the offline suite and CI only. Nothing stops the model from adding made-up points by another route (for example add_point_layer with coordinates it invented); this release only removes the wording that asked for it.
+
+v1.16.0-rc38 (2026-10-13):
     Release candidate 38 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Fixes the Processing-algorithm tool, which failed on every call since rc24, and a false 'step did not run' note after incident searches.
     - Processing-algorithm tool works again: run_allowlisted_processing_algorithm failed on every call from the assistant since rc24 with "unexpected keyword argument 'params'": a code change had left the tool registered against an internal helper. Found in the rc37 hand test (a follow-up statistics step after a classification). The registration is fixed and a new test checks that every registered tool accepts the arguments it advertises.
     - No false 'step did not run' note after incident searches: After find_incident_reports added its layer the chat could still end with 'Expected styled layers ... but the step that writes it did not run', because the tool's name was not recognised as one that creates a layer. It is now.

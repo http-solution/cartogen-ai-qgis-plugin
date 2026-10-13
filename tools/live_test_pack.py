@@ -83,6 +83,8 @@ def prepare(root, force=False):
     for name in manifest:
         shutil.copy2(INPUTS / name, root / "inputs" / name)
     rows = read_rows(ROWS) + (read_rows(ROWS_EXTRA) if ROWS_EXTRA.is_file() else [])
+    version = next((ln.split("=", 1)[1].strip() for ln in (REPO / "metadata.txt").read_text(encoding="utf-8").splitlines() if ln.startswith("version=")), "this build") if (REPO / "metadata.txt").is_file() else "this build"
+    rows = [{k: v.replace("{VERSION}", version) for k, v in r.items()} for r in rows]
     fields = list(rows[0].keys())
     write_rows(root / "results" / "results.csv", rows, fields)
     filled = [dict(r, prompt_or_action=r["prompt_or_action"].replace("{TEST_ROOT}", root.as_posix())) for r in rows]
