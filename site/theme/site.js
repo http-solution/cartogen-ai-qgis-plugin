@@ -32,7 +32,9 @@
   // search
   var input = document.getElementById("q"), box = document.getElementById("results");
   if (!input || !box) return;
-  var base = document.body.getAttribute("data-base") || "";
+  // data-base is a build-time relative prefix such as "../"; anything else is dropped so it can never become a javascript: or remote URL.
+  var rawBase = document.body.getAttribute("data-base") || "";
+  var base = /^(\.\.\/)*$/.test(rawBase) ? rawBase : "";
   var index = null, loading = false, sel = -1;
   function load(cb) {
     if (index) return cb();
