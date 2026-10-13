@@ -128,14 +128,14 @@ class TestRc37Addendum(unittest.TestCase):
         ids = [r["id"] for r in base + extra]
         self.assertEqual(len(ids), len(set(ids)))
         for r in extra:
-            self.assertTrue(r["id"].startswith("RC37-"), r["id"])
+            self.assertTrue(r["id"].startswith(("RC37-", "RC40-")), r["id"])
             self.assertTrue(r["prompt_or_action"].strip() and r["expected"].strip(), r["id"])
             self.assertEqual(r["screenshot_file"], f"screenshots/{r['id']}.png")
 
     def test_tools_the_rows_expect_exist_in_the_registry_names(self):
         text = " ".join(r["expected"] for r in pack.read_rows(pack.ROWS_EXTRA))
         src = "\n".join(p.read_text(encoding="utf-8") for p in (REPO / "src" / "cartogen_ai" / "core" / "agent" / "tools").glob("*.py"))
-        for tool in sorted(set(re.findall(r"\b(find_incident_reports|fetch_usgs_earthquakes|fetch_ucdp_conflict_events)\b", text))):
+        for tool in sorted(set(re.findall(r"\b(find_incident_reports|fetch_usgs_earthquakes|fetch_ucdp_conflict_events|search_fact_checks)\b", text))):
             self.assertIn(f"def {tool}(", src, tool)
 
     def test_prepare_includes_the_addendum(self):
