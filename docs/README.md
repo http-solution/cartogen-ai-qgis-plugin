@@ -10,6 +10,7 @@ by hand; if you add or move a doc, update both.
 |---|---|
 | [USER_GUIDE.md](USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [TOOLS_REFERENCE.md](TOOLS_REFERENCE.md) | All 165 tools, auto-generated from the live registry — see `generate_tools_reference.py` below |
+| [../site/](../site/) | The documentation site's generator and authored pages. It mirrors the living documents listed here and generates the tool reference, task register table and a document index; run `python site/build.py --check` to build it |
 
 ## Security & compliance
 

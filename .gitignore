@@ -143,8 +143,8 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+# The old MkDocs output rule (/site) is gone on purpose: site/ now holds the documentation site's sources.
+# Only its build output is ignored (see the end of this file).
 
 # mypy
 .mypy_cache/
@@ -245,3 +245,7 @@ _to_delete/
 # locally via `graphify update .`, same "derived artifact, not source" reasoning as /dist/ above.
 # Also excluded from the release zip in plugin_upload.py's EXCLUDE_DIRS.
 /graphify-out/
+
+# Documentation site build output (site/build.py)
+site/_site/
+_site/
