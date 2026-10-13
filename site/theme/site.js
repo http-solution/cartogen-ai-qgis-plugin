@@ -40,10 +40,9 @@
     loading = true;
     var s = document.createElement("script"); s.src = base + "search-index.js"; s.onload = function () { index = window.SEARCH_INDEX || []; cb(); }; document.head.appendChild(s);
   }
-  function esc(t) { return t.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function run() {
     var q = input.value.trim().toLowerCase();
-    if (q.length < 2) { box.classList.remove("open"); box.innerHTML = ""; return; }
+    if (q.length < 2) { box.classList.remove("open"); while (box.firstChild) box.removeChild(box.firstChild); return; }
     var words = q.split(/\s+/);
     var hits = [];
     index.forEach(function (p) {
@@ -62,10 +61,22 @@
     hits.sort(function (a, b) { return b.s - a.s; });
     hits = hits.slice(0, 12);
     sel = -1;
-    box.innerHTML = hits.length ? hits.map(function (h) {
-      var href = base + h.p.u + (h.h && h.s >= 6 ? "#" + h.h[1] : "");
-      return '<a href="' + href + '"><b>' + esc(h.p.t) + (h.h && h.s >= 6 ? " › " + esc(h.h[0]) : "") + "</b><span>" + esc(h.p.s) + "</span></a>";
-    }).join("") : '<a href="#" onclick="return false"><b>No results</b><span>Try fewer or different words.</span></a>';
+    // Built with DOM nodes and textContent, never innerHTML: page titles and headings come from the documents, and must stay text.
+    while (box.firstChild) box.removeChild(box.firstChild);
+    function row(href, title, sub) {
+      var a = document.createElement("a"), b = document.createElement("b"), sp = document.createElement("span");
+      a.setAttribute("href", href); b.textContent = title; sp.textContent = sub;
+      a.appendChild(b); a.appendChild(sp); box.appendChild(a);
+    }
+    if (hits.length) {
+      hits.forEach(function (h) {
+        var deep = h.h && h.s >= 6;
+        row(base + h.p.u + (deep ? "#" + encodeURIComponent(h.h[1]) : ""), h.p.t + (deep ? " \u203a " + h.h[0] : ""), h.p.s);
+      });
+    } else {
+      row("#", "No results", "Try fewer or different words.");
+      box.lastChild.addEventListener("click", function (e) { e.preventDefault(); });
+    }
     box.classList.add("open");
   }
   input.addEventListener("input", function () { load(run); });
