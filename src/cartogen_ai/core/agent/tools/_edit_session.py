@@ -100,6 +100,25 @@ def add_numeric_field(layer, field_name):
     return idx
 
 
+def add_text_field(layer, field_name):
+    """Index of `field_name` on `layer`, adding it as a String field THROUGH THE EDIT BUFFER if it does not exist. Call inside
+    edit_command. Raises EditError if the field exists but is not a text field, or cannot be added."""
+    from qgis.core import QgsField
+    from qgis.PyQt.QtCore import QVariant
+    idx = layer.fields().indexOf(field_name)
+    if idx >= 0:
+        if layer.fields().at(idx).type() != QVariant.String:
+            raise EditError(f"field '{field_name}' already exists with a non-text type; refusing to overwrite it.")
+        return idx
+    if not layer.addAttribute(QgsField(field_name, QVariant.String)):
+        raise EditError(f"field '{field_name}' could not be added to this layer.")
+    layer.updateFields()
+    idx = layer.fields().indexOf(field_name)
+    if idx < 0:
+        raise EditError(f"field '{field_name}' was not found after adding it.")
+    return idx
+
+
 def set_value(layer, feature_id, field_index, value):
     """changeAttributeValue with its result checked. Raises EditError on failure."""
     if not layer.changeAttributeValue(feature_id, field_index, value):
