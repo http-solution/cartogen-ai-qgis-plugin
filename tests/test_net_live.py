@@ -24,6 +24,12 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _host(self):
+        """host:port of THIS server, from the listening socket. The request's Host header is client-controlled, so it must not be
+        copied into a Location header (CodeQL py/http-response-splitting, alert 5)."""
+        host, port = self.server.server_address[:2]
+        return f"{host}:{port}"
+
     def _send(self, code, body=b"", headers=None):
         self.send_response(code)
         self.send_header("Content-Length", str(len(body)))
@@ -50,7 +56,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/redirect":
             self._send(302, b"", {"Location": "/ok"})            # relative, as RFC 7231 allows
         elif self.path == "/redirect-abs":
-            self._send(302, b"", {"Location": "http://{}/ok".format(self.headers.get("Host"))})
+            self._send(302, b"", {"Location": f"http://{self._host()}/ok"})
         elif self.path == "/slow":
             time.sleep(4)
             self._send(200, b"late")
@@ -84,13 +90,13 @@ class _Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(n)
         type(self).seen.append((self.path, self.headers.get("Authorization"), len(body)))
         if self.path == "/hop-307-loop":
-            self._send(307, b"", {"Location": "http://{}/hop-307-loop".format(self.headers.get("Host"))})
+            self._send(307, b"", {"Location": f"http://{self._host()}/hop-307-loop"})
         elif self.path.startswith("/hop-"):
-            self._send(int(self.path[5:]), b"", {"Location": "http://{}/chat".format(self.headers.get("Host"))})
+            self._send(int(self.path[5:]), b"", {"Location": f"http://{self._host()}/chat"})
         elif self.path.startswith("/hopr-"):
             self._send(int(self.path[6:]), b"", {"Location": "/chat"})                       # relative target
         elif self.path.startswith("/hopx-"):
-            port = self.headers.get("Host").split(":")[1]
+            port = self.server.server_address[1]
             self._send(int(self.path[6:]), b"", {"Location": f"http://localhost:{port}/chat"})   # same machine, different site name
         elif self.path == "/chat":
             self._send(200, json.dumps({"auth": self.headers.get("Authorization"), "ctype": self.headers.get("Content-Type"),
