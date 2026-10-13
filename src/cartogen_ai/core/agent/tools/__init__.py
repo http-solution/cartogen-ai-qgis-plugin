@@ -41,6 +41,7 @@ from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
 from . import event_data_tools
 from . import incident_search_tools
+from . import fact_check_tools
 from . import representation_tools
 from . import map_tools
 from . import project_tidy_tools
@@ -77,6 +78,7 @@ __all__ = [
     "engineering_tools",
     "event_data_tools",
     "export_tools",
+    "fact_check_tools",
     "get_tool_registry",
     "get_tools_schema",
     "hazard_monitoring_tools",

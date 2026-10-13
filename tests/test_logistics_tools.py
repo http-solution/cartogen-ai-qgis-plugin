@@ -1733,6 +1733,57 @@ class TestOptimizeDeliveryRouteValidation(unittest.TestCase):
         self.assertIn("nonexistent", res["error"])
 
 
+def _same_geoms(geoms, _from_crs, _to_crs):
+    return list(geoms)
+
+
+class TestOptimizeDeliveryRouteAdditionalStopsLayers(unittest.TestCase):
+    """The depot and the stops are often separate layers (rc37 hand test F3: the model built a merged layer with four slow scripts, 9
+    calls in all). additional_stops_layers merges them inside the tool."""
+
+    @staticmethod
+    def _layer(names):
+        layer = MagicMock()
+        feats = []
+        for name in names:
+            feat = MagicMock()
+            geom = MagicMock()
+            geom.isEmpty.return_value = False
+            feat.geometry.return_value = geom
+            feat.fields.return_value.count.return_value = 1
+            feat.attribute.return_value = name
+            feats.append(feat)
+        layer.getFeatures.return_value = feats
+        layer.crs.return_value = MagicMock()
+        return layer
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._geoms_in_crs", side_effect=_same_geoms)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_start_in_another_layer_is_found_by_name(self, mock_find, _mock_crs):
+        mock_find.side_effect = {"smoke_points": self._layer(["North"]), "hubs": self._layer(["Hub_A"])}.get
+        res = optimize_delivery_route("smoke_points", start_stop_name="Nope", additional_stops_layers=["hubs"])
+        self.assertIn("error", res)
+        self.assertIn("Hub_A", res["error"])                       # the merged names are listed, so the depot WAS merged
+        self.assertIn("North", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_a_missing_additional_layer_is_named(self, mock_find):
+        mock_find.side_effect = lambda n: self._layer(["A", "B"]) if n == "stops" else None
+        res = optimize_delivery_route("stops", additional_stops_layers=["ghost"])
+        self.assertIn("ghost", res["error"])
+        self.assertIn("additional_stops_layers", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.logistics_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._geoms_in_crs", side_effect=_same_geoms)
+    @patch("cartogen_ai.core.agent.tools.logistics_tools._find_layer_by_name")
+    def test_one_stop_plus_a_depot_layer_is_enough_and_a_string_is_accepted(self, mock_find, _mock_crs):
+        mock_find.side_effect = {"one": self._layer(["North"]), "hub": self._layer(["Hub_A"])}.get
+        res = optimize_delivery_route("one", start_stop_name="Missing", additional_stops_layers="hub")
+        self.assertNotIn("at least 2", res.get("error", ""))
+
+
 def _stop_layer(names):
     """Builds a MagicMock point layer with `names` as its first-field values,
     at distinct integer coordinates 0,1,2... along the x-axis, matching the

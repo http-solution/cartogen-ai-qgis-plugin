@@ -206,6 +206,11 @@ _TOOL_ALIASES = {
         "incident", "incidents", "incident report", "what happened", "security situation", "recent events", "reliable source",
         "check the internet", "latest news", "disaster and conflict", "hazards and conflict", "situation in",
     ],
+    "search_fact_checks": [
+        "fact check", "fact-check", "fact checked", "debunk", "debunked", "is this true", "is it true", "really from", "old video", "old footage",
+        "fake news", "misinformation", "disinformation", "hoax", "rumour", "rumor", "verify this", "verify the video", "verify the claim",
+        "فتبينوا", "تحقق من",
+    ],
     "fetch_ucdp_conflict_events": [
         "conflict event", "armed conflict", "political violence", "organised violence", "organized violence", "ucdp",
         "fatalities", "battle", "killed in", "violence against civilians", "conflict", "war",

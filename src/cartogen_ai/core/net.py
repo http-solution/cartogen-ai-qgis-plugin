@@ -498,7 +498,30 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _stream_open_once(req, timeout, qgis=True):
+def _qgis_buffered_hop(req, timeout, first_error):
+    """One redirect-free GET of a redirected hop through QGIS's network stack, the whole body held in memory (<= MAX_DOWNLOAD_BYTES).
+
+    Why it exists: a redirected hop is opened with urllib plus QGIS's proxy DICTIONARY (see _stream_open_once), which does not carry
+    everything QGIS's own stack does: a PAC script or system proxy, proxy authentication, the SSL/CA setup of the Authentication
+    database. On such a machine the first request (QGIS stack) works and the redirected one (urllib) fails, which is how a
+    geoBoundaries download behind a proxy can fail after its API lookup succeeded (the unexplained 2026-10-13 tester failure; not
+    reproduced here, so this is the best-supported explanation, not a confirmed one). The buffered QGIS hop (_qgis_hop) is used for
+    sequential requests elsewhere in this module; only the STREAMING reply was seen to stall on a second request. Used only after
+    urllib failed to connect, so a machine where urllib works keeps its streaming download unchanged."""
+    reply = _qgis_hop("GET", req.full_url, list(req.header_items()), None, timeout)
+    from .logger import log_event
+    log_event("net_redirect_hop_via_qgis", tag="Net", urllib_error_class=type(first_error).__name__, ok=bool(reply.ok or reply.status),
+              status=reply.status)
+    if not reply.status:
+        raise urllib.error.URLError(f"{first_error}; the QGIS network stack also failed: {reply.error}")
+    if len(reply.body) > MAX_DOWNLOAD_BYTES:
+        raise ResponseTooLargeError(f"the response is larger than {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB")
+    if reply.status >= 400:
+        raise urllib.error.HTTPError(req.full_url, reply.status, reply.error, _Headers(reply.headers), io.BytesIO(reply.body))
+    return Response(reply.body, reply.status, reply.headers, req.full_url)
+
+
+def _stream_open_once(req, timeout, qgis=True, qgis_fallback=False):
     """One streaming GET hop with redirects NOT followed: a 3xx comes back as a response whose .status is 3xx (QGIS path) or as the
     HTTPError urllib raises for it (fallback path, same .status and .headers).
 
@@ -524,6 +547,10 @@ def _stream_open_once(req, timeout, qgis=True):
         if e.code in _REDIRECT_STATUSES:
             return e
         raise
+    except OSError as e:          # URLError, timeouts, SSL and proxy failures; an HTTP status was handled above
+        if qgis_fallback and QGIS_NETWORK_AVAILABLE:
+            return _qgis_buffered_hop(req, timeout, e)
+        raise
 
 
 def stream_following(request, timeout=30, check_url=None):
@@ -535,7 +562,7 @@ def stream_following(request, timeout=30, check_url=None):
     from urllib.parse import urljoin
     req = _as_request(request)
     for hop in range(_MAX_REDIRECTS + 1):
-        resp = _stream_open_once(req, timeout, qgis=(hop == 0))
+        resp = _stream_open_once(req, timeout, qgis=(hop == 0), qgis_fallback=(hop > 0))
         if resp.status not in _REDIRECT_STATUSES:
             return resp
         location = resp.headers.get("Location")

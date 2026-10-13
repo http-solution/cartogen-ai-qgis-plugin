@@ -631,6 +631,12 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
 
     url = f"https://www.geoboundaries.org/api/current/gbOpen/{iso3}/{admin_level}/"
 
+    # Which of the two requests failed was invisible to the user and the tester (one message for both): the lookup goes through
+    # the QGIS network stack, but the file download follows redirects (geoBoundaries points at a GitHub raw URL) and a redirected hop
+    # uses urllib, which does not see QGIS's proxy settings. Say which stage and which host, so a failure on a proxied machine can be
+    # told apart from a geoBoundaries outage (the unexplained 2026-10-13 tester failure).
+    stage = "API request"
+    download_host = None
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
@@ -656,6 +662,8 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         too_big = check_download_size(f"The {iso3} {admin_level} boundary file", [geojson_url], allow_large_download)
         if too_big:
             return too_big
+        stage = "boundary file download"
+        download_host = urllib.parse.urlparse(geojson_url).hostname
         req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
@@ -673,7 +681,12 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         _LOOKUP_CACHE.set(cache_key, result)
         return result
     except Exception as e:
-        return {"error": f"geoBoundaries API request failed: {e}"}
+        log_event("geoboundaries_fetch_failed", tag="humanitarian_tools", stage=stage, error_class=type(e).__name__, error=True)
+        if stage == "API request":
+            return {"error": f"geoBoundaries API request failed: {e}"}
+        return {"error": (f"geoBoundaries boundary file download from {download_host} failed ({type(e).__name__}: {e}). The lookup "
+                          "itself worked, so the service is up; if this machine uses a proxy, the file host may be unreachable "
+                          "from it. fetch_hdx_admin_boundaries is the alternative source.")}
 
 
 def _auto_label_admin(layer):

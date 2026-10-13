@@ -27,7 +27,7 @@ Cartogen AI is a single Python package that QGIS loads as a plugin. It has no se
 <text class="sm" x="46" y="216">guards: loop guard · response guard · plan gate · egress gate · model view · output router · stray-fragment gate</text>
 <text class="sm" x="46" y="236">state: spatial memory · chat persistence · results store · lineage · provenance · evidence folder</text>
 <rect class="bx" x="30" y="270" width="410" height="104" rx="10"/>
-<text class="tx" x="46" y="294">Tools (211)</text>
+<text class="tx" x="46" y="294">Tools (212)</text>
 <text class="sm" x="46" y="316">@register_tool registry · one module per domain</text>
 <text class="sm" x="46" y="336">dispatcher runs them on the GUI thread, or on the worker</text>
 <text class="sm" x="46" y="356">for network-only and two-phase tools</text>
@@ -49,7 +49,7 @@ Cartogen AI is a single Python package that QGIS loads as a plugin. It has no se
 |---|---|---|
 | **UI** | `core/ui/` | The dock panel, settings, memory, layer-sensitivity, account and help dialogs. Runs on the GUI thread. Logic that can be tested without Qt (chat formatting, colour derivation, icons as SVG strings) is kept Qt-free on purpose. |
 | **Agent core** | `core/agent/` | `CartogenAi` in `agent_orchestrator.py` is the tool-calling loop. It composes a tool dispatcher, a usage tracker and a history manager, and consults the task matcher, tool router and guards. See [The agent loop](@architecture/agent-loop). |
-| **Tools** | `core/agent/tools/` | 211 tools, one module per domain, registered with `@register_tool`. See [Tools and routing](@architecture/tools). |
+| **Tools** | `core/agent/tools/` | 212 tools, one module per domain, registered with `@register_tool`. See [Tools and routing](@architecture/tools). |
 | **Providers** | `infrastructure/providers/` | One client per model provider behind a common interface. See [Providers and networking](@architecture/providers). |
 | **Services and models** | `core/services/`, `core/models/`, `core/validators/`, `core/representation/` | Prompt refiner, tool router, response guard; confidence, sensitivity, egress-gate and plan-gate models; schema and P-code validators; the map representation planner. |
 

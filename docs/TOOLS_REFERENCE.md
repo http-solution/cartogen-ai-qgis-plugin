@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (211 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (212 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -415,11 +415,12 @@ Rank candidate hub/warehouse/facility locations by how well they serve a set of 
 
 ### `optimize_delivery_route`
 
-Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without road_network_layer, ordering uses straight-line distance and the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to make the ordering itself road-network-aware (real road distance between every pair of stops, not straight-line) and to build an actual road-snapped route line, added to the project and safe to render as a real route. speed_field/direction_field (same meaning as calculate_service_area's) only affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
+Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without road_network_layer, ordering uses straight-line distance and the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to make the ordering itself road-network-aware (real road distance between every pair of stops, not straight-line) and to build an actual road-snapped route line, added to the project and safe to render as a real route. speed_field/direction_field (same meaning as calculate_service_area's) only affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints. If the start (a hub, depot) and the stops are in DIFFERENT point layers, name the others in additional_stops_layers -- do not write a script to merge them first.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `stops_layer` | string | yes | Point layer of stops to visit. |
+| `additional_stops_layers` | array[string] | no | Optional other point layers whose features are added to the stops (for example the depot layer when the stops are in another one). They are reprojected into stops_layer's CRS, and start_stop_name can name a stop from any of them. |
 | `start_stop_name` | string | no | Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature. |
 | `road_network_layer` | string | no | Optional line layer representing the road/path network. When given, visiting order uses real road-network distance (not straight-line) and a road-snapped route line is built and added to the project -- required before the output may be rendered as a route on a map. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects ordering when road_network_layer is given. |
@@ -1830,6 +1831,19 @@ Fetch recent earthquakes from the USGS (United States Geological Survey) for an 
 | `min_magnitude` | number | no | Smallest magnitude to include. Defaults to 4.5. |
 | `max_events` | integer | no | Most events to return (newest first). Defaults to 1000, at most 5000. |
 | `layer_name` | string | no | Name for the layer. Defaults to 'USGS Earthquakes'. |
+
+## fact_check_tools
+
+### `search_fact_checks` _(network-only)_
+
+Look up whether a CLAIM, VIDEO, PHOTO or RUMOUR has recently been fact-checked, in the published feeds of named fact-checking outlets (Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano). Use it when the user asks 'is this true', 'was this video really from <place>', 'has this been debunked' or wants to verify a social-media report before mapping it. Give the distinctive words of the claim (place, event, person), not a whole sentence. Returns each matching check with the outlet, date, link and a short summary, and ALWAYS says which outlets answered or failed and that this covers only each outlet's newest entries: no match is NOT evidence that a claim is true, false or unchecked, so never say that. Reuters, AFP, Africa Check and AP cannot be asked (they refuse automated requests). Quote the outlet's conclusion as theirs and give the link; do not add your own verdict.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes | Distinctive words of the claim, e.g. 'Hodeidah port strike video' or 'Taiz protest'. |
+| `days` | integer | no | Only checks published in the last N days (default 60). |
+| `max_results` | integer | no | Most matches to return, 1-50 (default 15). |
+| `sources` | array[string] | no | Optional subset of ['snopes', 'politifact', 'factcheck_org', 'full_fact', 'lead_stories', 'fatabyyano']; default all. |
 
 ## hazard_monitoring_tools
 

@@ -59,7 +59,7 @@ SOURCES = {
 NOT_SEARCHED = {
     "Reuters Fact Check": "no machine-readable feed (the site answers with a login / JavaScript wall)",
     "AFP Fact Check": "the site refuses automated requests (HTTP 403)",
-    "Full Fact": "no public feed at the address tried (HTTP 404)",
+    "Full Fact": "a fact-checker, not an incident feed: ask search_fact_checks, which reads its published feed",
     "Liveuamap": "map site; machine access is a paid API",
     "ACLED": "needs a registered access key and agreement to its terms (planned with the credentialed integrations)",
     "Social media": "out of scope: needs an official API and credentials per platform, and posts are unverified signals",

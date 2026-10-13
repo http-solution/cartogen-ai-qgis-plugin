@@ -62,6 +62,60 @@ class TestNet(unittest.TestCase):
         self.assertEqual(e.read(), b"gone")
 
 
+class TestRedirectedHopFallsBackToTheQgisStack(unittest.TestCase):
+    """A redirected hop is opened with urllib; where that cannot connect (a PAC / authenticated / system proxy it does not know about)
+    the hop is retried through QGIS's own stack. Fakes only: the real stack is exercised by tests/test_net_live.py in CI."""
+
+    class _Redirect:
+        status = 302
+        headers = net._Headers([("Location", "https://files.example.org/data.geojson")])
+
+        def close(self):
+            pass
+
+    def _run(self, urllib_error, qgis_reply):
+        opener = unittest.mock.MagicMock()
+        opener.open.side_effect = urllib_error
+        reply = unittest.mock.MagicMock(return_value=qgis_reply)
+        with unittest.mock.patch.object(net, "QGIS_NETWORK_AVAILABLE", True), \
+             unittest.mock.patch.object(net, "_qgis_stream_open", return_value=self._Redirect()), \
+             unittest.mock.patch.object(net.urllib.request, "build_opener", return_value=opener), \
+             unittest.mock.patch.object(net, "_qgis_hop", reply):
+            return net.stream_following("https://api.example.org/x", timeout=5), reply
+
+    def test_a_connection_failure_on_the_redirected_hop_is_retried_through_qgis(self):
+        ok = net.Reply(ok=True, status=200, headers=[("Content-Type", "application/json")], body=b"{}", error="", timed_out=False)
+        resp, hop = self._run(net.urllib.error.URLError("proxy needs authentication"), ok)
+        self.assertEqual(resp.read(), b"{}")
+        self.assertEqual(hop.call_args.args[1], "https://files.example.org/data.geojson")
+
+    def test_an_http_status_from_urllib_is_not_retried(self):
+        err = net.urllib.error.HTTPError("https://files.example.org/data.geojson", 403, "Forbidden", net._Headers([]), io.BytesIO(b""))
+        with self.assertRaises(net.urllib.error.HTTPError):
+            self._run(err, None)
+
+    def test_when_both_stacks_fail_the_message_names_both(self):
+        dead = net.Reply(ok=False, status=0, headers=[], body=b"", error="Host files.example.org not found", timed_out=False)
+        with self.assertRaises(net.urllib.error.URLError) as cm:
+            self._run(net.urllib.error.URLError("proxy refused"), dead)
+        self.assertIn("proxy refused", str(cm.exception))
+        self.assertIn("QGIS network stack also failed", str(cm.exception))
+
+    def test_a_status_from_the_qgis_hop_is_raised_as_an_http_error(self):
+        denied = net.Reply(ok=False, status=404, headers=[], body=b"nope", error="Not Found", timed_out=False)
+        with self.assertRaises(net.urllib.error.HTTPError) as cm:
+            self._run(net.urllib.error.URLError("proxy refused"), denied)
+        self.assertEqual(cm.exception.code, 404)
+
+    def test_outside_qgis_there_is_no_fallback(self):
+        opener = unittest.mock.MagicMock()
+        opener.open.side_effect = net.urllib.error.URLError("refused")
+        with unittest.mock.patch.object(net, "QGIS_NETWORK_AVAILABLE", False), \
+             unittest.mock.patch.object(net.urllib.request, "build_opener", return_value=opener), \
+             self.assertRaises(net.urllib.error.URLError):
+            net._stream_open_once(net.build_request("https://x.example.org/"), 5, qgis=False, qgis_fallback=True)
+
+
 if __name__ == "__main__":
     unittest.main()
 
