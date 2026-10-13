@@ -77,7 +77,7 @@ import contextlib
 NETWORK_ONLY_TOOLS = frozenset({
     "search_web", "geocode_and_enrich", "geocode_batch", "search_hdx_datasets",
     "fetch_osm_features", "search_stac_satellite_imagery", "fetch_fts_funding_data",
-    "generate_chart", "extract_pdf_tables", "extract_word_tables", "aggregate_data",
+    "generate_chart", "extract_pdf_tables", "extract_word_tables", "aggregate_data", "search_fact_checks",
 })
 
 # Bookkeeping tools excluded from auto-advancing the task plan on success (see

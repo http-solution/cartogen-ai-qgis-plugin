@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (211 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (212 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1831,6 +1831,19 @@ Fetch recent earthquakes from the USGS (United States Geological Survey) for an 
 | `min_magnitude` | number | no | Smallest magnitude to include. Defaults to 4.5. |
 | `max_events` | integer | no | Most events to return (newest first). Defaults to 1000, at most 5000. |
 | `layer_name` | string | no | Name for the layer. Defaults to 'USGS Earthquakes'. |
+
+## fact_check_tools
+
+### `search_fact_checks` _(network-only)_
+
+Look up whether a CLAIM, VIDEO, PHOTO or RUMOUR has recently been fact-checked, in the published feeds of named fact-checking outlets (Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano). Use it when the user asks 'is this true', 'was this video really from <place>', 'has this been debunked' or wants to verify a social-media report before mapping it. Give the distinctive words of the claim (place, event, person), not a whole sentence. Returns each matching check with the outlet, date, link and a short summary, and ALWAYS says which outlets answered or failed and that this covers only each outlet's newest entries: no match is NOT evidence that a claim is true, false or unchecked, so never say that. Reuters, AFP, Africa Check and AP cannot be asked (they refuse automated requests). Quote the outlet's conclusion as theirs and give the link; do not add your own verdict.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes | Distinctive words of the claim, e.g. 'Hodeidah port strike video' or 'Taiz protest'. |
+| `days` | integer | no | Only checks published in the last N days (default 60). |
+| `max_results` | integer | no | Most matches to return, 1-50 (default 15). |
+| `sources` | array[string] | no | Optional subset of ['snopes', 'politifact', 'factcheck_org', 'full_fact', 'lead_stories', 'fatabyyano']; default all. |
 
 ## hazard_monitoring_tools
 

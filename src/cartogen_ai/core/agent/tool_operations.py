@@ -145,6 +145,7 @@ TOOL_OPERATION_TYPES = {
     "fetch_usgs_earthquakes": CREATE,
     "fetch_ucdp_conflict_events": CREATE,
     "find_incident_reports": CREATE,
+    "search_fact_checks": READ,
     "generate_situation_dashboard": PUBLISH,
     # Both may create a brand-new point layer, or append to an
     # already-existing one of the same name (explicit in add_point_layer's
