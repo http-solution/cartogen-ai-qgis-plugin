@@ -3,7 +3,8 @@
 page with Copy buttons (3_PROMPTS.html), and a results sheet (4_RESULTS.csv), all generated from docs/FULL_LIVE_TEST_rc37_ROWS.csv. The older
 full pack and its helper ride along under extras/.
 
-    python tools/build_live_test_bundle.py            # writes dist/cartogen_ai_live_test_<version>.zip
+    python tools/build_live_test_bundle.py                         # writes dist/cartogen_ai_live_test_<version>.zip
+    python tools/build_live_test_bundle.py --plugin-zip FILE.zip  # embed an existing plugin zip (for example the released asset)
 
 Standard library only. It runs plugin_upload.py first so the plugin zip inside the bundle is built from the current tree. The bundle holds only
 synthetic data and public documents; it never includes credentials, API traces or run results."""
@@ -96,8 +97,12 @@ def results_sheet(rows):
 
 def main():
     v = version()
-    subprocess.run([sys.executable, str(REPO / "plugin_upload.py")], cwd=REPO, check=True, stdout=subprocess.DEVNULL)  # noqa: S603  # fixed argv, our own script
-    plugin_zip = REPO / "dist" / f"cartogen_ai_v{v}.zip"
+    if "--plugin-zip" in sys.argv:
+        # The released zip itself, so the bundle and the directory upload carry one checksum (a rebuild can differ in bytes).
+        plugin_zip = Path(sys.argv[sys.argv.index("--plugin-zip") + 1]).resolve()
+    else:
+        subprocess.run([sys.executable, str(REPO / "plugin_upload.py")], cwd=REPO, check=True, stdout=subprocess.DEVNULL)  # noqa: S603  # fixed argv, our own script
+        plugin_zip = REPO / "dist" / f"cartogen_ai_v{v}.zip"
     if not plugin_zip.is_file():
         raise SystemExit(f"plugin zip not found: {plugin_zip}")
     top = f"cartogen_ai_live_test_{v}"
@@ -111,8 +116,8 @@ def main():
     readme = (DOCS / "LIVE_TEST_rc37_README.txt").read_text(encoding="utf-8").replace("{VERSION}", v).replace("\r\n", "\n").replace("\n", "\r\n")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(f"{top}/README_FIRST.txt", readme)
-        z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
-        z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  {plugin_zip.name}\n")
+        z.write(plugin_zip, f"{top}/1_plugin/cartogen_ai_v{v}.zip")
+        z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  cartogen_ai_v{v}.zip\n")
         for p in sorted((DOCS / "release_smoke_assets" / "inputs").iterdir()):
             if p.is_file():
                 z.write(p, f"{top}/2_test_files/{p.name}")
