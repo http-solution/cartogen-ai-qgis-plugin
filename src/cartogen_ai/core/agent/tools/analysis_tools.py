@@ -409,60 +409,46 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
     return result
 
 
-def _write_scores_to_layer(layer, rows, scored_results, output_field):
-    """Adds/updates a numeric field holding each unit's composite score, so it
-    can be styled with apply_graduated_style straight after. Returns an error
-    string on failure, or None on success -- a write failure downgrades to a
-    warning on an otherwise-valid result rather than discarding the scores."""
+def _write_unit_values(layer, rows, values_by_unit, output_field, what, text=False):
+    """Writes one value per unit into `output_field` through the layer's edit buffer (audit #143/#144, follow-up #293). The four
+    writers below used to add the field and the values straight to the data provider, which bypasses the edit buffer: a failure
+    half-way could not be undone, a layer the user was already editing was ignored, and nothing was checked until the end.
+    `edit_command` owns the commit only when the layer was not already editable, undoes exactly this write on failure, and a
+    rejected commit raises with the provider's text. Units are matched by feature id (rows carry __fid__; their labels are already
+    made unique by _unit_labels), so units that share a name cannot overwrite each other. Returns an error string, or None."""
     try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
+        from qgis.core import QgsField  # noqa: F401  (availability probe: no QGIS means no layer to write to)
     except ImportError:
-        return "QGIS field API unavailable -- scores not written to the layer."
+        return f"QGIS field API unavailable -- {what} not written to the layer."
+    from ._edit_session import EditError, add_numeric_field, add_text_field, edit_command, set_value
 
-    score_by_unit = {r["unit"]: r["severity_score"] for r in scored_results}
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: score}
-        for unit, score in score_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write scores into '{output_field}'."
+    try:
+        with edit_command(layer, f"Cartogen: write {output_field}"):
+            idx = add_text_field(layer, output_field) if text else add_numeric_field(layer, output_field)
+            for unit, value in values_by_unit.items():
+                if unit in fid_by_unit:
+                    set_value(layer, fid_by_unit[unit], idx, value)
+    except EditError as e:
+        return f"Could not write {what} into '{output_field}': {e}"
     layer.updateFields()
-    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
-    # colours until the canvas was next refreshed.
+    # The edit buffer repaints on commit, but a layer left in the user's own edit session does not commit, so ask explicitly.
     layer.triggerRepaint()
     return None
 
 
-def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, unmatched_units, output_field):
-    """Adds/updates a text field holding each high-severity unit's presence-gap
-    status ('gap'/'covered'/'unmatched'), so it can be styled with
-    apply_categorized_style or placed on generate_html_dashboard straight
-    after -- mirrors _write_scores_to_layer's pattern for
-    calculate_severity_index above. Units outside the high-severity classes
-    (never classified by this analysis at all) are left unset, not given a
-    fabricated 'fine' status. Returns an error string on failure, or None on
-    success -- a write failure downgrades to a warning on an otherwise-valid
-    result rather than discarding the classification."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- presence-gap status not written to the layer."
+def _write_scores_to_layer(layer, rows, scored_results, output_field):
+    """Adds/updates a numeric field holding each unit's composite score, so it can be styled with apply_graduated_style straight
+    after. Returns an error string on failure, or None on success -- a write failure downgrades to a warning on an otherwise-valid
+    result rather than discarding the scores."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["severity_score"] for r in scored_results}, output_field, "scores")
 
+
+def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, unmatched_units, output_field):
+    """Adds/updates a text field holding each high-severity unit's presence-gap status ('gap'/'covered'/'unmatched'), so it can be
+    styled with apply_categorized_style or placed on generate_html_dashboard straight after. Units outside the high-severity classes
+    (never classified by this analysis at all) are left unset, not given a fabricated 'fine' status. Returns an error string on
+    failure, or None on success -- a write failure downgrades to a warning on an otherwise-valid result."""
     status_by_unit = {}
     for e in gap_units:
         status_by_unit[e["unit"]] = "gap"
@@ -470,31 +456,7 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
         status_by_unit[e["unit"]] = "covered"
     for e in unmatched_units:
         status_by_unit[e["unit"]] = "unmatched"
-
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.String)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: status}
-        for unit, status in status_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write presence-gap status into '{output_field}'."
-    layer.updateFields()
-    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
-    # colours until the canvas was next refreshed.
-    layer.triggerRepaint()
-    return None
+    return _write_unit_values(layer, rows, status_by_unit, output_field, "presence-gap status", text=True)
 
 
 @register_tool(
@@ -667,44 +629,10 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
 
 
 def _write_population_to_layer(layer, rows, unit_results, output_field):
-    """Adds/updates a numeric field holding each unit's population-in-need
-    figure, so it can be styled with apply_graduated_style straight after --
-    mirrors _write_scores_to_layer's identical pattern for severity score.
-    Units excluded from severity scoring, or with no population data, are
-    left unset rather than given a fabricated zero. Returns an error string
-    on failure, or None on success -- a write failure downgrades to a
-    warning on an otherwise-valid result rather than discarding the figures."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- population not written to the layer."
-
-    pop_by_unit = {r["unit"]: r["population"] for r in unit_results}
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: pop}
-        for unit, pop in pop_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write population into '{output_field}'."
-    layer.updateFields()
-    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
-    # colours until the canvas was next refreshed.
-    layer.triggerRepaint()
-    return None
+    """Adds/updates a numeric field holding each unit's population-in-need figure, so it can be styled with apply_graduated_style
+    straight after. Units excluded from severity scoring, or with no population data, are left unset rather than given a fabricated
+    zero. Returns an error string on failure, or None on success."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["population"] for r in unit_results}, output_field, "population")
 
 
 @register_tool(
@@ -856,41 +784,9 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
 
 
 def _write_damage_severity_to_layer(layer, rows, unit_results, output_field):
-    """Adds/updates a numeric field holding each unit's damage-severity score,
-    so it can be styled with apply_graduated_style straight after -- mirrors
-    _write_scores_to_layer's identical pattern. Returns an error string on
-    failure, or None on success."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- scores not written to the layer."
-
-    score_by_unit = {r["unit"]: r["severity_score"] for r in unit_results}
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: score}
-        for unit, score in score_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write scores into '{output_field}'."
-    layer.updateFields()
-    # Provider-level writes do not repaint by themselves (PyQGIS cookbook, vector layers): a layer styled on this field showed the old
-    # colours until the canvas was next refreshed.
-    layer.triggerRepaint()
-    return None
+    """Adds/updates a numeric field holding each unit's damage-severity score, so it can be styled with apply_graduated_style straight
+    after. Returns an error string on failure, or None on success."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["severity_score"] for r in unit_results}, output_field, "scores")
 
 
 def _build_polygon_index(admin_layer):
