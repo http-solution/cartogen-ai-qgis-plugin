@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc39
+version=1.16.0-rc40
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,17 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc39 (2026-10-13):
+changelog=v1.16.0-rc40 (2026-10-13):
+    Release candidate 40 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds a fact-check lookup, flags point positions the model typed, and fixes downloads behind a proxy.
+    - New tool: search_fact_checks: Answers 'has this claim, video or photo been fact-checked?' from the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano (searchable in Arabic). Every reply names the outlets that answered or failed and says that only each outlet's newest 10 to 25 entries are searched, so no match is never evidence that a claim is true, false or unchecked. Reuters, AFP, Africa Check and AP refuse automated requests and cannot be asked. The six feeds were queried live from a development session; not hand-tested in QGIS.
+    - Point positions the model typed are flagged: Coordinates passed to add_point_layer, add_incident_point or execute_pyqgis_script that appear in neither your message nor an earlier tool result are flagged in the tool result and in the final reply ('Unverified point positions'). This closes the gap noted in rc39. It never blocks, and it cannot see coordinates computed or read from a file inside a script.
+    - Routes from a depot in another layer: optimize_delivery_route takes additional_stops_layers, so a depot or hub in one layer and the stops in another no longer need scripts to merge them first (rc37 row F3 took 9 calls for 5 stops). Whether the assistant now does it in one call is not yet checked.
+    - Analysis fields are written through the edit session: Severity score, presence-gap status, population-in-need and damage-severity fields were added straight to the data provider, bypassing the edit buffer, so a failure half-way could not be undone and a layer you were already editing was ignored (issue 293). They now go through the same checked, undoable edit as the other field-writing tools.
+    - Downloads behind a proxy: A download that follows a redirect (geoBoundaries boundary files do) used urllib for the redirected hop, which does not know a PAC or authenticated proxy that QGIS does. A hop urllib cannot connect to is now retried through QGIS's own network stack. geoBoundaries failures now say whether the lookup or the file download failed, and from which host. The tester's failure on 2026-10-13 is still unconfirmed; this fixes the best-supported explanation.
+    - Security alerts and documentation site: Fixes for the CodeQL alerts on the website prototype (content security policy, a reflected error message, a log format string), a test server that copied the Host header into a redirect, workflow permissions, and the documentation site's search. The documentation site is live at https://http-solution.github.io/cartogen-ai-qgis-plugin/.
+    - Not hand-tested: Everything above is checked by the offline suite and CI (including the live checks in QGIS 4.2.2) only. The proxy fix was not tried behind a real proxy, the point-flagging and the depot merge were not tried with a real model, and the rc39 hand-test rows (no invented layer, follow-up, Stop on a long job) are still to run.
+
+v1.16.0-rc39 (2026-10-13):
     Release candidate 39 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. The assistant no longer invents records to fill an empty map layer.
     - No invented records to fill an empty layer: When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns.
     - Hand-test result for rc37, corrected: Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).

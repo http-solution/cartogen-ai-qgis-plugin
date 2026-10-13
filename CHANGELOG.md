@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc40](#v1-16-0-rc40) | 2026-10-13 | **Release candidate 40 for 1.16.0.** No breaking changes. New search_fact_checks tool, point positions the model typed are flagged, depot layers merge inside optimize_delivery_route, analysis fields written through the edit session, redirected downloads retried through QGIS's network stack, security alerts fixed. Not hand-tested. |
 | [1.16.0-rc39](#v1-16-0-rc39) | 2026-10-13 | **Release candidate 39 for 1.16.0.** No breaking changes. The assistant no longer invents records to fill an empty map layer (found in the rc37 hand test). Not hand-tested. |
 | [1.16.0-rc38](#v1-16-0-rc38) | 2026-10-13 | **Release candidate 38 for 1.16.0.** No breaking changes. The Processing-algorithm tool works again (it failed on every call since rc24), no false 'step did not run' note after incident searches; rc37 hand-test results. |
 | [1.16.0-rc37](#v1-16-0-rc37) | 2026-10-12 | **Release candidate 37 for 1.16.0.** No breaking changes. New find_incident_reports tool: incident search over named reliable sources with provenance. Not hand-tested. |
@@ -80,6 +81,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc40"></a>
+## [1.16.0-rc40] — 2026-10-13 — Release candidate 40 for 1.16.0: fact-check lookup, flagged point positions, proxy fallback
+
+No breaking changes; QGIS 4.2+. Everything after the rc39 build:
+
+- New tool: search_fact_checks: Answers 'has this claim, video or photo been fact-checked?' from the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano (searchable in Arabic). Every reply names the outlets that answered or failed and says that only each outlet's newest 10 to 25 entries are searched, so no match is never evidence that a claim is true, false or unchecked. Reuters, AFP, Africa Check and AP refuse automated requests and cannot be asked. The six feeds were queried live from a development session; not hand-tested in QGIS.
+- Point positions the model typed are flagged: Coordinates passed to add_point_layer, add_incident_point or execute_pyqgis_script that appear in neither your message nor an earlier tool result are flagged in the tool result and in the final reply ('Unverified point positions'). This closes the gap noted in rc39. It never blocks, and it cannot see coordinates computed or read from a file inside a script.
+- Routes from a depot in another layer: optimize_delivery_route takes additional_stops_layers, so a depot or hub in one layer and the stops in another no longer need scripts to merge them first (rc37 row F3 took 9 calls for 5 stops). Whether the assistant now does it in one call is not yet checked.
+- Analysis fields are written through the edit session: Severity score, presence-gap status, population-in-need and damage-severity fields were added straight to the data provider, bypassing the edit buffer, so a failure half-way could not be undone and a layer you were already editing was ignored (issue 293). They now go through the same checked, undoable edit as the other field-writing tools.
+- Downloads behind a proxy: A download that follows a redirect (geoBoundaries boundary files do) used urllib for the redirected hop, which does not know a PAC or authenticated proxy that QGIS does. A hop urllib cannot connect to is now retried through QGIS's own network stack. geoBoundaries failures now say whether the lookup or the file download failed, and from which host. The tester's failure on 2026-10-13 is still unconfirmed; this fixes the best-supported explanation.
+- Security alerts and documentation site: Fixes for the CodeQL alerts on the website prototype (content security policy, a reflected error message, a log format string), a test server that copied the Host header into a redirect, workflow permissions, and the documentation site's search. The documentation site is live at https://http-solution.github.io/cartogen-ai-qgis-plugin/.
+- Not hand-tested: Everything above is checked by the offline suite and CI (including the live checks in QGIS 4.2.2) only. The proxy fix was not tried behind a real proxy, the point-flagging and the depot merge were not tried with a real model, and the rc39 hand-test rows (no invented layer, follow-up, Stop on a long job) are still to run.
 
 <a id="v1-16-0-rc39"></a>
 ## [1.16.0-rc39] — 2026-10-13 — Release candidate 39 for 1.16.0: no invented records

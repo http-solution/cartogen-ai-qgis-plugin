@@ -8,15 +8,18 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc39"
-NEW_MARK_VERSIONS = ("1.16.0-rc38", "1.16.0-rc39")
+WHATS_NEW_VERSION = "1.16.0-rc40"
+NEW_MARK_VERSIONS = ("1.16.0-rc39", "1.16.0-rc40")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('No invented records to fill an empty layer', "When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns."),
-    ('Hand-test result for rc37, corrected', 'Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).'),
-    ('Live-test bundle', 'The live-test bundle (tools/build_live_test_bundle.py) takes its version from metadata.txt, and its rows no longer name a version.'),
-    ('Not hand-tested', 'The fix is checked by the offline suite and CI only. Nothing stops the model from adding made-up points by another route (for example add_point_layer with coordinates it invented); this release only removes the wording that asked for it.'),
+    ('New tool: search_fact_checks', "Answers 'has this claim, video or photo been fact-checked?' from the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano (searchable in Arabic). Every reply names the outlets that answered or failed and says that only each outlet's newest 10 to 25 entries are searched, so no match is never evidence that a claim is true, false or unchecked. Reuters, AFP, Africa Check and AP refuse automated requests and cannot be asked. The six feeds were queried live from a development session; not hand-tested in QGIS."),
+    ('Point positions the model typed are flagged', "Coordinates passed to add_point_layer, add_incident_point or execute_pyqgis_script that appear in neither your message nor an earlier tool result are flagged in the tool result and in the final reply ('Unverified point positions'). This closes the gap noted in rc39. It never blocks, and it cannot see coordinates computed or read from a file inside a script."),
+    ('Routes from a depot in another layer', 'optimize_delivery_route takes additional_stops_layers, so a depot or hub in one layer and the stops in another no longer need scripts to merge them first (rc37 row F3 took 9 calls for 5 stops). Whether the assistant now does it in one call is not yet checked.'),
+    ('Analysis fields are written through the edit session', 'Severity score, presence-gap status, population-in-need and damage-severity fields were added straight to the data provider, bypassing the edit buffer, so a failure half-way could not be undone and a layer you were already editing was ignored (issue 293). They now go through the same checked, undoable edit as the other field-writing tools.'),
+    ('Downloads behind a proxy', "A download that follows a redirect (geoBoundaries boundary files do) used urllib for the redirected hop, which does not know a PAC or authenticated proxy that QGIS does. A hop urllib cannot connect to is now retried through QGIS's own network stack. geoBoundaries failures now say whether the lookup or the file download failed, and from which host. The tester's failure on 2026-10-13 is still unconfirmed; this fixes the best-supported explanation."),
+    ('Security alerts and documentation site', "Fixes for the CodeQL alerts on the website prototype (content security policy, a reflected error message, a log format string), a test server that copied the Host header into a redirect, workflow permissions, and the documentation site's search. The documentation site is live at https://http-solution.github.io/cartogen-ai-qgis-plugin/."),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and CI (including the live checks in QGIS 4.2.2) only. The proxy fix was not tried behind a real proxy, the point-flagging and the depot merge were not tried with a real model, and the rc39 hand-test rows (no invented layer, follow-up, Stop on a long job) are still to run.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
@@ -85,6 +88,7 @@ HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
    'fetch_usgs_earthquakes',
    'fetch_ucdp_conflict_events',
    'find_incident_reports',
+   'search_fact_checks',
    'fetch_nasa_active_fires',
    'generate_situation_dashboard',
    'run_monitoring_workflow',
@@ -137,7 +141,8 @@ TOOL_NEW_IN = {'aggregate_survey_indicator': '1.16.0-rc12',
  'compute_jiaf_patterns': '1.16.0-rc14',
  'fetch_usgs_earthquakes': '1.16.0-rc35',
  'fetch_ucdp_conflict_events': '1.16.0-rc35',
- 'find_incident_reports': '1.16.0-rc37'}
+ 'find_incident_reports': '1.16.0-rc37',
+ 'search_fact_checks': '1.16.0-rc40'}
 
 
 def tool_is_new(name):
