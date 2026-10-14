@@ -155,6 +155,9 @@ TOOL_OPERATION_TYPES = {
     # layer set rather than trusting this label.
     "add_incident_point": CREATE,
     "add_point_layer": CREATE,
+    "create_empty_layer": CREATE,   # M1: adds a new layer (and a file when file_path is given, behind the overwrite preview)
+    "add_basemap": CREATE,          # M1: adds a tile layer; fetched by QGIS, not by the plugin
+    "add_web_layer": CREATE,
 
     # -- imagery_extraction.py --
     "extract_features_from_imagery": CREATE,

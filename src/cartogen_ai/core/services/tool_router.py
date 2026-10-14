@@ -19,6 +19,26 @@ import re
 # where the tool is selected) since these are routing-only signals, not
 # information the model needs once the tool is actually a candidate.
 _TOOL_ALIASES = {
+    # M1 (2026-10-14). inspect_canvas_visually is here because the new basemap/web-layer tools mention "map" and pushed it out of the
+    # top 40 for "look at the map" (caught by tests/test_qgis_coverage_ratchet.py): a tool that only matched on a description word
+    # loses to any newcomer that uses the same word, so the phrases users actually say are pinned.
+    "inspect_canvas_visually": [
+        "look at the map", "look at the canvas", "see the map", "screenshot of the map", "what does the map look like",
+        "inspect the canvas", "check how the map looks", "view the canvas",
+    ],
+    "create_empty_layer": [
+        "empty layer", "new empty layer", "blank layer", "new layer with fields", "create a new layer", "create a scratch layer",
+        "scratch layer", "temporary layer", "new geopackage layer", "new shapefile", "layer to digitize", "layer to digitise",
+        "empty polygon layer", "empty point layer", "empty line layer", "new table",
+    ],
+    "add_basemap": [
+        "basemap", "base map", "background map", "add openstreetmap", "add osm", "satellite imagery background",
+        "satellite basemap", "add a satellite", "open street map", "topographic background", "carto light", "carto dark",
+    ],
+    "add_web_layer": [
+        "wms", "wmts", "wfs", "xyz tile", "tile layer", "web service", "web map service", "arcgis rest", "arcgis feature",
+        "featureserver", "mapserver", "add a service", "tile url", "getcapabilities",
+    ],
     "calculate_severity_index": [
         "worst", "priority", "rank the districts", "how bad", "most affected",
         "needs index", "prioritize",

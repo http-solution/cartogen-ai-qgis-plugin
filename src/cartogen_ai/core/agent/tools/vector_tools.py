@@ -648,8 +648,27 @@ def _describe_unreadable_download(path):
     return None
 
 
-@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]})
-def add_layer_from_path(file_path, layer_name=None, source_label=None):
+# Raster file types opened with QgsRasterLayer. rc42 added .vrt .hgt .bil .dem .grd (previously only the first nine, so a VRT or an
+# SRTM .hgt was tried as a vector and reported "Invalid layer"). Additive: every earlier extension is still here.
+RASTER_EXTENSIONS = (".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg", ".vrt", ".hgt", ".bil", ".dem", ".grd")
+
+
+def _other_sublayers_note(layer):
+    """When a vector file holds several layers, say so: the first was opened and the user may have meant another (coverage audit
+    2026-10-14, 'choose one layer inside a multi-layer container'). Never raises; None when there is nothing to add."""
+    try:
+        subs = layer.dataProvider().subLayers() if layer.isValid() else []
+        names = [str(s).split("!!::!!")[1] for s in subs if len(str(s).split("!!::!!")) > 1]
+    except Exception:
+        return None
+    if len(names) < 2:
+        return None
+    return (f"This file holds {len(names)} layers ({', '.join(names[:12])}{', ...' if len(names) > 12 else ''}); "
+            f"the first was opened. Ask for another by name (sublayer=...) if you meant a different one.")
+
+
+@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}, "sublayer": {"type": "string", "description": "name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds"}}, "required": ["file_path"]})
+def add_layer_from_path(file_path, layer_name=None, source_label=None, sublayer=None):
     """source_label is the original URL when agent_orchestrator.py has already downloaded
     it and file_path is the local temp copy. Without it, the default layer name and
     error messages came from the temp file ("tmp_2kgn_72") instead of the URL the model
@@ -676,13 +695,18 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         clean_path = label.split("?")[0]
         name = layer_name or os.path.splitext(os.path.basename(clean_path.rstrip("/")))[0] or "layer"
         ext = os.path.splitext(clean_path)[1].lower()
-        raster_exts = {".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg"}
+        raster_exts = set(RASTER_EXTENSIONS)
 
         encoding_note = None
+        sublayer_note = None
         if ext in raster_exts:
             layer = QgsRasterLayer(local_path, name)
         else:
             layer = QgsVectorLayer(local_path, name, "ogr")
+            if sublayer:
+                layer = QgsVectorLayer(f"{local_path}|layername={sublayer}", layer_name or str(sublayer), "ogr")
+            else:
+                sublayer_note = _other_sublayers_note(layer)
             if ext == ".shp":
                 encoding_note = _ensure_shapefile_encoding(layer, local_path)
 
@@ -697,6 +721,8 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         result = {"success": True, "layer_name": layer.name()}
         if encoding_note:
             result["encoding_note"] = encoding_note
+        if sublayer_note:
+            result["sublayer_note"] = sublayer_note
         if ext in _SPATIALITE_EXTS:
             spatial_index_note = _ensure_spatialite_index(layer)
             if spatial_index_note:

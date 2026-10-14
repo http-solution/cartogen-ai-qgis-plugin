@@ -49,7 +49,7 @@ Cartogen AI is a single Python package that QGIS loads as a plugin. It has no se
 |---|---|---|
 | **UI** | `core/ui/` | The dock panel, settings, memory, layer-sensitivity, account and help dialogs. Runs on the GUI thread. Logic that can be tested without Qt (chat formatting, colour derivation, icons as SVG strings) is kept Qt-free on purpose. |
 | **Agent core** | `core/agent/` | `CartogenAi` in `agent_orchestrator.py` is the tool-calling loop. It composes a tool dispatcher, a usage tracker and a history manager, and consults the task matcher, tool router and guards. See [The agent loop](@architecture/agent-loop). |
-| **Tools** | `core/agent/tools/` | 212 tools, one module per domain, registered with `@register_tool`. See [Tools and routing](@architecture/tools). |
+| **Tools** | `core/agent/tools/` | 215 tools, one module per domain, registered with `@register_tool`. See [Tools and routing](@architecture/tools). |
 | **Providers** | `infrastructure/providers/` | One client per model provider behind a common interface. See [Providers and networking](@architecture/providers). |
 | **Services and models** | `core/services/`, `core/models/`, `core/validators/`, `core/representation/` | Prompt refiner, tool router, response guard; confidence, sensitivity, egress-gate and plan-gate models; schema and P-code validators; the map representation planner. |
 

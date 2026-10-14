@@ -1,4 +1,12 @@
 {
+ "add_basemap": {
+  "properties": [
+   "basemap"
+  ],
+  "required": [
+   "basemap"
+  ]
+ },
  "add_incident_point": {
   "properties": [
    "contamination_status",
@@ -24,7 +32,8 @@
  "add_layer_from_path": {
   "properties": [
    "file_path",
-   "layer_name"
+   "layer_name",
+   "sublayer"
   ],
   "required": [
    "file_path"
@@ -40,6 +49,22 @@
   "required": [
    "layer_name",
    "points"
+  ]
+ },
+ "add_web_layer": {
+  "properties": [
+   "crs",
+   "image_format",
+   "layer",
+   "layer_name",
+   "service_type",
+   "style",
+   "tile_matrix_set",
+   "url"
+  ],
+  "required": [
+   "service_type",
+   "url"
   ]
  },
  "advance_dataset_status": {
@@ -704,6 +729,19 @@
    "layer_name"
   ],
   "required": [
+   "layer_name"
+  ]
+ },
+ "create_empty_layer": {
+  "properties": [
+   "crs",
+   "fields",
+   "file_path",
+   "geometry_type",
+   "layer_name"
+  ],
+  "required": [
+   "geometry_type",
    "layer_name"
   ]
  },

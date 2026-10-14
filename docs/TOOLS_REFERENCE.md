@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (212 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (215 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1192,6 +1192,7 @@ Load vector or raster file from a local path or remote URL (e.g. a GeoJSON downl
 |---|---|---|---|
 | `file_path` | string | yes |  |
 | `layer_name` | string | no |  |
+| `sublayer` | string | no | name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds |
 
 ### `apply_labels`
 
@@ -1713,6 +1714,43 @@ Exports everything Cartogen AI has stored for this project and this machine -- p
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `output_path` | string | yes | Full file path to write the JSON export to, e.g. 'C:/Users/me/Desktop/cartogen_data_export.json'. |
+
+## data_source_tools
+
+### `add_basemap`
+
+Add a background map to the QGIS project from a fixed list: openstreetmap, opentopomap, satellite (Esri imagery), esri streets, carto light, carto dark. The layer is placed at the bottom of the layer tree. Tiles are loaded by QGIS directly from the provider.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `basemap` | string | yes | openstreetmap, topo, satellite, esri streets, carto light, carto dark |
+
+### `add_web_layer`
+
+Add a web map or feature service to the project. service_type: xyz (tile URL with {z}/{x}/{y}), wms, wmts, wfs or arcgis_feature. Only https URLs are accepted. wms/wmts need layer (the service layer name), wmts also tile_matrix_set, wfs needs layer (typename).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `service_type` | string | yes |  |
+| `url` | string | yes |  |
+| `layer_name` | string | no |  |
+| `layer` | string | no | service layer / typename |
+| `crs` | string | no |  |
+| `image_format` | string | no |  |
+| `tile_matrix_set` | string | no |  |
+| `style` | string | no |  |
+
+### `create_empty_layer`
+
+Create a new EMPTY vector layer (or a table with no geometry) with the fields you choose, ready for digitising. geometry_type: point, line, polygon, multipoint, multiline, multipolygon or none. fields: list of {name, type} with type string, integer, long, double, date or datetime. By default a scratch (in-memory) layer is added; give file_path ending .gpkg, .shp or .geojson to create a file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `geometry_type` | string | yes |  |
+| `fields` | array[object] | no |  |
+| `crs` | string | no | e.g. EPSG:4326 (default) |
+| `file_path` | string | no | optional .gpkg/.shp/.geojson to create on disk |
 
 ## dataset_status_tools
 
