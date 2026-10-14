@@ -114,10 +114,13 @@ class TestEngineeringHydrologyTools(unittest.TestCase):
         self.assertEqual(verdict["best"]["id"], "36.01")
         self.assertEqual(verdict["best"]["cname"], "Engineering hydrology and drainage")
         self.assertFalse(verdict["ambiguous"])
-        self.assertEqual(
-            task_matcher.missing_slots(verdict["best"], REPORTED_QUERY),
-            ["dem_source", "idf_source", "runoff_coefficient"],
-        )
+        # S1 (2026-10-14): the request used to be BLOCKED up front by three questions (DEM, IDF, runoff coefficient) and no tool could
+        # measure the basin, so the live demo produced nothing. The DEM is now fetched and the basin measured automatically, and the two
+        # design inputs are asked once, after the measurements, by delineate_watershed's reply; calculate_rational_watershed_peak_flow
+        # still refuses a guessed intensity or C, so nothing is guessed. The task must therefore no longer block on slots.
+        self.assertEqual(task_matcher.missing_slots(verdict["best"], REPORTED_QUERY), [])
+        self.assertIn("delineate_watershed", verdict["best"]["tools"])
+        self.assertIn("fetch_dem", verdict["best"]["tools"])
 
     def test_hydrology_prompt_rule_is_present_when_engineering_tool_is_active(self):
         prompt = build_system_prompt(

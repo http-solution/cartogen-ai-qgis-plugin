@@ -888,6 +888,19 @@
    "layer_name"
   ]
  },
+ "delineate_watershed": {
+  "properties": [
+   "dem_layer",
+   "lat",
+   "layer_prefix",
+   "location",
+   "lon",
+   "radius_km",
+   "return_period_years",
+   "snap_distance_m"
+  ],
+  "required": []
+ },
  "design_sampling_frame": {
   "properties": [
    "confidence",

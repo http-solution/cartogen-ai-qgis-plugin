@@ -450,6 +450,14 @@ _TOOL_ALIASES = {
         "incidents from the news", "from the news", "news incidents", "major incidents", "incidents in the news", "news reports", "reported in the news",
         "list the incidents", "incidents on the map", "put the incidents on the map",
     ],
+    "fetch_dem": [
+        "dem", "elevation data", "download elevation", "download the dem", "terrain data", "get the dem", "watershed", "catchment", "peak flow",
+        "stream length", "time of concentration",
+    ],
+    "delineate_watershed": [
+        "watershed", "catchment", "drainage basin", "basin area", "delineate the basin", "flow path", "stream length", "time of concentration", "peak flow",
+        "peak discharge", "tc ", "rational method", "return period", "pour point", "upstream area", "contributing area",
+    ],
     "web_research": [
         "from the internet", "search the internet", "search the web", "search online", "look up online", "look it up", "find information about",
         "find the information", "give me the source", "provide the source", "provide me with the source", "cite the source", "with sources",
