@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (239 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (240 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1123,7 +1123,7 @@ Search the live web using OpenAI's dedicated web-search model for real-time, sou
 
 ### `search_web` _(network-only)_
 
-Search internet for real-time information or facts. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).
+Search internet for real-time information or facts; every hit has a URL: cite them. For a sourced, structured answer or for news use web_research. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -2085,14 +2085,14 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 
 ### `find_incident_reports` _(two-phase)_
 
-Find incident and hazard reports for a country / place and a time window from a FIXED list of reliable sources, with the source, its rating and a link on every record: GDACS (UN alerts), USGS (earthquakes), NASA EONET (storms, fires, volcanoes, floods), UCDP (armed conflict events; preliminary, weeks old) and ReliefWeb (declared disasters; listed, not mapped). Records with a position are loaded as a point layer. Use this INSTEAD of search_web for 'what incidents / disasters / conflict events happened in <place>' questions. It does not search news outlets, fact-checkers or social media, and the reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof nothing happened. Free, no keys. IMPORTANT: give a country (or place name) and/or bbox [min_lon, min_lat, max_lon, max_lat]; days is 1 to 365 (default 30). Re-running REPLACES the layer's features.
+Find incident and hazard reports for a country / place and a time window from a FIXED list of reliable sources, with the source, its rating and a link on every record: GDACS (UN alerts), USGS (earthquakes), NASA EONET (storms, fires, volcanoes, floods), UCDP (armed conflict events; preliminary, weeks old) and ReliefWeb (declared disasters; listed, not mapped). Records with a position are loaded as a point layer. Use this INSTEAD of search_web for 'what incidents / disasters / conflict events happened in <place>' questions. News is searched only when sources includes 'news' (unverified headlines, placed by the place named in the headline, lowest rating); fact-checkers and social media are never searched. The reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof nothing happened. Free, no keys. IMPORTANT: give a country (or place name) and/or bbox [min_lon, min_lat, max_lon, max_lat]; days is 1 to 365 (default 30). Re-running REPLACES the layer's features.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `country` | string | no | Country or place name, e.g. 'Yemen' or 'Sudan'. Matched by name against each source. |
 | `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
 | `days` | integer | no | How many days back (1 to 365). Defaults to 30. |
-| `sources` | array[string] | no | Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb. Default: all. |
+| `sources` | array[string] | no | Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb, news. Default: the five agency sources. Add 'news' (or use only ['news']) when the user asks for NEWS or media reports. |
 | `max_reports` | integer | no | Most records to return (newest first). Defaults to 200, at most 500. |
 | `layer_name` | string | no | Name for the layer. Defaults to 'Incident reports'. |
 
@@ -2671,3 +2671,16 @@ Evaluate an anticipatory-action trigger rule against forecast values already in 
 | `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
 | `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
 | `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
+
+## web_research_tools
+
+### `web_research` _(network-only)_
+
+Search the internet and get back real results with their SOURCES: title, URL, outlet, date and snippet. kind='web' for pages, kind='news' for recent news articles (last 1 to 30 days). Use this whenever the user wants information from the internet 'with the source', news, or a fact you cannot know. The answer must cite the returned URLs and must not add facts the results do not contain. For a MAP of incidents from the news use find_incident_reports with sources=['news'] instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes | What to look up, in a few clear words. |
+| `kind` | string | no | 'web' (default) or 'news'. |
+| `max_results` | integer | no | How many results (default 8, at most 25). |
+| `days` | integer | no | For kind='news': how many days back (1 to 30, default 7). |

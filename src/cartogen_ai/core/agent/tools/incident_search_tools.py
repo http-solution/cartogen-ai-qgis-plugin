@@ -53,6 +53,11 @@ SOURCES = {
              "mappable": True, "note": "Researcher-coded from media reports; published monthly, so it lags by weeks. Not live."},
     "reliefweb": {"name": "ReliefWeb disasters (UN OCHA)", "tier": 1, "kind": "declared disasters", "coverage": "global, no coordinates",
                   "mappable": False, "note": "Disasters declared on ReliefWeb with the affected country and a link; no map position, so these are listed, not mapped."},
+    # Added 2026-10-14 at the owner's request ("check the internet for major incidents from the news and list it in the map"). It is the LOWEST
+    # tier on purpose and is never in DEFAULT_SOURCES: news is asked only when the user asks for it.
+    "news": {"name": "News media (GDELT / Google News headlines)", "tier": 3, "kind": "news report", "coverage": "global, headline level",
+             "mappable": True, "note": "Media reports, unverified. The map position is the place NAMED IN THE HEADLINE, found by geocoding inside the "
+                                       "country; headlines with no recognisable place are listed, not mapped. A report is 'reported by <outlet>', never 'verified'."},
 }
 
 # Sources the owner named that cannot be asked, with the reason. Shown in every reply so an empty result is not read as "nothing happened".
@@ -65,7 +70,8 @@ NOT_SEARCHED = {
     "Social media": "out of scope: needs an official API and credentials per platform, and posts are unverified signals",
 }
 
-DEFAULT_SOURCES = ("gdacs", "usgs", "eonet", "ucdp", "reliefweb")
+DEFAULT_SOURCES = ("gdacs", "usgs", "eonet", "ucdp", "reliefweb")   # news is opt-in: sources=["news"]
+NEWS_MAX_GEOCODES = 12          # Nominatim allows about one request a second; this bounds a news run to roughly 15 s
 MAX_REPORTS = 500
 _MAX_FEED_CHARS = 3_000_000
 _PER_SOURCE_TIMEOUT_S = 90
@@ -172,6 +178,42 @@ def merge_records(groups):
     return merged
 
 
+def news_records(articles, country, geocode, max_geocodes=NEWS_MAX_GEOCODES, bbox=None, cancelled=lambda: False):
+    """Records from news articles. `geocode(name)` -> {lat, lon, location} or {error}. Pure given those two callables.
+
+    Each headline's place candidates (web_research_tools.candidate_places) are tried in order, with the country appended so the geocoder
+    prefers the right one, until one lands inside the country (its display name contains the country) and inside `bbox` when one is given.
+    At most `max_geocodes` distinct lookups are made per run; an article whose place is not found keeps no position and is listed."""
+    from .web_research_tools import candidate_places, split_headline
+    needle = (country or "").strip().lower()
+    exclude = [country] if country else []
+    resolved, lookups, records = {}, 0, []
+    for index, a in enumerate(articles):
+        lat = lon = None
+        place = ""
+        for cand in candidate_places(a["title"], exclude)[:3]:
+            key = cand.lower()
+            if key not in resolved:
+                if lookups >= max_geocodes or cancelled():
+                    continue
+                lookups += 1
+                found = geocode(f"{cand}, {country}" if country else cand)
+                ok = "error" not in found and (not needle or needle in str(found.get("location", "")).lower())
+                if ok and bbox and not (bbox[0] <= found["lon"] <= bbox[2] and bbox[1] <= found["lat"] <= bbox[3]):
+                    ok = False
+                resolved[key] = (found["lat"], found["lon"]) if ok else None
+            if resolved.get(key):
+                lat, lon = resolved[key]
+                place = cand
+                break
+        headline, outlet = split_headline(a["title"])
+        detail = f"reported by {a.get('outlet') or outlet or 'unknown outlet'}"
+        detail += f"; map position = place named in the headline ('{place}'), geocoded, not verified" if place else "; no place in the headline could be located"
+        records.append(_record("news", f"news{index}-{abs(hash(a['url'])) % 10**8}", "news report", headline, a.get("date"), lat, lon, a["url"],
+                               detail, country or "", ""))
+    return records
+
+
 def source_table():
     return [{"id": k, **{f: v[f] for f in ("name", "tier", "kind", "coverage", "mappable", "note")}} for k, v in SOURCES.items()]
 
@@ -183,6 +225,26 @@ def _fetch_reliefweb(country, since):
     with urlopen_with_retry(req, timeout=30) as response:
         text = _read_capped(response).decode("utf-8", errors="replace")
     return {"success": True, "records": parse_reliefweb_rss(text, country, since)}
+
+
+def _fetch_news(country, bbox, days, since):
+    from .. import cancel_signal
+    from .system_tools import _geocode_one
+    from .web_research_tools import dedupe_articles, fetch_news_articles, news_query
+    import time
+    if not country:
+        return None, "news needs a country or place name (a bounding box alone cannot be searched in headlines)"
+    articles, notes = fetch_news_articles(news_query(country), min(max(days, 1), 30), 60)
+    articles = [a for a in dedupe_articles(articles) if not a.get("date") or a["date"] >= since][:40]
+    if not articles:
+        return None, "no news articles could be read" + (": " + "; ".join(notes) if notes else "")
+
+    def geocode(name):
+        found = _geocode_one(name)
+        if not found.get("cached"):
+            time.sleep(1.0)            # Nominatim usage policy: about one request a second
+        return found
+    return news_records(articles, country, geocode, bbox=bbox, cancelled=cancel_signal.is_cancelled), None
 
 
 def _ask(source, country, bbox, days, since):
@@ -202,6 +264,8 @@ def _ask(source, country, bbox, days, since):
             return (from_ucdp(res), None) if "error" not in res else (None, res["error"])
         if source == "reliefweb":
             return _fetch_reliefweb(country, since)["records"], None
+        if source == "news":
+            return _fetch_news(country, bbox, days, since)
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
     return None, "unknown source"
@@ -304,7 +368,10 @@ def add_incident_reports_layer_main_thread_phase(fetch_result, layer_name="Incid
         return {"error": f"Could not update layer '{layer_name}': {e} The previous contents were kept."}
     if created:
         _style_hazard(layer, "eonet")          # categorised by the 'category' field (the kind of report)
-    set_layer_confidence(layer, "OBSERVED", reason="Records from named agencies, instruments and an academic dataset; not independently verified")
+    if any(r["source"] == "news" for r in mappable):
+        set_layer_confidence(layer, "INFERRED", reason="Includes news headlines placed by geocoding the place named in the headline; unverified")
+    else:
+        set_layer_confidence(layer, "OBSERVED", reason="Records from named agencies, instruments and an academic dataset; not independently verified")
     _stamp_fetched_at(layer)
     base["mapped"] = added
     base["message"] = _reply_text(fetch_result, added, layer_name)
@@ -316,8 +383,8 @@ def add_incident_reports_layer_main_thread_phase(fetch_result, layer_name="Incid
     "Find incident and hazard reports for a country / place and a time window from a FIXED list of reliable sources, with the source, its rating and a "
     "link on every record: GDACS (UN alerts), USGS (earthquakes), NASA EONET (storms, fires, volcanoes, floods), UCDP (armed conflict events; preliminary, "
     "weeks old) and ReliefWeb (declared disasters; listed, not mapped). Records with a position are loaded as a point layer. Use this INSTEAD of "
-    "search_web for 'what incidents / disasters / conflict events happened in <place>' questions. It does not search news outlets, fact-checkers or "
-    "social media, and the reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof "
+    "search_web for 'what incidents / disasters / conflict events happened in <place>' questions. News is searched only when sources includes 'news' (unverified headlines, placed by the place named in the "
+    "headline, lowest rating); fact-checkers and social media are never searched. The reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof "
     "nothing happened. Free, no keys. IMPORTANT: give a country (or place name) and/or bbox [min_lon, min_lat, max_lon, max_lat]; days is 1 to 365 "
     "(default 30). Re-running REPLACES the layer's features.",
     {
@@ -326,7 +393,7 @@ def add_incident_reports_layer_main_thread_phase(fetch_result, layer_name="Incid
             "country": {"type": "string", "description": "Country or place name, e.g. 'Yemen' or 'Sudan'. Matched by name against each source."},
             "bbox": {"type": "array", "items": {"type": "number"}, "description": "Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees."},
             "days": {"type": "integer", "description": "How many days back (1 to 365). Defaults to 30."},
-            "sources": {"type": "array", "items": {"type": "string"}, "description": "Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb. Default: all."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb, news. Default: the five agency sources. Add 'news' (or use only ['news']) when the user asks for NEWS or media reports."},
             "max_reports": {"type": "integer", "description": "Most records to return (newest first). Defaults to 200, at most 500."},
             "layer_name": {"type": "string", "description": "Name for the layer. Defaults to 'Incident reports'."},
         },

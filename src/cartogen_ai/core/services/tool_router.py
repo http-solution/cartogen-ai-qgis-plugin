@@ -447,6 +447,14 @@ _TOOL_ALIASES = {
     "find_incident_reports": [
         "incident", "incidents", "incident report", "what happened", "security situation", "recent events", "reliable source",
         "check the internet", "latest news", "disaster and conflict", "hazards and conflict", "situation in",
+        "incidents from the news", "from the news", "news incidents", "major incidents", "incidents in the news", "news reports", "reported in the news",
+        "list the incidents", "incidents on the map", "put the incidents on the map",
+    ],
+    "web_research": [
+        "from the internet", "search the internet", "search the web", "search online", "look up online", "look it up", "find information about",
+        "find the information", "give me the source", "provide the source", "provide me with the source", "cite the source", "with sources",
+        "with the source", "source of the information", "what are the latest news", "latest news about", "news about", "search the news",
+        "check the internet", "on the internet", "online sources", "google",
     ],
     "search_fact_checks": [
         "fact check", "fact-check", "fact checked", "debunk", "debunked", "is this true", "is it true", "really from", "old video", "old footage",

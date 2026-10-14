@@ -15,7 +15,7 @@ FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
 class TestGoldenSuiteSizePins(unittest.TestCase):
     def test_basic_requests_table(self):
-        self.assertGreaterEqual(len(GOLDEN), 32)
+        self.assertGreaterEqual(len(GOLDEN), 34)
 
     def test_long_requests_table(self):
         self.assertGreaterEqual(len(GOLDEN_LONG), 16)

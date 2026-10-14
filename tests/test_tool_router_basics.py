@@ -45,6 +45,8 @@ GOLDEN = {
     "add an openstreetmap basemap": {"add_basemap"},
     "add the wms layer from this url": {"add_web_layer"},
     "look at the map": {"inspect_canvas_visually"},
+    "find the information from the internet and provide the source": {"web_research"},
+    "check the internet for major incidents from the news in Jordan this week and put them on the map": {"find_incident_reports"},
 }
 
 

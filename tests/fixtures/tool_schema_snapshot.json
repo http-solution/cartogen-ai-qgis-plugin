@@ -2611,6 +2611,17 @@
    "layer_name"
   ]
  },
+ "web_research": {
+  "properties": [
+   "days",
+   "kind",
+   "max_results",
+   "query"
+  ],
+  "required": [
+   "query"
+  ]
+ },
  "weighted_overlay_analysis": {
   "properties": [
    "align_to_first",
