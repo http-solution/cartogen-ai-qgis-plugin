@@ -143,3 +143,42 @@ class TestRc37Addendum(unittest.TestCase):
             self.assertEqual(pack.prepare(Path(d) / "run"), 0)
             rows = pack.read_rows(Path(d) / "run" / "results" / "results.csv")
             self.assertEqual(len(rows), len(_rows()) + len(pack.read_rows(pack.ROWS_EXTRA)))
+
+
+class TestOpenIssueCoverage(unittest.TestCase):
+    """The open-issue rows (docs/FULL_LIVE_TEST_open_issues_ROWS.csv) and the coverage sheet agree, and every tool they name exists."""
+
+    def _read(self, name):
+        import csv
+        with open(REPO / "docs" / name, encoding="utf-8-sig", newline="") as f:
+            return list(csv.DictReader(f))
+
+    def test_rows_have_the_pack_columns_unique_ids_and_matching_screenshot_names(self):
+        base = _rows()
+        rows = self._read("FULL_LIVE_TEST_open_issues_ROWS.csv")
+        self.assertEqual(list(rows[0]), list(base[0]))
+        ids = [r["id"] for r in base + pack.read_rows(pack.ROWS_EXTRA) + rows]
+        self.assertEqual(len(ids), len(set(ids)))
+        for r in rows:
+            self.assertTrue(r["id"].startswith("OI-"), r["id"])
+            self.assertTrue(r["prompt_or_action"].strip() and r["expected"].strip() and r["evidence_to_save"].strip(), r["id"])
+            self.assertEqual(r["screenshot_file"], f"screenshots/{r['id']}.png")
+
+    def test_every_row_the_coverage_sheet_names_exists_and_every_row_is_covered(self):
+        known = {r["id"] for r in _rows() + pack.read_rows(pack.ROWS_EXTRA) + self._read("FULL_LIVE_TEST_open_issues_ROWS.csv")}
+        coverage = self._read("OPEN_ISSUES_COVERAGE_rc40.csv")
+        named = {x for r in coverage for x in r["test rows"].split("; ")}
+        self.assertEqual(sorted(x for x in named if x not in known), [])
+        # OI-S1 / OI-S2 are set-up; OI-159 re-checks fixes for issues that are already closed (#159-#161, #293-#295).
+        issue_rows = {r["id"] for r in self._read("FULL_LIVE_TEST_open_issues_ROWS.csv")} - {"OI-S1", "OI-S2", "OI-159"}
+        self.assertEqual(sorted(issue_rows - named), [], "an open-issue row is not named by any issue in the coverage sheet")
+        numbers = [r["issue"] for r in coverage]
+        self.assertEqual(len(numbers), len(set(numbers)))
+
+    def test_tools_named_in_the_expected_text_exist(self):
+        src = "\n".join(p.read_text(encoding="utf-8") for p in (REPO / "src" / "cartogen_ai" / "core" / "agent" / "tools").glob("*.py"))
+        text = " ".join(r["expected"] + " " + r["prompt_or_action"] for r in self._read("FULL_LIVE_TEST_open_issues_ROWS.csv"))
+        for tool in sorted(set(re.findall(r"\b((?:calculate|classify|estimate|fetch|optimize|apply|tidy|run|find|search|generate|execute|store|merge)_[a-z_]+)\b", text))):
+            if tool in {"execute_pyqgis_script"} or f"def {tool}(" in src:
+                continue
+            self.assertIn(tool, {"calculate_area"}, f"{tool} is named in a row but is not a tool")

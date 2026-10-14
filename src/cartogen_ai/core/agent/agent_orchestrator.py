@@ -1778,6 +1778,14 @@ class CartogenAi:
             log_event("swallowed_exception", tag="Agent", tool="chain_context", error_class=type(e).__name__, error=True)
         return active_tools, active_tool_names, system_prompt_content
 
+    def _stopped_reply(self, user_message, should_stop):
+        """The stop reply (recorded in the history) when the user has pressed Stop, else None."""
+        if should_stop is None or not should_stop():
+            return None
+        final_text = "[Agent stopped] Stopped by user."
+        self._append_history(user_message, {"role": "assistant", "content": final_text})
+        return final_text
+
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
         user has asked to abort (task_runner.py passes the running QgsTask's
@@ -1881,7 +1889,8 @@ class CartogenAi:
                 )
             except Exception as e:
                 self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception", error=str(e))
-                return f"[API error] {e}"
+                # A request dropped because the user pressed Stop (net.py polls it) is a stop, not an API failure.
+                return self._stopped_reply(user_message, should_stop) or f"[API error] {e}"
 
             if not isinstance(result, dict):
                 self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")

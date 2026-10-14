@@ -107,6 +107,15 @@ class TestFanOut(unittest.TestCase):
             self.assertIn(needle, text)
 
 
+class TestWordingNote(unittest.TestCase):
+    def test_the_result_tells_the_model_not_to_call_records_verified(self):
+        # rc40 hand test RC37-N2: a reply headed "Verified Incident Reports" and said "verified by USGS network"
+        fetch = {"total_matched": 0, "truncated": False, "sources_checked": [], "sources_failed": [], "not_searched": [],
+                 "since": "2026-09-14", "records": []}
+        out = inc.add_incident_reports_layer_main_thread_phase(fetch)
+        self.assertIn("never 'verified'", out["wording_note"])
+
+
 class TestRegistered(unittest.TestCase):
     def test_wired_in_two_phases_as_a_create_tool(self):
         from cartogen_ai.core.agent.agent_orchestrator import TWO_PHASE_TOOLS

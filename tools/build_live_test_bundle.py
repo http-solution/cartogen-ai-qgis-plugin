@@ -35,9 +35,15 @@ def version():
     return m.group(1)
 
 
+ROW_FILES = ("FULL_LIVE_TEST_rc37_ROWS.csv", "FULL_LIVE_TEST_open_issues_ROWS.csv")     # Part A (what is new), then Part B (open issues)
+
+
 def read_rows():
-    with open(DOCS / "FULL_LIVE_TEST_rc37_ROWS.csv", encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
+    rows = []
+    for name in ROW_FILES:
+        with open(DOCS / name, encoding="utf-8-sig", newline="") as f:
+            rows += list(csv.DictReader(f))
+    return rows
 
 
 def prompts_page(rows, v):
@@ -59,13 +65,21 @@ def prompts_page(rows, v):
            "<b>What you should see</b>, save a screenshot named with the test id, and write the result in <code>4_RESULTS.csv</code> "
            "(PASS, FAIL or SKIP, and one line of notes). Tests marked <span class=tag>START HERE</span> are the ones to do if you are short on time. "
            "Open a New Chat before each test unless it says same chat.</p>")]
-    group = None
+    group, part = None, None
     for r in rows:
+        this_part = "B" if r["id"].startswith("OI-") else "A"
+        if this_part != part:
+            part = this_part
+            out.append("<h1>Part A: what is new (rc35 to rc40)</h1>" if part == "A" else
+                       "<h1>Part B: the open issues</h1><p>Each test says which GitHub issue it can close. Do OI-S1 and OI-S2 first. "
+                       "Rows marked <i>cloud provider</i> or <i>internet</i> in the coverage sheet need those.</p>")
         if r["group"] != group:
             group = r["group"]
             out.append(f"<h2>{html.escape(group.split(': ', 1)[-1])}</h2>")
         rid = r["id"]
         tags = ("<span class=tag>START HERE</span>" if rid in START_HERE else "") + ("<span class='tag opt'>optional</span>" if rid in OPTIONAL else "")
+        if rid.startswith("OI-") and r["source"] and r["source"] != "set-up":
+            tags += f"<span class=tag>issues {html.escape(r['source'])}</span>"
         text = r["prompt_or_action"].strip()
         out.append(f"<div class=t><div><span class=id>{html.escape(rid)}</span>{tags}</div>")
         if text.startswith("Send: "):
@@ -74,7 +88,10 @@ def prompts_page(rows, v):
                        f"<button type=button data-msg=\"{html.escape(msg, quote=True)}\">Copy</button>")
         else:
             out.append(f"<div class=l>Do this</div><div class=box>{html.escape(text)}</div>")
-        out.append(f"<div class=l>What you should see</div><div class=box>{html.escape(r['expected'])}</div></div>")
+        out.append(f"<div class=l>What you should see</div><div class=box>{html.escape(r['expected'])}</div>")
+        if r.get("evidence_to_save"):
+            out.append(f"<div class=l>Save as evidence</div><div class=box>{html.escape(r['evidence_to_save'])}</div>")
+        out.append("</div>")
     out.append("<script>document.querySelectorAll('button[data-msg]').forEach(function(b){b.addEventListener('click',function(){"
                "var m=b.getAttribute('data-msg');var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};"
                "if(navigator.clipboard){navigator.clipboard.writeText(m).then(done,function(){fallback(m);done()})}else{fallback(m);done()}});});"
@@ -87,11 +104,12 @@ def results_sheet(rows):
     import io
     buf = io.StringIO(newline="")
     w = csv.writer(buf)
-    w.writerow(["id", "test", "result (PASS / FAIL / SKIP)", "notes (what you saw; for a FAIL paste the last Log Messages lines, no keys)"])
+    w.writerow(["id", "issues", "test", "result (PASS / FAIL / SKIP)", "notes (what you saw; for a FAIL paste the last Log Messages lines, no keys)",
+                "files saved (screenshot, output, log)"])
     for r in rows:
         text = r["prompt_or_action"].strip()
         short = text if len(text) <= 100 else text[:100].rsplit(" ", 1)[0] + " ..."
-        w.writerow([r["id"], short, "", ""])
+        w.writerow([r["id"], r["source"] if r["id"].startswith("OI-") else "", short, "", "", ""])
     return "\ufeff" + buf.getvalue()
 
 
@@ -118,21 +136,28 @@ def main():
         z.writestr(f"{top}/README_FIRST.txt", readme)
         z.write(plugin_zip, f"{top}/1_plugin/cartogen_ai_v{v}.zip")
         z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  cartogen_ai_v{v}.zip\n")
-        for p in sorted((DOCS / "release_smoke_assets" / "inputs").iterdir()):
-            if p.is_file():
-                z.write(p, f"{top}/2_test_files/{p.name}")
+        inputs = [p for p in sorted((DOCS / "release_smoke_assets" / "inputs").iterdir()) if p.is_file()]
+        for p in inputs:
+            z.write(p, f"{top}/2_test_files/{p.name}")
+        z.writestr(f"{top}/2_test_files/CHECKSUMS_sha256.txt", "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\r\n" for p in inputs))
         z.writestr(f"{top}/3_PROMPTS.html", prompts_page(rows, v))
         z.writestr(f"{top}/4_RESULTS.csv", results_sheet(rows))
-        z.writestr(f"{top}/screenshots/PUT_SCREENSHOTS_HERE.txt", "Save one screenshot per test here, named with the test id, e.g. RC37-N1.png\r\n")
+        z.writestr(f"{top}/screenshots/PUT_SCREENSHOTS_HERE.txt", "Save one screenshot per test here, named with the test id, e.g. RC40-C1.png\r\n")
+        z.writestr(f"{top}/evidence/PUT_EVIDENCE_FOLDERS_HERE.txt", "Copy every cartogen_evidence folder from next to your saved project into this folder.\r\n")
+        z.writestr(f"{top}/logs/PUT_LOGS_HERE.txt", "Save the Log Messages text (CartogenAI tab, Ctrl+A, Ctrl+C) as log_<part or test id>.txt, and the QGIS About text as qgis_about.txt.\r\n")
+        z.writestr(f"{top}/outputs/PUT_OUTPUT_FILES_HERE.txt", "Copy the files the assistant created (PDF, PNG, HTML, exports) here, named with the test id.\r\n")
+        z.write(DOCS / "OPEN_ISSUES_COVERAGE_rc40.csv", f"{top}/5_OPEN_ISSUES_COVERAGE.csv")
         for p in extras:
             if p.name == "FULL_LIVE_TEST_rc37_ROWS.csv":
                 z.writestr(f"{top}/extras/docs/{p.name}", p.read_bytes().decode("utf-8").replace("{VERSION}", v))
             else:
                 z.write(p, f"{top}/extras/docs/{p.name}")
-        z.write(REPO / "tools" / "live_test_pack.py", f"{top}/extras/tools/live_test_pack.py")
-        for p in sorted((DOCS / "release_smoke_assets" / "inputs").iterdir()):
-            if p.is_file():
-                z.write(p, f"{top}/extras/docs/release_smoke_assets/inputs/{p.name}")
+        z.write(DOCS / "FULL_LIVE_TEST_open_issues_ROWS.csv", f"{top}/extras/docs/FULL_LIVE_TEST_open_issues_ROWS.csv")
+    # A tester has no Python: nothing in the bundle itself is a script (the plugin zip inside is the product, not a script).
+    with zipfile.ZipFile(out) as z:
+        scripts = [n for n in z.namelist() if n.endswith(".py")]
+    if scripts:
+        raise SystemExit("the bundle must not contain .py files: " + ", ".join(scripts))
     print(f"{out}\nplugin sha256 {digest}")
 
 

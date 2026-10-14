@@ -76,6 +76,12 @@ _TOOL_ALIASES = {
     # aliases give both geocode tools a fighting chance of being visible on exactly the kind of
     # query that most needs them: naming real-world facilities (hospitals, clinics) with no
     # existing coordinate data to start from.
+    # rc40 hand test OI-80: "which facilities are beyond N hours by road" ran travel_time_matrix and never produced the green/red
+    # access layer, because nothing in the request pointed at classify_facilities_by_access. Phrases only; no bare "beyond"/"within".
+    "classify_facilities_by_access": [
+        "beyond one hour", "beyond an hour", "beyond 1 hour", "beyond 30 minutes", "by road", "outside the service area",
+        "within reach of", "out of reach", "cannot be reached within", "not reachable within",
+    ],
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "find the location of", "where is",

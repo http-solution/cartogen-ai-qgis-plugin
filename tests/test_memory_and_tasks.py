@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from cartogen_ai.core.agent.memory import SpatialMemoryManager, is_project_memory_persist_enabled
+from cartogen_ai.core.agent.memory import SpatialMemoryManager, is_project_memory_persist_enabled, describe_project_memory_storage
 from cartogen_ai.core.agent.task_manager import AgentTaskManager
 
 
@@ -359,3 +359,12 @@ class TestModuleLevelHelpersAreUnconditional(unittest.TestCase):
         top_level |= {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
         self.assertIn("PLAN_RESULT_PROMPT_CHARS", top_level)
         self.assertIn("_clip_result", top_level)
+
+
+class TestStorageLine(unittest.TestCase):
+    def test_off_says_nothing_reaches_the_project_file(self):
+        self.assertIn("OFF", describe_project_memory_storage(False))
+        self.assertIn("Nothing below is written", describe_project_memory_storage(False))
+
+    def test_on_says_notes_are_saved_with_the_project(self):
+        self.assertIn("ON", describe_project_memory_storage(True))

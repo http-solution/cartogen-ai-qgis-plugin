@@ -74,6 +74,15 @@ def _quota_will_not_clear(response):
     return bool(delay and float(delay.group(1)) > 120)
 
 
+def _user_stopped():
+    """True once the user pressed Stop: a request that was dropped for that reason must not be retried."""
+    try:
+        from ...core.agent import cancel_signal
+        return cancel_signal.is_cancelled()
+    except Exception:
+        return False
+
+
 def _request_with_retry(send, timeout, max_retries):
     """Shared retry loop behind post_with_retry/get_with_retry -- `send` is a zero-arg
     callable that performs the actual requests.post/requests.get call. A single transient
@@ -92,7 +101,7 @@ def _request_with_retry(send, timeout, max_retries):
             response = send()
         except RequestException as e:
             last_exc = e
-            if attempt < max_retries:
+            if attempt < max_retries and not _user_stopped():
                 time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
                 continue
             raise

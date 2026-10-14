@@ -253,9 +253,24 @@ def _qgis_hop(method, url, header_items, data, timeout):
     reply.finished.connect(loop.quit)
     if timeout:
         guard.start(int(timeout * 1000) + 5000)
+    # rc40 hand test RC37-F2 / OI-223: Stop pressed while a model call was in flight took 25-30 s to take effect, because this wait
+    # only ended when the reply did. Poll the user's Stop here so the request is dropped within a fraction of a second.
+    stop_state = {"stopped": False}
+    stop_poll = QTimer()
+    stop_poll.setInterval(250)
+
+    def _abort_if_stopped():
+        from .agent import cancel_signal
+        if cancel_signal.is_cancelled():
+            stop_state["stopped"] = True
+            stop_poll.stop()
+            reply.abort()
+    stop_poll.timeout.connect(_abort_if_stopped)
+    stop_poll.start()
     if not reply.isFinished():
         loop.exec()
     guard.stop()
+    stop_poll.stop()
     reply.finished.disconnect(loop.quit)
     status = reply.attribute(_enum(QNetworkRequest, "Attribute", "HttpStatusCodeAttribute"))
     headers = [(bytes(n).decode("latin-1"), bytes(reply.rawHeader(n)).decode("latin-1")) for n in reply.rawHeaderList()]
@@ -265,8 +280,8 @@ def _qgis_hop(method, url, header_items, data, timeout):
         status=int(status) if status is not None else 0,
         headers=headers,
         body=bytes(reply.readAll()),
-        error=reply.errorString() or "network error",
-        timed_out=error in (_enum(QNetworkReply, "NetworkError", "TimeoutError"), _enum(QNetworkReply, "NetworkError", "OperationCanceledError")),
+        error="stopped by the user" if stop_state["stopped"] else (reply.errorString() or "network error"),
+        timed_out=(not stop_state["stopped"]) and error in (_enum(QNetworkReply, "NetworkError", "TimeoutError"), _enum(QNetworkReply, "NetworkError", "OperationCanceledError")),
     )
     reply.deleteLater()
     return result
