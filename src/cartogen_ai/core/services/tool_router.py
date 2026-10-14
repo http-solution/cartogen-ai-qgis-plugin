@@ -92,6 +92,16 @@ _TOOL_ALIASES = {
         "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level",
         "governorate", "province boundar", "district boundar", "p-code", "pcode", "cod-ab",
     ],
+    # QGIS vocabulary audit 2026-10-14 (91 plain menu-style phrases): these were not offered. The Processing tool covers the algorithms in
+    # _processing_allowlist.py; phrases are the names users know from the Processing toolbox and the Vector/Raster menus.
+    "run_allowlisted_processing_algorithm": [
+        "symmetrical difference", "symmetric difference", "k-means", "kmeans", "k means cluster", "dbscan", "reclassify", "reclassification",
+        "sample raster", "raster sampling", "raster values at", "join by nearest", "join attributes by location", "count points in polygon",
+        "cell statistics", "tin interpolation", "idw", "statistics by categories", "pansharp", "shortest path", "extract by location",
+        "create grid", "create a grid", "make a grid", "fishnet", "regular grid", "native:", "gdal:", "qgis:", "processing algorithm", "processing toolbox",
+    ],
+    "hotspot_analysis": ["dbscan", "density clusters", "clusters of incidents", "hot spots"],
+    "get_feature_count": ["how many features", "feature count", "count the features", "number of features", "how many records", "how many rows"],
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "find the location of", "where is",
@@ -261,6 +271,7 @@ _TOOL_ALIASES = {
     "apply_categorized_style": [
         "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
         "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
+        "categorize the layer", "categorise the layer", "categorized style", "categorised style", "unique values",
     ],
     "change_layer_color": [
         "make it red", "make them red", "in red", "in blue", "in green", "in dark", "in light", "in pale", "make it stand out",

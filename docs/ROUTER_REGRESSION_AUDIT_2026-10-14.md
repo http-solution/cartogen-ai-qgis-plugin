@@ -47,3 +47,29 @@ No test can replace a real model's choices. What can be tested without a model i
 - The QGIS tools themselves (live tests in CI cover many; the replay uses recorded results).
 - The UI (chat widget wiring) beyond the live-widget tests.
 - Requests in languages other than English and Arabic.
+
+## Third pass: QGIS everyday vocabulary and the Processing tools (same day, owner question)
+
+**Question.** Are basic QGIS actions and vocabulary covered, including the Processing tools?
+
+**Method.** 91 plain, menu-style phrases (Vector > Geoprocessing, Geometry, Analysis, Research tools, Data management, attribute table, Raster, symbology, labels, layout, project) were written with the tool that does each, or marked GAP where no dedicated tool and no allow-listed Processing algorithm exists. All 42 allow-listed Processing algorithms were also given a plain request. The router was run on each phrase. The 91 phrases were also replayed against rc14, rc21, rc23, rc30, rc40 and 1.16.2 to see whether this is a regression.
+
+**Result before the fixes.**
+
+| | rc14 | rc21 | rc23 | rc30 | rc40 | 1.16.2 |
+|---|---|---|---|---|---|---|
+| phrases with a tool that reached it (of 78) | 70 | 70 | 69 | 69 | 69 | 69 |
+| phrases without a tool that got a fallback (of 13) | 0 | 0 | 3 | 3 | 3 | 3 |
+
+So about 90 percent of the phrases that have a tool reached it in every release, and this part is **not** a regression (the 28 short golden requests were the regression). Two real holes were found:
+
+1. **Seven phrases with a tool were not offered it**: symmetrical difference, k-means, DBSCAN, reclassify a raster, sample raster values (all Processing), "how many features are in the layer" (`get_feature_count`), "categorize the layer by type" (`apply_categorized_style`). Aliases added.
+2. **Thirteen everyday actions have no tool at all** (extract vertices, densify, polygons to lines, minimum bounding geometry, random points, split layer, delete duplicate geometries, raster calculator, polygonize, rasterize, viewshed, add a basemap, measure a distance) and, in 10 of the 13 cases, the model was offered neither a Processing tool nor the script fallback, so it could only say it could not. They now earn `execute_pyqgis_script` and `find_tools` (new `_NO_TOOL_ACTIONS` table in `capabilities.py`, kept apart from the main table so it does not turn plain requests into "workflows").
+
+**Processing allow-list.** 41 of 42 algorithms were reachable from a plain request; `native:creategrid` ("create a grid") was not (alias added). `tests/test_processing_allowlist_routing.py` now maps every allow-listed algorithm to a request and fails when a new algorithm is added without one.
+
+**Not done, on purpose: widening the allow-list.** The 13 GAP actions could be given safe Processing algorithms (`native:extractvertices`, `densifygeometriesgivenaninterval`, `polygonstolines`, `minimumboundinggeometry`, `randompointsinpolygons`, `deleteduplicategeometries`, `gdal:polygonize`, `gdal:rasterize`). Each needs per-algorithm parameter checks and a live test, and `gdal:rastercalculator` is the one the 2026-10 audit (issue 137) found executes Python expressions, so the raster calculator stays out. This is a security decision for the owner (CONTRIBUTING: flag, do not apply); recommendation: add the eight listed above, one PR with their parameter rules and live tests, and leave the raster calculator on the script path.
+
+**Guards added.** `tests/test_qgis_vocabulary_coverage.py` (91 phrases) and `tests/test_processing_allowlist_routing.py` (42 algorithms).
+
+**Still not covered.** What the model does with the tools it is offered, and whether each Processing algorithm actually runs in QGIS (the live tests in CI run a subset; `tests/test_processing_allowlist_live.py` is the place to extend).

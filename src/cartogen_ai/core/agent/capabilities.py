@@ -55,6 +55,36 @@ _TABLE = (
 )
 _COMPILED = tuple((cid, re.compile(rx, re.I), tools, via) for cid, rx, tools, via in _TABLE)
 
+# Everyday QGIS actions that have NO dedicated tool and whose Processing algorithm is not on the allow-list (QGIS vocabulary audit 2026-10-14).
+# Kept apart from _TABLE on purpose: _TABLE entries count toward "multi-step workflow" detection, and these must not turn a plain request
+# into one. Before this, a request such as "extract the vertices of the roads" was offered neither a tool nor the script fallback (the
+# script is only offered when NOTHING else matched), so the model answered that it could not. Each phrase now earns the script fallback
+# and find_tools. Adding an algorithm to the Processing allow-list instead is a security decision with per-algorithm parameter checks
+# (docs/IMPLEMENTATION_TRACKER.md, owner decision) and is deliberately not made here.
+_NO_TOOL_ACTIONS = (
+    ("extract_vertices", r"\b(extract|get)\s+(the\s+)?vertices\b|\bvertices of\b"),
+    ("densify", r"\bdensif\w*"),
+    ("polygons_lines", r"\bpolygons?\s+to\s+lines?\b|\blines?\s+to\s+polygons?\b"),
+    ("bounding_geometry", r"\bminimum bounding\b|\boriented (minimum )?bounding\b|\bbounding (box|geometry|rectangle) of (each|every)\b"),
+    ("random_points", r"\brandom points?\b"),
+    ("split_layer", r"\bsplit (the )?(vector )?layer\b"),
+    ("delete_duplicates", r"\b(delete|remove)\s+(the\s+)?duplicate\s+(geometr\w+|features|points|records)\b"),
+    ("raster_calculator", r"\braster calculator\b|\bband math\b|\bmap algebra\b"),
+    ("polygonize", r"\bpolygoni[sz]e\b"),
+    ("rasterize", r"\brasteri[sz]e\b"),
+    ("viewshed", r"\bviewshed\b|\bline of sight\b|\bintervisibility\b"),
+    ("basemap", r"\b(add|load|show|insert)\b.{0,25}\b(basemap|base map|xyz tiles?)\b"),
+    ("measure", r"\bmeasure\b.{0,30}\b(distance|length|area|angle)\b|\bdistance between (two|these|the) points\b"),
+)
+_NO_TOOL_COMPILED = tuple((cid, re.compile(rx, re.I)) for cid, rx in _NO_TOOL_ACTIONS)
+NO_TOOL_FALLBACK_TOOLS = ("execute_pyqgis_script", "run_allowlisted_processing_algorithm")
+
+
+def uncovered_actions(query):
+    """Ids of everyday QGIS actions the request names that have no dedicated tool. Pure."""
+    text = (query or "").lower()
+    return [cid for cid, rx in _NO_TOOL_COMPILED if rx.search(text)]
+
 # A request may need many of these; this bounds how many tool slots the table can claim so it never crowds out the rest.
 MAX_REQUIRED_TOOLS = 16
 
@@ -79,13 +109,17 @@ def required_tools(query, limit=MAX_REQUIRED_TOOLS):
             for name in via:
                 if name not in ordered:
                     ordered.append(name)
+    if uncovered_actions(query):
+        for name in NO_TOOL_FALLBACK_TOOLS:
+            if name not in ordered:
+                ordered.append(name)
     return ordered[:limit]
 
 
 def uncovered_capabilities(query):
     """Capability ids the request names that have NO dedicated tool: these are the steps the plugin can only do through Processing or
     a script, so the user (and the cost guard) can be told up front instead of after a dozen failed rounds."""
-    return [cid for cid, tools, _via in needed_capabilities(query) if not tools]
+    return [cid for cid, tools, _via in needed_capabilities(query) if not tools] + uncovered_actions(query)
 
 
 def lead_tools_for_task(tools, query):
