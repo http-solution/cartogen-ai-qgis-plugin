@@ -82,7 +82,8 @@ ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTE
 # here only while tests/test_processing_allowlist_all_live.py runs it successfully in real QGIS; a failing one is moved to NOT_YET with
 # the reason in tests/_processing_live_rows.py (GEOMETRY_REJECTED) and removed from this set.
 # First live run (2026-10-14, QGIS 4.2.2): 73 of 78 ran; native:concavehull hung (60 s timeout) and native:transect / native:transectfixeddistance
-# crashed the process (SIGSEGV), so those three are NOT here.
+# crashed the process (SIGSEGV), so those three are NOT here. A second run: qgis:variabledistancebuffer and
+# qgis:rectanglesovalsdiamondsvariable (Python algorithms) raised a traceback on polygon, line and point input even with a numeric field.
 GEOMETRY_FAMILY = {
     "native:affinetransform": "Affine transform",
     "native:antimeridiansplit": "Geodesic line split at antimeridian",
@@ -157,8 +158,6 @@ GEOMETRY_FAMILY = {
     "qgis:knearestconcavehull": "Concave hull (k-nearest neighbor)",
     "qgis:linestopolygons": "Lines to polygons",
     "qgis:pointsdisplacement": "Points displacement",
-    "qgis:rectanglesovalsdiamondsvariable": "Rectangles, ovals, diamonds (variable)",
-    "qgis:variabledistancebuffer": "Variable distance buffer",
 }
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(GEOMETRY_FAMILY))
 

@@ -66,5 +66,7 @@ GEOMETRY_NOT_YET = {}
 GEOMETRY_REJECTED = {
     "native:concavehull": "hung: no result after 60 s on a 2-polygon layer with default parameters",
     "native:transect": "crashed the QGIS process (SIGSEGV, exit code -11) on polygon, line and point input",
+    "qgis:variabledistancebuffer": "Python algorithm raised a traceback on polygon, line and point input with a numeric field (QGIS 4.2.2, two live runs); cause not investigated",
+    "qgis:rectanglesovalsdiamondsvariable": "Python algorithm raised a traceback on polygon, line and point input with a numeric field (QGIS 4.2.2, two live runs); cause not investigated",
     "native:transectfixeddistance": "crashed the QGIS process (SIGSEGV, exit code -11) on polygon, line and point input",
 }
