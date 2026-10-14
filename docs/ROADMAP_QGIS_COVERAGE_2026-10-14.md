@@ -21,6 +21,19 @@ What I could not check: this repository starts at 2026-10-02, so the 1.15.x rele
 
 Each missing ability becomes a dedicated tool that is: checked (inputs validated), undoable (goes through the existing edit session and transaction log), confirmed when destructive, tested in real QGIS in CI, and guarded by a test that fails if it ever stops working. No ability is brought back by reopening the script route.
 
+## 2b. Showcase pack: four live-demo scenarios that must work (added 2026-10-14)
+
+The owner reported four regressions from live demos. They are acceptance scenarios, built right after M0, each with a CI test.
+
+| # | Scenario | Why it fails today (read from the code) | Fix | Test |
+|---|---|---|---|---|
+| S1 | "Determine watershed area, stream length, H, slope, 20-year return period, intensity, tc and peak flow at 32 01 47.39 N, 35 48 21.00 E" | Task 36.01 blocks with 3 questions (DEM, IDF, runoff coefficient have no defaults); no tool delineates a basin or longest flow path from a DEM | DEM-based delineation tool (Copernicus 30 m, pour-point snapping, area, longest flow path, H, slope), Kirpich Tc, rational Q, report and map; ask once, then proceed with assumptions listed in the report | synthetic DEM, pure numpy, plus a live-QGIS CI test |
+| S2 | Basic instructions | Router regression, fixed in 1.16.3 and #316 | keep the golden tests | exists |
+| S3 | "Find the information on the internet and give the source" | `search_web` needs the `ddgs` package, absent in clean installs; grounded search works only with Gemini and OpenAI | search path without extra dependencies; every answer lists URL and date | offline fixtures |
+| S4 | "Check the internet for major incidents from the news and list them on the map" | `find_incident_reports` uses fixed official sources only (rc37); no news, geocode, plot path | news search, geocoding, points with link, date and "reported by" wording; no model-typed coordinates | offline fixtures |
+
+Policy decisions taken with this pack: model-written expressions may not call `env()` or the file functions (they can still be used when the user types the expression or asks for them, after a confirmation); the raster calculator is `native:rastercalc` with a friendly wrapper, added after the expression screen.
+
 ## 3. Milestones
 
 Sizes: S = about one pull request, M = a few, L = a series. "Rows" are the 163 documented actions; the Processing numbers come from the 772-algorithm registry.
