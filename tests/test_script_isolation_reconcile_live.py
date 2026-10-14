@@ -105,6 +105,44 @@ class TestReconcileAdoption(unittest.TestCase):
         self.assertEqual(adopted.featureCount(), 2)
         self.assertEqual(sorted(f["v"] for f in adopted.getFeatures()), [5, 6])
 
+    def _file_backed_points(self):
+        """smoke_points from the checked-in fixture, copied next to the test so nothing in the repository is touched."""
+        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "release_smoke_assets", "inputs", "smoke_data.gpkg")
+        copy = os.path.join(self.tempdir, "live_data.gpkg")
+        shutil.copy(src, copy)
+        live = QgsVectorLayer(f"{copy}|layername=smoke_points", "pts", "ogr")
+        self.assertTrue(live.isValid())
+        QgsProject.instance().addMapLayer(live)
+        return live
+
+    def test_an_edit_to_a_file_backed_layer_is_reported_as_not_applied(self):
+        live = self._file_backed_points()
+        pre_ids = set(QgsProject.instance().mapLayers().keys())
+
+        def change(result):
+            layer = result.mapLayersByName("pts")[0]
+            layer.startEditing()
+            fid = next(iter(layer.getFeatures())).id()
+            layer.changeAttributeValue(fid, layer.fields().indexOf("name"), "Changed")
+            self.assertTrue(layer.commitChanges())
+
+        result_path, memory_ids = self._simulate_worker(change)
+        from cartogen_ai.core.agent.services import script_isolation as si
+        _new, updated, problems = si._reconcile_results(result_path, pre_ids, memory_ids)
+        self.assertEqual(updated, [])
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("'pts'", problems[0])
+        self.assertIn("NOT applied", problems[0])
+        self.assertNotIn("Changed", [f["name"] for f in live.getFeatures()])      # the live data really was left alone
+
+    def test_an_untouched_file_backed_layer_gives_no_warning(self):
+        self._file_backed_points()
+        pre_ids = set(QgsProject.instance().mapLayers().keys())
+        result_path, memory_ids = self._simulate_worker(lambda result: None)
+        from cartogen_ai.core.agent.services import script_isolation as si
+        _new, updated, problems = si._reconcile_results(result_path, pre_ids, memory_ids)
+        self.assertEqual((updated, problems), ([], []))
+
 
 if __name__ == "__main__":
     unittest.main()

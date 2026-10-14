@@ -514,6 +514,10 @@ def _replace_memory_layer(live_layer, result_layer):
     live_layer.triggerRepaint()
 
 
+# Most features of a file-backed layer compared after a script run (see _reconcile_results); above this the check is skipped.
+FILE_LAYER_CHECK_MAX_FEATURES = 50000
+
+
 def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids):
     """Loads the worker's resulting project and applies two, and only two, kinds of change back to the LIVE project --
     everything else a script could theoretically do (remove/reorder layers, edit styles) is not reconciled; see this
@@ -563,6 +567,27 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
             problems.append(f"changes to layer '{live_layer.name()}' were not applied: {e}")
             continue
         memory_layers_updated.append(live_layer.name())
+
+    # A layer stored in a file is deliberately NOT written back: the worker edits a COPY of it (rc20 audit A06), so the user's data
+    # cannot be damaged by a script. But the script's own reply then says it changed the layer. rc40 hand test OI-145 (2026-10-14): a
+    # script that renamed a feature and moved a vertex of the GeoPackage layer smoke_points reported success, the live layer was
+    # unchanged, and nothing said so. Compare the copy with the live layer and say it plainly. Large layers are skipped (the
+    # comparison reads every feature), which is stated nowhere because a skipped layer is no worse than before.
+    for layer_id, result_layer in result_scratch.mapLayers().items():
+        if layer_id not in pre_call_layer_ids or layer_id in memory_layer_ids:
+            continue
+        live_layer = live.mapLayer(layer_id)
+        if live_layer is None or not (hasattr(live_layer, "getFeatures") and hasattr(result_layer, "getFeatures")):
+            continue
+        try:
+            if live_layer.featureCount() > FILE_LAYER_CHECK_MAX_FEATURES or _same_content(live_layer, result_layer):
+                continue
+        except Exception as e:                                   # a comparison that cannot run must not break the script's result
+            log_event("isolated_script_file_layer_check_failed", tag="ScriptIsolation", error_class=type(e).__name__, error=True)
+            continue
+        problems.append(f"your changes to the layer '{live_layer.name()}' were NOT applied: it is stored in a file or database, and a script "
+                        "works on a copy of such a layer. Change it with an editing tool (for example the field calculator) or have the "
+                        "script write a new layer")
 
     return new_layers_added, memory_layers_updated, problems
 
@@ -805,6 +830,11 @@ def run_isolated_script(script: str) -> dict:
                 problems=len(problems),
             )
         reply = {"success": True, "result": response.get("result")}
+        if new_layers:
+            # rc40 hand test OI-145: a script's new layer is a temporary (memory) layer and was empty after save, close and reopen,
+            # with nothing in the reply to warn of it.
+            reply["note"] = (f"New layer(s) {', '.join(repr(n) for n in new_layers)} are temporary: they are lost when the project is closed "
+                             "unless they are saved to a file (ask to tidy the project layers, or export them).")
         if problems:
             # Never a clean success when part of the script's work could not be brought back (#145 / #146).
             reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
