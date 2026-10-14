@@ -56,3 +56,7 @@ NOT_YET = {
     "native:shortestpathpointtopoint": "needs a road network fixture",
     "qgis:statisticsbycategories": "table output; fixture to be added",
 }
+
+
+# Geometry-family algorithms (M6a) that did not run in a real QGIS session, with the error CI reported. Empty means every one ran.
+GEOMETRY_NOT_YET = {}

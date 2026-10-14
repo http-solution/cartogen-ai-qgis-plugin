@@ -1332,6 +1332,13 @@
    "near_layer"
   ]
  },
+ "find_processing_algorithm": {
+  "properties": [
+   "algorithm_id",
+   "query"
+  ],
+  "required": []
+ },
  "find_tools": {
   "properties": [
    "need"

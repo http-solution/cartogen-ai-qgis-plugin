@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (238 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (239 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2393,13 +2393,22 @@ Check that every P-code value in a layer is unique across its features -- flags 
 
 ## processing_allowlist_tools
 
+### `find_processing_algorithm`
+
+Search the approved QGIS Processing algorithms by a few words (for example 'densify', 'polygons to lines', 'smooth') and get each match's id, name and exact parameter names with types and defaults, ready for run_allowlisted_processing_algorithm. Read-only. With algorithm_id set, returns just that algorithm's parameters.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | no |  |
+| `algorithm_id` | string | no |  |
+
 ### `run_allowlisted_processing_algorithm`
 
 Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over execute_pyqgis_script when the task is achievable via a single Processing algorithm that isn't already covered by a dedicated tool. It calls only the named, pre-approved algorithm with the given parameters and never accepts a FORMULA or EXTRA (raw backend arguments) parameter; algorithms that evaluate free-form expressions as code (such as the GDAL raster calculator) are not on the list. Only algorithms already used elsewhere in this codebase are allowed -- an unlisted algorithm id is rejected outright, not run. Output is always kept in-memory as a new project layer (auto-named), never written to a file path -- use a dedicated export tool (export_layer, export_to_csv) afterward if a file is actually needed. Don't specify the output (destination) parameters yourself -- they are set automatically and any value you give is ignored. An unknown parameter name is rejected before the algorithm runs, with the list of valid names; an algorithm with several outputs returns each as its own layer (additional_outputs); native:selectbylocation changes the selection of the existing layer instead of creating one. Any string parameter value matching a currently-loaded layer's name is automatically resolved to that layer; every other value is passed through as-is.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:merge', 'gdal:pansharp', 'native:aspect', 'native:buffer', 'native:cellstatistics', 'native:centroids', 'native:clip', 'native:convexhull', 'native:countpointsinpolygon', 'native:creategrid', 'native:dbscanclustering', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:extractbylocation', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:kmeansclustering', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:rastersampling', 'native:reclassifybytable', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'native:zonalstatisticsfb', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:statisticsbycategories', 'qgis:tininterpolation'] |
+| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be an approved id; call find_processing_algorithm to search the approved list by words and see each algorithm's exact parameter names. |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
 | `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
 

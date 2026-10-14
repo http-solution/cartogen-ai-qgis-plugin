@@ -178,7 +178,7 @@ def _run_allowlisted(alg_id, resolved_params):
         "properties": {
             "alg_id": {
                 "type": "string",
-                "description": f"Processing algorithm id, e.g. 'native:buffer'. Must be one of: {sorted(ALLOWED_ALGORITHM_IDS)}",
+                "description": "Processing algorithm id, e.g. 'native:buffer'. Must be an approved id; call find_processing_algorithm to search the approved list by words and see each algorithm's exact parameter names.",
             },
             "params": {
                 "type": "object",
@@ -197,7 +197,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         return {"error": "QGIS not available"}
     if alg_id not in ALLOWED_ALGORITHM_IDS:
         return {
-            "error": f"'{alg_id}' is not on the allowed algorithm list. Allowed: {sorted(ALLOWED_ALGORITHM_IDS)}. "
+            "error": f"'{alg_id}' is not on the allowed algorithm list. Call find_processing_algorithm with a few words to search the "
+                     f"{len(ALLOWED_ALGORITHM_IDS)} approved algorithms. "
                      "Use execute_pyqgis_script as a last resort if genuinely nothing else covers this."
         }
     if not isinstance(params, dict):
@@ -301,3 +302,58 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         result["primary_output"] = primary_key
         result["additional_outputs"] = extra
     return result
+
+
+def search_allowed_algorithms(query, names=None, limit=15):
+    """[(id, name)] of approved algorithms whose id or display name contains every word of `query`, best first. Pure: `names` maps
+    id to display name (ids without one are searched by id only)."""
+    from ._processing_allowlist import GEOMETRY_FAMILY
+    names = dict(GEOMETRY_FAMILY if names is None else names)
+    words = [w for w in str(query or "").lower().replace("_", " ").split() if len(w) > 1]
+    scored = []
+    for alg_id in sorted(ALLOWED_ALGORITHM_IDS):
+        haystack = (alg_id.lower() + " " + str(names.get(alg_id, "")).lower()).replace("_", " ")
+        hits = sum(1 for w in words if w in haystack)
+        if words and hits == len(words):
+            scored.append((-hits, alg_id))
+        elif not words:
+            scored.append((0, alg_id))
+    return [(alg_id, names.get(alg_id, "")) for _score, alg_id in sorted(scored)[:limit]]
+
+
+@register_tool(
+    "find_processing_algorithm",
+    "Search the approved QGIS Processing algorithms by a few words (for example 'densify', 'polygons to lines', 'smooth') and get each "
+    "match's id, name and exact parameter names with types and defaults, ready for run_allowlisted_processing_algorithm. Read-only. "
+    "With algorithm_id set, returns just that algorithm's parameters.",
+    {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"}}, "required": []})
+def find_processing_algorithm(query="", algorithm_id=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    from ._processing_allowlist import GEOMETRY_FAMILY
+    if algorithm_id:
+        matches = [(algorithm_id, GEOMETRY_FAMILY.get(algorithm_id, ""))] if algorithm_id in ALLOWED_ALGORITHM_IDS else []
+        if not matches:
+            return {"error": f"'{algorithm_id}' is not on the approved list. Search with a few words instead."}
+    else:
+        matches = search_allowed_algorithms(query)
+    results = []
+    for alg_id, name in matches:
+        entry = {"id": alg_id, "name": name}
+        try:
+            algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
+            entry["name"] = name or algorithm.displayName()
+            entry["parameters"] = [
+                {"name": p.name(), "type": str(p.type()), "default": _plain(p.defaultValue())}
+                for p in algorithm.parameterDefinitions() if not p.isDestination()]
+            entry["outputs_are_kept_in_memory"] = True
+        except Exception:
+            entry["parameters"] = "not available in this QGIS session"
+        results.append(entry)
+    if not results:
+        return {"success": True, "matches": [], "message": f"No approved algorithm matches '{query}'. Try other words, or a dedicated tool."}
+    return {"success": True, "matches": results}
+
+
+def _plain(value):
+    return value if isinstance(value, (int, float, str, bool)) or value is None else str(value)
