@@ -12,8 +12,8 @@ authoritative design inputs.
 What it does and does NOT do, stated plainly (CONTRIBUTING.md: say shipped vs unverified):
   * It converts DMS, checks that the inputs are explicit, and computes slope, Kirpich Tc and the Rational Method discharge
     from numbers the caller supplies.
-  * It does NOT delineate a basin, build a flow path or sample a DEM. That GIS phase needs a loaded DEM and a hydrology
-    provider and is not implemented here, so none of it is verified in a live QGIS session.
+  * It does NOT delineate a basin, build a flow path or sample a DEM. That GIS phase is delineate_watershed (watershed_tools.py,
+    added 2026-10-14, D8 on a DEM); this module only turns its measurements into Tc and a discharge.
   * Every result is labelled preliminary and subject to the governing local drainage standard.
 
 The equations are the standard published ones (FHWA HDS-2 / HDS-4, USDA-NRCS NEH 630 ch. 15); see
@@ -212,8 +212,8 @@ def assess_watershed_hydrology_request(
         },
         "calculation_tool": "calculate_rational_watershed_peak_flow",
         "gis_phase_note": (
-            "This plugin does not yet delineate the basin or measure the flow path. Those measurements need a loaded "
-            "DEM and a hydrology provider; do not report area, flow length or elevations until they are measured."
+            "Measure the basin with the tools, never by estimate: fetch_dem (if no DEM covers the point), then delineate_watershed, which "
+            "returns area, longest flow path, H, slope and Tc from the DEM. Do not report area, flow length or elevations from any other source."
         ),
         "engineering_note": (
             "The Rational Method is a preliminary small-catchment method. Confirm its applicability "

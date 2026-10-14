@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (240 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (241 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2671,6 +2671,23 @@ Evaluate an anticipatory-action trigger rule against forecast values already in 
 | `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
 | `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
 | `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
+
+## watershed_tools
+
+### `delineate_watershed`
+
+Delineate the watershed upstream of an outlet point on a DEM in the project and MEASURE it: basin area, longest hydraulic flow path, H (elevation drop along it), main-channel slope and the Kirpich time of concentration. Adds the basin, flow path and outlet to the project. location is DMS ('32°01'47.39"N, 35°48'21.00"E') or 'lat, lon'. Needs an elevation raster that covers the point (fetch_dem first if none). It does NOT invent rainfall intensity or a runoff coefficient: the reply says which design inputs the user must give, then use calculate_rational_watershed_peak_flow for the peak flow.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `location` | string | no | Outlet as DMS or 'lat, lon'. |
+| `lat` | number | no |  |
+| `lon` | number | no |  |
+| `dem_layer` | string | no | Name of the DEM raster; default: a raster in the project that covers the point. |
+| `return_period_years` | number | no | Design return period, used to word the design-input request. |
+| `radius_km` | number | no | Half-width of the window read around the outlet (default 8, at most 15). |
+| `snap_distance_m` | number | no | How far the outlet may move onto the derived channel (default 300). |
+| `layer_prefix` | string | no | Prefix for the new layers (default 'Watershed'). |
 
 ## web_research_tools
 
