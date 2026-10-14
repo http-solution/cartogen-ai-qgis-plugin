@@ -1,0 +1,2395 @@
+{
+ "add_incident_point": {
+  "properties": [
+   "contamination_status",
+   "date",
+   "description",
+   "event_end",
+   "event_start",
+   "event_type",
+   "hazard_type",
+   "last_verified",
+   "lat",
+   "lon",
+   "severity",
+   "sub_event_type"
+  ],
+  "required": [
+   "date",
+   "description",
+   "lat",
+   "lon"
+  ]
+ },
+ "add_layer_from_path": {
+  "properties": [
+   "file_path",
+   "layer_name"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "add_point_layer": {
+  "properties": [
+   "crs",
+   "crs_stated_by_user",
+   "layer_name",
+   "points"
+  ],
+  "required": [
+   "layer_name",
+   "points"
+  ]
+ },
+ "advance_dataset_status": {
+  "properties": [
+   "contract_name",
+   "layer_name",
+   "layout_name",
+   "note",
+   "override",
+   "target_status"
+  ],
+  "required": [
+   "layer_name",
+   "target_status"
+  ]
+ },
+ "aggregate_data": {
+  "properties": [
+   "agg",
+   "group_by_field",
+   "rows",
+   "value_field"
+  ],
+  "required": [
+   "group_by_field",
+   "rows"
+  ]
+ },
+ "aggregate_survey_indicator": {
+  "properties": [
+   "confidence",
+   "design_effect",
+   "group_field",
+   "indicator_field",
+   "kind",
+   "layer_name",
+   "min_n",
+   "output_table_name",
+   "positive_values",
+   "weight_field"
+  ],
+  "required": [
+   "group_field",
+   "indicator_field",
+   "layer_name"
+  ]
+ },
+ "analyze_critical_links": {
+  "properties": [
+   "default_speed",
+   "destination_weight_field",
+   "destinations_layer",
+   "direction_field",
+   "max_origins",
+   "max_snap_m",
+   "origin_weight_field",
+   "origins_layer",
+   "output_layer_name",
+   "road_network_layer",
+   "speed_field",
+   "strategy",
+   "time_budget_s",
+   "top_n",
+   "value_backward",
+   "value_both",
+   "value_forward"
+  ],
+  "required": [
+   "origins_layer",
+   "road_network_layer"
+  ]
+ },
+ "analyze_incident_trend": {
+  "properties": [
+   "date_field",
+   "period_days",
+   "periods_ahead",
+   "point_layer",
+   "zone_layer",
+   "zone_name_field"
+  ],
+  "required": [
+   "date_field",
+   "point_layer",
+   "zone_layer",
+   "zone_name_field"
+  ]
+ },
+ "analyze_layer_for_visualization": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "apply_categorized_style": {
+  "properties": [
+   "field",
+   "layer_name",
+   "opacity",
+   "palette"
+  ],
+  "required": [
+   "field",
+   "layer_name"
+  ]
+ },
+ "apply_graduated_style": {
+  "properties": [
+   "breaks",
+   "cluster",
+   "color_from",
+   "color_to",
+   "field",
+   "layer_name",
+   "mode",
+   "num_classes",
+   "opacity"
+  ],
+  "required": [
+   "field",
+   "layer_name"
+  ]
+ },
+ "apply_graduated_symbol_style": {
+  "properties": [
+   "color",
+   "field",
+   "layer_name",
+   "max_size",
+   "min_size",
+   "mode",
+   "num_classes"
+  ],
+  "required": [
+   "field",
+   "layer_name"
+  ]
+ },
+ "apply_heatmap_style": {
+  "properties": [
+   "field",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "apply_humanitarian_look": {
+  "properties": [
+   "field",
+   "layer_name",
+   "look",
+   "top_k"
+  ],
+  "required": [
+   "field",
+   "layer_name",
+   "look"
+  ]
+ },
+ "apply_labels": {
+  "properties": [
+   "expression",
+   "font_size",
+   "layer_name",
+   "priority",
+   "target_field"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "apply_map_theme": {
+  "properties": [
+   "theme_name"
+  ],
+  "required": [
+   "theme_name"
+  ]
+ },
+ "apply_network_barriers": {
+  "properties": [
+   "barrier_layer",
+   "buffer_m",
+   "mode",
+   "output_field",
+   "penalty_factor",
+   "road_network_layer",
+   "speed_field"
+  ],
+  "required": [
+   "barrier_layer",
+   "road_network_layer"
+  ]
+ },
+ "apply_point_cluster_style": {
+  "properties": [
+   "layer_name",
+   "mode",
+   "tolerance"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "apply_raster_stretch": {
+  "properties": [
+   "band",
+   "color_ramp",
+   "keep_population_ramp",
+   "layer_name",
+   "max_value",
+   "min_value",
+   "mode"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "apply_recommended_representation": {
+  "properties": [
+   "layer_name",
+   "representation_id",
+   "target_field"
+  ],
+  "required": [
+   "layer_name",
+   "representation_id"
+  ]
+ },
+ "apply_rule_based_style": {
+  "properties": [
+   "field",
+   "layer_name",
+   "rules"
+  ],
+  "required": [
+   "field",
+   "layer_name",
+   "rules"
+  ]
+ },
+ "aspect_analysis": {
+  "properties": [
+   "dem_layer"
+  ],
+  "required": [
+   "dem_layer"
+  ]
+ },
+ "assess_watershed_hydrology_request": {
+  "properties": [
+   "dem_source",
+   "idf_source",
+   "location",
+   "return_period_years",
+   "runoff_coefficient"
+  ],
+  "required": [
+   "location",
+   "return_period_years"
+  ]
+ },
+ "auto_arrange_layer_order": {
+  "properties": [],
+  "required": []
+ },
+ "band_composite": {
+  "properties": [
+   "blue_band",
+   "green_band",
+   "layer_name",
+   "red_band"
+  ],
+  "required": [
+   "blue_band",
+   "green_band",
+   "layer_name",
+   "red_band"
+  ]
+ },
+ "buffer_analysis": {
+  "properties": [
+   "distance",
+   "layer_name",
+   "only_selected",
+   "output_name"
+  ],
+  "required": [
+   "distance",
+   "layer_name"
+  ]
+ },
+ "build_composite_impedance_field": {
+  "properties": [
+   "damage_field",
+   "dem_layer",
+   "dem_vertical_unit",
+   "highway_field",
+   "output_field",
+   "road_network_layer",
+   "surface_field"
+  ],
+  "required": [
+   "road_network_layer"
+  ]
+ },
+ "calculate_allocation_envelope": {
+  "properties": [
+   "budget",
+   "exclude_need_below",
+   "layer_name",
+   "max_share_per_unit",
+   "min_amount_per_unit",
+   "need_exponent",
+   "need_field",
+   "output_field",
+   "population_field",
+   "rounding",
+   "unit_label",
+   "unit_name_field"
+  ],
+  "required": [
+   "budget",
+   "layer_name",
+   "need_field"
+  ]
+ },
+ "calculate_area": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "calculate_damage_exposure_severity": {
+  "properties": [
+   "admin_layer",
+   "building_footprints_layer",
+   "hazard_intensity_raster",
+   "high_severity_classes",
+   "output_field",
+   "raster_after",
+   "raster_before",
+   "unit_name_field"
+  ],
+  "required": [
+   "admin_layer",
+   "building_footprints_layer",
+   "raster_after",
+   "raster_before",
+   "unit_name_field"
+  ]
+ },
+ "calculate_length": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "calculate_mcda_ranking": {
+  "properties": [
+   "criteria",
+   "layer_name",
+   "output_prefix",
+   "perturbation",
+   "seed",
+   "top_k",
+   "trials",
+   "unit_name_field"
+  ],
+  "required": [
+   "criteria",
+   "layer_name"
+  ]
+ },
+ "calculate_ndre": {
+  "properties": [
+   "align_to_first",
+   "nir_layer",
+   "red_edge_layer",
+   "resampling"
+  ],
+  "required": [
+   "nir_layer",
+   "red_edge_layer"
+  ]
+ },
+ "calculate_ndvi": {
+  "properties": [
+   "align_to_first",
+   "nir_layer",
+   "red_layer",
+   "resampling"
+  ],
+  "required": [
+   "nir_layer",
+   "red_layer"
+  ]
+ },
+ "calculate_ndwi": {
+  "properties": [
+   "align_to_first",
+   "green_layer",
+   "nir_layer",
+   "resampling"
+  ],
+  "required": [
+   "green_layer",
+   "nir_layer"
+  ]
+ },
+ "calculate_population_in_need": {
+  "properties": [
+   "high_severity_classes",
+   "indicator_fields",
+   "invert_indicators",
+   "layer_name",
+   "output_field",
+   "population_raster_layer",
+   "unit_name_field",
+   "weights"
+  ],
+  "required": [
+   "indicator_fields",
+   "layer_name",
+   "population_raster_layer",
+   "unit_name_field"
+  ]
+ },
+ "calculate_presence_gap": {
+  "properties": [
+   "delimiter",
+   "high_severity_classes",
+   "indicator_fields",
+   "invert_indicators",
+   "layer_name",
+   "low_presence_threshold",
+   "output_field",
+   "presence_admin_field",
+   "presence_file_path",
+   "presence_org_field",
+   "sheet_name",
+   "unit_name_field",
+   "weights"
+  ],
+  "required": [
+   "indicator_fields",
+   "layer_name",
+   "presence_admin_field",
+   "presence_file_path",
+   "presence_org_field",
+   "unit_name_field"
+  ]
+ },
+ "calculate_raster_change_detection": {
+  "properties": [
+   "align_to_first",
+   "raster_after",
+   "raster_before",
+   "resampling"
+  ],
+  "required": [
+   "raster_after",
+   "raster_before"
+  ]
+ },
+ "calculate_rational_watershed_peak_flow": {
+  "properties": [
+   "area_km2",
+   "flow_length_km",
+   "intensity_duration_minutes",
+   "intensity_source",
+   "outlet_elevation_m",
+   "rainfall_intensity_mm_h",
+   "return_period_years",
+   "runoff_coefficient",
+   "upstream_elevation_m"
+  ],
+  "required": [
+   "area_km2",
+   "flow_length_km",
+   "outlet_elevation_m",
+   "return_period_years",
+   "upstream_elevation_m"
+  ]
+ },
+ "calculate_service_area": {
+  "properties": [
+   "default_speed",
+   "direction_field",
+   "facility_layer",
+   "road_network_layer",
+   "speed_field",
+   "strategy",
+   "style_by_cost",
+   "travel_cost",
+   "value_backward",
+   "value_both",
+   "value_forward"
+  ],
+  "required": [
+   "facility_layer",
+   "road_network_layer",
+   "travel_cost"
+  ]
+ },
+ "calculate_severity_index": {
+  "properties": [
+   "indicator_fields",
+   "invert_indicators",
+   "layer_name",
+   "output_field",
+   "unit_name_field",
+   "weights"
+  ],
+  "required": [
+   "indicator_fields",
+   "layer_name",
+   "unit_name_field"
+  ]
+ },
+ "centroid": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "change_layer_color": {
+  "properties": [
+   "color_hex",
+   "layer_name",
+   "opacity"
+  ],
+  "required": [
+   "color_hex",
+   "layer_name"
+  ]
+ },
+ "check_pcode_hierarchy": {
+  "properties": [
+   "child_pcode_field",
+   "layer_name",
+   "parent_pcode_field"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "check_pcode_uniqueness": {
+  "properties": [
+   "layer_name",
+   "pcode_field"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "classify_facilities_by_access": {
+  "properties": [
+   "default_speed",
+   "direction_field",
+   "facility_layer",
+   "origin_layer",
+   "road_network_layer",
+   "snap_distance_m",
+   "speed_field",
+   "strategy",
+   "travel_cost"
+  ],
+  "required": [
+   "facility_layer",
+   "origin_layer",
+   "road_network_layer",
+   "travel_cost"
+  ]
+ },
+ "clip_layer": {
+  "properties": [
+   "input_layer",
+   "mask_layer"
+  ],
+  "required": [
+   "input_layer",
+   "mask_layer"
+  ]
+ },
+ "compute_jiaf_patterns": {
+  "properties": [
+   "correlation_threshold",
+   "file_path",
+   "group_shares",
+   "high_pin_share",
+   "input_format",
+   "layer_key_field",
+   "layer_name",
+   "many_sectors_with_large_pin",
+   "many_severe_sectors",
+   "previous_file_path",
+   "previous_sheet_name",
+   "sector_population_share",
+   "sectors_in_scope",
+   "severe_phases",
+   "sheet_name",
+   "top_sectors",
+   "top_units",
+   "write_fields",
+   "zero_severity_as"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "compute_jiaf_preliminary": {
+  "properties": [
+   "export_csv_path",
+   "f1_count_missing",
+   "f1_count_zero",
+   "f1_min_sectors",
+   "f2_pct",
+   "f3_pct",
+   "f4_subpopulation_sectors",
+   "f5_share",
+   "f6_min_previous_pin",
+   "f6_pct",
+   "file_path",
+   "input_format",
+   "layer_key_field",
+   "layer_name",
+   "previous_file_path",
+   "previous_sheet_name",
+   "rules_profile",
+   "s4_sector_count",
+   "sectors_in_scope",
+   "sectors_sev_4",
+   "sectors_sev_5",
+   "sheet_name",
+   "write_fields",
+   "zero_severity_as"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "convert_to_singlepart": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "convex_hull": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "create_map_theme": {
+  "properties": [
+   "theme_name"
+  ],
+  "required": [
+   "theme_name"
+  ]
+ },
+ "create_plan": {
+  "properties": [
+   "task_descriptions",
+   "title"
+  ],
+  "required": [
+   "task_descriptions",
+   "title"
+  ]
+ },
+ "create_print_layout": {
+  "properties": [
+   "body_text",
+   "dpi",
+   "include_inset_map",
+   "key_figures",
+   "output_path",
+   "page_orientation",
+   "sources",
+   "template",
+   "title",
+   "zoom_to_layer"
+  ],
+  "required": [
+   "title"
+  ]
+ },
+ "create_project_folder_structure": {
+  "properties": [
+   "base_path"
+  ],
+  "required": [
+   "base_path"
+  ]
+ },
+ "create_shaded_relief": {
+  "properties": [
+   "altitude",
+   "azimuth",
+   "color_ramp",
+   "dem_layer",
+   "opacity"
+  ],
+  "required": [
+   "dem_layer"
+  ]
+ },
+ "delaunay_triangulation": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "design_sampling_frame": {
+  "properties": [
+   "confidence",
+   "design_effect",
+   "expected_proportion",
+   "margin_of_error",
+   "nonresponse_rate",
+   "output_layer_name",
+   "plan_only",
+   "population_attribute",
+   "seed",
+   "strata_layer",
+   "stratum_field",
+   "units_layer"
+  ],
+  "required": [
+   "strata_layer"
+  ]
+ },
+ "diagnose_topology": {
+  "properties": [
+   "layer_name",
+   "min_area"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "difference_layers": {
+  "properties": [
+   "input_layer",
+   "overlay_layer",
+   "symmetric"
+  ],
+  "required": [
+   "input_layer",
+   "overlay_layer"
+  ]
+ },
+ "dissolve_layer": {
+  "properties": [
+   "field",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "elevation_profile": {
+  "properties": [
+   "dem_layer",
+   "dem_vertical_unit",
+   "line_layer",
+   "num_samples"
+  ],
+  "required": [
+   "dem_layer",
+   "line_layer"
+  ]
+ },
+ "estimate_population_exposure": {
+  "properties": [
+   "area_layer",
+   "output_layer_name",
+   "population_raster_layer",
+   "raster_unit"
+  ],
+  "required": [
+   "area_layer",
+   "population_raster_layer"
+  ]
+ },
+ "estimate_road_speeds": {
+  "properties": [
+   "country",
+   "default_speed_kmh",
+   "overwrite",
+   "road_network_layer"
+  ],
+  "required": [
+   "road_network_layer"
+  ]
+ },
+ "evaluate_forecast_trigger": {
+  "properties": [
+   "as_of",
+   "comparison",
+   "date_field",
+   "layer_name",
+   "lead_days",
+   "min_exceedances",
+   "min_probability",
+   "probability_field",
+   "threshold",
+   "unit_field",
+   "value_field"
+  ],
+  "required": [
+   "layer_name",
+   "threshold",
+   "value_field"
+  ]
+ },
+ "execute_pyqgis_script": {
+  "properties": [
+   "script"
+  ],
+  "required": [
+   "script"
+  ]
+ },
+ "execute_read_only_sql": {
+  "properties": [
+   "connection_name",
+   "geometry_column",
+   "sql_query"
+  ],
+  "required": [
+   "sql_query"
+  ]
+ },
+ "explain_current_representation": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "export_layer": {
+  "properties": [
+   "format",
+   "layer_name",
+   "only_selected",
+   "output_path"
+  ],
+  "required": [
+   "format",
+   "layer_name"
+  ]
+ },
+ "export_layer_sld": {
+  "properties": [
+   "layer_name",
+   "output_path"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "export_layout_atlas": {
+  "properties": [
+   "coverage_layer_name",
+   "dpi",
+   "filename_field",
+   "layout_name",
+   "output_directory",
+   "output_format"
+  ],
+  "required": [
+   "coverage_layer_name",
+   "filename_field",
+   "layout_name",
+   "output_directory"
+  ]
+ },
+ "export_stored_data": {
+  "properties": [
+   "output_path"
+  ],
+  "required": [
+   "output_path"
+  ]
+ },
+ "export_temporal_animation_frames": {
+  "properties": [
+   "category_field",
+   "end_field",
+   "layer_name",
+   "output_dir",
+   "start_field",
+   "step_days"
+  ],
+  "required": [
+   "layer_name",
+   "start_field"
+  ]
+ },
+ "export_to_csv": {
+  "properties": [
+   "layer_name",
+   "only_selected",
+   "output_path",
+   "wkt_geometry"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "extract_features_from_imagery": {
+  "properties": [
+   "confidence_threshold",
+   "max_pixel_dimension",
+   "min_area_m2",
+   "output_layer_name",
+   "raster_layer"
+  ],
+  "required": [
+   "raster_layer"
+  ]
+ },
+ "extract_pdf_tables": {
+  "properties": [
+   "file_path",
+   "page"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "extract_word_tables": {
+  "properties": [
+   "file_path"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "fetch_building_footprints": {
+  "properties": [
+   "allow_large_download",
+   "bbox",
+   "country_name",
+   "max_features"
+  ],
+  "required": [
+   "bbox",
+   "country_name"
+  ]
+ },
+ "fetch_dem": {
+  "properties": [
+   "east",
+   "lat",
+   "layer_name",
+   "lon",
+   "north",
+   "output_name",
+   "output_path",
+   "radius_km",
+   "south",
+   "west"
+  ],
+  "required": []
+ },
+ "fetch_fts_funding_data": {
+  "properties": [
+   "country_iso3",
+   "plan_id",
+   "year"
+  ],
+  "required": [
+   "country_iso3"
+  ]
+ },
+ "fetch_gdacs_disaster_alerts": {
+  "properties": [
+   "bbox",
+   "country",
+   "layer_name",
+   "min_alert_level"
+  ],
+  "required": []
+ },
+ "fetch_geoboundaries": {
+  "properties": [
+   "admin_level",
+   "allow_large_download",
+   "iso3"
+  ],
+  "required": [
+   "admin_level",
+   "iso3"
+  ]
+ },
+ "fetch_hdx_admin_boundaries": {
+  "properties": [
+   "admin_level",
+   "allow_large_download",
+   "iso3"
+  ],
+  "required": [
+   "iso3"
+  ]
+ },
+ "fetch_nasa_active_fires": {
+  "properties": [
+   "bbox",
+   "days",
+   "layer_name",
+   "min_confidence"
+  ],
+  "required": [
+   "bbox"
+  ]
+ },
+ "fetch_nasa_eonet_events": {
+  "properties": [
+   "bbox",
+   "category",
+   "days",
+   "layer_name",
+   "status"
+  ],
+  "required": []
+ },
+ "fetch_osm_features": {
+  "properties": [
+   "bbox",
+   "key",
+   "value"
+  ],
+  "required": [
+   "bbox",
+   "key",
+   "value"
+  ]
+ },
+ "fetch_ucdp_conflict_events": {
+  "properties": [
+   "bbox",
+   "country",
+   "end_date",
+   "layer_name",
+   "max_events",
+   "min_deaths",
+   "start_date"
+  ],
+  "required": []
+ },
+ "fetch_usgs_earthquakes": {
+  "properties": [
+   "bbox",
+   "days",
+   "layer_name",
+   "max_events",
+   "min_magnitude"
+  ],
+  "required": []
+ },
+ "fetch_worldpop_population": {
+  "properties": [
+   "allow_whole_country",
+   "bbox",
+   "extent_layer",
+   "iso3",
+   "year"
+  ],
+  "required": [
+   "iso3"
+  ]
+ },
+ "field_calculator": {
+  "properties": [
+   "expression",
+   "layer_name",
+   "new_field"
+  ],
+  "required": [
+   "expression",
+   "layer_name",
+   "new_field"
+  ]
+ },
+ "field_statistics": {
+  "properties": [
+   "field",
+   "layer_name"
+  ],
+  "required": [
+   "field",
+   "layer_name"
+  ]
+ },
+ "finalize_jiaf_results": {
+  "properties": [
+   "bulk_accepted_flags",
+   "bulk_decided_by",
+   "bulk_rationale",
+   "export_csv_path",
+   "f1_count_missing",
+   "f1_count_zero",
+   "f1_min_sectors",
+   "f2_pct",
+   "f3_pct",
+   "f4_subpopulation_sectors",
+   "f5_share",
+   "f6_min_previous_pin",
+   "f6_pct",
+   "file_path",
+   "input_format",
+   "layer_key_field",
+   "layer_name",
+   "previous_file_path",
+   "previous_sheet_name",
+   "rules_profile",
+   "s4_sector_count",
+   "sectors_in_scope",
+   "sectors_sev_4",
+   "sectors_sev_5",
+   "sheet_name",
+   "write_fields",
+   "zero_severity_as"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "find_incident_reports": {
+  "properties": [
+   "bbox",
+   "country",
+   "days",
+   "layer_name",
+   "max_reports",
+   "sources"
+  ],
+  "required": []
+ },
+ "find_nearest_features": {
+  "properties": [
+   "input_layer",
+   "near_layer",
+   "neighbors"
+  ],
+  "required": [
+   "input_layer",
+   "near_layer"
+  ]
+ },
+ "find_tools": {
+  "properties": [
+   "need"
+  ],
+  "required": [
+   "need"
+  ]
+ },
+ "fix_geometries": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "forecast_trend": {
+  "properties": [
+   "date_field",
+   "group_by_field",
+   "layer_name",
+   "periods_ahead",
+   "value_field"
+  ],
+  "required": [
+   "date_field",
+   "layer_name",
+   "value_field"
+  ]
+ },
+ "gemini_grounded_search": {
+  "properties": [
+   "query"
+  ],
+  "required": [
+   "query"
+  ]
+ },
+ "generate_chart": {
+  "properties": [
+   "chart_type",
+   "color_palette",
+   "dpi",
+   "labels",
+   "output_path",
+   "title",
+   "values",
+   "x_label",
+   "y_label"
+  ],
+  "required": [
+   "chart_type",
+   "labels",
+   "title",
+   "values"
+  ]
+ },
+ "generate_contours": {
+  "properties": [
+   "band",
+   "interval",
+   "output_name",
+   "raster_layer"
+  ],
+  "required": [
+   "raster_layer"
+  ]
+ },
+ "generate_html_dashboard": {
+  "properties": [
+   "backdrop_layer",
+   "basemap",
+   "layers",
+   "output_path",
+   "title"
+  ],
+  "required": [
+   "layers"
+  ]
+ },
+ "generate_map_product_qa_checklist": {
+  "properties": [
+   "layer_name",
+   "layout_name",
+   "output_path"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "generate_mapping_task_grid": {
+  "properties": [
+   "aoi_layer",
+   "cell_size_m",
+   "export_geojson_path",
+   "output_layer_name",
+   "population_raster_layer",
+   "priority_points_layer"
+  ],
+  "required": [
+   "aoi_layer"
+  ]
+ },
+ "generate_report": {
+  "properties": [
+   "content",
+   "source_layers",
+   "title"
+  ],
+  "required": [
+   "content",
+   "title"
+  ]
+ },
+ "generate_sector_coverage_report": {
+  "properties": [
+   "group_by_field",
+   "output_path",
+   "reached_field",
+   "rows",
+   "target_field",
+   "title"
+  ],
+  "required": [
+   "group_by_field",
+   "reached_field",
+   "rows"
+  ]
+ },
+ "generate_situation_dashboard": {
+  "properties": [
+   "bbox",
+   "include_disasters",
+   "include_eonet",
+   "include_fires",
+   "output_path",
+   "title"
+  ],
+  "required": [
+   "bbox"
+  ]
+ },
+ "generate_spatial_report": {
+  "properties": [
+   "insights",
+   "source_layers",
+   "title"
+  ],
+  "required": [
+   "insights",
+   "title"
+  ]
+ },
+ "generate_temporal_dashboard": {
+  "properties": [
+   "backdrop_layer",
+   "basemap",
+   "layers",
+   "output_path",
+   "step_days",
+   "title"
+  ],
+  "required": [
+   "layers"
+  ]
+ },
+ "geocode_and_enrich": {
+  "properties": [
+   "location_name"
+  ],
+  "required": [
+   "location_name"
+  ]
+ },
+ "geocode_batch": {
+  "properties": [
+   "location_names"
+  ],
+  "required": [
+   "location_names"
+  ]
+ },
+ "georeference_image": {
+  "properties": [
+   "control_points",
+   "image_path",
+   "output_path",
+   "target_crs",
+   "transform_type"
+  ],
+  "required": [
+   "control_points",
+   "image_path",
+   "output_path"
+  ]
+ },
+ "get_attributes": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_crs": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_dataset_status": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_feature_count": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_jiaf_decisions": {
+  "properties": [],
+  "required": []
+ },
+ "get_jiaf_setup": {
+  "properties": [],
+  "required": []
+ },
+ "get_layer_confidence": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_layer_extent": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_layer_sensitivity": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_layers": {
+  "properties": [],
+  "required": []
+ },
+ "get_provenance_record": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "get_tool_operation_type": {
+  "properties": [
+   "tool_name"
+  ],
+  "required": [
+   "tool_name"
+  ]
+ },
+ "get_turn_transaction_log": {
+  "properties": [],
+  "required": []
+ },
+ "highlight_features": {
+  "properties": [
+   "expression",
+   "layer_name"
+  ],
+  "required": [
+   "expression",
+   "layer_name"
+  ]
+ },
+ "hillshade": {
+  "properties": [
+   "dem_layer"
+  ],
+  "required": [
+   "dem_layer"
+  ]
+ },
+ "histogram_equalization": {
+  "properties": [
+   "band",
+   "raster_layer"
+  ],
+  "required": [
+   "raster_layer"
+  ]
+ },
+ "hotspot_analysis": {
+  "properties": [
+   "pixel_size",
+   "point_layer",
+   "radius",
+   "weight_field"
+  ],
+  "required": [
+   "point_layer",
+   "radius"
+  ]
+ },
+ "import_humanitarian_table": {
+  "properties": [
+   "delimiter",
+   "file_path",
+   "kind",
+   "layer_key_field",
+   "layer_name",
+   "mapping",
+   "sheet_name",
+   "write_fields"
+  ],
+  "required": [
+   "file_path",
+   "kind"
+  ]
+ },
+ "import_jiaf_inputs": {
+  "properties": [
+   "file_path",
+   "input_format",
+   "layer_key_field",
+   "layer_name",
+   "sector",
+   "sheet_name",
+   "template_kind",
+   "write_fields"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "ingest_osm_features": {
+  "properties": [
+   "bbox",
+   "center_lat",
+   "center_lon",
+   "key",
+   "layer_name",
+   "radius_km",
+   "value"
+  ],
+  "required": [
+   "key",
+   "value"
+  ]
+ },
+ "inspect_canvas_visually": {
+  "properties": [
+   "prompt_guidance"
+  ],
+  "required": []
+ },
+ "interpolate_surface": {
+  "properties": [
+   "cell_size",
+   "field",
+   "method",
+   "point_layer"
+  ],
+  "required": [
+   "field",
+   "point_layer"
+  ]
+ },
+ "intersect_layers": {
+  "properties": [
+   "layer1",
+   "layer2"
+  ],
+  "required": [
+   "layer1",
+   "layer2"
+  ]
+ },
+ "invert_selection": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "join_by_attribute": {
+  "properties": [
+   "join_field",
+   "join_layer",
+   "target_field",
+   "target_layer"
+  ],
+  "required": [
+   "join_layer",
+   "target_layer"
+  ]
+ },
+ "list_layout_items": {
+  "properties": [
+   "layout_name"
+  ],
+  "required": [
+   "layout_name"
+  ]
+ },
+ "list_layouts": {
+  "properties": [],
+  "required": []
+ },
+ "list_map_themes": {
+  "properties": [],
+  "required": []
+ },
+ "list_scheduled_workflows": {
+  "properties": [],
+  "required": []
+ },
+ "list_schema_contracts": {
+  "properties": [],
+  "required": []
+ },
+ "list_tools_by_operation_type": {
+  "properties": [
+   "operation_type"
+  ],
+  "required": [
+   "operation_type"
+  ]
+ },
+ "load_3w_data": {
+  "properties": [
+   "admin_field",
+   "delimiter",
+   "file_path",
+   "org_field",
+   "sector_field",
+   "sheet_name"
+  ],
+  "required": [
+   "admin_field",
+   "file_path",
+   "org_field"
+  ]
+ },
+ "load_layer_style": {
+  "properties": [
+   "layer_name",
+   "style_path"
+  ],
+  "required": [
+   "layer_name",
+   "style_path"
+  ]
+ },
+ "load_project": {
+  "properties": [
+   "file_path"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "load_tabular_data_as_layer": {
+  "properties": [
+   "crs",
+   "delimiter",
+   "file_path",
+   "layer_name",
+   "sheet_name",
+   "wkt_field",
+   "x_field",
+   "y_field"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
+ "load_workflow_preset": {
+  "properties": [
+   "preset_name"
+  ],
+  "required": [
+   "preset_name"
+  ]
+ },
+ "location_allocation": {
+  "properties": [
+   "candidate_layer",
+   "demand_layer",
+   "num_facilities",
+   "weight_field"
+  ],
+  "required": [
+   "candidate_layer",
+   "demand_layer",
+   "num_facilities"
+  ]
+ },
+ "merge_layers": {
+  "properties": [
+   "layer_names_list"
+  ],
+  "required": [
+   "layer_names_list"
+  ]
+ },
+ "mosaic_rasters": {
+  "properties": [
+   "raster_layers_list"
+  ],
+  "required": [
+   "raster_layers_list"
+  ]
+ },
+ "obfuscate_sensitive_points": {
+  "properties": [
+   "admin_layer_name",
+   "cell_size",
+   "layer_name",
+   "method",
+   "output_layer_name",
+   "radius",
+   "seed"
+  ],
+  "required": [
+   "layer_name",
+   "method"
+  ]
+ },
+ "open_attribute_table": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "openai_grounded_search": {
+  "properties": [
+   "query"
+  ],
+  "required": [
+   "query"
+  ]
+ },
+ "optimal_hub_siting": {
+  "properties": [
+   "candidate_layer",
+   "demand_layer",
+   "max_distance"
+  ],
+  "required": [
+   "candidate_layer",
+   "demand_layer"
+  ]
+ },
+ "optimize_delivery_route": {
+  "properties": [
+   "additional_stops_layers",
+   "default_speed",
+   "direction_field",
+   "road_network_layer",
+   "speed_field",
+   "start_stop_name",
+   "stops_layer",
+   "strategy",
+   "value_backward",
+   "value_both",
+   "value_forward"
+  ],
+  "required": [
+   "stops_layer"
+  ]
+ },
+ "pan_sharpening": {
+  "properties": [
+   "ms_layer",
+   "pan_layer"
+  ],
+  "required": [
+   "ms_layer",
+   "pan_layer"
+  ]
+ },
+ "parse_dms_location": {
+  "properties": [
+   "location"
+  ],
+  "required": [
+   "location"
+  ]
+ },
+ "population_access_gap": {
+  "properties": [
+   "area_layer",
+   "default_speed",
+   "facility_layer",
+   "population_raster_layer",
+   "reach_buffer_m",
+   "reach_geometry",
+   "road_network_layer",
+   "strategy",
+   "travel_cost"
+  ],
+  "required": [
+   "area_layer",
+   "facility_layer",
+   "population_raster_layer",
+   "road_network_layer",
+   "travel_cost"
+  ]
+ },
+ "print_map": {
+  "properties": [
+   "output_path"
+  ],
+  "required": []
+ },
+ "raster_clip": {
+  "properties": [
+   "mask_layer",
+   "raster_layer"
+  ],
+  "required": [
+   "mask_layer",
+   "raster_layer"
+  ]
+ },
+ "recommend_map_representation": {
+  "properties": [
+   "layer_name",
+   "target_field",
+   "user_intent"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "recommend_visualization_method": {
+  "properties": [
+   "field",
+   "intended_message",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "record_jiaf_decisions": {
+  "properties": [
+   "pin_decisions",
+   "replace",
+   "severity_decisions"
+  ],
+  "required": []
+ },
+ "record_jiaf_setup": {
+  "properties": [
+   "areas_in_scope",
+   "country",
+   "hct_endorsed_scope",
+   "manual_edition",
+   "planning_cycle",
+   "population_groups",
+   "scope_note",
+   "sector_alignment",
+   "unit_of_analysis"
+  ],
+  "required": [
+   "country",
+   "manual_edition",
+   "planning_cycle",
+   "unit_of_analysis"
+  ]
+ },
+ "remove_layer": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "rename_layer": {
+  "properties": [
+   "new_name",
+   "old_name"
+  ],
+  "required": [
+   "new_name",
+   "old_name"
+  ]
+ },
+ "reproject_layer": {
+  "properties": [
+   "crs_code",
+   "layer_name"
+  ],
+  "required": [
+   "crs_code",
+   "layer_name"
+  ]
+ },
+ "run_allowlisted_processing_algorithm": {
+  "properties": [
+   "alg_id",
+   "new_layer_name",
+   "params"
+  ],
+  "required": [
+   "alg_id",
+   "params"
+  ]
+ },
+ "run_monitoring_workflow": {
+  "properties": [
+   "preset_name"
+  ],
+  "required": [
+   "preset_name"
+  ]
+ },
+ "run_query": {
+  "properties": [
+   "expression",
+   "layer_name"
+  ],
+  "required": [
+   "expression",
+   "layer_name"
+  ]
+ },
+ "run_steps": {
+  "properties": [
+   "steps"
+  ],
+  "required": [
+   "steps"
+  ]
+ },
+ "save_layer_style": {
+  "properties": [
+   "layer_name",
+   "output_path"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "save_project": {
+  "properties": [
+   "output_path"
+  ],
+  "required": []
+ },
+ "save_workflow_preset": {
+  "properties": [
+   "preset_name",
+   "workflow_json"
+  ],
+  "required": [
+   "preset_name",
+   "workflow_json"
+  ]
+ },
+ "schedule_recurring_workflow": {
+  "properties": [
+   "interval_minutes",
+   "max_runs",
+   "preset_name"
+  ],
+  "required": [
+   "interval_minutes",
+   "preset_name"
+  ]
+ },
+ "score_route_incident_risk": {
+  "properties": [
+   "buffer_distance",
+   "date_field",
+   "days_back",
+   "incident_layer",
+   "route_layer",
+   "weight_field"
+  ],
+  "required": [
+   "buffer_distance",
+   "incident_layer",
+   "route_layer"
+  ]
+ },
+ "search_fact_checks": {
+  "properties": [
+   "days",
+   "max_results",
+   "query",
+   "sources"
+  ],
+  "required": [
+   "query"
+  ]
+ },
+ "search_hdx_datasets": {
+  "properties": [
+   "limit",
+   "query"
+  ],
+  "required": [
+   "query"
+  ]
+ },
+ "search_stac_satellite_imagery": {
+  "properties": [
+   "bbox",
+   "end_date",
+   "limit",
+   "start_date"
+  ],
+  "required": [
+   "bbox",
+   "end_date",
+   "start_date"
+  ]
+ },
+ "search_web": {
+  "properties": [
+   "max_results",
+   "query"
+  ],
+  "required": [
+   "query"
+  ]
+ },
+ "select_by_attribute": {
+  "properties": [
+   "field",
+   "layer_name",
+   "value"
+  ],
+  "required": [
+   "field",
+   "layer_name",
+   "value"
+  ]
+ },
+ "select_by_location": {
+  "properties": [
+   "method",
+   "predicate",
+   "reference_layer",
+   "target_layer"
+  ],
+  "required": [
+   "reference_layer",
+   "target_layer"
+  ]
+ },
+ "set_dataset_status": {
+  "properties": [
+   "layer_name",
+   "note",
+   "status"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "set_layer_confidence": {
+  "properties": [
+   "layer_name",
+   "level",
+   "reason"
+  ],
+  "required": [
+   "layer_name",
+   "level"
+  ]
+ },
+ "set_layer_order": {
+  "properties": [
+   "layer_names"
+  ],
+  "required": [
+   "layer_names"
+  ]
+ },
+ "set_layer_sensitivity": {
+  "properties": [
+   "layer_name",
+   "level",
+   "reason"
+  ],
+  "required": [
+   "layer_name",
+   "level"
+  ]
+ },
+ "set_layer_transparency": {
+  "properties": [
+   "layer_name",
+   "opacity_percent"
+  ],
+  "required": [
+   "layer_name",
+   "opacity_percent"
+  ]
+ },
+ "set_task_preview": {
+  "properties": [
+   "code_snippet",
+   "is_destructive",
+   "rationale",
+   "task_id"
+  ],
+  "required": [
+   "code_snippet",
+   "task_id"
+  ]
+ },
+ "simplify_geometry": {
+  "properties": [
+   "layer_name",
+   "tolerance"
+  ],
+  "required": [
+   "layer_name",
+   "tolerance"
+  ]
+ },
+ "slope_analysis": {
+  "properties": [
+   "dem_layer",
+   "dem_vertical_unit"
+  ],
+  "required": [
+   "dem_layer"
+  ]
+ },
+ "spatial_join": {
+  "properties": [
+   "join_layer",
+   "target_layer"
+  ],
+  "required": [
+   "join_layer",
+   "target_layer"
+  ]
+ },
+ "split_lines_by_zones": {
+  "properties": [
+   "line_layer",
+   "output_name",
+   "zone_layer"
+  ],
+  "required": [
+   "line_layer",
+   "zone_layer"
+  ]
+ },
+ "stop_recurring_workflow": {
+  "properties": [
+   "preset_name"
+  ],
+  "required": [
+   "preset_name"
+  ]
+ },
+ "store_global_memory": {
+  "properties": [
+   "key",
+   "value"
+  ],
+  "required": [
+   "key",
+   "value"
+  ]
+ },
+ "store_project_memory": {
+  "properties": [
+   "key",
+   "value"
+  ],
+  "required": [
+   "key",
+   "value"
+  ]
+ },
+ "supervised_classification": {
+  "properties": [
+   "layer_name",
+   "training_layer"
+  ],
+  "required": [
+   "layer_name",
+   "training_layer"
+  ]
+ },
+ "tidy_project_layers": {
+  "properties": [
+   "apply"
+  ],
+  "required": []
+ },
+ "toggle_visibility": {
+  "properties": [
+   "layer_name",
+   "visible"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "travel_time_matrix": {
+  "properties": [
+   "allow_large",
+   "default_speed",
+   "destinations_layer",
+   "direction_field",
+   "origins_layer",
+   "road_network_layer",
+   "speed_field",
+   "strategy",
+   "value_backward",
+   "value_both",
+   "value_forward"
+  ],
+  "required": [
+   "destinations_layer",
+   "origins_layer",
+   "road_network_layer"
+  ]
+ },
+ "undo_last_operation": {
+  "properties": [
+   "confirmed"
+  ],
+  "required": []
+ },
+ "union_layers": {
+  "properties": [
+   "layer1",
+   "layer2"
+  ],
+  "required": [
+   "layer1",
+   "layer2"
+  ]
+ },
+ "unsupervised_classification": {
+  "properties": [
+   "layer_name",
+   "num_classes",
+   "seed"
+  ],
+  "required": [
+   "layer_name",
+   "num_classes"
+  ]
+ },
+ "update_layout_item_text": {
+  "properties": [
+   "item_id",
+   "layout_name",
+   "text"
+  ],
+  "required": [
+   "item_id",
+   "layout_name",
+   "text"
+  ]
+ },
+ "update_task": {
+  "properties": [
+   "code_snippet",
+   "rationale",
+   "result",
+   "status",
+   "task_id"
+  ],
+  "required": [
+   "status",
+   "task_id"
+  ]
+ },
+ "validate_schema": {
+  "properties": [
+   "contract_name",
+   "layer_name"
+  ],
+  "required": [
+   "contract_name",
+   "layer_name"
+  ]
+ },
+ "verify_crs_compatibility": {
+  "properties": [
+   "layer1",
+   "layer2"
+  ],
+  "required": [
+   "layer1",
+   "layer2"
+  ]
+ },
+ "voronoi_polygons": {
+  "properties": [
+   "buffer_percent",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "weighted_overlay_analysis": {
+  "properties": [
+   "align_to_first",
+   "raster_layers",
+   "resampling",
+   "weights"
+  ],
+  "required": [
+   "raster_layers",
+   "weights"
+  ]
+ },
+ "write_provenance_sidecar": {
+  "properties": [
+   "layer_name",
+   "output_path"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "zonal_statistics": {
+  "properties": [
+   "raster_layer",
+   "vector_layer"
+  ],
+  "required": [
+   "raster_layer",
+   "vector_layer"
+  ]
+ },
+ "zoom_to_feature": {
+  "properties": [
+   "expression",
+   "feature_id",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "zoom_to_layer": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ }
+}

@@ -31,6 +31,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Release gate (M0, 2026-10-14): a release is never built from a ref whose offline tests fail. The golden routing tables, the
+      # tool-schema snapshot and the size pins all run here, so a regression cannot ride out in a zip.
+      - name: Release gate - offline test suite
+        run: python -m unittest discover -s tests -t . -p "test_*.py"
       - name: Build the zip
         run: python plugin_upload.py
       - name: Check the zip matches metadata.txt and has the single top-level folder
