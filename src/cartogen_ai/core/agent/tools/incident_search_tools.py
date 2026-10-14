@@ -19,7 +19,7 @@ QGIS session.
 import contextlib
 import html
 import re
-import xml.etree.ElementTree as ElementTree
+import xml.etree.ElementTree as ElementTree  # nosec B405 -- DOCTYPE/ENTITY refused, size capped; no defusedxml in QGIS Python
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -121,7 +121,7 @@ def parse_reliefweb_rss(xml_text, country=None, since=None):
     # document that does is refused before parsing, and the text is capped.
     if len(xml_text) > _MAX_FEED_CHARS or "<!doctype" in xml_text.lower() or "<!entity" in xml_text.lower():
         raise ValueError("the feed was too large or declared entities, so it was not parsed")
-    root = ElementTree.fromstring(xml_text)  # noqa: S314 (DOCTYPE / ENTITY refused and size capped above)
+    root = ElementTree.fromstring(xml_text)  # noqa: S314  # nosec B314 -- DOCTYPE / ENTITY refused and size capped above, so no entity expansion or external reference can occur
     for item in root.iter("item"):
         title = (item.findtext("title") or "").strip()
         link = (item.findtext("link") or "").strip()
