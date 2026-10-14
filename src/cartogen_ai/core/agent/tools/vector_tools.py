@@ -653,6 +653,16 @@ def _describe_unreadable_download(path):
 RASTER_EXTENSIONS = (".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg", ".vrt", ".hgt", ".bil", ".dem", ".grd")
 
 
+def archive_source(local_path, ext):
+    """OGR source string for a file: a .zip is read in place through GDAL's /vsizip/ (a zipped shapefile or GeoPackage opens without
+    unzipping to disk, read-only, so a hostile archive cannot write anywhere); a .kmz is tried as itself first because the KML
+    drivers read it directly. Everything else is the path unchanged. Added rc42 (coverage audit 2026-10-14, 'open a zipped
+    shapefile'); before it a .zip was sent to the vector reader as a plain file and reported invalid. Pure string logic."""
+    if ext == ".zip" and not str(local_path).startswith("/vsi"):
+        return "/vsizip/" + str(local_path).replace("\\", "/")
+    return local_path
+
+
 def _other_sublayers_note(layer):
     """When a vector file holds several layers, say so: the first was opened and the user may have meant another (coverage audit
     2026-10-14, 'choose one layer inside a multi-layer container'). Never raises; None when there is nothing to add."""
@@ -702,9 +712,12 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None, sublayer=
         if ext in raster_exts:
             layer = QgsRasterLayer(local_path, name)
         else:
-            layer = QgsVectorLayer(local_path, name, "ogr")
+            source = archive_source(local_path, ext)
+            layer = QgsVectorLayer(source, name, "ogr")
+            if layer_name is None and source != local_path and layer.isValid():
+                layer.setName(os.path.splitext(os.path.basename(clean_path.rstrip("/")))[0] or "layer")
             if sublayer:
-                layer = QgsVectorLayer(f"{local_path}|layername={sublayer}", layer_name or str(sublayer), "ogr")
+                layer = QgsVectorLayer(f"{source}|layername={sublayer}", layer_name or str(sublayer), "ogr")
             else:
                 sublayer_note = _other_sublayers_note(layer)
             if ext == ".shp":

@@ -94,6 +94,76 @@ class TestDataSourceToolsLive(unittest.TestCase):
         self.assertTrue(chosen.get("success"), chosen)
         self.assertEqual(QgsProject.instance().mapLayersByName("picked")[0].source().split("layername=")[-1], "beta")
 
+    def _gpkg(self, name="pts", wkt="POINT(30 31)", crs="EPSG:4326"):
+        from qgis.core import QgsFeature, QgsGeometry
+        from cartogen_ai.core.agent.tools.export_tools import _write_vector
+        src = QgsVectorLayer(f"Point?crs={crs}&field=name:string&field=pop:integer", name, "memory")
+        feat = QgsFeature(src.fields())
+        feat.setGeometry(QgsGeometry.fromWkt(wkt))
+        feat.setAttributes(["a", 5])
+        src.dataProvider().addFeatures([feat])
+        path = os.path.join(tempfile.mkdtemp(), name + ".gpkg")
+        self.assertTrue(_write_vector(src, path, "GPKG").get("success"))
+        return path
+
+    def test_save_as_reprojects_and_keeps_only_the_chosen_fields(self):
+        from cartogen_ai.core.agent.tools.data_source_tools import create_empty_layer, save_layer_as
+        from qgis.core import QgsFeature, QgsGeometry
+        create_empty_layer("src", "point", [{"name": "name", "type": "string"}, {"name": "pop", "type": "integer"}])
+        layer = QgsProject.instance().mapLayersByName("src")[0]
+        feat = QgsFeature(layer.fields())
+        feat.setGeometry(QgsGeometry.fromWkt("POINT(30 31)"))
+        feat.setAttributes(["a", 5])
+        layer.dataProvider().addFeatures([feat])
+        out = os.path.join(tempfile.mkdtemp(), "out.gpkg")
+        res = save_layer_as("src", out, "gpkg", crs="EPSG:3857", fields=["name"], add_to_project=True)
+        self.assertTrue(res.get("success"), res)
+        saved = QgsProject.instance().mapLayersByName("out")[0]
+        self.assertEqual([f.name() for f in saved.fields() if f.name() != "fid"], ["name"])
+        self.assertEqual(saved.crs().authid(), "EPSG:3857")
+        self.assertGreater(abs(next(saved.getFeatures()).geometry().asPoint().x()), 1000)   # metres, not degrees
+
+    def test_save_as_refuses_unknown_fields_and_a_non_wgs84_geojson(self):
+        from cartogen_ai.core.agent.tools.data_source_tools import create_empty_layer, save_layer_as
+        create_empty_layer("src2", "point", [{"name": "name", "type": "string"}])
+        out = os.path.join(tempfile.mkdtemp(), "x.gpkg")
+        self.assertIn("Unknown field", save_layer_as("src2", out, "gpkg", fields=["nope"]).get("error", ""))
+        self.assertIn("WGS84", save_layer_as("src2", out.replace(".gpkg", ".geojson"), "geojson", crs="EPSG:3857").get("error", ""))
+
+    def test_a_layer_whose_file_moved_is_listed_and_relinked(self):
+        import shutil
+        from cartogen_ai.core.agent.tools.data_source_tools import find_broken_layers, repair_layer_source
+        path = self._gpkg("moved")
+        layer = QgsVectorLayer(path + "|layername=moved", "moved", "ogr")
+        self.assertTrue(layer.isValid())
+        QgsProject.instance().addMapLayer(layer)
+        new_dir = tempfile.mkdtemp()
+        new_path = os.path.join(new_dir, "moved.gpkg")
+        layer.setDataSource(path.replace("moved.gpkg", "gone.gpkg") + "|layername=moved", "moved", "ogr")   # simulate the move
+        shutil.copy(path, new_path)
+        broken = find_broken_layers()
+        self.assertEqual([b["layer_name"] for b in broken["layers"]], ["moved"])
+        res = repair_layer_source("moved", new_path=new_path)
+        self.assertTrue(res.get("success"), res)
+        self.assertTrue(QgsProject.instance().mapLayersByName("moved")[0].isValid())
+
+    def test_a_zipped_shapefile_opens_in_place(self):
+        import zipfile
+        from qgis.core import QgsVectorFileWriter
+        from cartogen_ai.core.agent.tools.vector_tools import add_layer_from_path
+        folder = tempfile.mkdtemp()
+        src = QgsVectorLayer("Point?crs=EPSG:4326&field=name:string", "zp", "memory")
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "ESRI Shapefile"
+        QgsVectorFileWriter.writeAsVectorFormatV3(src, os.path.join(folder, "zp.shp"), QgsProject.instance().transformContext(), opts)
+        zpath = os.path.join(tempfile.mkdtemp(), "zp.zip")
+        with zipfile.ZipFile(zpath, "w") as zf:
+            for name in os.listdir(folder):
+                zf.write(os.path.join(folder, name), name)
+        res = add_layer_from_path(zpath)
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["layer_name"], "zp")
+
 
 if __name__ == "__main__":
     unittest.main()

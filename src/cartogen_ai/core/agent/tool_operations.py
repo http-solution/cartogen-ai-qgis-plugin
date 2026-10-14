@@ -158,6 +158,9 @@ TOOL_OPERATION_TYPES = {
     "create_empty_layer": CREATE,   # M1: adds a new layer (and a file when file_path is given, behind the overwrite preview)
     "add_basemap": CREATE,          # M1: adds a tile layer; fetched by QGIS, not by the plugin
     "add_web_layer": CREATE,
+    "find_broken_layers": READ,
+    "repair_layer_source": MODIFY,
+    "save_layer_as": PUBLISH,
 
     # -- imagery_extraction.py --
     "extract_features_from_imagery": CREATE,

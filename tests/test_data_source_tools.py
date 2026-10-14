@@ -125,3 +125,60 @@ class TestOfferedForPlainRequests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBrokenLayerRepairHelpers(unittest.TestCase):
+    def test_source_file_path(self):
+        self.assertEqual(ds.source_file_path("/data/a.gpkg|layername=roads"), "/data/a.gpkg")
+        self.assertEqual(ds.source_file_path("C:/d/roads.shp"), "C:/d/roads.shp")
+        for not_a_file in ("https://x.org/a.geojson", "dbname='x' host=y table=\"t\"", "memory?geometry=Point", "/vsizip/a.zip",
+                           "type=xyz&url=https://a/{z}", "", None):
+            self.assertIsNone(ds.source_file_path(not_a_file), not_a_file)
+
+    def test_replacement_source_keeps_the_suffix(self):
+        self.assertEqual(ds.replacement_source("/old/a.gpkg|layername=roads", "/new/a.gpkg"), "/new/a.gpkg|layername=roads")
+        self.assertEqual(ds.replacement_source("/old/a.shp", "/new/a.shp"), "/new/a.shp")
+
+    def test_candidates_are_found_case_insensitively_and_bounded(self):
+        import os
+        import tempfile
+        root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(root, "a", "b"))
+        for rel in ("a/Roads.SHP", "a/b/roads.shp", "other.txt"):
+            open(os.path.join(root, rel), "w").close()
+        found = ds.find_file_candidates("roads.shp", [root])
+        self.assertEqual([os.path.relpath(p, root) for p in found], sorted([os.path.join("a", "Roads.SHP"), os.path.join("a", "b", "roads.shp")]))
+        self.assertEqual([os.path.relpath(p, root) for p in ds.find_file_candidates("roads.shp", [root], max_depth=1)],
+                         [os.path.join("a", "Roads.SHP")])   # depth 1 reaches a/ but not a/b/
+        self.assertEqual(ds.find_file_candidates("roads.shp", [os.path.join(root, "missing"), None]), [])
+        self.assertLessEqual(len(ds.find_file_candidates("roads.shp", [root], max_files=1)), 1)
+
+
+class TestSaveAsPlan(unittest.TestCase):
+    def test_all_fields_by_default_and_case_insensitive_subset(self):
+        self.assertEqual(ds.save_as_plan(None, ["a", "b", "c"]), ([0, 1, 2], []))
+        self.assertEqual(ds.save_as_plan(["C", "a"], ["a", "b", "c"]), ([2, 0], []))
+
+    def test_unknown_fields_are_reported(self):
+        self.assertEqual(ds.save_as_plan(["a", "zz"], ["a", "b"]), ([0], ["zz"]))
+
+
+class TestArchiveSource(unittest.TestCase):
+    def test_zip_is_read_in_place_and_other_files_are_unchanged(self):
+        from cartogen_ai.core.agent.tools.vector_tools import archive_source
+        self.assertEqual(archive_source("/t/x.zip", ".zip"), "/vsizip//t/x.zip")
+        self.assertEqual(archive_source("C:\\d\\x.zip", ".zip"), "/vsizip/C:/d/x.zip")
+        self.assertEqual(archive_source("/t/x.kmz", ".kmz"), "/t/x.kmz")
+        self.assertEqual(archive_source("/t/x.shp", ".shp"), "/t/x.shp")
+        self.assertEqual(archive_source("/vsizip//t/x.zip", ".zip"), "/vsizip//t/x.zip")
+
+
+class TestOfferedForRepairAndSaveAs(unittest.TestCase):
+    def test_phrases(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        rows = {"which layers are broken": "find_broken_layers", "fix the broken layer paths": "repair_layer_source",
+                "relink the layer to the new folder": "repair_layer_source",
+                "save the layer as geopackage in epsg 4326 with only the name field": "save_layer_as",
+                "open the zipped shapefile": "add_layer_from_path"}
+        offered = {q: {x["function"]["name"] for x in router.filter_relevant_tools(q)} for q in rows}
+        self.assertEqual({q: t for q, t in rows.items() if t not in offered[q]}, {})

@@ -31,6 +31,19 @@ _TOOL_ALIASES = {
         "scratch layer", "temporary layer", "new geopackage layer", "new shapefile", "layer to digitize", "layer to digitise",
         "empty polygon layer", "empty point layer", "empty line layer", "new table",
     ],
+    "find_broken_layers": [
+        "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
+        "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",
+    ],
+    "repair_layer_source": [
+        "repair the layer", "repair layer", "fix the broken", "relink", "re-link", "point the layer to", "change the data source",
+        "change the source", "set data source", "resolve the missing", "find the moved",
+    ],
+    "save_layer_as": [
+        "save as", "save the layer as", "save layer as", "save it in epsg", "save with only", "save only the selected",
+        "export in another crs", "export with only the fields", "save in a different crs", "export to a different projection",
+        "keep only the fields", "export only the fields",
+    ],
     "add_basemap": [
         "basemap", "base map", "background map", "add openstreetmap", "add osm", "satellite imagery background",
         "satellite basemap", "add a satellite", "open street map", "topographic background", "carto light", "carto dark",
@@ -125,7 +138,7 @@ _TOOL_ALIASES = {
     # QGIS-vocabulary audit 2026-10-14 (docs/QGIS_COVERAGE_GAP_ANALYSIS_2026-10-14.md): the foundation tools had NO alias at all and were found
     # only through accidental word overlap with their names and descriptions, which is what broke in rc23. Plain phrases, as people say them.
     'add_layer_from_path': [
-        'add the shapefile', 'add a shapefile', 'add the geopackage', 'import the gpx', 'import the kml', 'import the geojson', 'import the file', 'import the shapefile', 'open the file', 'load the file', 'open the shapefile', 'load the shapefile', 'add the raster', 'load the raster', 'add the dem', 'open the geotiff', 'load the geojson', 'add the geojson', 'add the gpx', 'add the kml', 'add this file', 'load this file', '.shp', '.gpkg', '.geojson', '.tif', '.kml', '.gpx', 'from this url', 'from the url', 'download link',
+        'add the shapefile', 'add a shapefile', 'add the geopackage', 'import the gpx', 'import the kml', 'import the geojson', 'import the file', 'import the shapefile', 'open the file', 'load the file', 'open the shapefile', 'load the shapefile', 'add the raster', 'load the raster', 'add the dem', 'open the geotiff', 'load the geojson', 'add the geojson', 'add the gpx', 'add the kml', 'add this file', 'load this file', '.shp', '.gpkg', '.geojson', '.tif', '.kml', '.gpx', 'from this url', 'from the url', 'download link', 'zipped shapefile', 'zip file', 'zipped file', 'open the zip', 'load the zip', '.zip', '.kmz', 'kmz file', 'table from the geopackage', 'table of the geopackage', 'layer from the geopackage', 'layer inside the geopackage', 'one layer of the file',
     ],
     'select_by_attribute': [
         'select the features named', 'select features named', 'select the district named', 'select by name', 'select by attribute', 'select the feature with', 'select the districts named',

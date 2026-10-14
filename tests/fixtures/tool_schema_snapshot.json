@@ -1226,6 +1226,10 @@
    "file_path"
   ]
  },
+ "find_broken_layers": {
+  "properties": [],
+  "required": []
+ },
  "find_incident_reports": {
   "properties": [
    "bbox",
@@ -1961,6 +1965,16 @@
    "old_name"
   ]
  },
+ "repair_layer_source": {
+  "properties": [
+   "layer_name",
+   "new_path",
+   "search_folder"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "reproject_layer": {
   "properties": [
    "crs_code",
@@ -2006,6 +2020,22 @@
   ],
   "required": [
    "steps"
+  ]
+ },
+ "save_layer_as": {
+  "properties": [
+   "add_to_project",
+   "crs",
+   "fields",
+   "format",
+   "layer_name",
+   "only_selected",
+   "output_path"
+  ],
+  "required": [
+   "format",
+   "layer_name",
+   "output_path"
   ]
  },
  "save_layer_style": {

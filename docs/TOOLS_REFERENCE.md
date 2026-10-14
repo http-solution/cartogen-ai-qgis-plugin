@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (215 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (218 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1751,6 +1751,36 @@ Create a new EMPTY vector layer (or a table with no geometry) with the fields yo
 | `fields` | array[object] | no |  |
 | `crs` | string | no | e.g. EPSG:4326 (default) |
 | `file_path` | string | no | optional .gpkg/.shp/.geojson to create on disk |
+
+### `find_broken_layers`
+
+List the project layers whose data source cannot be read (moved or deleted file, lost drive) with the path they point to. Read-only.
+
+_No parameters._
+
+### `repair_layer_source`
+
+Point a broken layer at its data again. Give new_path if you know where the file is; otherwise the project folder (and search_folder, if given) is searched for a file with the same name. One match is applied; several are listed so you can choose one.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `new_path` | string | no |  |
+| `search_folder` | string | no |  |
+
+### `save_layer_as`
+
+Save a vector layer to a file in another CRS and/or with only some fields and/or only the selected features (the QGIS 'Save As' options). format: gpkg, shp, geojson or kml. The original layer is not changed and the new file is NOT added to the project unless add_to_project is true.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `output_path` | string | yes |  |
+| `format` | string | yes |  |
+| `crs` | string | no | target CRS, e.g. EPSG:4326; omit to keep the layer's CRS |
+| `fields` | array[string] | no | field names to keep; omit for all |
+| `only_selected` | boolean | no |  |
+| `add_to_project` | boolean | no |  |
 
 ## dataset_status_tools
 

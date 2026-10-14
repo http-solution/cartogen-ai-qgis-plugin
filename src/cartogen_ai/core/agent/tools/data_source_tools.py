@@ -287,3 +287,179 @@ def add_web_layer(service_type, url, layer_name=None, layer=None, crs=None, imag
     QgsProject.instance().addMapLayer(web)
     return {"success": True, "layer_name": web.name(), "service_type": service_type,
             "note": "QGIS fetches data from this service itself whenever the map draws; the service sees this computer's address."}
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# Broken layer paths and Save As (M1b)
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+_MAX_SEARCH_FILES = 50000
+_MAX_SEARCH_DEPTH = 6
+
+
+def source_file_path(source):
+    """The file part of a layer source ('/data/a.gpkg|layername=roads' -> '/data/a.gpkg'), or None for a source that is not a local
+    file (a URL, a database, a memory layer). Pure."""
+    text = str(source or "")
+    if not text or "://" in text or text.startswith(("dbname=", "memory", "/vsi", "type=", "url=")) or "=" in text.split("|")[0]:
+        return None
+    return text.split("|")[0] or None
+
+
+def find_file_candidates(filename, folders, max_depth=_MAX_SEARCH_DEPTH, max_files=_MAX_SEARCH_FILES):
+    """Paths of files called `filename` under `folders` (case-insensitive, breadth-limited). Bounded so a search started at a drive
+    root cannot run away: it stops after `max_files` entries or `max_depth` levels, and never follows symlinked folders. Pure file-system
+    walk, no QGIS."""
+    wanted = str(filename).lower()
+    found, seen = [], 0
+    for folder in folders:
+        if not folder or not os.path.isdir(folder):
+            continue
+        base_depth = os.path.abspath(folder).count(os.sep)
+        for root, dirs, files in os.walk(folder, followlinks=False):
+            if os.path.abspath(root).count(os.sep) - base_depth >= max_depth:
+                dirs[:] = []
+            seen += len(files)
+            if seen > max_files:
+                return sorted(set(found))
+            found.extend(os.path.join(root, f) for f in files if f.lower() == wanted)
+    return sorted(set(found))
+
+
+def replacement_source(old_source, new_file):
+    """The old source string with its file part swapped (keeps '|layername=...' etc.)."""
+    parts = str(old_source).split("|", 1)
+    return new_file + ("|" + parts[1] if len(parts) > 1 else "")
+
+
+@register_tool(
+    "find_broken_layers",
+    "List the project layers whose data source cannot be read (moved or deleted file, lost drive) with the path they point to. Read-only.",
+    {"type": "object", "properties": {}, "required": []})
+def find_broken_layers():
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    broken = [{"layer_name": lyr.name(), "source": lyr.source(), "file": source_file_path(lyr.source())}
+              for lyr in QgsProject.instance().mapLayers().values() if not lyr.isValid()]
+    return {"success": True, "broken_count": len(broken), "layers": broken,
+            "message": "No broken layers." if not broken else "Use repair_layer_source to point a layer at the new location."}
+
+
+@register_tool(
+    "repair_layer_source",
+    "Point a broken layer at its data again. Give new_path if you know where the file is; otherwise the project folder (and search_folder, "
+    "if given) is searched for a file with the same name. One match is applied; several are listed so you can choose one.",
+    {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_path": {"type": "string"}, "search_folder": {"type": "string"}},
+     "required": ["layer_name"]})
+def repair_layer_source(layer_name, new_path=None, search_folder=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layers = QgsProject.instance().mapLayersByName(layer_name)
+    if not layers:
+        return {"error": f"Layer '{layer_name}' not found."}
+    layer = layers[0]
+    old_file = source_file_path(layer.source())
+    if old_file is None:
+        return {"error": f"'{layer_name}' is not backed by a local file ({layer.source()[:80]}), so there is no path to repair."}
+    if new_path:
+        target = resolve_output_path(new_path)
+        candidates = [target] if os.path.isfile(target) else []
+        if not candidates:
+            return {"error": f"No file at {target}."}
+    else:
+        project_home = QgsProject.instance().homePath()
+        folders = [f for f in (project_home, resolve_output_path(search_folder) if search_folder else None) if f]
+        candidates = find_file_candidates(os.path.basename(old_file), folders)
+        if not candidates:
+            return {"error": (f"No file called {os.path.basename(old_file)} under {', '.join(folders) or 'the project folder (the project is not saved)'}. "
+                              "Give new_path or a search_folder.")}
+        if len(candidates) > 1:
+            return {"error": "More than one file matches; say which one with new_path.", "candidates": candidates[:20]}
+    new_source = replacement_source(layer.source(), candidates[0])
+    layer.setDataSource(new_source, layer.name(), layer.providerType())
+    if not layer.isValid():
+        return {"error": f"QGIS still cannot read {candidates[0]} as the layer's data; the layer was left pointing there, check the file type."}
+    return {"success": True, "layer_name": layer.name(), "old_path": old_file, "new_path": candidates[0]}
+
+
+_SAVE_AS_DRIVERS = {"gpkg": ("GPKG", ".gpkg"), "geopackage": ("GPKG", ".gpkg"), "shp": ("ESRI Shapefile", ".shp"),
+                    "shapefile": ("ESRI Shapefile", ".shp"), "geojson": ("GeoJSON", ".geojson"), "kml": ("KML", ".kml")}
+
+
+def save_as_plan(fields_requested, layer_field_names):
+    """([indexes], unknown names) for a field subset; an empty request means every field. Pure."""
+    if not fields_requested:
+        return list(range(len(layer_field_names))), []
+    lower = {n.lower(): i for i, n in enumerate(layer_field_names)}
+    unknown = [f for f in fields_requested if str(f).lower() not in lower]
+    return [lower[str(f).lower()] for f in fields_requested if str(f).lower() in lower], unknown
+
+
+@register_tool(
+    "save_layer_as",
+    "Save a vector layer to a file in another CRS and/or with only some fields and/or only the selected features (the QGIS 'Save As' "
+    "options). format: gpkg, shp, geojson or kml. The original layer is not changed and the new file is NOT added to the project unless "
+    "add_to_project is true.",
+    {"type": "object", "properties": {
+        "layer_name": {"type": "string"}, "output_path": {"type": "string"}, "format": {"type": "string"},
+        "crs": {"type": "string", "description": "target CRS, e.g. EPSG:4326; omit to keep the layer's CRS"},
+        "fields": {"type": "array", "items": {"type": "string"}, "description": "field names to keep; omit for all"},
+        "only_selected": {"type": "boolean"}, "add_to_project": {"type": "boolean"}},
+     "required": ["layer_name", "output_path", "format"]})
+def save_layer_as(layer_name, output_path, format, crs=None, fields=None, only_selected=False, add_to_project=False,  # noqa: A002
+                  confirmed=False):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsVectorFileWriter)
+    layers = QgsProject.instance().mapLayersByName(layer_name)
+    if not layers or not isinstance(layers[0], QgsVectorLayer):
+        return {"error": f"Vector layer '{layer_name}' not found."}
+    layer = layers[0]
+    driver_ext = _SAVE_AS_DRIVERS.get(str(format).lower())
+    if driver_ext is None:
+        return {"error": f"format must be one of {', '.join(sorted(set(_SAVE_AS_DRIVERS)))}."}
+    driver, ext = driver_ext
+    path = resolve_output_path(output_path)
+    if not os.path.splitext(path)[1]:
+        path += ext
+    indexes, unknown = save_as_plan(fields, [f.name() for f in layer.fields()])
+    if unknown:
+        return {"error": f"Unknown field(s): {', '.join(map(str, unknown))}. The layer has: {', '.join(f.name() for f in layer.fields())}."}
+    target_crs = QgsCoordinateReferenceSystem(crs) if crs else layer.crs()
+    if not target_crs.isValid():
+        return {"error": f"Unknown crs '{crs}'. Use a code such as EPSG:4326."}
+    if only_selected and layer.selectedFeatureCount() == 0:
+        return {"error": "only_selected was requested but nothing is selected. Select features first, or omit only_selected."}
+    from .export_tools import overwrite_preview, remember_written
+    if not confirmed:
+        preview = overwrite_preview("save_layer_as", {"layer_name": layer_name, "output_path": output_path, "format": format, "crs": crs,
+                                                      "fields": fields, "only_selected": only_selected,
+                                                      "add_to_project": add_to_project}, path)
+        if preview:
+            return preview
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = driver
+    options.fileEncoding = "UTF-8"
+    options.attributes = indexes
+    options.onlySelectedFeatures = bool(only_selected)
+    if target_crs != layer.crs():
+        options.ct = QgsCoordinateTransform(layer.crs(), target_crs, QgsProject.instance())
+    if driver == "GeoJSON" and target_crs.authid() != "EPSG:4326":
+        # RFC 7946 GeoJSON is WGS84 only; a legacy "crs" member is ignored by most readers (rc20 audit A12). Say so rather than
+        # silently writing a file other software will place wrongly.
+        return {"error": "GeoJSON files are WGS84 (EPSG:4326) by standard. Choose gpkg for another CRS, or crs=EPSG:4326."}
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(layer, path, QgsProject.instance().transformContext(), options)
+    error, message = result[0], result[1]
+    if error != QgsVectorFileWriter.WriterError.NoError:
+        return {"error": f"Save failed: {message}"}
+    remember_written(path)
+    out = {"success": True, "output_path": path, "crs": target_crs.authid(), "fields_kept": len(indexes),
+           "only_selected": bool(only_selected)}
+    if driver == "ESRI Shapefile" and any(len(layer.fields()[i].name()) > 10 for i in indexes):
+        out["shapefile_note"] = "Shapefile field names are limited to 10 characters; longer names were shortened by the writer."
+    if add_to_project:
+        saved = QgsVectorLayer(path, os.path.splitext(os.path.basename(path))[0], "ogr")
+        if saved.isValid():
+            QgsProject.instance().addMapLayer(saved)
+            out["added_layer"] = saved.name()
+    return out
