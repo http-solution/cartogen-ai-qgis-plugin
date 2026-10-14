@@ -60,8 +60,10 @@ class TestFilteringAndMerging(unittest.TestCase):
         self.assertEqual([r["source"] for r in merged], ["usgs", "gdacs"])
 
     def test_the_source_table_rates_every_source_and_says_what_is_not_searched(self):
-        self.assertEqual(set(inc.DEFAULT_SOURCES), set(inc.SOURCES))
-        self.assertTrue(all(s["tier"] == 1 for s in inc.SOURCES.values()))
+        # News (added 2026-10-14 at the owner's request) is the one source that is NOT asked by default and the only one below tier 1.
+        self.assertEqual(set(inc.DEFAULT_SOURCES), set(inc.SOURCES) - {"news"})
+        self.assertTrue(all(s["tier"] == 1 for k, s in inc.SOURCES.items() if k != "news"))
+        self.assertEqual(inc.SOURCES["news"]["tier"], 3)
         for name in ("Reuters Fact Check", "AFP Fact Check", "ACLED", "Social media"):
             self.assertIn(name, inc.NOT_SEARCHED)
 
@@ -95,7 +97,7 @@ class TestFanOut(unittest.TestCase):
         outcomes = {s: self._ok(s, 3) for s in inc.SOURCES}
         with self._stub(outcomes):
             out = inc.find_incident_reports_network_phase(country="Yemen", sources=list(inc.SOURCES), max_reports=4)
-        self.assertEqual((len(out["records"]), out["total_matched"], out["truncated"]), (4, 15, True))
+        self.assertEqual((len(out["records"]), out["total_matched"], out["truncated"]), (4, 3 * len(inc.SOURCES), True))
 
     def test_the_reply_names_what_answered_what_failed_and_what_was_not_searched(self):
         outcomes = {"gdacs": self._ok("gdacs", 1), "usgs": (None, "HTTP 503"), "eonet": self._ok("eonet", 0), "ucdp": self._ok("ucdp", 0),

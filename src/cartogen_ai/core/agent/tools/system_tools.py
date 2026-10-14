@@ -360,7 +360,7 @@ def _validate_script_safety(script: str):
     return None
 
 
-@register_tool("search_web", "Search internet for real-time information or facts. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
+@register_tool("search_web", "Search internet for real-time information or facts; every hit has a URL: cite them. For a sourced, structured answer or for news use web_research. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
 def search_web(query: str, max_results: int = 3):
     try:
         # `ddgs` first, `duckduckgo_search` as a fallback for an environment that
@@ -384,12 +384,21 @@ def search_web(query: str, max_results: int = 3):
             formatted = [f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}" for r in results]
             return {"results": "\n\n".join(formatted)}
     except ImportError:
-        return {
-            "error": "Required package 'ddgs' is missing. Ask the user to install it via "
-            "the qpip plugin, or manually in the OSGeo4W Shell: python -m pip install ddgs"
-        }
+        # The optional `ddgs` package is absent (every clean QGIS profile): this used to be a dead end, and "find the information from the
+        # internet and give the source" stopped working (owner report 2026-10-14). Fall back to the package-free search, which returns the URL
+        # of every hit, so the answer can still cite its sources.
+        return _search_web_without_package(query, max_results)
     except Exception as e:
         return {"error": f"Search failed: {e}"}
+
+
+def _search_web_without_package(query, max_results):
+    from .web_research_tools import CITATION_RULE, fetch_web_results
+    results, notes = fetch_web_results(query, max_results)
+    if not results:
+        return {"error": "The web search could not be reached: " + "; ".join(notes) + ". Say the search returned nothing; do not answer from memory as if it had been searched."}
+    formatted = [f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r.get('snippet', '')}" for r in results]
+    return {"results": "\n\n".join(formatted), "citation_rule": CITATION_RULE}
 
 
 def resolve_gemini_search_config():

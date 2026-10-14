@@ -9,6 +9,7 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 from . import vector_tools
 from . import data_source_tools
 from . import attribute_edit_tools
+from . import web_research_tools
 from . import map_view_tools
 from . import raster_tools
 from . import styling_tools
@@ -127,4 +128,5 @@ __all__ = [
     "transaction_tools",
     "trigger_tools",
     "vector_tools",
+    "web_research_tools",
 ]
