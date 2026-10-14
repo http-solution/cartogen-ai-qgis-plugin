@@ -7,6 +7,29 @@
    "basemap"
   ]
  },
+ "add_feature_from_wkt": {
+  "properties": [
+   "attributes",
+   "crs",
+   "layer_name",
+   "wkt"
+  ],
+  "required": [
+   "layer_name",
+   "wkt"
+  ]
+ },
+ "add_field": {
+  "properties": [
+   "field_name",
+   "field_type",
+   "layer_name"
+  ],
+  "required": [
+   "field_name",
+   "layer_name"
+  ]
+ },
  "add_incident_point": {
   "properties": [
    "contamination_status",
@@ -649,6 +672,12 @@
    "travel_cost"
   ]
  },
+ "clear_selection": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": []
+ },
  "clip_layer": {
   "properties": [
    "input_layer",
@@ -805,6 +834,26 @@
    "layer_name"
   ],
   "required": [
+   "layer_name"
+  ]
+ },
+ "delete_features": {
+  "properties": [
+   "expression",
+   "layer_name",
+   "only_selected"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "delete_field": {
+  "properties": [
+   "field_name",
+   "layer_name"
+  ],
+  "required": [
+   "field_name",
    "layer_name"
   ]
  },
@@ -1955,6 +2004,18 @@
    "layer_name"
   ]
  },
+ "rename_field": {
+  "properties": [
+   "field_name",
+   "layer_name",
+   "new_name"
+  ],
+  "required": [
+   "field_name",
+   "layer_name",
+   "new_name"
+  ]
+ },
  "rename_layer": {
   "properties": [
    "new_name",
@@ -2131,6 +2192,14 @@
    "query"
   ]
  },
+ "select_all_features": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "select_by_attribute": {
   "properties": [
    "field",
@@ -2143,6 +2212,17 @@
    "value"
   ]
  },
+ "select_by_expression": {
+  "properties": [
+   "expression",
+   "layer_name",
+   "mode"
+  ],
+  "required": [
+   "expression",
+   "layer_name"
+  ]
+ },
  "select_by_location": {
   "properties": [
    "method",
@@ -2153,6 +2233,20 @@
   "required": [
    "reference_layer",
    "target_layer"
+  ]
+ },
+ "set_attribute_value": {
+  "properties": [
+   "expression",
+   "feature_id",
+   "field",
+   "layer_name",
+   "value"
+  ],
+  "required": [
+   "field",
+   "layer_name",
+   "value"
   ]
  },
  "set_dataset_status": {

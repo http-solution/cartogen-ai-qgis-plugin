@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (218 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (227 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1607,6 +1607,96 @@ Split a budget the user gives across areas in proportion to need (optionally tim
 | `rounding` | number | no | Optional: round amounts to multiples of this (e.g. 100); the total is preserved. |
 | `unit_label` | string | no | Optional label for the budget's unit (e.g. 'USD'); echoed in the result. |
 | `output_field` | string | no | Optional: write each area's amount to the layer under this field name. |
+
+## attribute_edit_tools
+
+### `add_feature_from_wkt`
+
+Add one feature to an existing layer from WKT geometry (POINT, LINESTRING, POLYGON ...). crs is the CRS of the WKT coordinates (default: the layer's own); it is transformed in code. attributes is {field: value}. The geometry type must match the layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `wkt` | string | yes |  |
+| `attributes` | object | no |  |
+| `crs` | string | no | e.g. EPSG:4326 |
+
+### `add_field`
+
+Add an empty field to a layer. field_type: string, integer, long, double, date or datetime.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+| `field_type` | string | no |  |
+
+### `clear_selection`
+
+Deselect all features: of one layer, or of every layer in the project when layer_name is omitted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | no |  |
+
+### `delete_features`
+
+Delete features from a layer: those matching an expression, or the currently selected ones (only_selected). Destructive: a preview with the exact count is shown for confirmation first. Never deletes everything unless the expression says so.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no |  |
+| `only_selected` | boolean | no |  |
+
+### `delete_field`
+
+Delete a field (column) and all its values from a layer. Destructive: a preview is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+
+### `rename_field`
+
+Rename a field of a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+| `new_name` | string | yes |  |
+
+### `select_all_features`
+
+Select every feature of a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `select_by_expression`
+
+Select features of a layer with any QGIS expression (for example "population" > 1000 AND "type" = 'school'). mode: replace (default), add, remove or intersect with the current selection.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | yes |  |
+| `mode` | string | no | replace, add, remove or intersect |
+
+### `set_attribute_value`
+
+Set one field to a value on specific features: pick them by feature_id or by an expression. Numeric fields need numbers; a typo is refused, not turned into NULL. Use the string null to clear a value. Changes data: a preview with the count is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes |  |
+| `value` | string | yes |  |
+| `feature_id` | integer | no |  |
+| `expression` | string | no |  |
 
 ## barrier_tools
 

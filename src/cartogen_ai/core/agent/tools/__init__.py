@@ -8,6 +8,7 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 # Import tool modules to populate TOOL_REGISTRY & TOOLS_SCHEMA
 from . import vector_tools
 from . import data_source_tools
+from . import attribute_edit_tools
 from . import raster_tools
 from . import styling_tools
 from . import export_tools
@@ -67,6 +68,7 @@ __all__ = [
     "TOOL_REGISTRY",
     "allocation_tools",
     "analysis_tools",
+    "attribute_edit_tools",
     "barrier_tools",
     "cartographic_advisory_tools",
     "confidence_tools",
