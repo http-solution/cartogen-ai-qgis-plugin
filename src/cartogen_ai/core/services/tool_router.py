@@ -193,6 +193,10 @@ _TOOL_ALIASES = {
         "raster looks washed out", "raster looks flat", "fix the raster colors",
         "raster color ramp", "raster contrast", "stretch the raster",
         "raster looks grey", "raster looks gray", "colorize the raster",
+        # Long-request audit 2026-10-14: "style the result with a green to red colour ramp" offered only the vector style tools.
+        "colour ramp", "color ramp", "colour scheme", "color scheme", "green to red", "red to green", "blue to red", "style the raster",
+        "style the dem", "style the slope", "style the result with", "pseudocolor", "contrast stretch", "raster colours", "raster colors",
+        "population ramp",
     ],
     # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
     # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its

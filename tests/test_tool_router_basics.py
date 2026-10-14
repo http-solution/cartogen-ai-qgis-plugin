@@ -44,6 +44,27 @@ GOLDEN = {
 }
 
 
+# Requests of more than 25 words. They use the stricter long-request rules (generic words discounted, a minimum score), so they are guarded separately.
+GOLDEN_LONG = {
+    'I have a layer of health facilities called smoke_facilities and a road network smoke_roads. Please work out which of the facilities can be reached within one hour of Hub_A by road, show the reachable ones in green and the others in red, and tell me how many are in each group.': {'classify_facilities_by_access'},
+    'Create a map of Yemen ADM1 governorate boundaries with labels, download them if they are not already in the project, style them with a pale fill and a grey outline, and add a title and scale bar in a print layout I can export as a PDF.': {'apply_labels', 'create_print_layout', 'fetch_geoboundaries', 'fetch_hdx_admin_boundaries', ('change_layer_color', 'apply_categorized_style')},
+    'Download the OpenStreetMap hospitals and clinics for the area covered by smoke_boundary, buffer them by two kilometres, dissolve the buffers into a single polygon and calculate the area of the result in square kilometres.': {'buffer_analysis', 'calculate_area', 'dissolve_layer', 'fetch_osm_features'},
+    'Take the population raster yem_ppp_2020 and the 1500 m service area around Hub_A and estimate how many people live inside it, giving me the three labelled figures and saying which one is an upper bound.': {'estimate_population_exposure'},
+    'Check the internet for recent incidents, disasters or conflict events reported near Amman in Jordan during the last thirty days from named reliable sources and put whatever you find on the map with the source and the date for each record.': {'find_incident_reports'},
+    'Compute the slope of smoke_dem in degrees, classify it into five classes, style the result with a green to red colour ramp and make a print layout of it with a legend and a title that I can export.': {'apply_raster_stretch', 'create_print_layout', 'slope_analysis'},
+    'Rank the three candidate hub locations in smoke_hubs by their average distance to the points in smoke_points and tell me which hub serves the points best and by how much it beats the other two candidates.': {'optimal_hub_siting'},
+    'Remove the layer smoke_zones from the project, then rename the layer smoke_admin to districts, reproject it to EPSG:4326 and export it as a GeoPackage in the project folder under the name districts_4326.': {'export_layer', 'remove_layer', 'rename_layer', 'reproject_layer'},
+    'Make an interactive HTML dashboard of the health facilities in smoke_facilities with a basemap, a layer control and a popup that shows the facility name, and save it in the project folder so that I can send it to the donors.': {'generate_html_dashboard'},
+    'I need a delivery route that starts at Hub_A and visits each of the five points in smoke_points in the shortest order using the road network smoke_roads, and I want the route drawn as a line above the roads with the total distance reported.': {'optimize_delivery_route'},
+    'Has the claim that a video of Houthi fighters in Dhale was filmed recently been fact-checked by any of the outlets, and if so what did they conclude, please answer in English and mention the outlet and the date.': {'search_fact_checks'},
+    'Geocode this list of towns: Amman, Irbid, Zarqa, Aqaba, Madaba, Salt, Jerash, Karak, Tafilah and Maan, put them on the map as points labelled with the town names, and then zoom the map to the new layer.': {'apply_labels', 'geocode_batch', 'zoom_to_layer'},
+    'Load the earthquakes with a magnitude of 4.5 or more from the last thirty days within a box around Turkey, classify the points by magnitude band, label the largest events and tell me how many events fall in each band.': {'fetch_usgs_earthquakes'},
+    'Calculate a severity index for smoke_admin_dup from population and need using the name field admin_name, write the score to a field called sev and make a map where the worst affected districts stand out clearly.': {'calculate_severity_index'},
+    'Clip smoke_points to the boundary smoke_boundary, merge the result with smoke_hubs, add a field with the distance to the nearest hub and export the final layer to CSV with the coordinates included.': {'clip_layer', 'export_layer', 'merge_layers'},
+    'Find all schools within two kilometres of the flooded area in the GDACS alert layer, show them on the map, count how many there are in each district of smoke_admin and give me a table I can paste into a situation report.': {"fetch_gdacs_disaster_alerts", ("fetch_osm_features", "ingest_osm_features")},
+}
+
+
 class TestPlainRequestsAreOfferedTheirTools(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -58,10 +79,22 @@ class TestPlainRequestsAreOfferedTheirTools(unittest.TestCase):
                 problems.append(f"{query!r}: not offered {missing}")
         self.assertEqual(problems, [], "\n".join(problems))
 
+    def test_golden_long_requests(self):
+        """A tuple in the set means any one of its tools is enough."""
+        problems = []
+        for query, needed in GOLDEN_LONG.items():
+            self.assertGreater(len(query.split()), 25, query)
+            offered = {t["function"]["name"] for t in self.router.filter_relevant_tools(query)}
+            missing = [n for n in needed if (not (set(n) & offered) if isinstance(n, tuple) else n not in offered)]
+            if missing:
+                problems.append(f"{query[:70]!r}: not offered {missing}")
+        self.assertEqual(problems, [], chr(10).join(problems))
+
     def test_every_golden_tool_is_a_registered_tool(self):
         registered = {t["function"]["name"] for t in TOOLS_SCHEMA}
-        for query, needed in GOLDEN.items():
-            self.assertTrue(needed <= registered, f"{query!r} names an unknown tool: {sorted(needed - registered)}")
+        for query, needed in list(GOLDEN.items()) + list(GOLDEN_LONG.items()):
+            flat = {x for n in needed for x in (n if isinstance(n, tuple) else (n,))}
+            self.assertTrue(flat <= registered, f"{query!r} names an unknown tool: {sorted(flat - registered)}")
 
     def test_a_short_layer_request_is_not_filled_with_alphabetical_noise(self):
         offered = [t["function"]["name"] for t in self.router.filter_relevant_tools("remove the layer smoke_zones")]

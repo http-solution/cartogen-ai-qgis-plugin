@@ -30,6 +30,10 @@ _TABLE = (
     ("graduated_style", r"\b(graduated|color ramp|colour ramp|symboli[sz]e\w*|choropleth)\b", ("apply_graduated_style",), ()),
     ("categorized_style", r"\b(style|colou?r)\b.{0,40}\b(red|green|amber|blue|yellow|categor\w*)\b|\bred and green\b",
      ("apply_categorized_style", "change_layer_color"), ()),
+    # Long-request audit 2026-10-14: "style them with a pale fill and a grey outline" matched neither style row above (no red/green/blue word),
+    # so a 47-word map request was offered no tool that can change a fill or an outline.
+    ("fill_outline_style", r"\b(pale|light|dark|solid|no|transparent|semi-?transparent)\s+fill\b|\b(fill|outline|border|stroke)\s+(colou?r|width)\b|\b(grey|gray|black|white|red|blue|green)\s+(outline|border|stroke)\b|\bstyle\s+(it|them|the layer|these)\b",
+     ("change_layer_color", "apply_categorized_style"), ()),
     ("slope", r"\b(slope|steep|terrain)\b", ("slope_analysis",), ()),
     ("elevation_download", r"\b(srtm|opentopography|terrain tiles?|elevation source|digital elevation|dem)\b", ("fetch_dem",), ()),
     ("population_data", r"\b(worldpop|population (raster|grid|data|exposure)|exposed population|people (living|exposed))\b",
