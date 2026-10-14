@@ -351,6 +351,7 @@ class ToolRouter:
             return self.full_schema_list
 
         query_lower = user_query.lower()
+        long_query = len(user_query.split()) > _LONG_QUERY_WORDS
         # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
         # check below) keeps every word, since a multi-word alias phrase like "rank the
         # districts" is matched as a whole substring, not word-by-word.
@@ -448,7 +449,14 @@ class ToolRouter:
             # real word-boundary membership tests instead of "is this text contained anywhere in
             # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
             # not the only thing standing between a short query word and a false match.
-            name_words = set(name.lower().split("_")) - _GENERIC_NAME_WORDS
+            # Generic words are discounted only for a LONG request, which is where the measurement that justified it was made. For a
+            # short one ("zoom to the layer", "create layer for Jordan ADM1", "remove the layer X") "layer", "add", "export", "create" ARE the
+            # signal: from rc23 on the discount applied to every request, add_layer_from_path, remove_layer, zoom_to_layer, export_layer and
+            # the other layer tools stopped being offered, and ties were then broken alphabetically (apply_*, calculate_*). Found by replaying
+            # 40 plain requests against every release (tests/test_tool_router_basics.py is the permanent guard).
+            name_words = set(name.lower().split("_"))
+            if long_query:
+                name_words -= _GENERIC_NAME_WORDS
             desc_words = set(re.findall(r"\w+", desc))
 
             score = 0
@@ -459,7 +467,7 @@ class ToolRouter:
             # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
             # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
             description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
-            score += 2 * min(description_hits, _DESCRIPTION_HIT_CAP)
+            score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
 
             # Curated alias/synonym match score
             for alias in _TOOL_ALIASES.get(name, []):
