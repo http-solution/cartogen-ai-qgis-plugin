@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.0-rc40
+version=1.16.0-rc41
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,18 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.0-rc40 (2026-10-13):
+changelog=v1.16.0-rc41 (2026-10-14):
+    No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used.
+    - Stop takes effect during a model call: Pressing Stop while the assistant was waiting for the model took 25 to 30 seconds to show, because the wait only ended when the reply did. The wait now checks Stop every quarter of a second, ends the turn as 'Stopped by user' rather than an API error, and does not resend the request. Checked by offline tests only; not tried against a real provider.
+    - Script edits to file layers are reported honestly: A script works on a copy of a file or database layer, so an edit it made to such a layer never reached the real one, yet the reply said it had. The reply now says the edit was NOT applied and points to an editing tool. Layers a script creates are flagged as temporary (lost when the project closes unless saved or exported). Memory layers still receive same-count edits. Two new live checks run in QGIS 4.2.2 in CI.
+    - A styled raster stays styled: After the assistant applied a colour ramp to a raster, a follow-up that checks the promised result told it to call a categorized-style tool, and it re-stretched the raster to grey. Styling tools now count as delivering a layer, so no follow-up is sent.
+    - Task templates state a default only where it is used: A matched task template used to add 'Given: threshold = 5 km', 'imagery = most recent low-cloud scene' or 'population_src = WorldPop' to requests that never mentioned them. A default is now stated only when a tool in the task's chain can use that slot (issue 304, owner decision).
+    - Routing words for access by road: 'Which facilities are beyond N minutes or km by road' now points the assistant to classify_facilities_by_access, the tool that adds the green reached and red beyond layer, for any number of facilities (the prompt said more than about 200).
+    - Incident wording, Memory dialog, cloud card, busy chat: find_incident_reports tells the model to say 'reported by', never 'verified'. The Memory dialog says whether notes are saved with the project. The cloud-override card says that layer names, field names, types, CRS and counts always reach the cloud model. A message sent while a reply is running now says it was kept in the box instead of being ignored silently.
+    - Security scan notes: Bandit's two XML findings (B405, B314) are marked with the reason: both feed parsers refuse any DOCTYPE or ENTITY and cap the size before parsing.
+    - Not hand-tested: Everything above is checked by the offline suite and CI (including live checks in QGIS 4.2.2) only. Stop latency, the card and dialog text, the raster fix and the routing words need a hand run; the corrected live-test rows are in the bundle.
+
+v1.16.0-rc40 (2026-10-13):
     Release candidate 40 for 1.16.0. No breaking changes -- still requires QGIS 4.2+. Adds a fact-check lookup, flags point positions the model typed, and fixes downloads behind a proxy.
     - New tool: search_fact_checks: Answers 'has this claim, video or photo been fact-checked?' from the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano (searchable in Arabic). Every reply names the outlets that answered or failed and says that only each outlet's newest 10 to 25 entries are searched, so no match is never evidence that a claim is true, false or unchecked. Reuters, AFP, Africa Check and AP refuse automated requests and cannot be asked. The six feeds were queried live from a development session; not hand-tested in QGIS.
     - Point positions the model typed are flagged: Coordinates passed to add_point_layer, add_incident_point or execute_pyqgis_script that appear in neither your message nor an earlier tool result are flagged in the tool result and in the final reply ('Unverified point positions'). This closes the gap noted in rc39. It never blocks, and it cannot see coordinates computed or read from a file inside a script.
