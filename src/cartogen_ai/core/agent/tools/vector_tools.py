@@ -28,6 +28,7 @@ except ImportError:
     QFont = None
 
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...validators.expression_screen import screen_expression
 from ...logger import log_event
 import contextlib
 from ...net import build_request as _net_build_request
@@ -196,6 +197,9 @@ def run_query(layer_name, expression):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    blocked = screen_expression(expression)
+    if blocked:
+        return {"error": blocked}
     expr = QgsExpression(expression)
     if expr.hasParserError():
         return {"error": f"Invalid expression: {expr.parserErrorString()}"}
@@ -331,6 +335,9 @@ def highlight_features(layer_name, expression):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    blocked = screen_expression(expression)
+    if blocked:
+        return {"error": blocked}
     expr = QgsExpression(expression)
     if expr.hasParserError():
         return {"error": f"Invalid expression: {expr.parserErrorString()}"}
@@ -1127,6 +1134,9 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     # bad expression/missing field returns cleanly without partially building (and
     # discarding) a QgsPalLayerSettings/QgsTextFormat pair.
     if expression:
+        blocked = screen_expression(expression)
+        if blocked:
+            return {"error": blocked}
         parsed = QgsExpression(expression)
         if parsed.hasParserError():
             return {"error": f"Invalid expression: {parsed.parserErrorString()}"}
@@ -1785,6 +1795,9 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
         expression = None
         context = None
         if value_fn is None:
+            blocked = screen_expression(expression_text)
+            if blocked:
+                return {"error": blocked}
             expression = QgsExpression(expression_text)
             if expression.hasParserError():
                 return {"error": f"Invalid expression: {expression.parserErrorString()}"}
@@ -2028,6 +2041,9 @@ def zoom_to_feature(layer_name, feature_id=None, expression=None):
         return {"error": "Provide only one of feature_id or expression, not both."}
 
     if expression:
+        blocked = screen_expression(expression)
+        if blocked:
+            return {"error": blocked}
         expr = QgsExpression(expression)
         if expr.hasParserError():
             return {"error": f"Invalid expression: {expr.parserErrorString()}"}
