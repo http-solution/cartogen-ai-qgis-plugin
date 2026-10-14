@@ -96,12 +96,128 @@ _TOOL_ALIASES = {
     # _processing_allowlist.py; phrases are the names users know from the Processing toolbox and the Vector/Raster menus.
     "run_allowlisted_processing_algorithm": [
         "symmetrical difference", "symmetric difference", "k-means", "kmeans", "k means cluster", "dbscan", "reclassify", "reclassification",
-        "sample raster", "raster sampling", "raster values at", "join by nearest", "join attributes by location", "count points in polygon",
+        "sample raster", "raster sampling", "raster values at", "join by nearest", "join attributes by location", "count points in polygon", "count points in each", "points per polygon", "points in each polygon",
         "cell statistics", "tin interpolation", "idw", "statistics by categories", "pansharp", "shortest path", "extract by location",
         "create grid", "create a grid", "make a grid", "fishnet", "regular grid", "native:", "gdal:", "qgis:", "processing algorithm", "processing toolbox",
     ],
     "hotspot_analysis": ["dbscan", "density clusters", "clusters of incidents", "hot spots"],
     "get_feature_count": ["how many features", "feature count", "count the features", "number of features", "how many records", "how many rows"],
+    # QGIS-vocabulary audit 2026-10-14 (docs/QGIS_COVERAGE_GAP_ANALYSIS_2026-10-14.md): the foundation tools had NO alias at all and were found
+    # only through accidental word overlap with their names and descriptions, which is what broke in rc23. Plain phrases, as people say them.
+    'add_layer_from_path': [
+        'add the shapefile', 'add a shapefile', 'add the geopackage', 'import the gpx', 'import the kml', 'import the geojson', 'import the file', 'import the shapefile', 'open the file', 'load the file', 'open the shapefile', 'load the shapefile', 'add the raster', 'load the raster', 'add the dem', 'open the geotiff', 'load the geojson', 'add the geojson', 'add the gpx', 'add the kml', 'add this file', 'load this file', '.shp', '.gpkg', '.geojson', '.tif', '.kml', '.gpx', 'from this url', 'from the url', 'download link',
+    ],
+    'select_by_attribute': [
+        'select the features named', 'select features named', 'select the district named', 'select by name', 'select by attribute', 'select the feature with', 'select the districts named',
+    ],
+    'highlight_features': [
+        'select by expression', 'select features where', 'select the features where', 'select all features where', 'select where', 'districts where', 'points where', 'roads where', 'features where', 'records where', ' is over ', ' is greater than ', ' is less than ', ' is more than ', ' is above ', ' is below ', 'highlight the features', 'highlight features',
+    ],
+    'run_query': [
+        'filter the layer', 'filter layer', 'filter by expression', 'show only the features', 'show only features', 'only the features where', 'subset of the layer',
+    ],
+    'field_calculator': [
+        'calculate a field', 'calculate the field', 'add a field', 'new field', 'field calculator', 'update the field', 'fill the field', 'set the field', 'calculate a new field', 'with an expression', 'using an expression', 'from an expression', 'compute a field', 'add a column', 'new column',
+    ],
+    'field_statistics': [
+        'statistics of the', 'statistics for the', 'summary statistics', 'basic statistics', 'mean of the', 'average of the', 'sum of the', 'minimum of', 'maximum of', 'unique values', 'how many unique', 'min and max',
+    ],
+    'get_attributes': [
+        'list the fields', 'what fields', 'show the fields', 'field names', 'column names', 'list the columns', 'which columns', 'what attributes', 'list the attributes',
+    ],
+    'open_attribute_table': [
+        'open the attribute table', 'show the attribute table', 'attribute table of', 'open the table',
+    ],
+    'zoom_to_layer': [
+        'zoom to the layer', 'zoom to layer', 'zoom to the extent of', 'zoom in on the layer', 'show me the layer', 'center the map on the layer', 'fit the map to', 'zoom to all',
+    ],
+    'zoom_to_feature': [
+        'zoom to the feature', 'zoom to feature', 'zoom to the district', 'zoom to the selected', 'zoom to selection', 'zoom to the selection', 'zoom to where', 'zoom to the city of',
+    ],
+    'remove_layer': [
+        'remove the layer', 'delete the layer', 'remove layer', 'delete layer', 'drop the layer', 'get rid of the layer', 'take the layer off', 'close the layer',
+    ],
+    'rename_layer': [
+        'rename the layer', 'rename layer', 'change the name of the layer', 'call the layer', 'name the layer',
+    ],
+    'toggle_visibility': [
+        'hide the layer', 'show the layer', 'turn off the layer', 'turn on the layer', 'make the layer visible', 'make the layer invisible', 'switch off the layer', 'switch on the layer', 'untick the layer', 'tick the layer', 'hide it', 'unhide',
+    ],
+    'set_layer_order': [
+        'move the layer to the top', 'move the layer to the bottom', 'bring the layer to the front', 'send the layer to the back', 'layer order', 'draw order', 'put the layer above', 'put the layer below', 'move the layer above', 'move the layer below', 'reorder the layers', 'stacking order',
+    ],
+    'export_layer': [
+        'export the layer', 'export layer', 'save the layer as', 'save layer as', 'save as shapefile', 'save as geojson', 'save as geopackage', 'export to shapefile', 'export to geojson', 'export to geopackage', 'export to gpkg', 'export to kml', 'export the selected', 'export only the selected', 'write the layer to a file',
+    ],
+    'export_to_csv': [
+        'export to csv', 'export the table', 'save as csv', 'save to csv', 'export the attribute table', 'write a csv', 'as a csv file',
+    ],
+    'reproject_layer': [
+        'reproject', 're-project', 'change the projection', 'transform the layer to', 'convert the layer to epsg', 'to utm', 'to epsg', 'change the crs of the layer to', 'convert to utm',
+    ],
+    'clip_layer': [
+        'clip the', 'clip layer', 'cut the layer to', 'crop the layer', 'clip to the boundary', 'clip by the boundary',
+    ],
+    'merge_layers': [
+        'merge the', 'merge layers', 'merge these layers', 'combine the layers', 'combine layers', 'append the layers', 'put the layers together',
+    ],
+    'dissolve_layer': [
+        'dissolve', 'merge the polygons by', 'aggregate the polygons', 'combine the polygons by',
+    ],
+    'union_layers': [
+        'union of', 'union the', 'overlay union',
+    ],
+    'intersect_layers': [
+        'intersect the', 'intersection of', 'where the two layers overlap', 'overlap of the', 'common area of',
+    ],
+    'difference_layers': [
+        'difference of', 'difference between the layers', 'erase the', 'cut out the', 'subtract the', 'everything outside',
+    ],
+    'buffer_analysis': [
+        'buffer', 'buffers', 'distance around', 'within a distance of', 'area around', 'zone around', 'radius around', 'ring around',
+    ],
+    'centroid': [
+        'centroid', 'centroids', 'center point of', 'centre point of', 'middle point of',
+    ],
+    'convex_hull': [
+        'convex hull', 'smallest polygon around', 'outline around the points', 'hull of the',
+    ],
+    'simplify_geometry': [
+        'simplify', 'generalize', 'generalise', 'reduce the vertices', 'reduce the number of vertices', 'reduce detail',
+    ],
+    'fix_geometries': [
+        'fix geometries', 'fix invalid', 'repair the geometries', 'repair invalid', 'invalid geometries', 'make the geometries valid', 'fix the geometry errors',
+    ],
+    'join_by_attribute': [
+        'join the table', 'join a table', 'join the csv', 'join by field', 'join by attribute', 'attribute join', 'join on the', 'join the spreadsheet', 'add the columns from', 'table join',
+    ],
+    'spatial_join': [
+        'spatial join', 'join by location', 'join based on location', 'join the attributes by location', 'which polygon each point', 'assign the district to each', 'tag each point with',
+    ],
+    'select_by_location': [
+        'select by location', 'select the points inside', 'select points inside', 'select features inside', 'select features within', 'select the features within', 'select the features that intersect', 'select features that intersect', 'select the ones inside', 'intersecting the',
+    ],
+    'invert_selection': [
+        'invert the selection', 'invert selection', 'reverse the selection', 'select the opposite', 'select everything else', 'select the rest',
+    ],
+    'save_project': [
+        'save the project', 'save project', 'save my work', 'save the map project',
+    ],
+    'load_project': [
+        'open the project', 'load the project', 'open project', 'open a project', 'open the qgz', 'open the qgs', 'load the qgz',
+    ],
+    'get_crs': [
+        'what crs', 'which crs', 'what is the crs', 'what projection', 'which projection', 'what coordinate system', 'which coordinate system', 'crs of the layer',
+    ],
+    'find_tools': [
+        'which tool', 'what tool', 'is there a tool', 'is there a way to', 'what can you do', 'list the tools', 'what tools',
+    ],
+    'get_turn_transaction_log': [
+        'what did you change', 'what have you changed', 'what did you do', 'what have you done', 'show the history', 'processing history', 'show the log of changes', 'list the changes you made', 'history of changes',
+    ],
+    'undo_last_operation': [
+        'undo', 'undo the last', 'revert the last', 'take that back', 'roll back', 'go back to before', 'undo that', 'undo what you just did',
+    ],
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "find the location of", "where is",
